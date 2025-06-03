@@ -17,7 +17,7 @@ Target ICP: Startups, GEO Specialists, Marketing teams
 
 ## Project Structure
 ```
-/mudra-final
+.
 ├── app/                    # Next.js app router
 │   ├── (auth)/            # Auth routes (login, signup, etc.)
 │   ├── (dashboard)/       # Dashboard routes
@@ -42,7 +42,11 @@ Target ICP: Startups, GEO Specialists, Marketing teams
 │   ├── jobs/            # Background job processing
 │   ├── analysis/        # Analysis business logic
 │   ├── stripe/          # Stripe configuration
-│   └── utils.ts         # Utility functions
+│   └── utils/           # General utilities
+│       ├── constants.ts
+│       ├── helpers.ts
+│       ├── validators.ts
+│       └── rate-limits.ts
 ├── prisma/              # Database schema and migrations
 ├── public/              # Static assets
 ├── hooks/               # Custom React hooks (feature-based)

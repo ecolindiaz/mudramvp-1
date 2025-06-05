@@ -51,7 +51,7 @@ const data = {
   navMain: [
     {
       title: "My Scores",
-      url: "#",
+      url: "/dashboard",
       icon: IconTrendingUp,
       isActive: true,
     },
@@ -72,7 +72,7 @@ const data = {
     },
     {
       title: "Agent Chat",
-      url: "#",
+      url: "/dashboard/chat",
       icon: IconRobot,
     },
   ],

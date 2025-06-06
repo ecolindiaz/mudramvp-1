@@ -158,7 +158,7 @@ export function BadgeDelta({
               "bg-tremor-background-subtle dark:bg-dark-tremor-background-subtle",
           )}
         >
-          <DeltaIcon deltaType={deltaType} iconStyle="line" />
+          <DeltaIcon deltaType={deltaType || "neutral"} iconStyle="line" />
         </span>
       </span>
     )
@@ -169,7 +169,7 @@ export function BadgeDelta({
       className={cn(badgeDeltaVariants({ variant, deltaType, className }))}
       {...props}
     >
-      <DeltaIcon deltaType={deltaType} iconStyle={iconStyle} />
+      <DeltaIcon deltaType={deltaType || "neutral"} iconStyle={iconStyle || "filled"} />
       {value}
     </span>
   )

@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
-
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Card,
@@ -142,13 +141,13 @@ const chartConfig = {
 
 export function ChartAreaInteractive() {
   const isMobile = useIsMobile()
-  const [timeRange, setTimeRange] = React.useState("90d")
+  const [timeRange, setTimeRange] = React.useState(isMobile ? "7d" : "90d")
+  const [prevIsMobile, setPrevIsMobile] = React.useState(isMobile)
 
-  React.useEffect(() => {
-    if (isMobile) {
-      setTimeRange("7d")
-    }
-  }, [isMobile])
+  if (isMobile !== prevIsMobile) {
+    setPrevIsMobile(isMobile)
+    setTimeRange(isMobile ? "7d" : "90d")
+  }
 
   const filteredData = chartData.filter((item) => {
     const date = new Date(item.date)

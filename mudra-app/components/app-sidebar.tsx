@@ -53,7 +53,6 @@ const data = {
       title: "My Scores",
       url: "/dashboard",
       icon: IconTrendingUp,
-      isActive: true,
     },
     {
       title: "Analysis",

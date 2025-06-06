@@ -126,7 +126,7 @@ const data = {
   navSecondary: [
     {
       title: "Brand Profile",
-      url: "#",
+      url: "/dashboard/brand-profile",
       icon: IconUser,
     },
     {

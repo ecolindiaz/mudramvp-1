@@ -14,6 +14,7 @@
  ** Crawler Health Score
  ** Content Authority Score 
  ** Footprint Score
+ ** Technical Structure Score
 
 ## Analyzis Page
  ** Query Performance

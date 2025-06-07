@@ -25,6 +25,8 @@ import {
   IconWorldWww,
   IconTrendingUp,
   IconUser,
+  IconChecklist,
+  IconMessageChatbot,
 } from "@tabler/icons-react"
 
 import { NavDocuments } from "@/components/nav-documents"
@@ -70,14 +72,21 @@ const data = {
       icon: IconWorldWww,
     },
     {
-      title: "Agent Chat",
-      url: "/dashboard/chat",
-      icon: IconRobot,
-    },
-    {
       title: "Brand Profile",
       url: "/dashboard/brand-profile",
       icon: IconUser,
+    },
+  ],
+  navImprove: [
+    {
+      title: "Tasks",
+      url: "/dashboard/tasks",
+      icon: IconChecklist,
+    },
+    {
+      title: "Agent Chat",
+      url: "/dashboard/chat",
+      icon: IconMessageChatbot,
     },
   ],
   navClouds: [
@@ -142,6 +151,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent className="px-2 bg-black">
         <div className="mb-6">
           <NavMain items={data.navMain} />
+        </div>
+        
+        {/* Improve Section */}
+        <div className="mb-6">
+          <div className="px-2 py-2 text-xs font-medium text-white/60 uppercase tracking-wider">
+            Improve
+          </div>
+          <NavMain items={data.navImprove} />
         </div>
         
         {/* Magic Button */}

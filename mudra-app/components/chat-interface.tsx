@@ -84,8 +84,8 @@ export function ChatInterface() {
                   
                   <Card className={`max-w-[80%] border-white/10 ${
                     message.role === "user" 
-                      ? "bg-gray-900" 
-                      : "bg-gray-900"
+                      ? "bg-black" 
+                      : "bg-black"
                   }`}>
                     <CardContent className="p-3">
                       <p className="text-sm leading-relaxed">{message.content}</p>
@@ -99,7 +99,7 @@ export function ChatInterface() {
 
                   {message.role === "user" && (
                     <Avatar className="w-8 h-8">
-                      <AvatarFallback className="bg-gray-700 border border-white/10">
+                      <AvatarFallback className="bg-black border border-white/10">
                         <User className="w-4 h-4 text-white" />
                       </AvatarFallback>
                     </Avatar>

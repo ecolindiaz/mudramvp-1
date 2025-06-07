@@ -136,7 +136,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar collapsible="offcanvas" className="bg-black" {...props}>
       <SidebarHeader className="pb-6 bg-black">
         <div className="flex justify-center w-full py-2 pointer-events-none select-none">
-          <img src="/images/mudra-logo.png" alt="Mudra" className="!size-8" />
+          <img src="/images/mudra-logo.png" alt="Mudra" className="!size-12" />
         </div>
       </SidebarHeader>
       <SidebarContent className="px-2 bg-black">

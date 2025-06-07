@@ -29,28 +29,26 @@ function ClientNavigation({
 }) {
   return (
     <SidebarMenu className="space-y-1">
-      {items.map((item, index) => {
+      {items.map((item) => {
         const isActive = pathname === item.url
         
         return (
-          <div key={item.title}>
-            <SidebarMenuItem>
-              <SidebarMenuButton 
-                tooltip={item.title} 
-                isActive={isActive} 
-                asChild
-                className="h-9 px-3 text-sm font-medium"
-              >
-                <Link href={item.url}>
-                  {item.icon && <item.icon className="w-4 h-4 mr-2" />}
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            {index < items.length - 1 && (
-              <div className="mx-4 my-2 border-t border-white/10" />
-            )}
-          </div>
+          <SidebarMenuItem key={item.title}>
+            <SidebarMenuButton 
+              tooltip={item.title} 
+              isActive={isActive} 
+              asChild
+              className="h-9 px-3 text-sm font-medium relative"
+            >
+              <Link href={item.url}>
+                {isActive && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1 bg-gray-400 rounded-full" />
+                )}
+                {item.icon && <item.icon className="w-4 h-4 mr-2" />}
+                <span>{item.title}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         )
       })}
     </SidebarMenu>
@@ -70,25 +68,20 @@ function ServerNavigation({
 }) {
   return (
     <SidebarMenu className="space-y-1">
-      {items.map((item, index) => (
-        <div key={item.title}>
-          <SidebarMenuItem>
-            <SidebarMenuButton 
-              tooltip={item.title} 
-              isActive={false} 
-              asChild
-              className="h-9 px-3 text-sm font-medium"
-            >
-              <Link href={item.url}>
-                {item.icon && <item.icon className="w-4 h-4 mr-2" />}
-                <span>{item.title}</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          {index < items.length - 1 && (
-            <div className="mx-4 my-2 border-t border-white/10" />
-          )}
-        </div>
+      {items.map((item) => (
+        <SidebarMenuItem key={item.title}>
+          <SidebarMenuButton 
+            tooltip={item.title} 
+            isActive={false} 
+            asChild
+            className="h-9 px-3 text-sm font-medium"
+          >
+            <Link href={item.url}>
+              {item.icon && <item.icon className="w-4 h-4 mr-2" />}
+              <span>{item.title}</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
       ))}
     </SidebarMenu>
   )

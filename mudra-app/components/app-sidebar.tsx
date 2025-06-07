@@ -63,12 +63,12 @@ const data = {
     },
     {
       title: "Technical",
-      url: "#",
+      url: "/dashboard/technical",
       icon: IconBug,
     },
     {
       title: "Footprint",
-      url: "#",
+      url: "/dashboard/footprint",
       icon: IconWorldWww,
     },
     {
@@ -149,7 +149,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </div>
       </SidebarHeader>
       <SidebarContent className="px-2 bg-black">
+        {/* Analysis Section */}
         <div className="mb-6">
+          <div className="px-2 py-2 text-xs font-medium text-white/60 uppercase tracking-wider">
+            Analysis
+          </div>
           <NavMain items={data.navMain} />
         </div>
         

@@ -15,7 +15,7 @@ import { dashboardData } from "@/app/dashboard/data"
 export default function Page() {
   return (
     <SidebarProvider
-      className="bg-black"
+      className="dark text-foreground"
       style={
         {
           "--sidebar-width": "calc(var(--spacing) * 72)",
@@ -24,10 +24,10 @@ export default function Page() {
       }
     >
       <AppSidebar />
-      <SidebarInset className="bg-black m-0 shadow-none rounded-none border-none">
+      <SidebarInset className="bg-card dark:bg-card text-foreground dark:text-foreground m-0 shadow-none rounded-none border-none">
         <SiteHeader />
-        <div className="flex flex-1 flex-col bg-black">
-          <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
+        <div className="flex flex-1 flex-col">
+          <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               <SectionCards />
               <div className="px-4 lg:px-6">

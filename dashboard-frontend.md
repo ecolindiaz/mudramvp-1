@@ -20,15 +20,16 @@
  ** Query Performance
  ** Models
  ** Competitive Markdown
- ** Trends
+ ** Top 10 Prompts
 
 ## Technical
- ** Crawler & Bot Activity 
+ ** Crawler Health Score
+ ** Bot Activity 
  ** Structure Page
  ** Content Quality
 
 ## Footprint
- ** Web Presence
+ ** Web Presence 
  ** Mention Distribution
 
 ## Agent Chat (Chat that will provide the reccomendation by AI. And if user is premium he can execute those reccomendations the agent himself)

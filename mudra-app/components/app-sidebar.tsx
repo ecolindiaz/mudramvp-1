@@ -74,6 +74,11 @@ const data = {
       url: "/dashboard/chat",
       icon: IconRobot,
     },
+    {
+      title: "Brand Profile",
+      url: "/dashboard/brand-profile",
+      icon: IconUser,
+    },
   ],
   navClouds: [
     {
@@ -123,28 +128,7 @@ const data = {
       ],
     },
   ],
-  navSecondary: [
-    {
-      title: "Brand Profile",
-      url: "/dashboard/brand-profile",
-      icon: IconUser,
-    },
-    {
-      title: "Settings",
-      url: "#",
-      icon: IconSettings,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: IconSearch,
-    },
-  ],
+  navSecondary: [],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

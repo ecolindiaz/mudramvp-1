@@ -24,18 +24,18 @@ export function CompetitiveShareChart() {
 
   return (
     <Card className="bg-card border-border">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2">
         <CardTitle className="text-card-foreground">Competitive Share vs Competitors</CardTitle>
         <CardDescription className="text-muted-foreground">
           Market share distribution
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pb-4">
         <div className="flex flex-col lg:flex-row items-center gap-4 lg:gap-6">
           <div className="w-full lg:w-1/2 relative">
             <ChartContainer
               config={chartConfig}
-              className="h-56 lg:h-64 w-full"
+              className="h-48 lg:h-52 w-full"
             >
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -75,12 +75,12 @@ export function CompetitiveShareChart() {
             </ChartContainer>
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center">
-                <div className="text-2xl lg:text-3xl font-bold text-card-foreground">18%</div>
+                <div className="text-lg lg:text-xl font-bold text-card-foreground">18%</div>
                 <div className="text-xs text-muted-foreground">Your Share</div>
               </div>
             </div>
           </div>
-          <div className="w-full lg:w-1/2 space-y-3">
+          <div className="w-full lg:w-1/2 space-y-2">
             {competitiveData.map((item, index) => (
               <div key={index} className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0 flex-1">

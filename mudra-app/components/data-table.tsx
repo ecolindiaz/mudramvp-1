@@ -349,7 +349,7 @@ export function DataTable({
 }: {
   data: z.infer<typeof schema>[]
 }) {
-  const [data, setData] = React.useState(() => initialData.slice(0, 10)) // Limit to 10 items
+  const [data, setData] = React.useState(() => initialData.slice(0, 10)) // Reduce back to 10 items for equal height
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})

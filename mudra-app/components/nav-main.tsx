@@ -28,19 +28,29 @@ function ClientNavigation({
   pathname: string
 }) {
   return (
-    <SidebarMenu>
-      {items.map((item) => {
+    <SidebarMenu className="space-y-1">
+      {items.map((item, index) => {
         const isActive = pathname === item.url
         
         return (
-          <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton tooltip={item.title} isActive={isActive} asChild>
-              <Link href={item.url}>
-                {item.icon && <item.icon />}
-                <span>{item.title}</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          <div key={item.title}>
+            <SidebarMenuItem>
+              <SidebarMenuButton 
+                tooltip={item.title} 
+                isActive={isActive} 
+                asChild
+                className="h-9 px-3 text-sm font-medium"
+              >
+                <Link href={item.url}>
+                  {item.icon && <item.icon className="w-4 h-4 mr-2" />}
+                  <span>{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            {index < items.length - 1 && (
+              <div className="mx-4 my-2 border-t border-white/10" />
+            )}
+          </div>
         )
       })}
     </SidebarMenu>
@@ -59,16 +69,26 @@ function ServerNavigation({
   }[]
 }) {
   return (
-    <SidebarMenu>
-      {items.map((item) => (
-        <SidebarMenuItem key={item.title}>
-          <SidebarMenuButton tooltip={item.title} isActive={false} asChild>
-            <Link href={item.url}>
-              {item.icon && <item.icon />}
-              <span>{item.title}</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
+    <SidebarMenu className="space-y-1">
+      {items.map((item, index) => (
+        <div key={item.title}>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              tooltip={item.title} 
+              isActive={false} 
+              asChild
+              className="h-9 px-3 text-sm font-medium"
+            >
+              <Link href={item.url}>
+                {item.icon && <item.icon className="w-4 h-4 mr-2" />}
+                <span>{item.title}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          {index < items.length - 1 && (
+            <div className="mx-4 my-2 border-t border-white/10" />
+          )}
+        </div>
       ))}
     </SidebarMenu>
   )

@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import { AiModelPerformance } from "@/components/ai-model-performance"
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"
 import { CompetitiveShareChart } from "@/components/competitive-share-chart"
 import { DataTable } from "@/components/data-table"
@@ -35,11 +36,9 @@ export default function Page() {
                   <div className="min-w-0">
                     <DataTable data={dashboardData} />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex flex-col gap-4">
                     <CompetitiveShareChart />
-                    <div className="h-32 mt-4">
-                      {/* Space reserved for future metric */}
-                    </div>
+                    <AiModelPerformance />
                   </div>
                 </div>
               </div>

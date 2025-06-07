@@ -24,12 +24,15 @@ export function NavSecondary({
   return (
     <SidebarGroup {...props}>
       <SidebarGroupContent>
-        <SidebarMenu>
+        <SidebarMenu className="space-y-0.5">
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild>
+              <SidebarMenuButton 
+                asChild
+                className="h-8 px-2.5 text-sm font-normal"
+              >
                 <a href={item.url}>
-                  <item.icon />
+                  <item.icon className="w-3.5 h-3.5 mr-2" />
                   <span>{item.title}</span>
                 </a>
               </SidebarMenuButton>

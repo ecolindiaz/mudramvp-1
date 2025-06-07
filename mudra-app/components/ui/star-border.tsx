@@ -36,6 +36,10 @@ export function StarBorder<T extends ElementType = "button">({
         style={{
           background: `radial-gradient(circle, ${defaultColor}, transparent 10%)`,
           animationDuration: speed,
+          willChange: 'transform',
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          perspective: '1000px'
         }}
       />
       <div
@@ -46,12 +50,17 @@ export function StarBorder<T extends ElementType = "button">({
         style={{
           background: `radial-gradient(circle, ${defaultColor}, transparent 10%)`,
           animationDuration: speed,
+          willChange: 'transform',
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          perspective: '1000px'
         }}
       />
       <div className={cn(
         "relative z-1 border text-foreground text-center text-base py-4 px-6 rounded-[20px]",
         "bg-gradient-to-b from-background/90 to-muted/90 border-border/40",
-        "dark:from-background dark:to-muted dark:border-border"
+        "dark:from-background dark:to-muted dark:border-border",
+        "transform-gpu"
       )}>
         {children}
       </div>

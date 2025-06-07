@@ -57,8 +57,8 @@ const data = {
       icon: IconTrendingUp,
     },
     {
-      title: "Analysis",
-      url: "#",
+      title: "Prompts",
+      url: "/dashboard/analysis",
       icon: IconChartBar,
     },
     {
@@ -140,12 +140,18 @@ const data = {
   navSecondary: [],
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="offcanvas" className="bg-black" {...props}>
       <SidebarHeader className="pb-6 bg-black">
         <div className="flex justify-center w-full py-2 pointer-events-none select-none">
-          <img src="/images/mudra-logo.png" alt="Mudra" className="!size-12" />
+          <img 
+            src="/images/mudra-logo.png" 
+            alt="Mudra" 
+            className="!size-12"
+            loading="eager"
+            decoding="sync"
+          />
         </div>
       </SidebarHeader>
       <SidebarContent className="px-2 bg-black">
@@ -185,4 +191,4 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarFooter>
     </Sidebar>
   )
-}
+})

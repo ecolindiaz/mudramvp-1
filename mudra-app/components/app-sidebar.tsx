@@ -57,7 +57,7 @@ const data = {
       icon: IconTrendingUp,
     },
     {
-      title: "Prompts",
+      title: "Prompts and Insights",
       url: "/dashboard/analysis",
       icon: IconChartBar,
     },

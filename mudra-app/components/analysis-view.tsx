@@ -10,8 +10,10 @@ import {
   Card,
   CardAction,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
+  CardContent,
 } from "@/components/ui/card"
 import {
   Table,
@@ -35,8 +37,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { 
   IconTrendingUp,
+  IconTrendingDown,
   IconLoader,
   IconCircleCheckFilled,
   IconPlus,
@@ -44,8 +54,11 @@ import {
   IconDotsVertical,
   IconGripVertical,
   IconTarget,
-  IconEye
+  IconEye,
+  IconChartPie,
+  IconUsersGroup
 } from "@tabler/icons-react"
+import { Info } from "lucide-react"
 
 // Mock data for prompts - ready for backend integration
 const mockPrompts = [
@@ -237,12 +250,20 @@ function DragHandle({ id }: { id: number }) {
 export function AnalysisView() {
   const [filterText, setFilterText] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
+  
+  // State for modals
+  const [isCompetitiveShareModalOpen, setIsCompetitiveShareModalOpen] = useState(false)
+  const [isAIReferralsModalOpen, setIsAIReferralsModalOpen] = useState(false)
 
   // Calculate stats
   const totalPrompts = mockPrompts.length
   const responsePrompts = mockPrompts.filter(p => p.responses > 0)
   const highVisibilityPrompts = mockPrompts.filter(p => p.visibility >= 70)
   const avgVisibility = Math.round(mockPrompts.reduce((sum, p) => sum + p.visibility, 0) / totalPrompts)
+  
+  // New metrics calculations - ready for backend integration
+  const competitiveShare = 68 // Percentage of market share in AI mentions
+  const aiReferrals = 12 // Number of referrals from AI search
 
   // Filter prompts based on search and type
   const filteredPrompts = mockPrompts.filter(prompt => {
@@ -254,45 +275,121 @@ export function AnalysisView() {
   return (
     <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
       <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-        {/* Header Cards */}
-        <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-3">
+        {/* Prompts Section Title */}
+        <div className="px-4 lg:px-6">
+          <h2 className="text-2xl font-semibold mb-6">Prompts and Insights</h2>
+        </div>
+        
+        {/* Top Metrics - Competitive Share and AI Referrals */}
+        <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @lg/main:grid-cols-2">
+          {/* Competitive Share Card */}
           <Card className="@container/card">
-            <CardHeader>
-              <CardDescription>Total Prompts</CardDescription>
+            <CardHeader className="pb-2">
+              <CardDescription>Competitive Share</CardDescription>
               <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                {totalPrompts}
+                {competitiveShare}%
               </CardTitle>
               <CardAction>
                 <Badge variant="outline">
-                  <IconTrendingUp />
+                  <IconChartPie className="w-4 h-4" />
+                  Leading
+                </Badge>
+              </CardAction>
+            </CardHeader>
+            <CardFooter className="flex-col items-start gap-1.5 text-sm pt-2">
+              <div className="line-clamp-1 flex gap-2 font-medium">
+                Market dominance <IconTrendingUp className="size-4" />
+              </div>
+              <div className="text-muted-foreground">
+                vs competitors in AI mentions
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCompetitiveShareModalOpen(true)}
+                className="mt-3 w-full"
+              >
+                <Info className="h-4 w-4 mr-2" />
+                More Info
+              </Button>
+            </CardFooter>
+          </Card>
+          
+          {/* AI Referrals Card */}
+          <Card className="@container/card">
+            <CardHeader className="pb-2">
+              <CardDescription>Referrals from AI Search</CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                {aiReferrals}
+              </CardTitle>
+              <CardAction>
+                <Badge variant="outline">
+                  <IconTrendingDown className="w-4 h-4" />
+                  -4
+                </Badge>
+              </CardAction>
+            </CardHeader>
+            <CardFooter className="flex-col items-start gap-1.5 text-sm pt-2">
+              <div className="line-clamp-1 flex gap-2 font-medium">
+                Direct AI traffic <IconUsersGroup className="size-4" />
+              </div>
+              <div className="text-muted-foreground">
+                Human visits from AI engines
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAIReferralsModalOpen(true)}
+                className="mt-3 w-full"
+              >
+                <Info className="h-4 w-4 mr-2" />
+                More Info
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+        
+        {/* Prompt Metrics Cards - Made smaller */}
+        <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-3 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @lg/main:grid-cols-3">
+          <Card className="@container/card">
+            <CardHeader className="pb-2">
+              <CardDescription>Total Prompts</CardDescription>
+              <CardTitle className="text-xl font-semibold tabular-nums @[200px]/card:text-2xl">
+                {totalPrompts}
+              </CardTitle>
+              <CardAction>
+                <Badge variant="outline" className="text-xs">
+                  <IconTrendingUp className="w-3 h-3" />
                   Active
                 </Badge>
               </CardAction>
             </CardHeader>
           </Card>
+          
           <Card className="@container/card">
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardDescription>With Responses</CardDescription>
-              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              <CardTitle className="text-xl font-semibold tabular-nums @[200px]/card:text-2xl">
                 {responsePrompts.length}
               </CardTitle>
               <CardAction>
-                <Badge variant="outline">
-                  <IconLoader />
+                <Badge variant="outline" className="text-xs">
+                  <IconLoader className="w-3 h-3" />
                   Processing
                 </Badge>
               </CardAction>
             </CardHeader>
           </Card>
+          
           <Card className="@container/card">
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardDescription>High Visibility</CardDescription>
-              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              <CardTitle className="text-xl font-semibold tabular-nums @[200px]/card:text-2xl">
                 {highVisibilityPrompts.length}
               </CardTitle>
               <CardAction>
-                <Badge variant="outline">
-                  <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
+                <Badge variant="outline" className="text-xs">
+                  <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400 w-3 h-3" />
                   Optimized
                 </Badge>
               </CardAction>
@@ -435,7 +532,7 @@ export function AnalysisView() {
                             <DropdownMenuItem>View Details</DropdownMenuItem>
                             <DropdownMenuItem>Duplicate</DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
+                            <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -447,6 +544,364 @@ export function AnalysisView() {
           </Card>
         </div>
       </div>
+      
+      {/* Competitive Share Modal */}
+      <Dialog open={isCompetitiveShareModalOpen} onOpenChange={setIsCompetitiveShareModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <IconChartPie className="size-5" />
+              Competitive Share
+            </DialogTitle>
+            <DialogDescription>
+              Your market position in AI mentions compared to competitors
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Your Share</CardDescription>
+                  <CardTitle className="text-2xl">{competitiveShare}%</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Market Position</CardDescription>
+                  <CardTitle className="text-2xl">#2</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Gap to Leader</CardDescription>
+                  <CardTitle className="text-2xl">4%</CardTitle>
+                </CardHeader>
+              </Card>
+            </div>
+
+            {/* Market Share Breakdown */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Market Share Breakdown</CardTitle>
+                <CardDescription>
+                  How you compare against top competitors in AI mentions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 border rounded-lg border-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center font-semibold text-sm">1</div>
+                      <span className="font-medium">CompetitorA</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">72%</div>
+                      <div className="text-xs text-muted-foreground">Market Leader</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 border rounded-lg border-2 bg-muted/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-foreground text-background flex items-center justify-center font-semibold text-sm">2</div>
+                      <span className="font-medium">Your Company</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">{competitiveShare}%</div>
+                      <div className="text-xs text-muted-foreground">Strong Position</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-semibold text-sm">3</div>
+                      <span>CompetitorB</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">45%</div>
+                      <div className="text-xs text-muted-foreground">Declining</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-semibold text-sm">4</div>
+                      <span>CompetitorC</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">28%</div>
+                      <div className="text-xs text-muted-foreground">Stable</div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Improvement Actions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recommended Actions</CardTitle>
+                <CardDescription>
+                  Strategic steps to improve your competitive position
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex gap-3 p-3 border rounded-lg">
+                    <div className="flex-shrink-0 mt-1">
+                      <Checkbox />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-sm">Focus on Technical Content</h4>
+                        <Badge variant="outline" className="text-xs">High Impact</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Create developer-focused content to capture technical queries where competitors are weak
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 p-3 border rounded-lg">
+                    <div className="flex-shrink-0 mt-1">
+                      <Checkbox />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-sm">Improve Comparison Content</h4>
+                        <Badge variant="outline" className="text-xs">Medium Impact</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Create detailed comparison guides to win head-to-head queries
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 p-3 border rounded-lg">
+                    <div className="flex-shrink-0 mt-1">
+                      <Checkbox />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-sm">Target Long-tail Queries</h4>
+                        <Badge variant="outline" className="text-xs">Quick Win</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Identify and optimize for specific queries where competitors have low visibility
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-4">
+              <Button className="flex-1">
+                <IconTarget className="size-4 mr-2" />
+                Create Action Plan
+              </Button>
+              <Button variant="outline">
+                <IconTrendingUp className="size-4 mr-2" />
+                Track Progress
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* AI Referrals Modal */}
+      <Dialog open={isAIReferralsModalOpen} onOpenChange={setIsAIReferralsModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <IconUsersGroup className="size-5" />
+              AI Search Referrals
+            </DialogTitle>
+            <DialogDescription>
+              Human visits referred by AI Search Engines and chatbots
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>This Month</CardDescription>
+                  <CardTitle className="text-2xl">{aiReferrals}</CardTitle>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <IconTrendingDown className="size-3" />
+                    <span>-4 from last month</span>
+                  </div>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Avg Session Duration</CardDescription>
+                  <CardTitle className="text-2xl">3.2m</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Conversion Rate</CardDescription>
+                  <CardTitle className="text-2xl">18%</CardTitle>
+                </CardHeader>
+              </Card>
+            </div>
+
+            {/* Referral Sources */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Referral Sources</CardTitle>
+                <CardDescription>
+                  Which AI platforms are sending you the most traffic
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 border rounded-lg border-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-foreground rounded-full"></div>
+                      <span className="font-medium">ChatGPT</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">7 visits</div>
+                      <div className="text-xs text-muted-foreground">58% of total</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-muted rounded-full"></div>
+                      <span className="font-medium">Perplexity</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">3 visits</div>
+                      <div className="text-xs text-muted-foreground">25% of total</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-muted rounded-full"></div>
+                      <span className="font-medium">Claude</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">2 visits</div>
+                      <div className="text-xs text-muted-foreground">17% of total</div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tracking Methods */}
+            <Card>
+              <CardHeader>
+                <CardTitle>How We Track This</CardTitle>
+                <CardDescription>
+                  Methods used to identify AI-referred traffic
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex items-start gap-3 p-3 border rounded-lg">
+                    <IconEye className="size-4 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-sm">Referrer Analysis</p>
+                      <p className="text-xs text-muted-foreground">Detection of AI platform referrer headers</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 border rounded-lg">
+                    <IconTarget className="size-4 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-sm">UTM Tracking</p>
+                      <p className="text-xs text-muted-foreground">AI-specific URL parameter monitoring</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 border rounded-lg">
+                    <IconTrendingUp className="size-4 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-sm">Pattern Correlation</p>
+                      <p className="text-xs text-muted-foreground">Traffic spikes matching AI mention times</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 border rounded-lg">
+                    <IconUsersGroup className="size-4 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-sm">User Behavior</p>
+                      <p className="text-xs text-muted-foreground">Analysis of AI-typical browsing patterns</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Improvement Actions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Increase AI Referrals</CardTitle>
+                <CardDescription>
+                  Action items to boost traffic from AI search engines
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex gap-3 p-3 border rounded-lg">
+                    <div className="flex-shrink-0 mt-1">
+                      <Checkbox />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-sm">Create AI-Friendly Landing Pages</h4>
+                        <Badge variant="outline" className="text-xs">High Priority</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Build dedicated pages with UTM tracking for AI search referrals
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 p-3 border rounded-lg">
+                    <div className="flex-shrink-0 mt-1">
+                      <Checkbox />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-sm">Improve Source Credibility</h4>
+                        <Badge variant="outline" className="text-xs">Medium Priority</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Add author credentials and citations to increase AI trust
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 p-3 border rounded-lg">
+                    <div className="flex-shrink-0 mt-1">
+                      <Checkbox />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-sm">Monitor AI Mentions</h4>
+                        <Badge variant="outline" className="text-xs">Ongoing</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Set up alerts for new AI mentions to capitalize on traffic opportunities
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-4">
+              <Button className="flex-1">
+                <IconUsersGroup className="size-4 mr-2" />
+                Optimize for AI Traffic
+              </Button>
+              <Button variant="outline">
+                <IconEye className="size-4 mr-2" />
+                Set Up Tracking
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

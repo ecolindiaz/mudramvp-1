@@ -56,8 +56,7 @@ export function StructurePageScore() {
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <CardDescription className="text-gray-400">Structure Page Score</CardDescription>
-              <CardTitle className="text-white">Technical optimization metrics</CardTitle>
+              <CardTitle className="text-white">Technical Structure Score</CardTitle>
             </div>
             <Badge variant="outline" className="bg-black text-white border-gray-800">
               <TrendingUp className="h-3 w-3 mr-1" />+3.2%

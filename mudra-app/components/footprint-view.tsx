@@ -447,7 +447,7 @@ export function FootprintView() {
           
           <Card className="@container/card">
             <CardHeader>
-              <CardDescription>External Authority Score</CardDescription>
+              <CardDescription>Footprint Score</CardDescription>
               <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
                 {avgAuthority}%
               </CardTitle>
@@ -754,12 +754,12 @@ export function FootprintView() {
         </DialogContent>
       </Dialog>
 
-      {/* External Authority Score Detail Modal */}
+      {/* Footprint Score Detail Modal */}
       <Dialog open={isAuthorityModalOpen} onOpenChange={setIsAuthorityModalOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              External Authority Score
+              Footprint Score
               <span className="text-2xl font-bold text-primary">{avgAuthority}%</span>
             </DialogTitle>
             <DialogDescription>

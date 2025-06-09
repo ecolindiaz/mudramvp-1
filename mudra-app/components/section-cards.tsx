@@ -59,7 +59,7 @@ export function SectionCards() {
       </Card>
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>Content Authority Score</CardDescription>
+          <CardDescription>Content Quality Score</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
             72%
           </CardTitle>

@@ -10,27 +10,28 @@
 
 ## My Scores
  ** AI Visibility Metric + Models
- ** Competitive Share vs Competitors
  ** Crawler Health Score
- ** Content Authority Score 
+ ** Competitive Share
+ ** Content Quality Score 
  ** Footprint Score
  ** Technical Structure Score
 
 ## Prompts & Insights
- ** Competitive Markdown
+ ** Competitive Share
  ** Referals from AI Search
  ** Top 10 Prompts
 
 ## Technical
  ** Crawler Health Score
+ ** Technical Structure Score
+ ** Content Quality Score
  ** Bot Activity 
- ** Structure Page
- ** Content Quality
 
 ## Footprint
- ** Web Presence 
- ** Mention Distribution
  ** Total Citations
+ ** Footprint Score 
+ ** High Impact Opportunities
+ ** Brand Voice Analysis
 
 ## Agent Chat (Chat that will provide the reccomendation by AI. And if user is premium he can execute those reccomendations the agent himself)
 

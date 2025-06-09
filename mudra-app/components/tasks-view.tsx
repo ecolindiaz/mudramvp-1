@@ -107,12 +107,11 @@ const getTaskDescription = (header: string, type: string): string => {
     "Gemini Performance": "Improve Google AI model recognition",
     "Competitive Share": "Analyze and improve competitive positioning",
     "Crawler Health Score": "Ensure AI bots can access and index your content",
-    "Content Authority Score": "Enhance content credibility and expertise signals",
+    "Content Quality Score": "Enhance content credibility and expertise signals",
     "External Footprint": "Expand brand presence across the web",
     "Brand Mentions": "Increase quality brand mentions and citations",
     "Query Performance": "Optimize response to industry-relevant queries",
     "Technical Structure": "Improve website technical SEO for AI crawlers",
-    "Content Quality": "Enhance content for AI citation worthiness",
     "Competitor Analysis": "Monitor and outperform competitor strategies",
     "AI Model Trends": "Track and adapt to AI model behavior changes"
   }

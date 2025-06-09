@@ -6,13 +6,14 @@ import { SiteHeader } from "@/components/site-header"
 import { CrawlerHealthScore } from "@/components/analysis/crawler-detection/crawler-health-score"
 import { BotActivity } from "@/components/analysis/crawler-detection/bot-activity"
 import { StructurePageScore } from "@/components/analysis/crawler-detection/structure-page-score"
+import { ContentQualityScore } from "@/components/analysis/crawler-detection/content-quality-score"
 import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { IconSettings, IconArrowLeft, IconCopy, IconCheck } from "@tabler/icons-react"
+import { IconSettings, IconArrowLeft, IconCopy, IconCheck, IconTrendingUp } from "@tabler/icons-react"
 import { toast } from "sonner"
 
 // Simplified Settings Component - Only "Getting started"
@@ -159,6 +160,12 @@ export default function TechnicalPage() {
                     <CrawlerHealthScore />
                     <StructurePageScore />
                   </div>
+                  
+                  {/* Content Quality Score - New metric */}
+                  <div className="grid gap-6 md:grid-cols-1">
+                    <ContentQualityScore />
+                  </div>
+                  
                   <BotActivity />
                 </>
               )}

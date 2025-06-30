@@ -4,9 +4,8 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { FootprintView } from "@/components/footprint-view"
 
-export default function FootprintPage() {
+export default function InsightsPage() {
   return (
     <SidebarProvider
       className="bg-black"
@@ -21,7 +20,19 @@ export default function FootprintPage() {
       <SidebarInset className="bg-black m-0 shadow-none rounded-none border-none">
         <SiteHeader />
         <div className="flex flex-1 flex-col bg-black">
-          <FootprintView />
+          <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
+            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+              <div className="px-4 lg:px-6">
+                <div className="mb-6">
+                  <h1 className="text-3xl font-bold text-white mb-2">Insights</h1>
+                  <p className="text-gray-400">
+                    Analytics and insights page - ready for backend integration
+                  </p>
+                </div>
+                {/* Content will be added here when ready */}
+              </div>
+            </div>
+          </div>
         </div>
       </SidebarInset>
     </SidebarProvider>

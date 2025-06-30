@@ -52,32 +52,15 @@ const data = {
   },
   navMain: [
     {
-      title: "My Scores",
+      title: "Overview",
       url: "/dashboard",
       icon: IconTrendingUp,
     },
     {
-      title: "Prompts and Insights",
-      url: "/dashboard/analysis",
+      title: "Insights",
+      url: "/dashboard/insights",
       icon: IconChartBar,
     },
-    {
-      title: "Technical",
-      url: "/dashboard/technical",
-      icon: IconBug,
-    },
-    {
-      title: "Footprint",
-      url: "/dashboard/footprint",
-      icon: IconWorldWww,
-    },
-    {
-      title: "Brand Profile",
-      url: "/dashboard/brand-profile",
-      icon: IconUser,
-    },
-  ],
-  navImprove: [
     {
       title: "Tasks",
       url: "/dashboard/tasks",
@@ -87,6 +70,11 @@ const data = {
       title: "Agent Chat",
       url: "/dashboard/chat",
       icon: IconMessageChatbot,
+    },
+    {
+      title: "Brand Profile",
+      url: "/dashboard/brand-profile",
+      icon: IconUser,
     },
   ],
   navClouds: [
@@ -155,21 +143,8 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
         </div>
       </SidebarHeader>
       <SidebarContent className="px-2 bg-black">
-        {/* Analysis Section */}
-        <div className="mb-6">
-          <div className="px-2 py-2 text-xs font-medium text-white/60 uppercase tracking-wider">
-            Analysis
-          </div>
-          <NavMain items={data.navMain} />
-        </div>
-        
-        {/* Improve Section */}
-        <div className="mb-6">
-          <div className="px-2 py-2 text-xs font-medium text-white/60 uppercase tracking-wider">
-            Improve
-          </div>
-          <NavMain items={data.navImprove} />
-        </div>
+        {/* Main Navigation */}
+        <NavMain items={data.navMain} />
         
         {/* Magic Button */}
         <div className="px-2 py-4 mt-4">

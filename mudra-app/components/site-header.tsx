@@ -7,14 +7,12 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 
 const getPageTitle = (pathname: string) => {
-  if (pathname === "/dashboard") return "My Scores"
-  if (pathname === "/dashboard/chat") return "Agent Chat"
-  if (pathname === "/dashboard/analysis") return "Prompts and Insights"
-  if (pathname === "/dashboard/technical") return "Technical"
-  if (pathname === "/dashboard/footprint") return "Footprint"
-  if (pathname === "/dashboard/brand-profile") return "Brand Profile"
+  if (pathname === "/dashboard") return "Overview"
+  if (pathname === "/dashboard/insights") return "Insights"
   if (pathname === "/dashboard/tasks") return "Tasks"
-  return "My Scores" // fallback
+  if (pathname === "/dashboard/chat") return "Agent Chat"
+  if (pathname === "/dashboard/brand-profile") return "Brand Profile"
+  return "Overview" // fallback
 }
 
 export function SiteHeader() {
@@ -25,7 +23,7 @@ export function SiteHeader() {
     setIsHydrated(true)
   }, [])
 
-  const pageTitle = isHydrated ? getPageTitle(pathname) : "My Scores"
+  const pageTitle = isHydrated ? getPageTitle(pathname) : "Overview"
 
   return (
     <header className="flex h-[var(--header-height)] shrink-0 items-center gap-2 border-b border-black bg-black transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-[var(--header-height)]">

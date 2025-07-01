@@ -163,30 +163,36 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
         
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
-      <SidebarFooter className="bg-pure-black">
+      <SidebarFooter className="bg-pure-black space-y-3">
         {/* Support & Feedback */}
-        <div className="px-2 pb-2 space-y-1">
-          <button className="w-full h-9 px-3 text-sm font-medium text-white/70 hover:text-white hover:pl-4 transition-all duration-200 flex items-center gap-2 rounded-md">
-            <IconPhone className="w-4 h-4" />
-            <span>Live Support</span>
+        <div className="px-2 space-y-1">
+          <button className="w-full h-10 px-3 text-sm text-white/60 hover:text-white/90 hover:bg-white/5 transition-all duration-200 flex items-center gap-3 rounded-lg group">
+            <IconPhone className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors" />
+            <span className="font-medium">Live Support</span>
           </button>
-          <button className="w-full h-9 px-3 text-sm font-medium text-white/70 hover:text-white hover:pl-4 transition-all duration-200 flex items-center gap-2 rounded-md">
-            <IconMessage className="w-4 h-4" />
-            <span>Feedback</span>
+          <button className="w-full h-10 px-3 text-sm text-white/60 hover:text-white/90 hover:bg-white/5 transition-all duration-200 flex items-center gap-3 rounded-lg group">
+            <IconMessage className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors" />
+            <span className="font-medium">Feedback</span>
           </button>
         </div>
         
+        {/* Divider */}
+        <div className="px-4">
+          <div className="h-px bg-white/10"></div>
+        </div>
+        
         {/* Search Bar */}
-        <div className="px-2 pb-2">
-          <div className="relative">
-            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+        <div className="px-2">
+          <div className="relative group">
+            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-hover:text-white/50 transition-colors" />
             <input
               type="text"
               placeholder="Search"
-              className="w-full h-9 pl-10 pr-3 text-sm bg-transparent border border-white/20 rounded-md text-white placeholder-white/40 focus:outline-none focus:border-white/30 transition-all"
+              className="w-full h-10 pl-10 pr-3 text-sm bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-white/20 focus:bg-white/10 hover:bg-white/[0.07] transition-all"
             />
           </div>
         </div>
+        
         <NavUser user={data.user} />
       </SidebarFooter>
     </Sidebar>

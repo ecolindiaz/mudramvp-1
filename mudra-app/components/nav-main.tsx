@@ -29,11 +29,14 @@ const NavigationItem = memo(({
       asChild
       className={`h-9 px-3 text-sm font-medium relative transition-all duration-200 group ${
         isActive 
-          ? 'text-white before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-0.5 before:h-5 before:bg-white before:rounded-full' 
+          ? 'text-white' 
           : 'text-white/60 hover:text-white/90 hover:pl-4'
       }`}
     >
       <Link href={item.url}>
+        {isActive && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-white rounded-full animate-glow" />
+        )}
         {item.icon && (
           <item.icon className={`w-4 h-4 mr-2 transition-all duration-200 ${
             isActive ? 'text-white' : 'text-white/60 group-hover:text-white/80'

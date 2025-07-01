@@ -23,7 +23,7 @@ export default function BrandProfilePage() {
         <SiteHeader />
         <div className="flex flex-1 flex-col bg-black">
           <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
-            <div className="flex items-center justify-center min-h-[80vh] px-4">
+            <div className="py-8 px-4 lg:px-8">
               <BrandProfileForm />
             </div>
           </div>

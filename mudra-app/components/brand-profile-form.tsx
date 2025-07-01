@@ -9,6 +9,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
+// Consistent styles for Mudra theme
+const inputStyles = "bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+const labelStyles = "text-white/80 text-sm font-medium"
+
 // Mock data - will be replaced with actual data from backend
 const initialData = {
   // Company Information
@@ -63,72 +67,92 @@ export function BrandProfileForm() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-white mb-2">Brand Profile</h1>
+        <p className="text-white/60">Manage your company information and AI visibility settings</p>
+      </div>
+      
       {/* Action Buttons */}
       <div className="flex justify-end gap-3">
         {isEditing ? (
           <>
-            <Button variant="outline" onClick={handleCancel}>
+            <Button 
+              variant="outline" 
+              onClick={handleCancel}
+              className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:border-white/30"
+            >
               Cancel
             </Button>
-            <Button onClick={handleSave}>
+            <Button 
+              onClick={handleSave}
+              className="bg-white text-black hover:bg-white/90"
+            >
               Save Changes
             </Button>
           </>
         ) : (
-          <Button onClick={() => setIsEditing(true)}>
+          <Button 
+            onClick={() => setIsEditing(true)}
+            className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
+          >
             Edit Profile
           </Button>
         )}
       </div>
 
       {/* Company Information Section */}
-      <Card className="bg-card border-border">
+      <Card className="bg-black/50 border-white/10 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="text-card-foreground">Company Information</CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardTitle className="text-white text-lg font-semibold">Company Information</CardTitle>
+          <CardDescription className="text-white/50 text-sm">
             Basic information about your company
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="companyName">Company Name</Label>
+              <Label htmlFor="companyName" className="text-white/80 text-sm">Company Name</Label>
               <Input
                 id="companyName"
                 value={formData.companyName}
                 onChange={(e) => handleInputChange("companyName", e.target.value)}
                 disabled={!isEditing}
+                className="bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="companyWebsite">Company Website</Label>
+              <Label htmlFor="companyWebsite" className="text-white/80 text-sm">Company Website</Label>
               <Input
                 id="companyWebsite"
                 value={formData.companyWebsite}
                 onChange={(e) => handleInputChange("companyWebsite", e.target.value)}
                 disabled={!isEditing}
                 placeholder="https://yourcompany.com"
+                className="bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="companyLinkedIn">LinkedIn URL</Label>
+              <Label htmlFor="companyLinkedIn" className="text-white/80 text-sm">LinkedIn URL</Label>
               <Input
                 id="companyLinkedIn"
                 value={formData.companyLinkedIn}
                 onChange={(e) => handleInputChange("companyLinkedIn", e.target.value)}
                 disabled={!isEditing}
                 placeholder="https://linkedin.com/company/yourcompany"
+                className="bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="companyTwitter">Twitter/X URL</Label>
+              <Label htmlFor="companyTwitter" className="text-white/80 text-sm">Twitter/X URL</Label>
               <Input
                 id="companyTwitter"
                 value={formData.companyTwitter}
                 onChange={(e) => handleInputChange("companyTwitter", e.target.value)}
                 disabled={!isEditing}
                 placeholder="https://twitter.com/yourcompany"
+                className="bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -136,10 +160,10 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Personal Information Section */}
-      <Card className="bg-card border-border">
+      <Card className="bg-black/50 border-white/10 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="text-card-foreground">Personal Information</CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardTitle className="text-white text-lg font-semibold">Personal Information</CardTitle>
+          <CardDescription className="text-white/50 text-sm">
             Your profile information
           </CardDescription>
         </CardHeader>
@@ -183,10 +207,10 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Company Profile Section */}
-      <Card className="bg-card border-border">
+      <Card className="bg-black/50 border-white/10 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="text-card-foreground">Company Profile</CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardTitle className="text-white text-lg font-semibold">Company Profile</CardTitle>
+          <CardDescription className="text-white/50 text-sm">
             Detailed information about your business
           </CardDescription>
         </CardHeader>
@@ -237,28 +261,60 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Competitors Section */}
-      <Card className="bg-card border-border">
+      <Card className="bg-black/50 border-white/10 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="text-card-foreground">Competitors</CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardTitle className="text-white text-lg font-semibold">Competitors</CardTitle>
+          <CardDescription className="text-white/50 text-sm">
             Your main competitors for AI visibility tracking
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {formData.competitors.map((competitor, index) => (
             <div key={index} className="space-y-2">
-              <Label htmlFor={`competitor${index + 1}`}>Competitor {index + 1}</Label>
-              <Input
-                id={`competitor${index + 1}`}
-                value={competitor}
-                onChange={(e) => {
-                  const newCompetitors = [...formData.competitors]
-                  newCompetitors[index] = e.target.value
-                  setFormData(prev => ({ ...prev, competitors: newCompetitors }))
-                }}
-                disabled={!isEditing}
-                placeholder="https://competitor-website.com"
-              />
+              <Label htmlFor={`competitor${index + 1}`} className={labelStyles}>
+                Competitor {index + 1}
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id={`competitor${index + 1}`}
+                  value={competitor}
+                  onChange={(e) => {
+                    const newCompetitors = [...formData.competitors]
+                    newCompetitors[index] = e.target.value
+                    setFormData(prev => ({ ...prev, competitors: newCompetitors }))
+                  }}
+                  disabled={!isEditing}
+                  placeholder="https://competitor-website.com"
+                  className={inputStyles}
+                />
+                {isEditing && formData.competitors.length > 1 && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      const newCompetitors = formData.competitors.filter((_, i) => i !== index)
+                      setFormData(prev => ({ ...prev, competitors: newCompetitors }))
+                    }}
+                    className="border-white/20 bg-transparent text-white hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-400"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                    </svg>
+                  </Button>
+                )}
+              </div>
             </div>
           ))}
           {isEditing && (
@@ -270,7 +326,23 @@ export function BrandProfileForm() {
                   competitors: [...prev.competitors, ""]
                 }))
               }}
+              className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:border-white/30"
             >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-2"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
               Add Competitor
             </Button>
           )}
@@ -278,10 +350,10 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Visibility Metrics Section */}
-      <Card className="bg-card border-border">
+      <Card className="bg-black/50 border-white/10 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="text-card-foreground">Current Visibility</CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardTitle className="text-white text-lg font-semibold">Current Visibility</CardTitle>
+          <CardDescription className="text-white/50 text-sm">
             Current metrics and AI recommendation status
           </CardDescription>
         </CardHeader>

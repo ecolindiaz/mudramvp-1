@@ -1,10 +1,13 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import { AnalysisView } from "@/components/analysis-view"
+import { FootprintView } from "@/components/footprint-view"
 import { SiteHeader } from "@/components/site-header"
+import { TasksView } from "@/components/tasks-view"
 import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { TasksView } from "@/components/tasks-view"
+import { FloatingMudraButton } from "@/components/floating-mudra-button"
 
 export default function TasksPage() {
   return (
@@ -21,9 +24,17 @@ export default function TasksPage() {
       <SidebarInset className="bg-black m-0 shadow-none rounded-none border-none">
         <SiteHeader />
         <div className="flex flex-1 flex-col bg-black">
-          <TasksView />
+          <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
+            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+              <div className="px-4 lg:px-6">
+                <TasksView />
+              </div>
+            </div>
+          </div>
         </div>
       </SidebarInset>
+      
+      <FloatingMudraButton />
     </SidebarProvider>
   )
 } 

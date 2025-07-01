@@ -27,14 +27,11 @@ const NavigationItem = memo(({
       tooltip={item.title} 
       isActive={isActive} 
       asChild
-      className="h-9 px-3 text-sm font-medium relative"
+      className={`h-9 px-3 text-sm font-medium relative transition-all duration-200 group ${isActive ? 'border border-white/20' : 'hover:pl-4'}`}
     >
       <Link href={item.url}>
-        {isActive && (
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1 bg-gray-400 rounded-full" />
-        )}
-        {item.icon && <item.icon className="w-4 h-4 mr-2" />}
-        <span>{item.title}</span>
+        {item.icon && <item.icon className="w-4 h-4 mr-2 transition-opacity duration-200 group-hover:opacity-80" />}
+        <span className="transition-opacity duration-200 group-hover:opacity-90">{item.title}</span>
       </Link>
     </SidebarMenuButton>
   </SidebarMenuItem>
@@ -45,7 +42,7 @@ NavigationItem.displayName = "NavigationItem"
 export const NavMain = memo(function NavMain({
   items,
 }: {
-  items: {
+  items?: {
     title: string
     url: string
     icon?: Icon
@@ -58,13 +55,13 @@ export const NavMain = memo(function NavMain({
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
         <SidebarMenu className="space-y-1">
-          {items.map((item) => (
+          {items?.map((item) => (
             <NavigationItem
               key={item.title}
               item={item}
               isActive={pathname === item.url}
             />
-          ))}
+          )) || null}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

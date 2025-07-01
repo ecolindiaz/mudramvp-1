@@ -27,11 +27,23 @@ const NavigationItem = memo(({
       tooltip={item.title} 
       isActive={isActive} 
       asChild
-      className={`h-9 px-3 text-sm font-medium relative transition-all duration-200 group ${isActive ? 'border border-white/20' : 'hover:pl-4'}`}
+      className={`h-9 px-3 text-sm font-medium relative transition-all duration-200 group ${
+        isActive 
+          ? 'text-white before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-0.5 before:h-5 before:bg-white before:rounded-full' 
+          : 'text-white/60 hover:text-white/90 hover:pl-4'
+      }`}
     >
       <Link href={item.url}>
-        {item.icon && <item.icon className="w-4 h-4 mr-2 transition-opacity duration-200 group-hover:opacity-80" />}
-        <span className="transition-opacity duration-200 group-hover:opacity-90">{item.title}</span>
+        {item.icon && (
+          <item.icon className={`w-4 h-4 mr-2 transition-all duration-200 ${
+            isActive ? 'text-white' : 'text-white/60 group-hover:text-white/80'
+          }`} />
+        )}
+        <span className={`transition-all duration-200 ${
+          isActive ? 'text-white font-medium' : 'group-hover:opacity-90'
+        }`}>
+          {item.title}
+        </span>
       </Link>
     </SidebarMenuButton>
   </SidebarMenuItem>

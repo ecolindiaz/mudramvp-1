@@ -7,12 +7,14 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import type { TimeRange } from "./time-range-selector"
+import type { AIModel } from "./model-selector"
 
 interface OverviewContainersProps {
   timeRange: TimeRange
+  selectedModel: AIModel
 }
 
-export function OverviewContainers({ timeRange }: OverviewContainersProps) {
+export function OverviewContainers({ timeRange, selectedModel }: OverviewContainersProps) {
   return (
     <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2">
       {/* AI Visibility Metric Container */}

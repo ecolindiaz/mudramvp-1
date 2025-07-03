@@ -3,13 +3,15 @@
 import { MetricCard } from "./metric-card"
 import { mockOverviewMetrics } from "@/lib/mock/data"
 import type { TimeRange } from "./time-range-selector"
+import type { AIModel } from "./model-selector"
 
 interface OverviewMetricsProps {
   showAll?: boolean
   timeRange: TimeRange
+  selectedModel: AIModel
 }
 
-export function OverviewMetrics({ showAll = false, timeRange }: OverviewMetricsProps) {
+export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: OverviewMetricsProps) {
   const { 
     humansReferredFromLLMs, 
     weeklyTasksCompleted,

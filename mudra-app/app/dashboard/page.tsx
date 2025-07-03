@@ -11,10 +11,12 @@ import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics"
 import { OverviewContainers } from "@/components/dashboard/overview-containers"
 import { TimeRangeSelector, type TimeRange } from "@/components/dashboard/time-range-selector"
+import { ModelSelector, type AIModel } from "@/components/dashboard/model-selector"
 import { useState } from "react"
 
 export default function Page() {
   const [timeRange, setTimeRange] = useState<TimeRange>("7d")
+  const [selectedModel, setSelectedModel] = useState<AIModel>("chatgpt")
 
   return (
     <SidebarProvider
@@ -41,19 +43,31 @@ export default function Page() {
                     Your brands performance across AI Search Engines
                   </p>
                 </div>
-                <TimeRangeSelector 
-                  value={timeRange}
-                  onValueChange={setTimeRange}
-                />
+                <div className="flex items-center">
+                  <TimeRangeSelector 
+                    value={timeRange}
+                    onValueChange={setTimeRange}
+                  />
+                  <ModelSelector
+                    value={selectedModel}
+                    onValueChange={setSelectedModel}
+                  />
+                </div>
               </div>
             </div>
             
             <div className="flex flex-col gap-4 pb-4 md:gap-6 md:pb-6">
               {/* Overview Metrics */}
-              <OverviewMetrics timeRange={timeRange} />
+              <OverviewMetrics 
+                timeRange={timeRange}
+                selectedModel={selectedModel}
+              />
               
               {/* AI Visibility Containers */}
-              <OverviewContainers timeRange={timeRange} />
+              <OverviewContainers 
+                timeRange={timeRange}
+                selectedModel={selectedModel}
+              />
             </div>
           </div>
         </div>

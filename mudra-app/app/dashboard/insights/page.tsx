@@ -4,6 +4,7 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 
 export default function InsightsPage() {
@@ -20,6 +21,7 @@ export default function InsightsPage() {
       <AppSidebar />
       <SidebarInset className="bg-black m-0 shadow-none rounded-none border-none">
         <SiteHeader />
+        <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-black">
           <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">

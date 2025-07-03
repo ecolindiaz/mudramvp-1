@@ -5,6 +5,7 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 
 export default function BrandProfilePage() {
@@ -21,6 +22,7 @@ export default function BrandProfilePage() {
       <AppSidebar />
       <SidebarInset className="bg-black m-0 shadow-none rounded-none border-none">
         <SiteHeader />
+        <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-black">
           <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
             <div className="py-8 px-4 lg:px-8">

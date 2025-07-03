@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/sidebar"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics"
+import { OverviewContainers } from "@/components/dashboard/overview-containers"
 
 export default function Page() {
   return (
@@ -26,6 +27,9 @@ export default function Page() {
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               {/* Overview Metrics */}
               <OverviewMetrics />
+              
+              {/* AI Visibility Containers */}
+              <OverviewContainers />
             </div>
           </div>
         </div>

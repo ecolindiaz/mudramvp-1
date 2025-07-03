@@ -10,6 +10,7 @@ import {
   CardTitle,
   CardContent,
 } from "@/components/ui/card"
+import { MetricCard } from "@/components/dashboard/metric-card"
 import {
   Table,
   TableBody,
@@ -474,48 +475,27 @@ export function TasksView() {
       <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
         {/* Header Cards */}
         <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-3">
-          <Card className="@container/card">
-            <CardHeader>
-              <CardDescription>Total Tasks</CardDescription>
-              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                {tasks.length}
-              </CardTitle>
-              <CardAction>
-                <Badge variant="outline">
-                  <IconTrendingUp />
-                  Active
-                </Badge>
-              </CardAction>
-            </CardHeader>
-          </Card>
-          <Card className="@container/card">
-            <CardHeader>
-              <CardDescription>In Progress</CardDescription>
-              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                {inProgressTasks.length}
-              </CardTitle>
-              <CardAction>
-                <Badge variant="outline">
-                  <IconLoader />
-                  Processing
-                </Badge>
-              </CardAction>
-            </CardHeader>
-          </Card>
-          <Card className="@container/card">
-            <CardHeader>
-              <CardDescription>Completed</CardDescription>
-              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                {completedTasks.length}
-              </CardTitle>
-              <CardAction>
-                <Badge variant="outline">
-                  <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
-                  Done
-                </Badge>
-              </CardAction>
-            </CardHeader>
-          </Card>
+          <MetricCard
+            title="Total Tasks"
+            value={tasks.length}
+            status="Active"
+            trend="up"
+            icon="target"
+          />
+          <MetricCard
+            title="In Progress"
+            value={inProgressTasks.length}
+            status="Processing"
+            trend="neutral"
+            icon="loader"
+          />
+          <MetricCard
+            title="Completed"
+            value={completedTasks.length}
+            status="Done"
+            trend="up"
+            icon="check"
+          />
         </div>
 
         {/* Main Table */}

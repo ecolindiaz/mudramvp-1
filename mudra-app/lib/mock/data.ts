@@ -320,4 +320,47 @@ export const mockExternalFootprint = {
       impact: "medium" as const,
     },
   ],
+};
+
+export const mockOverviewMetrics = {
+  humansReferredFromLLMs: {
+    current: 247,
+    previous: 189,
+    change: 30.7,
+    trend: "up" as const,
+    period: "This month",
+    status: "Growing",
+  },
+  weeklyTasksCompleted: {
+    current: 8,
+    previous: 12,
+    change: -33.3,
+    trend: "down" as const,
+    period: "This week",
+    status: "Active",
+  },
+  thisWeekGoals: {
+    current: 5,
+    previous: 3,
+    change: 66.7,
+    trend: "up" as const,
+    period: "This week",
+    status: "On Track",
+  },
+  aiVisibilityRank: {
+    current: 72,
+    previous: 45,
+    change: 60,
+    trend: "up" as const,
+    period: "Overall",
+    status: "Improving",
+  },
+  contentQualityScore: {
+    current: 85,
+    previous: 78,
+    change: 9,
+    trend: "up" as const,
+    period: "Technical",
+    status: "Optimized",
+  },
 }; 

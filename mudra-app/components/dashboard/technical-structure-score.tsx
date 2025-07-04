@@ -17,6 +17,11 @@ import {
   IconArrowRight,
   IconCheck
 } from "@tabler/icons-react"
+import {
+  RiArrowDownSFill,
+  RiArrowRightSFill,
+  RiArrowUpSFill,
+} from '@remixicon/react'
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 
@@ -56,6 +61,35 @@ export function TechnicalStructureScore({ timeRange, selectedModel }: TechnicalS
   // Filter to only show tasks that are in process
   const inProcessTasks = technicalTasks.filter(task => task.status === "In Process")
 
+  // Mock trend data - replace with backend data later
+  const trendChange = 2.3 // This will come from backend
+  const changePercent = Math.abs(trendChange).toFixed(1)
+  
+  const getTrendIndicator = () => {
+    if (trendChange > 0) {
+      return (
+        <span className="inline-flex items-center gap-x-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/20 backdrop-blur-sm">
+          <RiArrowUpSFill className="size-3.5" aria-hidden={true} />
+          +{changePercent}%
+        </span>
+      )
+    } else if (trendChange < 0) {
+      return (
+        <span className="inline-flex items-center gap-x-1.5 rounded-full bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 ring-1 ring-red-500/20 backdrop-blur-sm">
+          <RiArrowDownSFill className="size-3.5" aria-hidden={true} />
+          -{changePercent}%
+        </span>
+      )
+    } else {
+      return (
+        <span className="inline-flex items-center gap-x-1.5 rounded-full bg-gray-500/10 px-3 py-1.5 text-xs font-medium text-gray-400 ring-1 ring-gray-500/20 backdrop-blur-sm">
+          <RiArrowRightSFill className="size-3.5" aria-hidden={true} />
+          {changePercent}%
+        </span>
+      )
+    }
+  }
+
   // Suppress unused variable warnings for future use
   void timeRange
   void selectedModel
@@ -70,11 +104,12 @@ export function TechnicalStructureScore({ timeRange, selectedModel }: TechnicalS
         <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
           {overallScore}%
         </CardTitle>
-        <CardAction>
+        <CardAction className="flex flex-col items-end gap-3">
           <Badge variant="outline" className="gap-1">
             <IconCheck className="size-4" />
             Optimized
           </Badge>
+          {getTrendIndicator()}
         </CardAction>
       </CardHeader>
       

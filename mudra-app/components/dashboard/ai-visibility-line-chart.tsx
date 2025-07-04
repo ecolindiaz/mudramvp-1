@@ -2,6 +2,11 @@
 
 
 import { CartesianGrid, Line, LineChart, XAxis, YAxis, Area, AreaChart, ResponsiveContainer } from "recharts"
+import {
+  RiArrowDownSFill,
+  RiArrowRightSFill,
+  RiArrowUpSFill,
+} from '@remixicon/react'
 
 import {
   Card,
@@ -36,14 +41,64 @@ const chartConfig = {
 } satisfies ChartConfig
 
 export function AIVisibilityLineChart() {
+  // Calculate trend from last two months
+  const lastMonth = chartData[chartData.length - 1]
+  const previousMonth = chartData[chartData.length - 2]
+  const change = lastMonth.visibility - previousMonth.visibility
+  const changePercent = Math.abs(change).toFixed(1)
+  
+  const getTrendIndicator = () => {
+    if (change > 0) {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-x-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/20 backdrop-blur-sm">
+            <RiArrowUpSFill className="size-3.5" aria-hidden={true} />
+            +{changePercent}%
+          </span>
+        </div>
+      )
+    } else if (change < 0) {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-x-1.5 rounded-full bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 ring-1 ring-red-500/20 backdrop-blur-sm">
+            <RiArrowDownSFill className="size-3.5" aria-hidden={true} />
+            -{changePercent}%
+          </span>
+        </div>
+      )
+    } else {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-x-1.5 rounded-full bg-gray-500/10 px-3 py-1.5 text-xs font-medium text-gray-400 ring-1 ring-gray-500/20 backdrop-blur-sm">
+            <RiArrowRightSFill className="size-3.5" aria-hidden={true} />
+            {changePercent}%
+          </span>
+        </div>
+      )
+    }
+  }
+
   return (
     <Card className="bg-muted/50 dark:bg-muted/20">
-      <CardHeader>
-        <CardTitle className="text-lg">AI Visibility Metric</CardTitle>
-        <CardDescription className="text-sm text-gray-400 mt-1">January - June 2024</CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-6">
+        <div className="space-y-2">
+          <CardTitle className="text-xl font-semibold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">
+            AI Visibility Metric
+          </CardTitle>
+          <div className="flex items-center gap-3">
+            <CardDescription className="text-sm text-muted-foreground/70">
+              January - June 2024
+            </CardDescription>
+            <div className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+            <div className="text-sm font-medium text-muted-foreground/90">
+              Current: {lastMonth.visibility}%
+            </div>
+          </div>
+        </div>
+        {getTrendIndicator()}
       </CardHeader>
-      <CardContent className="min-h-[280px] px-2 py-0">
-        <ChartContainer config={chartConfig} className="h-[285px] w-full">
+      <CardContent className="min-h-[280px] px-3 pt-2 pb-4">
+        <ChartContainer config={chartConfig} className="h-[280px] w-full">
           <AreaChart
             accessibilityLayer
             data={chartData}
@@ -70,23 +125,23 @@ export function AIVisibilityLineChart() {
             </defs>
             <CartesianGrid 
               vertical={false} 
-              strokeDasharray="3 3" 
-              opacity={0.2} 
-              stroke="#4B5563" 
+              strokeDasharray="2 4" 
+              opacity={0.15} 
+              stroke="hsl(var(--muted-foreground))" 
             />
             <XAxis
               dataKey="month"
               tickLine={false}
               axisLine={false}
-              tickMargin={8}
-              tick={{ fontSize: 12, fill: '#9CA3AF' }}
+              tickMargin={12}
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))', fontWeight: 500 }}
               tickFormatter={(value) => value.slice(0, 3)}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
-              tickMargin={8}
-              tick={{ fontSize: 12, fill: '#9CA3AF' }}
+              tickMargin={12}
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))', fontWeight: 500 }}
               domain={[50, 95]}
               ticks={[50, 60, 70, 80, 90]}
               tickFormatter={(value) => `${value}%`}

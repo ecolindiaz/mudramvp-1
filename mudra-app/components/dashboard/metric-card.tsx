@@ -66,12 +66,7 @@ export function MetricCard({
         </CardTitle>
         <CardAction>
           <Badge variant="outline">
-            <StatusIcon className={cn(
-              "size-4",
-              status === "Done" || status === "Optimized" 
-                ? "fill-green-500 dark:fill-green-400" 
-                : undefined
-            )} />
+            <StatusIcon className="size-4" />
             {status}
           </Badge>
         </CardAction>

@@ -1,6 +1,7 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardAction,
@@ -11,12 +12,10 @@ import {
 import { cn } from "@/lib/utils"
 import { 
   IconTrendingUp,
-  IconTrendingDown,
-  IconMinus,
-  IconUsers,
   IconTarget,
   IconLoader,
   IconCheck,
+  IconArrowRight,
 } from "@tabler/icons-react"
 
 interface MetricCardProps {
@@ -26,6 +25,8 @@ interface MetricCardProps {
   trend?: "up" | "down" | "neutral"
   icon?: "users" | "target" | "loader" | "check" | "trending-up"
   className?: string
+  onRedirect?: () => void
+  redirectLabel?: string
 }
 
 const statusIcons = {
@@ -38,24 +39,21 @@ const statusIcons = {
   "On Track": IconTarget,
 }
 
-const metricIcons = {
-  "users": IconUsers,
-  "target": IconTarget,
-  "loader": IconLoader,
-  "check": IconCheck,
-  "trending-up": IconTrendingUp,
-}
-
 export function MetricCard({ 
   title, 
   value, 
   status, 
   trend = "neutral",
   icon = "trending-up",
-  className 
+  className,
+  onRedirect,
+  redirectLabel = "View"
 }: MetricCardProps) {
   const StatusIcon = statusIcons[status as keyof typeof statusIcons] || IconTrendingUp
-  const MetricIcon = metricIcons[icon]
+  
+  // Suppress unused variable warnings for future use
+  void trend
+  void icon
 
   return (
     <Card className={cn("@container/card", className)}>
@@ -65,10 +63,23 @@ export function MetricCard({
           {value}
         </CardTitle>
         <CardAction>
-          <Badge variant="outline">
-            <StatusIcon className="size-4" />
-            {status}
-          </Badge>
+          <div className="flex flex-col items-start gap-2">
+            <Badge variant="outline">
+              <StatusIcon className="size-4" />
+              {status}
+            </Badge>
+            {onRedirect && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={onRedirect}
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {redirectLabel}
+                <IconArrowRight className="ml-1 size-3" />
+              </Button>
+            )}
+          </div>
         </CardAction>
       </CardHeader>
     </Card>

@@ -63,7 +63,7 @@ export function MetricCard({
           {value}
         </CardTitle>
         <CardAction>
-          <div className="flex flex-col items-start gap-2">
+          <div className="flex flex-col items-end gap-2">
             <Badge variant="outline">
               <StatusIcon className="size-4" />
               {status}

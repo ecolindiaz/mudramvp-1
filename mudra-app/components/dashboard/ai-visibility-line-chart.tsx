@@ -1,7 +1,7 @@
 "use client"
 
 
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis, Area, AreaChart, ResponsiveContainer } from "recharts"
 
 import {
   Card,
@@ -37,14 +37,14 @@ const chartConfig = {
 
 export function AIVisibilityLineChart() {
   return (
-    <Card>
-      <CardHeader className="pb-1 pt-5 px-5">
-        <CardTitle className="text-lg font-semibold text-white">AI Visibility Trend</CardTitle>
+    <Card className="bg-muted/50 dark:bg-muted/20">
+      <CardHeader>
+        <CardTitle className="text-lg">AI Visibility Metric</CardTitle>
         <CardDescription className="text-sm text-gray-400 mt-1">January - June 2024</CardDescription>
       </CardHeader>
-      <CardContent className="px-2 py-0">
+      <CardContent className="min-h-[280px] px-2 py-0">
         <ChartContainer config={chartConfig} className="h-[285px] w-full">
-          <LineChart
+          <AreaChart
             accessibilityLayer
             data={chartData}
             margin={{
@@ -54,47 +54,78 @@ export function AIVisibilityLineChart() {
               bottom: 8,
             }}
           >
-            <CartesianGrid vertical={false} strokeDasharray="2 2" opacity={0.4} stroke="#374151" />
+            <defs>
+              <linearGradient id="fillVisibility" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor="var(--color-visibility)"
+                  stopOpacity={0.3}
+                />
+                <stop
+                  offset="95%"
+                  stopColor="var(--color-visibility)"
+                  stopOpacity={0.05}
+                />
+              </linearGradient>
+            </defs>
+            <CartesianGrid 
+              vertical={false} 
+              strokeDasharray="3 3" 
+              opacity={0.2} 
+              stroke="#4B5563" 
+            />
             <XAxis
               dataKey="month"
               tickLine={false}
               axisLine={false}
-              tickMargin={4}
-              tick={{ fontSize: 12, fill: '#9ca3af' }}
+              tickMargin={8}
+              tick={{ fontSize: 12, fill: '#9CA3AF' }}
               tickFormatter={(value) => value.slice(0, 3)}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
-              tickMargin={4}
-              tick={{ fontSize: 12, fill: '#9ca3af' }}
+              tickMargin={8}
+              tick={{ fontSize: 12, fill: '#9CA3AF' }}
               domain={[50, 95]}
               ticks={[50, 60, 70, 80, 90]}
               tickFormatter={(value) => `${value}%`}
             />
             <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent hideLabel formatter={(value) => [`${value}%`, "AI Visibility"]} />}
+              cursor={{
+                stroke: "var(--color-visibility)",
+                strokeWidth: 1,
+                strokeDasharray: "4 4",
+                opacity: 0.5
+              }}
+              content={<ChartTooltipContent 
+                hideLabel 
+                formatter={(value) => [`${value}%`, "AI Visibility"]}
+                className="bg-background/95 backdrop-blur border border-border/50"
+              />}
             />
-            <Line
+            <Area
               dataKey="visibility"
               type="monotone"
+              fill="url(#fillVisibility)"
+              fillOpacity={1}
               stroke="var(--color-visibility)"
-              strokeWidth={2.5}
+              strokeWidth={3}
               dot={{
                 fill: "var(--color-visibility)",
-                strokeWidth: 0,
-                r: 3.5,
-                stroke: "transparent",
+                strokeWidth: 2,
+                r: 4,
+                stroke: "#111827",
               }}
               activeDot={{
-                r: 5,
+                r: 6,
                 fill: "var(--color-visibility)",
-                stroke: "#1f2937",
-                strokeWidth: 2,
+                stroke: "#111827",
+                strokeWidth: 3,
+                filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.4))"
               }}
             />
-          </LineChart>
+          </AreaChart>
         </ChartContainer>
       </CardContent>
 

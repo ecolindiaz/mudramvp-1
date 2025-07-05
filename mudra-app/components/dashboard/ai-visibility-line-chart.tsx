@@ -21,6 +21,14 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
+import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { IconInfoCircle, IconArrowRight } from "@tabler/icons-react"
 
 export const description = "AI Visibility Metric trend over time"
 
@@ -95,7 +103,43 @@ export function AIVisibilityLineChart() {
             </div>
           </div>
         </div>
-        {getTrendIndicator()}
+        <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 w-7 p-0 rounded-full hover:bg-muted/50 transition-all duration-200"
+                >
+                  <IconInfoCircle className="h-3.5 w-3.5 text-muted-foreground/60 hover:text-muted-foreground transition-colors" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent 
+                side="left" 
+                align="start"
+                className="max-w-72 p-4 bg-background/95 backdrop-blur-sm border border-border/50 shadow-lg"
+              >
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm text-foreground">AI Visibility Metric</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Measures how frequently your brand appears when users prompt AI models. 
+                    Higher scores indicate better brand recognition in AI responses.
+                  </p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-7 px-2.5 text-xs font-medium text-muted-foreground/70 hover:text-foreground hover:bg-muted/30 transition-all duration-200 rounded-md"
+          >
+            View
+            <IconArrowRight className="ml-1.5 h-3 w-3" />
+          </Button>
+          {getTrendIndicator()}
+        </div>
       </CardHeader>
       <CardContent className="min-h-[280px] px-3 pt-2 pb-4">
         <ChartContainer config={chartConfig} className="h-[280px] w-full">

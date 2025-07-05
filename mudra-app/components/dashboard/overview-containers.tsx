@@ -1,14 +1,9 @@
 "use client"
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { TechnicalStructureScore } from "./technical-structure-score"
 import { ContentQualityScore } from "./content-quality-score"
 import { AIVisibilityLineChart } from "./ai-visibility-line-chart"
+import { AIVisibilityRank } from "./ai-visibility-rank"
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 
@@ -23,14 +18,10 @@ export function OverviewContainers({ timeRange, selectedModel }: OverviewContain
       {/* Top Row - AI Visibility Containers */}
       <AIVisibilityLineChart />
 
-      <Card className="bg-muted/50 dark:bg-muted/20">
-        <CardHeader>
-          <CardTitle className="text-lg">AI Visibility Rank</CardTitle>
-        </CardHeader>
-        <CardContent className="min-h-[280px]">
-          {/* Content will be added later */}
-        </CardContent>
-      </Card>
+      <AIVisibilityRank 
+        timeRange={timeRange}
+        selectedModel={selectedModel}
+      />
 
       {/* Bottom Row - Score Components */}
       <TechnicalStructureScore 

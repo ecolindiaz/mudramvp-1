@@ -214,7 +214,6 @@ export function AIVisibilityRank({ timeRange, selectedModel }: AIVisibilityRankP
                 <span className="text-sm font-semibold text-foreground">
                   {item.score}%
                 </span>
-                {getTrendIndicator(item.trend)}
               </div>
             </div>
           ))}

@@ -15,7 +15,8 @@ import { mockTechnicalData } from "@/lib/mock/data"
 import { 
   IconLoader,
   IconArrowRight,
-  IconCheck
+  IconCheck,
+  IconInfoCircle
 } from "@tabler/icons-react"
 import {
   RiArrowDownSFill,
@@ -24,6 +25,12 @@ import {
 } from '@remixicon/react'
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface TechnicalStructureScoreProps {
   timeRange: TimeRange
@@ -105,10 +112,37 @@ export function TechnicalStructureScore({ timeRange, selectedModel }: TechnicalS
           {overallScore}%
         </CardTitle>
         <CardAction className="flex flex-col items-end gap-3">
-          <Badge variant="outline" className="gap-1">
-            <IconCheck className="size-4" />
-            Optimized
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="gap-1">
+              <IconCheck className="size-4" />
+              Optimized
+            </Badge>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-7 w-7 p-0 rounded-full hover:bg-muted/50 transition-all duration-200"
+                  >
+                    <IconInfoCircle className="h-3.5 w-3.5 text-muted-foreground/60 hover:text-muted-foreground transition-colors" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent 
+                  side="left" 
+                  align="start"
+                  className="max-w-72 p-4 bg-background/95 backdrop-blur-sm border border-border/50 shadow-lg"
+                >
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm text-foreground">Technical Structure Score</h4>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      How well is the technical backend of your website optimized for crawlability and retrieval from AI Bots.
+                    </p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           {getTrendIndicator()}
         </CardAction>
       </CardHeader>

@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { TimeRangeSelector, type TimeRange } from "@/components/dashboard/time-range-selector"
+import { TrackedPromptsView } from "@/components/tracked-prompts-view"
 
 type InsightView = "brand" | "tracked-prompts" | "citation-gaps"
 
@@ -32,16 +33,7 @@ export default function InsightsPage() {
           </div>
         )
       case "tracked-prompts":
-        return (
-          <div className="min-h-[400px] flex items-center justify-center">
-            <div className="text-center space-y-3">
-              <div className="w-16 h-16 mx-auto bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-full flex items-center justify-center border border-white/10">
-                <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-400 rounded-full"></div>
-              </div>
-              <p className="text-white/60 text-sm">Tracked prompts content will be implemented here</p>
-            </div>
-          </div>
-        )
+        return <TrackedPromptsView />
       case "citation-gaps":
         return (
           <div className="min-h-[400px] flex items-center justify-center">
@@ -136,11 +128,17 @@ export default function InsightsPage() {
             {/* Enhanced Content Area */}
             <div className="flex flex-col flex-1">
               <div className="px-4 lg:px-8 pb-8">
-                <div className="bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/[0.08] shadow-2xl min-h-[500px]">
-                  <div className="p-6 lg:p-8">
+                {activeView === "tracked-prompts" ? (
+                  <div>
                     {renderContent()}
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/[0.08] shadow-2xl min-h-[500px]">
+                    <div className="p-6 lg:p-8">
+                      {renderContent()}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

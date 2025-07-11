@@ -17,6 +17,7 @@ import {
   IconCheck,
   IconArrowRight,
 } from "@tabler/icons-react"
+import { GoalWidget } from "./goal-widget"
 
 interface MetricCardProps {
   title: string
@@ -27,6 +28,8 @@ interface MetricCardProps {
   className?: string
   onRedirect?: () => void
   redirectLabel?: string
+  showGoalWidget?: boolean
+  goalText?: string
 }
 
 const statusIcons = {
@@ -47,7 +50,9 @@ export function MetricCard({
   icon = "trending-up",
   className,
   onRedirect,
-  redirectLabel = "View"
+  redirectLabel = "View",
+  showGoalWidget = false,
+  goalText
 }: MetricCardProps) {
   const StatusIcon = statusIcons[status as keyof typeof statusIcons] || IconTrendingUp
   
@@ -59,9 +64,15 @@ export function MetricCard({
     <Card className={cn("@container/card", className)}>
       <CardHeader>
         <CardDescription>{title}</CardDescription>
-        <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-          {value}
-        </CardTitle>
+        {showGoalWidget && goalText && typeof goalText === 'string' && goalText.trim().length > 0 ? (
+          <div className="pt-2">
+            <GoalWidget goalText={goalText.trim()} />
+          </div>
+        ) : (
+          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            {value}
+          </CardTitle>
+        )}
         <CardAction>
           <div className="flex flex-col items-end gap-2">
             <Badge variant="outline">

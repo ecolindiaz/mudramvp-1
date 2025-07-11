@@ -80,6 +80,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         icon="target"
         onRedirect={handleWeekGoalsRedirect}
         redirectLabel="View"
+        showGoalWidget={true}
+        goalText="Boost AI Visibility 1.7%"
       />
 
       {showAll && (

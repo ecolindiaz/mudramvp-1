@@ -29,6 +29,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { IconInfoCircle, IconArrowRight } from "@tabler/icons-react"
+import { MetricWidget } from "./metric-widget"
 
 export const description = "AI Visibility Metric trend over time"
 
@@ -89,18 +90,21 @@ export function AIVisibilityLineChart() {
   return (
     <Card className="bg-muted/50 dark:bg-muted/20">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-6">
-        <div className="space-y-2">
+        <div className="space-y-3">
           <CardTitle className="text-xl font-semibold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">
             AI Visibility Metric
           </CardTitle>
           <div className="flex items-center gap-3">
-            <CardDescription className="text-sm text-muted-foreground/70">
-              January - June 2024
-            </CardDescription>
-            <div className="h-1 w-1 rounded-full bg-muted-foreground/30" />
-            <div className="text-sm font-medium text-muted-foreground/90">
-              Current: {lastMonth.visibility}%
-            </div>
+            <MetricWidget 
+              label="Period" 
+              value="January - June 2024" 
+              variant="period"
+            />
+            <MetricWidget 
+              label="Current" 
+              value={`${lastMonth.visibility}%`} 
+              variant="current"
+            />
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -227,7 +231,6 @@ export function AIVisibilityLineChart() {
           </AreaChart>
         </ChartContainer>
       </CardContent>
-
     </Card>
   )
 } 

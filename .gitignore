@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+output/*.json
+!output/.gitkeep
+.DS_Store

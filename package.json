@@ -1,0 +1,26 @@
+{
+  "name": "firecrawl-schema-scraper",
+  "version": "1.0.0",
+  "description": "Web scraping with Firecrawl using schema extraction",
+  "main": "dist/enhanced-geo-scraper.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "extract": "tsx src/schema-extractor.ts",
+    "geo": "tsx src/geo-technical-scraper.ts",
+    "enhanced-geo": "tsx src/enhanced-geo-scraper.ts"
+  },
+  "dependencies": {
+    "@mendable/firecrawl-js": "^1.21.1",
+    "dotenv": "^16.3.1",
+    "@types/node": "^20.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "keywords": ["firecrawl", "web-scraping", "schema-extraction", "ai", "typescript"],
+  "author": "",
+  "license": "MIT"
+}

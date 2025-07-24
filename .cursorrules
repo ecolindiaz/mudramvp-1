@@ -1,0 +1,289 @@
+# Mudra - Cursor Rules and Coding Standards
+
+## Project Overview
+Mudra is a Generative Engine Optimization (GEO) platform that helps startups get mentioned by AI.
+Target ICP: Startups, GEO Specialists, Marketing teams
+
+## Tech Stack
+- **Frontend**: Next.js 14+ (App Router), React 18+, TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui components
+- **Database**: PostgreSQL/Supabase with Prisma ORM
+- **Authentication**: Better Auth
+- **AI Integration**: Vercel AI SDK or direct AI APIs
+- **Payments**: Stripe
+- **Hosting**: Vercel
+- **Caching**: Redis for API response caching
+- **Job Queue**: Background job processing for AI queries
+
+## Project Structure
+```
+.
+├── app/                    # Next.js app router
+│   ├── (auth)/            # Auth routes (login, signup, etc.)
+│   ├── (dashboard)/       # Dashboard routes
+│   ├── (marketing)/       # Public marketing pages
+│   ├── api/               # API routes (feature-based organization)
+│   └── layout.tsx         # Root layout
+├── components/            # React components
+│   ├── ui/               # shadcn/ui components
+│   ├── dashboard/        # Dashboard-specific components
+│   ├── analysis/         # Analysis features (organized by feature)
+│   │   ├── query-llms/
+│   │   ├── crawler-detection/
+│   │   ├── technical-structure/
+│   │   ├── content-quality/
+│   │   └── external-footprint/
+│   └── shared/           # Shared components
+├── lib/                  # Utilities and configurations
+│   ├── ai/              # AI integrations
+│   ├── auth/            # Auth configuration
+│   ├── db/              # Database utilities
+│   ├── cache/           # Caching strategies
+│   ├── jobs/            # Background job processing
+│   ├── analysis/        # Analysis business logic
+│   ├── stripe/          # Stripe configuration
+│   └── utils/           # General utilities
+│       ├── constants.ts
+│       ├── helpers.ts
+│       ├── validators.ts
+│       └── rate-limits.ts
+├── prisma/              # Database schema and migrations
+├── public/              # Static assets
+├── hooks/               # Custom React hooks (feature-based)
+│   ├── analysis/        # Analysis-specific hooks
+│   ├── ai/              # AI integration hooks
+│   └── dashboard/       # Dashboard hooks
+├── types/               # TypeScript type definitions
+└── config/              # Configuration files
+```
+
+## Coding Standards
+
+### TypeScript
+- Use TypeScript for all files
+- Prefer interfaces over types for object shapes
+- Use proper type imports: `import type { ... }`
+- Enable strict mode in tsconfig.json
+- Avoid `any` type - use `unknown` if type is truly unknown
+
+### React/Next.js Patterns
+- Use functional components with hooks
+- Prefer Server Components by default, use Client Components only when needed
+- Use `"use client"` directive at top of client component files
+- Implement proper error boundaries
+- Use Next.js Image component for all images
+- Implement proper loading and error states
+
+### Component Structure
+```tsx
+// Example component structure
+"use client" // Only if client component
+
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import type { AnalysisResult } from '@/types'
+
+interface ComponentNameProps {
+  data: AnalysisResult
+  onAction: (id: string) => Promise<void>
+}
+
+export function ComponentName({ data, onAction }: ComponentNameProps) {
+  const [loading, setLoading] = useState(false)
+  
+  // Component logic
+  
+  return (
+    <div className="space-y-4">
+      {/* Component JSX */}
+    </div>
+  )
+}
+```
+
+### Naming Conventions
+- **Files**: kebab-case (e.g., `ai-visibility-score.tsx`)
+- **Components**: PascalCase (e.g., `AiVisibilityScore`)
+- **Functions/Variables**: camelCase (e.g., `calculateVisibilityScore`)
+- **Constants**: UPPER_SNAKE_CASE (e.g., `MAX_QUERY_LIMIT`)
+- **Types/Interfaces**: PascalCase with descriptive names
+- **Database Models**: PascalCase singular (e.g., `User`, `Analysis`)
+- **API Routes**: RESTful with feature grouping (e.g., `/api/analysis/visibility/query`)
+
+### State Management
+- Use React hooks for local state
+- Use Server Actions for mutations
+- Implement optimistic updates where appropriate
+- Use React Query/SWR for client-side data fetching if needed
+- Feature-specific hooks for better modularity
+
+### API Design
+- RESTful endpoints in `/app/api/`
+- Feature-based organization for better maintainability
+- Use Server Actions for form submissions and mutations
+- Implement proper error handling and validation
+- Return consistent response formats:
+```ts
+// Success
+{ success: true, data: {...} }
+// Error
+{ success: false, error: { message: "...", code: "..." } }
+```
+
+### Database Patterns (Prisma)
+- Use migrations for schema changes
+- Implement soft deletes where appropriate
+- Add proper indexes for performance
+- Use transactions for multi-step operations
+- Schema naming: snake_case for table and column names
+- Include Job and CacheEntry models for background processing
+
+### Caching Strategy
+- Use Redis for API response caching
+- Implement TTL based on data type:
+  - AI query results: 24 hours
+  - Technical audits: 6 hours
+  - External footprint: 12 hours
+  - Content analysis: 12 hours
+- Cache invalidation on data updates
+- Use cache warming for frequently accessed data
+- Implement cache stampede protection
+
+### Job Queue Patterns
+- Use background jobs for:
+  - AI model queries (high priority)
+  - Website crawling (medium priority)
+  - Content analysis (medium priority)
+  - External footprint scanning (low priority)
+- Implement retry logic with exponential backoff
+- Set job timeouts based on operation type
+- Monitor job queue health
+- Implement dead letter queue for failed jobs
+
+### Security Best Practices
+- ALL sensitive data in .env.local (never commit)
+- Validate all user inputs
+- Sanitize data before database operations
+- Use parameterized queries (Prisma handles this)
+- Implement proper RBAC (Role-Based Access Control)
+- Rate limit API endpoints
+- Use CSRF protection
+- Implement API key rotation for AI services
+
+### UI/UX Patterns
+- Follow shadcn/ui component patterns
+- Maintain consistent spacing using Tailwind classes
+- Use proper loading states (skeletons, spinners)
+- Implement proper error handling with user-friendly messages
+- Ensure accessibility (ARIA labels, keyboard navigation)
+- Mobile-first responsive design
+- Show real-time status for background jobs
+
+### Git Workflow
+- Branch naming: `feature/feature-name`, `fix/bug-description`
+- Commit messages: Conventional commits (feat:, fix:, docs:, etc.)
+- PR descriptions should include what, why, and testing steps
+- Never commit .env files or sensitive data
+
+### Performance Guidelines
+- Implement proper caching strategies
+- Use dynamic imports for large components
+- Optimize images (WebP, proper sizing)
+- Minimize client-side JavaScript
+- Use database connection pooling
+- Implement pagination for large datasets
+- Use job queues for heavy operations
+- Implement request deduplication
+
+### Testing Approach
+- Unit tests for utilities and pure functions
+- Integration tests for API endpoints
+- E2E tests for critical user flows
+- Test file naming: `*.test.ts` or `*.spec.ts`
+- Test caching logic separately
+- Test job queue processing
+
+### Environment Variables
+Required environment variables:
+```
+# Database
+DATABASE_URL=
+REDIS_URL=
+
+# Authentication
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=
+
+# AI Services
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+PERPLEXITY_API_KEY=
+GOOGLE_AI_API_KEY=
+
+# Stripe
+STRIPE_SECRET_KEY=
+STRIPE_PUBLISHABLE_KEY=
+STRIPE_WEBHOOK_SECRET=
+
+# App
+NEXT_PUBLIC_APP_URL=
+
+# Job Queue
+QUEUE_REDIS_URL=
+```
+
+## Feature-Specific Guidelines
+
+### Analysis Features
+1. **Query LLMs**: Implement rate limiting and caching
+2. **AI Crawlers**: Use server-side tracking and client-side JS snippet
+3. **Technical Structure**: Parse HTML efficiently, cache results
+4. **Context Analysis**: Implement competitor comparison logic
+5. **External Footprint**: Rate limit external API calls
+
+### Component Organization
+- Group components by feature (e.g., `analysis/query-llms/`)
+- Keep related components together
+- Use index files for clean imports
+- Separate presentational and container components
+
+### Hook Organization
+- Group hooks by feature area
+- Prefix with feature name (e.g., `useVisibilityScore`)
+- Keep hooks focused on single responsibility
+- Document complex hooks with JSDoc
+
+### Dashboard Implementation
+- Use consistent card layouts
+- Implement real-time updates where beneficial
+- Show comparison metrics (before/after)
+- Use charts for data visualization (recharts recommended)
+- Implement proper data refresh mechanisms
+- Show job processing status
+
+### Error Handling
+- Never expose internal errors to users
+- Log errors properly for debugging
+- Implement fallback UI for error states
+- Use toast notifications for user feedback
+- Implement retry mechanisms for transient failures
+- Handle job failures gracefully
+
+## Development Workflow
+1. Always create feature branches
+2. Write clear PR descriptions
+3. Update types when changing data structures
+4. Run type checking before committing
+5. Follow the mobile-first approach
+6. Test on multiple browsers
+7. Document complex logic with comments
+8. Monitor background job performance
+
+## Comments and Documentation
+- Use JSDoc for complex functions
+- Add inline comments for non-obvious logic
+- Keep README.md updated
+- Document API endpoints
+- Maintain changelog for major features
+- Document caching strategies
+- Document job queue patterns 

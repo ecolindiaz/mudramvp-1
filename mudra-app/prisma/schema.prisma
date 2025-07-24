@@ -13,3 +13,314 @@ datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
 }
+
+// Enums for type safety
+enum RecommendationSeverity {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum RecommendationImpact {
+  SEO
+  PERFORMANCE
+  ACCESSIBILITY
+  USER_EXPERIENCE
+}
+
+enum RecommendationCategory {
+  STRUCTURED_DATA
+  CONTENT_AUTHORITY
+  TECHNICAL_ACCESSIBILITY
+  FAQ_OPTIMIZATION
+  CONTENT_FRESHNESS
+  ENTITY_RECOGNITION
+}
+
+// User's Website Management
+model Website {
+  id          String @id @default(cuid())
+  userId      String
+  url         String
+  domain      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  technicalAnalyses TechnicalAnalysis[]
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("websites")
+  @@unique([userId, url]) // One analysis per URL per user
+  @@index([userId])
+  @@index([domain])
+}
+
+// Core Technical Structure Analysis
+model TechnicalAnalysis {
+  id                    String   @id @default(cuid())
+  websiteId             String
+  sourceUrl             String   // Add this to match your interface
+  timestamp             DateTime @default(now()) // Match interface field name
+  
+  // GEO Scores
+  overallScore          Float    @default(0)
+  contentAuthority      Float    @default(0)
+  technicalAccessibility Float   @default(0)
+  structuredData        Float    @default(0)
+  entityRecognition     Float    @default(0)
+  faqOptimization       Float    @default(0)
+  contentFreshness      Float    @default(0)
+  
+  // Metadata
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  // Relations
+  website               Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  structuredDataAnalysis StructuredData?
+  entityRecognitionAnalysis EntityRecognition?
+  faqAnalysis          FAQAnalysis?
+  contentFreshnessAnalysis ContentFreshness?
+  contentStructure     ContentStructure?
+  technicalAccessibilityAnalysis TechnicalAccessibility?
+  recommendations      AnalysisRecommendation[]
+  
+  @@map("technical_analyses")
+  @@index([websiteId])
+  @@index([timestamp])
+  @@index([websiteId, timestamp]) // For time-series queries per website
+  @@index([websiteId, overallScore]) // For ranking websites by score
+  @@index([timestamp, overallScore]) // For trending analysis
+}
+
+// Structured Data Detection
+model StructuredData {
+  id                    String            @id @default(cuid())
+  technicalAnalysisId   String            @unique
+  technicalAnalysis     TechnicalAnalysis @relation(fields: [technicalAnalysisId], references: [id], onDelete: Cascade)
+  
+  // Raw Structured Data (matching your algorithm exactly)
+  jsonLdData            Json              // Store the jsonLd array
+  microdataData         Json              // Store the microdata array  
+  rdfaData              Json              // Store the rdfa array
+  schemaTypes           Json              // Store the schemaTypes string array
+  faqSchemas            Json              // Store the faqSchemas array
+  
+  // Specific Schema Objects (optional, matching your algorithm)
+  organizationSchema    Json?             // Store the organizationSchema object
+  websiteSchema         Json?             // Store the websiteSchema object
+  breadcrumbSchema      Json?             // Store the breadcrumbSchema object
+  
+  // Derived Boolean Flags (for quick querying)
+  hasOrganizationSchema Boolean           @default(false)
+  hasWebsiteSchema      Boolean           @default(false)
+  hasBreadcrumbSchema   Boolean           @default(false)
+  hasFAQSchema          Boolean           @default(false)
+  
+  createdAt             DateTime          @default(now())
+  
+  @@map("structured_data")
+  @@index([hasOrganizationSchema])
+  @@index([hasFAQSchema])
+}
+
+// Entity Recognition and Knowledge Graph
+model EntityRecognition {
+  id                   String            @id @default(cuid())
+  technicalAnalysisId  String            @unique //
+  technicalAnalysis    TechnicalAnalysis @relation(fields: [technicalAnalysisId], references: [id], onDelete: Cascade)
+  
+  // Entity Data (JSON Arrays - matching your algorithm exactly)
+  organizations        Json              // string[] - Organizations found
+  people              Json              // string[] - People found  
+  technologies        Json              // string[] - Technologies mentioned
+  products            Json              // string[] - Products/services
+  locations           Json              // string[] - Geographic locations
+  
+  // Entity Counts (derived for quick querying)
+  organizationsCount   Int               @default(0)
+  peopleCount         Int               @default(0)
+  technologiesCount   Int               @default(0)
+  productsCount       Int               @default(0)
+  locationsCount      Int               @default(0)
+  
+  createdAt           DateTime          @default(now())
+  
+  @@map("entity_recognition")
+  @@index([organizationsCount])
+  @@index([technologiesCount])
+}
+
+// FAQ Optimization Analysis
+model FAQAnalysis {
+  id                    String            @id @default(cuid())
+  technicalAnalysisId   String            @unique // Should be unique for 1:1 relationship
+  technicalAnalysis     TechnicalAnalysis @relation(fields: [technicalAnalysisId], references: [id], onDelete: Cascade)
+  
+  // Direct mapping to your algorithm fields
+  questionAnswerPairs   Int               @default(0) // Matches your algorithm exactly
+  faqStructuredData     Boolean           @default(false) // Renamed to match algorithm
+  faqSchemaPresent      Boolean           @default(false) // Matches your algorithm exactly
+  
+  // FAQ content storage
+  faqSections           Json              // Store the faqSections array (removed ?)
+  
+  // Derived count for quick querying
+  faqSectionCount       Int               @default(0) // Derived from faqSections.length
+  
+  createdAt             DateTime          @default(now())
+  
+  @@map("faq_analyses")
+  @@index([questionAnswerPairs])
+  @@index([faqSchemaPresent])
+}
+
+//ContentFreshness
+model ContentFreshness {
+  id                   String            @id @default(cuid())
+  technicalAnalysisId  String            @unique
+  technicalAnalysis    TechnicalAnalysis @relation(fields: [technicalAnalysisId], references: [id], onDelete: Cascade)
+  
+  // Freshness Data (matching your algorithm exactly)
+  publishDate          String?           // Your algo uses string, not DateTime
+  lastModified         String?           // Your algo uses string, not DateTime
+  updateFrequency      String?
+  freshnessSignals     Json              // Store the freshnessSignals array
+  
+  // Derived count for quick querying
+  freshnessSignalsCount Int              @default(0)
+  
+  createdAt            DateTime          @default(now())
+  
+  @@map("content_freshness")
+}
+
+// Content Structure and Quality
+model ContentStructure {
+  id                   String            @id @default(cuid())
+  technicalAnalysisId  String            @unique
+  technicalAnalysis    TechnicalAnalysis @relation(fields: [technicalAnalysisId], references: [id], onDelete: Cascade)
+  
+  // Headings Hierarchy (store actual content + counts)
+  headingsHierarchy    Json              // Store the complete hierarchy object
+  h1Count              Int               @default(0)
+  h2Count              Int               @default(0)
+  h3Count              Int               @default(0)
+  h4Count              Int               @default(0)
+  h5Count              Int               @default(0)
+  h6Count              Int               @default(0)
+  
+  // Authority Signals (store actual content + counts)
+  authoritySignals     Json              // Store the complete authority signals object
+  statisticsCount      Int               @default(0)
+  expertQuotesCount    Int               @default(0)
+  citationsCount       Int               @default(0)
+  testimonialsCount    Int               @default(0)
+  
+  // Content Quality (matching your algorithm exactly)
+  wordCount            Int?
+  paragraphCount       Int?
+  listCount            Int?
+  tableCount           Int?
+  imageCount           Int?
+  readingLevel         String?
+  
+  createdAt            DateTime          @default(now())
+  
+  @@map("content_structures")
+  @@index([wordCount])
+}
+
+// Technical Accessibility and Performance
+model TechnicalAccessibility {
+  id                    String            @id @default(cuid())
+  technicalAnalysisId   String            @unique
+  technicalAnalysis     TechnicalAnalysis @relation(fields: [technicalAnalysisId], references: [id], onDelete: Cascade)
+  
+  // Meta Tags (store actual data + presence flags)
+  metaTags              Json              // Store complete metaTags object
+  hasTitle              Boolean           @default(false)
+  hasDescription        Boolean           @default(false)
+  hasCanonical          Boolean           @default(false)
+  hasRobots             Boolean           @default(false)
+  hreflangCount         Int               @default(0)
+  
+  // Open Graph & Twitter Cards (store actual data)
+  openGraphData         Json              // Store openGraph Record<string, string>
+  twitterCardData       Json              // Store twitterCard Record<string, string> 
+  hasOgTitle            Boolean           @default(false)
+  hasOgDescription      Boolean           @default(false)
+  hasOgImage            Boolean           @default(false)
+  hasTwitterCard        Boolean           @default(false)
+  
+  // Technical Elements (matching your algorithm exactly)
+  technicalElements     Json              // Store complete technicalElements object
+  httpsStatus           Boolean           @default(false)
+  statusCode            Int?
+  contentType           String?
+  responseTime          Float?            // Your algo uses number (Float)
+  mobileFriendly        Boolean?
+  internalLinksCount    Int               @default(0)
+  
+  // Core Web Vitals (matching your algorithm field names exactly)
+  lcp                   Float?            // Largest Contentful Paint
+  fid                   Float?            // First Input Delay  
+  cls                   Float?            // Cumulative Layout Shift
+  
+  // Accessibility (store actual data + counts)
+  accessibilityData     Json              // Store complete accessibility object
+  altTextCount          Int               @default(0)
+  ariaLabelsCount       Int               @default(0)
+  semanticElementsCount Int               @default(0)
+  skipLinks             Boolean           @default(false)
+  headingStructureValid Boolean           @default(false)
+  landmarkRolesCount    Int               @default(0)
+  
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  
+  @@map("technical_accessibility")
+  @@index([httpsStatus])
+  @@index([statusCode])
+  @@index([mobileFriendly])
+}
+
+// Analysis Recommendations and Action Items
+model AnalysisRecommendation {
+  id                    String @id @default(cuid())
+  technicalAnalysisId   String
+  
+  category              RecommendationCategory
+  severity              RecommendationSeverity
+  title                 String
+  description           String
+  actionRequired        String
+  impact                RecommendationImpact
+  isCompleted           Boolean @default(false)
+  
+  createdAt             DateTime @default(now())
+  
+  technicalAnalysis     TechnicalAnalysis @relation(fields: [technicalAnalysisId], references: [id], onDelete: Cascade)
+  
+  @@map("analysis_recommendations")
+  @@index([technicalAnalysisId])
+  @@index([severity])
+  @@index([isCompleted])
+  @@index([category, severity]) // Composite index for filtering
+  @@index([technicalAnalysisId, isCompleted]) // For showing pending tasks
+}
+
+// User model (add this relation to your existing User model)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  websites  Website[]
+  
+  @@map("users")
+}

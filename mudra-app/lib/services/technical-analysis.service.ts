@@ -11,14 +11,46 @@ import type { EnhancedGEOResult } from '../scrapers/enhanced-geo-scraper'
 // Validation
 import { z } from 'zod'
 
+// Input validation schemas
+const SaveAnalysisSchema = z.object({
+  websiteId: z.string().min(1, "Website ID is required"),
+  scraperResults: z.object({
+    url: z.string().url("Must be a valid URL"),
+    timestamp: z.string().min(1, "Timestamp is required"),
+    geoScore: z.object({
+      overall: z.number().min(0).max(100),
+      contentAuthority: z.number().min(0).max(100),
+      technicalAccessibility: z.number().min(0).max(100),
+      structuredData: z.number().min(0).max(100),
+      entityRecognition: z.number().min(0).max(100),
+      faqOptimization: z.number().min(0).max(100),
+      contentFreshness: z.number().min(0).max(100),
+    }),
+    structuredData: z.object({}).passthrough(), // Allow any structure
+    entityRecognition: z.object({}).passthrough(),
+    faqOptimization: z.object({}).passthrough(),
+    contentFreshness: z.object({}).passthrough(),
+    contentStructure: z.object({}).passthrough(),
+    technicalAccessibility: z.object({}).passthrough(),
+  })
+})
+
+const CreateWebsiteSchema = z.object({
+  userId: z.string().min(1, "User ID is required"),
+  url: z.string().url("Must be a valid URL")
+})
 
 // Prisma Client Instance
 const prisma = new PrismaClient()
 
 export async function saveAnalysisResults(websiteId: string, scraperResults: EnhancedGEOResult): Promise<TechnicalAnalysis> {
     try {
-      // Step 1: Create main technical analysis record
-      const analysis = await prisma.technicalAnalysis.create({
+      // Validate input data
+      const validatedData = SaveAnalysisSchema.parse({ websiteId, scraperResults })
+      
+      const result = await prisma.$transaction(async (tx) => {
+        // Step 1: Create main technical analysis record
+        const analysis = await tx.technicalAnalysis.create({
         data: {
           websiteId,
           sourceUrl: scraperResults.url,
@@ -32,7 +64,7 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
           contentFreshness: scraperResults.geoScore.contentFreshness,
         },
       }) // Step 2: Save detailed structured data analysis
-      await prisma.structuredData.create({
+      await tx.structuredData.create({
         data: {
           technicalAnalysisId: analysis.id,
           jsonLdData: scraperResults.structuredData.jsonLd,
@@ -49,7 +81,7 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
           hasFAQSchema: scraperResults.structuredData.faqSchemas?.length > 0,
         },
       }) // Step 3: Save entity recognition data
-      await prisma.entityRecognition.create({
+      await tx.entityRecognition.create({
         data: {
           technicalAnalysisId: analysis.id,
           organizations: scraperResults.entityRecognition.organizations,
@@ -64,7 +96,7 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
           locationsCount: scraperResults.entityRecognition.locations.length,
         },
       }) // Step 4: Save FAQ analysis data
-      await prisma.fAQAnalysis.create({
+      await tx.fAQAnalysis.create({
         data: {
           technicalAnalysisId: analysis.id,
           questionAnswerPairs: scraperResults.faqOptimization.questionAnswerPairs,
@@ -74,7 +106,7 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
           faqSectionCount: scraperResults.faqOptimization.faqSections.length,
         },
       }) // Step 5: Save content freshness data
-      await prisma.contentFreshness.create({
+      await tx.contentFreshness.create({
         data: {
           technicalAnalysisId: analysis.id,
           publishDate: scraperResults.contentFreshness.publishDate || null,
@@ -87,7 +119,7 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
       const authoritySignals = scraperResults.contentStructure.authoritySignals || {}
       const headingsHierarchy = scraperResults.contentStructure.headingsHierarchy || {}
     
-      await prisma.contentStructure.create({
+      await tx.contentStructure.create({
         data: {
           technicalAnalysisId: analysis.id,
           headingsHierarchy: scraperResults.contentStructure.headingsHierarchy,
@@ -111,7 +143,7 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
         },
       }) // Step 7: Save technical accessibility data
       const accessibility = scraperResults.technicalAccessibility.accessibility || {}
-      await prisma.technicalAccessibility.create({
+      await tx.technicalAccessibility.create({
         data: {
           technicalAnalysisId: analysis.id,
           metaTags: scraperResults.technicalAccessibility.metaTags,
@@ -146,13 +178,35 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
         },
       })
 
+      // Step 8: Generate and save recommendations
+      const recommendations = generateRecommendations(scraperResults)
+      for (const rec of recommendations) {
+        await tx.analysisRecommendation.create({
+          data: {
+            technicalAnalysisId: analysis.id,
+            category: rec.category,
+            severity: rec.severity,
+            title: rec.title,
+            description: rec.description,
+            actionRequired: rec.actionRequired,
+            impact: rec.impact,
+          },
+        })
+      }
+
       return analysis
+      })
+
+      return result
     } catch (error) {
       throw new Error(`Failed to save analysis: ${error}`)
     }
   }
   export async function createWebsiteIfNotExists(userId: string, url: string): Promise<Website> {
     try {
+        // Validate input data
+        const validatedData = CreateWebsiteSchema.parse({ userId, url })
+        
         const domain = new URL(url).hostname
         const existingWebsite = await prisma.website.findFirst({
             where: {
@@ -197,6 +251,92 @@ export async function getLatestAnalysis(websiteId: string): Promise<TechnicalAna
       return analysis
     } catch (error) {
         throw new Error(`Failed to get latest analysis: ${error}`)
+    } 
+  }
+
+function generateRecommendations(results: EnhancedGEOResult): Array<{
+  category: RecommendationCategory;
+  severity: RecommendationSeverity;
+  title: string;
+  description: string;
+  actionRequired: string;
+  impact: RecommendationImpact;
+}> {
+  const recommendations = []
+
+  // Structured Data Recommendations
+  if (results.geoScore.structuredData < 70) {
+    if (!results.structuredData.organizationSchema) {
+      recommendations.push({
+        category: RecommendationCategory.STRUCTURED_DATA,
+        severity: RecommendationSeverity.HIGH,
+        title: 'Add Organization Schema Markup',
+        description: 'Your website is missing Organization schema markup, which helps AI understand your business.',
+        actionRequired: 'Add JSON-LD Organization schema to your homepage with company details, logo, and contact information.',
+        impact: RecommendationImpact.SEO,
+      })
+    }
+
+    if (!results.structuredData.faqSchemas || results.structuredData.faqSchemas.length === 0) {
+      recommendations.push({
+        category: RecommendationCategory.FAQ_OPTIMIZATION,
+        severity: RecommendationSeverity.MEDIUM,
+        title: 'Implement FAQ Schema',
+        description: 'FAQ schema helps AI chatbots find and recommend your content for relevant questions.',
+        actionRequired: 'Add FAQ schema markup to your frequently asked questions sections.',
+        impact: RecommendationImpact.SEO,
+      })
     }
   }
+
+  // Technical Accessibility Recommendations
+  if (results.geoScore.technicalAccessibility < 70) {
+    if (!results.technicalAccessibility.technicalElements?.httpsStatus) {
+      recommendations.push({
+        category: RecommendationCategory.TECHNICAL_ACCESSIBILITY,
+        severity: RecommendationSeverity.HIGH,
+        title: 'Enable HTTPS',
+        description: 'Your website is not using HTTPS, which is required for security and SEO.',
+        actionRequired: 'Install an SSL certificate and redirect all HTTP traffic to HTTPS.',
+        impact: RecommendationImpact.SEO,
+      })
+    }
+
+    if (!results.technicalAccessibility.metaTags?.title) {
+      recommendations.push({
+        category: RecommendationCategory.TECHNICAL_ACCESSIBILITY,
+        severity: RecommendationSeverity.HIGH,
+        title: 'Add Page Title',
+        description: 'Your page is missing a title tag, which is essential for SEO.',
+        actionRequired: 'Add a descriptive, keyword-rich title tag to your page.',
+        impact: RecommendationImpact.SEO,
+      })
+    }
+
+    if (results.technicalAccessibility.technicalElements?.responseTime && results.technicalAccessibility.technicalElements.responseTime > 2000) {
+      recommendations.push({
+        category: RecommendationCategory.TECHNICAL_ACCESSIBILITY,
+        severity: RecommendationSeverity.MEDIUM,
+        title: 'Improve Page Load Speed',
+        description: `Your page loads in ${Math.round(results.technicalAccessibility.technicalElements.responseTime)}ms, which is slower than recommended.`,
+        actionRequired: 'Optimize images, minify CSS/JS, and consider using a CDN to improve load times.',
+        impact: RecommendationImpact.PERFORMANCE,
+      })
+    }
+  }
+
+  // Content Authority Recommendations
+  if (results.geoScore.contentAuthority < 70) {
+    recommendations.push({
+      category: RecommendationCategory.CONTENT_AUTHORITY,
+      severity: RecommendationSeverity.MEDIUM,
+      title: 'Add More Authority Signals',
+      description: 'Your content lacks authority signals like statistics, expert quotes, or citations.',
+      actionRequired: 'Include relevant statistics, expert quotes, case studies, and citations to build content authority.',
+      impact: RecommendationImpact.SEO,
+    })
+  }
+
+  return recommendations
+}
 

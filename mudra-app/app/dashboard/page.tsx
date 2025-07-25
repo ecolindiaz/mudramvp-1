@@ -1,4 +1,6 @@
+
 "use client"
+import { BrandProfileProvider } from "@/components/brand-profile-context"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -14,29 +16,27 @@ import { TimeRangeSelector, type TimeRange } from "@/components/dashboard/time-r
 import { ModelSelector, type AIModel } from "@/components/dashboard/model-selector"
 import { useState } from "react"
 
-export default function Page() {
+export default function DashboardPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>("7d")
   const [selectedModel, setSelectedModel] = useState<AIModel>("chatgpt")
 
   return (
-    <SidebarProvider
-      className="dark text-foreground"
-      style={
-        {
+    <BrandProfileProvider>
+      <SidebarProvider
+        className="dark text-foreground"
+        style={{
           "--sidebar-width": "calc(var(--spacing) * 72)",
           "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar />
-      <SidebarInset className="bg-card dark:bg-card text-foreground dark:text-foreground m-0 shadow-none rounded-none border-none">
-        <SiteHeader />
-        <Separator className="w-full border-border" />
-        <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            {/* Page Header */}
-            <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-2 md:pb-3">
-              <div className="flex items-center justify-between">
+        } as React.CSSProperties}
+      >
+        <AppSidebar />
+        <SidebarInset className="bg-card dark:bg-card text-foreground dark:text-foreground m-0 shadow-none rounded-none border-none">
+          <SiteHeader />
+          <Separator className="w-full border-border" />
+          <div className="flex flex-1 flex-col">
+            <div className="@container/main flex flex-1 flex-col gap-2">
+              {/* Page Header */}
+              <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-2 md:pb-3">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
                   <p className="text-muted-foreground">
@@ -70,10 +70,9 @@ export default function Page() {
               />
             </div>
           </div>
-        </div>
-      </SidebarInset>
-      
-      <FloatingMudraButton />
-    </SidebarProvider>
+        </SidebarInset>
+        <FloatingMudraButton />
+      </SidebarProvider>
+    </BrandProfileProvider>
   )
 }

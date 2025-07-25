@@ -103,6 +103,11 @@ const data = {
       url: "/dashboard/brand-profile",
       icon: IconUser,
     },
+    {
+      title: "Campaign Generator",
+      url: "/dashboard/campaign-generator",
+      icon: IconSparkles,
+    },
   ],
   navClouds: [
     {

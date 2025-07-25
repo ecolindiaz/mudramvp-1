@@ -6,13 +6,10 @@ import nltk
 
 nltk.download('punkt')  # For sentence tokenization
 nltk.download('punkt_tab')
-# 1. Define your list of URLs
-URLS = [
-    "https://growth.design/case-studies/duolingo-onboarding/",
-    "https://andrewchen.com/dropbox-grew-3900-percent/",
-    "https://www.ycombinator.com/library/6p-how-airbnb-grew",
-    # Add more URLs here
-]
+# 1. Use URLS from growth_hacking_articles.json
+with open("llm/dataset/output/growth_hacking_articles.json", "r", encoding="utf-8") as f:
+    articles = json.load(f)
+URLS = [article["url"] for article in articles]
 
 # 2. Helper: Download and clean an article
 def get_clean_text(url):

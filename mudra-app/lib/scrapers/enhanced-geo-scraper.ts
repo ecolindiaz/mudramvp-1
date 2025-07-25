@@ -13,9 +13,9 @@
  * Usage: npx tsx src/enhanced-geo-scraper.ts <url>
  */
 
-import { createFirecrawlApp } from './config/firecrawl-config.js';
+import { createFirecrawlApp } from '../config/firecrawl-config.js';
 
-interface EnhancedGEOResult {
+export interface EnhancedGEOResult {
   url: string;
   timestamp: string;
   geoScore: {
@@ -280,7 +280,7 @@ function calculateGEOScore(data: Omit<EnhancedGEOResult, 'geoScore'>): EnhancedG
 /**
  * Extract comprehensive enhanced GEO data
  */
-async function extractEnhancedGEOData(url: string): Promise<EnhancedGEOResult> {
+export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEOResult> {
   const app = createFirecrawlApp();
   
   console.log(`🔍 Running Enhanced GEO Analysis on: ${url}`);

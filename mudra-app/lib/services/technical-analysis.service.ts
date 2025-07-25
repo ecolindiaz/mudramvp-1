@@ -38,3 +38,52 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
       throw new Error(`Failed to save analysis: ${error}`)
     }
   }
+  export async function createWebsiteIfNotExists(userId: string, url: string): Promise<Website> {
+    try {
+        const domain = new URL(url).hostname
+        const existingWebsite = await prisma.website.findFirst({
+            where: {
+                userId,
+                url,
+            },
+        })
+
+        if (existingWebsite) {
+            return existingWebsite
+        }
+
+        return await prisma.website.create({
+            data: {
+                url,
+                domain,
+                userId
+            }
+        })
+    } catch (error) {
+        throw new Error(`Failed to create website: ${error}`)
+    }
+}
+
+export async function getLatestAnalysis(websiteId: string): Promise<TechnicalAnalysis | null> {
+    try {
+      const analysis = await prisma.technicalAnalysis.findFirst({
+        where: { websiteId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          recommendations: {
+            where: { isCompleted: false },
+            orderBy: [
+              { severity: 'desc' },
+              { createdAt: 'desc' }
+            ],
+            take: 3 // Top 3 priority tasks for dashboard
+          }
+        }
+      })
+
+      return analysis
+    } catch (error) {
+        throw new Error(`Failed to get latest analysis: ${error}`)
+    }
+  }
+

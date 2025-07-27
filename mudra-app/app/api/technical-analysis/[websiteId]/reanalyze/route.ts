@@ -6,7 +6,7 @@ import { extractEnhancedGEOData } from '@/lib/scrapers/enhanced-geo-scraper'
 const prisma = new PrismaClient()
 
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { websiteId: string } }
 ) {
   try {
@@ -39,7 +39,8 @@ export async function POST(
       )
     }
 
-    console.log(`= Re-analyzing website: ${website.url}`)
+    console.log(`=
+ Re-analyzing website: ${website.url}`)
 
     // Run fresh analysis using the enhanced GEO scraper
     const scraperResults = await extractEnhancedGEOData(website.url)

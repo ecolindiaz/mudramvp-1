@@ -231,7 +231,7 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
     }
 }
 
-export async function getLatestAnalysis(websiteId: string): Promise<TechnicalAnalysis | null> {
+export async function getLatestAnalysis(websiteId: string): Promise<(TechnicalAnalysis & { recommendations: any[] }) | null> {
     try {
       const analysis = await prisma.technicalAnalysis.findFirst({
         where: { websiteId },

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getLatestAnalysis } from '@/lib/services/technical-analysis.service'
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { websiteId: string } }
 ) {
   try {
@@ -50,7 +50,7 @@ export async function GET(
           faqOptimization: analysis.faqOptimization,
           contentFreshness: analysis.contentFreshness
         },
-        recommendations: analysis.recommendations.map(rec => ({
+        recommendations: analysis.recommendations.map((rec: any) => ({
           id: rec.id,
           category: rec.category,
           severity: rec.severity,

@@ -285,97 +285,108 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
   
   console.log(`🔍 Running Enhanced GEO Analysis on: ${url}`);
   
-  // Get both HTML source and AI extractions in parallel
-  const [htmlResult, contentResult, entityResult, faqResult, freshnessResult] = await Promise.all([
-    
-         // 1. Get raw HTML AND structured data extraction
-     app.scrapeUrl(url, {
-       formats: ["html", "markdown", "extract"],
-       extract: {
-         prompt: "Find and extract all JSON-LD structured data, microdata, and Schema.org markup. Look for @context, @type, itemscope, itemtype, and structured data examples. Return complete JSON objects."
-       },
-       onlyMainContent: false
-     }),
-    
-    // 2. Content structure and authority signals
-    app.scrapeUrl(url, {
-      formats: ["extract"],
-      extract: {
-        prompt: `Extract comprehensive content analysis:
-        
-        1. Heading hierarchy (H1-H6) with exact text
-        2. Authority signals: statistics with numbers, expert quotes, testimonials, citations
-        3. Author information and credentials
-        4. Content quality: word count, paragraph count, lists, tables, images
-        5. Reading level assessment
-        
-        Return as structured JSON with counts and text arrays.`
-      }
-    }),
-    
-    // 3. Entity recognition
-    app.scrapeUrl(url, {
-      formats: ["extract"],
-      extract: {
-        prompt: `Extract entities and knowledge graph signals:
-        
-        1. Organizations and companies mentioned
-        2. People and experts referenced
-        3. Technologies, frameworks, and tools
-        4. Products and services
-        5. Locations and geographical references
-        
-        Return as: {
-          "organizations": [...],
-          "people": [...],
-          "technologies": [...],
-          "products": [...],
-          "locations": [...]
-        }`
-      }
-    }),
-    
-    // 4. FAQ detection
-    app.scrapeUrl(url, {
-      formats: ["extract"],
-      extract: {
-        prompt: `Detect FAQ structures and Q&A content:
-        
-        1. FAQ sections and help content
-        2. Question-answer pairs
-        3. Support documentation structure
-        4. How-to guides and tutorials
-        5. Troubleshooting sections
-        
-        Return as: {
-          "faqSections": [...],
-          "questionAnswerPairs": number,
-          "supportStructures": [...]
-        }`
-      }
-    }),
-    
-    // 5. Content freshness signals
-    app.scrapeUrl(url, {
-      formats: ["extract"],
-      extract: {
-        prompt: `Extract temporal data and freshness signals:
-        
-        1. Publication dates and timestamps
-        2. Last modified or updated dates
-        3. Update frequency indicators
-        4. News, blog posts, or recent content
-        5. Version numbers or release dates
-        
-        Return as: {
-          "publishDate": "...",
-          "lastModified": "...",
-          "updateFrequency": "...",
-          "freshnessSignals": [...]
-        }`
-      }
-    })
-  ]);
+  // Make sequential API calls to respect rate limits (Free plan: 10 requests/min)
+  console.log('📄 Step 1/5: Extracting HTML and structured data...');
+  const htmlResult = await app.scrapeUrl(url, {
+    formats: ["html", "markdown", "extract"],
+    extract: {
+      prompt: "Find and extract all JSON-LD structured data, microdata, and Schema.org markup. Look for @context, @type, itemscope, itemtype, and structured data examples. Return complete JSON objects."
+    },
+    onlyMainContent: false,
+    timeout: 45000
+  });
+  
+  // Wait 6 seconds between requests to stay under rate limit
+  await new Promise(resolve => setTimeout(resolve, 6000));
+  
+  console.log('🏗️ Step 2/5: Analyzing content structure and authority...');
+  const contentResult = await app.scrapeUrl(url, {
+    formats: ["extract"],
+    extract: {
+      prompt: `Extract comprehensive content analysis:
+      
+      1. Heading hierarchy (H1-H6) with exact text
+      2. Authority signals: statistics with numbers, expert quotes, testimonials, citations
+      3. Author information and credentials
+      4. Content quality: word count, paragraph count, lists, tables, images
+      5. Reading level assessment
+      
+      Return as structured JSON with counts and text arrays.`
+    },
+    timeout: 45000
+  });
+  
+  await new Promise(resolve => setTimeout(resolve, 6000));
+  
+  console.log('🧠 Step 3/5: Recognizing entities and knowledge graph signals...');
+  const entityResult = await app.scrapeUrl(url, {
+    formats: ["extract"],
+    extract: {
+      prompt: `Extract entities and knowledge graph signals:
+      
+      1. Organizations and companies mentioned
+      2. People and experts referenced
+      3. Technologies, frameworks, and tools
+      4. Products and services
+      5. Locations and geographical references
+      
+      Return as: {
+        "organizations": [...],
+        "people": [...],
+        "technologies": [...],
+        "products": [...],
+        "locations": [...]
+      }`
+    },
+    timeout: 45000
+  });
+  
+  await new Promise(resolve => setTimeout(resolve, 6000));
+  
+  console.log('❓ Step 4/5: Detecting FAQ and Q&A structures...');
+  const faqResult = await app.scrapeUrl(url, {
+    formats: ["extract"],
+    extract: {
+      prompt: `Detect FAQ structures and Q&A content:
+      
+      1. FAQ sections and help content
+      2. Question-answer pairs
+      3. Support documentation structure
+      4. How-to guides and tutorials
+      5. Troubleshooting sections
+      
+      Return as: {
+        "faqSections": [...],
+        "questionAnswerPairs": number,
+        "supportStructures": [...]
+      }`
+    },
+    timeout: 45000
+  });
+  
+  await new Promise(resolve => setTimeout(resolve, 6000));
+  
+  console.log('🕐 Step 5/5: Analyzing content freshness signals...');
+  const freshnessResult = await app.scrapeUrl(url, {
+    formats: ["extract"],
+    extract: {
+      prompt: `Extract temporal data and freshness signals:
+      
+      1. Publication dates and timestamps
+      2. Last modified or updated dates
+      3. Update frequency indicators
+      4. News, blog posts, or recent content
+      5. Version numbers or release dates
+      
+      Return as: {
+        "publishDate": "...",
+        "lastModified": "...",
+        "updateFrequency": "...",
+        "freshnessSignals": [...]
+      }`
+    },
+    timeout: 45000
+  });
   
   // Parse structured data from HTML AND AI extraction
   const html = (htmlResult as any).html || '';

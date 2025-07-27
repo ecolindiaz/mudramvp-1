@@ -62,7 +62,7 @@ export interface EnhancedGEOResult {
     publishDate?: string;
     lastModified?: string;
     updateFrequency?: string;
-    freshnessSIgnals: string[];
+    freshnessSignals: string[];
   };
   
   // Enhanced content structure
@@ -134,7 +134,7 @@ function parseJsonLdFromHtml(html: string): any[] {
   const jsonLdScripts: any[] = [];
   
   // Regex to find JSON-LD script tags
-  const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>(.*?)<\/script>/gis;
+  const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>(.*?)<\/script>/gi;
   let match;
   
   while ((match = jsonLdRegex.exec(html)) !== null) {
@@ -255,7 +255,7 @@ function calculateGEOScore(data: Omit<EnhancedGEOResult, 'geoScore'>): EnhancedG
     (data.contentFreshness.publishDate ? 30 : 0) +
     (data.contentFreshness.lastModified ? 30 : 0) +
     (data.contentFreshness.updateFrequency ? 20 : 0) +
-    (data.contentFreshness.freshnessSIgnals.length * 5);
+    (data.contentFreshness.freshnessSignals.length * 5);
   
   const overall = Math.round(
     (contentAuthority * 0.25) +
@@ -473,7 +473,7 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
       publishDate: freshness.publishDate,
       lastModified: freshness.lastModified,
       updateFrequency: freshness.updateFrequency,
-      freshnessSIgnals: freshness.freshnessSignals || []
+      freshnessSignals: freshness.freshnessSignals || []
     },
     
     contentStructure: {
@@ -598,7 +598,7 @@ function displayEnhancedGEOResults(data: EnhancedGEOResult): void {
   console.log(`Publish Date: ${data.contentFreshness.publishDate || 'Not Found'}`);
   console.log(`Last Modified: ${data.contentFreshness.lastModified || 'Not Found'}`);
   console.log(`Update Frequency: ${data.contentFreshness.updateFrequency || 'Unknown'}`);
-  console.log(`Freshness Signals: ${data.contentFreshness.freshnessSIgnals.length}`);
+  console.log(`Freshness Signals: ${data.contentFreshness.freshnessSignals.length}`);
 }
 
 /**

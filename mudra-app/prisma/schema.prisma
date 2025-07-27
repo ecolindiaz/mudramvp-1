@@ -60,7 +60,7 @@ model Website {
 model TechnicalAnalysis {
   id                    String   @id @default(cuid())
   websiteId             String
-  sourceUrl             String   // Add this to match your interface
+  sourceUrl             String   // Match EnhancedGEOResult.url field
   timestamp             DateTime @default(now()) // Match interface field name
   
   // GEO Scores

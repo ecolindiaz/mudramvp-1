@@ -46,7 +46,7 @@ const prisma = new PrismaClient()
 export async function saveAnalysisResults(websiteId: string, scraperResults: EnhancedGEOResult): Promise<TechnicalAnalysis> {
     try {
       // Validate input data
-      const validatedData = SaveAnalysisSchema.parse({ websiteId, scraperResults })
+      SaveAnalysisSchema.parse({ websiteId, scraperResults })
       
       const result = await prisma.$transaction(async (tx) => {
         // Step 1: Create main technical analysis record
@@ -112,12 +112,12 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
           publishDate: scraperResults.contentFreshness.publishDate || null,
           lastModified: scraperResults.contentFreshness.lastModified || null,
           updateFrequency: scraperResults.contentFreshness.updateFrequency || null,
-          freshnessSignals: scraperResults.contentFreshness.freshnessSIgnals,
-          freshnessSignalsCount: scraperResults.contentFreshness.freshnessSIgnals.length,
+          freshnessSignals: scraperResults.contentFreshness.freshnessSignals,
+          freshnessSignalsCount: scraperResults.contentFreshness.freshnessSignals.length,
         },
       }) // Step 6: Save content structure data
-      const authoritySignals = scraperResults.contentStructure.authoritySignals || {}
-      const headingsHierarchy = scraperResults.contentStructure.headingsHierarchy || {}
+      const authoritySignals = scraperResults.contentStructure.authoritySignals || { statistics: [], expertQuotes: [], citations: [], testimonials: [] }
+      const headingsHierarchy = scraperResults.contentStructure.headingsHierarchy || { h1: [], h2: [], h3: [], h4: [], h5: [], h6: [] }
     
       await tx.contentStructure.create({
         data: {
@@ -142,7 +142,14 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
           readingLevel: scraperResults.contentStructure.contentQuality?.readingLevel || null,
         },
       }) // Step 7: Save technical accessibility data
-      const accessibility = scraperResults.technicalAccessibility.accessibility || {}
+      const accessibility = scraperResults.technicalAccessibility.accessibility || { 
+        altTextCount: 0, 
+        ariaLabels: [], 
+        semanticElements: [], 
+        skipLinks: false, 
+        headingStructureValid: false, 
+        landmarkRoles: [] 
+      }
       await tx.technicalAccessibility.create({
         data: {
           technicalAnalysisId: analysis.id,
@@ -205,7 +212,7 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
   export async function createWebsiteIfNotExists(userId: string, url: string): Promise<Website> {
     try {
         // Validate input data
-        const validatedData = CreateWebsiteSchema.parse({ userId, url })
+        CreateWebsiteSchema.parse({ userId, url })
         
         const domain = new URL(url).hostname
         const existingWebsite = await prisma.website.findFirst({

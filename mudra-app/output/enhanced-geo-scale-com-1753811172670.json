@@ -1,0 +1,215 @@
+{
+  "url": "https://scale.com/",
+  "timestamp": "2025-07-29T17:46:12.662Z",
+  "structuredData": {
+    "jsonLd": [
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Scale AI",
+        "url": "https://scale.com",
+        "logo": "https://scale.com/_next/image?url=%2Fstatic%2FScale%20AI%20logo.svg&w=128&q=75",
+        "sameAs": [
+          "https://x.com/scale_ai",
+          "https://www.facebook.com/scaleapi",
+          "https://www.linkedin.com/company/scaleai"
+        ]
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Scale Data Engine",
+        "url": "https://scale.com/data-engine"
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Scale GenAI Platform",
+        "url": "https://scale.com/genai-platform"
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Scale Donovan",
+        "url": "https://scale.com/donovan"
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Generative AI Data Engine",
+        "url": "https://scale.com/generative-ai-data-engine"
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Scale Evaluation",
+        "url": "https://scale.com/evaluation/model-developers"
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Scale Evaluation for AI systems",
+        "url": "https://scale.com/evaluation/public-sector"
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Evaluation and monitoring for Enterprise AI apps",
+        "url": "https://scale.com/evaluation/enterprise"
+      }
+    ],
+    "microdata": [],
+    "rdfa": [],
+    "schemaTypes": [
+      "Organization",
+      "Product"
+    ],
+    "faqSchemas": [],
+    "organizationSchema": {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Scale AI",
+      "url": "https://scale.com",
+      "logo": "https://scale.com/_next/image?url=%2Fstatic%2FScale%20AI%20logo.svg&w=128&q=75",
+      "sameAs": [
+        "https://x.com/scale_ai",
+        "https://www.facebook.com/scaleapi",
+        "https://www.linkedin.com/company/scaleai"
+      ]
+    }
+  },
+  "entityRecognition": {
+    "organizations": [
+      "Scale",
+      "Meta",
+      "OpenAI",
+      "Cohere",
+      "Adept",
+      "Character AI",
+      "US Army",
+      "Air Force",
+      "Defense Innovation Unit",
+      "CDAO",
+      "Cisco",
+      "Time",
+      "DLA Piper",
+      "GAFG",
+      "Howard Hughes",
+      "Cengage",
+      "Deepmind",
+      "EurekaLabsAI",
+      "Anthropic",
+      "General Motors",
+      "BCG"
+    ],
+    "people": [
+      "Mark Zuckerberg",
+      "Demis Hassabis",
+      "Andrej Karpathy",
+      "Noam Brown",
+      "Nat Friedman"
+    ],
+    "technologies": [
+      "Generative AI",
+      "Foundation Models",
+      "RLHF",
+      "Data Engine"
+    ],
+    "products": [
+      "AI Text Generator",
+      "Llama",
+      "Claude"
+    ],
+    "locations": [
+      "United States"
+    ]
+  },
+  "faqOptimization": {
+    "faqSections": [],
+    "questionAnswerPairs": 0,
+    "faqStructuredData": false,
+    "faqSchemaPresent": false
+  },
+  "contentFreshness": {
+    "publishDate": "",
+    "lastModified": "",
+    "updateFrequency": "",
+    "freshnessSignals": [
+      "news",
+      "blog posts",
+      "recent content"
+    ]
+  },
+  "contentStructure": {
+    "headingsHierarchy": {
+      "h1": [],
+      "h2": [],
+      "h3": [],
+      "h4": [],
+      "h5": [],
+      "h6": []
+    },
+    "authoritySignals": {
+      "statistics": [],
+      "expertQuotes": [
+        "Mark Zuckerberg: Founder and CEO, Meta: We partnered with Scale AI to work with Enterprises to adopt Llama and train custom models with their own data. We are excited to collectively make Llama the industry standard and bring the benefits of AI to everyone.",
+        "Demis Hassabis: CEO, Deepmind: Great to see Gemini 1.5 pro top the new Scale SEAL leaderboard for adversarial robustness! Congrats to the entire Gemini team…and the AI safety team for leading the charge on building in robustness to our models as a core capability. Thanks to the Scale AI team for doing the vital work to create these rigorous benchmarks, the field needs more great work on topics like this.",
+        "Andrej Karpathy: Founder, EurekaLabsAI: Nice, a serious contender to LMSYS in evaluating LLMs has entered the chat: SEAL Leaderboards. LLM evals are improving, but not so long ago their state was very bleak, with qualitative experience very often disagreeing with quantitative rankings. Good evals are very difficult to build…They have to be comprehensive, representative, of high quality, and measure gradient signal, and there are a lot of details to think through and get right before your qualitative and quantitative assessments line up. …Good evals are unintuitively difficult, highly work-intensive, but quite important, so I'm happy to see more organizations join the effort to do it well.",
+        "Noam Brown: Member of Technical Staff, OpenAI: Scale is doing an amazing job providing high-quality uncontaminated evals, now with code and instruction following!",
+        "Nat Friedman: Entrepreneur and Investor, and Former CEO of GitHub: We’re going to need a lot more investment in high-quality evals and benchmarks to help us understand the actual comparative utility of the various models. This new set of private evals and leaderboards from Scale are great to see."
+      ],
+      "authorInfo": {},
+      "citations": [],
+      "testimonials": []
+    },
+    "contentQuality": {
+      "wordCount": 0,
+      "paragraphCount": 0,
+      "lists": 0,
+      "tables": 0,
+      "images": 0
+    }
+  },
+  "technicalAccessibility": {
+    "metaTags": {
+      "title": "Accelerate the Development of AI Applications | Scale AI",
+      "description": "Trusted by world class companies, Scale delivers high quality training data for AI applications such as self-driving cars, mapping, AR/VR, robotics, and more.",
+      "hreflang": [],
+      "openGraph": {
+        "og:title": "Accelerate the Development of AI Applications | Scale AI",
+        "og:description": "Trusted by world class companies, Scale delivers high quality training data for AI applications such as self-driving cars, mapping, AR/VR, robotics, and more.",
+        "og:image": "https://site-assets.plasmic.app/2ceb68db22fec70efc8d4be4ef2602f8.png",
+        "og:url": ""
+      },
+      "twitterCard": {
+        "twitter:card": "",
+        "twitter:title": "",
+        "twitter:description": "",
+        "twitter:image": ""
+      }
+    },
+    "technicalElements": {
+      "httpsStatus": true,
+      "statusCode": 200,
+      "contentType": "text/html; charset=utf-8",
+      "internalLinks": []
+    },
+    "accessibility": {
+      "altTextCount": 0,
+      "ariaLabels": [],
+      "semanticElements": [],
+      "skipLinks": false,
+      "headingStructureValid": true,
+      "landmarkRoles": []
+    }
+  },
+  "geoScore": {
+    "overall": 58,
+    "contentAuthority": 50,
+    "technicalAccessibility": 85,
+    "structuredData": 60,
+    "entityRecognition": 100,
+    "faqOptimization": 0,
+    "contentFreshness": 15
+  }
+}

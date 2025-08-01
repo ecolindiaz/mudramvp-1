@@ -12,11 +12,11 @@ import { OverviewMetrics } from "@/components/dashboard/overview-metrics"
 import { OverviewContainers } from "@/components/dashboard/overview-containers"
 import { TimeRangeSelector, type TimeRange } from "@/components/dashboard/time-range-selector"
 import { ModelSelector, type AIModel } from "@/components/dashboard/model-selector"
-import { useState } from "react"
+import React from "react"
 
 export default function Page() {
-  const [timeRange, setTimeRange] = useState<TimeRange>("7d")
-  const [selectedModel, setSelectedModel] = useState<AIModel>("chatgpt")
+  const [timeRange, setTimeRange] = React.useState<TimeRange>("7d")
+  const [selectedModel, setSelectedModel] = React.useState<AIModel>("chatgpt")
 
   return (
     <SidebarProvider

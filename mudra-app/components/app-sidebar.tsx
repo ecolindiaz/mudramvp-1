@@ -84,6 +84,11 @@ const data = {
       icon: IconTrendingUp,
     },
     {
+      title: "Report",
+      url: "/report",
+      icon: IconReport,
+    },
+    {
       title: "Insights",
       url: "/dashboard/insights",
       icon: IconChartBar,
@@ -257,6 +262,10 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
             <StarBorder
               className="w-full bg-pure-black border-white/20 [&>div:last-child]:py-2.5 [&>div:last-child]:px-4 transition-all duration-300 hover:scale-[1.02] hover:border-white/30 cursor-pointer group"
               color="white"
+              onClick={() => {
+                // Navigate to report page with magic parameter
+                window.location.href = '/report?magic=true'
+              }}
             >
               <div className="flex items-center justify-center gap-2 text-white text-sm font-medium transition-all duration-300 group-hover:text-white/90">
                 <IconSparkles className="w-4 h-4 transition-transform duration-300 group-hover:rotate-12" />

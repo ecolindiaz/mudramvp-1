@@ -13,7 +13,7 @@
  * Usage: npx tsx src/enhanced-geo-scraper.ts <url>
  */
 
-import { createFirecrawlApp } from '../config/firecrawl-config.js';
+import { createFirecrawlApp } from '../config/firecrawl-config';
 
 export interface EnhancedGEOResult {
   url: string;
@@ -293,11 +293,11 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
       prompt: "Find and extract all JSON-LD structured data, microdata, and Schema.org markup. Look for @context, @type, itemscope, itemtype, and structured data examples. Return complete JSON objects."
     },
     onlyMainContent: false,
-    timeout: 45000
+    timeout: 120000
   });
   
-  // Wait 6 seconds between requests to stay under rate limit
-  await new Promise(resolve => setTimeout(resolve, 6000));
+  // Wait 8 seconds between requests to stay under rate limit
+  await new Promise(resolve => setTimeout(resolve, 8000));
   
   console.log('🏗️ Step 2/5: Analyzing content structure and authority...');
   const contentResult = await app.scrapeUrl(url, {
@@ -313,10 +313,10 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
       
       Return as structured JSON with counts and text arrays.`
     },
-    timeout: 45000
+    timeout: 120000
   });
   
-  await new Promise(resolve => setTimeout(resolve, 6000));
+  await new Promise(resolve => setTimeout(resolve, 8000));
   
   console.log('🧠 Step 3/5: Recognizing entities and knowledge graph signals...');
   const entityResult = await app.scrapeUrl(url, {
@@ -338,10 +338,10 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
         "locations": [...]
       }`
     },
-    timeout: 45000
+    timeout: 120000
   });
   
-  await new Promise(resolve => setTimeout(resolve, 6000));
+  await new Promise(resolve => setTimeout(resolve, 8000));
   
   console.log('❓ Step 4/5: Detecting FAQ and Q&A structures...');
   const faqResult = await app.scrapeUrl(url, {
@@ -361,10 +361,10 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
         "supportStructures": [...]
       }`
     },
-    timeout: 45000
+    timeout: 120000
   });
   
-  await new Promise(resolve => setTimeout(resolve, 6000));
+  await new Promise(resolve => setTimeout(resolve, 8000));
   
   console.log('🕐 Step 5/5: Analyzing content freshness signals...');
   const freshnessResult = await app.scrapeUrl(url, {
@@ -385,7 +385,7 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
         "freshnessSignals": [...]
       }`
     },
-    timeout: 45000
+    timeout: 120000
   });
   
   // Parse structured data from HTML AND AI extraction
@@ -622,7 +622,7 @@ async function saveEnhancedResults(data: EnhancedGEOResult): Promise<string> {
 }
 
 /**
- * Main execution
+ * Main execution - only run if called directly from command line
  */
 async function main() {
   const url = process.argv[2];
@@ -659,4 +659,7 @@ async function main() {
   }
 }
 
-main(); 
+// Only run main() if this file is executed directly
+if (require.main === module) {
+  main();
+} 

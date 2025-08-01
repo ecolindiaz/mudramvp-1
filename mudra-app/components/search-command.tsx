@@ -18,6 +18,7 @@ import {
   IconFileDescription,
   IconSettings,
   IconHelp,
+  IconReport,
 } from "@tabler/icons-react"
 
 import {
@@ -115,6 +116,13 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
             <IconUser className="mr-2 h-4 w-4" />
             <span>Brand Profile</span>
           </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/report"))}
+            className="text-white/70 hover:text-white data-[selected=true]:bg-white/10 data-[selected=true]:text-white cursor-pointer"
+          >
+            <IconReport className="mr-2 h-4 w-4" />
+            <span>Report</span>
+          </CommandItem>
         </CommandGroup>
         
         <CommandSeparator className="bg-white/10" />
@@ -155,7 +163,7 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
         
         <CommandGroup heading="Actions" className="text-white/70">
           <CommandItem
-            onSelect={() => runCommand(() => console.log("Magic Button"))}
+            onSelect={() => runCommand(() => window.location.href = '/report?magic=true')}
             className="text-white/70 hover:text-white data-[selected=true]:bg-white/10 data-[selected=true]:text-white cursor-pointer"
           >
             <IconSparkles className="mr-2 h-4 w-4" />

@@ -50,9 +50,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 import { dashboardData } from "@/app/dashboard/data"
+import type { AIGeneratedTask } from "@/lib/services/ai-task-generation.service"
 
 // Define types
 type DashboardItem = typeof dashboardData[0]
@@ -306,7 +307,34 @@ const getDifficulty = (header: string): string => {
   return difficulty[header] || "Medium"
 }
 
-const tasks = transformToTasks(dashboardData)
+// Transform AI tasks to TaskItem format
+const transformAITasksToTaskItems = (aiTasks: AIGeneratedTask[]): TaskItem[] => {
+  return aiTasks.map((task, index) => ({
+    id: index + 1,
+    header: task.title,
+    type: task.category,
+    status: "In Process",
+    target: "0",
+    limit: "100",
+    progress: 0,
+    priority: task.priority,
+    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days from now
+    description: task.description,
+    actionItems: task.steps.map(step => step.title),
+    detailedSteps: task.steps.map((step, i) => ({
+      id: i + 1,
+      title: step.title,
+      description: step.description,
+      completed: false,
+      estimatedTime: step.estimatedTime
+    })),
+    resources: task.resources,
+    estimatedTime: task.estimatedTime,
+    difficulty: task.difficulty
+  }))
+}
+
+const staticTasks = transformToTasks(dashboardData)
 
 function DragHandle({ id }: { id: number }) {
   return (
@@ -467,8 +495,63 @@ function TaskDetailModal({ task }: { task: TaskItem }) {
 }
 
 export function TasksView() {
+  const [tasks, setTasks] = useState<TaskItem[]>(staticTasks)
+  const [loading, setLoading] = useState(false)
+  const [url, setUrl] = useState('')
+  const [companyContext, setCompanyContext] = useState('')
+  const [analysisData, setAnalysisData] = useState<any>(null)
+
   const inProgressTasks = tasks.filter(task => task.status === "In Process")
   const completedTasks = tasks.filter(task => task.status === "Done")
+
+  const generateAITasks = async () => {
+    if (!url.trim()) {
+      alert('Please enter a website URL')
+      return
+    }
+
+    setLoading(true)
+    try {
+      console.log('🔍 Generating AI tasks for:', url)
+      
+      const response = await fetch('/api/ai-tasks/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: url.trim(),
+          companyContext: companyContext.trim() || undefined
+        })
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to generate AI tasks')
+      }
+
+      console.log('✅ AI tasks generated successfully:', result.data)
+      
+      // Transform AI tasks to TaskItem format
+      const aiTasks = transformAITasksToTaskItems(result.data.tasks)
+      setTasks(aiTasks)
+      setAnalysisData(result.data.geoResults)
+      
+    } catch (error) {
+      console.error('❌ Failed to generate AI tasks:', error)
+      alert(`Failed to generate AI tasks: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resetToStaticTasks = () => {
+    setTasks(staticTasks)
+    setAnalysisData(null)
+    setUrl('')
+    setCompanyContext('')
+  }
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
@@ -498,15 +581,96 @@ export function TasksView() {
           />
         </div>
 
+        {/* AI Task Generation Form */}
+        <div className="px-4 lg:px-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>🤖 AI Task Generator</CardTitle>
+              <CardDescription>
+                Analyze any website and get AI-generated GEO optimization tasks
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="website-url">Website URL</Label>
+                    <Input
+                      id="website-url"
+                      placeholder="https://example.com"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      disabled={loading}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company-context">Company Context (Optional)</Label>
+                    <Input
+                      id="company-context"
+                      placeholder="e.g., SaaS startup, fintech company..."
+                      value={companyContext}
+                      onChange={(e) => setCompanyContext(e.target.value)}
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={generateAITasks} 
+                    disabled={loading || !url.trim()}
+                    className="flex-1 md:flex-none"
+                  >
+                    {loading ? (
+                      <>
+                        <IconLoader className="size-4 mr-2 animate-spin" />
+                        Analyzing Website...
+                      </>
+                    ) : (
+                      <>
+                        <IconTrendingUp className="size-4 mr-2" />
+                        Generate AI Tasks
+                      </>
+                    )}
+                  </Button>
+                  
+                  {analysisData && (
+                    <Button variant="outline" onClick={resetToStaticTasks}>
+                      Reset to Demo Tasks
+                    </Button>
+                  )}
+                </div>
+                
+                {analysisData && (
+                  <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+                    <h4 className="font-medium mb-2">🎯 Analysis Results for {analysisData.url}</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                      <div>Overall: <Badge variant="outline">{analysisData.geoScore.overall}/100</Badge></div>
+                      <div>Structured Data: <Badge variant="outline">{analysisData.geoScore.structuredData}/100</Badge></div>
+                      <div>Technical: <Badge variant="outline">{analysisData.geoScore.technicalAccessibility}/100</Badge></div>
+                      <div>Content: <Badge variant="outline">{analysisData.geoScore.contentAuthority}/100</Badge></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Main Table */}
         <div className="px-4 lg:px-6">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>AI Optimization Recommendations</CardTitle>
+                  <CardTitle>
+                    {analysisData ? '🤖 AI-Generated Tasks' : '📋 Demo Tasks'} 
+                  </CardTitle>
                   <CardDescription>
-                    Manage and track your GEO optimization tasks
+                    {analysisData 
+                      ? `AI-generated GEO optimization tasks for ${analysisData.url}`
+                      : 'Demo tasks showing GEO optimization recommendations'
+                    }
                   </CardDescription>
                 </div>
                 <Button size="sm">

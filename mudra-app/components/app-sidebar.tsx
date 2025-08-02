@@ -37,6 +37,7 @@ import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
 import { StarBorder } from "@/components/ui/star-border"
 import { SearchCommand } from "@/components/search-command"
+import { MagicButton } from "@/components/magic-button"
 import {
   Sidebar,
   SidebarContent,
@@ -259,19 +260,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
           
           {/* Magic Button */}
           <div className="px-2 mb-4">
-            <StarBorder
-              className="w-full bg-pure-black border-white/20 [&>div:last-child]:py-2.5 [&>div:last-child]:px-4 transition-all duration-300 hover:scale-[1.02] hover:border-white/30 cursor-pointer group"
-              color="white"
-              onClick={() => {
-                // Navigate to report page with magic parameter
-                window.location.href = '/report?magic=true'
-              }}
-            >
-              <div className="flex items-center justify-center gap-2 text-white text-sm font-medium transition-all duration-300 group-hover:text-white/90">
-                <IconSparkles className="w-4 h-4 transition-transform duration-300 group-hover:rotate-12" />
-                The Magic Button
-              </div>
-            </StarBorder>
+            <MagicButton />
           </div>
         </SidebarHeader>
         <SidebarContent className="px-2 bg-pure-black">

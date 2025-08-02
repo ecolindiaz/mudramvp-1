@@ -4,30 +4,39 @@ import { generateAITasks } from '@/lib/services/ai-task-generation.service'
 
 export async function POST(req: NextRequest) {
   try {
-    const { url, companyContext } = await req.json()
+    const { url, companyContext, cachedGeoResults } = await req.json()
     
-    if (!url) {
+    // Check if we have cached results or need to analyze a URL
+    if (!url && !cachedGeoResults) {
       return NextResponse.json({
         success: false,
-        error: 'URL is required'
+        error: 'Either URL or cached GEO results are required'
       }, { status: 400 })
     }
 
-    // Validate URL format
-    try {
-      new URL(url)
-    } catch (error) {
-      return NextResponse.json({
-        success: false,
-        error: 'Invalid URL format'
-      }, { status: 400 })
-    }
+    let geoResults
 
-    console.log(`🔍 Starting AI task generation for: ${url}`)
-    
-    // Step 1: Run GEO analysis
-    console.log('Step 1: Running Enhanced GEO Analysis...')
-    const geoResults = await extractEnhancedGEOData(url)
+    if (cachedGeoResults) {
+      // Use cached GEO results
+      console.log('🔍 Using cached GEO results for AI task generation')
+      geoResults = cachedGeoResults
+    } else {
+      // Validate URL format and run new analysis
+      try {
+        new URL(url)
+      } catch (error) {
+        return NextResponse.json({
+          success: false,
+          error: 'Invalid URL format'
+        }, { status: 400 })
+      }
+
+      console.log(`🔍 Starting AI task generation for: ${url}`)
+      
+      // Step 1: Run GEO analysis
+      console.log('Step 1: Running Enhanced GEO Analysis...')
+      geoResults = await extractEnhancedGEOData(url)
+    }
     
     console.log('Step 2: Generating AI tasks based on analysis...')
     // Step 2: Generate AI tasks based on analysis

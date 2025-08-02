@@ -11,9 +11,10 @@ import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { GeoResultsDisplay } from "@/components/dashboard/geo-results-display"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardAction } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { IconLoader, IconSparkles, IconCheck } from "@tabler/icons-react"
+import { Button } from "@/components/ui/button"
+import { IconLoader, IconSparkles, IconCheck, IconTrendingUp } from "@tabler/icons-react"
 import { useEffect, useState, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import type { EnhancedGEOResult } from "@/lib/scrapers/enhanced-geo-scraper"
 
@@ -23,15 +24,21 @@ function ReportContent() {
   const [autoStarted, setAutoStarted] = useState(false)
   
   const searchParams = useSearchParams()
+  const router = useRouter()
   const magicRun = searchParams?.get('magic') === 'true'
 
-  const runYCombinatorAnalysis = async () => {
-    const url = "https://www.ycombinator.com/"
+  const runAnalysis = async (targetUrl?: string) => {
+    // Get URL from parameter, sessionStorage, or fallback to Y Combinator
+    const url = targetUrl || 
+                (typeof window !== 'undefined' ? sessionStorage.getItem('magicAnalysisUrl') : null) || 
+                "https://www.ycombinator.com/"
+    
     setIsRunning(true)
     
     try {
+      const siteName = new URL(url).hostname.replace('www.', '')
       toast.info("🎯 Magic Button Activated!", {
-        description: `Running Enhanced GEO Analysis on Y Combinator...`
+        description: `Running Enhanced GEO Analysis on ${siteName}...`
       })
 
       const response = await fetch('/api/run-scraper', {
@@ -83,11 +90,28 @@ function ReportContent() {
     }
   }
 
+  const generateTasks = () => {
+    if (!geoResults) {
+      toast.error("No analysis results available")
+      return
+    }
+
+    // Store the GEO results in sessionStorage for the tasks page
+    sessionStorage.setItem('cachedGeoResults', JSON.stringify(geoResults))
+    
+    toast.info("🤖 Generating AI Tasks...", {
+      description: "Navigating to tasks page with cached analysis"
+    })
+    
+    // Navigate to tasks page
+    router.push('/dashboard/tasks?cached=true')
+  }
+
   // Auto-start analysis when coming from Magic Button
   useEffect(() => {
     if (magicRun && !autoStarted && !isRunning) {
       setAutoStarted(true)
-      runYCombinatorAnalysis()
+      runAnalysis()
     }
   }, [magicRun, autoStarted, isRunning])
 
@@ -186,8 +210,35 @@ function ReportContent() {
 
               {/* Results Display */}
               {geoResults && (
-                <div className="px-4 lg:px-6">
+                <div className="px-4 lg:px-6 space-y-6">
                   <GeoResultsDisplay result={geoResults} />
+                  
+                  {/* Generate Tasks Button */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <IconTrendingUp className="w-5 h-5 text-blue-500" />
+                        Ready for AI-Powered Optimization?
+                      </CardTitle>
+                      <CardDescription>
+                        Generate personalized GEO improvement tasks based on this analysis
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                        <div className="space-y-1">
+                          <p className="font-medium">Generate AI Tasks</p>
+                          <p className="text-sm text-muted-foreground">
+                            Get specific, actionable recommendations to improve your AI visibility score from {geoResults.geoScore.overall}/100
+                          </p>
+                        </div>
+                        <Button onClick={generateTasks} className="shrink-0">
+                          <IconTrendingUp className="w-4 h-4 mr-2" />
+                          Generate Tasks
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               )}
             </div>

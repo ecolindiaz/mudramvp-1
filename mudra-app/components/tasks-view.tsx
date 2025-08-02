@@ -51,14 +51,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 
-import { dashboardData } from "@/app/dashboard/data"
 import type { AIGeneratedTask } from "@/lib/services/ai-task-generation.service"
 
 // Define types
-type DashboardItem = typeof dashboardData[0]
-
-type TaskItem = DashboardItem & {
+type TaskItem = {
+  id: number
+  header: string
+  type: string
+  status: string
+  target: string
+  limit: string
   progress: number
   priority: string
   dueDate: string
@@ -82,229 +86,6 @@ type Resource = {
   title: string
   url: string
   type: "documentation" | "tool" | "guide"
-}
-
-// Transform dashboard data into task format
-const transformToTasks = (data: typeof dashboardData): TaskItem[] => {
-  return data.map(item => ({
-    ...item,
-    progress: Math.round((parseInt(item.target) / parseInt(item.limit)) * 100),
-    priority: item.status === "In Process" ? "high" : "medium",
-    dueDate: item.status === "In Process" ? "2024-01-15" : "2024-01-30",
-    description: getTaskDescription(item.header, item.type),
-    actionItems: getActionItems(item.header, item.status),
-    detailedSteps: getDetailedSteps(item.header, item.status),
-    resources: getResources(item.header),
-    estimatedTime: getEstimatedTime(item.header),
-    difficulty: getDifficulty(item.header)
-  }))
-}
-
-const getTaskDescription = (header: string, type: string): string => {
-  const descriptions: Record<string, string> = {
-    "AI Visibility Score": "Improve how often AI models mention your brand in responses",
-    "Claude Performance": "Optimize content for better Claude AI recognition",
-    "ChatGPT Performance": "Enhance visibility in ChatGPT responses",
-    "Perplexity Performance": "Increase mentions in Perplexity search results",
-    "Gemini Performance": "Improve Google AI model recognition",
-    "Competitive Share": "Analyze and improve competitive positioning",
-    "Crawler Health Score": "Ensure AI bots can access and index your content",
-    "Content Quality Score": "Enhance content credibility and expertise signals",
-    "External Footprint": "Expand brand presence across the web",
-    "Brand Mentions": "Increase quality brand mentions and citations",
-    "Query Performance": "Optimize response to industry-relevant queries",
-    "Technical Structure": "Improve website technical SEO for AI crawlers",
-    "Competitor Analysis": "Monitor and outperform competitor strategies",
-    "AI Model Trends": "Track and adapt to AI model behavior changes"
-  }
-  return descriptions[header] || `Optimize ${header.toLowerCase()} metrics`
-}
-
-const getActionItems = (header: string, status: string): string[] => {
-  if (status === "Done") return []
-  
-  const actions: Record<string, string[]> = {
-    "Perplexity Performance": [
-      "Add structured data markup",
-      "Create FAQ sections",
-      "Optimize for question-based queries"
-    ],
-    "Gemini Performance": [
-      "Improve E-A-T signals",
-      "Add author bios",
-      "Create comprehensive guides"
-    ],
-    "Competitive Share": [
-      "Research competitor content gaps",
-      "Create superior content",
-      "Build authority backlinks"
-    ],
-    "External Footprint": [
-      "Submit to industry directories",
-      "Guest post on authority sites",
-      "Engage in relevant forums"
-    ],
-    "Technical Structure": [
-      "Fix crawl errors",
-      "Optimize page speed",
-      "Implement schema markup"
-    ],
-    "Competitor Analysis": [
-      "Set up competitor monitoring",
-      "Analyze their content strategy",
-      "Identify opportunity gaps"
-    ]
-  }
-  return actions[header] || ["Review and optimize", "Monitor progress", "Update strategy"]
-}
-
-const getDetailedSteps = (header: string, status: string): DetailedStep[] => {
-  if (status === "Done") return []
-
-  const steps: Record<string, DetailedStep[]> = {
-    "Perplexity Performance": [
-      {
-        id: 1,
-        title: "Implement Schema.org Markup",
-        description: "Add structured data to your website's key pages to help AI models understand your content better. Focus on Organization, Product, and FAQ schemas.",
-        completed: false,
-        estimatedTime: "2-3 hours"
-      },
-      {
-        id: 2,
-        title: "Create Comprehensive FAQ Section",
-        description: "Develop a detailed FAQ page that answers common questions about your industry and products. Use natural language that matches how people ask questions.",
-        completed: false,
-        estimatedTime: "4-6 hours"
-      },
-      {
-        id: 3,
-        title: "Optimize Content for Question-Based Queries",
-        description: "Rewrite existing content to directly answer questions. Use headers that mirror common search queries and provide clear, concise answers.",
-        completed: false,
-        estimatedTime: "6-8 hours"
-      }
-    ],
-    "Gemini Performance": [
-      {
-        id: 1,
-        title: "Enhance E-A-T Signals",
-        description: "Improve Expertise, Authoritativeness, and Trustworthiness by adding author credentials, certifications, and trust indicators throughout your site.",
-        completed: false,
-        estimatedTime: "3-4 hours"
-      },
-      {
-        id: 2,
-        title: "Add Detailed Author Bios",
-        description: "Create comprehensive author biography pages with credentials, experience, and social proof to establish authority in your field.",
-        completed: false,
-        estimatedTime: "2-3 hours"
-      },
-      {
-        id: 3,
-        title: "Develop Comprehensive Resource Guides",
-        description: "Create in-depth, authoritative guides that cover your industry topics comprehensively. Include data, examples, and actionable insights.",
-        completed: false,
-        estimatedTime: "8-12 hours"
-      }
-    ],
-    "Technical Structure": [
-      {
-        id: 1,
-        title: "Audit and Fix Crawl Errors",
-        description: "Use Google Search Console to identify and fix 404 errors, redirect chains, and other crawl issues that prevent AI bots from accessing your content.",
-        completed: false,
-        estimatedTime: "2-4 hours"
-      },
-      {
-        id: 2,
-        title: "Optimize Page Loading Speed",
-        description: "Improve Core Web Vitals by optimizing images, minifying CSS/JS, and implementing caching. Target sub-3 second load times.",
-        completed: false,
-        estimatedTime: "4-6 hours"
-      },
-      {
-        id: 3,
-        title: "Implement Advanced Schema Markup",
-        description: "Add JSON-LD structured data for all content types including articles, products, events, and local business information.",
-        completed: false,
-        estimatedTime: "3-5 hours"
-      }
-    ]
-  }
-  
-  return steps[header] || [
-    {
-      id: 1,
-      title: "Analyze Current Performance",
-      description: "Review current metrics and identify areas for improvement",
-      completed: false,
-      estimatedTime: "1-2 hours"
-    },
-    {
-      id: 2,
-      title: "Implement Optimization Strategy",
-      description: "Execute the recommended optimization techniques",
-      completed: false,
-      estimatedTime: "3-5 hours"
-    },
-    {
-      id: 3,
-      title: "Monitor and Adjust",
-      description: "Track progress and make necessary adjustments",
-      completed: false,
-      estimatedTime: "1-2 hours"
-    }
-  ]
-}
-
-const getResources = (header: string): Resource[] => {
-  const resources: Record<string, Resource[]> = {
-    "Perplexity Performance": [
-      { title: "Schema.org Documentation", url: "https://schema.org", type: "documentation" },
-      { title: "Google Structured Data Testing Tool", url: "https://search.google.com/test/rich-results", type: "tool" },
-      { title: "FAQ Schema Implementation Guide", url: "#", type: "guide" }
-    ],
-    "Gemini Performance": [
-      { title: "Google E-A-T Guidelines", url: "#", type: "documentation" },
-      { title: "Author Authority Best Practices", url: "#", type: "guide" },
-      { title: "Content Quality Assessment Tool", url: "#", type: "tool" }
-    ],
-    "Technical Structure": [
-      { title: "Google Search Console", url: "https://search.google.com/search-console", type: "tool" },
-      { title: "PageSpeed Insights", url: "https://pagespeed.web.dev", type: "tool" },
-      { title: "Technical SEO Checklist", url: "#", type: "guide" }
-    ]
-  }
-  
-  return resources[header] || [
-    { title: "General Optimization Guide", url: "#", type: "guide" },
-    { title: "Performance Monitoring Tool", url: "#", type: "tool" }
-  ]
-}
-
-const getEstimatedTime = (header: string): string => {
-  const times: Record<string, string> = {
-    "Perplexity Performance": "12-17 hours",
-    "Gemini Performance": "13-19 hours",
-    "Technical Structure": "9-15 hours",
-    "Competitive Share": "8-12 hours",
-    "External Footprint": "6-10 hours",
-    "Competitor Analysis": "4-8 hours"
-  }
-  return times[header] || "4-8 hours"
-}
-
-const getDifficulty = (header: string): string => {
-  const difficulty: Record<string, string> = {
-    "Perplexity Performance": "Medium",
-    "Gemini Performance": "Medium",
-    "Technical Structure": "Hard",
-    "Competitive Share": "Medium",
-    "External Footprint": "Easy",
-    "Competitor Analysis": "Easy"
-  }
-  return difficulty[header] || "Medium"
 }
 
 // Transform AI tasks to TaskItem format
@@ -334,7 +115,7 @@ const transformAITasksToTaskItems = (aiTasks: AIGeneratedTask[]): TaskItem[] => 
   }))
 }
 
-const staticTasks = transformToTasks(dashboardData)
+// Removed static tasks - tasks only appear when generated by AI
 
 function DragHandle({ id }: { id: number }) {
   return (
@@ -495,34 +276,50 @@ function TaskDetailModal({ task }: { task: TaskItem }) {
 }
 
 export function TasksView() {
-  const [tasks, setTasks] = useState<TaskItem[]>(staticTasks)
+  const [tasks, setTasks] = useState<TaskItem[]>([])
   const [loading, setLoading] = useState(false)
   const [url, setUrl] = useState('')
   const [companyContext, setCompanyContext] = useState('')
   const [analysisData, setAnalysisData] = useState<any>(null)
+  const [autoGenerated, setAutoGenerated] = useState(false)
+
+  const searchParams = useSearchParams()
+  const cached = searchParams?.get('cached') === 'true'
 
   const inProgressTasks = tasks.filter(task => task.status === "In Process")
   const completedTasks = tasks.filter(task => task.status === "Done")
 
-  const generateAITasks = async () => {
-    if (!url.trim()) {
+  const generateAITasks = async (cachedResults?: any) => {
+    // If using cached results, skip URL validation
+    if (!cachedResults && !url.trim()) {
       alert('Please enter a website URL')
       return
     }
 
     setLoading(true)
     try {
-      console.log('🔍 Generating AI tasks for:', url)
+      if (cachedResults) {
+        console.log('🔍 Generating AI tasks from cached results')
+      } else {
+        console.log('🔍 Generating AI tasks for:', url)
+      }
+      
+      const requestBody = cachedResults
+        ? {
+            cachedGeoResults: cachedResults,
+            companyContext: companyContext.trim() || undefined
+          }
+        : {
+            url: url.trim(),
+            companyContext: companyContext.trim() || undefined
+          }
       
       const response = await fetch('/api/ai-tasks/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          url: url.trim(),
-          companyContext: companyContext.trim() || undefined
-        })
+        body: JSON.stringify(requestBody)
       })
 
       const result = await response.json()
@@ -546,12 +343,34 @@ export function TasksView() {
     }
   }
 
-  const resetToStaticTasks = () => {
-    setTasks(staticTasks)
+  const clearTasks = () => {
+    setTasks([])
     setAnalysisData(null)
     setUrl('')
     setCompanyContext('')
+    setAutoGenerated(false)
   }
+
+  // Auto-generate tasks from cached results
+  useEffect(() => {
+    if (cached && !autoGenerated && !loading && typeof window !== 'undefined') {
+      const cachedResults = sessionStorage.getItem('cachedGeoResults')
+      if (cachedResults) {
+        try {
+          const geoResults = JSON.parse(cachedResults)
+          setAutoGenerated(true)
+          setAnalysisData(geoResults)
+          setUrl(geoResults.url || '')
+          generateAITasks(geoResults)
+          
+          // Clear cached results after use
+          sessionStorage.removeItem('cachedGeoResults')
+        } catch (error) {
+          console.error('Failed to parse cached results:', error)
+        }
+      }
+    }
+  }, [cached, autoGenerated, loading])
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
@@ -587,7 +406,10 @@ export function TasksView() {
             <CardHeader>
               <CardTitle>🤖 AI Task Generator</CardTitle>
               <CardDescription>
-                Analyze any website and get AI-generated GEO optimization tasks
+                {cached && autoGenerated 
+                  ? "AI tasks generated from your recent analysis" 
+                  : "Analyze any website and get AI-generated GEO optimization tasks"
+                }
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -635,8 +457,8 @@ export function TasksView() {
                   </Button>
                   
                   {analysisData && (
-                    <Button variant="outline" onClick={resetToStaticTasks}>
-                      Reset to Demo Tasks
+                    <Button variant="outline" onClick={clearTasks}>
+                      Clear Tasks
                     </Button>
                   )}
                 </div>
@@ -664,12 +486,13 @@ export function TasksView() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>
-                    {analysisData ? '🤖 AI-Generated Tasks' : '📋 Demo Tasks'} 
+                    {tasks.length > 0 ? '🤖 AI-Generated Tasks' : '📋 No Tasks Yet'} 
+                    {cached && autoGenerated && <span className="text-green-500 ml-2">✨ From Analysis</span>}
                   </CardTitle>
                   <CardDescription>
-                    {analysisData 
+                    {tasks.length > 0 && analysisData 
                       ? `AI-generated GEO optimization tasks for ${analysisData.url}`
-                      : 'Demo tasks showing GEO optimization recommendations'
+                      : 'Generate AI tasks by analyzing a website above'
                     }
                   </CardDescription>
                 </div>
@@ -679,106 +502,117 @@ export function TasksView() {
                 </Button>
               </div>
             </CardHeader>
-            <div className="overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12"></TableHead>
-                    <TableHead className="w-12">
-                      <div className="flex items-center justify-center">
-                        <Checkbox aria-label="Select all" />
-                      </div>
-                    </TableHead>
-                    <TableHead>Header</TableHead>
-                    <TableHead>Section Type</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Target</TableHead>
-                    <TableHead className="text-right">Limit</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tasks.map((task) => (
-                    <Dialog key={task.id}>
-                      <DialogTrigger asChild>
-                        <TableRow className="cursor-pointer hover:bg-muted/50">
-                          <TableCell>
-                            <DragHandle id={task.id} />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-center">
-                              <Checkbox aria-label="Select row" />
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {task.header}
-                          </TableCell>
-                          <TableCell>
-                            <div className="w-32">
+            {tasks.length > 0 ? (
+              <div className="overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead className="w-12">
+                        <div className="flex items-center justify-center">
+                          <Checkbox aria-label="Select all" />
+                        </div>
+                      </TableHead>
+                      <TableHead>Header</TableHead>
+                      <TableHead>Section Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Target</TableHead>
+                      <TableHead className="text-right">Limit</TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tasks.map((task) => (
+                      <Dialog key={task.id}>
+                        <DialogTrigger asChild>
+                          <TableRow className="cursor-pointer hover:bg-muted/50">
+                            <TableCell>
+                              <DragHandle id={task.id} />
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center justify-center">
+                                <Checkbox aria-label="Select row" />
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {task.header}
+                            </TableCell>
+                            <TableCell>
+                              <div className="w-32">
+                                <Badge variant="outline" className="text-muted-foreground px-1.5">
+                                  {task.type}
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell>
                               <Badge variant="outline" className="text-muted-foreground px-1.5">
-                                {task.type}
+                                {task.status === "Done" ? (
+                                  <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
+                                ) : (
+                                  <IconLoader />
+                                )}
+                                {task.status}
                               </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-muted-foreground px-1.5">
-                              {task.status === "Done" ? (
-                                <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
-                              ) : (
-                                <IconLoader />
-                              )}
-                              {task.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Label htmlFor={`${task.id}-target`} className="sr-only">
-                              Target
-                            </Label>
-                            <Input
-                              className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
-                              defaultValue={task.target}
-                              id={`${task.id}-target`}
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Label htmlFor={`${task.id}-limit`} className="sr-only">
-                              Limit
-                            </Label>
-                            <Input
-                              className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
-                              defaultValue={task.limit}
-                              id={`${task.id}-limit`}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  className="data-[state=open]:bg-muted text-muted-foreground flex size-8"
-                                  size="icon"
-                                >
-                                  <IconDotsVertical />
-                                  <span className="sr-only">Open menu</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-32">
-                                <DropdownMenuItem>Edit</DropdownMenuItem>
-                                <DropdownMenuItem>View Details</DropdownMenuItem>
-                                <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      </DialogTrigger>
-                      <TaskDetailModal task={task} />
-                    </Dialog>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Label htmlFor={`${task.id}-target`} className="sr-only">
+                                Target
+                              </Label>
+                              <Input
+                                className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
+                                defaultValue={task.target}
+                                id={`${task.id}-target`}
+                              />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Label htmlFor={`${task.id}-limit`} className="sr-only">
+                                Limit
+                              </Label>
+                              <Input
+                                className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
+                                defaultValue={task.limit}
+                                id={`${task.id}-limit`}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    className="data-[state=open]:bg-muted text-muted-foreground flex size-8"
+                                    size="icon"
+                                  >
+                                    <IconDotsVertical />
+                                    <span className="sr-only">Open menu</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-32">
+                                  <DropdownMenuItem>Edit</DropdownMenuItem>
+                                  <DropdownMenuItem>View Details</DropdownMenuItem>
+                                  <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        </DialogTrigger>
+                        <TaskDetailModal task={task} />
+                      </Dialog>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <IconTarget className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Tasks Generated Yet</h3>
+                <p className="text-muted-foreground text-sm max-w-md">
+                  Use the AI Task Generator above to analyze a website and get personalized GEO optimization tasks, 
+                  or click the Magic Button to analyze a site and generate tasks automatically.
+                </p>
+              </div>
+            )}
           </Card>
         </div>
       </div>

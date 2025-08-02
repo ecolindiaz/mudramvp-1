@@ -85,6 +85,11 @@ const data = {
       icon: IconTrendingUp,
     },
     {
+      title: "AI Visibility",
+      url: "/dashboard/ai-visibility",
+      icon: IconTarget,
+    },
+    {
       title: "Report",
       url: "/report",
       icon: IconReport,

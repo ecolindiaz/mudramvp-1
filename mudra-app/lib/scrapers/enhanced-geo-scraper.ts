@@ -293,7 +293,7 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
       prompt: "Find and extract all JSON-LD structured data, microdata, and Schema.org markup. Look for @context, @type, itemscope, itemtype, and structured data examples. Return complete JSON objects."
     },
     onlyMainContent: false,
-    timeout: 120000
+    timeout: 180000
   });
   
   // Wait 8 seconds between requests to stay under rate limit
@@ -313,7 +313,7 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
       
       Return as structured JSON with counts and text arrays.`
     },
-    timeout: 120000
+    timeout: 180000
   });
   
   await new Promise(resolve => setTimeout(resolve, 8000));
@@ -338,7 +338,7 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
         "locations": [...]
       }`
     },
-    timeout: 120000
+    timeout: 180000
   });
   
   await new Promise(resolve => setTimeout(resolve, 8000));
@@ -361,7 +361,7 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
         "supportStructures": [...]
       }`
     },
-    timeout: 120000
+    timeout: 180000
   });
   
   await new Promise(resolve => setTimeout(resolve, 8000));
@@ -385,7 +385,7 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEORe
         "freshnessSignals": [...]
       }`
     },
-    timeout: 120000
+    timeout: 180000
   });
   
   // Parse structured data from HTML AND AI extraction

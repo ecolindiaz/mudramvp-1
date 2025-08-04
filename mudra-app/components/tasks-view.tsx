@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
+import { FloatingMudraButton } from "@/components/floating-mudra-button"
 
 import type { AIGeneratedTask } from "@/lib/services/ai-task-generation.service"
 
@@ -145,87 +146,110 @@ function TaskDetailModal({ task }: { task: TaskItem }) {
   const progressPercentage = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
 
   return (
-    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          <IconTarget className="size-5" />
-          {task.header}
-        </DialogTitle>
-        <DialogDescription>
+    <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden">
+      <DialogHeader className="pb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+              <IconTarget className="size-5 text-primary" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-semibold text-foreground/90">
+                {task.header}
+              </DialogTitle>
+              <Badge variant="outline" className="text-xs mt-1">
+                {task.type}
+              </Badge>
+            </div>
+          </div>
+          <div className="ml-auto">
+            <Badge variant={task.status === "Done" ? "default" : "secondary"} className="gap-1">
+              {task.status === "Done" ? (
+                <IconCircleCheckFilled className="size-3" />
+              ) : (
+                <IconLoader className="size-3" />
+              )}
+              {task.status}
+            </Badge>
+          </div>
+        </div>
+        <DialogDescription className="text-muted-foreground/80 pt-2">
           {task.description}
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-6">
+      <div className="space-y-6 overflow-y-auto max-h-[calc(85vh-200px)]">
         {/* Task Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
             <CardHeader className="pb-3">
-              <CardDescription>Progress</CardDescription>
-              <CardTitle className="text-2xl">{task.progress}%</CardTitle>
+              <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Progress</CardDescription>
+              <CardTitle className="text-2xl font-bold text-foreground">{progressPercentage.toFixed(0)}%</CardTitle>
             </CardHeader>
           </Card>
-          <Card>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
             <CardHeader className="pb-3">
-              <CardDescription>Estimated Time</CardDescription>
-              <CardTitle className="text-lg">{task.estimatedTime}</CardTitle>
+              <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Estimated Time</CardDescription>
+              <CardTitle className="text-lg font-semibold text-foreground">{task.estimatedTime}</CardTitle>
             </CardHeader>
           </Card>
-          <Card>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
             <CardHeader className="pb-3">
-              <CardDescription>Difficulty</CardDescription>
-              <CardTitle className="text-lg">{task.difficulty}</CardTitle>
+              <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Difficulty</CardDescription>
+              <CardTitle className="text-lg font-semibold text-foreground">{task.difficulty}</CardTitle>
             </CardHeader>
           </Card>
         </div>
 
         {/* Steps Progress */}
         {task.detailedSteps.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Step Progress</CardTitle>
-              <CardDescription>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold">Step Progress</CardTitle>
+              <CardDescription className="text-muted-foreground/80">
                 {completedSteps} of {totalSteps} steps completed
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Progress value={progressPercentage} className="h-2" />
+              <Progress value={progressPercentage} className="h-3" />
             </CardContent>
           </Card>
         )}
 
         {/* Detailed Steps */}
         {task.detailedSteps.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>What You Need to Do</CardTitle>
-              <CardDescription>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold">What You Need to Do</CardTitle>
+              <CardDescription className="text-muted-foreground/80">
                 Follow these steps to complete the task
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {task.detailedSteps.map((step, index) => (
-                  <div key={step.id} className="flex gap-4 p-4 border rounded-lg">
-                    <div className="flex-shrink-0 mt-1">
-                      <Checkbox
-                        checked={stepStates[step.id] || false}
-                        onCheckedChange={() => toggleStep(step.id)}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h4 className="font-medium">
-                          Step {index + 1}: {step.title}
-                        </h4>
-                        <Badge variant="outline" className="text-xs">
-                          <IconClock className="size-3 mr-1" />
-                          {step.estimatedTime}
-                        </Badge>
+                  <div key={step.id} className="border border-border/30 rounded-lg p-4 bg-gradient-to-r from-background/50 to-background/30 hover:from-background/60 hover:to-background/40 transition-all duration-200">
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0 mt-1">
+                        <Checkbox
+                          checked={stepStates[step.id] || false}
+                          onCheckedChange={() => toggleStep(step.id)}
+                        />
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {step.description}
-                      </p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-3">
+                          <h4 className="font-semibold text-foreground/90">
+                            Step {index + 1}: {step.title}
+                          </h4>
+                          <Badge variant="outline" className="text-xs bg-background/50 border-border/50">
+                            <IconClock className="size-3 mr-1" />
+                            {step.estimatedTime}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground/80 leading-relaxed">
+                          {step.description}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -236,20 +260,22 @@ function TaskDetailModal({ task }: { task: TaskItem }) {
 
         {/* Resources */}
         {task.resources.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Helpful Resources</CardTitle>
-              <CardDescription>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold">Helpful Resources</CardTitle>
+              <CardDescription className="text-muted-foreground/80">
                 Tools and guides to help you complete this task
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {task.resources.map((resource, index) => (
-                  <div key={index} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50">
-                    <IconExternalLink className="size-4 text-muted-foreground" />
+                  <div key={index} className="flex items-center gap-3 p-3 border border-border/30 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer">
+                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                      <IconExternalLink className="size-4 text-primary" />
+                    </div>
                     <div className="flex-1">
-                      <p className="font-medium text-sm">{resource.title}</p>
+                      <p className="font-semibold text-sm text-foreground/90">{resource.title}</p>
                       <p className="text-xs text-muted-foreground capitalize">{resource.type}</p>
                     </div>
                   </div>
@@ -260,13 +286,13 @@ function TaskDetailModal({ task }: { task: TaskItem }) {
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-2 pt-4">
-          <Button className="flex-1">
-            <IconCheck className="size-4 mr-2" />
+        <div className="flex gap-3 pt-4">
+          <Button className="flex-1 gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70">
+            <IconCheck className="size-4" />
             Mark as Complete
           </Button>
-          <Button variant="outline">
-            <IconClock className="size-4 mr-2" />
+          <Button variant="outline" className="gap-2">
+            <IconClock className="size-4" />
             Start Timer
           </Button>
         </div>
@@ -486,12 +512,11 @@ export function TasksView() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>
-                    {tasks.length > 0 ? '🤖 AI-Generated Tasks' : '📋 No Tasks Yet'} 
-                    {cached && autoGenerated && <span className="text-green-500 ml-2">✨ From Analysis</span>}
+                    {tasks.length > 0 ? '🤖 AI-Generated Tasks' : '📋 No Tasks Yet'}
                   </CardTitle>
                   <CardDescription>
-                    {tasks.length > 0 && analysisData 
-                      ? `AI-generated GEO optimization tasks for ${analysisData.url}`
+                    {tasks.length > 0 
+                      ? 'Generated optimization tasks for your website'
                       : 'Generate AI tasks by analyzing a website above'
                     }
                   </CardDescription>
@@ -517,7 +542,6 @@ export function TasksView() {
                       <TableHead>Section Type</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Target</TableHead>
-                      <TableHead className="text-right">Limit</TableHead>
                       <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -564,16 +588,6 @@ export function TasksView() {
                                 id={`${task.id}-target`}
                               />
                             </TableCell>
-                            <TableCell className="text-right">
-                              <Label htmlFor={`${task.id}-limit`} className="sr-only">
-                                Limit
-                              </Label>
-                              <Input
-                                className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
-                                defaultValue={task.limit}
-                                id={`${task.id}-limit`}
-                              />
-                            </TableCell>
                             <TableCell>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -616,6 +630,21 @@ export function TasksView() {
           </Card>
         </div>
       </div>
+      
+      {/* Context-aware AI Chat */}
+      <FloatingMudraButton 
+        taskContext={tasks.map(task => ({
+          id: task.id,
+          header: task.header,
+          type: task.type,
+          status: task.status,
+          description: task.description,
+          detailedSteps: task.detailedSteps,
+          resources: task.resources,
+          estimatedTime: task.estimatedTime,
+          difficulty: task.difficulty
+        }))}
+      />
     </div>
   )
 } 

@@ -135,12 +135,11 @@ function ReportContent() {
             <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-2 md:pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                    <IconSparkles className="w-6 h-6 text-yellow-500" />
-                    Magic Analysis Report
+                  <h1 className="text-2xl font-bold tracking-tight">
+                    Report
                   </h1>
                   <p className="text-muted-foreground">
-                    Enhanced GEO analysis powered by the Magic Button
+                    Comprehensive website analysis and performance insights
                   </p>
                 </div>
                 {magicRun && (
@@ -153,59 +152,50 @@ function ReportContent() {
             </div>
             
             <div className="flex flex-col gap-4 pb-4 md:gap-6 md:pb-6">
-              {/* Analysis Status Card */}
-              <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6">
-                <Card className="@container/card" data-slot="card">
-                  <CardHeader>
-                    <CardDescription>Y Combinator Analysis</CardDescription>
-                    <CardTitle className="text-2xl font-semibold @[250px]/card:text-3xl">
-                      https://www.ycombinator.com/
-                    </CardTitle>
-                    <CardAction>
-                      <div className="flex flex-col items-end gap-2">
-                        {isRunning ? (
-                          <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/20">
-                            <IconLoader className="size-4 animate-spin mr-1" />
-                            Analyzing...
-                          </Badge>
-                        ) : geoResults ? (
-                          <Badge variant="outline" className="bg-green-50 dark:bg-green-950/20">
-                            <IconCheck className="size-4 mr-1" />
-                            Complete
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">
-                            Ready
-                          </Badge>
-                        )}
-                      </div>
-                    </CardAction>
-                  </CardHeader>
-                  
-                  <CardContent>
-                    {isRunning && (
-                      <div className="rounded-lg border bg-muted/50 p-3">
-                        <div className="flex items-center gap-2">
-                          <IconLoader className="size-4 text-muted-foreground animate-spin" />
-                          <span className="text-sm font-medium">Running enhanced GEO analysis...</span>
+              {/* Ready for Analysis Container */}
+              <div className="px-4 lg:px-6">
+                {!isRunning && !geoResults && (
+                  <div className="text-center py-12">
+                    <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-primary/10 rounded-lg p-8 border border-primary/20">
+                      <div className="space-y-4">
+                        <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                          <IconTrendingUp className="w-8 h-8 text-primary" />
                         </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Analyzing Y Combinator's website structure, content, and SEO optimization (1-3 minutes)
+                        <h3 className="text-xl font-semibold text-foreground">Ready for Analysis</h3>
+                        <p className="text-muted-foreground/80 max-w-md mx-auto leading-relaxed">
+                          Start comprehensive website analysis to discover optimization opportunities and improve your digital presence.
+                        </p>
+                        <div className="pt-6">
+                          <Button 
+                            onClick={() => runAnalysis()}
+                            className="gap-3 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-semibold px-8 py-3 h-auto rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                            disabled={isRunning}
+                            size="lg"
+                          >
+                            <IconTrendingUp className="w-5 h-5" />
+                            Start Analysis
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isRunning && (
+                  <div className="text-center py-12">
+                    <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-primary/10 rounded-lg p-8 border border-primary/20">
+                      <div className="space-y-4">
+                        <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                          <IconLoader className="w-8 h-8 text-primary animate-spin" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-foreground">Running Analysis</h3>
+                        <p className="text-muted-foreground/80 max-w-md mx-auto leading-relaxed">
+                          Analyzing website structure, content, and SEO optimization. This may take 1-3 minutes.
                         </p>
                       </div>
-                    )}
-                    
-                    {!isRunning && !geoResults && (
-                      <div className="text-center py-8">
-                        <IconSparkles className="w-12 h-12 mx-auto text-yellow-500 mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">Ready for Magic Analysis</h3>
-                        <p className="text-muted-foreground text-sm">
-                          Click the Magic Button in the sidebar to analyze Y Combinator
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Results Display */}

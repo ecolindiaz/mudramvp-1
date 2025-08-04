@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 export async function POST(req: NextRequest) {
   // Accepts: { brandProfile, n_results }
-  const { brandProfile, n_results = 5 } = await req.json()
+  const { brandProfile, n_results = 20 } = await req.json()
   // Map frontend brandProfile to FastAPI BrandProfile
   const mappedProfile = {
     name: brandProfile.companyName || "",

@@ -6,9 +6,9 @@ import { OpenAI } from "openai"
 import { buildLLMTwitterPrompt } from "@/lib/llm/build-llm-twitter-prompts"
 
 export async function POST(req: NextRequest) {
-  // Accepts: { brandProfile, tweetExamples }
-  const { brandProfile, tweetExamples } = await req.json()
-  const prompt = buildLLMTwitterPrompt({ brandProfile, tweetExamples })
+  // Accepts: { brandProfile, tweetExamples, campaignObjective }
+  const { brandProfile, tweetExamples, campaignObjective } = await req.json()
+  const prompt = buildLLMTwitterPrompt({ brandProfile, tweetExamples, campaignObjective })
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   const response = await openai.chat.completions.create({
     model: "gpt-4o", // Use a valid model name

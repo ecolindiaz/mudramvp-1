@@ -1,3 +1,22 @@
+import os
+
+# Persistent brand profile storage
+PROFILE_PATH = os.path.join(os.path.dirname(__file__), "dataset", "brand_profile.json")
+
+def load_brand_profile():
+    if os.path.exists(PROFILE_PATH):
+        with open(PROFILE_PATH, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except Exception:
+                return None
+    return None
+
+def save_brand_profile(profile_dict):
+    with open(PROFILE_PATH, "w", encoding="utf-8") as f:
+        json.dump(profile_dict, f, ensure_ascii=False, indent=2)
+
+current_brand_profile = load_brand_profile()
 import faiss
 import json
 import numpy as np
@@ -49,11 +68,31 @@ class BrandProfile(BaseModel):
     tone: str = ""
     stage: str = ""
     goals: list[str] = []
+    objective: str = ""
 
+# Endpoint to save brand profile
+@app.post("/save-profile")
+async def save_profile(profile: BrandProfile):
+    global current_brand_profile
+    profile_dict = profile.dict()
+    save_brand_profile(profile_dict)
+    current_brand_profile = profile_dict
+    return {"success": True, "profile": profile_dict}
+
+# Endpoint to get brand profile
+@app.get("/get-profile")
+async def get_profile():
+    global current_brand_profile
+    if current_brand_profile:
+        return {"profile": current_brand_profile}
+    else:
+        return {"profile": None}
+
+# Query tweets uses saved profile if not provided
 @app.post("/query-tweets")
-async def query_tweets(profile: BrandProfile, n_results: int = 5):
+async def query_tweets(profile: BrandProfile, n_results: int = 20):
     # Build query string from brand profile
-    query_text = f"{profile.tagline}. {profile.description} Targeting {profile.target_audience}. Tone: {profile.tone}. Goals: {', '.join(profile.goals)}."
+    query_text = f"{profile.tagline}. {profile.description} Targeting {profile.target_audience}. Tone: {profile.tone}. Stage: {profile.stage}. Objective: {profile.objective}. Goals: {', '.join(profile.goals)}."
     query_emb = get_embeddings([query_text])
     D, I = index.search(query_emb, n_results)
     results = [tweets[i] for i in I[0]]

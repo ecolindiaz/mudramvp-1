@@ -38,6 +38,7 @@ export function CampaignGenerator() {
   const [tweets, setTweets] = useState<string[]>([]);
   const [twitterAuthLoading, setTwitterAuthLoading] = useState(false);
   const [twitterAuthError, setTwitterAuthError] = useState<string | null>(null);
+  const [campaignObjective, setCampaignObjective] = useState<string>("");
 
   useEffect(() => {
     const storedCampaigns = localStorage.getItem(STORAGE_KEY);
@@ -62,7 +63,7 @@ export function CampaignGenerator() {
       const res = await fetch("/api/llm/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandProfile: profile })
+        body: JSON.stringify({ brandProfile: profile, campaignObjective })
       });
       if (!res.ok) throw new Error("Failed to generate campaigns");
       const json = await res.json();
@@ -119,6 +120,86 @@ export function CampaignGenerator() {
 
   return (
     <div>
+      <div className="mb-4">
+        <div className="flex items-end gap-4">
+          <div className="flex-1">
+            <label className="block text-white/80 font-medium mb-2" htmlFor="campaignObjective">Campaign Goals/Objectives</label>
+            <textarea
+              id="campaignObjective"
+              className="w-full p-2 rounded bg-black/10 border border-white/20 text-white"
+              rows={2}
+              value={campaignObjective}
+              onChange={e => setCampaignObjective(e.target.value)}
+              placeholder="Describe your campaign goals or objectives to personalize the generation..."
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <button
+              className="bg-blue-600 text-white px-4 py-2 rounded"
+              style={{ height: "48px" }}
+              onClick={handleGenerate}
+              disabled={loading || status !== "authenticated"}
+            >
+              {loading ? "Generating..." : "Generate Campaigns"}
+            </button>
+            <button
+              className="bg-green-600 text-white px-4 py-2 rounded"
+              style={{ height: "48px" }}
+              onClick={async () => {
+                if (status !== "authenticated") {
+                  setTweetError("You must be logged in to generate tweets.");
+                  return;
+                }
+                setTweetLoading(true)
+                setTweetError(null)
+                setTweetPrompt("")
+                setTweets([])
+                try {
+                  // Query vector store for tweet examples
+                  const res = await fetch("/api/llm/query-tweets", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ brandProfile: profile, n_results: 20 })
+                  })
+                  if (!res.ok) throw new Error("Failed to fetch tweet examples")
+                  const json = await res.json()
+                  setTweetExamples(json.results || [])
+                  // Build LLM prompt for tweet generation
+                  const prompt = buildLLMTwitterPrompt({ brandProfile: profile, tweetExamples: json.results || [], campaignObjective })
+                  setTweetPrompt(prompt)
+                  // Call LLM to generate tweets
+                  const tweetRes = await fetch("/api/llm/generate-tweets", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ brandProfile: profile, tweetExamples: json.results || [], campaignObjective })
+                  })
+                  if (!tweetRes.ok) throw new Error("Failed to generate tweets")
+                  const tweetJson = await tweetRes.json()
+                  // Parse tweets from LLM output (expecting a JSON array)
+                  let tweetsArr: string[] = []
+                  try {
+                    const arr = JSON.parse(tweetJson.result)
+                    if (Array.isArray(arr)) {
+                      tweetsArr = arr.map((t: any) => t.tweet || t.text || JSON.stringify(t)).slice(0, 3)
+                    }
+                  } catch {
+                    tweetsArr = [tweetJson.result]
+                  }
+                  setTweets(tweetsArr)
+                  localStorage.setItem("mudra_tweets", JSON.stringify(tweetsArr));
+                } catch (e: any) {
+                  setTweetError(e.message || "Unknown error")
+                } finally {
+                  setTweetLoading(false)
+                }
+              }}
+              disabled={tweetLoading}
+            >
+              {tweetLoading ? "Loading..." : "Tweet Generator"}
+            </button>
+          </div>
+        </div>
+      </div>
       {/* NextAuth login/logout buttons */}
       {status === "authenticated" ? (
         <div className="mb-4 flex items-center gap-4">
@@ -128,64 +209,10 @@ export function CampaignGenerator() {
       ) : (
         <button className="bg-blue-600 text-white px-4 py-2 rounded mb-4 mr-2" onClick={() => signIn("twitter")}>Login with Twitter</button>
       )}
-      <button
-        className="bg-blue-600 text-white px-4 py-2 rounded mb-4 mr-2"
-        onClick={handleGenerate}
-        disabled={loading}
-      >
-        {loading ? "Generating..." : "Generate Campaigns"}
-      </button>
+      {/* Show error if Twitter authentication fails */}
       {twitterAuthError && <div className="text-red-500 mt-2">{twitterAuthError}</div>}
-      <button
-        className="bg-green-600 text-white px-4 py-2 rounded mb-4"
-        onClick={async () => {
-          setTweetLoading(true)
-          setTweetError(null)
-          setTweetPrompt("")
-          setTweets([])
-          try {
-            // Query vector store for tweet examples
-            const res = await fetch("/api/llm/query-tweets", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ brandProfile: profile, n_results: 5 })
-            })
-            if (!res.ok) throw new Error("Failed to fetch tweet examples")
-            const json = await res.json()
-            setTweetExamples(json.results || [])
-            // Build LLM prompt for tweet generation
-            const prompt = buildLLMTwitterPrompt({ brandProfile: profile, tweetExamples: json.results || [] })
-            setTweetPrompt(prompt)
-            // Call LLM to generate tweets
-            const tweetRes = await fetch("/api/llm/generate-tweets", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ brandProfile: profile, tweetExamples: json.results || [] })
-            })
-            if (!tweetRes.ok) throw new Error("Failed to generate tweets")
-            const tweetJson = await tweetRes.json()
-            // Parse tweets from LLM output (expecting a JSON array)
-            let tweetsArr: string[] = []
-            try {
-              const arr = JSON.parse(tweetJson.result)
-              if (Array.isArray(arr)) {
-                tweetsArr = arr.map((t: any) => t.tweet || t.text || JSON.stringify(t)).slice(0, 3)
-              }
-            } catch {
-              tweetsArr = [tweetJson.result]
-            }
-            setTweets(tweetsArr)
-            localStorage.setItem("mudra_tweets", JSON.stringify(tweetsArr));
-          } catch (e: any) {
-            setTweetError(e.message || "Unknown error")
-          } finally {
-            setTweetLoading(false)
-          }
-        }}
-        disabled={tweetLoading}
-      >
-        {tweetLoading ? "Loading..." : "Tweet Generator"}
-      </button>
+      {/* Only allow campaign/tweet generation if authenticated */}
+      {/* Removed duplicate Tweet Generator button */}
       {error && <div className="text-red-500 mt-2">{error}</div>}
       {result && <div className="mt-6"><CampaignCards campaigns={result} /></div>}
       {tweetError && <div className="text-red-500 mt-2">{tweetError}</div>}

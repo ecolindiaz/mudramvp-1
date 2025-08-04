@@ -6,10 +6,33 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../lib/generated/prisma"
+  binaryTargets = ["native", "linux-musl", "linux-musl-arm64-openssl-3.0.x"]
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model BrandProfile {
+  id                Int      @id @default(autoincrement())
+  companyName       String?  
+  companyWebsite    String?  
+  companyLinkedIn   String?  
+  companyTwitter    String?  
+  userName          String?  
+  userRole          String?
+  userAvatar        String?
+  companyDescription String? 
+  companyIndustry   String?  
+  companyServices   String?  
+  companyICP        String?  
+  competitors       String?  // Store as comma-separated string or use a relation for advanced use
+  monthlySearchVolume String?
+  aiRecommendations String?  
+  stage             String?  
+  resources         String?  // Store as JSON string if needed
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }

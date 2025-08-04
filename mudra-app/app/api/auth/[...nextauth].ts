@@ -5,29 +5,32 @@ import { Session } from "next-auth";
 declare module "next-auth" {
   interface Session {
     accessToken?: string;
+    accessSecret?: string;
   }
 }
 
 const handler = NextAuth({
   providers: [
     TwitterProvider({
-      clientId: process.env.TWITTER_CLIENT_ID || "",
-      clientSecret: process.env.TWITTER_CLIENT_SECRET || "",
-      version: "2.0", // Twitter OAuth 2.0
+      version: "1.0A",
+      clientId: process.env.TWITTER_CONSUMER_KEY!,
+      clientSecret: process.env.TWITTER_CONSUMER_SECRET!,
     }),
   ],
   session: {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, account }: { token: any; account?: any }) {
+    async jwt({ token, account }) {
       if (account) {
-        token.accessToken = account.access_token;
+        token.accessToken = account.oauth_token;
+        token.accessSecret = account.oauth_token_secret;
       }
       return token;
     },
-    async session({ session, token }: { session: any; token: any }) {
-      session.accessToken = token.accessToken;
+    async session({ session, token }) {
+      session.accessToken = token.accessToken as string | undefined;
+      session.accessSecret = token.accessSecret as string | undefined;
       return session;
     },
   },

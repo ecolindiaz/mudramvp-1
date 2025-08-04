@@ -23,7 +23,7 @@ export function SiteHeader() {
     setIsHydrated(true)
   }, [])
 
-  const pageTitle = isHydrated ? getPageTitle(pathname) : "Overview"
+  const pageTitle = isHydrated ? getPageTitle(pathname || "/dashboard") : "Overview"
 
   return (
     <header className="flex h-[var(--header-height)] shrink-0 items-center gap-2 border-b border-black bg-black transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-[var(--header-height)]">

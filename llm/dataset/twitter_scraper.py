@@ -27,7 +27,22 @@ CASE_STUDY_URLS = [
     'https://www.socialmediaexplorer.com/social-media-marketing/5-twitter-marketing-strategies-to-boost-your-brand/',
     'https://startgrowimprove.com/twitter-marketing/?srsltid=AfmBOopo__C0fZYTE4M21j6QqMcVqm51EmwO47_33_xxtLe_YibK4_No/',
     'https://www.startups.com/questions/828/how-to-increase-and-maintain-the-growth-of-my-twitter-account/',
-    'https://brand24.com/blog/twitter-marketing-strategy-guide/'
+    'https://brand24.com/blog/twitter-marketing-strategy-guide/',
+    'https://podcasts.apple.com/us/podcast/how-to-write-viral-tweets-with-the-man-who-beat/id1593424985?i=1000670413059&l=ar',
+    'https://x.com/StartupArchive_/status/1867977858632818928',
+    'https://startupshere.com/t/how-our-startup-made-a-single-tweet-our-central-asset-in-branding/705',
+    'https://www.shopify.com/blog/go-viral-on-twitter',
+    'https://mediashower.com/blog/examples-of-viral-tweets/',
+    'https://creatoreconomy.so/p/complete-guide-to-growing-on-x-twitter',
+    'https://www.entrepreneur.com/marketing/how-to-create-a-twitter-marketing-strategy/442688',
+    'https://www.socialmediaexaminer.com/how-to-create-twitter-marketing-strategy/',
+    'https://www.reddit.com/r/SaaS/comments/q2iewu/starting_marketing_on_twitter_what_are_you_best/',
+    'https://www.dansiepen.io/growth-checklists/twitter-x-growth-strategies/',
+    'https://sproutsocial.com/insights/twitter-marketing/',
+    'https://www.crowdspring.com/blog/twitter-marketing/',
+    'https://www.startups.com/questions/828/how-to-increase-and-maintain-the-growth-of-my-twitter-account/',
+    'https://startupdevkit.com/twitter-marketing-guide-new-startups-small-business/',
+    
     # ...add more URLs as needed
 ]
 

@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TWITTER_CONSUMER_KEY=${TWITTER_CONSUMER_KEY}
+      - TWITTER_CONSUMER_SECRET=${TWITTER_CONSUMER_SECRET}
+      - FIREGEO_API_URL=http://host.docker.internal:3001
+      - FIREGEO_API_TOKEN=${FIREGEO_API_TOKEN}
+      - FIREGEO_WEBHOOK_SECRET=${FIREGEO_WEBHOOK_SECRET}
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next

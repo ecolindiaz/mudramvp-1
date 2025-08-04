@@ -108,6 +108,11 @@ const data = {
       url: "/dashboard/campaign-generator",
       icon: IconSparkles,
     },
+    {
+      title: "AI Visibility",
+      url: "/ai-visibility",
+      icon: IconTarget,
+    },
   ],
   navClouds: [
     {

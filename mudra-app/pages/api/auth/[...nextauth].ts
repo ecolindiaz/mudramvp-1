@@ -6,15 +6,17 @@ import { Session } from "next-auth";
 declare module "next-auth" {
   interface Session {
     accessToken?: string;
+    accessSecret?: string;
   }
 }
+
 
 export default NextAuth({
   providers: [
     TwitterProvider({
-      clientId: process.env.TWITTER_CLIENT_ID || "",
-      clientSecret: process.env.TWITTER_CLIENT_SECRET || "",
-      version: "2.0", // Twitter OAuth 2.0
+      clientId: process.env.TWITTER_CONSUMER_KEY || "",
+      clientSecret: process.env.TWITTER_CONSUMER_SECRET || "",
+      version: "1.0A", // Twitter OAuth 1.0A
     }),
   ],
   session: {
@@ -23,12 +25,14 @@ export default NextAuth({
   callbacks: {
     async jwt({ token, account }: { token: any; account?: any }) {
       if (account) {
-        token.accessToken = account.access_token;
+        token.accessToken = account.oauth_token;
+        token.accessSecret = account.oauth_token_secret;
       }
       return token;
     },
     async session({ session, token }: { session: any; token: any }) {
       session.accessToken = token.accessToken;
+      session.accessSecret = token.accessSecret;
       return session;
     },
   },

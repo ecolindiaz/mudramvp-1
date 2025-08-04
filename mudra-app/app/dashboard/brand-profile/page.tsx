@@ -1,38 +1,39 @@
+
 import { AppSidebar } from "@/components/app-sidebar"
 import { BrandProfileForm } from "@/components/brand-profile-form"
 import { SiteHeader } from "@/components/site-header"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
+import { BrandProfileProvider } from "@/components/brand-profile-context"
 
 export default function BrandProfilePage() {
+
   return (
-    <SidebarProvider
-      className="bg-black"
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar />
-      <SidebarInset className="bg-black m-0 shadow-none rounded-none border-none">
-        <SiteHeader />
-        <Separator className="w-full border-border" />
-        <div className="flex flex-1 flex-col bg-black">
-          <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
-            <div className="py-8 px-4 lg:px-8">
-              <BrandProfileForm />
+    <BrandProfileProvider>
+      <SidebarProvider
+        className="bg-black"
+        style={
+          {
+            "--sidebar-width": "calc(var(--spacing) * 72)",
+            "--header-height": "calc(var(--spacing) * 12)",
+          } as React.CSSProperties
+        }
+      >
+        <AppSidebar />
+        <SidebarInset className="bg-black m-0 shadow-none rounded-none border-none">
+          <SiteHeader />
+          <Separator className="w-full border-border" />
+          <div className="flex flex-1 flex-col bg-black">
+            <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
+              <div className="py-8 px-4 lg:px-8">
+                <BrandProfileForm />
+              </div>
             </div>
           </div>
-        </div>
-      </SidebarInset>
-      
-      <FloatingMudraButton />
-    </SidebarProvider>
-  )
-} 
+        </SidebarInset>
+        <FloatingMudraButton />
+      </SidebarProvider>
+    </BrandProfileProvider>
+  );
+}

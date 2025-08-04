@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useBrandProfile } from "@/components/brand-profile-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,58 +14,35 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 const inputStyles = "bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
 const labelStyles = "text-white/80 text-sm font-medium"
 
-// Mock data - will be replaced with actual data from backend
-const initialData = {
-  // Company Information
-  companyName: "Mudra Inc.",
-  companyWebsite: "https://trymudra.com",
-  companyLinkedIn: "https://linkedin.com/company/mudra",
-  companyTwitter: "https://twitter.com/mudra",
-  
-  // Personal Information
-  userName: "John Doe",
-  userRole: "CEO & Founder",
-  userAvatar: "",
-  
-  // Company Profile
-  companyDescription: "A Generative Engine Optimization platform helping startups get mentioned by AI.",
-  companyIndustry: "AI/Technology",
-  companyServices: "GEO Platform, AI Optimization, Content Strategy",
-  companyICP: "Startups, Marketing teams, GEO Specialists",
-  
-  // Competitors
-  competitors: [
-    "https://competitor1.com",
-    "https://competitor2.com",
-    "https://competitor3.com"
-  ],
-  
-  // Visibility Metrics
-  monthlySearchVolume: "5,000",
-  aiRecommendations: "Sometimes"
-}
-
 export function BrandProfileForm() {
-  const [formData, setFormData] = useState(initialData)
-  const [isEditing, setIsEditing] = useState(false)
+  const { profile, setProfile } = useBrandProfile();
+  const [formData, setFormData] = useState(profile);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Sync formData with context profile when not editing
+  useEffect(() => {
+    if (!isEditing) {
+      setFormData(profile);
+    }
+  }, [profile, isEditing]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
-    }))
-  }
+    }));
+  };
 
   const handleSave = () => {
-    // TODO: Implement save functionality with backend
-    console.log("Saving:", formData)
-    setIsEditing(false)
-  }
+    setProfile(formData); // Persist to context
+    // TODO: Optionally, send to backend API here
+    setIsEditing(false);
+  };
 
   const handleCancel = () => {
-    setFormData(initialData)
-    setIsEditing(false)
-  }
+    setFormData(profile); // Reset to last saved context
+    setIsEditing(false);
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

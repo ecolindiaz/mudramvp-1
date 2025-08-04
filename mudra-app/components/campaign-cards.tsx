@@ -5,7 +5,7 @@ import React from "react"
 import { Campaign } from "@/lib/llm/post-process-campaigns"
 
 interface CampaignCardsProps {
-  campaigns: (Campaign & { type?: string; effort?: string; priority?: string })[]
+  campaigns: (Campaign & { type?: string })[]
 }
 
 export default function CampaignCards({ campaigns }: CampaignCardsProps) {
@@ -41,8 +41,6 @@ export default function CampaignCards({ campaigns }: CampaignCardsProps) {
           <div className="text-white/60 text-xs mb-2">{c.description}</div>
           <div className="flex flex-wrap gap-2 text-xs text-white/60 mb-2">
             <span>Channel: <b>{c.channel}</b></span>
-            <span>Effort: <b>{c.effort}</b></span>
-            <span>Priority: <b>{c.priority}</b></span>
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-white/60 mb-2">
             {c.kpis && <span>KPIs: <b>{c.kpis}</b></span>}

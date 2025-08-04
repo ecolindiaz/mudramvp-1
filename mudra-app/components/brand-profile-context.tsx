@@ -1,20 +1,35 @@
-import { createContext, useContext, useState } from "react"
+"use client"
+import { createContext, useContext, useState, useEffect } from "react"
 
 const defaultProfile = {
-  companyName: "Mudra Inc.",
-  companyWebsite: "https://trymudra.com",
-  companyDescription: "A Generative Engine Optimization platform helping startups get mentioned by AI.",
-  companyIndustry: "AI/Technology",
-  companyServices: "GEO Platform, AI Optimization, Content Strategy",
-  companyICP: "Startups, Marketing teams, GEO Specialists",
-  competitors: [
-    "https://competitor1.com",
-    "https://competitor2.com",
-    "https://competitor3.com"
-  ],
-  stage: "MVP",
-  resources: { teamSize: 3, budget: 10000 }
-}
+  // Company Information
+  companyName: "",
+  companyWebsite: "",
+  companyLinkedIn: "",
+  companyTwitter: "",
+
+  // Personal Information
+  userName: "",
+  userRole: "",
+  userAvatar: "",
+
+  // Company Profile
+  companyDescription: "",
+  companyIndustry: "",
+  companyServices: "",
+  companyICP: "",
+
+  // Competitors
+  competitors: [] as string[],
+
+  // Visibility Metrics
+  monthlySearchVolume: "",
+  aiRecommendations: "",
+
+  // Extra fields for compatibility
+  stage: "",
+  resources: { teamSize: 0, budget: 0 }
+};
 
 const BrandProfileContext = createContext({
   profile: defaultProfile,
@@ -25,11 +40,32 @@ export function useBrandProfile() {
   return useContext(BrandProfileContext)
 }
 
-export function BrandProfileProvider({ children }) {
-  const [profile, setProfile] = useState(defaultProfile)
+export function BrandProfileProvider({ children }: { children: React.ReactNode }) {
+  const [profile, setProfileState] = useState(defaultProfile);
+
+  // Load profile from API on mount
+  useEffect(() => {
+    fetch("/api/brand-profile")
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data === "object") setProfileState(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Save profile to API and update state
+  const setProfile = (newProfile: typeof defaultProfile) => {
+    setProfileState(newProfile);
+    fetch("/api/brand-profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newProfile)
+    });
+  };
+
   return (
     <BrandProfileContext.Provider value={{ profile, setProfile }}>
       {children}
     </BrandProfileContext.Provider>
-  )
+  );
 }

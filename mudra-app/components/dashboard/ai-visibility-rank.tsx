@@ -17,6 +17,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { IconInfoCircle } from "@tabler/icons-react"
+import { useAIVisibility } from "@/contexts/ai-visibility-context"
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 
@@ -113,6 +114,21 @@ export function AIVisibilityRank({ timeRange, selectedModel }: AIVisibilityRankP
   void timeRange
   void selectedModel
 
+  const { data } = useAIVisibility()
+  const { currentScore } = data
+
+  // Update Y Combinator's score if we have a calculated score
+  const updatedRankingData = rankingData.map(item => {
+    if (item.company === "Y Combinator" && currentScore) {
+      return {
+        ...item,
+        score: currentScore.percentage,
+        trend: 0.3 // Keep the trend for now
+      }
+    }
+    return item
+  })
+
   const getTrendIndicator = (trend: number) => {
     const trendPercent = Math.abs(trend).toFixed(1)
     
@@ -183,7 +199,7 @@ export function AIVisibilityRank({ timeRange, selectedModel }: AIVisibilityRankP
         <Separator />
         
         <div className="space-y-3">
-          {rankingData.map((item) => (
+                        {updatedRankingData.map((item) => (
             <div 
               key={item.rank} 
               className={`flex items-center justify-between py-2 px-3 rounded-lg transition-all duration-200 ${

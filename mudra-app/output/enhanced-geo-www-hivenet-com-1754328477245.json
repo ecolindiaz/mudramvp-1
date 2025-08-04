@@ -1,0 +1,171 @@
+{
+  "url": "https://www.hivenet.com",
+  "timestamp": "2025-08-04T17:27:57.238Z",
+  "structuredData": {
+    "jsonLd": [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Hivenet",
+        "url": "https://www.hivenet.com/",
+        "description": "Send files up to 4GB fast, free, and with a smaller footprint."
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "serviceType": "Cloud Storage",
+        "provider": {
+          "@type": "Organization",
+          "name": "Hivenet"
+        }
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "serviceType": "GPU Cloud",
+        "provider": {
+          "@type": "Organization",
+          "name": "Hivenet"
+        }
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "serviceType": "File Sharing",
+        "provider": {
+          "@type": "Organization",
+          "name": "Hivenet"
+        }
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Hivenet",
+        "url": "https://www.hivenet.com/",
+        "logo": "https://cdn.prod.website-files.com/65c091ad1249c93370811afe/672ba4d8600bc0984a93f9f8_hivenet-logo-beige.svg"
+      }
+    ],
+    "microdata": [],
+    "rdfa": [],
+    "schemaTypes": [
+      "WebSite",
+      "Service",
+      "Organization"
+    ],
+    "faqSchemas": [],
+    "organizationSchema": {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Hivenet",
+      "url": "https://www.hivenet.com/",
+      "logo": "https://cdn.prod.website-files.com/65c091ad1249c93370811afe/672ba4d8600bc0984a93f9f8_hivenet-logo-beige.svg"
+    },
+    "websiteSchema": {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Hivenet",
+      "url": "https://www.hivenet.com/",
+      "description": "Send files up to 4GB fast, free, and with a smaller footprint."
+    }
+  },
+  "entityRecognition": {
+    "organizations": [
+      "Hivenet",
+      "PoliCloud"
+    ],
+    "people": [],
+    "technologies": [],
+    "products": [
+      "Cloud storage",
+      "GPU cloud",
+      "File sharing"
+    ],
+    "locations": []
+  },
+  "faqOptimization": {
+    "faqSections": [],
+    "questionAnswerPairs": 0,
+    "faqStructuredData": false,
+    "faqSchemaPresent": false
+  },
+  "contentFreshness": {
+    "publishDate": "",
+    "lastModified": "",
+    "updateFrequency": "",
+    "freshnessSignals": [
+      {
+        "type": "blog post",
+        "versionNumber": ""
+      }
+    ]
+  },
+  "contentStructure": {
+    "headingsHierarchy": {
+      "h1": [],
+      "h2": [],
+      "h3": [],
+      "h4": [],
+      "h5": [],
+      "h6": []
+    },
+    "authoritySignals": {
+      "statistics": [
+        "Reduce your carbon footprint by 77%",
+        "30% Off Hivenet Plans!"
+      ],
+      "expertQuotes": [],
+      "authorInfo": {},
+      "citations": [],
+      "testimonials": []
+    },
+    "contentQuality": {
+      "wordCount": 564,
+      "paragraphCount": 20,
+      "lists": 0,
+      "tables": 0,
+      "images": 10
+    }
+  },
+  "technicalAccessibility": {
+    "metaTags": {
+      "title": "Hivenet: Distributed Cloud Storage & Computing | Secure, Sustainable",
+      "description": "Hivenet offers secure, sustainable cloud storage and computing through a distributed network. Reduce costs and emissions and enjoy reliable performance.",
+      "hreflang": [],
+      "openGraph": {
+        "og:title": "Hivenet: Distributed Cloud Storage & Computing | Secure, Sustainable",
+        "og:description": "Hivenet offers secure, sustainable cloud storage and computing through a distributed network. Reduce costs and emissions and enjoy reliable performance.",
+        "og:image": "https://cdn.prod.website-files.com/65c091ad1249c93370811afe/673791b92c6ec7bc68770e00_opengraph-general.jpg",
+        "og:url": ""
+      },
+      "twitterCard": {
+        "twitter:card": "",
+        "twitter:title": "",
+        "twitter:description": "",
+        "twitter:image": ""
+      }
+    },
+    "technicalElements": {
+      "httpsStatus": true,
+      "statusCode": 200,
+      "contentType": "text/html",
+      "internalLinks": []
+    },
+    "accessibility": {
+      "altTextCount": 0,
+      "ariaLabels": [],
+      "semanticElements": [],
+      "skipLinks": false,
+      "headingStructureValid": true,
+      "landmarkRoles": []
+    }
+  },
+  "geoScore": {
+    "overall": 53,
+    "contentAuthority": 46,
+    "technicalAccessibility": 85,
+    "structuredData": 70,
+    "entityRecognition": 70,
+    "faqOptimization": 0,
+    "contentFreshness": 5
+  }
+}

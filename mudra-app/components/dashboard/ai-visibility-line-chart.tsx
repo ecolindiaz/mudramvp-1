@@ -30,17 +30,9 @@ import {
 } from "@/components/ui/tooltip"
 import { IconInfoCircle, IconArrowRight } from "@tabler/icons-react"
 import { MetricWidget } from "./metric-widget"
+import { useAIVisibility } from "@/contexts/ai-visibility-context"
 
 export const description = "AI Visibility Metric trend over time"
-
-const chartData = [
-  { month: "January", visibility: 58 },
-  { month: "February", visibility: 64 },
-  { month: "March", visibility: 61 },
-  { month: "April", visibility: 73 },
-  { month: "May", visibility: 79 },
-  { month: "June", visibility: 86 },
-]
 
 const chartConfig = {
   visibility: {
@@ -50,11 +42,27 @@ const chartConfig = {
 } satisfies ChartConfig
 
 export function AIVisibilityLineChart() {
+  const { data } = useAIVisibility()
+  const { historicalData, currentScore } = data
+
+  // Use real data or fallback to default
+  const chartData = historicalData.length > 0 ? historicalData : [
+    { month: "January", visibility: 58 },
+    { month: "February", visibility: 64 },
+    { month: "March", visibility: 61 },
+    { month: "April", visibility: 73 },
+    { month: "May", visibility: 79 },
+    { month: "June", visibility: 86 },
+  ]
+
   // Calculate trend from last two months
   const lastMonth = chartData[chartData.length - 1]
   const previousMonth = chartData[chartData.length - 2]
   const change = lastMonth.visibility - previousMonth.visibility
   const changePercent = Math.abs(change).toFixed(1)
+
+  // Use current calculated score if available
+  const currentVisibility = currentScore ? `${currentScore.percentage}%` : `${lastMonth.visibility}%`
   
   const getTrendIndicator = () => {
     if (change > 0) {
@@ -102,7 +110,7 @@ export function AIVisibilityLineChart() {
             />
             <MetricWidget 
               label="Current" 
-              value={`${lastMonth.visibility}%`} 
+              value={currentVisibility} 
               variant="current"
             />
           </div>
@@ -138,6 +146,7 @@ export function AIVisibilityLineChart() {
             variant="ghost" 
             size="sm" 
             className="h-7 px-2.5 text-xs font-medium text-muted-foreground/70 hover:text-foreground hover:bg-muted/30 transition-all duration-200 rounded-md"
+            onClick={() => window.location.href = "/dashboard/ai-visibility"}
           >
             View
             <IconArrowRight className="ml-1.5 h-3 w-3" />

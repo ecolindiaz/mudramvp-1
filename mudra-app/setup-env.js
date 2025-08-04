@@ -17,6 +17,9 @@ ANTHROPIC_API_KEY="your-anthropic-api-key"
 PERPLEXITY_API_KEY="your-perplexity-api-key"
 GOOGLE_AI_API_KEY="your-google-ai-api-key"
 
+# Web Scraping
+FIRECRAWL_API_KEY="your-firecrawl-api-key"
+
 # Stripe
 STRIPE_SECRET_KEY="your-stripe-secret-key"
 STRIPE_PUBLISHABLE_KEY="your-stripe-publishable-key"

@@ -41,8 +41,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   }
 
   const handleAIVisibilityRedirect = () => {
-    // TODO: Navigate to AI visibility page
-    console.log("Redirecting to AI Visibility page")
+    window.location.href = "/dashboard/ai-visibility"
   }
 
   const handleContentQualityRedirect = () => {

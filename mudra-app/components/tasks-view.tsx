@@ -50,14 +50,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
+import { FloatingMudraButton } from "@/components/floating-mudra-button"
 
-import { dashboardData } from "@/app/dashboard/data"
+import type { AIGeneratedTask } from "@/lib/services/ai-task-generation.service"
 
 // Define types
-type DashboardItem = typeof dashboardData[0]
-
-type TaskItem = DashboardItem & {
+type TaskItem = {
+  id: number
+  header: string
+  type: string
+  status: string
+  target: string
+  limit: string
   progress: number
   priority: string
   dueDate: string
@@ -83,230 +89,34 @@ type Resource = {
   type: "documentation" | "tool" | "guide"
 }
 
-// Transform dashboard data into task format
-const transformToTasks = (data: typeof dashboardData): TaskItem[] => {
-  return data.map(item => ({
-    ...item,
-    progress: Math.round((parseInt(item.target) / parseInt(item.limit)) * 100),
-    priority: item.status === "In Process" ? "high" : "medium",
-    dueDate: item.status === "In Process" ? "2024-01-15" : "2024-01-30",
-    description: getTaskDescription(item.header, item.type),
-    actionItems: getActionItems(item.header, item.status),
-    detailedSteps: getDetailedSteps(item.header, item.status),
-    resources: getResources(item.header),
-    estimatedTime: getEstimatedTime(item.header),
-    difficulty: getDifficulty(item.header)
+// Transform AI tasks to TaskItem format
+const transformAITasksToTaskItems = (aiTasks: AIGeneratedTask[]): TaskItem[] => {
+  return aiTasks.map((task, index) => ({
+    id: index + 1,
+    header: task.title,
+    type: task.category,
+    status: "In Process",
+    target: "0",
+    limit: "100",
+    progress: 0,
+    priority: task.priority,
+    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days from now
+    description: task.description,
+    actionItems: task.steps.map(step => step.title),
+    detailedSteps: task.steps.map((step, i) => ({
+      id: i + 1,
+      title: step.title,
+      description: step.description,
+      completed: false,
+      estimatedTime: step.estimatedTime
+    })),
+    resources: task.resources,
+    estimatedTime: task.estimatedTime,
+    difficulty: task.difficulty
   }))
 }
 
-const getTaskDescription = (header: string, type: string): string => {
-  const descriptions: Record<string, string> = {
-    "AI Visibility Score": "Improve how often AI models mention your brand in responses",
-    "Claude Performance": "Optimize content for better Claude AI recognition",
-    "ChatGPT Performance": "Enhance visibility in ChatGPT responses",
-    "Perplexity Performance": "Increase mentions in Perplexity search results",
-    "Gemini Performance": "Improve Google AI model recognition",
-    "Competitive Share": "Analyze and improve competitive positioning",
-    "Crawler Health Score": "Ensure AI bots can access and index your content",
-    "Content Quality Score": "Enhance content credibility and expertise signals",
-    "External Footprint": "Expand brand presence across the web",
-    "Brand Mentions": "Increase quality brand mentions and citations",
-    "Query Performance": "Optimize response to industry-relevant queries",
-    "Technical Structure": "Improve website technical SEO for AI crawlers",
-    "Competitor Analysis": "Monitor and outperform competitor strategies",
-    "AI Model Trends": "Track and adapt to AI model behavior changes"
-  }
-  return descriptions[header] || `Optimize ${header.toLowerCase()} metrics`
-}
-
-const getActionItems = (header: string, status: string): string[] => {
-  if (status === "Done") return []
-  
-  const actions: Record<string, string[]> = {
-    "Perplexity Performance": [
-      "Add structured data markup",
-      "Create FAQ sections",
-      "Optimize for question-based queries"
-    ],
-    "Gemini Performance": [
-      "Improve E-A-T signals",
-      "Add author bios",
-      "Create comprehensive guides"
-    ],
-    "Competitive Share": [
-      "Research competitor content gaps",
-      "Create superior content",
-      "Build authority backlinks"
-    ],
-    "External Footprint": [
-      "Submit to industry directories",
-      "Guest post on authority sites",
-      "Engage in relevant forums"
-    ],
-    "Technical Structure": [
-      "Fix crawl errors",
-      "Optimize page speed",
-      "Implement schema markup"
-    ],
-    "Competitor Analysis": [
-      "Set up competitor monitoring",
-      "Analyze their content strategy",
-      "Identify opportunity gaps"
-    ]
-  }
-  return actions[header] || ["Review and optimize", "Monitor progress", "Update strategy"]
-}
-
-const getDetailedSteps = (header: string, status: string): DetailedStep[] => {
-  if (status === "Done") return []
-
-  const steps: Record<string, DetailedStep[]> = {
-    "Perplexity Performance": [
-      {
-        id: 1,
-        title: "Implement Schema.org Markup",
-        description: "Add structured data to your website's key pages to help AI models understand your content better. Focus on Organization, Product, and FAQ schemas.",
-        completed: false,
-        estimatedTime: "2-3 hours"
-      },
-      {
-        id: 2,
-        title: "Create Comprehensive FAQ Section",
-        description: "Develop a detailed FAQ page that answers common questions about your industry and products. Use natural language that matches how people ask questions.",
-        completed: false,
-        estimatedTime: "4-6 hours"
-      },
-      {
-        id: 3,
-        title: "Optimize Content for Question-Based Queries",
-        description: "Rewrite existing content to directly answer questions. Use headers that mirror common search queries and provide clear, concise answers.",
-        completed: false,
-        estimatedTime: "6-8 hours"
-      }
-    ],
-    "Gemini Performance": [
-      {
-        id: 1,
-        title: "Enhance E-A-T Signals",
-        description: "Improve Expertise, Authoritativeness, and Trustworthiness by adding author credentials, certifications, and trust indicators throughout your site.",
-        completed: false,
-        estimatedTime: "3-4 hours"
-      },
-      {
-        id: 2,
-        title: "Add Detailed Author Bios",
-        description: "Create comprehensive author biography pages with credentials, experience, and social proof to establish authority in your field.",
-        completed: false,
-        estimatedTime: "2-3 hours"
-      },
-      {
-        id: 3,
-        title: "Develop Comprehensive Resource Guides",
-        description: "Create in-depth, authoritative guides that cover your industry topics comprehensively. Include data, examples, and actionable insights.",
-        completed: false,
-        estimatedTime: "8-12 hours"
-      }
-    ],
-    "Technical Structure": [
-      {
-        id: 1,
-        title: "Audit and Fix Crawl Errors",
-        description: "Use Google Search Console to identify and fix 404 errors, redirect chains, and other crawl issues that prevent AI bots from accessing your content.",
-        completed: false,
-        estimatedTime: "2-4 hours"
-      },
-      {
-        id: 2,
-        title: "Optimize Page Loading Speed",
-        description: "Improve Core Web Vitals by optimizing images, minifying CSS/JS, and implementing caching. Target sub-3 second load times.",
-        completed: false,
-        estimatedTime: "4-6 hours"
-      },
-      {
-        id: 3,
-        title: "Implement Advanced Schema Markup",
-        description: "Add JSON-LD structured data for all content types including articles, products, events, and local business information.",
-        completed: false,
-        estimatedTime: "3-5 hours"
-      }
-    ]
-  }
-  
-  return steps[header] || [
-    {
-      id: 1,
-      title: "Analyze Current Performance",
-      description: "Review current metrics and identify areas for improvement",
-      completed: false,
-      estimatedTime: "1-2 hours"
-    },
-    {
-      id: 2,
-      title: "Implement Optimization Strategy",
-      description: "Execute the recommended optimization techniques",
-      completed: false,
-      estimatedTime: "3-5 hours"
-    },
-    {
-      id: 3,
-      title: "Monitor and Adjust",
-      description: "Track progress and make necessary adjustments",
-      completed: false,
-      estimatedTime: "1-2 hours"
-    }
-  ]
-}
-
-const getResources = (header: string): Resource[] => {
-  const resources: Record<string, Resource[]> = {
-    "Perplexity Performance": [
-      { title: "Schema.org Documentation", url: "https://schema.org", type: "documentation" },
-      { title: "Google Structured Data Testing Tool", url: "https://search.google.com/test/rich-results", type: "tool" },
-      { title: "FAQ Schema Implementation Guide", url: "#", type: "guide" }
-    ],
-    "Gemini Performance": [
-      { title: "Google E-A-T Guidelines", url: "#", type: "documentation" },
-      { title: "Author Authority Best Practices", url: "#", type: "guide" },
-      { title: "Content Quality Assessment Tool", url: "#", type: "tool" }
-    ],
-    "Technical Structure": [
-      { title: "Google Search Console", url: "https://search.google.com/search-console", type: "tool" },
-      { title: "PageSpeed Insights", url: "https://pagespeed.web.dev", type: "tool" },
-      { title: "Technical SEO Checklist", url: "#", type: "guide" }
-    ]
-  }
-  
-  return resources[header] || [
-    { title: "General Optimization Guide", url: "#", type: "guide" },
-    { title: "Performance Monitoring Tool", url: "#", type: "tool" }
-  ]
-}
-
-const getEstimatedTime = (header: string): string => {
-  const times: Record<string, string> = {
-    "Perplexity Performance": "12-17 hours",
-    "Gemini Performance": "13-19 hours",
-    "Technical Structure": "9-15 hours",
-    "Competitive Share": "8-12 hours",
-    "External Footprint": "6-10 hours",
-    "Competitor Analysis": "4-8 hours"
-  }
-  return times[header] || "4-8 hours"
-}
-
-const getDifficulty = (header: string): string => {
-  const difficulty: Record<string, string> = {
-    "Perplexity Performance": "Medium",
-    "Gemini Performance": "Medium",
-    "Technical Structure": "Hard",
-    "Competitive Share": "Medium",
-    "External Footprint": "Easy",
-    "Competitor Analysis": "Easy"
-  }
-  return difficulty[header] || "Medium"
-}
-
-const tasks = transformToTasks(dashboardData)
+// Removed static tasks - tasks only appear when generated by AI
 
 function DragHandle({ id }: { id: number }) {
   return (
@@ -336,87 +146,110 @@ function TaskDetailModal({ task }: { task: TaskItem }) {
   const progressPercentage = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
 
   return (
-    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          <IconTarget className="size-5" />
-          {task.header}
-        </DialogTitle>
-        <DialogDescription>
+    <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden">
+      <DialogHeader className="pb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+              <IconTarget className="size-5 text-primary" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-semibold text-foreground/90">
+                {task.header}
+              </DialogTitle>
+              <Badge variant="outline" className="text-xs mt-1">
+                {task.type}
+              </Badge>
+            </div>
+          </div>
+          <div className="ml-auto">
+            <Badge variant={task.status === "Done" ? "default" : "secondary"} className="gap-1">
+              {task.status === "Done" ? (
+                <IconCircleCheckFilled className="size-3" />
+              ) : (
+                <IconLoader className="size-3" />
+              )}
+              {task.status}
+            </Badge>
+          </div>
+        </div>
+        <DialogDescription className="text-muted-foreground/80 pt-2">
           {task.description}
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-6">
+      <div className="space-y-6 overflow-y-auto max-h-[calc(85vh-200px)]">
         {/* Task Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
             <CardHeader className="pb-3">
-              <CardDescription>Progress</CardDescription>
-              <CardTitle className="text-2xl">{task.progress}%</CardTitle>
+              <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Progress</CardDescription>
+              <CardTitle className="text-2xl font-bold text-foreground">{progressPercentage.toFixed(0)}%</CardTitle>
             </CardHeader>
           </Card>
-          <Card>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
             <CardHeader className="pb-3">
-              <CardDescription>Estimated Time</CardDescription>
-              <CardTitle className="text-lg">{task.estimatedTime}</CardTitle>
+              <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Estimated Time</CardDescription>
+              <CardTitle className="text-lg font-semibold text-foreground">{task.estimatedTime}</CardTitle>
             </CardHeader>
           </Card>
-          <Card>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
             <CardHeader className="pb-3">
-              <CardDescription>Difficulty</CardDescription>
-              <CardTitle className="text-lg">{task.difficulty}</CardTitle>
+              <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Difficulty</CardDescription>
+              <CardTitle className="text-lg font-semibold text-foreground">{task.difficulty}</CardTitle>
             </CardHeader>
           </Card>
         </div>
 
         {/* Steps Progress */}
         {task.detailedSteps.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Step Progress</CardTitle>
-              <CardDescription>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold">Step Progress</CardTitle>
+              <CardDescription className="text-muted-foreground/80">
                 {completedSteps} of {totalSteps} steps completed
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Progress value={progressPercentage} className="h-2" />
+              <Progress value={progressPercentage} className="h-3" />
             </CardContent>
           </Card>
         )}
 
         {/* Detailed Steps */}
         {task.detailedSteps.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>What You Need to Do</CardTitle>
-              <CardDescription>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold">What You Need to Do</CardTitle>
+              <CardDescription className="text-muted-foreground/80">
                 Follow these steps to complete the task
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {task.detailedSteps.map((step, index) => (
-                  <div key={step.id} className="flex gap-4 p-4 border rounded-lg">
-                    <div className="flex-shrink-0 mt-1">
-                      <Checkbox
-                        checked={stepStates[step.id] || false}
-                        onCheckedChange={() => toggleStep(step.id)}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h4 className="font-medium">
-                          Step {index + 1}: {step.title}
-                        </h4>
-                        <Badge variant="outline" className="text-xs">
-                          <IconClock className="size-3 mr-1" />
-                          {step.estimatedTime}
-                        </Badge>
+                  <div key={step.id} className="border border-border/30 rounded-lg p-4 bg-gradient-to-r from-background/50 to-background/30 hover:from-background/60 hover:to-background/40 transition-all duration-200">
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0 mt-1">
+                        <Checkbox
+                          checked={stepStates[step.id] || false}
+                          onCheckedChange={() => toggleStep(step.id)}
+                        />
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {step.description}
-                      </p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-3">
+                          <h4 className="font-semibold text-foreground/90">
+                            Step {index + 1}: {step.title}
+                          </h4>
+                          <Badge variant="outline" className="text-xs bg-background/50 border-border/50">
+                            <IconClock className="size-3 mr-1" />
+                            {step.estimatedTime}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground/80 leading-relaxed">
+                          {step.description}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -427,20 +260,22 @@ function TaskDetailModal({ task }: { task: TaskItem }) {
 
         {/* Resources */}
         {task.resources.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Helpful Resources</CardTitle>
-              <CardDescription>
+          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold">Helpful Resources</CardTitle>
+              <CardDescription className="text-muted-foreground/80">
                 Tools and guides to help you complete this task
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {task.resources.map((resource, index) => (
-                  <div key={index} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50">
-                    <IconExternalLink className="size-4 text-muted-foreground" />
+                  <div key={index} className="flex items-center gap-3 p-3 border border-border/30 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer">
+                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                      <IconExternalLink className="size-4 text-primary" />
+                    </div>
                     <div className="flex-1">
-                      <p className="font-medium text-sm">{resource.title}</p>
+                      <p className="font-semibold text-sm text-foreground/90">{resource.title}</p>
                       <p className="text-xs text-muted-foreground capitalize">{resource.type}</p>
                     </div>
                   </div>
@@ -451,13 +286,13 @@ function TaskDetailModal({ task }: { task: TaskItem }) {
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-2 pt-4">
-          <Button className="flex-1">
-            <IconCheck className="size-4 mr-2" />
+        <div className="flex gap-3 pt-4">
+          <Button className="flex-1 gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70">
+            <IconCheck className="size-4" />
             Mark as Complete
           </Button>
-          <Button variant="outline">
-            <IconClock className="size-4 mr-2" />
+          <Button variant="outline" className="gap-2">
+            <IconClock className="size-4" />
             Start Timer
           </Button>
         </div>
@@ -467,8 +302,101 @@ function TaskDetailModal({ task }: { task: TaskItem }) {
 }
 
 export function TasksView() {
+  const [tasks, setTasks] = useState<TaskItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [url, setUrl] = useState('')
+  const [companyContext, setCompanyContext] = useState('')
+  const [analysisData, setAnalysisData] = useState<any>(null)
+  const [autoGenerated, setAutoGenerated] = useState(false)
+
+  const searchParams = useSearchParams()
+  const cached = searchParams?.get('cached') === 'true'
+
   const inProgressTasks = tasks.filter(task => task.status === "In Process")
   const completedTasks = tasks.filter(task => task.status === "Done")
+
+  const generateAITasks = async (cachedResults?: any) => {
+    // If using cached results, skip URL validation
+    if (!cachedResults && !url.trim()) {
+      alert('Please enter a website URL')
+      return
+    }
+
+    setLoading(true)
+    try {
+      if (cachedResults) {
+        console.log('🔍 Generating AI tasks from cached results')
+      } else {
+        console.log('🔍 Generating AI tasks for:', url)
+      }
+      
+      const requestBody = cachedResults
+        ? {
+            cachedGeoResults: cachedResults,
+            companyContext: companyContext.trim() || undefined
+          }
+        : {
+            url: url.trim(),
+            companyContext: companyContext.trim() || undefined
+          }
+      
+      const response = await fetch('/api/ai-tasks/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to generate AI tasks')
+      }
+
+      console.log('✅ AI tasks generated successfully:', result.data)
+      
+      // Transform AI tasks to TaskItem format
+      const aiTasks = transformAITasksToTaskItems(result.data.tasks)
+      setTasks(aiTasks)
+      setAnalysisData(result.data.geoResults)
+      
+    } catch (error) {
+      console.error('❌ Failed to generate AI tasks:', error)
+      alert(`Failed to generate AI tasks: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const clearTasks = () => {
+    setTasks([])
+    setAnalysisData(null)
+    setUrl('')
+    setCompanyContext('')
+    setAutoGenerated(false)
+  }
+
+  // Auto-generate tasks from cached results
+  useEffect(() => {
+    if (cached && !autoGenerated && !loading && typeof window !== 'undefined') {
+      const cachedResults = sessionStorage.getItem('cachedGeoResults')
+      if (cachedResults) {
+        try {
+          const geoResults = JSON.parse(cachedResults)
+          setAutoGenerated(true)
+          setAnalysisData(geoResults)
+          setUrl(geoResults.url || '')
+          generateAITasks(geoResults)
+          
+          // Clear cached results after use
+          sessionStorage.removeItem('cachedGeoResults')
+        } catch (error) {
+          console.error('Failed to parse cached results:', error)
+        }
+      }
+    }
+  }, [cached, autoGenerated, loading])
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
@@ -498,15 +426,99 @@ export function TasksView() {
           />
         </div>
 
+        {/* AI Task Generation Form */}
+        <div className="px-4 lg:px-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>🤖 AI Task Generator</CardTitle>
+              <CardDescription>
+                {cached && autoGenerated 
+                  ? "AI tasks generated from your recent analysis" 
+                  : "Analyze any website and get AI-generated GEO optimization tasks"
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="website-url">Website URL</Label>
+                    <Input
+                      id="website-url"
+                      placeholder="https://example.com"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      disabled={loading}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company-context">Company Context (Optional)</Label>
+                    <Input
+                      id="company-context"
+                      placeholder="e.g., SaaS startup, fintech company..."
+                      value={companyContext}
+                      onChange={(e) => setCompanyContext(e.target.value)}
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={generateAITasks} 
+                    disabled={loading || !url.trim()}
+                    className="flex-1 md:flex-none"
+                  >
+                    {loading ? (
+                      <>
+                        <IconLoader className="size-4 mr-2 animate-spin" />
+                        Analyzing Website...
+                      </>
+                    ) : (
+                      <>
+                        <IconTrendingUp className="size-4 mr-2" />
+                        Generate AI Tasks
+                      </>
+                    )}
+                  </Button>
+                  
+                  {analysisData && (
+                    <Button variant="outline" onClick={clearTasks}>
+                      Clear Tasks
+                    </Button>
+                  )}
+                </div>
+                
+                {analysisData && (
+                  <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+                    <h4 className="font-medium mb-2">🎯 Analysis Results for {analysisData.url}</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                      <div>Overall: <Badge variant="outline">{analysisData.geoScore.overall}/100</Badge></div>
+                      <div>Structured Data: <Badge variant="outline">{analysisData.geoScore.structuredData}/100</Badge></div>
+                      <div>Technical: <Badge variant="outline">{analysisData.geoScore.technicalAccessibility}/100</Badge></div>
+                      <div>Content: <Badge variant="outline">{analysisData.geoScore.contentAuthority}/100</Badge></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Main Table */}
         <div className="px-4 lg:px-6">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>AI Optimization Recommendations</CardTitle>
+                  <CardTitle>
+                    {tasks.length > 0 ? '🤖 AI-Generated Tasks' : '📋 No Tasks Yet'}
+                  </CardTitle>
                   <CardDescription>
-                    Manage and track your GEO optimization tasks
+                    {tasks.length > 0 
+                      ? 'Generated optimization tasks for your website'
+                      : 'Generate AI tasks by analyzing a website above'
+                    }
                   </CardDescription>
                 </div>
                 <Button size="sm">
@@ -515,109 +527,124 @@ export function TasksView() {
                 </Button>
               </div>
             </CardHeader>
-            <div className="overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12"></TableHead>
-                    <TableHead className="w-12">
-                      <div className="flex items-center justify-center">
-                        <Checkbox aria-label="Select all" />
-                      </div>
-                    </TableHead>
-                    <TableHead>Header</TableHead>
-                    <TableHead>Section Type</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Target</TableHead>
-                    <TableHead className="text-right">Limit</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tasks.map((task) => (
-                    <Dialog key={task.id}>
-                      <DialogTrigger asChild>
-                        <TableRow className="cursor-pointer hover:bg-muted/50">
-                          <TableCell>
-                            <DragHandle id={task.id} />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-center">
-                              <Checkbox aria-label="Select row" />
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {task.header}
-                          </TableCell>
-                          <TableCell>
-                            <div className="w-32">
+            {tasks.length > 0 ? (
+              <div className="overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead className="w-12">
+                        <div className="flex items-center justify-center">
+                          <Checkbox aria-label="Select all" />
+                        </div>
+                      </TableHead>
+                      <TableHead>Header</TableHead>
+                      <TableHead>Section Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Target</TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tasks.map((task) => (
+                      <Dialog key={task.id}>
+                        <DialogTrigger asChild>
+                          <TableRow className="cursor-pointer hover:bg-muted/50">
+                            <TableCell>
+                              <DragHandle id={task.id} />
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center justify-center">
+                                <Checkbox aria-label="Select row" />
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {task.header}
+                            </TableCell>
+                            <TableCell>
+                              <div className="w-32">
+                                <Badge variant="outline" className="text-muted-foreground px-1.5">
+                                  {task.type}
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell>
                               <Badge variant="outline" className="text-muted-foreground px-1.5">
-                                {task.type}
+                                {task.status === "Done" ? (
+                                  <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
+                                ) : (
+                                  <IconLoader />
+                                )}
+                                {task.status}
                               </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-muted-foreground px-1.5">
-                              {task.status === "Done" ? (
-                                <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
-                              ) : (
-                                <IconLoader />
-                              )}
-                              {task.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Label htmlFor={`${task.id}-target`} className="sr-only">
-                              Target
-                            </Label>
-                            <Input
-                              className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
-                              defaultValue={task.target}
-                              id={`${task.id}-target`}
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Label htmlFor={`${task.id}-limit`} className="sr-only">
-                              Limit
-                            </Label>
-                            <Input
-                              className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
-                              defaultValue={task.limit}
-                              id={`${task.id}-limit`}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  className="data-[state=open]:bg-muted text-muted-foreground flex size-8"
-                                  size="icon"
-                                >
-                                  <IconDotsVertical />
-                                  <span className="sr-only">Open menu</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-32">
-                                <DropdownMenuItem>Edit</DropdownMenuItem>
-                                <DropdownMenuItem>View Details</DropdownMenuItem>
-                                <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      </DialogTrigger>
-                      <TaskDetailModal task={task} />
-                    </Dialog>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Label htmlFor={`${task.id}-target`} className="sr-only">
+                                Target
+                              </Label>
+                              <Input
+                                className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
+                                defaultValue={task.target}
+                                id={`${task.id}-target`}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    className="data-[state=open]:bg-muted text-muted-foreground flex size-8"
+                                    size="icon"
+                                  >
+                                    <IconDotsVertical />
+                                    <span className="sr-only">Open menu</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-32">
+                                  <DropdownMenuItem>Edit</DropdownMenuItem>
+                                  <DropdownMenuItem>View Details</DropdownMenuItem>
+                                  <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        </DialogTrigger>
+                        <TaskDetailModal task={task} />
+                      </Dialog>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <IconTarget className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Tasks Generated Yet</h3>
+                <p className="text-muted-foreground text-sm max-w-md">
+                  Use the AI Task Generator above to analyze a website and get personalized GEO optimization tasks, 
+                  or click the Magic Button to analyze a site and generate tasks automatically.
+                </p>
+              </div>
+            )}
           </Card>
         </div>
       </div>
+      
+      {/* Context-aware AI Chat */}
+      <FloatingMudraButton 
+        taskContext={tasks.map(task => ({
+          id: task.id,
+          header: task.header,
+          type: task.type,
+          status: task.status,
+          description: task.description,
+          detailedSteps: task.detailedSteps,
+          resources: task.resources,
+          estimatedTime: task.estimatedTime,
+          difficulty: task.difficulty
+        }))}
+      />
     </div>
   )
 } 

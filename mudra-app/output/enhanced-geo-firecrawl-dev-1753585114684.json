@@ -1,0 +1,336 @@
+{
+  "url": "https://firecrawl.dev",
+  "timestamp": "2025-07-27T02:58:34.671Z",
+  "structuredData": {
+    "jsonLd": [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Firecrawl",
+        "url": "https://www.firecrawl.dev/",
+        "description": "The easiest way to extract data from the web."
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Firecrawl",
+        "url": "https://www.firecrawl.dev/",
+        "logo": "https://www.firecrawl.dev/images/yc.svg",
+        "sameAs": [
+          "https://twitter.com/firecrawl_dev",
+          "https://github.com/mendableai/firecrawl",
+          "https://www.linkedin.com/company/firecrawl",
+          "https://discord.gg/gSmWdAkdwd"
+        ]
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Firecrawl",
+        "brand": "Firecrawl",
+        "offers": {
+          "@type": "Offer",
+          "url": "https://www.firecrawl.dev/pricing",
+          "priceCurrency": "USD",
+          "price": "0",
+          "itemCondition": "https://schema.org/NewCondition",
+          "availability": "https://schema.org/InStock"
+        }
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is Firecrawl?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Firecrawl is a web scraping tool that allows users to extract data from websites."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Firecrawl open-source?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, Firecrawl is open-source."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What sites work?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Firecrawl can scrape data from any publicly accessible website."
+            }
+          }
+        ]
+      }
+    ],
+    "microdata": [],
+    "rdfa": [],
+    "schemaTypes": [
+      "WebSite",
+      "Organization",
+      "Product",
+      "FAQPage"
+    ],
+    "faqSchemas": [
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is Firecrawl?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Firecrawl is a web scraping tool that allows users to extract data from websites."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Firecrawl open-source?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, Firecrawl is open-source."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What sites work?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Firecrawl can scrape data from any publicly accessible website."
+            }
+          }
+        ]
+      }
+    ],
+    "organizationSchema": {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Firecrawl",
+      "url": "https://www.firecrawl.dev/",
+      "logo": "https://www.firecrawl.dev/images/yc.svg",
+      "sameAs": [
+        "https://twitter.com/firecrawl_dev",
+        "https://github.com/mendableai/firecrawl",
+        "https://www.linkedin.com/company/firecrawl",
+        "https://discord.gg/gSmWdAkdwd"
+      ]
+    },
+    "websiteSchema": {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Firecrawl",
+      "url": "https://www.firecrawl.dev/",
+      "description": "The easiest way to extract data from the web."
+    }
+  },
+  "entityRecognition": {
+    "organizations": [
+      "Firecrawl",
+      "Zapier",
+      "Nvidia",
+      "Carrefour",
+      "PwC",
+      "Shopify",
+      "Fanatics",
+      "CyberAgent",
+      "Bain",
+      "Alibaba",
+      "Contentful",
+      "Gamma",
+      "PHMG",
+      "StackAI",
+      "Teller.io",
+      "Vendr",
+      "OpenGov",
+      "Continue.dev",
+      "JasperAI",
+      "Palladium Digital",
+      "Checkr",
+      "You.com",
+      "OpenAI",
+      "MendableAI"
+    ],
+    "people": [
+      "Morgan Linton",
+      "Chris DeWeese",
+      "Bardia Pourvakil",
+      "Tom Reppelin",
+      "latentsauce",
+      "Michael Ning",
+      "Alex Reibman",
+      "Alex Fazio",
+      "Matt Busigin"
+    ],
+    "technologies": [
+      "Firecrawl",
+      "npm",
+      "JavaScript",
+      "LLMs",
+      "Markdown",
+      "JSON",
+      "PDF",
+      "DOCX",
+      "Dynamic Content",
+      "Smart Wait"
+    ],
+    "products": [
+      "Authenticated Scraping",
+      "Web Scraping",
+      "Crawling",
+      "Lead Enrichment",
+      "AI Platforms",
+      "Deep Research",
+      "MCPs",
+      "AI Chats"
+    ],
+    "locations": []
+  },
+  "faqOptimization": {
+    "faqSections": [
+      {
+        "title": "General",
+        "content": "What is Firecrawl?\nWhat sites work?\nWho can benefit from using Firecrawl?\nIs Firecrawl open-source?\nWhat is the difference between Firecrawl and other web scrapers?\nWhat is the difference between the open-source version and the hosted version?"
+      },
+      {
+        "title": "Scraping & Crawling",
+        "content": "How does Firecrawl handle dynamic content on websites?\nWhy is it not crawling all the pages?\nCan Firecrawl crawl websites without a sitemap?\nWhat formats can Firecrawl convert web data into?\nHow does Firecrawl ensure the cleanliness of the data?\nIs Firecrawl suitable for large-scale data scraping projects?\nDoes it respect robots.txt?\nWhat measures does Firecrawl take to handle web scraping challenges like rate limits and caching?\nDoes Firecrawl handle captcha or authentication?"
+      },
+      {
+        "title": "API Related",
+        "content": "Where can I find my API key?"
+      },
+      {
+        "title": "Billing",
+        "content": "Is Firecrawl free?\nIs there a pay-per-use plan instead of monthly?\nDo credits roll over to the next month?\nHow many credits do scraping and crawling cost?\nDo you charge for failed requests?\nWhat payment methods do you accept?"
+      }
+    ],
+    "questionAnswerPairs": 0,
+    "faqStructuredData": true,
+    "faqSchemaPresent": true
+  },
+  "contentFreshness": {
+    "publishDate": "",
+    "lastModified": "",
+    "updateFrequency": "",
+    "freshnessSIgnals": [
+      {
+        "type": "news",
+        "versionNumber": ""
+      }
+    ]
+  },
+  "contentStructure": {
+    "headingsHierarchy": {
+      "h1": [],
+      "h2": [],
+      "h3": [],
+      "h4": [],
+      "h5": [],
+      "h6": []
+    },
+    "authoritySignals": {
+      "statistics": [
+        {
+          "description": "Trusted by top companies",
+          "number": 20
+        },
+        {
+          "description": "Free plan includes 500 credits",
+          "number": 500
+        },
+        {
+          "description": "Hobby plan includes 3,000 credits per month",
+          "number": 3000
+        },
+        {
+          "description": "Standard plan includes 100,000 credits per month",
+          "number": 100000
+        },
+        {
+          "description": "Growth plan includes 500,000 credits per month",
+          "number": 500000
+        }
+      ],
+      "expertQuotes": [
+        "\"If you're coding with AI, and haven't discovered @firecrawl_dev yet, prepare to have your mind blown 🤯\" - Morgan Linton",
+        "\"Started using @firecrawl_dev for a project, I wish I used this sooner.\" - Chris DeWeese",
+        "\"The Firecrawl team ships. I wanted types for their node SDK, and less than an hour later, I got them.\" - Bardia Pourvakil",
+        "\"I found gold today. Thank you @firecrawl_dev\" - Tom Reppelin",
+        "\"Firecrawl simplifies data preparation significantly, exactly what I was hoping for. Thank you Firecrawl ❤️❤️❤️\" - latentsauce 🧘🏽",
+        "\"Firecrawl is impressive, saving us 2/3 the tokens and allowing gpt3.5turbo use over gpt4. Major savings in time and money.\" - Michael Ning",
+        "\"Moved our internal agent's web scraping tool from Apify to Firecrawl because it benchmarked 50x faster with AgentOps.\" - Alex Reibman 🖇️",
+        "\"Semantic scraping with Firecrawl is 🔥!\" - Alex Fazio",
+        "\"Firecrawl is dope. Congrats guys 👏\" - Matt Busigin"
+      ],
+      "authorInfo": {},
+      "citations": [],
+      "testimonials": [
+        "Morgan Linton: \"If you're coding with AI, and haven't discovered @firecrawl_dev yet, prepare to have your mind blown 🤯\"",
+        "Chris DeWeese: \"Started using @firecrawl_dev for a project, I wish I used this sooner.\"",
+        "Bardia Pourvakil: \"The Firecrawl team ships. I wanted types for their node SDK, and less than an hour later, I got them.\"",
+        "Tom Reppelin: \"I found gold today. Thank you @firecrawl_dev\"",
+        "latentsauce 🧘🏽: \"Firecrawl simplifies data preparation significantly, exactly what I was hoping for. Thank you Firecrawl ❤️❤️❤️\"",
+        "Michael Ning: \"Firecrawl is impressive, saving us 2/3 the tokens and allowing gpt3.5turbo use over gpt4. Major savings in time and money.\"",
+        "Alex Reibman 🖇️: \"Moved our internal agent's web scraping tool from Apify to Firecrawl because it benchmarked 50x faster with AgentOps.\"",
+        "Alex Fazio: \"Semantic scraping with Firecrawl is 🔥!\"",
+        "Matt Busigin: \"Firecrawl is dope. Congrats guys 👏\""
+      ]
+    },
+    "contentQuality": {
+      "wordCount": 5000,
+      "paragraphCount": 100,
+      "lists": 10,
+      "tables": 1,
+      "images": 20
+    }
+  },
+  "technicalAccessibility": {
+    "metaTags": {
+      "title": "Firecrawl",
+      "description": "Turn any website into LLM-ready data.",
+      "robots": "follow, index",
+      "hreflang": [],
+      "openGraph": {
+        "og:title": "Firecrawl",
+        "og:description": "Turn any website into LLM-ready data.",
+        "og:image": "https://www.firecrawl.dev/og.png?123",
+        "og:url": "https://www.firecrawl.dev"
+      },
+      "twitterCard": {
+        "twitter:card": "",
+        "twitter:title": "",
+        "twitter:description": "",
+        "twitter:image": ""
+      }
+    },
+    "technicalElements": {
+      "httpsStatus": true,
+      "statusCode": 200,
+      "contentType": "text/html; charset=utf-8",
+      "internalLinks": []
+    },
+    "accessibility": {
+      "altTextCount": 0,
+      "ariaLabels": [],
+      "semanticElements": [],
+      "skipLinks": false,
+      "headingStructureValid": true,
+      "landmarkRoles": []
+    }
+  },
+  "geoScore": {
+    "overall": 79,
+    "contentAuthority": 100,
+    "technicalAccessibility": 85,
+    "structuredData": 70,
+    "entityRecognition": 100,
+    "faqOptimization": 70,
+    "contentFreshness": 5
+  }
+}

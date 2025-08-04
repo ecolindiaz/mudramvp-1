@@ -1,5 +1,27 @@
 {
+  "name": "mudra-mvp",
+  "version": "1.0.0",
+  "description": "Mudra MVP with integrated Firecrawl web scraping capabilities",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "extract": "tsx lib/scrapers/schema-extractor.ts",
+    "geo": "tsx lib/scrapers/geo-technical-scraper.ts",
+    "enhanced-geo": "tsx lib/scrapers/enhanced-geo-scraper.ts"
+  },
   "dependencies": {
-    "next-auth": "^4.24.11"
-  }
+    "next-auth": "^4.24.11",
+    "@mendable/firecrawl-js": "^1.21.1",
+    "dotenv": "^16.3.1",
+    "@types/node": "^20.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "keywords": ["mudra", "mvp", "firecrawl", "web-scraping", "schema-extraction", "ai", "typescript"],
+  "author": "",
+  "license": "MIT"
 }

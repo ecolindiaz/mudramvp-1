@@ -8,7 +8,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
+
 
 export default function TasksPage() {
   return (
@@ -35,8 +35,6 @@ export default function TasksPage() {
           </div>
         </div>
       </SidebarInset>
-      
-      <FloatingMudraButton />
     </SidebarProvider>
   )
 } 

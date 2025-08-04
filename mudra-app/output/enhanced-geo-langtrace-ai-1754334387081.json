@@ -1,0 +1,212 @@
+{
+  "url": "https://langtrace.ai",
+  "timestamp": "2025-08-04T19:06:27.069Z",
+  "structuredData": {
+    "jsonLd": [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Langtrace",
+        "url": "https://www.langtrace.ai/",
+        "description": "Langtrace is an Open Source Observability and Evaluations Platform for AI Agents."
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Langtrace",
+        "url": "https://www.langtrace.ai/",
+        "logo": "https://framerusercontent.com/images/r3mn4p5Q37nY4G6AzKGX495dac.png",
+        "sameAs": [
+          "https://twitter.com/langtrace_ai",
+          "https://www.linkedin.com/company/langtrace/",
+          "https://www.youtube.com/@Langtrace"
+        ]
+      }
+    ],
+    "microdata": [],
+    "rdfa": [],
+    "schemaTypes": [
+      "WebSite",
+      "Organization"
+    ],
+    "faqSchemas": [],
+    "organizationSchema": {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Langtrace",
+      "url": "https://www.langtrace.ai/",
+      "logo": "https://framerusercontent.com/images/r3mn4p5Q37nY4G6AzKGX495dac.png",
+      "sameAs": [
+        "https://twitter.com/langtrace_ai",
+        "https://www.linkedin.com/company/langtrace/",
+        "https://www.youtube.com/@Langtrace"
+      ]
+    },
+    "websiteSchema": {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Langtrace",
+      "url": "https://www.langtrace.ai/",
+      "description": "Langtrace is an Open Source Observability and Evaluations Platform for AI Agents."
+    }
+  },
+  "entityRecognition": {
+    "organizations": [
+      "Langtrace",
+      "Elastic",
+      "Fulcrum AI",
+      "Aech AI",
+      "Salomatic"
+    ],
+    "people": [
+      "Adrian Cole",
+      "Aman Purwar",
+      "Steven Moon",
+      "Denis Ergashbaev"
+    ],
+    "technologies": [
+      "Langtrace",
+      "CrewAI",
+      "DSPy",
+      "LlamaIndex",
+      "Langchain",
+      "Python",
+      "TypeScript"
+    ],
+    "products": [
+      "Langtrace SDK"
+    ],
+    "locations": []
+  },
+  "faqOptimization": {
+    "faqSections": [
+      {
+        "title": "Performance and Security of AI Agents",
+        "content": "Hi! What’s the best way to improve the performance and security of my AI agents? Hi, thanks for reaching out. You need a combination of observability and evaluations in order to measure the performance and iterate towards better performance and safety with your AI agents. Langtrace is the best platform out there that can help you do this with minimal effort."
+      },
+      {
+        "title": "Setting Up Langtrace",
+        "content": "How do I set up Langtrace? You can set up Langtrace by following the steps below: - Create a project and generate an API key - Follow the instructions to install the appropriate SDK and instantiate Langtrace with the API key."
+      },
+      {
+        "title": "Supported Frameworks",
+        "content": "Thanks! What frameworks do you support? Langtrace supports CrewAI, DSPy, LlamaIndex & Langchain. We also support a wide range of LLM providers and VectorDBs out of the box."
+      }
+    ],
+    "questionAnswerPairs": 3,
+    "faqStructuredData": false,
+    "faqSchemaPresent": false
+  },
+  "contentFreshness": {
+    "publishDate": "",
+    "lastModified": "",
+    "updateFrequency": "",
+    "freshnessSignals": [
+      {
+        "type": "version",
+        "versionNumber": "v1.74"
+      },
+      {
+        "type": "blog",
+        "versionNumber": ""
+      },
+      {
+        "type": "news",
+        "versionNumber": ""
+      }
+    ]
+  },
+  "contentStructure": {
+    "headingsHierarchy": {
+      "h1": [],
+      "h2": [],
+      "h3": [],
+      "h4": [],
+      "h5": [],
+      "h6": []
+    },
+    "authoritySignals": {
+      "statistics": [
+        {
+          "description": "Accuracy",
+          "number": 303
+        },
+        {
+          "description": "Token Cost",
+          "number": 6200
+        },
+        {
+          "description": "Inference Latency",
+          "number": 75
+        },
+        {
+          "description": "Max Latency",
+          "number": 120
+        },
+        {
+          "description": "Integrations",
+          "number": 30
+        }
+      ],
+      "expertQuotes": [
+        "Langtrace are not just a genai adoption story, but also a story that a humble, persistent opensource community can coexist in a highly competitive, emerging space. - Adrian Cole, Principal Engineer, Elastic",
+        "It was a very easy, quick integration. Kudos to you guys for that. It doesn't take a lot to reflect. That was a fun thing. - Aman Purwar, Founding Engineer, Fulcrum AI",
+        "I have been using Langtrace for a couple of months now and it is the real deal. They also have a real plan for helping businesses with privacy by ensuring on-prem installs. It's definitely worth trying out. - Steven Moon, Founder, Aech AI",
+        "We looked around for observability platform for our DSPy based application but we could not find anything that would be easy to setup and intuitive. Until I stumbled upon Langtrace. It already helped us to solve a few bugs. - Denis Ergashbaev, CTO, Salomatic"
+      ],
+      "authorInfo": {},
+      "citations": [],
+      "testimonials": []
+    },
+    "contentQuality": {
+      "wordCount": 1230,
+      "paragraphCount": 40,
+      "lists": 10,
+      "tables": 0,
+      "images": 20
+    }
+  },
+  "technicalAccessibility": {
+    "metaTags": {
+      "title": "Langtrace",
+      "description": "Transform AI Prototypes into Enterprise-Grade Products",
+      "robots": "max-image-preview:large",
+      "hreflang": [],
+      "openGraph": {
+        "og:title": "Langtrace",
+        "og:description": "Transform AI Prototypes into Enterprise-Grade Products",
+        "og:image": "https://framerusercontent.com/assets/PaPPNOtAYe0LBiSCdyIpSSXYDN0.png",
+        "og:url": "https://www.langtrace.ai/"
+      },
+      "twitterCard": {
+        "twitter:card": "",
+        "twitter:title": "",
+        "twitter:description": "",
+        "twitter:image": ""
+      }
+    },
+    "technicalElements": {
+      "httpsStatus": true,
+      "statusCode": 200,
+      "contentType": "text/html",
+      "internalLinks": []
+    },
+    "accessibility": {
+      "altTextCount": 0,
+      "ariaLabels": [],
+      "semanticElements": [],
+      "skipLinks": false,
+      "headingStructureValid": true,
+      "landmarkRoles": []
+    }
+  },
+  "geoScore": {
+    "overall": 80,
+    "contentAuthority": 100,
+    "technicalAccessibility": 85,
+    "structuredData": 70,
+    "entityRecognition": 100,
+    "faqOptimization": 70,
+    "contentFreshness": 15
+  }
+}

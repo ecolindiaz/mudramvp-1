@@ -13,7 +13,6 @@ import {
   IconHelp,
   IconInnerShadowTop,
   IconListDetails,
-  IconReport,
   IconSearch,
   IconSettings,
   IconUsers,
@@ -26,7 +25,6 @@ import {
   IconTrendingUp,
   IconUser,
   IconChecklist,
-  IconMessageChatbot,
   IconPhone,
   IconMessage,
 } from "@tabler/icons-react"
@@ -37,7 +35,6 @@ import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
 import { StarBorder } from "@/components/ui/star-border"
 import { SearchCommand } from "@/components/search-command"
-import { MagicButton } from "@/components/magic-button"
 import {
   Sidebar,
   SidebarContent,
@@ -47,6 +44,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
 
 // Interface for company data
 interface CompanyData {
@@ -80,39 +78,34 @@ const data = {
   },
   navMain: [
     {
-      title: "Overview",
-      url: "/dashboard",
-      icon: IconTrendingUp,
+      title: "Core",
+      items: [
+        {
+          title: "Overview",
+          url: "/dashboard",
+          icon: IconTrendingUp,
+        },
+        {
+          title: "Insights",
+          url: "/dashboard/insights",
+          icon: IconChartBar,
+        },
+        {
+          title: "Tasks",
+          url: "/dashboard/tasks",
+          icon: IconChecklist,
+        },
+      ]
     },
     {
-      title: "AI Visibility",
-      url: "/dashboard/ai-visibility",
-      icon: IconTarget,
-    },
-    {
-      title: "Report",
-      url: "/report",
-      icon: IconReport,
-    },
-    {
-      title: "Insights",
-      url: "/dashboard/insights",
-      icon: IconChartBar,
-    },
-    {
-      title: "Tasks",
-      url: "/dashboard/tasks",
-      icon: IconChecklist,
-    },
-    {
-      title: "Agent Chat",
-      url: "/dashboard/chat",
-      icon: IconMessageChatbot,
-    },
-    {
-      title: "Brand Profile",
-      url: "/dashboard/brand-profile",
-      icon: IconUser,
+      title: "Knowledge Base",
+      items: [
+        {
+          title: "Brand Profile",
+          url: "/dashboard/brand-profile",
+          icon: IconUser,
+        },
+      ]
     },
   ],
   navClouds: [
@@ -197,21 +190,10 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
   return (
     <>
       <SearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
-      <Sidebar collapsible="offcanvas" className="bg-pure-black" {...props}>
-        <SidebarHeader className="pb-3 bg-pure-black">
-          {/* Mudra Logo */}
-          <div className="flex justify-center w-full py-2 pointer-events-none select-none">
-            <img 
-              src="/images/mudra-logo.png" 
-              alt="Mudra" 
-              className="!size-10"
-              loading="eager"
-              decoding="sync"
-            />
-          </div>
-          
+      <Sidebar collapsible="offcanvas" className="bg-dark-grey" {...props}>
+        <SidebarHeader className="pb-0 bg-dark-grey h-[var(--header-height)] flex items-center">
           {/* Company Header */}
-          <div className="px-3 py-1 isolate">
+          <div className="px-3 w-full isolate">
             <button
               onClick={handleCompanyMenuClick}
               onKeyDown={handleCompanyMenuKeyDown}
@@ -238,11 +220,6 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                 <p className="text-white/70 text-xs font-medium truncate transition-all duration-200 group-hover/company:text-white">
                   {companyData.name}
                 </p>
-                {companyData.website && (
-                  <p className="text-white/40 text-[10px] truncate transition-all duration-200 group-hover/company:text-white/60">
-                    {companyData.website}
-                  </p>
-                )}
               </div>
               <svg 
                 className={`w-3 h-3 text-white/30 transition-all duration-200 ml-1 group-hover/company:text-white/60 ${
@@ -257,24 +234,18 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
               </svg>
             </button>
           </div>
-          
-          {/* Divider */}
-          <div className="mx-3 my-3">
-            <div className="h-px bg-white/10"></div>
-          </div>
-          
-          {/* Magic Button */}
-          <div className="px-2 mb-4">
-            <MagicButton />
-          </div>
         </SidebarHeader>
-        <SidebarContent className="px-2 bg-pure-black">
+        
+        {/* Divider */}
+        <Separator className="w-full border-border h-1" />
+        
+        <SidebarContent className="px-0 bg-dark-grey pt-4">
           {/* Main Navigation */}
           <NavMain items={data.navMain} />
           
           <NavSecondary items={data.navSecondary} className="mt-auto" />
         </SidebarContent>
-        <SidebarFooter className="bg-pure-black space-y-3">
+        <SidebarFooter className="bg-dark-grey space-y-3">
           {/* Support & Feedback */}
           <div className="px-2 space-y-1">
             <button className="w-full h-10 px-3 text-sm text-white/60 hover:text-white/90 hover:bg-white/5 transition-all duration-200 flex items-center gap-3 rounded-lg group">

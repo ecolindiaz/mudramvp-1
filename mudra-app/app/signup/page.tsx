@@ -131,13 +131,13 @@ export default function SignUpPage() {
       <div className="lg:p-8 bg-black">
         <div className="mx-auto flex w-full flex-col justify-center space-y-10 sm:w-[350px]">
           <div className="flex flex-col space-y-2 text-center">
-            <div className="mb-6">
+            <div className="mb-8">
               <Image
                 src="/images/mudra-logo.png"
                 alt="Mudra"
-                width={80}
-                height={80}
-                className="mx-auto"
+                width={100}
+                height={100}
+                className="mx-auto drop-shadow-sm"
                 priority
               />
             </div>

@@ -52,24 +52,24 @@ export default function InsightsPage() {
 
   return (
     <SidebarProvider
-      className="bg-black"
+      className="bg-dark-grey"
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
+          "--sidebar-width": "calc(var(--spacing) * 60)",
           "--header-height": "calc(var(--spacing) * 12)",
         } as React.CSSProperties
       }
     >
       <AppSidebar />
-      <SidebarInset className="bg-black m-0 shadow-none rounded-none border-none">
+      <SidebarInset className="bg-dark-grey m-0 shadow-none rounded-none border-none">
         <SiteHeader />
         <Separator className="w-full border-border" />
-        <div className="flex flex-1 flex-col bg-black">
-          <div className="@container/main flex flex-1 flex-col bg-black">
+        <div className="flex flex-1 flex-col bg-dark-grey">
+          <div className="@container/main flex flex-1 flex-col bg-dark-grey">
             {/* Enhanced Page Header */}
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent"></div>
-              <div className="relative px-4 lg:px-8 pt-6 md:pt-8 pb-4 md:pb-6">
+              <div className="relative px-4 lg:px-8 pt-6 md:pt-8 pb-6 md:pb-8">
                 <div className="flex items-center justify-between">
                   <div>
                     <h1 className="text-2xl font-bold tracking-tight text-white">

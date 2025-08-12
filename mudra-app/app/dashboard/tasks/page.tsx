@@ -13,20 +13,20 @@ import { Separator } from "@/components/ui/separator"
 export default function TasksPage() {
   return (
     <SidebarProvider
-      className="bg-black"
+      className="bg-dark-grey"
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
+          "--sidebar-width": "calc(var(--spacing) * 60)",
           "--header-height": "calc(var(--spacing) * 12)",
         } as React.CSSProperties
       }
     >
       <AppSidebar />
-      <SidebarInset className="bg-black m-0 shadow-none rounded-none border-none">
+      <SidebarInset className="bg-dark-grey m-0 shadow-none rounded-none border-none">
         <SiteHeader />
         <Separator className="w-full border-border" />
-        <div className="flex flex-1 flex-col bg-black">
-          <div className="@container/main flex flex-1 flex-col gap-2 bg-black">
+        <div className="flex flex-1 flex-col bg-dark-grey">
+          <div className="@container/main flex flex-1 flex-col gap-2 bg-dark-grey">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               <div className="px-4 lg:px-6">
                 <TasksView />

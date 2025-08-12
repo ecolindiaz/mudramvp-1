@@ -3,6 +3,7 @@
 import * as React from "react"
 import { type Icon } from "@tabler/icons-react"
 
+import { cn } from "@/lib/utils"
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -13,6 +14,7 @@ import {
 
 export function NavSecondary({
   items,
+  className,
   ...props
 }: {
   items: {
@@ -22,7 +24,7 @@ export function NavSecondary({
   }[]
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
   return (
-    <SidebarGroup {...props}>
+    <SidebarGroup className={cn("px-2", className)} {...props}>
       <SidebarGroupContent>
         <SidebarMenu className="space-y-0.5">
           {items.map((item) => (

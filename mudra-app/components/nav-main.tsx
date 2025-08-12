@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import {
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -27,10 +28,10 @@ const NavigationItem = memo(({
       tooltip={item.title} 
       isActive={isActive} 
       asChild
-      className={`h-9 px-3 text-sm font-medium relative transition-all duration-200 group ${
+      className={`h-9 px-3 text-sm font-medium relative transition-all duration-200 group rounded-md ${
         isActive 
-          ? 'text-white' 
-          : 'text-white/60 hover:text-white/90 hover:pl-4'
+          ? 'text-white bg-white/5' 
+          : 'text-white/70 hover:text-white/90 hover:bg-white/5'
       }`}
     >
       <Link href={item.url}>
@@ -38,12 +39,12 @@ const NavigationItem = memo(({
           <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-white rounded-full animate-glow" />
         )}
         {item.icon && (
-          <item.icon className={`w-4 h-4 mr-2 transition-all duration-200 ${
+          <item.icon className={`w-[18px] h-[18px] mr-3 transition-all duration-200 ${
             isActive ? 'text-white' : 'text-white/60 group-hover:text-white/80'
           }`} />
         )}
         <span className={`transition-all duration-200 ${
-          isActive ? 'text-white font-medium' : 'group-hover:opacity-90'
+          isActive ? 'text-white font-medium' : 'font-normal'
         }`}>
           {item.title}
         </span>
@@ -59,26 +60,36 @@ export const NavMain = memo(function NavMain({
 }: {
   items?: {
     title: string
-    url: string
-    icon?: Icon
-    isActive?: boolean
+    items: {
+      title: string
+      url: string
+      icon?: Icon
+      isActive?: boolean
+    }[]
   }[]
 }) {
   const pathname = usePathname()
 
   return (
-    <SidebarGroup>
-      <SidebarGroupContent className="flex flex-col gap-2">
-        <SidebarMenu className="space-y-1">
-          {items?.map((item) => (
-            <NavigationItem
-              key={item.title}
-              item={item}
-              isActive={pathname === item.url}
-            />
-          )) || null}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+    <div className="px-2 space-y-6">
+      {items?.map((section, index) => (
+        <SidebarGroup key={section.title}>
+          <SidebarGroupLabel className="text-[11px] font-semibold text-white/50 uppercase tracking-[0.1em] px-2 pb-3 pt-2">
+            {section.title}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-0.5">
+              {section.items.map((item) => (
+                <NavigationItem
+                  key={item.title}
+                  item={item}
+                  isActive={pathname === item.url}
+                />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      )) || null}
+    </div>
   )
 })

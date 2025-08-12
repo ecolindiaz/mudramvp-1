@@ -197,6 +197,10 @@
     background-color: #080808;
   }
   
+  .bg-dark-grey {
+    background-color: #111111;
+  }
+  
   /* Navigation Active Indicator Animation */
   @keyframes glow {
     0%, 100% {

@@ -8,9 +8,9 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 
 const getPageTitle = (pathname: string) => {
   if (pathname === "/dashboard") return "Overview"
-  if (pathname === "/dashboard/insights") return "Insights"
+  if (pathname === "/dashboard/campaigns") return "Campaigns"
   if (pathname === "/dashboard/tasks") return "Tasks"
-  if (pathname === "/dashboard/chat") return "Agent Chat"
+  // Chat page removed; popup only
   if (pathname === "/dashboard/brand-profile") return "Brand Profile"
   return "Overview" // fallback
 }

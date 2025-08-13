@@ -13,22 +13,22 @@ import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { TimeRangeSelector, type TimeRange } from "@/components/dashboard/time-range-selector"
 import { TrackedPromptsView } from "@/components/tracked-prompts-view"
 
-type InsightView = "brand" | "tracked-prompts" | "citation-gaps"
+type InsightView = "campaigns" | "tracked-prompts" | "citation-gaps"
 
-export default function InsightsPage() {
-  const [activeView, setActiveView] = useState<InsightView>("brand")
+export default function CampaignsPage() {
+  const [activeView, setActiveView] = useState<InsightView>("campaigns")
   const [timeRange, setTimeRange] = useState<TimeRange>("7d")
 
   const renderContent = () => {
     switch (activeView) {
-      case "brand":
+      case "campaigns":
         return (
           <div className="min-h-[400px] flex items-center justify-center">
             <div className="text-center space-y-3">
               <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full flex items-center justify-center border border-white/10">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full"></div>
               </div>
-              <p className="text-white/60 text-sm">Brand content will be implemented here</p>
+              <p className="text-white/60 text-sm">Campaigns overview will be implemented here</p>
             </div>
           </div>
         )
@@ -66,28 +66,30 @@ export default function InsightsPage() {
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-dark-grey">
           <div className="@container/main flex flex-1 flex-col bg-dark-grey">
-            {/* Enhanced Page Header */}
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent"></div>
-              <div className="relative px-4 lg:px-8 pt-6 md:pt-8 pb-6 md:pb-8">
+            {/* Page Header (match Overview/Tasks spacing) */}
+            <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <h1 className="text-2xl font-bold tracking-tight text-white">
-                      {activeView === "brand" && "Brand Insights"}
+                      {activeView === "campaigns" && "Campaigns"}
                       {activeView === "tracked-prompts" && "Tracked Prompts"}
                       {activeView === "citation-gaps" && "Citation & Competitive Gaps"}
                     </h1>
+                    {activeView === "campaigns" && (
+                      <p className="text-muted-foreground">
+                        Tailored brand content for visibility improvement across channels.
+                      </p>
+                    )}
                   </div>
                 </div>
-              </div>
             </div>
 
-            {/* Enhanced Navigation Tabs */}
-            <div className="px-4 lg:px-8 pb-8 flex items-center justify-between">
+            {/* Navigation Tabs */}
+            <div className="px-4 lg:px-6 pb-8 flex items-center justify-between">
               <div className="flex items-center justify-center lg:justify-start">
                 <div className="inline-flex items-center gap-1 p-1.5 bg-white/[0.03] backdrop-blur-sm rounded-xl border border-white/[0.08] shadow-2xl">
                   {[
-                    { key: "brand" as const, label: "Brand" },
+                    { key: "campaigns" as const, label: "Campaigns" },
                     { key: "tracked-prompts" as const, label: "Tracked Prompts" },
                     { key: "citation-gaps" as const, label: "Citation & Competitive Gaps" }
                   ].map(({ key, label }) => (
@@ -115,7 +117,7 @@ export default function InsightsPage() {
               </div>
             </div>
 
-            {/* Elegant Separator with White Dot */}
+            {/* Separator */}
             <div className="px-4 lg:px-8 pb-8">
               <div className="relative">
                 <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
@@ -125,7 +127,7 @@ export default function InsightsPage() {
               </div>
             </div>
             
-            {/* Enhanced Content Area */}
+            {/* Content */}
             <div className="flex flex-col flex-1">
               <div className="px-4 lg:px-8 pb-8">
                 {activeView === "tracked-prompts" ? (
@@ -148,4 +150,6 @@ export default function InsightsPage() {
       <FloatingMudraButton />
     </SidebarProvider>
   )
-} 
+}
+
+

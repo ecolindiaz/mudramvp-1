@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -12,7 +13,12 @@ import {
   IconLoader,
   IconSparkles,
   IconX,
-  IconBrain
+  IconBrain,
+  IconArrowsMaximize,
+  IconArrowsMinimize,
+  IconMicrophone,
+  IconPlus,
+  IconCopy,
 } from "@tabler/icons-react"
 
 interface Message {
@@ -54,6 +60,10 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isDeepThinking, setIsDeepThinking] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [micEnabled, setMicEnabled] = useState(false)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const [quickPrompts] = useState([
     "Tell me how to do this step by step",
@@ -62,11 +72,11 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
     "How long will these tasks take?"
   ])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
   }
 
-  const handleSubmit = async (e: React.FormEvent, deepThink = false) => {
+  const handleSubmit = async (e: React.FormEvent | KeyboardEvent, deepThink = false) => {
     e.preventDefault()
     if (!input.trim() || isLoading || isDeepThinking) return
 
@@ -133,40 +143,102 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
     setInput(prompt)
   }
 
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onOpenChange(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onOpenChange])
+
+  useEffect(() => {
+    // auto-scroll on new messages
+    scrollRef.current?.scrollTo({ top: 1e9, behavior: 'smooth' })
+  }, [messages, isLoading, isDeepThinking])
+
+  const handleCopy = async (content: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 1200)
+    } catch (err) {
+      console.error('Copy failed', err)
+    }
+  }
+
   if (!open) return null
 
   return (
-    <div className="fixed bottom-20 right-6 w-[480px] h-[600px] bg-background border border-border rounded-xl shadow-2xl z-50 flex flex-col overflow-hidden">
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-transparent z-[999]"
+        onClick={() => onOpenChange(false)}
+      />
+      <div
+        className={`fixed ${expanded ? 'right-6 bottom-8 w-[720px] h-[80vh]' : 'right-6 bottom-20 w-[440px] h-[560px]'} bg-black/70 backdrop-blur-xl border border-white/10 rounded-2xl shadow-none ring-1 ring-white/5 z-[1000] flex flex-col overflow-hidden transition-all duration-200`}
+      >
       {/* Header */}
-      <div className="p-4 border-b border-border/20">
+      <div className="p-3.5 md:p-4 border-b border-white/10 bg-black/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center shadow-inner ring-1 ring-white/20">
               <IconSparkles className="size-5 text-primary-foreground" />
             </div>
             <div>
               <h3 className="text-base font-semibold">Mudra AI</h3>
-              <p className="text-sm text-muted-foreground">Your optimization assistant</p>
+              <p className="text-xs text-muted-foreground">Ask anything about your GEO data</p>
             </div>
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={() => onOpenChange(false)}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <IconX className="size-4" />
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setExpanded((v) => !v)}
+              className="rounded-full text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10"
+              title={expanded ? 'Minimize' : 'Expand'}
+            >
+              {expanded ? <IconArrowsMinimize className="size-4" /> : <IconArrowsMaximize className="size-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMicEnabled((v) => !v)}
+              className={`rounded-full text-white/70 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 ${micEnabled ? 'text-primary' : ''}`}
+              title="Voice input (placeholder)"
+            >
+              <IconMicrophone className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMessages([])}
+              className="rounded-full text-white/70 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10"
+              title="New chat"
+            >
+              <IconPlus className="size-4" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => onOpenChange(false)}
+              className="rounded-full text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10"
+              title="Close"
+            >
+              <IconX className="size-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Messages Area */}
-      <ScrollArea className="flex-1 p-6">
+      <ScrollArea className="flex-1 p-4 md:p-5" ref={scrollRef as any}>
         <div className="space-y-4">
           {messages.length === 0 && (
             <div className="text-center py-12">
               {/* Mudra Logo */}
-              <div className="w-20 h-20 mx-auto mb-6">
+              <div className="w-16 h-16 mx-auto mb-6 opacity-90">
                 <img 
                   src="/images/mudra-logo.png" 
                   alt="Mudra Logo" 
@@ -174,21 +246,21 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
                 />
               </div>
               
-              <h3 className="text-xl font-semibold mb-2">Ask anything about your tasks</h3>
-              <p className="text-muted-foreground mb-8 max-w-xs mx-auto">
-                Get step-by-step guidance for your optimization tasks
+              <h3 className="text-lg font-semibold mb-1">Ask anything about your data</h3>
+              <p className="text-muted-foreground mb-6 max-w-xs mx-auto text-sm">
+                Ask to do or show anything using natural language
               </p>
               
               {/* Quick Prompts */}
-              <div className="space-y-3">
-                {quickPrompts.slice(0, 4).map((prompt, index) => (
+              <div className="flex flex-wrap gap-2 justify-center max-w-md mx-auto">
+                {quickPrompts.slice(0, 6).map((prompt, index) => (
                   <Button
                     key={index}
-                    variant="outline" 
-                    className="w-full justify-start text-left h-auto py-3 px-4"
+                    variant="outline"
+                    className="h-8 px-3 text-xs"
                     onClick={() => handleQuickPrompt(prompt)}
                   >
-                    <span className="text-sm">{prompt}</span>
+                    {prompt}
                   </Button>
                 ))}
               </div>
@@ -196,10 +268,10 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
           )}
 
           {messages.map((message) => (
-            <div key={message.id} className="flex gap-3">
+            <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                 message.role === 'user' 
-                  ? 'bg-muted' 
+                  ? 'bg-white/10' 
                   : 'bg-gradient-to-r from-primary to-primary/80'
               }`}>
                 {message.role === 'user' ? (
@@ -208,14 +280,27 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
                   <IconSparkles className="size-4 text-primary-foreground" />
                 )}
               </div>
-              <div className={`flex-1 p-3 rounded-lg ${
+              <div className={`group relative max-w-[80%] p-3 rounded-2xl border ${
                 message.role === 'user' 
-                  ? 'bg-muted/30' 
-                  : 'bg-gradient-to-r from-primary/5 to-primary/10'
+                  ? 'bg-white/5 border-white/10' 
+                  : 'bg-gradient-to-r from-primary/5 to-primary/10 border-white/10'
               }`}>
-                <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                   {message.content}
                 </div>
+                {/* Copy button on hover */}
+                <button
+                  type="button"
+                  onClick={() => handleCopy(message.content, message.id)}
+                  className={`absolute -top-2 -right-2 hidden group-hover:flex items-center justify-center w-6 h-6 rounded-full border border-white/10 bg-black/40 hover:bg-black/60 transition ${message.role === 'user' ? 'opacity-70' : ''}`}
+                  title="Copy"
+                >
+                  {copiedId === message.id ? (
+                    <IconCheck className="size-3.5 text-green-400" />
+                  ) : (
+                    <IconCopy className="size-3.5 text-white/70" />
+                  )}
+                </button>
               </div>
             </div>
           ))}
@@ -229,11 +314,15 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
                   <IconSparkles className="size-4 text-primary-foreground" />
                 )}
               </div>
-              <div className="flex-1 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10">
+              <div className="flex-1 p-3 rounded-2xl border border-white/10 bg-gradient-to-r from-primary/5 to-primary/10">
                 <div className="flex items-center gap-2">
-                  <IconLoader className="size-4 animate-spin text-primary" />
+                  <span className="inline-flex gap-1">
+                    <span className="block w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:-200ms]"></span>
+                    <span className="block w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:-100ms]"></span>
+                    <span className="block w-1.5 h-1.5 rounded-full bg-primary animate-bounce"></span>
+                  </span>
                   <span className="text-sm text-muted-foreground">
-                    {isDeepThinking ? 'Mudra AI (o3) is thinking deeply...' : 'Mudra AI is thinking...'}
+                    {isDeepThinking ? 'Thinking deeply…' : 'Thinking…'}
                   </span>
                 </div>
               </div>
@@ -243,7 +332,7 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
       </ScrollArea>
 
       {/* Input Area */}
-      <div className="p-4 border-t border-border/20">
+      <div className="p-3.5 md:p-4 border-t border-white/10 bg-black/30">
         {isDeepThinking && (
           <div className="mb-3 p-3 bg-gradient-to-t from-primary/5 to-card border border-border/20 rounded-xl shadow-xs">
             <div className="flex items-center justify-between">
@@ -262,13 +351,24 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
             </div>
           </div>
         )}
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
+        <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+          <Textarea
             value={input}
             onChange={handleInputChange}
             placeholder="Ask me anything..."
             disabled={isLoading || isDeepThinking}
-            className="flex-1 h-10"
+            className="flex-1 min-h-[40px] max-h-28 h-10 resize-none rounded-xl bg-white/5 border border-white/10 focus-visible:border-white/20"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                if (input.trim()) handleSubmit(e as any)
+                return
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                if (input.trim()) handleSubmit(e as any)
+              }
+            }}
             autoFocus
           />
           <Button 
@@ -276,7 +376,7 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
             onClick={handleDeepThink}
             disabled={isLoading || isDeepThinking || !input.trim()}
             variant="outline"
-            className={`h-10 px-3 transition-all duration-200 ${
+            className={`h-10 px-3 rounded-xl border-white/15 transition-all duration-200 ${
               !input.trim() 
                 ? 'opacity-50 cursor-not-allowed' 
                 : 'hover:bg-gradient-to-t hover:from-primary/5 hover:to-card hover:border-primary/20 hover:shadow-xs'
@@ -288,12 +388,13 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
           <Button 
             type="submit" 
             disabled={isLoading || isDeepThinking || !input.trim()}
-            className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 h-10 px-4"
+            className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 h-10 px-4 rounded-xl"
           >
             <IconSend className="size-4" />
           </Button>
         </form>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

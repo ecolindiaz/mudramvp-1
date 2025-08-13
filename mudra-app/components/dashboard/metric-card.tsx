@@ -8,13 +8,16 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardContent,
 } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { 
   IconTrendingUp,
+  IconTrendingDown,
   IconTarget,
   IconLoader,
   IconCheck,
+  IconUsers,
   IconArrowRight,
 } from "@tabler/icons-react"
 import { GoalWidget } from "./goal-widget"
@@ -30,6 +33,8 @@ interface MetricCardProps {
   redirectLabel?: string
   showGoalWidget?: boolean
   goalText?: string
+  change?: number
+  period?: string
 }
 
 const statusIcons = {
@@ -52,18 +57,37 @@ export function MetricCard({
   onRedirect,
   redirectLabel = "View",
   showGoalWidget = false,
-  goalText
+  goalText,
+  change,
+  period
 }: MetricCardProps) {
   const StatusIcon = statusIcons[status as keyof typeof statusIcons] || IconTrendingUp
+  const metricIcons = {
+    users: IconUsers,
+    target: IconTarget,
+    loader: IconLoader,
+    check: IconCheck,
+    "trending-up": IconTrendingUp,
+  } as const
+  const MetricIcon = metricIcons[icon]
+  const changeNumber = typeof change === "number" ? change : undefined
+  const ChangeIcon = changeNumber != null ? (changeNumber >= 0 ? IconTrendingUp : IconTrendingDown) : null
   
   // Suppress unused variable warnings for future use
   void trend
   void icon
 
   return (
-    <Card className={cn("@container/card", className)}>
+    <Card className={cn("@container/card bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/[0.08] shadow-2xl", className)}>
       <CardHeader>
-        <CardDescription>{title}</CardDescription>
+        <CardDescription className="flex items-center gap-2">
+          {MetricIcon && (
+            <span className="inline-flex items-center justify-center size-5 rounded-full bg-white/5 border border-white/10">
+              <MetricIcon className="size-3.5 text-white/80" />
+            </span>
+          )}
+          {title}
+        </CardDescription>
         {showGoalWidget && goalText && typeof goalText === 'string' && goalText.trim().length > 0 ? (
           <div className="pt-2">
             <GoalWidget goalText={goalText.trim()} />
@@ -93,6 +117,17 @@ export function MetricCard({
           </div>
         </CardAction>
       </CardHeader>
+      {changeNumber != null && (
+        <CardContent className="pt-0">
+          <div className="flex items-center justify-between">
+            <div className={cn("inline-flex items-center gap-1 text-xs", changeNumber >= 0 ? "text-emerald-400" : "text-red-400")}> 
+              {ChangeIcon && <ChangeIcon className="size-3" />}
+              <span className="font-medium">{Math.abs(changeNumber)}%</span>
+              <span className="text-white/60">{changeNumber >= 0 ? "up" : "down"} vs previous</span>
+            </div>
+          </div>
+        </CardContent>
+      )}
     </Card>
   )
 } 

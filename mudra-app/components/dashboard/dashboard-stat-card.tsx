@@ -1,0 +1,205 @@
+"use client"
+
+import type React from "react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardAction,
+} from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
+import {
+  MoreHorizontal,
+  Settings,
+  TriangleAlert,
+  Pin,
+  Share2,
+  Trash,
+  ArrowUp,
+  ArrowDown,
+  ArrowRight,
+} from "lucide-react"
+
+interface DashboardStatCardProps {
+  title: string
+  value: number
+  delta: number
+  lastValue: number
+  positive: boolean
+  prefix?: string
+  suffix?: string
+  format?: (v: number) => string
+  lastFormat?: (v: number) => string
+  className?: string
+  sparkline?: number[]
+  periodText?: string
+  ctaLabel?: string
+  onCtaClick?: () => void
+  accentColor?: string
+}
+
+function defaultFormat(n: number) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M"
+  if (n >= 1_000) return n.toLocaleString()
+  return n.toString()
+}
+
+export function DashboardStatCard({
+  title,
+  value,
+  delta,
+  lastValue,
+  positive,
+  prefix = "",
+  suffix = "",
+  format,
+  lastFormat,
+  className,
+  sparkline,
+  periodText,
+  ctaLabel,
+  onCtaClick,
+  accentColor,
+}: DashboardStatCardProps) {
+  const formatValue = format ?? defaultFormat
+  const formatLast = lastFormat ?? format ?? defaultFormat
+  const accent = accentColor || (positive ? "rgba(16,185,129,0.9)" : "rgba(248,113,113,0.9)")
+  const cardStyle = { ["--accent-color" as any]: accent } as React.CSSProperties
+
+  return (
+    <Card style={cardStyle} className={cn("group relative overflow-hidden bg-black/40 backdrop-blur-sm rounded-2xl border border-white/[0.08] gap-3", className)}>
+      <div
+        className="pointer-events-none absolute left-3 right-3 top-0 h-[2px] rounded-full opacity-60"
+        style={{ background: "linear-gradient(to right, transparent, var(--accent-color), transparent)" }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-80"
+        style={{ background: "radial-gradient(600px 120px at top center, var(--accent-color), transparent 60%)", opacity: 0.06 }}
+      />
+      <CardHeader className="border-0">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <CardTitle className="text-muted-foreground text-sm font-medium">{title}</CardTitle>
+          </div>
+          <CardAction>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="-me-1.5">
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="bottom">
+                <DropdownMenuItem>
+                  <Settings />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <TriangleAlert /> Add Alert
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Pin /> Pin to Dashboard
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Share2 /> Share
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive">
+                  <Trash />
+                  Remove
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </CardAction>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2.5">
+          <span className="text-2xl font-medium text-foreground tracking-tight">
+            {format ? format(value) : `${prefix}${formatValue(value)}${suffix}`}
+          </span>
+          <Badge
+            variant={positive ? "success" : "destructive"}
+            className={cn("appearance-light", positive ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "")}
+          >
+            {delta > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+            {delta}%
+          </Badge>
+        </div>
+        {Array.isArray(sparkline) && sparkline.length > 1 && (
+          <div className="overflow-hidden transition-all duration-300 ease-out max-h-0 group-hover:max-h-12">
+            <div className="h-10 w-full opacity-0 -translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+              <svg viewBox="0 0 100 20" className="w-full h-full text-white/70">
+                <defs>
+                  <linearGradient id="spark" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="currentColor" stopOpacity="0.4" />
+                    <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <polyline
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="0.8"
+                  points={sparkline
+                    .map((v, i) => {
+                      const x = (i / (sparkline.length - 1)) * 100
+                      const min = Math.min(...sparkline)
+                      const max = Math.max(...sparkline)
+                      const y = 20 - ((v - min) / Math.max(1, max - min)) * 18 - 1
+                      return `${x},${y}`
+                    })
+                    .join(" ")}
+                />
+                <polygon
+                  fill="url(#spark)"
+                  points={(() => {
+                    const min = Math.min(...sparkline)
+                    const max = Math.max(...sparkline)
+                    const top = sparkline
+                      .map((v, i) => {
+                        const x = (i / (sparkline.length - 1)) * 100
+                        const y = 20 - ((v - min) / Math.max(1, max - min)) * 18 - 1
+                        return `${x},${y}`
+                      })
+                      .join(" ")
+                    return `0,20 ${top} 100,20`
+                  })()}
+                />
+              </svg>
+            </div>
+          </div>
+        )}
+        <div className="mt-2 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
+          <div className="text-xs text-muted-foreground">
+            Vs last period:{" "}
+            <span className="font-medium text-foreground">
+              {lastFormat ? lastFormat(lastValue) : `${prefix}${formatLast(lastValue)}${suffix}`}
+            </span>
+          </div>
+          {onCtaClick && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-white/70 hover:text-white"
+              onClick={onCtaClick}
+            >
+              {ctaLabel ?? "View"}
+              <ArrowRight className="ml-1 size-3" />
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+

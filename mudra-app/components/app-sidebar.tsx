@@ -86,14 +86,14 @@ const data = {
           icon: IconTrendingUp,
         },
         {
-          title: "Insights",
-          url: "/dashboard/insights",
-          icon: IconChartBar,
-        },
-        {
           title: "Tasks",
           url: "/dashboard/tasks",
           icon: IconChecklist,
+        },
+        {
+          title: "Campaigns",
+          url: "/dashboard/campaigns",
+          icon: IconChartBar,
         },
       ]
     },

@@ -1,6 +1,4 @@
 import { AppSidebar } from "@/components/app-sidebar"
-import { AnalysisView } from "@/components/analysis-view"
-import { FootprintView } from "@/components/footprint-view"
 import { SiteHeader } from "@/components/site-header"
 import { TasksView } from "@/components/tasks-view"
 import {

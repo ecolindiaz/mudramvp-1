@@ -9,8 +9,6 @@ import {
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
-import { AIVisibilityLineChart } from "@/components/dashboard/ai-visibility-line-chart"
-import { AIVisibilityRank } from "@/components/dashboard/ai-visibility-rank"
 import { TimeRangeSelector, type TimeRange } from "@/components/dashboard/time-range-selector"
 import { ModelSelector, type AIModel } from "@/components/dashboard/model-selector"
 import { Button } from "@/components/ui/button"

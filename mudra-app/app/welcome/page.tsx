@@ -9,7 +9,7 @@ export default function WelcomePage() {
     <div className="min-h-screen bg-black">
       <div className="container mx-auto px-4">
         <OnboardingStepper currentStep={1} />
-        <MudraLogo />
+        <MudraLogo size={80} className="py-4" />
         <div className="flex justify-center items-center pb-16">
           <WelcomeForm />
         </div>

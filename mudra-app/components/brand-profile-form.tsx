@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Upload } from "lucide-react"
 
 // Consistent styles for Mudra theme
 const inputStyles = "bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -29,8 +30,8 @@ const initialData = {
   // Company Profile
   companyDescription: "A Generative Engine Optimization platform helping startups get mentioned by AI.",
   companyIndustry: "AI/Technology",
-  companyServices: "GEO Platform, AI Optimization, Content Strategy",
-  companyICP: "Startups, Marketing teams, GEO Specialists",
+  companyServices: ["GEO Platform", "AI Optimization", "Content Strategy"],
+  companyICP: ["Startups", "Marketing teams", "GEO Specialists"],
   
   // Competitors
   competitors: [
@@ -47,12 +48,32 @@ const initialData = {
 export function BrandProfileForm() {
   const [formData, setFormData] = useState(initialData)
   const [isEditing, setIsEditing] = useState(false)
+  const [kbFiles, setKbFiles] = useState<File[]>([])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }))
+  }
+
+  const accepted = ".pdf,.doc,.docx,.txt,.md,.csv"
+  const handleKBFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = e.target.files ? Array.from(e.target.files) : []
+    setKbFiles((prev) => [...prev, ...list])
+  }
+
+  const updateMultiRow = (field: "companyServices" | "companyICP", idx: number, val: string) => {
+    const arr = [...(formData[field] as string[])]
+    arr[idx] = val
+    setFormData(prev => ({ ...prev, [field]: arr }))
+  }
+  const addRow = (field: "companyServices" | "companyICP") => {
+    setFormData(prev => ({ ...prev, [field]: [...(prev[field] as string[]), ""] }))
+  }
+  const removeRow = (field: "companyServices" | "companyICP", idx: number) => {
+    const arr = (formData[field] as string[]).filter((_, i) => i !== idx)
+    setFormData(prev => ({ ...prev, [field]: arr.length ? arr : [""] }))
   }
 
   const handleSave = () => {
@@ -103,7 +124,7 @@ export function BrandProfileForm() {
       </div>
 
       {/* Company Information Section */}
-      <Card className="bg-black/50 border-white/10 backdrop-blur-sm">
+      <Card className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Company Information</CardTitle>
           <CardDescription className="text-white/50 text-sm">
@@ -160,7 +181,7 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Personal Information Section */}
-      <Card className="bg-black/50 border-white/10 backdrop-blur-sm">
+      <Card className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Personal Information</CardTitle>
           <CardDescription className="text-white/50 text-sm">
@@ -207,7 +228,7 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Company Profile Section */}
-      <Card className="bg-black/50 border-white/10 backdrop-blur-sm">
+      <Card className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Company Profile</CardTitle>
           <CardDescription className="text-white/50 text-sm">
@@ -237,31 +258,51 @@ export function BrandProfileForm() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="companyServices">Services/Products</Label>
-              <Input
-                id="companyServices"
-                value={formData.companyServices}
-                onChange={(e) => handleInputChange("companyServices", e.target.value)}
-                disabled={!isEditing}
-                placeholder="Main services or products"
-              />
+              <Label>Services / Products</Label>
+              {(formData.companyServices as string[]).map((v, i) => (
+                <div key={`svc-${i}`} className="flex items-center gap-2">
+                  <Input
+                    value={v}
+                    onChange={(e) => updateMultiRow("companyServices", i, e.target.value)}
+                    disabled={!isEditing}
+                    placeholder="e.g. Web design, AI tools, Consulting"
+                    className={inputStyles}
+                  />
+                  {isEditing && (formData.companyServices as string[]).length > 1 && (
+                    <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-xl" onClick={() => removeRow("companyServices", i)}>×</Button>
+                  )}
+                </div>
+              ))}
+              {isEditing && (
+                <Button type="button" variant="outline" size="sm" className="h-9 rounded-xl" onClick={() => addRow("companyServices")}>Add another</Button>
+              )}
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="companyICP">Target Audience (ICP)</Label>
-            <Input
-              id="companyICP"
-              value={formData.companyICP}
-              onChange={(e) => handleInputChange("companyICP", e.target.value)}
-              disabled={!isEditing}
-              placeholder="Who are your ideal customers?"
-            />
+            <Label>Ideal Customer Profiles</Label>
+            {(formData.companyICP as string[]).map((v, i) => (
+              <div key={`icp-${i}`} className="flex items-center gap-2">
+                <Input
+                  value={v}
+                  onChange={(e) => updateMultiRow("companyICP", i, e.target.value)}
+                  disabled={!isEditing}
+                  placeholder="e.g. Startup founders, SMB marketers, Enterprise IT"
+                  className={inputStyles}
+                />
+                {isEditing && (formData.companyICP as string[]).length > 1 && (
+                  <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-xl" onClick={() => removeRow("companyICP", i)}>×</Button>
+                )}
+              </div>
+            ))}
+            {isEditing && (
+              <Button type="button" variant="outline" size="sm" className="h-9 rounded-xl" onClick={() => addRow("companyICP")}>Add another</Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
       {/* Competitors Section */}
-      <Card className="bg-black/50 border-white/10 backdrop-blur-sm">
+      <Card className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Competitors</CardTitle>
           <CardDescription className="text-white/50 text-sm">
@@ -349,51 +390,29 @@ export function BrandProfileForm() {
         </CardContent>
       </Card>
 
-      {/* Visibility Metrics Section */}
-      <Card className="bg-black/50 border-white/10 backdrop-blur-sm">
+      {/* Knowledge Base Uploader */}
+      <Card className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl">
         <CardHeader>
-          <CardTitle className="text-white text-lg font-semibold">Current Visibility</CardTitle>
-          <CardDescription className="text-white/50 text-sm">
-            Current metrics and AI recommendation status
-          </CardDescription>
+          <CardTitle className="text-white text-lg font-semibold">Knowledge Base</CardTitle>
+          <CardDescription className="text-white/50 text-sm">Upload documents to use as context (optional)</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="monthlySearchVolume">Monthly Search Volume</Label>
-              <Input
-                id="monthlySearchVolume"
-                value={formData.monthlySearchVolume}
-                onChange={(e) => handleInputChange("monthlySearchVolume", e.target.value)}
-                disabled={!isEditing}
-                placeholder="e.g., 5,000"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="aiRecommendations">Do AI Models Recommend You?</Label>
-              {isEditing ? (
-                <Select
-                  value={formData.aiRecommendations}
-                  onValueChange={(value) => handleInputChange("aiRecommendations", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Never">Never</SelectItem>
-                    <SelectItem value="Rarely">Rarely</SelectItem>
-                    <SelectItem value="Sometimes">Sometimes</SelectItem>
-                    <SelectItem value="Often">Often</SelectItem>
-                    <SelectItem value="Always">Always</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  value={formData.aiRecommendations}
-                  disabled
-                />
-              )}
-            </div>
+        <CardContent>
+          <div className="rounded-xl border border-white/20 bg-black/40 p-4">
+            <input id="kb-files-dash" type="file" multiple accept={accepted} onChange={handleKBFiles} className="hidden" />
+            {isEditing && (
+              <label htmlFor="kb-files-dash">
+                <Button type="button" variant="outline" className="h-9 rounded-xl gap-2">
+                  <Upload className="size-4" /> Select files
+                </Button>
+              </label>
+            )}
+            {kbFiles.length > 0 && (
+              <ul className="mt-3 space-y-1 text-sm text-white/80">
+                {kbFiles.map((f, i) => (
+                  <li key={i} className="truncate">{f.name}</li>
+                ))}
+              </ul>
+            )}
           </div>
         </CardContent>
       </Card>

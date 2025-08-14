@@ -78,7 +78,7 @@ export function MetricCard({
   void icon
 
   return (
-    <Card className={cn("@container/card bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/[0.08] shadow-2xl", className)}>
+    <Card className={cn("@container/card bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/[0.08]", className)}>
       <CardHeader>
         <CardDescription className="flex items-center gap-2">
           {MetricIcon && (

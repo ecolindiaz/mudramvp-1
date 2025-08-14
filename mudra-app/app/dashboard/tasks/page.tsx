@@ -28,7 +28,7 @@ export default function TasksPage() {
         <SiteHeader />
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-dark-grey">
-          <div className="@container/main flex flex-1 flex-col gap-2 bg-dark-grey">
+          <div className="@container/main flex flex-1 flex-col gap-3 md:gap-4 bg-dark-grey">
             {/* Page Header (matches Overview format) */}
             <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
               <div className="flex items-center justify-between">
@@ -51,8 +51,8 @@ export default function TasksPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-4 pb-4 md:gap-6 md:pb-6">
-              <div className="px-0 lg:px-0">
+            <div className="flex flex-col gap-5 md:gap-6 pb-6 md:pb-8">
+              <div>
                 <TasksView />
               </div>
             </div>

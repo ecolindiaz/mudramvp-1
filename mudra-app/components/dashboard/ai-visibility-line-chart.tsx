@@ -96,7 +96,7 @@ export function AIVisibilityLineChart() {
   }
 
   return (
-    <Card className="bg-muted/50 dark:bg-muted/20">
+    <Card className="bg-black/40 backdrop-blur-sm rounded-2xl border border-white/[0.08]">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-6">
         <div className="space-y-3">
           <CardTitle className="text-xl font-semibold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">

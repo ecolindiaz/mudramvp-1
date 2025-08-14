@@ -19,8 +19,7 @@ import {
   IconCheck, 
   IconDownload, 
   IconCopy, 
-  IconChevronDown,
-  IconArrowRight
+  IconInfoCircle
 } from "@tabler/icons-react"
 
 interface NaturalLanguageReportProps {
@@ -39,12 +38,15 @@ function generateSummary(): string {
   const technical = mockTechnicalData.overallScore
   const mentions = mockExternalFootprint.totalMentions
   const uniqueDomains = mockExternalFootprint.uniqueDomains
+  const visibilityChange = mockOverviewMetrics.aiVisibilityRank.change
+  const topModels = mockAiVisibilityData.byModel.slice(0, 2).map(m => m.model).join(" and ")
 
   return (
     `Your brand currently holds an AI Visibility score of ${aiVisibility}/100, with solid technical health ` +
     `(${technical}/100) and content quality at ${contentQuality}/100. In the recent period, ` +
     `${humans} users were referred by AI search engines. We tracked ${mentions} external mentions across ` +
-    `${uniqueDomains} unique domains. This week you closed ${tasks} tasks against ${goals} goals. ` +
+    `${uniqueDomains} unique domains. Visibility improved ${visibilityChange}% vs the previous period ` +
+    `with strongest model coverage from ${topModels}. This week you closed ${tasks} tasks against ${goals} goals. ` +
     `Focus on strengthening content breadth and citing authoritative sources to convert visibility into ` +
     `more qualified referrals.`
   )
@@ -56,17 +58,26 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   void selectedModel
 
   const summary = generateSummary()
+  const citations: Array<{ domain: string; used: number }> = [
+    { domain: "aimultiple.com", used: 20 },
+    { domain: "medium.com", used: 20 },
+    { domain: "appen.com", used: 18 },
+    { domain: "geeksforgeeks.org", used: 18 },
+  ]
+  const lifetimeGeoTasks = 124
+  const lifetimeTechnicalTasks = 98
+  const lifetimeContentCreated = 36
 
   return (
-    <div className={cn("rounded-2xl border border-white/[0.08] bg-black/40 backdrop-blur-sm", className)}>
+    <div className={cn("rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-sm", className)}>
       <div className="p-5 md:p-6 lg:p-8">
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-xs uppercase tracking-wider text-white/60">Natural Language Report</p>
-            <h2 className="text-xl md:text-2xl font-semibold">What the AI sees in your data</h2>
+            <h2 className="text-xl md:text-2xl font-semibold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">What the AI sees in your data</h2>
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded-md border border-white/10 px-2.5 py-1 text-xs text-white/80">
+            <div className="inline-flex items-center gap-2 rounded-md border border-white/10 px-2.5 py-1 text-xs text-white/80 bg-white/[0.02]">
               <IconSparkles className="size-4" />
               AI Summary
             </div>
@@ -79,84 +90,98 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
           </div>
         </div>
 
-        {/* Controls inspired by dashboards */}
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <Badge variant="outline" className="bg-white/5 border-white/15 text-xs">Visibility</Badge>
-          <Badge variant="outline" className="bg-white/5 border-white/15 text-xs">Technical</Badge>
-          <Badge variant="outline" className="bg-white/5 border-white/15 text-xs">Content</Badge>
-          <Badge variant="outline" className="bg-white/5 border-white/15 text-xs">External</Badge>
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-7 px-2 text-xs bg-white/5 border-white/15 text-white/80">
-              Languages <IconChevronDown className="size-3 ml-1" />
-            </Button>
-            <Button variant="outline" size="sm" className="h-7 px-2 text-xs bg-white/5 border-white/15 text-white/80">
-              Regions <IconChevronDown className="size-3 ml-1" />
-            </Button>
-            <Button variant="outline" size="sm" className="h-7 px-2 text-xs bg-white/5 border-white/15 text-white/80">
-              Platforms <IconChevronDown className="size-3 ml-1" />
-            </Button>
-          </div>
-        </div>
+        {/* Controls removed per design update to keep section minimal under the title */}
 
         {/* KPIs removed (already shown above) */}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <div className="rounded-xl border border-white/10 p-4">
-              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-white/90">
                 <IconSparkles className="size-4" />
                 Summary
               </div>
-              <p className="text-sm leading-6 text-white/80">
+              <p className="text-sm leading-relaxed text-white/85">
                 {summary}
               </p>
-              <div className="pt-3">
-                <Button size="sm" className="h-8 px-3 text-xs">
-                  Generate Action Plan <IconArrowRight className="size-3.5 ml-1" />
-                </Button>
-              </div>
             </div>
 
-            {/* Recommendations list */}
-            <div className="mt-4 rounded-xl border border-white/10 p-4">
-              <div className="mb-2 text-sm font-medium">Recommendations</div>
-              <ul className="space-y-2">
-                {mockTechnicalData.recommendations.slice(0,4).map((rec, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <span className="mt-1 inline-block size-1.5 rounded-full bg-white/60" />
-                    <span className="text-sm text-white/80">{rec}</span>
-                  </li>
+            {/* Citations list */}
+            <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                <div>
+                  <div className="text-sm font-medium text-white/90">Citations</div>
+                  <div className="text-xs text-white/60">Sources across active models</div>
+                </div>
+                <IconInfoCircle className="size-4 text-white/50" />
+              </div>
+              <div className="divide-y divide-white/8">
+                <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2 text-xs text-white/60">
+                  <span>Source</span>
+                  <span>Used</span>
+                </div>
+                {citations.map((c, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr_auto] items-center px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="inline-flex items-center justify-center size-5 rounded-full bg-white/5 border border-white/10 text-[10px] text-white/80">
+                        {c.domain[0].toUpperCase()}
+                      </span>
+                      <span className="truncate text-sm text-white/85">{c.domain}</span>
+                    </div>
+                    <div className="text-sm tabular-nums text-white/80">{c.used}%</div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-4">
-            <div className="rounded-xl border border-white/10 p-4">
-              <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-                <IconTarget className="size-4" />
-                Key Focus
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 min-h-[120px]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span className="inline-flex items-center justify-center size-5 rounded-full bg-white/5 border border-white/10">
+                    <IconCheck className="size-3.5 text-white/80" />
+                  </span>
+                  GEO tasks completed
+                </div>
+                <span className="text-[10px] uppercase tracking-wide text-white/60">All‑time</span>
               </div>
-              <p className="text-sm text-white/70">
-                Improve content depth where visibility is high but citations are thin.
-              </p>
+              <div className="mt-4 border-t border-white/10 pt-4 flex items-center justify-start">
+                <span className="inline-flex items-center rounded-full border border-white/12 bg-white/5 px-3.5 py-1.5 text-base font-semibold tabular-nums text-white/90">
+                  {lifetimeGeoTasks}
+                </span>
+              </div>
             </div>
-            <div className="rounded-xl border border-white/10 p-4">
-              <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-                <IconTrendingUp className="size-4" />
-                Quick Win
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 min-h-[120px]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span className="inline-flex items-center justify-center size-5 rounded-full bg-white/5 border border-white/10">
+                    <IconCheck className="size-3.5 text-white/80" />
+                  </span>
+                  Technical Structure tasks completed
+                </div>
+                <span className="text-[10px] uppercase tracking-wide text-white/60">All‑time</span>
               </div>
-              <p className="text-sm text-white/70">
-                Repurpose top performing answers into dedicated landing pages.
-              </p>
+              <div className="mt-4 border-t border-white/10 pt-4 flex items-center justify-start">
+                <span className="inline-flex items-center rounded-full border border-white/12 bg-white/5 px-3.5 py-1.5 text-base font-semibold tabular-nums text-white/90">
+                  {lifetimeTechnicalTasks}
+                </span>
+              </div>
             </div>
-            <div className="rounded-xl border border-white/10 p-4">
-              <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-                <IconCheck className="size-4" />
-                Next Action
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 min-h-[120px]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span className="inline-flex items-center justify-center size-5 rounded-full bg-white/5 border border-white/10">
+                    <IconSparkles className="size-3.5 text-white/80" />
+                  </span>
+                  Content created
+                </div>
+                <span className="text-[10px] uppercase tracking-wide text-white/60">All‑time</span>
               </div>
-              <p className="text-sm text-white/70">
-                Address 1–2 technical issues to boost crawl consistency.
-              </p>
+              <div className="mt-4 border-t border-white/10 pt-4 flex items-center justify-start">
+                <span className="inline-flex items-center rounded-full border border-white/12 bg-white/5 px-3.5 py-1.5 text-base font-semibold tabular-nums text-white/90">
+                  {lifetimeContentCreated}
+                </span>
+              </div>
             </div>
           </div>
         </div>

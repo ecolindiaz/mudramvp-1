@@ -12,8 +12,7 @@ export function ProfileForm() {
   const router = useRouter()
   const [formData, setFormData] = useState({
     yourName: "",
-    yourRole: "",
-    avatar: ""
+    yourRole: ""
   })
 
   const handleInputChange = (field: string, value: string) => {
@@ -29,10 +28,6 @@ export function ProfileForm() {
   }
 
   const isFormValid = formData.yourName.trim() !== "" && formData.yourRole.trim() !== ""
-
-  const avatarOptions = [
-    "👨‍💼", "👩‍💼", "👨‍💻", "👩‍💻", "🧑‍💼", "👨‍🎨", "👩‍🎨", "🧑‍🎨"
-  ]
 
   return (
     <Card className="w-full max-w-md mx-auto bg-black border border-white/20 shadow-lg">
@@ -73,39 +68,28 @@ export function ProfileForm() {
           />
         </div>
 
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-white/90">
-            Choose your Avatar
-          </Label>
-          <div className="grid grid-cols-4 gap-3">
-            {avatarOptions.map((avatar, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => handleInputChange("avatar", avatar)}
-                className={`w-12 h-12 rounded-full border-2 flex items-center justify-center text-2xl transition-colors ${
-                  formData.avatar === avatar
-                    ? "border-white bg-white/10"
-                    : "border-white/20 hover:border-white/40"
-                }`}
-              >
-                {avatar}
-              </button>
-            ))}
-          </div>
-        </div>
+        {null}
 
-        <StarBorder
-          onClick={handleNext}
-          disabled={!isFormValid}
-          className={`w-full ${!isFormValid ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-          color="white"
-        >
-          <div className="flex items-center justify-center gap-2 text-white">
-            Next
-            <ArrowRight className="w-4 h-4" />
-          </div>
-        </StarBorder>
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/welcome")}
+            className="h-9 rounded-xl border border-white/20 px-4 text-white/80 hover:text-white"
+          >
+            Back
+          </button>
+          <StarBorder
+            onClick={handleNext}
+            disabled={!isFormValid}
+            className={`flex-1 ${!isFormValid ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            color="white"
+          >
+            <div className="flex items-center justify-center gap-2 text-white">
+              Next
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </StarBorder>
+        </div>
       </CardContent>
     </Card>
   )

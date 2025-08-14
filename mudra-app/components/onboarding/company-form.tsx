@@ -8,18 +8,65 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { StarBorder } from "@/components/ui/star-border"
-import { ArrowRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ArrowRight, Plus, X } from "lucide-react"
+
+function MultiRowInput({
+  values,
+  onChange,
+  placeholder,
+  label,
+}: {
+  values: string[]
+  onChange: (vals: string[]) => void
+  placeholder?: string
+  label?: string
+}) {
+  const rows = values.length > 0 ? values : [""]
+  const update = (idx: number, val: string) => {
+    const nv = [...rows]
+    nv[idx] = val
+    onChange(nv)
+  }
+  const addRow = () => onChange([...rows, ""]) 
+  const removeRow = (idx: number) => {
+    const nv = rows.filter((_, i) => i !== idx)
+    onChange(nv.length ? nv : [""])
+  }
+  return (
+    <div className="space-y-2">
+      {rows.map((v, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <Input
+            value={v}
+            onChange={(e) => update(i, e.target.value)}
+            placeholder={placeholder}
+            className="flex-1 bg-black border-white/20 text-white placeholder:text-white/50"
+          />
+          {rows.length > 1 && (
+            <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-xl" onClick={() => removeRow(i)}>
+              <X className="size-4" />
+            </Button>
+          )}
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" className="h-9 rounded-xl gap-2" onClick={addRow}>
+        <Plus className="size-4" /> Add another
+      </Button>
+    </div>
+  )
+}
 
 export function CompanyForm() {
   const router = useRouter()
   const [formData, setFormData] = useState({
     companyDescription: "",
     companyIndustry: "",
-    servicesProducts: "",
-    companyICP: ""
+    servicesProducts: [] as string[],
+    companyICP: [] as string[]
   })
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -31,7 +78,10 @@ export function CompanyForm() {
     router.push("/welcome/competitors")
   }
 
-  const isFormValid = formData.companyDescription && formData.companyIndustry && formData.servicesProducts
+  const isFormValid =
+    !!formData.companyDescription &&
+    !!formData.companyIndustry &&
+    formData.servicesProducts.some((s) => s.trim() !== "")
 
   const industries = [
     "Technology", "Healthcare", "Finance", "Education", "E-commerce", "Manufacturing", 
@@ -81,44 +131,43 @@ export function CompanyForm() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="servicesProducts" className="text-sm font-medium text-white/90">
-            Services/Products of Company
-          </Label>
-          <Input
-            id="servicesProducts"
-            type="text"
+          <Label className="text-sm font-medium text-white/90">Services / Products</Label>
+          <MultiRowInput
+            values={formData.servicesProducts}
+            onChange={(vals) => handleInputChange("servicesProducts", vals)}
             placeholder="e.g. Web design, AI tools, Consulting"
-            value={formData.servicesProducts}
-            onChange={(e) => handleInputChange("servicesProducts", e.target.value)}
-            className="w-full bg-black border-white/20 text-white placeholder:text-white/50"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="companyICP" className="text-sm font-medium text-white/90">
-            Company ICP (Ideal Customer Profile)
-          </Label>
-          <Input
-            id="companyICP"
-            type="text"
-            placeholder="e.g. Startups, SMBs, Enterprise companies"
-            value={formData.companyICP}
-            onChange={(e) => handleInputChange("companyICP", e.target.value)}
-            className="w-full bg-black border-white/20 text-white placeholder:text-white/50"
+          <Label className="text-sm font-medium text-white/90">Ideal Customer Profiles</Label>
+          <MultiRowInput
+            values={formData.companyICP}
+            onChange={(vals) => handleInputChange("companyICP", vals)}
+            placeholder="e.g. Startup founders, SMB marketers, Enterprise IT"
           />
         </div>
 
-        <StarBorder
-          onClick={handleNext}
-          disabled={!isFormValid}
-          className={`w-full ${!isFormValid ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-          color="white"
-        >
-          <div className="flex items-center justify-center gap-2 text-white">
-            Next
-            <ArrowRight className="w-4 h-4" />
-          </div>
-        </StarBorder>
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/welcome/profile")}
+            className="h-9 rounded-xl border border-white/20 px-4 text-white/80 hover:text-white"
+          >
+            Back
+          </button>
+          <StarBorder
+            onClick={handleNext}
+            disabled={!isFormValid}
+            className={`flex-1 ${!isFormValid ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            color="white"
+          >
+            <div className="flex items-center justify-center gap-2 text-white">
+              Next
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </StarBorder>
+        </div>
       </CardContent>
     </Card>
   )

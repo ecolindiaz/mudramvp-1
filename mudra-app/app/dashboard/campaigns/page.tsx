@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -8,46 +8,119 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Button } from "@/components/ui/button"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
-import { TimeRangeSelector, type TimeRange } from "@/components/dashboard/time-range-selector"
-import { TrackedPromptsView } from "@/components/tracked-prompts-view"
-
-type InsightView = "campaigns" | "tracked-prompts" | "citation-gaps"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Plus, FileText, Newspaper, Briefcase, Target, Search, Sparkles, CheckCircle2, Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+ 
+ 
 
 export default function CampaignsPage() {
-  const [activeView, setActiveView] = useState<InsightView>("campaigns")
-  const [timeRange, setTimeRange] = useState<TimeRange>("7d")
+  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [selectedType, setSelectedType] = useState<"blog" | "newsletter" | "case">("blog")
+  const [improvement, setImprovement] = useState<"geo" | "seo" | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [progressIndex, setProgressIndex] = useState(0)
+  const [generationComplete, setGenerationComplete] = useState(false)
+  const [campaigns] = useState<Array<{ id: string; title: string; type: string; mode: string; status: "Draft" | "Scheduled" | "Published"; updatedAt: number }>>([
+    { id: "cmp_1", title: "Product Launch Blog", type: "Blog Post", mode: "GEO", status: "Draft", updatedAt: Date.now() - 60 * 60 * 1000 },
+    { id: "cmp_2", title: "Weekly Update Newsletter", type: "Newsletter", mode: "SEO", status: "Scheduled", updatedAt: Date.now() - 24 * 60 * 60 * 1000 },
+    { id: "cmp_3", title: "Case Study: Customer X", type: "Case Study", mode: "GEO", status: "Published", updatedAt: Date.now() - 3 * 24 * 60 * 60 * 1000 },
+    { id: "cmp_4", title: "SEO Best Practices Update", type: "Blog Post", mode: "SEO", status: "Published", updatedAt: Date.now() - 5 * 24 * 60 * 60 * 1000 },
+    { id: "cmp_5", title: "Quarterly Product Recap", type: "Newsletter", mode: "GEO", status: "Draft", updatedAt: Date.now() - 2 * 60 * 60 * 1000 },
+    { id: "cmp_6", title: "Case Study: Partner Y", type: "Case Study", mode: "SEO", status: "Published", updatedAt: Date.now() - 7 * 24 * 60 * 60 * 1000 },
+    { id: "cmp_7", title: "Thought Leadership Article", type: "Blog Post", mode: "GEO", status: "Draft", updatedAt: Date.now() - 30 * 60 * 1000 },
+  ])
+  const [statusFilter, setStatusFilter] = useState<"draft" | "published">("draft")
+  const filteredCampaigns = campaigns.filter(c => c.status.toLowerCase() === statusFilter)
 
-  const renderContent = () => {
-    switch (activeView) {
-      case "campaigns":
-        return (
-          <div className="min-h-[400px] flex items-center justify-center">
-            <div className="text-center space-y-3">
-              <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full flex items-center justify-center border border-white/10">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full"></div>
-              </div>
-              <p className="text-white/60 text-sm">Campaigns overview will be implemented here</p>
-            </div>
-          </div>
-        )
-      case "tracked-prompts":
-        return <TrackedPromptsView />
-      case "citation-gaps":
-        return (
-          <div className="min-h-[400px] flex items-center justify-center">
-            <div className="text-center space-y-3">
-              <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-full flex items-center justify-center border border-white/10">
-                <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-400 rounded-full"></div>
-              </div>
-              <p className="text-white/60 text-sm">Citation gaps content will be implemented here</p>
-            </div>
-          </div>
-        )
-      default:
-        return null
+  // Animated indicator for filter pills
+  const filterContainerRef = useRef<HTMLDivElement | null>(null)
+  const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
+
+  const updateIndicator = () => {
+    const container = filterContainerRef.current
+    const active = buttonRefs.current[statusFilter]
+    if (!container || !active) return
+    const cRect = container.getBoundingClientRect()
+    const bRect = active.getBoundingClientRect()
+    setIndicatorStyle({ left: bRect.left - cRect.left, width: bRect.width })
+  }
+
+  useEffect(() => {
+    const rAF = requestAnimationFrame(updateIndicator)
+    window.addEventListener("resize", updateIndicator)
+    return () => {
+      cancelAnimationFrame(rAF)
+      window.removeEventListener("resize", updateIndicator)
     }
+  }, [])
+
+  useEffect(() => {
+    updateIndicator()
+  }, [statusFilter])
+ 
+  const router = useRouter()
+
+  const handleOpenCampaign = (c: { id: string; type: string; mode: string }) => {
+    const typeParam = c.type.toLowerCase().includes("blog") ? "blog" : c.type.toLowerCase().includes("newsletter") ? "newsletter" : "case"
+    const modeParam = c.mode.toLowerCase()
+    router.push(`/dashboard/campaigns/${c.id}?type=${typeParam}&mode=${modeParam}`)
+  }
+  
+  const geoSteps = [
+    "Starting",
+    "Gathering information",
+    "Understanding prompts",
+    "Including ICP",
+    "Adding sources and citations",
+    "Including statistics",
+    "Drafting AI-ready content",
+    "Final review",
+  ]
+
+  const seoSteps = [
+    "Starting",
+    "Running live queries",
+    "Analyzing search intent",
+    "Extracting entities & schema",
+    "Auditing on-page SEO",
+    "Selecting sources & citations",
+    "Drafting optimized brief",
+    "Final review",
+  ]
+
+  const startGeneration = () => {
+    if (improvement !== "geo" && improvement !== "seo") return
+    setIsGenerating(true)
+    setGenerationComplete(false)
+    setProgressIndex(0)
+    const steps = improvement === "seo" ? seoSteps : geoSteps
+    const total = steps.length
+    let i = 0
+    const tick = () => {
+      i += 1
+      setProgressIndex(i)
+      if (i < total) {
+        setTimeout(tick, 1200)
+      } else {
+        // Brief success state before navigating
+        setGenerationComplete(true)
+        setTimeout(() => {
+          const id = `cmp_${Date.now().toString(36)}`
+          const modeParam = improvement === "seo" ? "seo" : "geo"
+          router.push(`/dashboard/campaigns/${id}?type=blog&mode=${modeParam}`)
+          setIsGenerating(false)
+          setStep(1)
+          setGenerationComplete(false)
+        }, 1400)
+      }
+    }
+    setTimeout(tick, 800)
   }
 
   return (
@@ -71,54 +144,145 @@ export default function CampaignsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h1 className="text-2xl font-bold tracking-tight text-white">
-                      {activeView === "campaigns" && "Campaigns"}
-                      {activeView === "tracked-prompts" && "Tracked Prompts"}
-                      {activeView === "citation-gaps" && "Citation & Competitive Gaps"}
+                      {"Campaigns"}
                     </h1>
-                    {activeView === "campaigns" && (
                       <p className="text-muted-foreground">
                         Tailored brand content for visibility improvement across channels.
                       </p>
-                    )}
                   </div>
+                  <div className="flex items-center">
+                    <Dialog onOpenChange={(open) => { if (open) { setStep(1); setImprovement(null); setSelectedType("blog") } }}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" className="h-9 rounded-xl">
+                          <Plus className="size-4 mr-2" />
+                          New Campaign
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-3xl p-0 overflow-hidden rounded-2xl sm:max-w-3xl md:max-w-4xl">
+                        <div className="p-5 md:p-6 lg:p-7 bg-gradient-to-b from-white/[0.02] to-transparent">
+                          <DialogHeader className="pb-2">
+                            <DialogTitle className="text-lg md:text-xl font-semibold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">Create a Campaign</DialogTitle>
+                            <DialogDescription className="text-muted-foreground/90 text-sm">
+                              {step === 1 ? "Choose a content type to start" : "Choose what to improve"}
+                            </DialogDescription>
+                          </DialogHeader>
+                          {/* Linear Stepper (lines only) */}
+                          <div className="mt-2 mb-5 md:mt-3 md:mb-6">
+                            <div className="relative h-[3px] bg-white/10 rounded-full overflow-hidden">
+                              <div className={`absolute left-0 top-0 h-[3px] bg-gradient-to-r from-primary to-white/90 rounded-full transition-[width] duration-300 ease-out ${step <= 1 ? "w-0" : step === 2 ? "w-1/2" : "w-full"}`} />
                 </div>
             </div>
-
-            {/* Navigation Tabs */}
-            <div className="px-4 lg:px-6 pb-8 flex items-center justify-between">
-              <div className="flex items-center justify-center lg:justify-start">
-                <div className="inline-flex items-center gap-1 p-1.5 bg-white/[0.03] backdrop-blur-sm rounded-xl border border-white/[0.08] shadow-2xl">
-                  {[
-                    { key: "campaigns" as const, label: "Campaigns" },
-                    { key: "tracked-prompts" as const, label: "Tracked Prompts" },
-                    { key: "citation-gaps" as const, label: "Citation & Competitive Gaps" }
-                  ].map(({ key, label }) => (
-                    <Button
-                      key={key}
-                      variant={activeView === key ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setActiveView(key)}
-                      className={`relative transition-all duration-200 ${
-                        activeView === key 
-                          ? "bg-primary text-primary-foreground shadow-sm" 
-                          : "text-white/80 hover:text-white hover:bg-muted/60"
-                      }`}
-                    >
-                      {label}
-                    </Button>
-                  ))}
+                          {step === 1 && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                              <Card onClick={() => { setSelectedType("blog"); setStep(2) }} className="group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-xl bg-gradient-to-b from-white/[0.04] to-transparent hover:from-white/[0.07] hover:translate-y-[-1px]">
+                                <CardHeader className="items-start gap-3 pb-3">
+                                  <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
+                                    <FileText className="size-5" />
+                                  </div>
+                                  <CardTitle className="text-base">Blog Post</CardTitle>
+                                  <CardDescription className="text-xs">Long‑form content for visibility</CardDescription>
+                                </CardHeader>
+                              </Card>
+                              <Card className="group border-white/10 transition-colors cursor-not-allowed opacity-75 rounded-xl bg-gradient-to-b from-white/[0.03] to-transparent">
+                                <CardHeader className="items-start gap-3 pb-3">
+                                  <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
+                                    <Newspaper className="size-5" />
+                                  </div>
+                                  <CardTitle className="text-base">Newsletter</CardTitle>
+                                  <CardDescription className="text-xs">Email update to your audience</CardDescription>
+                                  <Badge variant="outline" className="mt-1 text-xs">Soon</Badge>
+                                </CardHeader>
+                              </Card>
+                              <Card className="group border-white/10 transition-colors cursor-not-allowed opacity-75 rounded-xl bg-gradient-to-b from-white/[0.03] to-transparent">
+                                <CardHeader className="items-start gap-3 pb-3">
+                                  <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
+                                    <Briefcase className="size-5" />
+                                  </div>
+                                  <CardTitle className="text-base">Case Study</CardTitle>
+                                  <CardDescription className="text-xs">Show results and credibility</CardDescription>
+                                  <Badge variant="outline" className="mt-1 text-xs">Soon</Badge>
+                                </CardHeader>
+                              </Card>
+                            </div>
+                          )}
+                          {step === 2 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mt-1">
+                              <Card onClick={() => { setImprovement("geo"); setStep(3) }} className={`group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-xl bg-gradient-to-b from-white/[0.04] to-transparent hover:from-white/[0.07] hover:translate-y-[-1px] ${improvement === "geo" ? "ring-1 ring-white/30" : ""}`}>
+                                <CardHeader className="items-start gap-3 pb-3">
+                                  <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
+                                    <Target className="size-5" />
+                                  </div>
+                                  <CardTitle className="text-base">GEO: Prompt + ICP</CardTitle>
+                                  <CardDescription className="text-xs">Use your prompt set and audience</CardDescription>
+                                </CardHeader>
+                              </Card>
+                              <Card onClick={() => { setImprovement("seo"); setStep(3) }} className={`group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-xl bg-gradient-to-b from-white/[0.04] to-transparent hover:from-white/[0.07] hover:translate-y-[-1px] ${improvement === "seo" ? "ring-1 ring-white/30" : ""}`}>
+                                <CardHeader className="items-start gap-3 pb-3">
+                                  <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
+                                    <Search className="size-5" />
+                                  </div>
+                                  <CardTitle className="text-base">SEO: Live Query</CardTitle>
+                                  <CardDescription className="text-xs">Query live data and optimize</CardDescription>
+                                </CardHeader>
+                              </Card>
+                            </div>
+                          )}
+                        {step === 3 && (
+                          <div className="pt-3 md:pt-5">
+                            {isGenerating ? (
+                              <div className="space-y-3" aria-live="polite">
+                                {(improvement === "seo" ? seoSteps : geoSteps).map((label, idx) => {
+                                  const done = idx < progressIndex
+                                  const active = idx === progressIndex
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm bg-white/[0.015] transition-all ${
+                                        done
+                                          ? "border-emerald-500/30"
+                                          : active
+                                            ? "border-white/20 ring-1 ring-white/20"
+                                            : "border-white/10"
+                                      }`}
+                                    >
+                                      <div className="w-5 h-5 flex items-center justify-center">
+                                        {done ? (
+                                          <CheckCircle2 className="size-5 text-emerald-400" />
+                                        ) : active ? (
+                                          <Loader2 className="size-4 text-white/70 animate-spin" />
+                                        ) : (
+                                          <div className="size-2 rounded-full bg-white/30" />
+                                        )}
+                                      </div>
+                                      <div className={`text-sm ${done ? "text-white/80" : active ? "text-white" : "text-white/70"}`}>
+                                        {idx + 1}. {label}
                 </div>
               </div>
-              <div className="flex items-center">
-                <TimeRangeSelector 
-                  value={timeRange}
-                  onValueChange={setTimeRange}
-                />
+                                  )
+                                })}
+                                {generationComplete && (
+                                  <div className="flex items-center gap-3 pt-1 text-[15px] text-white">
+                                    <CheckCircle2 className="size-5 text-emerald-400" />
+                                    <span className="text-white/90">Document is ready!</span>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center">
+                                <Button onClick={startGeneration} className="h-10 px-5 rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 shadow-sm gap-2">
+                                  <Sparkles className="size-4" />
+                                  Generate
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
               </div>
             </div>
-
-            {/* Separator */}
-            <div className="px-4 lg:px-8 pb-8">
+                <div className="mt-4">
               <div className="relative">
                 <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
                 <div className="absolute left-1/2 top-0 transform -translate-x-1/2 -translate-y-1/2">
@@ -126,21 +290,67 @@ export default function CampaignsPage() {
                 </div>
               </div>
             </div>
+            </div>
+
+            
             
             {/* Content */}
             <div className="flex flex-col flex-1">
-              <div className="px-4 lg:px-8 pb-8">
-                {activeView === "tracked-prompts" ? (
-                  <div>
-                    {renderContent()}
-                  </div>
-                ) : (
-                  <div className="bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/[0.08] shadow-2xl min-h-[500px]">
-                    <div className="p-6 lg:p-8">
-                      {renderContent()}
+              <div className="px-4 lg:px-6 mt-4 md:mt-6 pb-6 md:pb-8">
+                <Card className="pt-2 bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/[0.06]">
+                  <div className="flex items-center justify-between px-4 lg:px-6 pt-2 pb-3 border-b border-white/[0.06]">
+                    <div ref={filterContainerRef} className="relative inline-flex items-center gap-1 p-1.5 bg-white/[0.03] backdrop-blur-sm rounded-xl border border-white/[0.08]">
+                      <span
+                        className="absolute top-1.5 h-7 rounded-lg bg-white/10 transition-[left,width] duration-300 ease-out"
+                        style={{ left: `${indicatorStyle.left}px`, width: `${indicatorStyle.width}px` }}
+                      />
+                      {[
+                        { key: "draft", label: "Drafts" },
+                        { key: "published", label: "Published" },
+                      ].map(({ key, label }) => (
+                        <Button
+                          key={key}
+                          variant={statusFilter === key ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => setStatusFilter(key as typeof statusFilter)}
+                          ref={(el) => {
+                            buttonRefs.current[key] = el
+                          }}
+                          className={`relative z-10 h-7 rounded-lg transition-transform ${statusFilter === key ? "bg-primary text-primary-foreground" : "text-white/80 hover:text-white hover:bg-muted/60"} ${statusFilter === key ? "" : "hover:translate-y-[-1px]"}`}
+                        >
+                          {label}
+                        </Button>
+                      ))}
                     </div>
                   </div>
-                )}
+                  <div className="px-4 lg:px-6 pb-4">
+                    <div className="space-y-2">
+                      {filteredCampaigns.map((c) => (
+                        <div key={c.id} onClick={() => handleOpenCampaign(c)} className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.06] bg-white/[0.015] px-4 py-3 hover:bg-white/[0.03] transition-colors cursor-pointer">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium truncate">{c.title}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-muted-foreground px-2 rounded-full">{c.type}</Badge>
+                            <Badge
+                              variant="outline"
+                              className={`px-2 rounded-full border ${
+                                c.mode.toUpperCase() === "GEO"
+                                  ? "bg-sky-500/10 border-sky-500/20 text-sky-300"
+                                  : "bg-amber-500/10 border-amber-500/20 text-amber-300"
+                              }`}
+                            >
+                              {c.mode}
+                            </Badge>
+                          </div>
+                          <div className="w-[140px] text-right">
+                            <Button variant="outline" size="sm" className="h-7 min-w-[110px] px-3 rounded-full">{c.status}</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
               </div>
             </div>
           </div>

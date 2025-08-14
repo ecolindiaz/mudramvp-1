@@ -19,6 +19,7 @@ import {
   IconMicrophone,
   IconPlus,
   IconCopy,
+  IconCheck,
 } from "@tabler/icons-react"
 
 interface Message {
@@ -177,19 +178,13 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
         onClick={() => onOpenChange(false)}
       />
       <div
-        className={`fixed ${expanded ? 'right-6 bottom-8 w-[720px] h-[80vh]' : 'right-6 bottom-20 w-[440px] h-[560px]'} bg-black/70 backdrop-blur-xl border border-white/10 rounded-2xl shadow-none ring-1 ring-white/5 z-[1000] flex flex-col overflow-hidden transition-all duration-200`}
+        className={`fixed ${expanded ? 'right-6 bottom-8 w-[720px] h-[80vh]' : 'right-6 bottom-20 w-[440px] h-[560px]'} bg-neutral-900/85 backdrop-blur-xl border border-neutral-800 rounded-3xl ring-1 ring-neutral-800 z-[1000] flex flex-col overflow-hidden transition-all duration-200`}
       >
       {/* Header */}
-      <div className="p-3.5 md:p-4 border-b border-white/10 bg-black/30">
+      <div className="p-4 md:p-4 border-b border-neutral-800 bg-neutral-900/60 backdrop-blur-sm">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center shadow-inner ring-1 ring-white/20">
-              <IconSparkles className="size-5 text-primary-foreground" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold">Mudra AI</h3>
-              <p className="text-xs text-muted-foreground">Ask anything about your GEO data</p>
-            </div>
+          <div className="flex items-center">
+            <h3 className="text-sm md:text-base font-semibold tracking-tight">Mudra Chat</h3>
           </div>
           <div className="flex items-center gap-1.5">
             <Button
@@ -257,7 +252,7 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
                   <Button
                     key={index}
                     variant="outline"
-                    className="h-8 px-3 text-xs"
+                    className="h-8 px-3 text-xs rounded-full border-white/15 bg-white/5 hover:bg-white/10 text-foreground/90"
                     onClick={() => handleQuickPrompt(prompt)}
                   >
                     {prompt}
@@ -271,7 +266,7 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
             <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                 message.role === 'user' 
-                  ? 'bg-white/10' 
+                  ? 'bg-neutral-800' 
                   : 'bg-gradient-to-r from-primary to-primary/80'
               }`}>
                 {message.role === 'user' ? (
@@ -280,10 +275,10 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
                   <IconSparkles className="size-4 text-primary-foreground" />
                 )}
               </div>
-              <div className={`group relative max-w-[80%] p-3 rounded-2xl border ${
+              <div className={`group relative max-w-[75%] md:max-w-[70%] px-3 py-2.5 rounded-2xl border shadow-xs ${
                 message.role === 'user' 
-                  ? 'bg-white/5 border-white/10' 
-                  : 'bg-gradient-to-r from-primary/5 to-primary/10 border-white/10'
+                  ? 'bg-neutral-800/70 border-neutral-700' 
+                  : 'bg-gradient-to-br from-primary/7 to-primary/5 border-white/10'
               }`}>
                 <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                   {message.content}
@@ -292,7 +287,7 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
                 <button
                   type="button"
                   onClick={() => handleCopy(message.content, message.id)}
-                  className={`absolute -top-2 -right-2 hidden group-hover:flex items-center justify-center w-6 h-6 rounded-full border border-white/10 bg-black/40 hover:bg-black/60 transition ${message.role === 'user' ? 'opacity-70' : ''}`}
+                  className={`absolute -top-2 -right-2 hidden group-hover:flex items-center justify-center w-6 h-6 rounded-full border border-neutral-700 bg-neutral-900/50 hover:bg-neutral-800/70 transition ${message.role === 'user' ? 'opacity-70' : ''}`}
                   title="Copy"
                 >
                   {copiedId === message.id ? (
@@ -332,7 +327,7 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
       </ScrollArea>
 
       {/* Input Area */}
-      <div className="p-3.5 md:p-4 border-t border-white/10 bg-black/30">
+      <div className="p-4 md:p-4 border-t border-neutral-800 bg-neutral-900/60 backdrop-blur-sm">
         {isDeepThinking && (
           <div className="mb-3 p-3 bg-gradient-to-t from-primary/5 to-card border border-border/20 rounded-xl shadow-xs">
             <div className="flex items-center justify-between">
@@ -357,7 +352,7 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
             onChange={handleInputChange}
             placeholder="Ask me anything..."
             disabled={isLoading || isDeepThinking}
-            className="flex-1 min-h-[40px] max-h-28 h-10 resize-none rounded-xl bg-white/5 border border-white/10 focus-visible:border-white/20"
+            className="flex-1 min-h-[44px] max-h-28 h-12 resize-none rounded-2xl bg-white/5 border border-white/10 focus-visible:border-white/20 placeholder:text-white/60"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault()
@@ -376,7 +371,7 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
             onClick={handleDeepThink}
             disabled={isLoading || isDeepThinking || !input.trim()}
             variant="outline"
-            className={`h-10 px-3 rounded-xl border-white/15 transition-all duration-200 ${
+            className={`h-10 px-3 rounded-2xl border-white/15 transition-all duration-200 ${
               !input.trim() 
                 ? 'opacity-50 cursor-not-allowed' 
                 : 'hover:bg-gradient-to-t hover:from-primary/5 hover:to-card hover:border-primary/20 hover:shadow-xs'
@@ -388,7 +383,7 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
           <Button 
             type="submit" 
             disabled={isLoading || isDeepThinking || !input.trim()}
-            className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 h-10 px-4 rounded-xl"
+            className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 h-10 px-4 rounded-2xl"
           >
             <IconSend className="size-4" />
           </Button>

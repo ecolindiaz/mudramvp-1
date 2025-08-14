@@ -3,16 +3,6 @@
 // HOW: Exports typed mock data for all platform features
 // IMPACT: Enables full frontend development with realistic data
 
-export const mockUser = {
-  id: "user_1",
-  name: "John Doe",
-  email: "john@techstartup.com",
-  avatar: "/avatars/user.jpg",
-  company: "TechStartup Inc",
-  plan: "pro",
-  credits: 850,
-  createdAt: new Date("2024-01-15"),
-};
 
 export const mockDashboardMetrics = {
   aiVisibilityScore: {

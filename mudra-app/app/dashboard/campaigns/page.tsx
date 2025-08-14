@@ -13,18 +13,48 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, FileText, Newspaper, Briefcase, Target, Search, Sparkles, CheckCircle2, Loader2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Plus, FileText, Newspaper, Briefcase, Target, Search, Sparkles, CheckCircle2, Loader2, X, Info, ChevronLeft, Lightbulb, Tag } from "lucide-react"
 import { useRouter } from "next/navigation"
  
  
 
 export default function CampaignsPage() {
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [selectedType, setSelectedType] = useState<"blog" | "newsletter" | "case">("blog")
   const [improvement, setImprovement] = useState<"geo" | "seo" | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [progressIndex, setProgressIndex] = useState(0)
   const [generationComplete, setGenerationComplete] = useState(false)
+  // Configuration state (mock values for now)
+  const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null)
+  const [selectedIcp, setSelectedIcp] = useState<string | null>(null)
+  const [keywords, setKeywords] = useState<string[]>([])
+  const [keywordInput, setKeywordInput] = useState("")
+
+  // Mock suggestions (replace with real data later)
+  const promptSuggestions = [
+    "Product launch announcement",
+    "Weekly update outline",
+    "Case study request",
+    "Thought leadership Q&A",
+  ]
+  const icpSuggestions = [
+    "Seed‑stage startup founders",
+    "GTM leads at SaaS startups",
+    "AI practitioners & researchers",
+    "Developers evaluating AI tools",
+  ]
+  const keywordSuggestions = [
+    "ai visibility",
+    "geo marketing",
+    "prompt engineering",
+    "startup go-to-market",
+    "ai citations",
+  ]
   const [campaigns] = useState<Array<{ id: string; title: string; type: string; mode: string; status: "Draft" | "Scheduled" | "Published"; updatedAt: number }>>([
     { id: "cmp_1", title: "Product Launch Blog", type: "Blog Post", mode: "GEO", status: "Draft", updatedAt: Date.now() - 60 * 60 * 1000 },
     { id: "cmp_2", title: "Weekly Update Newsletter", type: "Newsletter", mode: "SEO", status: "Scheduled", updatedAt: Date.now() - 24 * 60 * 60 * 1000 },
@@ -113,7 +143,16 @@ export default function CampaignsPage() {
         setTimeout(() => {
           const id = `cmp_${Date.now().toString(36)}`
           const modeParam = improvement === "seo" ? "seo" : "geo"
-          router.push(`/dashboard/campaigns/${id}?type=blog&mode=${modeParam}`)
+          // pass configured mock values via query params to prefill canvas chips
+          let extra = ""
+          if (modeParam === "geo") {
+            if (selectedPrompt) extra += `&prompt=${encodeURIComponent(selectedPrompt)}`
+            if (selectedIcp) extra += `&icp=${encodeURIComponent(selectedIcp)}`
+          } else if (modeParam === "seo") {
+            const keywordStr = keywords.join(", ")
+            if (keywordStr) extra += `&keyword=${encodeURIComponent(keywordStr)}`
+          }
+          router.push(`/dashboard/campaigns/${id}?type=blog&mode=${modeParam}${extra}`)
           setIsGenerating(false)
           setStep(1)
           setGenerationComplete(false)
@@ -151,7 +190,7 @@ export default function CampaignsPage() {
                       </p>
                   </div>
                   <div className="flex items-center">
-                    <Dialog onOpenChange={(open) => { if (open) { setStep(1); setImprovement(null); setSelectedType("blog") } }}>
+                     <Dialog onOpenChange={(open) => { if (open) { setStep(1); setImprovement(null); setSelectedType("blog"); setSelectedPrompt(null); setSelectedIcp(null); setKeywords([]); setKeywordInput("") } }}>
                       <DialogTrigger asChild>
                         <Button size="sm" className="h-9 rounded-xl">
                           <Plus className="size-4 mr-2" />
@@ -162,14 +201,22 @@ export default function CampaignsPage() {
                         <div className="p-5 md:p-6 lg:p-7 bg-gradient-to-b from-white/[0.02] to-transparent">
                           <DialogHeader className="pb-2">
                             <DialogTitle className="text-lg md:text-xl font-semibold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">Create a Campaign</DialogTitle>
-                            <DialogDescription className="text-muted-foreground/90 text-sm">
-                              {step === 1 ? "Choose a content type to start" : "Choose what to improve"}
-                            </DialogDescription>
+                             <DialogDescription className="text-muted-foreground/90 text-sm">
+                               {step === 1
+                                 ? "Choose a content type to start"
+                                 : step === 2
+                                   ? "Choose what to improve"
+                                   : step === 3
+                                     ? improvement === "geo"
+                                       ? "Select the prompt and ICP"
+                                       : "Add your target keywords"
+                                     : "Generating your document"}
+                             </DialogDescription>
                           </DialogHeader>
                           {/* Linear Stepper (lines only) */}
                           <div className="mt-2 mb-5 md:mt-3 md:mb-6">
-                            <div className="relative h-[3px] bg-white/10 rounded-full overflow-hidden">
-                              <div className={`absolute left-0 top-0 h-[3px] bg-gradient-to-r from-primary to-white/90 rounded-full transition-[width] duration-300 ease-out ${step <= 1 ? "w-0" : step === 2 ? "w-1/2" : "w-full"}`} />
+                             <div className="relative h-[3px] bg-white/10 rounded-full overflow-hidden">
+                               <div className={`absolute left-0 top-0 h-[3px] bg-gradient-to-r from-primary to-white/90 rounded-full transition-[width] duration-300 ease-out ${step <= 1 ? "w-0" : step === 2 ? "w-1/3" : step === 3 ? "w-2/3" : "w-full"}`} />
                 </div>
             </div>
                           {step === 1 && (
@@ -205,9 +252,9 @@ export default function CampaignsPage() {
                               </Card>
                             </div>
                           )}
-                          {step === 2 && (
+                           {step === 2 && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mt-1">
-                              <Card onClick={() => { setImprovement("geo"); setStep(3) }} className={`group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-xl bg-gradient-to-b from-white/[0.04] to-transparent hover:from-white/[0.07] hover:translate-y-[-1px] ${improvement === "geo" ? "ring-1 ring-white/30" : ""}`}>
+                              <Card onClick={() => { setImprovement("geo"); setSelectedPrompt(null); setSelectedIcp(null); setKeywords([]); setKeywordInput(""); setStep(3) }} className={`group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-xl bg-gradient-to-b from-white/[0.04] to-transparent hover:from-white/[0.07] hover:translate-y-[-1px] ${improvement === "geo" ? "ring-1 ring-white/30" : ""}`}>
                                 <CardHeader className="items-start gap-3 pb-3">
                                   <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
                                     <Target className="size-5" />
@@ -216,7 +263,7 @@ export default function CampaignsPage() {
                                   <CardDescription className="text-xs">Use your prompt set and audience</CardDescription>
                                 </CardHeader>
                               </Card>
-                              <Card onClick={() => { setImprovement("seo"); setStep(3) }} className={`group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-xl bg-gradient-to-b from-white/[0.04] to-transparent hover:from-white/[0.07] hover:translate-y-[-1px] ${improvement === "seo" ? "ring-1 ring-white/30" : ""}`}>
+                              <Card onClick={() => { setImprovement("seo"); setSelectedPrompt(null); setSelectedIcp(null); setKeywords([]); setKeywordInput(""); setStep(3) }} className={`group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-xl bg-gradient-to-b from-white/[0.04] to-transparent hover:from-white/[0.07] hover:translate-y-[-1px] ${improvement === "seo" ? "ring-1 ring-white/30" : ""}`}>
                                 <CardHeader className="items-start gap-3 pb-3">
                                   <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
                                     <Search className="size-5" />
@@ -229,6 +276,211 @@ export default function CampaignsPage() {
                           )}
                         {step === 3 && (
                           <div className="pt-3 md:pt-5">
+                            {improvement === "geo" ? (
+                              <div className="space-y-5">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <Label className="text-xs text-white/80">Prompt</Label>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Info className="size-3.5 text-white/50" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>Pick a prompt template to guide the content.</TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                    <Select value={selectedPrompt ?? undefined} onValueChange={(v) => setSelectedPrompt(v)}>
+                                      <SelectTrigger className="h-9 rounded-xl bg-white/5 border-white/10 text-white/90 w-full">
+                                        <SelectValue placeholder="Select a prompt" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {promptSuggestions.map((p) => (
+                                          <SelectItem key={p} value={p}>{p}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <Label className="text-xs text-white/80">ICP</Label>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Info className="size-3.5 text-white/50" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>Choose the ideal customer profile.</TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                    <Select value={selectedIcp ?? undefined} onValueChange={(v) => setSelectedIcp(v)}>
+                                      <SelectTrigger className="h-9 rounded-xl bg-white/5 border-white/10 text-white/90 w-full">
+                                        <SelectValue placeholder="Select an ICP" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {icpSuggestions.map((i) => (
+                                          <SelectItem key={i} value={i}>{i}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between pt-1">
+                                  <Button variant="outline" size="sm" className="h-9 rounded-xl" onClick={() => setStep(2)}>
+                                    <ChevronLeft className="size-4 mr-1" /> Back
+                                  </Button>
+                                  <Button disabled={!selectedPrompt || !selectedIcp} onClick={() => setStep(4)} className="h-9 rounded-xl">
+                                    Continue
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-5">
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-1.5">
+                                      <Label className="text-xs text-white/80">Keywords</Label>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Info className="size-3.5 text-white/50" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>Add multiple target keywords. Press Enter or comma.</TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                    <div className="text-xs text-white/60">{keywords.length} selected</div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      value={keywordInput}
+                                      onChange={(e) => setKeywordInput(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === ",") {
+                                          e.preventDefault()
+                                          const v = keywordInput.trim().replace(/,$/, "")
+                                          if (v && !keywords.includes(v)) setKeywords((k) => [...k, v])
+                                          setKeywordInput("")
+                                        }
+                                      }}
+                                      placeholder="Type a keyword and press Enter"
+                                      className="h-9 rounded-xl bg-white/5 border-white/10 flex-1"
+                                    />
+                                    {keywords.length > 0 && (
+                                      <Button variant="outline" size="sm" className="h-9 rounded-xl" onClick={() => setKeywords([])}>Clear</Button>
+                                    )}
+                                  </div>
+                                  {keywords.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 pt-1">
+                                      {keywords.map((k) => (
+                                        <span key={k} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/80">
+                                          <Tag className="size-3.5" /> {k}
+                                          <button
+                                            type="button"
+                                            onClick={() => setKeywords((arr) => arr.filter((i) => i !== k))}
+                                            className="inline-flex items-center justify-center"
+                                            aria-label={`Remove ${k}`}
+                                          >
+                                            <X className="size-3.5 text-white/70" />
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="text-xs text-white/60 mb-1">Quick add</div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {keywordSuggestions.map((s) => (
+                                      <button key={s} type="button" onClick={() => setKeywords((arr) => (arr.includes(s) ? arr : [...arr, s]))} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${keywords.includes(s) ? "bg-primary/20 border-primary/30 text-white" : "bg-white/5 border-white/10 text-white/80 hover:bg-white/10"}`}>
+                                        <Tag className="size-3.5" /> {s}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between pt-1">
+                                  <Button variant="outline" size="sm" className="h-9 rounded-xl" onClick={() => setStep(2)}>
+                                    <ChevronLeft className="size-4 mr-1" /> Back
+                                  </Button>
+                                  <Button disabled={keywords.length === 0} onClick={() => setStep(4)} className="h-9 rounded-xl">
+                                    Continue
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {step === 4 && (
+                          <div className="pt-3 md:pt-5 space-y-4">
+                            {/* Review summary */}
+                            {isGenerating && improvement === "geo" ? (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center justify-center size-7 rounded-lg bg-white/5 border border-white/10">
+                                      <Lightbulb className="size-4 text-white/80" />
+                                    </span>
+                                    <div className="text-[11px] uppercase tracking-wide text-white/60">Prompt</div>
+                                  </div>
+                                  <div className="mt-1.5 text-sm text-white/90 truncate" title={selectedPrompt || "—"}>
+                                    {selectedPrompt || "—"}
+                                  </div>
+                                </div>
+                                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center justify-center size-7 rounded-lg bg-white/5 border border-white/10">
+                                      <Tag className="size-4 text-white/80" />
+                                    </span>
+                                    <div className="text-[11px] uppercase tracking-wide text-white/60">ICP</div>
+                                  </div>
+                                  <div className="mt-1.5 text-sm text-white/90 truncate" title={selectedIcp || "—"}>
+                                    {selectedIcp || "—"}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <Card className="border-white/10 bg-white/[0.015]">
+                                <CardHeader className="pb-2">
+                                  <CardTitle className="text-base">Review</CardTitle>
+                                  <CardDescription className="text-xs">Confirm your selections before generating</CardDescription>
+                                </CardHeader>
+                                <CardContent className="pt-0">
+                                  {improvement === "geo" ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                                        <div className="flex items-center gap-2">
+                                          <span className="inline-flex items-center justify-center size-7 rounded-lg bg-white/5 border border-white/10">
+                                            <Lightbulb className="size-4 text-white/80" />
+                                          </span>
+                                          <div className="text-[11px] uppercase tracking-wide text-white/60">Prompt</div>
+                                        </div>
+                                        <div className="mt-1.5 text-sm text-white/90 truncate" title={selectedPrompt || "—"}>
+                                          {selectedPrompt || "—"}
+                                        </div>
+                                      </div>
+                                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                                        <div className="flex items-center gap-2">
+                                          <span className="inline-flex items-center justify-center size-7 rounded-lg bg-white/5 border border-white/10">
+                                            <Tag className="size-4 text-white/80" />
+                                          </span>
+                                          <div className="text-[11px] uppercase tracking-wide text-white/60">ICP</div>
+                                        </div>
+                                        <div className="mt-1.5 text-sm text-white/90 truncate" title={selectedIcp || "—"}>
+                                          {selectedIcp || "—"}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-2">
+                                      {keywords.length > 0 ? (
+                                        keywords.map((k) => (
+                                          <span key={k} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/80">
+                                            <Tag className="size-3.5" /> {k}
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="text-sm text-white/70">No keywords selected.</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            )}
                             {isGenerating ? (
                               <div className="space-y-3" aria-live="polite">
                                 {(improvement === "seo" ? seoSteps : geoSteps).map((label, idx) => {
@@ -256,8 +508,8 @@ export default function CampaignsPage() {
                                       </div>
                                       <div className={`text-sm ${done ? "text-white/80" : active ? "text-white" : "text-white/70"}`}>
                                         {idx + 1}. {label}
-                </div>
-              </div>
+                                      </div>
+                                    </div>
                                   )
                                 })}
                                 {generationComplete && (
@@ -268,8 +520,15 @@ export default function CampaignsPage() {
                                 )}
                               </div>
                             ) : (
-                              <div className="flex items-center justify-center">
-                                <Button onClick={startGeneration} className="h-10 px-5 rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 shadow-sm gap-2">
+                              <div className="flex items-center justify-between">
+                                <Button variant="outline" size="sm" className="h-10 rounded-xl" onClick={() => setStep(3)}>
+                                  <ChevronLeft className="size-4 mr-1" /> Edit selections
+                                </Button>
+                                <Button
+                                  onClick={startGeneration}
+                                  disabled={(improvement === "geo" && (!selectedPrompt || !selectedIcp)) || (improvement === "seo" && keywords.length === 0)}
+                                  className="h-10 px-5 rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 shadow-sm gap-2"
+                                >
                                   <Sparkles className="size-4" />
                                   Generate
                                 </Button>

@@ -36,9 +36,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         lastValue={aiVisibilityRank.previous}
         positive={aiVisibilityRank.trend === "up"}
         sparkline={[58,64,61,73,79,86]}
-        ctaLabel="Open AI Visibility"
-        onCtaClick={() => (window.location.href = "/dashboard/ai-visibility")}
         accentColor="rgba(255,255,255,0.9)"
+        info="Amount of times mentioned, referenced, cited, or included in AI responses across the prompts we query."
       />
 
       <DashboardStatCard
@@ -48,9 +47,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         lastValue={mockDashboardMetrics.technicalScore.previous}
         positive={mockDashboardMetrics.technicalScore.trend === "up"}
         sparkline={[78,80,82,83,84,85]}
-        ctaLabel="View Technical Report"
-        onCtaClick={() => (window.location.href = "/dashboard/campaigns")}
         accentColor="rgba(255,255,255,0.9)"
+        info="How well your site is optimized for AI and SEO."
       />
 
       <DashboardStatCard
@@ -60,9 +58,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         lastValue={humansReferredFromLLMs.previous}
         positive={humansReferredFromLLMs.trend === "up"}
         sparkline={[120,180,210,190,230,247]}
-        ctaLabel="See Sources"
-        onCtaClick={() => console.log("Open traffic sources")}
         accentColor="rgba(255,255,255,0.9)"
+        info="Traffic volume over time from your analytics sources."
       />
     </div>
   )

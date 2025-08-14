@@ -37,6 +37,8 @@ import {
   IconTarget,
   IconExternalLink,
   IconCheck,
+  IconChevronDown,
+  IconChevronRight,
 } from "@tabler/icons-react"
 import {
   DropdownMenu,
@@ -132,23 +134,18 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
   const allStepsDone = totalSteps > 0 && completedSteps === totalSteps
 
   return (
-    <DialogContent className="max-w-6xl max-h-[86vh] p-6 md:p-8 bg-background/95 border border-white/10 rounded-2xl flex flex-col">
-      <DialogHeader className="pb-4">
-        <div className="flex items-start gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-              <IconTarget className="size-5 text-primary" />
-            </div>
-            <div>
-              <DialogTitle className="text-xl font-semibold text-foreground/90">
-                {task.header}
-              </DialogTitle>
-            </div>
+    <DialogContent className="max-w-6xl max-h-[86vh] p-6 md:p-8 bg-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl flex flex-col">
+      <DialogHeader className="pb-3">
+        <div className="flex items-start">
+          <div>
+            <DialogTitle className="text-lg leading-snug font-semibold text-white">
+              {task.header}
+            </DialogTitle>
+            <DialogDescription className="mt-1 text-[13px] md:text-sm text-white/70">
+              {task.description}
+            </DialogDescription>
           </div>
         </div>
-        <DialogDescription className="text-muted-foreground/80 pt-2">
-          {task.description}
-        </DialogDescription>
       </DialogHeader>
 
       <div className="flex-1 overflow-y-auto pr-0 mt-2">
@@ -159,8 +156,8 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
               <TabsTrigger value="steps">Steps</TabsTrigger>
               <TabsTrigger value="resources">Resources</TabsTrigger>
             </TabsList>
-            <div className="hidden md:flex items-center gap-2">
-              <Badge variant="outline" className="text-xs">Priority: {task.priority}</Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="h-7 rounded-full text-xs whitespace-nowrap">Priority: {task.priority}</Badge>
             </div>
           </div>
 
@@ -202,7 +199,7 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
 
           <TabsContent value="steps">
             {task.detailedSteps.length > 0 && (
-              <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs mb-4">
+            <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs mb-4">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg font-semibold">Step Progress</CardTitle>
                   <CardDescription className="text-muted-foreground/80">
@@ -220,29 +217,37 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
                 <CardDescription className="text-muted-foreground/80">Follow these steps</CardDescription>
               </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {task.detailedSteps.map((step, index) => (
                   <div
                     key={step.id}
-                    className={`border border-border/30 rounded-lg p-4 bg-gradient-to-r from-background/50 to-background/30 hover:from-background/60 hover:to-background/40 transition-all duration-200 cursor-pointer ${expandedStepId === step.id ? 'ring-1 ring-white/10' : ''}`}
+                    className={`group rounded-xl border border-white/10 p-4 bg-white/[0.03] hover:bg-white/[0.05] transition-all duration-200 cursor-pointer ${expandedStepId === step.id ? 'ring-1 ring-white/20' : ''} ${stepStates[step.id] ? 'border-emerald-500/30' : ''}`}
                     aria-expanded={expandedStepId === step.id}
                     onClick={() => setExpandedStepId(prev => (prev === step.id ? null : step.id))}
                   >
-                    <div className="flex gap-4">
-                      <div className="flex-shrink-0 mt-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex gap-3">
+                      <div className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-medium ${stepStates[step.id] ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-white/70'}`}>{index + 1}</div>
+                      <div className="flex-shrink-0 mt-0.5" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={stepStates[step.id] || false}
                           onCheckedChange={() => toggleStep(step.id)}
                         />
                       </div>
                       <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-3">
-                            <h4 className="font-semibold text-foreground/90">Step {index + 1}: {step.title}</h4>
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="font-semibold text-white">{step.title}</h4>
+                          <div className="ml-auto text-white/60">
+                            {expandedStepId === step.id ? (
+                              <IconChevronDown className="size-4" />
+                            ) : (
+                              <IconChevronRight className="size-4" />
+                            )}
                           </div>
-                        <p className="text-sm text-muted-foreground/80 leading-relaxed">{step.description}</p>
+                        </div>
+                        <p className="text-sm text-white/80 leading-relaxed">{step.description}</p>
 
                         {expandedStepId === step.id && (
-                          <div className="mt-3 pt-3 border-t border-border/30 space-y-3">
+                          <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
                             <h5 className="text-sm font-semibold">Detailed instructions</h5>
                             <ol className="list-decimal ml-5 space-y-2 text-sm text-muted-foreground">
                               <li>Prepare: identify the exact files and locations impacted by “{step.title}”. Create a backup or a new branch before changes.</li>
@@ -250,7 +255,7 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
                               <li>Verify: test locally and in a staging environment. Use browser devtools and network/SEO tools to confirm results.</li>
                               <li>Document: capture a short note of what changed and why so teammates can follow the context later.</li>
                             </ol>
-                            <p className="text-xs text-muted-foreground/80">Tip: Click the checkbox on the left to mark this step as completed.</p>
+                            <p className="text-xs text-white/60">Tip: Click the checkbox on the left to mark this step as completed.</p>
                           </div>
                         )}
                       </div>
@@ -271,15 +276,15 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {task.resources.map((resource, index) => (
-                    <div key={index} className="flex items-center gap-3 p-3 border border-border/30 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer">
+                    <a key={index} href={resource.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 border border-white/10 rounded-xl bg-white/[0.03] hover:bg-white/[0.05] transition-colors">
                       <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                         <IconExternalLink className="size-4 text-primary" />
                       </div>
                       <div className="flex-1">
-                        <p className="font-semibold text-sm text-foreground/90">{resource.title}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{resource.type}</p>
+                        <p className="font-semibold text-sm text-white">{resource.title}</p>
+                        <p className="text-xs text-white/70 capitalize">{resource.type}</p>
                       </div>
-                    </div>
+                    </a>
                   ))}
                 </div>
               </CardContent>

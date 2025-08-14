@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import {
   MoreHorizontal,
@@ -28,6 +29,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowRight,
+  Info,
 } from "lucide-react"
 
 interface DashboardStatCardProps {
@@ -46,6 +48,7 @@ interface DashboardStatCardProps {
   ctaLabel?: string
   onCtaClick?: () => void
   accentColor?: string
+  info?: string
 }
 
 function defaultFormat(n: number) {
@@ -70,6 +73,7 @@ export function DashboardStatCard({
   ctaLabel,
   onCtaClick,
   accentColor,
+  info,
 }: DashboardStatCardProps) {
   const formatValue = format ?? defaultFormat
   const formatLast = lastFormat ?? format ?? defaultFormat
@@ -92,33 +96,46 @@ export function DashboardStatCard({
             <CardTitle className="text-muted-foreground text-sm font-medium">{title}</CardTitle>
           </div>
           <CardAction>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="-me-1.5">
-                  <MoreHorizontal />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" side="bottom">
-                <DropdownMenuItem>
-                  <Settings />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <TriangleAlert /> Add Alert
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Pin /> Pin to Dashboard
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Share2 /> Share
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive">
-                  <Trash />
-                  Remove
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {info ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="-me-1.5" aria-label="About this metric">
+                    <Info className="size-4 text-white/70" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={8} className="max-w-xs text-white/90">
+                  {info}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="-me-1.5">
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="bottom">
+                  <DropdownMenuItem>
+                    <Settings />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <TriangleAlert /> Add Alert
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Pin /> Pin to Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Share2 /> Share
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive">
+                    <Trash />
+                    Remove
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </CardAction>
         </div>
       </CardHeader>

@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 import {
@@ -64,7 +65,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   const lifetimeContentCreated = 36
 
   return (
-    <div className={cn("rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-sm", className)}>
+    <div className={cn("rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur-sm", className)}>
       <div className="p-5 md:p-6 lg:p-8">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -72,8 +73,8 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             <h2 className="text-xl md:text-2xl font-semibold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">What the AI sees in your data</h2>
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded-md border border-white/10 px-2.5 py-1 text-xs text-white/80 bg-white/[0.02]">
-              <IconSparkles className="size-4" />
+            <div className="inline-flex items-center gap-2 rounded-md border border-yellow-500/20 px-2.5 py-1 text-xs text-yellow-400 bg-yellow-500/10">
+              <IconSparkles className="size-4 text-yellow-400" />
               AI Summary
             </div>
             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-white/80 hover:text-white">
@@ -91,7 +92,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium text-white/90">
                 <IconSparkles className="size-4" />
                 Summary
@@ -102,18 +103,25 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             </div>
 
             {/* Citations list */}
-            <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                 <div>
                   <div className="text-sm font-medium text-white/90">Citations</div>
                   <div className="text-xs text-white/60">Sources across active models</div>
                 </div>
-                <IconInfoCircle className="size-4 text-white/50" />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <IconInfoCircle className="size-4 text-white/60" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={8}>Top sources AI cites from your industry.</TooltipContent>
+                </Tooltip>
               </div>
               <div className="divide-y divide-white/8">
                 <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2 text-xs text-white/60">
                   <span>Source</span>
-                  <span>Used</span>
+                  <span>Rate of mention</span>
                 </div>
                 {citations.map((c, idx) => (
                   <div key={idx} className="grid grid-cols-[1fr_auto] items-center px-4 py-3 hover:bg-white/[0.02] transition-colors">

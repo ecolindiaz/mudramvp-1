@@ -8,9 +8,7 @@ import type { AIModel } from "./model-selector"
 import {
   mockOverviewMetrics,
   mockAiVisibilityData,
-  mockTechnicalData,
-  mockContentData,
-  mockExternalFootprint,
+  mockDashboardMetrics,
 } from "@/lib/mock/data"
 import { 
   IconSparkles, 
@@ -35,20 +33,17 @@ function generateSummary(): string {
 
   const aiVisibility = mockAiVisibilityData.overallScore
   const contentQuality = mockOverviewMetrics.contentQualityScore.current
-  const technical = mockTechnicalData.overallScore
-  const mentions = mockExternalFootprint.totalMentions
-  const uniqueDomains = mockExternalFootprint.uniqueDomains
+  const technical = mockDashboardMetrics.technicalScore.current
   const visibilityChange = mockOverviewMetrics.aiVisibilityRank.change
   const topModels = mockAiVisibilityData.byModel.slice(0, 2).map(m => m.model).join(" and ")
 
   return (
     `Your brand currently holds an AI Visibility score of ${aiVisibility}/100, with solid technical health ` +
     `(${technical}/100) and content quality at ${contentQuality}/100. In the recent period, ` +
-    `${humans} users were referred by AI search engines. We tracked ${mentions} external mentions across ` +
-    `${uniqueDomains} unique domains. Visibility improved ${visibilityChange}% vs the previous period ` +
-    `with strongest model coverage from ${topModels}. This week you closed ${tasks} tasks against ${goals} goals. ` +
-    `Focus on strengthening content breadth and citing authoritative sources to convert visibility into ` +
-    `more qualified referrals.`
+    `${humans} users were referred by AI search engines. Visibility improved ${visibilityChange}% vs the ` +
+    `previous period with strongest model coverage from ${topModels}. This week you closed ${tasks} tasks ` +
+    `against ${goals} goals. Focus on strengthening content breadth and citing authoritative sources to ` +
+    `convert visibility into more qualified referrals.`
   )
 }
 

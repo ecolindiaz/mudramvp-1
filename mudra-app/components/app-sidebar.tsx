@@ -1,33 +1,8 @@
 "use client"
 
 import * as React from "react"
-import {
-  IconCamera,
-  IconChartBar,
-  IconDashboard,
-  IconDatabase,
-  IconFileAi,
-  IconFileDescription,
-  IconFileWord,
-  IconFolder,
-  IconHelp,
-  IconInnerShadowTop,
-  IconListDetails,
-  IconSearch,
-  IconSettings,
-  IconUsers,
-  IconSparkles,
-  IconRobot,
-  IconBrandGoogle,
-  IconTarget,
-  IconBug,
-  IconWorldWww,
-  IconTrendingUp,
-  IconUser,
-  IconChecklist,
-  IconPhone,
-  IconMessage,
-} from "@tabler/icons-react"
+import { IconCamera, IconFileDescription, IconSearch, IconUser, IconPhone, IconMessage, IconFileAi } from "@tabler/icons-react"
+import { SidebarOverviewIcon, SidebarTasksIcon, SidebarCampaignsIcon } from "@/components/icons"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
@@ -81,17 +56,17 @@ const data = {
         {
           title: "Overview",
           url: "/dashboard",
-          icon: IconTrendingUp,
+          icon: (props: any) => <SidebarOverviewIcon className="w-[18px] h-[18px] mr-3" {...props} />,
         },
         {
           title: "Tasks",
           url: "/dashboard/tasks",
-          icon: IconChecklist,
+          icon: (props: any) => <SidebarTasksIcon className="w-[18px] h-[18px] mr-3" {...props} />,
         },
         {
           title: "Campaigns",
           url: "/dashboard/campaigns",
-          icon: IconChartBar,
+          icon: (props: any) => <SidebarCampaignsIcon className="w-[18px] h-[18px] mr-3" {...props} />,
         },
       ]
     },

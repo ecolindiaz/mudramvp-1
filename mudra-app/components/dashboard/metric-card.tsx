@@ -78,11 +78,11 @@ export function MetricCard({
   void icon
 
   return (
-    <Card className={cn("@container/card bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/[0.08]", className)}>
+    <Card className={cn("@container/card bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08]", className)}>
       <CardHeader>
         <CardDescription className="flex items-center gap-2">
           {MetricIcon && (
-            <span className="inline-flex items-center justify-center size-5 rounded-full bg-white/5 border border-white/10">
+            <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/10">
               <MetricIcon className="size-3.5 text-white/80" />
             </span>
           )}

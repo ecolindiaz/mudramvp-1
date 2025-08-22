@@ -49,7 +49,7 @@ export function FloatingMudraButton({
       <button
         onClick={handleClick}
         aria-label={ariaLabel}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-black hover:bg-black/90 border border-white/20 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-lg z-50 group"
+        className="fixed bottom-6 right-6 w-14 h-14 bg-black hover:bg-black/90 border border-white/20 rounded flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-lg z-50 group"
         type="button"
       >
         <img

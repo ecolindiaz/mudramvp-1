@@ -81,15 +81,9 @@ export function DashboardStatCard({
   const cardStyle = { ["--accent-color" as any]: accent } as React.CSSProperties
 
   return (
-    <Card style={cardStyle} className={cn("group relative overflow-hidden bg-black/40 backdrop-blur-sm rounded-2xl border border-white/[0.08] gap-3", className)}>
-      <div
-        className="pointer-events-none absolute left-3 right-3 top-0 h-[2px] rounded-full opacity-60"
-        style={{ background: "linear-gradient(to right, transparent, var(--accent-color), transparent)" }}
-      />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-80"
-        style={{ background: "radial-gradient(600px 120px at top center, var(--accent-color), transparent 60%)", opacity: 0.06 }}
-      />
+    <Card style={cardStyle} className={cn("group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3", className)}>
+
+
       <CardHeader className="border-0">
         <div className="flex items-start justify-between gap-4">
           <div>

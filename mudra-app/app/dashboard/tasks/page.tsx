@@ -16,7 +16,7 @@ export default function TasksPage() {
       className="bg-dark-grey"
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 60)",
+          "--sidebar-width": "calc(var(--spacing) * 52)",
           "--header-height": "calc(var(--spacing) * 12)",
         } as React.CSSProperties
       }

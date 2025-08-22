@@ -44,13 +44,13 @@ function MultiRowInput({
             className="flex-1 bg-black border-white/20 text-white placeholder:text-white/50"
           />
           {rows.length > 1 && (
-            <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-xl" onClick={() => removeRow(i)}>
+            <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-lg" onClick={() => removeRow(i)}>
               <X className="size-4" />
             </Button>
           )}
         </div>
       ))}
-      <Button type="button" variant="outline" size="sm" className="h-9 rounded-xl gap-2" onClick={addRow}>
+      <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg gap-2" onClick={addRow}>
         <Plus className="size-4" /> Add another
       </Button>
     </div>
@@ -152,7 +152,7 @@ export function CompanyForm() {
           <button
             type="button"
             onClick={() => router.push("/welcome/profile")}
-            className="h-9 rounded-xl border border-white/20 px-4 text-white/80 hover:text-white"
+            className="h-9 rounded-lg border border-white/20 px-4 text-white/80 hover:text-white"
           >
             Back
           </button>

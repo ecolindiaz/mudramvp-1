@@ -73,7 +73,7 @@ export default function CampaignCanvasPage({
     <SidebarProvider
       className="bg-dark-grey"
       style={{
-        "--sidebar-width": "calc(var(--spacing) * 60)",
+        "--sidebar-width": "calc(var(--spacing) * 52)",
         "--header-height": "calc(var(--spacing) * 12)",
       } as React.CSSProperties}
     >
@@ -89,12 +89,12 @@ export default function CampaignCanvasPage({
                   <h1 className="text-2xl font-bold tracking-tight text-white">Campaign Canvas</h1>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button onClick={() => setPublished(true)} variant="outline" size="sm" className={`h-9 rounded-xl gap-2 ${published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : ""}`}>
+                  <Button onClick={() => setPublished(true)} variant="outline" size="sm" className={`h-9 rounded-lg gap-2 ${published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : ""}`}>
                     <CheckCircle2 className="size-4" />{published ? 'Published' : 'Mark as published'}
                   </Button>
                   
-                  <Button onClick={handleSave} disabled={saving} variant="outline" size="sm" className="h-9 rounded-xl gap-2"><Save className="size-4" />{saving ? 'Saving…' : 'Save'}</Button>
-                  <Button asChild size="sm" className="h-9 rounded-xl">
+                  <Button onClick={handleSave} disabled={saving} variant="outline" size="sm" className="h-9 rounded-lg gap-2"><Save className="size-4" />{saving ? 'Saving…' : 'Save'}</Button>
+                  <Button asChild size="sm" className="h-9 rounded-lg">
                     <Link href="/dashboard/campaigns">Back to Campaigns</Link>
                   </Button>
                 </div>
@@ -106,11 +106,11 @@ export default function CampaignCanvasPage({
                 {/* Top Row: three cards like Tasks header */}
                 <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
                   {/* Outline / GEO inputs */}
-                    <Card className="relative overflow-hidden min-h-[100px] py-3 bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/10">
+                    <Card className="relative overflow-hidden min-h-[100px] py-3 bg-transparent backdrop-blur-sm rounded-lg border border-white/10">
                     <div className="pointer-events-none absolute left-3 right-3 top-0 h-[2px] rounded-full opacity-60" style={{ background: "linear-gradient(to right, transparent, rgba(255,255,255,0.25), transparent)" }} />
                       <CardHeader className="pb-2">
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center size-6 rounded-full bg-white/5 border border-white/10">
+                        <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/10">
                           <ListTree className="size-3.5 text-white/80" />
                         </span>
                         <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Outline</CardDescription>
@@ -119,26 +119,26 @@ export default function CampaignCanvasPage({
                     <CardContent className="px-4 pt-1">
                       {mode === "geo" ? (
                         <div className="flex flex-wrap gap-2">
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.03] px-2.5 py-1 text-xs text-white/85" title={targetIcp || "Not set"}>
+                          <span className="inline-flex items-center gap-1.5 rounded border border-white/12 bg-transparent px-2.5 py-1 text-xs text-white/85" title={targetIcp || "Not set"}>
                             <Users className="size-3.5" />
                             ICP: {targetIcp ? (targetIcp.length > 36 ? `${targetIcp.slice(0, 36)}…` : targetIcp) : "Not set"}
                           </span>
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.03] px-2.5 py-1 text-xs text-white/85" title={campaignPrompt || "Not set"}>
+                          <span className="inline-flex items-center gap-1.5 rounded border border-white/12 bg-transparent px-2.5 py-1 text-xs text-white/85" title={campaignPrompt || "Not set"}>
                             <MessageSquareText className="size-3.5" />
                             {`Prompt: ${campaignPrompt ? (campaignPrompt.length > 48 ? campaignPrompt.slice(0, 48) + "…" : campaignPrompt) : "Not set"}`}
                           </span>
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.03] px-2.5 py-1 text-xs text-white/85" title={slug || "Not set"}>
+                          <span className="inline-flex items-center gap-1.5 rounded border border-white/12 bg-transparent px-2.5 py-1 text-xs text-white/85" title={slug || "Not set"}>
                             <LinkIcon className="size-3.5" />
                             {`Slug: ${slug ? (slug.length > 32 ? slug.slice(0, 32) + "…" : slug) : "Not set"}`}
                           </span>
                         </div>
                       ) : mode === "seo" ? (
                         <div className="flex flex-wrap gap-2">
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.03] px-2.5 py-1 text-xs text-white/85" title={keyword || "Not set"}>
+                          <span className="inline-flex items-center gap-1.5 rounded border border-white/12 bg-transparent px-2.5 py-1 text-xs text-white/85" title={keyword || "Not set"}>
                             <Search className="size-3.5" />
                             {`Keyword: ${keyword ? (keyword.length > 36 ? keyword.slice(0, 36) + "…" : keyword) : "Not set"}`}
                           </span>
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.03] px-2.5 py-1 text-xs text-white/85" title={slug || "Not set"}>
+                          <span className="inline-flex items-center gap-1.5 rounded border border-white/12 bg-transparent px-2.5 py-1 text-xs text-white/85" title={slug || "Not set"}>
                             <LinkIcon className="size-3.5" />
                             {`Slug: ${slug ? (slug.length > 32 ? slug.slice(0, 32) + "…" : slug) : "Not set"}`}
                           </span>
@@ -150,11 +150,11 @@ export default function CampaignCanvasPage({
                   </Card>
 
                   {/* Details */}
-                    <Card className="relative overflow-hidden min-h-[100px] py-3 bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/10">
+                    <Card className="relative overflow-hidden min-h-[100px] py-3 bg-transparent backdrop-blur-sm rounded-lg border border-white/10">
                     <div className="pointer-events-none absolute left-3 right-3 top-0 h-[2px] rounded-full opacity-60" style={{ background: "linear-gradient(to right, transparent, rgba(255,255,255,0.25), transparent)" }} />
                       <CardHeader className="pb-2">
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center size-6 rounded-full bg-white/5 border border-white/10">
+                        <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/10">
                           <Info className="size-3.5 text-white/80" />
                         </span>
                         <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Details</CardDescription>
@@ -167,11 +167,11 @@ export default function CampaignCanvasPage({
                   </Card>
 
                   {/* Status */}
-                    <Card className="relative overflow-hidden min-h-[100px] py-3 bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/10">
+                    <Card className="relative overflow-hidden min-h-[100px] py-3 bg-transparent backdrop-blur-sm rounded-lg border border-white/10">
                     <div className="pointer-events-none absolute left-3 right-3 top-0 h-[2px] rounded-full opacity-60" style={{ background: "linear-gradient(to right, transparent, rgba(255,255,255,0.25), transparent)" }} />
                       <CardHeader className="pb-2">
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center size-6 rounded-full bg-white/5 border border-white/10">
+                        <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/10">
                           <Clock className="size-3.5 text-white/80" />
                         </span>
                         <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</CardDescription>
@@ -186,7 +186,7 @@ export default function CampaignCanvasPage({
 
                 {/* Editor (below) */}
                 <div className="space-y-3">
-                    <Card className="bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/10">
+                    <Card className="bg-transparent backdrop-blur-sm rounded-lg border border-white/10">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <div>
@@ -197,7 +197,7 @@ export default function CampaignCanvasPage({
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 rounded-xl gap-1.5"
+                            className="h-8 rounded-lg gap-1.5"
                             onClick={() => setPreview((v) => !v)}
                           >
                             <Eye className="size-3.5" /> {preview ? "Hide Preview" : "Preview"}
@@ -205,7 +205,7 @@ export default function CampaignCanvasPage({
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 rounded-xl"
+                            className="h-8 rounded-lg"
                             onClick={async () => {
                               try {
                                 await navigator.clipboard.writeText(`${title}\n\n${body}`)
@@ -221,7 +221,7 @@ export default function CampaignCanvasPage({
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 rounded-xl"
+                            className="h-8 rounded-lg"
                             onClick={() => setEditorExpanded((v) => !v)}
                           >
                             {editorExpanded ? (<><Minimize2 className="size-3.5 mr-1" /> Collapse</>) : (<><Maximize2 className="size-3.5 mr-1" /> Expand</>)}
@@ -230,14 +230,14 @@ export default function CampaignCanvasPage({
                       </div>
                     </CardHeader>
                     <CardContent className={`space-y-3 ${editorExpanded ? "pb-28" : ""}`}>
-                        <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-11 rounded-xl bg-white/[0.03] border-white/10 focus-visible:border-white/20 placeholder:text-white/50" placeholder="Post title" />
+                        <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-11 rounded-lg bg-transparent border-white/10 focus-visible:border-white/20 placeholder:text-white/50" placeholder="Post title" />
                       {preview ? (
-                          <div className={`rounded-xl border border-white/10 bg-white/[0.02] p-4 prose prose-invert max-w-none ${editorExpanded ? "min-h-[80vh]" : ""}`}>
+                          <div className={`rounded-lg border border-white/10 bg-transparent p-4 prose prose-invert max-w-none ${editorExpanded ? "min-h-[80vh]" : ""}`}>
                           <h1 className="mb-2 text-xl font-bold">{title}</h1>
                           <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/80">{body}</div>
                         </div>
                       ) : (
-                          <Textarea value={body} onChange={(e) => setBody(e.target.value)} className={`${editorExpanded ? "min-h-[80vh]" : "min-h-[420px]"} rounded-xl bg-white/[0.03] border border-white/10 focus-visible:border-white/20`} />
+                          <Textarea value={body} onChange={(e) => setBody(e.target.value)} className={`${editorExpanded ? "min-h-[80vh]" : "min-h-[420px]"} rounded-lg bg-transparent border border-white/10 focus-visible:border-white/20`} />
                       )}
                     </CardContent>
                   </Card>

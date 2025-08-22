@@ -74,7 +74,7 @@ export function ProfileForm() {
           <button
             type="button"
             onClick={() => router.push("/welcome")}
-            className="h-9 rounded-xl border border-white/20 px-4 text-white/80 hover:text-white"
+            className="h-9 rounded-lg border border-white/20 px-4 text-white/80 hover:text-white"
           >
             Back
           </button>

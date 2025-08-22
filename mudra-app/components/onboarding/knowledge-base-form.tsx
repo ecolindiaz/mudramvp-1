@@ -39,10 +39,10 @@ export function KnowledgeBaseForm() {
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label className="text-sm font-medium text-white/90">Upload Documents</Label>
-          <div className="rounded-xl border border-white/20 bg-black/40 p-4">
+          <div className="rounded-lg border border-white/20 bg-black/40 p-4">
             <input type="file" multiple accept={accepted} onChange={handleFiles} className="hidden" id="kb-files" />
             <label htmlFor="kb-files">
-              <Button type="button" variant="outline" className="h-9 rounded-xl gap-2">
+              <Button type="button" variant="outline" className="h-9 rounded-lg gap-2">
                 <Upload className="size-4" /> Select files
               </Button>
             </label>
@@ -61,7 +61,7 @@ export function KnowledgeBaseForm() {
           <button
             type="button"
             onClick={() => router.push("/welcome/competitors")}
-            className="h-9 rounded-xl border border-white/20 px-4 text-white/80 hover:text-white"
+            className="h-9 rounded-lg border border-white/20 px-4 text-white/80 hover:text-white"
           >
             Back
           </button>

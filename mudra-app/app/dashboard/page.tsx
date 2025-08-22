@@ -25,7 +25,7 @@ export default function Page() {
       className="bg-dark-grey text-foreground"
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 60)",
+          "--sidebar-width": "calc(var(--spacing) * 52)",
           "--header-height": "calc(var(--spacing) * 12)",
         } as React.CSSProperties
       }
@@ -49,7 +49,7 @@ export default function Page() {
                   <CountdownBadge />
                   <Button
                     variant="dashed"
-                    className="h-9 rounded-xl bg-white text-black hover:bg-white/90 border-transparent"
+                    className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
                   >
                     Run Analysis
                   </Button>

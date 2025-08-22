@@ -124,7 +124,7 @@ export function BrandProfileForm() {
       </div>
 
       {/* Company Information Section */}
-      <Card className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl">
+      <Card className="bg-transparent backdrop-blur-sm border border-white/[0.08] rounded-lg">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Company Information</CardTitle>
           <CardDescription className="text-white/50 text-sm">
@@ -181,7 +181,7 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Personal Information Section */}
-      <Card className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl">
+      <Card className="bg-transparent backdrop-blur-sm border border-white/[0.08] rounded-lg">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Personal Information</CardTitle>
           <CardDescription className="text-white/50 text-sm">
@@ -228,7 +228,7 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Company Profile Section */}
-      <Card className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl">
+      <Card className="bg-transparent backdrop-blur-sm border border-white/[0.08] rounded-lg">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Company Profile</CardTitle>
           <CardDescription className="text-white/50 text-sm">
@@ -269,12 +269,12 @@ export function BrandProfileForm() {
                     className={inputStyles}
                   />
                   {isEditing && (formData.companyServices as string[]).length > 1 && (
-                    <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-xl" onClick={() => removeRow("companyServices", i)}>×</Button>
+                    <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-lg" onClick={() => removeRow("companyServices", i)}>×</Button>
                   )}
                 </div>
               ))}
               {isEditing && (
-                <Button type="button" variant="outline" size="sm" className="h-9 rounded-xl" onClick={() => addRow("companyServices")}>Add another</Button>
+                <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => addRow("companyServices")}>Add another</Button>
               )}
             </div>
           </div>
@@ -290,19 +290,19 @@ export function BrandProfileForm() {
                   className={inputStyles}
                 />
                 {isEditing && (formData.companyICP as string[]).length > 1 && (
-                  <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-xl" onClick={() => removeRow("companyICP", i)}>×</Button>
+                  <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-lg" onClick={() => removeRow("companyICP", i)}>×</Button>
                 )}
               </div>
             ))}
             {isEditing && (
-              <Button type="button" variant="outline" size="sm" className="h-9 rounded-xl" onClick={() => addRow("companyICP")}>Add another</Button>
+              <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => addRow("companyICP")}>Add another</Button>
             )}
           </div>
         </CardContent>
       </Card>
 
       {/* Competitors Section */}
-      <Card className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl">
+      <Card className="bg-transparent backdrop-blur-sm border border-white/[0.08] rounded-lg">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Competitors</CardTitle>
           <CardDescription className="text-white/50 text-sm">
@@ -391,17 +391,17 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Knowledge Base Uploader */}
-      <Card className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl">
+      <Card className="bg-transparent backdrop-blur-sm border border-white/[0.08] rounded-lg">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Knowledge Base</CardTitle>
           <CardDescription className="text-white/50 text-sm">Upload documents to use as context (optional)</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-xl border border-white/20 bg-black/40 p-4">
+          <div className="rounded-lg border border-white/20 bg-black/40 p-4">
             <input id="kb-files-dash" type="file" multiple accept={accepted} onChange={handleKBFiles} className="hidden" />
             {isEditing && (
               <label htmlFor="kb-files-dash">
-                <Button type="button" variant="outline" className="h-9 rounded-xl gap-2">
+                <Button type="button" variant="outline" className="h-9 rounded-lg gap-2">
                   <Upload className="size-4" /> Select files
                 </Button>
               </label>

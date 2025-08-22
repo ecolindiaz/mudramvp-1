@@ -134,7 +134,7 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
   const allStepsDone = totalSteps > 0 && completedSteps === totalSteps
 
   return (
-    <DialogContent className="max-w-6xl max-h-[86vh] p-6 md:p-8 bg-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl flex flex-col">
+    <DialogContent className="max-w-6xl max-h-[86vh] p-6 md:p-8 bg-transparent backdrop-blur-sm border border-white/10 rounded-lg flex flex-col">
       <DialogHeader className="pb-3">
         <div className="flex items-start">
           <div>
@@ -151,13 +151,13 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
       <div className="flex-1 overflow-y-auto pr-0 mt-2">
         <Tabs defaultValue="overview" className="px-1">
           <div className="flex items-center justify-between mb-4">
-            <TabsList className="bg-white/[0.04] border border-white/10 rounded-xl p-1.5 gap-1">
+            <TabsList className="bg-transparent border border-white/10 rounded-lg p-1.5 gap-1">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="steps">Steps</TabsTrigger>
               <TabsTrigger value="resources">Resources</TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="h-7 rounded-full text-xs whitespace-nowrap">Priority: {task.priority}</Badge>
+              <Badge variant="outline" className="h-7 rounded text-xs whitespace-nowrap">Priority: {task.priority}</Badge>
             </div>
           </div>
 
@@ -221,12 +221,12 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
                 {task.detailedSteps.map((step, index) => (
                   <div
                     key={step.id}
-                    className={`group rounded-xl border border-white/10 p-4 bg-white/[0.03] hover:bg-white/[0.05] transition-all duration-200 cursor-pointer ${expandedStepId === step.id ? 'ring-1 ring-white/20' : ''} ${stepStates[step.id] ? 'border-emerald-500/30' : ''}`}
+                    className={`group rounded-lg border border-white/10 p-4 bg-transparent hover:bg-white/[0.05] transition-all duration-200 cursor-pointer ${expandedStepId === step.id ? 'ring-1 ring-white/20' : ''} ${stepStates[step.id] ? 'border-emerald-500/30' : ''}`}
                     aria-expanded={expandedStepId === step.id}
                     onClick={() => setExpandedStepId(prev => (prev === step.id ? null : step.id))}
                   >
                     <div className="flex gap-3">
-                      <div className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-medium ${stepStates[step.id] ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-white/70'}`}>{index + 1}</div>
+                      <div className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded text-[11px] font-medium ${stepStates[step.id] ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-white/70'}`}>{index + 1}</div>
                       <div className="flex-shrink-0 mt-0.5" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={stepStates[step.id] || false}
@@ -276,8 +276,8 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {task.resources.map((resource, index) => (
-                    <a key={index} href={resource.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 border border-white/10 rounded-xl bg-white/[0.03] hover:bg-white/[0.05] transition-colors">
-                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                    <a key={index} href={resource.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 border border-white/10 rounded-lg bg-transparent hover:bg-white/[0.05] transition-colors">
+                      <div className="w-8 h-8 bg-primary/10 rounded flex items-center justify-center">
                         <IconExternalLink className="size-4 text-primary" />
                       </div>
                       <div className="flex-1">
@@ -299,7 +299,7 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
             <Button
               disabled={!allStepsDone}
               onClick={() => onComplete(task.id)}
-              className={`w-full h-11 rounded-xl gap-2 ${allStepsDone ? 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70' : 'bg-white/5 text-white/40 cursor-not-allowed'}`}
+              className={`w-full h-11 rounded-lg gap-2 ${allStepsDone ? 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70' : 'bg-white/5 text-white/40 cursor-not-allowed'}`}
             >
               <IconCheck className="size-4" />
               Mark as Complete
@@ -307,7 +307,7 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
           </DialogClose>
           <Button
             variant="outline"
-            className="w-full h-11 rounded-xl"
+            className="w-full h-11 rounded-lg"
             onClick={() => {
               // Close any open dialog by dispatching Escape
               document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
@@ -486,7 +486,7 @@ export function TasksView() {
 
         {/* Main Table */}
         <div className="px-4 lg:px-6">
-          <Card className="pt-2 bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/[0.06]">
+          <Card className="pt-2 bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.06]">
             {tasks.length > 0 ? (
               <div className="overflow-hidden">
                 <Table>
@@ -513,7 +513,7 @@ export function TasksView() {
                             </TableCell>
                             <TableCell>
                               <div className="w-32">
-                                <Badge variant="outline" className="text-muted-foreground px-2 rounded-full">
+                                <Badge variant="outline" className="text-muted-foreground px-2 rounded">
                                   {task.type}
                                 </Badge>
                               </div>
@@ -521,7 +521,7 @@ export function TasksView() {
                              <TableCell className="w-[150px] text-center">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="sm" className="h-7 min-w-[110px] px-3 rounded-full">
+                                  <Button variant="outline" size="sm" className="h-7 min-w-[110px] px-3 rounded">
                                     {task.status}
                                   </Button>
                                 </DropdownMenuTrigger>

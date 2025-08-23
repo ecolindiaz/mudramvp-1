@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import 'dotenv/config';
-import { scrapeToMarkdown, crawlToMarkdown } from '../lib/firecrawl.js';
+import { createFirecrawlApp } from '../lib/config/firecrawl-config';
 import { promises as fs } from 'fs';
 
 type CliOptions = {
@@ -49,15 +49,51 @@ function parseArgs(argv: string[]): { url: string; opts: CliOptions } {
 
 async function main() {
   const { url, opts } = parseArgs(process.argv);
-  const result = opts.crawl
-    ? await crawlToMarkdown(url, { limit: opts.limit, timeoutMs: opts.timeout, waitForMs: opts.waitFor, onlyMainContent: opts.onlyMain })
-    : await scrapeToMarkdown(url, { timeoutMs: opts.timeout, waitForMs: opts.waitFor, onlyMainContent: opts.onlyMain });
+  
+  try {
+    const app = createFirecrawlApp();
+    
+    let result;
+    if (opts.crawl) {
+      result = await app.crawl(url, {
+        limit: opts.limit ?? 50,
+        scrapeOptions: {
+          formats: ['markdown'],
+          onlyMainContent: opts.onlyMain ?? false,
+          timeout: opts.timeout,
+          waitFor: opts.waitFor,
+        },
+      });
+      
+      // Process crawl results
+      const pages = result.data ?? [];
+      const sections: string[] = [];
+      for (const page of pages) {
+        const href = page?.metadata?.sourceURL || page?.url || '';
+        const md = page?.markdown || '';
+        if (md) sections.push(`# ${href}\n\n${md}`);
+      }
+      var markdown = sections.join('\n\n---\n\n');
+    } else {
+      result = await app.scrape(url, {
+        formats: ['markdown'],
+        onlyMainContent: opts.onlyMain ?? false,
+        timeout: opts.timeout,
+        waitFor: opts.waitFor,
+      });
+      
+      var markdown = result.markdown || '';
+    }
 
-  if (opts.out && opts.out.length > 0) {
-    await fs.writeFile(opts.out, result, 'utf8');
-    console.log(`Saved markdown to ${opts.out}`);
-  } else {
-    process.stdout.write(result + '\n');
+    if (opts.out && opts.out.length > 0) {
+      await fs.writeFile(opts.out, markdown, 'utf8');
+      console.log(`✅ Saved markdown to ${opts.out}`);
+    } else {
+      process.stdout.write(markdown + '\n');
+    }
+  } catch (error) {
+    console.error('❌ Scraping failed:', error instanceof Error ? error.message : 'Unknown error');
+    process.exit(1);
   }
 }
 
@@ -65,5 +101,3 @@ main().catch((err) => {
   console.error(err?.message || String(err));
   process.exit(1);
 });
-
-

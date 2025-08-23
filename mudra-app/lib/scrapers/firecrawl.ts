@@ -1,4 +1,4 @@
-import FirecrawlApp from '@mendable/firecrawl-js';
+import { createFirecrawlApp } from '../config/firecrawl-config';
 
 export type ScrapeOptions = {
   timeoutMs?: number;
@@ -14,15 +14,9 @@ export type CrawlOptions = {
   maxDepth?: number;
 };
 
-function getApp(): FirecrawlApp {
-  const apiKey = process.env.FIRECRAWL_API_KEY;
-  if (!apiKey) throw new Error('FIRECRAWL_API_KEY is not set');
-  return new FirecrawlApp({ apiKey });
-}
-
 export async function scrapeToMarkdown(url: string, opts: ScrapeOptions = {}): Promise<string> {
-  const app = getApp();
-  const res = await app.scrapeUrl(url, {
+  const app = createFirecrawlApp();
+  const res = await app.scrape(url, {
     formats: ['markdown'],
     onlyMainContent: opts.onlyMainContent ?? false,
     timeout: opts.timeoutMs,
@@ -38,21 +32,17 @@ export async function scrapeToMarkdown(url: string, opts: ScrapeOptions = {}): P
 }
 
 export async function crawlToMarkdown(url: string, opts: CrawlOptions = {}): Promise<string> {
-  const app = getApp();
-  const res = await app.crawlUrl(
-    url,
-    {
-      limit: opts.limit ?? 50,
-      maxDepth: opts.maxDepth,
-      scrapeOptions: {
-        formats: ['markdown'],
-        onlyMainContent: opts.onlyMainContent ?? false,
-        timeout: opts.timeoutMs,
-        waitFor: opts.waitForMs,
-      },
-    } as any,
-    3
-  );
+  const app = createFirecrawlApp();
+  const res = await app.crawl(url, {
+    limit: opts.limit ?? 50,
+    maxDepth: opts.maxDepth,
+    scrapeOptions: {
+      formats: ['markdown'],
+      onlyMainContent: opts.onlyMainContent ?? false,
+      timeout: opts.timeoutMs,
+      waitFor: opts.waitForMs,
+    },
+  } as any);
 
   if (!('success' in res) || !(res as any).success) {
     throw new Error(`Crawl failed: ${(res as any)?.error ?? 'unknown error'}`);
@@ -67,5 +57,3 @@ export async function crawlToMarkdown(url: string, opts: CrawlOptions = {}): Pro
   }
   return sections.join('\n\n---\n\n');
 }
-
-

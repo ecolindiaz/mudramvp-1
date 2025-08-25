@@ -54,8 +54,9 @@ async function main() {
     const app = createFirecrawlApp();
     
     let result;
+    let markdown: string = '';
     if (opts.crawl) {
-      result = await app.crawl(url, {
+      result = await app.crawlUrl(url, {
         limit: opts.limit ?? 50,
         scrapeOptions: {
           formats: ['markdown'],
@@ -66,23 +67,29 @@ async function main() {
       });
       
       // Process crawl results
-      const pages = result.data ?? [];
+      if (!('success' in result) || !result.success) {
+        throw new Error((result as any)?.error || 'Crawl failed');
+      }
+      const pages = (result as any).data ?? [];
       const sections: string[] = [];
       for (const page of pages) {
         const href = page?.metadata?.sourceURL || page?.url || '';
         const md = page?.markdown || '';
         if (md) sections.push(`# ${href}\n\n${md}`);
       }
-      var markdown = sections.join('\n\n---\n\n');
+      markdown = sections.join('\n\n---\n\n');
     } else {
-      result = await app.scrape(url, {
+      result = await app.scrapeUrl(url, {
         formats: ['markdown'],
         onlyMainContent: opts.onlyMain ?? false,
         timeout: opts.timeout,
         waitFor: opts.waitFor,
       });
       
-      var markdown = result.markdown || '';
+      if (!('success' in result) || !result.success) {
+        throw new Error((result as any)?.error || 'Scrape failed');
+      }
+      markdown = (result as any)?.markdown || (result as any)?.data?.markdown || '';
     }
 
     if (opts.out && opts.out.length > 0) {

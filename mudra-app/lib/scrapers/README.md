@@ -5,18 +5,20 @@
 The Enhanced GEO Scraper is a comprehensive technical analysis tool that evaluates websites for Generative Engine Optimization (GEO) - how well they're optimized to be mentioned by AI systems like ChatGPT, Perplexity, and Claude.
 
 ### What it Does
-- **Analyzes 6 core GEO metrics** with detailed scoring (0-100)
-- **Extracts structured data** (JSON-LD, microdata, schema markup)
-- **Recognizes entities** (organizations, people, technologies, products)
-- **Evaluates FAQ optimization** for AI voice responses  
-- **Assesses content freshness** signals
-- **Measures technical accessibility** for AI crawlers
+- **Extracts comprehensive website data** with clean, filtered output
+- **Detects robots.txt and LLM policy files** (robots.txt, llms.txt, llms-full.txt)
+- **Analyzes HTML structure** and heading hierarchy for proper SEO
+- **Extracts structured data** (JSON-LD, Microdata, RDFa schema markup)
+- **Generates synthesized JSON-LD** (WebPage, Organization, Article, Product, FAQPage, BreadcrumbList)
+- **Intelligent FAQ detection** with schema validation and DOM extraction
+- **Advanced filtering** to eliminate false positives and noise
 
 ### Why it Matters
-- AI engines favor well-structured, authoritative, fresh content
-- Proper schema markup helps AI understand and cite your content
-- FAQ optimization directly impacts voice search results
-- Content authority signals increase mention probability
+- **AI Policy Compliance**: Robots.txt and llms.txt files control AI crawler access
+- **Structured Data SEO**: Proper schema markup helps AI understand and cite your content
+- **FAQ Optimization**: Well-structured FAQs directly impact voice search and AI responses
+- **Content Architecture**: HTML heading hierarchy affects AI content understanding
+- **Synthetic Schema**: Auto-generated JSON-LD improves AI content comprehension
 
 ---
 
@@ -26,23 +28,185 @@ The Enhanced GEO Scraper is a comprehensive technical analysis tool that evaluat
 Enhanced GEO Scraper Flow:
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Frontend UI   │───▶│   API Routes     │───▶│   Service Layer │
-│   (Analysis)    │    │   (/api/geo)     │    │   (geo.service) │
+│   (Analysis)    │    │   (/api/scrape)  │    │  (scraper.ts)   │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                                         │
                        ┌─────────────────┐              │
                        │   Database      │◀─────────────┘
-                       │   (Prisma)      │
+                       │   (Optional)    │
                        └─────────────────┘
                                 ▲
                        ┌─────────────────┐
-                       │  GEO Scraper    │
-                       │  (Firecrawl)    │
+                       │  Enhanced GEO   │
+                       │    Scraper      │
+                       │  (Firecrawl +   │
+                       │   AI Analysis)  │
                        └─────────────────┘
+                                │
+                   ┌─────────────────────────────┐
+                   │      Core Features          │
+                   │  • Robots/LLMs.txt Detection│
+                   │  • JSON-LD Synthesis        │
+                   │  • FAQ Intelligence         │
+                   │  • Structure Analysis       │
+                   │  • Schema Extraction        │
+                   └─────────────────────────────┘
 ```
 
 ---
 
-## 📊 GEO Score Breakdown
+## 🚀 Current Enhanced Scraper Features
+
+### 1. Core Scraping API
+
+```typescript
+// Main scraping function
+import { scrapeCompanyPage } from '@/lib/scrapers/enhanced-geo-scraper'
+
+const result = await scrapeCompanyPage('https://example.com/', {
+  fresh: true,           // Force fresh scrape (bypass cache)
+  useLlmJsonMode: true,  // Enable AI-powered FAQ extraction
+  maxAge: 0,             // Cache age in seconds
+  location: { country: 'US' }, // Geo-location for scraping
+  userHeaders: { 'User-Agent': 'Custom-Bot' }
+})
+```
+
+### 2. Robots.txt & LLM Policy Detection
+
+Automatically detects and analyzes AI policy files:
+
+```typescript
+// In ScrapeResult.txtFiles
+{
+  robots: { url: "https://site.com/robots.txt", exists: true, size: 364 },
+  llms: { url: "https://site.com/llms.txt", exists: true, size: 9855 },
+  llmsFull: { url: "https://site.com/llms-full.txt", exists: false, size: 0 },
+  summary: { hasRobotsTxt: true, hasLlmsTxt: true, totalFound: 2 }
+}
+```
+
+### 3. HTML Structure Analysis
+
+Provides detailed heading hierarchy analysis:
+
+```typescript
+// In ScrapeResult.htmlStructure
+{
+  headings: {
+    h1: ["Main Title"],
+    h2: ["Section 1", "Section 2", "Section 3"],
+    h3: ["Subsection A", "Subsection B"]
+  },
+  htmlLength: 142913,
+  rawHtmlLength: 253687,
+  hasProperStructure: true  // Based on heading hierarchy validation
+}
+```
+
+### 4. Intelligent FAQ Detection
+
+Advanced FAQ extraction with multiple sources:
+
+```typescript
+// In ScrapeResult.faqs
+{
+  fromSchema: [],      // FAQs from JSON-LD/schema markup
+  fromDom: [],         // FAQs extracted from HTML patterns
+  llmExtracted: [],    // AI-powered FAQ extraction (optional)
+  merged: [],          // Deduplicated combination of all sources
+  summary: {
+    totalUnique: 8,
+    schemaCount: 8,
+    domCount: 0,
+    llmCount: 0
+  }
+}
+```
+
+### 5. Synthesized JSON-LD Generation
+
+Auto-generates schema markup from page content:
+
+```typescript
+// In ScrapeResult.synthesizedJsonLd
+[
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "url": "https://example.com/",
+    "name": "Page Title",
+    "description": "Page description",
+    "headline": "Main heading"
+  },
+  {
+    "@context": "https://schema.org", 
+    "@type": "Organization",
+    "url": "https://example.com",
+    "name": "Company Name"
+  }
+  // Also generates: Article, Product, FAQPage, BreadcrumbList as applicable
+]
+```
+
+### 6. CLI Usage
+
+```bash
+# Basic usage
+FIRECRAWL_API_KEY=your-key npx tsx lib/scrapers/enhanced-geo-scraper.ts https://example.com/
+
+# With options
+FIRECRAWL_API_KEY=your-key npx tsx lib/scrapers/enhanced-geo-scraper.ts https://example.com/ --fresh --use-llm
+
+# Flags available:
+--fresh      # Force fresh scrape (no cache)
+--use-llm    # Enable AI-powered FAQ extraction
+```
+
+### 7. Output Example
+
+```
+🧭 COMPANY PAGE SCRAPE RESULTS (FILTERED)
+================================================================================
+URL: https://promptwatch.com/
+
+📄 ESSENTIAL METADATA
+Title: Promptwatch | Get your company mentioned in AI search results
+Description: Boost your company's visibility in AI search engines...
+Language: en
+
+🏗️ HTML STRUCTURE & HEADINGS  
+HTML Length: 389,535 chars
+Proper Structure: ✅
+H1: 1 headings
+H2: 6 headings
+
+📋 STRUCTURED DATA SUMMARY
+JSON-LD blocks: 2
+FAQ Schema blocks: 1
+
+🧾 JSON-LD BLOCKS (raw)
+-- JSON-LD #1 --
+{"@context":"https://schema.org","@type":"Organization"...}
+
+🧩 SYNTHESIZED JSON-LD (WebPage/FAQPage)
+-- Synth #1 --
+{"@context":"https://schema.org","@type":"WebPage"...}
+
+❓ FAQ SUMMARY
+From Schema: 8
+Total Unique: 8
+
+🤖 ROBOTS & LLM POLICY FILES
+robots.txt: ✅ (341 bytes)
+llms.txt: ✅ (4752 bytes)  
+llms-full.txt: ✅ (50627 bytes)
+Total Policy Files Found: 3/3
+```
+
+---
+
+## 📊 Legacy GEO Score Breakdown (Deprecated)
 
 ### Overall Score Calculation (0-100)
 ```typescript
@@ -905,20 +1069,22 @@ This integration provides a complete GEO analysis system that helps users unders
 
 ## 🎯 Overview
 
-The Firecrawl Basic Scraper is a lightweight, efficient web scraping tool that extracts clean markdown content from any website. It's perfect for content analysis, competitor research, and data collection for your Mudra GEO platform.
+The Firecrawl Basic Scraper is a lightweight, efficient web scraping tool that extracts clean markdown content from any website. It serves as the foundation for the Enhanced GEO Scraper and provides essential scraping utilities.
 
 ### What it Does
 - **Extracts clean markdown** from any website with human-level precision
 - **Handles JavaScript-heavy sites** with proper wait times and timeouts
 - **Supports both single-page and multi-page crawling**
 - **Provides multiple output formats** (markdown, HTML, JSON)
-- **Integrates seamlessly** with your existing Mudra infrastructure
+- **FAQ expansion capabilities** with interactive element automation
+- **Bot avoidance features** with stealth proxies and custom headers
 
 ### Why it Matters
-- Quick content analysis for GEO optimization research
-- Competitor content monitoring and analysis
-- Bulk data collection for AI training and analysis
-- Content quality assessment and benchmarking
+- **Foundation layer** for Enhanced GEO Scraper functionality
+- **Quick content analysis** for GEO optimization research
+- **Competitor content monitoring** and analysis
+- **Bulk data collection** for AI training and analysis
+- **Content quality assessment** and benchmarking
 
 ---
 
@@ -999,17 +1165,28 @@ The CLI tool provides the most flexible way to test and use the scraper:
 export FIRECRAWL_API_KEY="your-api-key"
 
 # Basic scraping - output to terminal
-npx tsx scripts/firecrawl-cli.ts https://example.com/ --only-main
+FIRECRAWL_API_KEY=your-key npx tsx scripts/firecrawl-cli.ts https://example.com/ --only-main
 
 # Save to file
-npx tsx scripts/firecrawl-cli.ts https://example.com/ --only-main --out output/example.md
+FIRECRAWL_API_KEY=your-key npx tsx scripts/firecrawl-cli.ts https://example.com/ --only-main --out output/example.md
 
 # Crawl multiple pages (site-wide)
-npx tsx scripts/firecrawl-cli.ts https://example.com/ --crawl --limit 10 --out output/example-full.md
+FIRECRAWL_API_KEY=your-key npx tsx scripts/firecrawl-cli.ts https://example.com/ --crawl --limit 10 --out output/example-full.md
+
+# FAQ expansion (click accordions, dropdowns, etc.)
+FIRECRAWL_API_KEY=your-key npx tsx scripts/firecrawl-cli.ts https://example.com/ --expand-faq --out output/example-expanded.md
+
+# Bot avoidance features
+FIRECRAWL_API_KEY=your-key npx tsx scripts/firecrawl-cli.ts https://example.com/ \
+  --stealth \
+  --mobile \
+  --ua "Custom-Bot/1.0" \
+  --out output/example-stealth.md
 
 # Advanced options
-npx tsx scripts/firecrawl-cli.ts https://example.com/ \
+FIRECRAWL_API_KEY=your-key npx tsx scripts/firecrawl-cli.ts https://example.com/ \
   --only-main \
+  --expand-faq \
   --timeout 30000 \
   --wait-for 2000 \
   --out output/example-optimized.md
@@ -1022,6 +1199,10 @@ npx tsx scripts/firecrawl-cli.ts https://example.com/ \
 - `--timeout <ms>` - Request timeout in ms (e.g., 30000)
 - `--wait-for <ms>` - Wait before scraping to let JS load (e.g., 2000)
 - `--only-main` - Only main content (default: false)
+- `--expand-faq` - Click accordions/dropdowns to expand FAQ content
+- `--stealth` - Use stealth mode to avoid detection
+- `--mobile` - Emulate mobile device
+- `--ua <string>` - Custom User-Agent string
 - `-h, --help` - Show help
 
 ### 2. API Endpoint (Production Use)
@@ -1056,6 +1237,7 @@ curl -X POST http://localhost:3000/api/scrape \
 - `timeoutMs` (optional) - Request timeout in milliseconds
 - `waitForMs` (optional) - Wait time before scraping (for JS)
 - `onlyMainContent` (optional) - Extract only main content
+- `expandFaq` (optional) - Enable FAQ expansion automation
 
 #### API Response:
 ```json
@@ -1078,14 +1260,16 @@ import { scrapeToMarkdown, crawlToMarkdown } from '@/lib/scrapers/firecrawl';
 const content = await scrapeToMarkdown('https://example.com/', {
   onlyMainContent: true,
   timeoutMs: 30000,
-  waitForMs: 2000
+  waitForMs: 2000,
+  expandFaq: true  // Enable FAQ expansion
 });
 
 // Multi-page crawling
 const fullSiteContent = await crawlToMarkdown('https://example.com/', {
   limit: 10,
   onlyMainContent: true,
-  maxDepth: 2
+  maxDepth: 2,
+  expandFaq: true
 });
 ```
 
@@ -1797,3 +1981,35 @@ const productionConfig = {
 6. **API Integration**: Connect with other GEO analysis tools
 
 The Firecrawl Basic Scraper is now fully integrated and ready for production use in your Mudra GEO platform! 🎉
+
+---
+
+## 🎯 Summary: Two-Tier Scraping Architecture
+
+### Enhanced GEO Scraper (Primary Tool)
+**Use for**: Comprehensive GEO analysis and structured data extraction
+- ✅ Robots.txt & LLMs.txt detection
+- ✅ JSON-LD synthesis and validation  
+- ✅ Intelligent FAQ extraction (schema + DOM + AI)
+- ✅ HTML structure analysis
+- ✅ Complete website intelligence
+
+**Command**: `npx tsx lib/scrapers/enhanced-geo-scraper.ts <url>`
+
+### Basic Firecrawl Scraper (Foundation Layer)
+**Use for**: Quick content extraction and bulk processing
+- ✅ Clean markdown extraction
+- ✅ FAQ expansion automation
+- ✅ Bot avoidance features  
+- ✅ Multi-page crawling
+- ✅ Raw content processing
+
+**Command**: `npx tsx scripts/firecrawl-cli.ts <url>`
+
+### Integration Strategy
+1. **Start with Enhanced GEO Scraper** for complete analysis
+2. **Use Basic Scraper** for content-only extraction needs
+3. **Combine both** for comprehensive competitor research
+4. **API integration** available for both tools
+
+Both scrapers work together to provide complete website intelligence for your GEO optimization platform! 🚀

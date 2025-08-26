@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
 import { firegeoClient } from '@/lib/firegeo-client';
 import { getBrandProfile } from '@/lib/prisma-brand-profile';
 
 export async function GET(request: NextRequest) {
   try {
+    // Check authentication
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const timeframe = searchParams.get('timeframe') as '7d' | '30d' | '90d' || '30d';
     const includeCompetitors = searchParams.get('competitors') !== 'false';
@@ -53,6 +64,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     
     // Get brand profile to fetch website URL

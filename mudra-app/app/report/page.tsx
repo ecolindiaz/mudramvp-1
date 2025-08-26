@@ -186,7 +186,7 @@ function ReportContent() {
 
   return (
     <SidebarProvider
-      className="dark text-foreground"
+      className="bg-dark-grey text-foreground"
       style={
         {
           "--sidebar-width": "calc(var(--spacing) * 72)",
@@ -195,7 +195,7 @@ function ReportContent() {
       }
     >
       <AppSidebar />
-      <SidebarInset className="bg-card dark:bg-card text-foreground dark:text-foreground m-0 shadow-none rounded-none border-none">
+      <SidebarInset className="bg-dark-grey m-0 shadow-none rounded-none border-none">
         <SiteHeader />
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col">
@@ -204,7 +204,7 @@ function ReportContent() {
             <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-2 md:pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-2xl font-bold tracking-tight">
+                  <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-white">
                     Report
                   </h1>
                   <p className="text-muted-foreground">

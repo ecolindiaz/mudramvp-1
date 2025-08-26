@@ -57,7 +57,7 @@ export default function LoginPage() {
                 className="bg-black m-auto h-fit w-full max-w-sm rounded-lg border border-[#222222] p-6">
                 <div className="space-y-8">
                     <div className="flex flex-col items-center space-y-2 text-center">
-                        <div className="mb-2">
+                        <div className="mb-4">
                             <Image
                                 src="/images/mudra-logo.png"
                                 alt="Mudra"

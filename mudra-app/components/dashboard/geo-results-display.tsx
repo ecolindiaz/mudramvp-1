@@ -22,12 +22,12 @@ export function GeoResultsDisplay({ result, onClose }: GeoResultsDisplayProps) {
   }
 
   return (
-    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card space-y-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
+    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card space-y-5 md:space-y-6 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
       {/* Overview Card */}
-      <Card className="@container/card" data-slot="card">
-        <CardHeader>
-          <CardDescription>GEO Analysis Results</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+      <Card className="@container/card bg-white/[0.02] border-white/10 rounded-2xl" data-slot="card">
+        <CardHeader className="pb-3">
+          <CardDescription className="text-white/70">GEO Analysis Results</CardDescription>
+          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl text-white">
             {result.geoScore.overall}/100
           </CardTitle>
           <CardAction>
@@ -51,9 +51,7 @@ export function GeoResultsDisplay({ result, onClose }: GeoResultsDisplayProps) {
           </CardAction>
         </CardHeader>
         
-        <div className="px-6">
-          <Separator />
-        </div>
+        <div className="px-6"><Separator className="border-white/10" /></div>
         
         <CardContent className="pt-3">
           <div className="space-y-2">
@@ -70,20 +68,17 @@ export function GeoResultsDisplay({ result, onClose }: GeoResultsDisplayProps) {
       </Card>
 
       {/* Score Breakdown */}
-      <Card className="@container/card" data-slot="card">
-        <CardHeader>
-          <CardDescription>Score Breakdown</CardDescription>
-          <CardTitle className="text-2xl font-semibold @[250px]/card:text-3xl">
+      <Card className="@container/card bg-white/[0.02] border-white/10 rounded-2xl" data-slot="card">
+        <CardHeader className="pb-3">
+          <CardDescription className="text-white/70">Score Breakdown</CardDescription>
+          <CardTitle className="text-2xl font-semibold @[250px]/card:text-3xl text-white">
             Category Performance
           </CardTitle>
         </CardHeader>
-        
-        <div className="px-6">
-          <Separator />
-        </div>
+        <div className="px-6"><Separator className="border-white/10" /></div>
         
         <CardContent className="pt-3">
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {[
               { label: "Content Authority", score: result.geoScore.contentAuthority },
               { label: "Technical Accessibility", score: result.geoScore.technicalAccessibility },
@@ -93,10 +88,10 @@ export function GeoResultsDisplay({ result, onClose }: GeoResultsDisplayProps) {
               { label: "Content Freshness", score: result.geoScore.contentFreshness },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between py-2">
-                <span className="text-sm font-medium text-foreground">{item.label}</span>
+                <span className="text-sm font-medium text-white">{item.label}</span>
                 <div className="flex items-center gap-3">
                   <Progress value={item.score} className="w-24 h-2" />
-                  <span className="text-sm font-semibold tabular-nums w-8 text-right">
+                  <span className="text-sm font-semibold tabular-nums w-8 text-right text-white/90">
                     {item.score}
                   </span>
                 </div>

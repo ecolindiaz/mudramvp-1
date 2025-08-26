@@ -89,13 +89,6 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
             <span>Overview</span>
           </CommandItem>
           <CommandItem
-            onSelect={() => runCommand(() => router.push("/dashboard/insights"))}
-            className="text-white/70 hover:text-white data-[selected=true]:bg-white/10 data-[selected=true]:text-white cursor-pointer"
-          >
-            <IconChartBar className="mr-2 h-4 w-4" />
-            <span>Insights</span>
-          </CommandItem>
-          <CommandItem
             onSelect={() => runCommand(() => router.push("/dashboard/tasks"))}
             className="text-white/70 hover:text-white data-[selected=true]:bg-white/10 data-[selected=true]:text-white cursor-pointer"
           >
@@ -103,12 +96,13 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
             <span>Tasks</span>
           </CommandItem>
           <CommandItem
-            onSelect={() => runCommand(() => router.push("/dashboard/chat"))}
+            onSelect={() => runCommand(() => router.push("/dashboard/campaigns"))}
             className="text-white/70 hover:text-white data-[selected=true]:bg-white/10 data-[selected=true]:text-white cursor-pointer"
           >
-            <IconMessageChatbot className="mr-2 h-4 w-4" />
-            <span>Agent Chat</span>
+            <IconChartBar className="mr-2 h-4 w-4" />
+            <span>Campaigns</span>
           </CommandItem>
+          {/* Agent Chat page removed */}
           <CommandItem
             onSelect={() => runCommand(() => router.push("/dashboard/brand-profile"))}
             className="text-white/70 hover:text-white data-[selected=true]:bg-white/10 data-[selected=true]:text-white cursor-pointer"

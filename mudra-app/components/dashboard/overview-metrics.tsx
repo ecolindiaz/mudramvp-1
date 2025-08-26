@@ -1,7 +1,7 @@
 "use client"
 
-import { MetricCard } from "./metric-card"
-import { mockOverviewMetrics } from "@/lib/mock/data"
+import { DashboardStatCard } from "./dashboard-stat-card"
+import { mockOverviewMetrics, mockDashboardMetrics } from "@/lib/mock/data"
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 
@@ -24,88 +24,43 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   void timeRange
   void selectedModel
 
-  // Redirect handlers for each metric card
-  const handleHumansReferredRedirect = () => {
-    // TODO: Navigate to analytics/traffic page
-    console.log("Redirecting to Humans Referred analytics page")
-  }
-
-  const handleTasksCompletedRedirect = () => {
-    // TODO: Navigate to tasks page
-    console.log("Redirecting to Tasks page")
-  }
-
-  const handleWeekGoalsRedirect = () => {
-    // TODO: Navigate to goals/planning page
-    console.log("Redirecting to Goals page")
-  }
-
-  const handleAIVisibilityRedirect = () => {
-    window.location.href = "/dashboard/ai-visibility"
-  }
-
-  const handleContentQualityRedirect = () => {
-    // TODO: Navigate to content quality page
-    console.log("Redirecting to Content Quality page")
-  }
+  // helpers
+  const technicalScore = mockDashboardMetrics.technicalScore.current
 
   return (
-    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-3">
-      <MetricCard
-        title="Humans Referred from LLMs"
+    <div className="grid grid-cols-1 gap-4 md:gap-5 px-4 lg:px-6 @xl/main:grid-cols-3">
+      <DashboardStatCard
+        title="AI Visibility Metric"
+        value={aiVisibilityRank.current}
+        delta={aiVisibilityRank.change}
+        lastValue={aiVisibilityRank.previous}
+        positive={aiVisibilityRank.trend === "up"}
+        sparkline={[58,64,61,73,79,86]}
+        accentColor="rgba(255,255,255,0.9)"
+        info="Amount of times mentioned, referenced, cited, or included in AI responses across the prompts we query."
+      />
+
+      <DashboardStatCard
+        title="Technical Structure Score"
+        value={technicalScore}
+        delta={mockDashboardMetrics.technicalScore.change}
+        lastValue={mockDashboardMetrics.technicalScore.previous}
+        positive={mockDashboardMetrics.technicalScore.trend === "up"}
+        sparkline={[78,80,82,83,84,85]}
+        accentColor="rgba(255,255,255,0.9)"
+        info="How well your site is optimized for AI and SEO."
+      />
+
+      <DashboardStatCard
+        title="Organic Traffic"
         value={humansReferredFromLLMs.current}
-        status={humansReferredFromLLMs.status}
-        trend={humansReferredFromLLMs.trend}
-        icon="users"
-        onRedirect={handleHumansReferredRedirect}
-        redirectLabel="View"
+        delta={humansReferredFromLLMs.change}
+        lastValue={humansReferredFromLLMs.previous}
+        positive={humansReferredFromLLMs.trend === "up"}
+        sparkline={[120,180,210,190,230,247]}
+        accentColor="rgba(255,255,255,0.9)"
+        info="Traffic volume over time from your analytics sources."
       />
-      
-      <MetricCard
-        title="Weekly Tasks Completed"
-        value={weeklyTasksCompleted.current}
-        status={weeklyTasksCompleted.status}
-        trend={weeklyTasksCompleted.trend}
-        icon="check"
-        onRedirect={handleTasksCompletedRedirect}
-        redirectLabel="View"
-      />
-
-      <MetricCard
-        title="This Week Goals"
-        value={thisWeekGoals.current}
-        status={thisWeekGoals.status}
-        trend={thisWeekGoals.trend}
-        icon="target"
-        onRedirect={handleWeekGoalsRedirect}
-        redirectLabel="View"
-        showGoalWidget={true}
-        goalText="Boost AI Visibility 1.7%"
-      />
-
-      {showAll && (
-        <>
-          <MetricCard
-            title="AI Visibility Score"
-            value={aiVisibilityRank.current}
-            status={aiVisibilityRank.status}
-            trend={aiVisibilityRank.trend}
-            icon="target"
-            onRedirect={handleAIVisibilityRedirect}
-            redirectLabel="View"
-          />
-          
-          <MetricCard
-            title="Content Quality Score"
-            value={contentQualityScore.current}
-            status={contentQualityScore.status}
-            trend={contentQualityScore.trend}
-            icon="check"
-            onRedirect={handleContentQualityRedirect}
-            redirectLabel="View"
-          />
-        </>
-      )}
     </div>
   )
 } 

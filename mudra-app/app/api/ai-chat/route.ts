@@ -7,7 +7,20 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { messages, taskContext, deepThink } = await req.json();
+    const { messages, taskContext, deepThink }: {
+      messages: { role: 'user' | 'assistant'; content: string }[];
+      taskContext?: {
+        header: string;
+        type: string;
+        status: string;
+        description: string;
+        estimatedTime?: string;
+        difficulty?: string;
+        detailedSteps?: { title: string; estimatedTime?: string; description?: string }[];
+        resources?: { title: string }[];
+      }[];
+      deepThink?: boolean;
+    } = await req.json();
 
     // Build context-aware system prompt
     let systemPrompt = `You are Mudra AI, an intelligent assistant for the Mudra GEO platform. You help users with:

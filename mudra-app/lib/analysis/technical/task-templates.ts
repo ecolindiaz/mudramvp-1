@@ -54,7 +54,7 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
 			description: "llms-full.txt accessible (HTTP 200) at /llms-full.txt",
 			predicate: (s: ScrapeSnapshot) => Boolean(s.txtFiles?.summary?.hasLlmsFullTxt),
 		},
-		kbTopics: ["llms.txt", "AI crawler allowlisting"],
+		kbTopics: ["llms-full.txt", "llms.txt", "AI crawler allowlisting"],
 	},
 	{
 		key: "add_meta_description",
@@ -170,7 +170,7 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
 			description: "Favicon present and referenced in <head>",
 			predicate: (s: ScrapeSnapshot) => Boolean(s.metadata?.favicon),
 		},
-		kbTopics: ["meta basics"],
+		kbTopics: ["favicon", "meta basics"],
 	},
 ];
 

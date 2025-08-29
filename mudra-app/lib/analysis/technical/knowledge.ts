@@ -1,7 +1,32 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const KB_ROOT = path.join(process.cwd(), "mudra-app/lib/analysis/technical/kb");
+async function pathExists(p: string): Promise<boolean> {
+	try {
+		await fs.access(p);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function resolveKbRoot(): Promise<string> {
+	const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+	const candidates = [
+		// 1) File-relative (works in dev/build regardless of CWD)
+		path.join(moduleDir, "kb"),
+		// 2) Running from repo root
+		path.join(process.cwd(), "mudra-app/lib/analysis/technical/kb"),
+		// 3) Running from inside mudra-app
+		path.join(process.cwd(), "lib/analysis/technical/kb"),
+	];
+	for (const c of candidates) {
+		if (await pathExists(c)) return c;
+	}
+	// Fallback to file-relative even if not found; reads will fail gracefully per-file
+	return candidates[0];
+}
 
 // Map normalized topic keys to KB documents
 const TOPIC_TO_FILE: Record<string, string> = {
@@ -38,6 +63,7 @@ function normalizeTopic(topic: string): string {
 }
 
 export async function readKnowledgeDocs(topics: string[]): Promise<string> {
+	const kbRoot = await resolveKbRoot();
 	const files = Array.from(
 		new Set(
 			topics
@@ -52,7 +78,7 @@ export async function readKnowledgeDocs(topics: string[]): Promise<string> {
 	const contents = await Promise.all(
 		chosen.map(async (file) => {
 			try {
-				return await fs.readFile(path.join(KB_ROOT, file), "utf8");
+				return await fs.readFile(path.join(kbRoot, file), "utf8");
 			} catch {
 				return "";
 			}
@@ -65,5 +91,6 @@ export async function readKnowledgeDocs(topics: string[]): Promise<string> {
 }
 
 export { TOPIC_TO_FILE };
+export { resolveKbRoot };
 
 

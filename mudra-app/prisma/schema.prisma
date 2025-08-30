@@ -324,3 +324,100 @@ model User {
   
   @@map("users")
 }
+
+// ============================
+// Task Feature: Persistence v1
+// ============================
+
+model Company {
+  id        String  @id @default(cuid())
+  domain    String  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sites     Site[]
+
+  @@map("companies")
+}
+
+model Site {
+  id          String   @id @default(cuid())
+  companyId   String
+  url         String
+  domain      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  snapshots   CrawlSnapshot[]
+  tasks       Task[]
+
+  @@map("sites")
+  @@index([companyId])
+  @@index([domain])
+}
+
+model CrawlSnapshot {
+  id        String   @id @default(cuid())
+  siteId    String
+  crawledAt DateTime @default(now())
+  data      Json
+
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  score     TechnicalScore?
+  verifications TaskVerification[]
+
+  @@map("crawl_snapshots")
+  @@index([siteId, crawledAt])
+}
+
+model TechnicalScore {
+  id          String        @id @default(cuid())
+  snapshotId  String        @unique
+  total       Int
+  components  Json
+  createdAt   DateTime      @default(now())
+
+  snapshot    CrawlSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@map("technical_scores")
+}
+
+model Task {
+  id             String   @id @default(cuid())
+  siteId         String
+  templateKey    String
+  title          String
+  whyItMatters   String
+  impact         String
+  steps          Json
+  tags           Json
+  evidence       Json
+  suggestedOwner String?
+  confidence     Float
+  status         String   @default("open") // open, done, verified, dismissed
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  site           Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  verifications  TaskVerification[]
+
+  @@map("tasks")
+  @@index([siteId, status])
+  @@index([templateKey])
+}
+
+model TaskVerification {
+  id          String        @id @default(cuid())
+  taskId      String
+  snapshotId  String
+  passed      Boolean
+  createdAt   DateTime      @default(now())
+
+  task        Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  snapshot    CrawlSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@map("task_verifications")
+  @@index([taskId, createdAt])
+  @@index([snapshotId])
+}

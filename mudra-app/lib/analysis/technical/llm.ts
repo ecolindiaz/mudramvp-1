@@ -45,6 +45,16 @@ export async function enrichTaskWithLLM(params: {
 	confidence: number;
 }> {
 	const { templateKey, kbTopics, domain, snapshot, inputs, categoryTag } = params;
+
+	// Test/ops short-circuit: allow disabling LLM calls (e.g., unit tests)
+	if (process.env.MUDRA_DISABLE_LLM === "1") {
+		return {
+			whyItMatters: "This addresses a verified gap in your technical structure.",
+			steps: baselineStepsForTemplate(templateKey, snapshot),
+			confidence: 0.6,
+			tags: [categoryTag],
+		};
+	}
 	const knowledge = await readKnowledgeDocs(kbTopics);
 	const evidence = deriveEvidenceForTemplate(templateKey, snapshot).map(e => ({ path: e.path, value: e.value }));
 

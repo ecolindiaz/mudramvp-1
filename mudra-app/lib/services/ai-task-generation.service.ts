@@ -1,5 +1,9 @@
 import OpenAI from 'openai'
 import type { EnhancedGEOResult } from '../scrapers/enhanced-geo-scraper'
+import type { TaskInstance } from '@/lib/analysis/technical/types'
+import { toScrapeSnapshot } from '@/lib/analysis/technical/adapter'
+import { validateScrapeSnapshot } from '@/lib/analysis/technical/validate'
+import { generateTasksFromSnapshot } from '@/lib/analysis/technical/task-generator'
 
 export interface AIGeneratedTask {
   title: string
@@ -244,6 +248,71 @@ RESPONSE FORMAT: Start immediately with the JSON array:
     console.log('Falling back to rule-based tasks')
     return fallbackTasks(geoResults)
   }
+}
+
+export async function generateRuleTasksFromGeoResult(geoResults: EnhancedGEOResult): Promise<TaskInstance[]> {
+	// Map EnhancedGEOResult's first page result to ScrapeSnapshot shape via adapter input
+	// EnhancedGEOResult already resembles ScrapeSnapshot in many areas; we build a minimal raw object
+	const raw = {
+		url: geoResults.url,
+		metadata: {
+			title: geoResults.technicalAccessibility?.metaTags?.title,
+			description: geoResults.technicalAccessibility?.metaTags?.description,
+			language: undefined,
+			favicon: undefined,
+		},
+		htmlStructure: {
+			headings: geoResults.contentStructure?.headingsHierarchy || { h1: [], h2: [], h3: [], h4: [], h5: [], h6: [] },
+			hasProperStructure: geoResults.technicalAccessibility?.accessibility?.headingStructureValid,
+		},
+		schema: {
+			all: geoResults.structuredData?.jsonLd || [],
+			faqSchema: geoResults.structuredData?.faqSchemas || [],
+			summary: {
+				jsonLdCount: (geoResults.structuredData?.jsonLd || []).length,
+				microdataCount: (geoResults.structuredData?.microdata || []).length,
+				rdfaCount: (geoResults.structuredData?.rdfa || []).length || 0,
+				faqSchemaCount: (geoResults.structuredData?.faqSchemas || []).length,
+			},
+		},
+		faqs: {
+			fromSchema: [],
+			fromDom: [],
+			merged: Array.isArray((geoResults as any).faqOptimization?.questionAnswerPairs)
+				? ((geoResults as any).faqOptimization?.questionAnswerPairs || []).map((qa: any) => ({ question: qa?.question, answer: qa?.answer })).filter((qa: any) => qa.question && qa.answer)
+				: [],
+			summary: {
+				totalUnique: Array.isArray((geoResults as any).faqOptimization?.questionAnswerPairs)
+					? ((geoResults as any).faqOptimization?.questionAnswerPairs || []).length
+					: Number(geoResults.faqOptimization?.questionAnswerPairs || 0),
+				schemaCount: (geoResults.structuredData?.faqSchemas || []).length,
+				domCount: 0,
+				llmCount: 0,
+			},
+		},
+		txtFiles: {
+			robots: { url: `${geoResults.url.replace(/\/$/, '')}/robots.txt`, exists: Boolean(geoResults.technicalAccessibility?.metaTags?.robots), status: undefined },
+			llms: { url: `${geoResults.url.replace(/\/$/, '')}/llms.txt`, exists: false, status: undefined },
+			llmsFull: { url: `${geoResults.url.replace(/\/$/, '')}/llms-full.txt`, exists: false, status: undefined },
+			summary: { hasRobotsTxt: false, hasLlmsTxt: false, hasLlmsFullTxt: false, totalFound: 0 },
+		},
+	};
+
+	const snapshot = toScrapeSnapshot(raw);
+	const validation = validateScrapeSnapshot(snapshot);
+	if (!validation.ok) {
+		// Fall back to empty list if validation fails; caller can decide to handle legacy flow instead
+		return [];
+	}
+
+	const tasks = await generateTasksFromSnapshot(snapshot);
+	// Ensure required fields exist (defensive)
+	return tasks.map((t) => ({
+		...t,
+		verificationCheck: t.verificationCheck,
+		evidence: t.evidence || [],
+		confidence: typeof t.confidence === 'number' ? Math.max(0, Math.min(t.confidence, 1)) : 0.7,
+	}));
 }
 
 function fallbackTasks(geoResults: EnhancedGEOResult): AIGeneratedTask[] {

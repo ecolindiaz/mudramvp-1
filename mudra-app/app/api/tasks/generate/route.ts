@@ -3,9 +3,13 @@ import { validateScrapeSnapshot } from "@/lib/analysis/technical/validate";
 import { computeTechnicalScore } from "@/lib/analysis/technical/score";
 import { generateTasksFromSnapshot } from "@/lib/analysis/technical/task-generator";
 import type { ScrapeSnapshot } from "@/lib/analysis/technical/types";
+import { authRateLimiter } from "@/lib/auth/rate-limiter";
+import type { NextRequest } from "next/server";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const limited = await authRateLimiter(req);
+    if (limited) return limited;
     const body = await req.json().catch(() => ({}));
     const candidate: unknown = body?.snapshot ?? body;
     const validation = validateScrapeSnapshot(candidate);

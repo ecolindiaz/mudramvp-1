@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardAction } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -7,6 +8,7 @@ import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { IconCheck, IconX } from "@tabler/icons-react"
 import type { EnhancedGEOResult } from "@/lib/scrapers/enhanced-geo-scraper"
+import type { ScoreResult, ScrapeSnapshot } from "@/lib/analysis/technical/types"
 
 interface GeoResultsDisplayProps {
   result: EnhancedGEOResult
@@ -20,6 +22,101 @@ export function GeoResultsDisplay({ result, onClose }: GeoResultsDisplayProps) {
     if (score >= 40) return "Needs Work"
     return "Poor"
   }
+
+  // Technical Structure Score (rule-based)
+  const [techScore, setTechScore] = useState<ScoreResult | null>(null)
+  const [techLoading, setTechLoading] = useState(false)
+  const [techError, setTechError] = useState<string | null>(null)
+
+  function buildSnapshotForScore(r: EnhancedGEOResult): ScrapeSnapshot {
+    const origin = (() => { try { return new URL(r.url).origin } catch { return r.url } })()
+    return {
+      url: r.url,
+      crawledAt: new Date(r.timestamp).toISOString(),
+      metadata: {
+        title: r.technicalAccessibility?.metaTags?.title,
+        description: r.technicalAccessibility?.metaTags?.description,
+        language: undefined,
+        favicon: undefined,
+      },
+      htmlStructure: {
+        headings: r.contentStructure?.headingsHierarchy || { h1: [], h2: [], h3: [], h4: [], h5: [], h6: [] },
+        htmlLength: undefined,
+        rawHtmlLength: undefined,
+        hasProperStructure: r.technicalAccessibility?.accessibility?.headingStructureValid,
+      },
+      schema: {
+        all: r.structuredData?.jsonLd || [],
+        faqSchema: r.structuredData?.faqSchemas || [],
+        summary: {
+          jsonLdCount: (r.structuredData?.jsonLd || []).length,
+          microdataCount: (r.structuredData?.microdata || []).length,
+          rdfaCount: (r.structuredData?.rdfa || []).length || 0,
+          faqSchemaCount: (r.structuredData?.faqSchemas || []).length,
+        },
+      },
+      faqs: {
+        fromSchema: [],
+        fromDom: [],
+        merged: [],
+        summary: {
+          totalUnique: Number(r.faqOptimization?.questionAnswerPairs || 0),
+          schemaCount: (r.structuredData?.faqSchemas || []).length,
+          domCount: 0,
+          llmCount: 0,
+        },
+      },
+      txtFiles: {
+        robots: { url: `${origin}/robots.txt`, exists: false },
+        llms: { url: `${origin}/llms.txt`, exists: false },
+        llmsFull: { url: `${origin}/llms-full.txt`, exists: false },
+        summary: { hasRobotsTxt: false, hasLlmsTxt: false, hasLlmsFullTxt: false, totalFound: 0 },
+      },
+      synthesizedJsonLd: [],
+    }
+  }
+
+  useEffect(() => {
+    let mounted = true
+    async function run() {
+      try {
+        setTechLoading(true)
+        setTechError(null)
+        const snapshot = buildSnapshotForScore(result)
+        const res = await fetch("/api/technical-analysis/score", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ snapshot }),
+        })
+        const json = await res.json()
+        if (!mounted) return
+        if (!res.ok || !json?.success) {
+          setTechError(json?.error?.message || "Failed to fetch score")
+          setTechScore(null)
+          return
+        }
+        setTechScore(json.data as ScoreResult)
+      } catch (e: any) {
+        if (!mounted) return
+        setTechError(e?.message || "Unexpected error")
+        setTechScore(null)
+      } finally {
+        if (mounted) setTechLoading(false)
+      }
+    }
+    run()
+    return () => { mounted = false }
+  }, [result])
+
+  const categoryTotals = useMemo(() => {
+    const base = { SEO: { score: 0, max: 0 }, GEO: { score: 0, max: 0 }, Content: { score: 0, max: 0 } }
+    if (!techScore) return base
+    for (const c of techScore.components) {
+      ;(base as any)[c.category].score += c.score
+      ;(base as any)[c.category].max += c.max
+    }
+    return base
+  }, [techScore])
 
   return (
     <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card space-y-5 md:space-y-6 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
@@ -98,6 +195,49 @@ export function GeoResultsDisplay({ result, onClose }: GeoResultsDisplayProps) {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Technical Structure Score */}
+      <Card className="@container/card bg-white/[0.02] border-white/10 rounded-2xl" data-slot="card">
+        <CardHeader className="pb-3">
+          <CardDescription className="text-white/70">Technical Structure Score</CardDescription>
+          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl text-white">
+            {techLoading ? "…" : (techScore?.total ?? "—")}
+          </CardTitle>
+        </CardHeader>
+        <div className="px-6"><Separator className="border-white/10" /></div>
+        <CardContent className="pt-3">
+          {techError ? (
+            <div className="text-sm text-red-400">{techError}</div>
+          ) : (
+            <div className="space-y-3">
+              {["SEO","GEO","Content"].map((cat) => {
+                const t = (categoryTotals as any)[cat];
+                const pct = t.max > 0 ? Math.round((t.score / t.max) * 100) : 0;
+                return (
+                  <div key={cat} className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-white">{cat}</span>
+                    <div className="flex items-center gap-3">
+                      <Progress value={pct} className="w-32 h-2" />
+                      <span className="text-sm font-semibold tabular-nums w-10 text-right text-white/90">{pct}%</span>
+                    </div>
+                  </div>
+                )
+              })}
+              <div className="mt-3 space-y-2">
+                {techScore?.components.map((c) => (
+                  <div key={c.key} className="flex items-center justify-between text-sm">
+                    <span className="text-white/90 truncate pr-2">{c.label}</span>
+                    <div className="flex items-center gap-3">
+                      <Progress value={Math.round((c.score / c.max) * 100)} className="w-24 h-2" />
+                      <span className="tabular-nums text-white/80 w-[72px] text-right">{c.score}/{c.max}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

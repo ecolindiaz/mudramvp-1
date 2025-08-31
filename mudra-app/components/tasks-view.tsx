@@ -39,6 +39,7 @@ import {
   IconCheck,
   IconChevronDown,
   IconChevronRight,
+  IconCopy,
 } from "@tabler/icons-react"
 import {
   DropdownMenu,
@@ -47,7 +48,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import type { ScrapeSnapshot } from "@/lib/analysis/technical/types"
+import { toast } from "sonner"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 
 // AI Task Generator removed
@@ -71,6 +74,11 @@ type TaskItem = {
   difficulty: string
   whyItMatters: string
   impact: string
+  // New optional fields when tasks come from generator
+  templateKey?: string
+  tags?: ("GEO" | "SEO" | "Content")[]
+  evidencePaths?: string[]
+  verificationCheckDescription?: string
 }
 
 type DetailedStep = {
@@ -117,7 +125,7 @@ function PriorityTag({ level }: { level: 'high' | 'medium' | 'low' }) {
   )
 }
 
-function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (taskId: number) => void }) {
+function TaskDetailModal({ task, onComplete, onVerify, latestSnapshot, verifications }: { task: TaskItem; onComplete: (taskId: number) => void; onVerify?: (taskId: number) => void; latestSnapshot?: ScrapeSnapshot | null; verifications?: { time: string; passed: boolean }[] }) {
   const [stepStates, setStepStates] = useState<Record<number, boolean>>({})
   const [expandedStepId, setExpandedStepId] = useState<number | null>(null)
 
@@ -132,6 +140,20 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
   const totalSteps = task.detailedSteps.length
   const progressPercentage = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
   const allStepsDone = totalSteps > 0 && completedSteps === totalSteps
+
+  const copySteps = async () => {
+    const text = task.detailedSteps.map((s, i) => `${i + 1}. ${s.title}\n${s.description}`).join("\n\n")
+    try { await navigator.clipboard.writeText(text); toast.success("Steps copied") } catch { toast.error("Copy failed") }
+  }
+
+  const resolveEvidenceUrl = (pathStr: string): string | undefined => {
+    if (!latestSnapshot) return undefined
+    try {
+      const value = pathStr.split('.').reduce<any>((acc, key) => (acc as any)?.[key], latestSnapshot as any)
+      if (typeof value === 'string' && /^https?:\/\//i.test(value)) return value
+    } catch { /* ignore */ }
+    return undefined
+  }
 
   return (
     <DialogContent className="max-w-6xl max-h-[86vh] p-6 md:p-8 bg-transparent backdrop-blur-sm border border-white/10 rounded-lg flex flex-col">
@@ -194,6 +216,66 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
                   </CardContent>
                 </CardHeader>
               </Card>
+              {verifications && (
+                <Card className="py-4">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Recent verifications</CardDescription>
+                    <CardContent className="px-0 pt-2">
+                      {verifications.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No verifications yet.</p>
+                      ) : (
+                        <ul className="text-sm text-muted-foreground leading-relaxed space-y-1">
+                          {verifications.slice(-5).reverse().map((v, i) => (
+                            <li key={i} className="flex items-center justify-between">
+                              <span>{new Date(v.time).toLocaleString()}</span>
+                              <Badge variant="outline" className={v.passed ? 'text-emerald-400' : 'text-amber-400'}>{v.passed ? 'Passed' : 'Not yet'}</Badge>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </CardContent>
+                  </CardHeader>
+                </Card>
+              )}
+              {task.evidencePaths && task.evidencePaths.length > 0 && (
+                <Card className="py-4">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Evidence</CardDescription>
+                    <CardContent className="px-0 pt-2">
+                      <div className="space-y-2">
+                        {task.evidencePaths.slice(0, 6).map((p, i) => {
+                          const url = resolveEvidenceUrl(p)
+                          return (
+                            <div key={i} className="flex items-center gap-2 justify-between break-all">
+                              <span className="text-sm text-muted-foreground flex-1 mr-2">{p}</span>
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" variant="outline" onClick={async () => { try { await navigator.clipboard.writeText(p); toast.success('Path copied') } catch { toast.error('Copy failed') } }}>
+                                  <IconCopy className="size-4 mr-1" /> Copy path
+                                </Button>
+                                {url && (
+                                  <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center px-3 h-9 rounded-md border border-white/10 text-sm hover:bg-white/[0.05]">
+                                    <IconExternalLink className="size-4 mr-1" /> Open
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </CardContent>
+                  </CardHeader>
+                </Card>
+              )}
+              {task.verificationCheckDescription && (
+                <Card className="py-4">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Verification</CardDescription>
+                    <CardContent className="px-0 pt-2">
+                      <p className="text-sm text-muted-foreground leading-relaxed">{task.verificationCheckDescription}</p>
+                    </CardContent>
+                  </CardHeader>
+                </Card>
+              )}
             </div>
           </TabsContent>
 
@@ -213,8 +295,17 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
             )}
             <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
               <CardHeader className="pb-4">
-                <CardTitle className="text-lg font-semibold">Checklist</CardTitle>
-                <CardDescription className="text-muted-foreground/80">Follow these steps</CardDescription>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-lg font-semibold">Checklist</CardTitle>
+                    <CardDescription className="text-muted-foreground/80">Follow these steps</CardDescription>
+                  </div>
+                  {task.detailedSteps.length > 0 && (
+                    <Button variant="outline" size="sm" onClick={copySteps}>
+                      <IconCopy className="size-4 mr-1" /> Copy steps
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -305,19 +396,30 @@ function TaskDetailModal({ task, onComplete }: { task: TaskItem; onComplete: (ta
               Mark as Complete
             </Button>
           </DialogClose>
-          <Button
-            variant="outline"
-            className="w-full h-11 rounded-lg"
-            onClick={() => {
-              // Close any open dialog by dispatching Escape
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-              // Open chat popup
-              window.dispatchEvent(new Event('mudra:open-chat'))
-            }}
-          >
-            Ask AI
-          </Button>
+          {task.templateKey && onVerify ? (
+            <Button
+              variant="outline"
+              className="w-full h-11 rounded-lg"
+              onClick={() => onVerify(task.id)}
+            >
+              Verify
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full h-11 rounded-lg"
+              onClick={() => {
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+                window.dispatchEvent(new Event('mudra:open-chat'))
+              }}
+            >
+              Ask AI
+            </Button>
+          )}
         </div>
+        <p className="mt-2 text-xs text-white/60">
+          To verify, ensure you dispatch <code className="px-1 py-0.5 rounded bg-white/5">mudra:set-latest-snapshot</code> so the Verify button has a snapshot to check against. “Mark Done” currently updates UI only; add a small route if you want to persist status.
+        </p>
       </div>
     </DialogContent>
   )
@@ -449,6 +551,65 @@ export function TasksView() {
     }
   ])
 
+  // Latest snapshot to enable Verify requests (can be injected from elsewhere)
+  const [latestSnapshot, setLatestSnapshot] = useState<ScrapeSnapshot | null>(null)
+
+  // Listen for external events to load snapshot and generate tasks
+  useEffect(() => {
+    function onSetSnapshot(e: Event) {
+      const detail = (e as CustomEvent).detail as { snapshot?: ScrapeSnapshot }
+      if (detail?.snapshot) setLatestSnapshot(detail.snapshot)
+    }
+    async function onGenerate(e: Event) {
+      const detail = (e as CustomEvent).detail as { snapshot?: ScrapeSnapshot }
+      const snapshot = detail?.snapshot || latestSnapshot
+      if (!snapshot) return toast.warning("No snapshot provided for generation")
+      try {
+        const res = await fetch("/api/tasks/generate", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ snapshot }),
+        })
+        const json = await res.json()
+        if (!res.ok || !json?.success) throw new Error(json?.error?.message || "Failed to generate tasks")
+        const gen = (json.data?.tasks || []) as Array<any>
+        const mapped: TaskItem[] = gen.map((t: any, idx: number) => ({
+          id: Number(Date.now() + idx),
+          header: t.title,
+          type: (t.tags?.[0] || "SEO") as "SEO" | "GEO" | "Content",
+          status: "In Process",
+          target: "0",
+          limit: "100",
+          progress: 0,
+          priority: (t.impact || "Medium").toLowerCase(),
+          dueDate: "",
+          description: t.whyItMatters || "",
+          whyItMatters: t.whyItMatters || "",
+          impact: t.impact || "",
+          actionItems: [],
+          detailedSteps: (t.steps || []).map((s: string, i: number) => ({ id: i + 1, title: s.split(".")[0] || `Step ${i+1}`, description: s, completed: false, estimatedTime: "" })),
+          resources: [],
+          estimatedTime: "",
+          difficulty: "medium",
+          templateKey: t.templateKey,
+          tags: t.tags,
+          evidencePaths: (t.evidence || []).map((e: any) => e.path),
+          verificationCheckDescription: t.verificationCheck?.description,
+        }))
+        setTasks(prev => [...mapped, ...prev])
+        toast.success(`Generated ${mapped.length} tasks`)
+      } catch (err: any) {
+        toast.error(err?.message || "Failed to generate tasks")
+      }
+    }
+    window.addEventListener("mudra:set-latest-snapshot" as any, onSetSnapshot as any)
+    window.addEventListener("mudra:generate-tasks" as any, onGenerate as any)
+    return () => {
+      window.removeEventListener("mudra:set-latest-snapshot" as any, onSetSnapshot as any)
+      window.removeEventListener("mudra:generate-tasks" as any, onGenerate as any)
+    }
+  }, [latestSnapshot])
+
   const inProgressTasks = tasks.filter(task => task.status === "In Process")
   const completedTasks = tasks.filter(task => task.status === "Done")
 
@@ -558,6 +719,28 @@ export function TasksView() {
                          onComplete={(taskId) =>
                            setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: 'Done' } : t)))
                          }
+                         onVerify={task.templateKey ? async (taskId) => {
+                           const t = tasks.find(x => x.id === taskId)
+                           if (!t?.templateKey) return
+                           if (!latestSnapshot) return toast.warning("No latest snapshot to verify against")
+                           try {
+                             const res = await fetch("/api/tasks/verify", {
+                               method: "POST",
+                               headers: { "content-type": "application/json" },
+                               body: JSON.stringify({ latestSnapshot, task: { templateKey: t.templateKey } }),
+                             })
+                             const json = await res.json()
+                             const passed = Boolean(json?.data?.passed)
+                             if (passed) {
+                               setTasks(prev => prev.map(x => x.id === taskId ? { ...x, status: 'Done' } : x))
+                               toast.success("Task verified")
+                             } else {
+                               toast.info("Verification did not pass yet")
+                             }
+                           } catch (e: any) {
+                             toast.error(e?.message || "Verification failed")
+                           }
+                         } : undefined}
                        />
                       </Dialog>
                     ))}

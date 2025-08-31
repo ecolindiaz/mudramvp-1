@@ -417,9 +417,6 @@ function TaskDetailModal({ task, onComplete, onVerify, latestSnapshot, verificat
             </Button>
           )}
         </div>
-        <p className="mt-2 text-xs text-white/60">
-          To verify, ensure you dispatch <code className="px-1 py-0.5 rounded bg-white/5">mudra:set-latest-snapshot</code> so the Verify button has a snapshot to check against. “Mark Done” currently updates UI only; add a small route if you want to persist status.
-        </p>
       </div>
     </DialogContent>
   )

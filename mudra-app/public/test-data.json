@@ -1,0 +1,131 @@
+{
+  "url": "https://paradigmai.com",
+  "metadata": {
+    "title": "Paradigm",
+    "description": "The AI-powered way to do spreadsheet work. Set up, edit, populate, and analyze sheets with assistant. Enrich empty cells with data from trusted sources., The AI-powered way to do spreadsheet work. Set up, edit, populate, and analyze sheets with assistant. Enrich empty cells with data from trusted sources.",
+    "language": "en-us",
+    "favicon": "https://www.paradigmai.com/favicons/favicon-96x96.png"
+  },
+  "htmlStructure": {
+    "headings": {
+      "h1": [
+        "The spreadsheet to automate complex data collection"
+      ],
+      "h2": [
+        "A workspace to gather, structure, and take action on data with human-level precision.",
+        "A workspace to transform your data",
+        "One platform, Endless solutions",
+        "Collaborative and connected",
+        "Enterprise-grade security"
+      ],
+      "h3": [
+        "Upload",
+        "Enrich",
+        "Take Action",
+        "Organize with Custom Columns",
+        "Ask Chatbot for Data",
+        "Connect data seamlessly",
+        "Search the web",
+        "Integrates with data you already trust",
+        "Collaborate together",
+        "SOC2 I",
+        "SOC2 II",
+        "No training on user data",
+        "Audited and tested",
+        "Send personalized emails",
+        "Automate your data's next steps"
+      ],
+      "h4": [
+        "“ Paradigm's a super interesting way of marrying old ways (sheets) with new ways (AI) to get a magical tool. ”",
+        "“ We've been using Paradigm to help automate a lot of the research-heavy work consultants spend hours on. It’s one of the few AI tools that felt built for how consultants really work. ”"
+      ],
+      "h5": [
+        "Jacob Wallenberg",
+        "Charlie Cheesman"
+      ],
+      "h6": []
+    },
+    "htmlLength": 10625286,
+    "rawHtmlLength": 11997402,
+    "hasProperStructure": true
+  },
+  "schema": {
+    "all": [],
+    "faqSchema": [],
+    "summary": {
+      "jsonLdCount": 0,
+      "microdataCount": 0,
+      "rdfaCount": 0,
+      "faqSchemaCount": 0
+    }
+  },
+  "faqs": {
+    "fromSchema": [],
+    "fromDom": [],
+    "merged": [],
+    "summary": {
+      "totalUnique": 0,
+      "schemaCount": 0,
+      "domCount": 0,
+      "llmCount": 0
+    }
+  },
+  "txtFiles": {
+    "robots": {
+      "url": "https://paradigmai.com/robots.txt",
+      "exists": false,
+      "size": 0
+    },
+    "llms": {
+      "url": "https://paradigmai.com/llms.txt",
+      "exists": true,
+      "status": 200,
+      "size": 29357
+    },
+    "llmsFull": {
+      "url": "https://paradigmai.com/llms-full.txt",
+      "exists": true,
+      "status": 200,
+      "size": 29363
+    },
+    "summary": {
+      "hasRobotsTxt": false,
+      "hasLlmsTxt": true,
+      "hasLlmsFullTxt": true,
+      "totalFound": 2
+    }
+  },
+  "synthesizedJsonLd": [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "url": "https://paradigmai.com",
+      "name": "Paradigm",
+      "description": "The AI-powered way to do spreadsheet work. Set up, edit, populate, and analyze sheets with assistant. Enrich empty cells with data from trusted sources., The AI-powered way to do spreadsheet work. Set up, edit, populate, and analyze sheets with assistant. Enrich empty cells with data from trusted sources.",
+      "inLanguage": "en-us",
+      "headline": "The spreadsheet to automate complex data collection",
+      "about": [
+        "A workspace to gather, structure, and take action on data with human-level precision.",
+        "A workspace to transform your data",
+        "One platform, Endless solutions",
+        "Collaborative and connected",
+        "Enterprise-grade security"
+      ]
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "url": "https://paradigmai.com",
+      "name": "Paradigm",
+      "description": "The AI-powered way to do spreadsheet work. Set up, edit, populate, and analyze sheets with assistant. Enrich empty cells with data from trusted sources., The AI-powered way to do spreadsheet work. Set up, edit, populate, and analyze sheets with assistant. Enrich empty cells with data from trusted sources."
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "The spreadsheet to automate complex data collection",
+      "description": "The AI-powered way to do spreadsheet work. Set up, edit, populate, and analyze sheets with assistant. Enrich empty cells with data from trusted sources., The AI-powered way to do spreadsheet work. Set up, edit, populate, and analyze sheets with assistant. Enrich empty cells with data from trusted sources.",
+      "inLanguage": "en-us",
+      "mainEntityOfPage": "https://paradigmai.com"
+    }
+  ]
+}

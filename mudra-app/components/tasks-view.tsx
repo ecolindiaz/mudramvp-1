@@ -423,133 +423,70 @@ function TaskDetailModal({ task, onComplete, onVerify, latestSnapshot, verificat
 }
 
 export function TasksView() {
-  const [tasks, setTasks] = useState<TaskItem[]>([
-    {
-      id: 1,
-      header: "Implement Organization & WebSite Schema",
-      type: "SEO",
-      status: "In Process",
-      target: "0",
-      limit: "100",
-      progress: 0,
-      priority: "high",
-      dueDate: "2025-01-01",
-      description: "Add missing Organization and WebSite JSON-LD to improve AI visibility and entity understanding.",
-      whyItMatters: "Structured data helps AI and search engines correctly understand your brand, improving the chance of accurate mentions and rich results.",
-      impact: "Higher entity confidence across AI systems; potential uplift in brand mentions and richer snippets in model answers.",
-      actionItems: [
-        "Add Organization JSON-LD on homepage",
-        "Add WebSite schema with SearchAction"
-      ],
-      detailedSteps: [
-        {
-          id: 1,
-          title: "Add Organization JSON-LD",
-          description: "Insert Organization schema in the <head> with name, url, logo, and contactPoint.",
-          completed: false,
-          estimatedTime: "1.5 hours"
-        },
-        {
-          id: 2,
-          title: "Add WebSite JSON-LD with SearchAction",
-          description: "Provide site name, url, and a SearchAction template for on-site search URLs.",
-          completed: false,
-          estimatedTime: "1 hour"
-        }
-      ],
-      resources: [
-        { title: "Schema.org Organization", url: "https://schema.org/Organization", type: "documentation" },
-        { title: "Schema.org WebSite", url: "https://schema.org/WebSite", type: "documentation" }
-      ],
-      estimatedTime: "3-4 hours",
-      difficulty: "medium"
-    },
-    {
-      id: 2,
-      header: "Fix Critical Technical Issues Blocking AI Crawlers",
-      type: "SEO",
-      status: "In Process",
-      target: "0",
-      limit: "100",
-      progress: 0,
-      priority: "high",
-      dueDate: "2025-01-10",
-      description: "Address missing meta tags and slow load performance to ensure AI crawlers can properly index content.",
-      whyItMatters: "Technical blockers degrade crawlability and can prevent AI systems from trusting or surfacing your content.",
-      impact: "Faster, more reliable indexing; improved eligibility for AI citations due to better page health.",
-      actionItems: [
-        "Add title and meta description",
-        "Optimize image sizes and compression",
-        "Enable gzip/brotli and caching"
-      ],
-      detailedSteps: [
-        {
-          id: 1,
-          title: "Add Optimized Title & Meta Description",
-          description: "Ensure a 50–60 char title and a 150–160 char meta description exist on key pages.",
-          completed: false,
-          estimatedTime: "45 minutes"
-        },
-        {
-          id: 2,
-          title: "Improve Performance",
-          description: "Convert large images to WebP/AVIF, lazy-load below‑the‑fold assets, and enable gzip/brotli.",
-          completed: false,
-          estimatedTime: "2 hours"
-        }
-      ],
-      resources: [
-        { title: "PageSpeed Insights", url: "https://pagespeed.web.dev/", type: "tool" },
-        { title: "Meta Tags Guide", url: "https://developer.mozilla.org/docs/Web/HTML/Element/meta", type: "documentation" }
-      ],
-      estimatedTime: "2–3 hours",
-      difficulty: "medium"
-    },
-    {
-      id: 3,
-      header: "Build Content Authority Signals for AI Trust",
-      type: "Content",
-      status: "In Process",
-      target: "0",
-      limit: "100",
-      progress: 0,
-      priority: "medium",
-      dueDate: "2025-01-15",
-      description: "Increase credible citations and expert signals to raise AI citation likelihood.",
-      whyItMatters: "Authority signals guide AI systems to trust and reference your content over competitors.",
-      impact: "Greater likelihood of brand inclusion in AI answers and improved perceived expertise.",
-      actionItems: [
-        "Add 5 authoritative statistics with sources",
-        "Include expert quote/testimonial",
-        "Create author bio with credentials"
-      ],
-      detailedSteps: [
-        {
-          id: 1,
-          title: "Research and Add Statistics",
-          description: "Add recent, cited data points to relevant sections with source links and dates.",
-          completed: false,
-          estimatedTime: "1.5 hours"
-        },
-        {
-          id: 2,
-          title: "Author Bio & Expert Quote",
-          description: "Create an author block with credentials and add one expert quote or customer testimonial.",
-          completed: false,
-          estimatedTime: "1 hour"
-        }
-      ],
-      resources: [
-        { title: "Google E‑E‑A‑T", url: "https://developers.google.com/search/docs/fundamentals/creating-helpful-content", type: "guide" },
-        { title: "Statista", url: "https://www.statista.com/", type: "tool" }
-      ],
-      estimatedTime: "2.5–3 hours",
-      difficulty: "easy"
-    }
-  ])
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Latest snapshot to enable Verify requests (can be injected from elsewhere)
   const [latestSnapshot, setLatestSnapshot] = useState<ScrapeSnapshot | null>(null)
+
+  // Fetch tasks from database
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('/api/tasks?siteId=test-site-1');
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to fetch tasks');
+      }
+
+      // Convert database tasks to TaskItem format
+      const dbTasks = result.data.tasks.map((task: any, index: number) => ({
+        id: task.id,
+        header: task.title,
+        type: (task.tags?.[0] || "SEO") as "GEO" | "SEO" | "Content",
+        status: task.status === "open" ? "In Process" : "Done",
+        target: "0",
+        limit: "100",
+        progress: 0,
+        priority: task.impact === "High" ? "high" : task.impact === "Medium" ? "medium" : "low",
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 week from now
+        description: task.whyItMatters || "Generated task to improve your technical structure score.",
+        whyItMatters: task.whyItMatters || "This addresses a verified gap in your technical structure.",
+        impact: task.impact || "Medium",
+        actionItems: Array.isArray(task.steps) ? task.steps.slice(0, 3) : [],
+        detailedSteps: Array.isArray(task.steps) ? task.steps.map((step: string, i: number) => ({
+          id: i + 1,
+          title: step.length > 50 ? step.substring(0, 50) + "..." : step,
+          description: step,
+          completed: false,
+          estimatedTime: "30 minutes"
+        })) : [],
+        resources: [],
+        estimatedTime: "1-2 hours",
+        difficulty: "medium",
+        templateKey: task.templateKey,
+        tags: task.tags,
+        evidencePaths: Array.isArray(task.evidence) ? task.evidence.map((e: any) => e.path) : [],
+        verificationCheckDescription: task.verificationCheck?.description
+      }));
+
+      setTasks(dbTasks);
+      setLatestSnapshot(result.data.latestSnapshot);
+    } catch (err) {
+      setError((err as Error).message);
+      console.error('Failed to fetch tasks:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    fetchTasks();
+  }, []);
 
   // Listen for external events to load snapshot and generate tasks
   useEffect(() => {
@@ -565,36 +502,14 @@ export function TasksView() {
         const res = await fetch("/api/tasks/generate", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ snapshot }),
+          body: JSON.stringify({ snapshot, siteId: "test-site-1" }),
         })
         const json = await res.json()
         if (!res.ok || !json?.success) throw new Error(json?.error?.message || "Failed to generate tasks")
-        const gen = (json.data?.tasks || []) as Array<any>
-        const mapped: TaskItem[] = gen.map((t: any, idx: number) => ({
-          id: Number(Date.now() + idx),
-          header: t.title,
-          type: (t.tags?.[0] || "SEO") as "SEO" | "GEO" | "Content",
-          status: "In Process",
-          target: "0",
-          limit: "100",
-          progress: 0,
-          priority: (t.impact || "Medium").toLowerCase(),
-          dueDate: "",
-          description: t.whyItMatters || "",
-          whyItMatters: t.whyItMatters || "",
-          impact: t.impact || "",
-          actionItems: [],
-          detailedSteps: (t.steps || []).map((s: string, i: number) => ({ id: i + 1, title: s.split(".")[0] || `Step ${i+1}`, description: s, completed: false, estimatedTime: "" })),
-          resources: [],
-          estimatedTime: "",
-          difficulty: "medium",
-          templateKey: t.templateKey,
-          tags: t.tags,
-          evidencePaths: (t.evidence || []).map((e: any) => e.path),
-          verificationCheckDescription: t.verificationCheck?.description,
-        }))
-        setTasks(prev => [...mapped, ...prev])
-        toast.success(`Generated ${mapped.length} tasks`)
+        
+        toast.success(`Generated ${json.data?.taskIds?.length || 0} new tasks`)
+        // Refresh tasks from database
+        await fetchTasks()
       } catch (err: any) {
         toast.error(err?.message || "Failed to generate tasks")
       }

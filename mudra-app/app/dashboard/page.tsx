@@ -50,6 +50,16 @@ export default function Page() {
                   <Button
                     variant="dashed"
                     className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
+                    onClick={() => {
+                      // Trigger generate score event
+                      window.dispatchEvent(new CustomEvent('mudra:generate-score'))
+                    }}
+                  >
+                    Generate Score
+                  </Button>
+                  <Button
+                    variant="dashed"
+                    className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
                   >
                     Run Analysis
                   </Button>

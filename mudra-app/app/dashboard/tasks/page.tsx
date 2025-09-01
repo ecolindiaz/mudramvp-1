@@ -1,3 +1,5 @@
+"use client"
+
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { TasksView } from "@/components/tasks-view"
@@ -34,10 +36,36 @@ export default function TasksPage() {
                   <h1 className="text-2xl font-bold tracking-tight text-white">Tasks</h1>
                   <p className="text-muted-foreground">Manage and track optimization tasks</p>
                 </div>
-                <Button size="sm" className="h-9 rounded-xl">
-                  <IconPlus className="size-4 mr-2" />
-                  Add Task
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    className="h-9 rounded-xl"
+                    variant="outline"
+                    onClick={async () => {
+                      // Load snapshot and trigger generate tasks event
+                      try {
+                        const response = await fetch('/test-data.json')
+                        const rawData = await response.json()
+                        
+                        // Convert to snapshot  
+                        const toScrapeSnapshot = await import('@/lib/analysis/technical/adapter').then(m => m.toScrapeSnapshot)
+                        const snapshot = toScrapeSnapshot(rawData)
+                        
+                        // Set snapshot first, then trigger generation
+                        window.dispatchEvent(new CustomEvent('mudra:set-latest-snapshot', { detail: { snapshot } }))
+                        window.dispatchEvent(new CustomEvent('mudra:generate-tasks', { detail: { snapshot } }))
+                      } catch (error) {
+                        console.error('❌ Error loading snapshot:', error)
+                      }
+                    }}
+                  >
+                    Generate Tasks
+                  </Button>
+                  <Button size="sm" className="h-9 rounded-xl">
+                    <IconPlus className="size-4 mr-2" />
+                    Add Task
+                  </Button>
+                </div>
               </div>
               <div className="mt-4">
                 <div className="relative">

@@ -1,23 +1,40 @@
-import Redis from "ioredis";
+// Simple in-memory cache for development
+// TODO: Replace with Redis in production
 
-type GlobalWithRedis = typeof globalThis & { __mudraRedis?: Redis };
+interface CacheEntry {
+  value: string;
+  expires: number;
+}
 
-function getRedis(): Redis {
-  const g = globalThis as GlobalWithRedis;
-  if (!g.__mudraRedis) {
-    g.__mudraRedis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
+type GlobalWithCache = typeof globalThis & { __mudraCache?: Map<string, CacheEntry> };
+
+function getCache(): Map<string, CacheEntry> {
+  const g = globalThis as GlobalWithCache;
+  if (!g.__mudraCache) {
+    g.__mudraCache = new Map<string, CacheEntry>();
   }
-  return g.__mudraRedis;
+  return g.__mudraCache;
 }
 
 export async function cacheGet(key: string): Promise<string | null> {
-  try { return await getRedis().get(key); } catch { return null }
+  const cache = getCache();
+  const entry = cache.get(key);
+  
+  if (!entry) return null;
+  
+  // Check if expired
+  if (Date.now() > entry.expires) {
+    cache.delete(key);
+    return null;
+  }
+  
+  return entry.value;
 }
 
 export async function cacheSet(key: string, value: string, ttlSeconds: number): Promise<void> {
-  try { await getRedis().setex(key, ttlSeconds, value); } catch { /* ignore */ }
+  const cache = getCache();
+  const expires = Date.now() + (ttlSeconds * 1000);
+  cache.set(key, { value, expires });
 }
-
-export { getRedis };
 
 

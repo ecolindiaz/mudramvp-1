@@ -138,13 +138,15 @@ export function DashboardStatCard({
           <span className="text-2xl font-medium text-foreground tracking-tight">
             {format ? format(value) : `${prefix}${formatValue(value)}${suffix}`}
           </span>
-          <Badge
-            variant={positive ? "success" : "destructive"}
-            className={cn("appearance-light", positive ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "")}
-          >
-            {delta > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
-            {delta}%
-          </Badge>
+          {(lastValue !== 0 || delta !== 0) && (
+            <Badge
+              variant={positive ? "success" : "destructive"}
+              className={cn("appearance-light", positive ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "")}
+            >
+              {delta > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+              {delta}%
+            </Badge>
+          )}
         </div>
         {Array.isArray(sparkline) && sparkline.length > 1 && (
           <div className="overflow-hidden transition-all duration-300 ease-out max-h-0 group-hover:max-h-12">
@@ -191,10 +193,16 @@ export function DashboardStatCard({
         )}
         <div className="mt-2 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
           <div className="text-xs text-muted-foreground">
-            Vs last period:{" "}
-            <span className="font-medium text-foreground">
-              {lastFormat ? lastFormat(lastValue) : `${prefix}${formatLast(lastValue)}${suffix}`}
-            </span>
+            {lastValue === 0 && delta === 0 ? (
+              "No previous data"
+            ) : (
+              <>
+                Vs last period:{" "}
+                <span className="font-medium text-foreground">
+                  {lastFormat ? lastFormat(lastValue) : `${prefix}${formatLast(lastValue)}${suffix}`}
+                </span>
+              </>
+            )}
           </div>
           {onCtaClick && (
             <Button

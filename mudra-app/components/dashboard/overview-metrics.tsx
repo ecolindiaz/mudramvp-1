@@ -28,17 +28,29 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   void selectedModel
 
   // State for dynamic technical score
-  const [technicalScore, setTechnicalScore] = useState(mockDashboardMetrics.technicalScore.current)
+  const [technicalScore, setTechnicalScore] = useState(0)
+  const [previousScore, setPreviousScore] = useState<number | null>(null)
+  const [hasHistoricalData, setHasHistoricalData] = useState(false)
   const [isGeneratingScore, setIsGeneratingScore] = useState(false)
 
-  // Fetch latest score from database
+  // Fetch latest score and historical data from database
   const fetchLatestScore = async () => {
     try {
-      const response = await fetch('/api/scores?siteId=test-site-1')
+      const response = await fetch('/api/scores/history?siteId=test-site-1&limit=5')
       const result = await response.json()
       
-      if (result.success && result.data.score) {
-        setTechnicalScore(result.data.score.total)
+      if (result.success && result.data.latest) {
+        const currentScore = result.data.latest.total
+        setTechnicalScore(currentScore)
+        
+        // Check if we have historical data to compare
+        if (result.data.hasHistoricalData && result.data.previous) {
+          setHasHistoricalData(true)
+          setPreviousScore(result.data.previous.total)
+        } else {
+          setHasHistoricalData(false)
+          setPreviousScore(null)
+        }
       }
     } catch (error) {
       console.error('Error fetching latest score:', error)
@@ -112,10 +124,10 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       <DashboardStatCard
         title="Technical Structure Score"
         value={isGeneratingScore ? 0 : technicalScore}
-        delta={mockDashboardMetrics.technicalScore.change}
-        lastValue={mockDashboardMetrics.technicalScore.previous}
-        positive={mockDashboardMetrics.technicalScore.trend === "up"}
-        sparkline={[78,80,82,83,84,85]}
+        delta={hasHistoricalData && previousScore !== null ? Math.round(((technicalScore - previousScore) / previousScore) * 100) : 0}
+        lastValue={hasHistoricalData && previousScore !== null ? previousScore : 0}
+        positive={hasHistoricalData && previousScore !== null ? technicalScore > previousScore : true}
+        sparkline={hasHistoricalData ? undefined : technicalScore > 0 ? [0, Math.max(10, technicalScore * 0.6), Math.max(20, technicalScore * 0.8), technicalScore] : [0]}
         accentColor="rgba(255,255,255,0.9)"
         info={isGeneratingScore ? "Calculating score..." : "How well your site is optimized for AI and SEO."}
       />

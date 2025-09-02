@@ -5,8 +5,6 @@ import { mockOverviewMetrics, mockDashboardMetrics } from "@/lib/mock/data"
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 import { useState, useEffect } from "react"
-import { toScrapeSnapshot } from "@/lib/analysis/technical/adapter"
-import { validateScrapeSnapshot } from "@/lib/analysis/technical/validate"
 
 interface OverviewMetricsProps {
   showAll?: boolean
@@ -62,50 +60,16 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     fetchLatestScore()
   }, [])
 
-  // Listen for generate score event
+  // Listen for website analysis completion
   useEffect(() => {
-    const handleGenerateScore = async () => {
-      try {
-        setIsGeneratingScore(true)
-        
-        // Load the test scraper data
-        const response = await fetch('/test-data.json')
-        const rawData = await response.json()
-        
-        // Convert to snapshot
-        const snapshot = toScrapeSnapshot(rawData)
-        
-        // Validate snapshot
-        const validation = validateScrapeSnapshot(snapshot)
-        if (!validation.ok) {
-          console.error('Snapshot validation failed:', validation.errors)
-          return
-        }
-
-        // Call score API (now saves to database)
-        const scoreResponse = await fetch('/api/technical-analysis/score', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ snapshot, siteId: 'test-site-1' })
-        })
-
-        if (!scoreResponse.ok) {
-          throw new Error(`Score API failed: ${scoreResponse.status}`)
-        }
-
-        const { data: scoreResult } = await scoreResponse.json()
-        setTechnicalScore(scoreResult.total)
-        
-        console.log('✅ Score generated successfully:', scoreResult)
-      } catch (error) {
-        console.error('❌ Error generating score:', error)
-      } finally {
-        setIsGeneratingScore(false)
-      }
+    const handleWebsiteAnalyzed = async (event: CustomEvent) => {
+      console.log('🔄 Website analyzed, refreshing score display')
+      // Refresh the score from database
+      await fetchLatestScore()
     }
 
-    window.addEventListener('mudra:generate-score', handleGenerateScore)
-    return () => window.removeEventListener('mudra:generate-score', handleGenerateScore)
+    window.addEventListener('mudra:website-analyzed', handleWebsiteAnalyzed as EventListener)
+    return () => window.removeEventListener('mudra:website-analyzed', handleWebsiteAnalyzed as EventListener)
   }, [])
 
   return (

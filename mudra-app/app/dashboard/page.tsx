@@ -11,6 +11,7 @@ import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics"
 import { NaturalLanguageReport } from "@/components/dashboard/natural-language-report"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { CountdownBadge } from "@/components/dashboard/countdown-badge"
 import type { TimeRange } from "@/components/dashboard/time-range-selector"
 import type { AIModel } from "@/components/dashboard/model-selector"
@@ -19,6 +20,63 @@ import React from "react"
 export default function Page() {
   const [timeRange, setTimeRange] = React.useState<TimeRange>("7d")
   const [selectedModel, setSelectedModel] = React.useState<AIModel>("chatgpt")
+  const [websiteUrl, setWebsiteUrl] = React.useState("")
+  const [isAnalyzing, setIsAnalyzing] = React.useState(false)
+
+  const handleAnalyzeWebsite = async () => {
+    if (!websiteUrl.trim()) return
+
+    try {
+      setIsAnalyzing(true)
+
+      // 1) Scrape the website
+      console.log(`🚀 Starting analysis for: ${websiteUrl}`)
+      const scrapeResponse = await fetch('/api/run-scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: websiteUrl.trim() }),
+      })
+
+      if (!scrapeResponse.ok) {
+        throw new Error(`Scraping failed: ${scrapeResponse.status}`)
+      }
+
+      const scrapeResult = await scrapeResponse.json()
+      if (!scrapeResult.success) {
+        throw new Error(scrapeResult.error?.message || 'Scraping failed')
+      }
+
+      console.log('✅ Scraping completed')
+
+      // 2) Convert to snapshot and score (this will save to DB)
+      const { toScrapeSnapshot } = await import('@/lib/analysis/technical/adapter')
+      const snapshot = toScrapeSnapshot(scrapeResult.data)
+
+      const scoreResponse = await fetch('/api/technical-analysis/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshot, siteId: 'test-site-1' })
+      })
+
+      if (!scoreResponse.ok) {
+        throw new Error(`Scoring failed: ${scoreResponse.status}`)
+      }
+
+      const scoreResult = await scoreResponse.json()
+      console.log('✅ Technical score computed:', scoreResult.data.total)
+
+      // 3) Trigger UI refresh
+      window.dispatchEvent(new CustomEvent('mudra:website-analyzed', {
+        detail: { url: websiteUrl, score: scoreResult.data.total }
+      }))
+
+    } catch (error) {
+      console.error('❌ Website analysis failed:', error)
+      alert(`Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
 
   return (
     <SidebarProvider
@@ -47,22 +105,23 @@ export default function Page() {
                 </div>
                 <div className="flex items-center gap-3">
                   <CountdownBadge />
-                  <Button
-                    variant="dashed"
-                    className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
-                    onClick={() => {
-                      // Trigger generate score event
-                      window.dispatchEvent(new CustomEvent('mudra:generate-score'))
-                    }}
-                  >
-                    Generate Score
-                  </Button>
-                  <Button
-                    variant="dashed"
-                    className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
-                  >
-                    Run Analysis
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Enter website URL (e.g., paradigmai.com)"
+                      value={websiteUrl}
+                      onChange={(e) => setWebsiteUrl(e.target.value)}
+                      className="w-64 h-9 bg-white text-black placeholder:text-gray-500"
+                      disabled={isAnalyzing}
+                    />
+                    <Button
+                      variant="dashed"
+                      className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
+                      onClick={handleAnalyzeWebsite}
+                      disabled={isAnalyzing || !websiteUrl.trim()}
+                    >
+                      {isAnalyzing ? "Analyzing..." : "Analyze Website"}
+                    </Button>
+                  </div>
                 </div>
               </div>
               {/* Elegant Separator with White Dot (mirrors Insights) */}

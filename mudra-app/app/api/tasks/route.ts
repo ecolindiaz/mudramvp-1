@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
           createdAt: task.createdAt,
           updatedAt: task.updatedAt
         })),
-        latestSnapshot
+        latestSnapshot: latestSnapshot?.data
       }
     });
   } catch (err) {

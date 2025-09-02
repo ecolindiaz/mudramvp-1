@@ -5,7 +5,7 @@ import { tryParseEnrichmentJson, buildSystemPrompt, buildUserPrompt } from "@/li
 import { readKnowledgeDocs } from "@/lib/analysis/technical/knowledge";
 import { baselineStepsForTemplate, deriveEvidenceForTemplate } from "@/lib/analysis/technical/task-templates";
 
-const MODEL = openai("gpt-4o-mini");
+const MODEL = openai("gpt-5");
 
 const isDev = process.env.NODE_ENV !== "production";
 

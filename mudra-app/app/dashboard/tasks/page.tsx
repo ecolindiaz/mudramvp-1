@@ -10,7 +10,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { Button } from "@/components/ui/button"
-import { IconPlus } from "@tabler/icons-react"
+
 
 export default function TasksPage() {
   return (
@@ -42,29 +42,48 @@ export default function TasksPage() {
                     className="h-9 rounded-xl"
                     variant="outline"
                     onClick={async () => {
-                      // Load snapshot and trigger generate tasks event
+                      // Get latest snapshot from database and generate tasks
                       try {
-                        const response = await fetch('/test-data.json')
-                        const rawData = await response.json()
+                        console.log('🚀 Generating tasks from latest snapshot...')
                         
-                        // Convert to snapshot  
-                        const toScrapeSnapshot = await import('@/lib/analysis/technical/adapter').then(m => m.toScrapeSnapshot)
-                        const snapshot = toScrapeSnapshot(rawData)
+                        // Fetch latest snapshot from database
+                        const response = await fetch('/api/tasks?siteId=test-site-1')
+                        const result = await response.json()
                         
-                        // Set snapshot first, then trigger generation
-                        window.dispatchEvent(new CustomEvent('mudra:set-latest-snapshot', { detail: { snapshot } }))
-                        window.dispatchEvent(new CustomEvent('mudra:generate-tasks', { detail: { snapshot } }))
+                        if (!result.success || !result.data.latestSnapshot) {
+                          alert('No website data found. Please analyze a website first from the Overview page.')
+                          return
+                        }
+                        
+                        const snapshot = result.data.latestSnapshot
+                        console.log('✅ Using latest snapshot for task generation')
+                        
+                        // Generate tasks using the latest snapshot
+                        const generateResponse = await fetch('/api/tasks/generate', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ snapshot, siteId: 'test-site-1' })
+                        })
+                        
+                        if (!generateResponse.ok) {
+                          throw new Error(`Task generation failed: ${generateResponse.status}`)
+                        }
+                        
+                        const generateResult = await generateResponse.json()
+                        console.log('✅ Tasks generated:', generateResult.data.tasks.length)
+                        
+                        // Refresh tasks list
+                        window.dispatchEvent(new CustomEvent('mudra:refresh-tasks'))
+                        
                       } catch (error) {
-                        console.error('❌ Error loading snapshot:', error)
+                        console.error('❌ Error generating tasks:', error)
+                        alert(`Task generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
                       }
                     }}
                   >
                     Generate Tasks
                   </Button>
-                  <Button size="sm" className="h-9 rounded-xl">
-                    <IconPlus className="size-4 mr-2" />
-                    Add Task
-                  </Button>
+
                 </div>
               </div>
               <div className="mt-4">

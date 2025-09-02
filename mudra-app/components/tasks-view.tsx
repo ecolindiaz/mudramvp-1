@@ -237,35 +237,7 @@ function TaskDetailModal({ task, onComplete, onVerify, latestSnapshot, verificat
                   </CardHeader>
                 </Card>
               )}
-              {task.evidencePaths && task.evidencePaths.length > 0 && (
-                <Card className="py-4">
-                  <CardHeader className="pb-2">
-                    <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Evidence</CardDescription>
-                    <CardContent className="px-0 pt-2">
-                      <div className="space-y-2">
-                        {task.evidencePaths.slice(0, 6).map((p, i) => {
-                          const url = resolveEvidenceUrl(p)
-                          return (
-                            <div key={i} className="flex items-center gap-2 justify-between break-all">
-                              <span className="text-sm text-muted-foreground flex-1 mr-2">{p}</span>
-                              <div className="flex items-center gap-2">
-                                <Button size="sm" variant="outline" onClick={async () => { try { await navigator.clipboard.writeText(p); toast.success('Path copied') } catch { toast.error('Copy failed') } }}>
-                                  <IconCopy className="size-4 mr-1" /> Copy path
-                                </Button>
-                                {url && (
-                                  <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center px-3 h-9 rounded-md border border-white/10 text-sm hover:bg-white/[0.05]">
-                                    <IconExternalLink className="size-4 mr-1" /> Open
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </CardContent>
-                  </CardHeader>
-                </Card>
-              )}
+
               {task.verificationCheckDescription && (
                 <Card className="py-4">
                   <CardHeader className="pb-2">
@@ -514,11 +486,16 @@ export function TasksView() {
         toast.error(err?.message || "Failed to generate tasks")
       }
     }
+    function onRefreshTasks() {
+      fetchTasks()
+    }
     window.addEventListener("mudra:set-latest-snapshot" as any, onSetSnapshot as any)
     window.addEventListener("mudra:generate-tasks" as any, onGenerate as any)
+    window.addEventListener("mudra:refresh-tasks" as any, onRefreshTasks as any)
     return () => {
       window.removeEventListener("mudra:set-latest-snapshot" as any, onSetSnapshot as any)
       window.removeEventListener("mudra:generate-tasks" as any, onGenerate as any)
+      window.removeEventListener("mudra:refresh-tasks" as any, onRefreshTasks as any)
     }
   }, [latestSnapshot])
 

@@ -30,7 +30,7 @@ export async function POST(req: Request) {
       const now = Date.now()
       const entry = store.get(key)
       const durationMs = 60 * 60 * 1000 // 1 hour
-      const max = 15
+      const max = 25
       if (!entry || now > entry.resetTime) {
         store.set(key, { count: 1, resetTime: now + durationMs })
       } else {
@@ -302,7 +302,7 @@ Use your advanced reasoning to provide the most thorough, accurate, and actionab
       costEstimateUsd: costEstimate,
     })
 
-    return new Response(JSON.stringify({ content, citations }), {
+    return new Response(JSON.stringify({ content }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });

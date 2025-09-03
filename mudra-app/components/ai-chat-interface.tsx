@@ -142,7 +142,7 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: data.content,
-          citations: data.citations || []
+          citations: []
         }
         setMessages(prev => [...prev, assistantMessage])
       } else {

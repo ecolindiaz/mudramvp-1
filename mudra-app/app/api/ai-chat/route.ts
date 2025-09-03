@@ -1,5 +1,10 @@
 import OpenAI from 'openai';
+import { streamText } from 'ai'
+import { openai as openaiProvider } from '@ai-sdk/openai'
 import { getDefaultModel, getModelForDeepThinking } from '@/lib/config/ai-models';
+import { buildUserContext, buildUserContextSummary } from '@/lib/ai/rag/user-context'
+import { retrieve, rerankWithLLM } from '@/lib/ai/rag/retrieve'
+import { prisma, getOpenTasks, setTaskStatus } from '@/lib/analysis/technical/repo'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -7,36 +12,41 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { messages, taskContext, deepThink }: {
-      messages: { role: 'user' | 'assistant'; content: string }[];
-      taskContext?: {
-        header: string;
-        type: string;
-        status: string;
-        description: string;
-        estimatedTime?: string;
-        difficulty?: string;
-        detailedSteps?: { title: string; estimatedTime?: string; description?: string }[];
-        resources?: { title: string }[];
-      }[];
-      deepThink?: boolean;
-    } = await req.json();
+    const url = new URL(req.url)
+    const wantsStream = url.searchParams.get('stream') === '1' || req.headers.get('accept') === 'text/event-stream'
+
+    const { messages, siteId, deepThink }: {
+      messages: { role: 'user' | 'assistant'; content: string }[]
+      siteId?: string
+      deepThink?: boolean
+    } = await req.json()
+
+    // Build user context (compact, redacted)
+    const resolvedSiteId = siteId || 'test-site-1'
+    const userCtx = await buildUserContext({ siteId: resolvedSiteId })
+    const { summary: userCtxSummary } = buildUserContextSummary(userCtx, 1200)
+
+    // Retrieve context from KB (vector + hybrid via RPC)
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
+    const initial = await retrieve(lastUserMsg, { k: 12, queryText: lastUserMsg, filter: { isPublic: true } })
+    const reranked = await rerankWithLLM(lastUserMsg, initial, 8)
+    const citations = reranked.map((r) => ({ title: r.title, path: r.path, chunk_index: r.chunk_index ?? 0 }))
+    const contextBlocks = reranked.map((r, i) => `[[${i + 1}]] ${r.title} — ${r.path}\n${r.content}`)
 
     // Build context-aware system prompt
-    let systemPrompt = `You are Mudra AI, an intelligent assistant for the Mudra GEO platform. You help users with:
+    let systemPrompt = `You are Mudra AI, an assistant for the Mudra GEO platform. Use the provided user dashboard context and retrieved knowledge to answer with precise, actionable guidance. Always cite sources.
 
-1. **GEO Optimization Tasks**: Provide step-by-step guidance on SEO, structured data, content optimization, and technical improvements
-2. **Platform Navigation**: Help users understand and use the Mudra platform features
-3. **Marketing Strategy**: Offer advice on improving AI visibility, content marketing, and digital presence
-4. **Task Management**: Guide users through completing their generated tasks
+Rules:
+- Be concise, factual, and beginner-friendly
+- Keep temperature low (0.2)
+- Never invent citations; only use the provided retrieved context
+- When relevant, suggest a next action (e.g., mark task started)
 
-Key capabilities:
-- Break down complex optimization tasks into simple, actionable steps
-- Explain technical concepts in beginner-friendly language
-- Provide specific code examples and implementation guidance
-- Help prioritize optimization efforts based on impact
-
-Always be helpful, concise, and actionable. When explaining steps, number them clearly and include practical examples.`;
+Output JSON (markdown fenced) with fields:
+{
+  "answer": string,
+  "citations": [{ "title": string, "path": string, "chunk_index": number }]
+}`;
 
     // Add deep thinking instructions if requested
     if (deepThink) {
@@ -72,74 +82,169 @@ You are now powered by OpenAI's most advanced reasoning model. Use your enhanced
 Use your advanced reasoning to provide the most thorough, accurate, and actionable response possible.`;
     }
 
-    // Add current tasks context if available
-    if (taskContext && taskContext.length > 0) {
-      systemPrompt += `\n\n**CURRENT USER TASKS:**\nThe user currently has the following tasks:\n\n`;
-      
-      taskContext.forEach((task, index) => {
-        systemPrompt += `**Task ${index + 1}: ${task.header}**\n`;
-        systemPrompt += `- Type: ${task.type}\n`;
-        systemPrompt += `- Status: ${task.status}\n`;
-        systemPrompt += `- Description: ${task.description}\n`;
-        systemPrompt += `- Estimated Time: ${task.estimatedTime}\n`;
-        systemPrompt += `- Difficulty: ${task.difficulty}\n`;
-        
-        if (task.detailedSteps && task.detailedSteps.length > 0) {
-          systemPrompt += `- Steps:\n`;
-          task.detailedSteps.forEach((step, stepIndex) => {
-            systemPrompt += `  ${stepIndex + 1}. ${step.title} (${step.estimatedTime})\n     ${step.description}\n`;
-          });
-        }
-        
-        if (task.resources && task.resources.length > 0) {
-          systemPrompt += `- Resources: ${task.resources.map(r => r.title).join(', ')}\n`;
-        }
-        
-        systemPrompt += `\n`;
-      });
-      
-      systemPrompt += `When users ask "how to do this" or similar questions, refer to these specific tasks and provide detailed guidance based on the steps outlined above.`;
-    }
+    // Attach user context and retrieved content as assistant-only context blocks
+    const contextHeader = `\n\n[USER_DASHBOARD_CONTEXT]\n${userCtxSummary}\n\n[RETRIEVED_CONTEXT]\n${contextBlocks.join('\n\n')}`
 
     // Get model configuration
     const modelConfig = deepThink ? getModelForDeepThinking() : getDefaultModel()
     
+    // Define lightweight tools the model can call
+    const tools = [
+      {
+        type: 'function' as const,
+        function: {
+          name: 'get_open_tasks',
+          description: 'Return a concise list of open tasks for a site (top 10).',
+          parameters: {
+            type: 'object',
+            properties: { siteId: { type: 'string' } },
+            required: ['siteId'],
+          },
+        },
+      },
+      {
+        type: 'function' as const,
+        function: {
+          name: 'get_latest_score',
+          description: 'Return the latest technical score for a site.',
+          parameters: {
+            type: 'object',
+            properties: { siteId: { type: 'string' } },
+            required: ['siteId'],
+          },
+        },
+      },
+      {
+        type: 'function' as const,
+        function: {
+          name: 'verify_task_by_template_key',
+          description: 'Mark a task verified (idempotent) by templateKey for a site.',
+          parameters: {
+            type: 'object',
+            properties: { siteId: { type: 'string' }, templateKey: { type: 'string' } },
+            required: ['siteId', 'templateKey'],
+          },
+        },
+      },
+    ]
+
+    const baseMessages: any[] = [
+      ...messages,
+    ]
+
+    // Optional streaming via Vercel AI SDK
+    if (wantsStream) {
+      const result = await streamText({
+        model: openaiProvider(modelConfig.model),
+        system: systemPrompt + '\n\n' + contextHeader,
+        messages: baseMessages,
+        temperature: 0.2,
+        tools: {
+          get_open_tasks: {
+            description: 'Return a concise list of open tasks for a site (top 10).',
+            parameters: { type: 'object', properties: { siteId: { type: 'string' } }, required: ['siteId'] },
+            execute: async ({ siteId }: { siteId: string }) => {
+              const tasks = await getOpenTasks(siteId || resolvedSiteId)
+              return tasks.slice(0, 10).map(t => ({ title: t.title, impact: t.impact, status: t.status }))
+            },
+          },
+          get_latest_score: {
+            description: 'Return the latest technical score for a site.',
+            parameters: { type: 'object', properties: { siteId: { type: 'string' } }, required: ['siteId'] },
+            execute: async ({ siteId }: { siteId: string }) => {
+              const latest = await prisma.technicalScore.findFirst({ where: { snapshot: { siteId: siteId || resolvedSiteId } }, orderBy: { createdAt: 'desc' } })
+              return latest ? { total: latest.total, createdAt: latest.createdAt } : null
+            },
+          },
+          verify_task_by_template_key: {
+            description: 'Mark a task verified (idempotent) by templateKey for a site.',
+            parameters: { type: 'object', properties: { siteId: { type: 'string' }, templateKey: { type: 'string' } }, required: ['siteId', 'templateKey'] },
+            execute: async ({ siteId, templateKey }: { siteId: string, templateKey: string }) => {
+              const task = await prisma.task.findFirst({ where: { siteId: siteId || resolvedSiteId, templateKey }, orderBy: { createdAt: 'desc' } })
+              if (!task) return { status: 'not_found' }
+              const updated = await setTaskStatus(task.id, 'verified')
+              return { status: updated.status }
+            },
+          },
+        },
+      })
+      return result.toDataStreamResponse()
+    }
+
     let response;
     try {
       response = await openai.chat.completions.create({
         model: modelConfig.model,
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          ...messages,
-        ],
-        temperature: modelConfig.settings.defaultTemperature,
+        messages: baseMessages,
+        tools,
+        tool_choice: 'auto',
+        temperature: 0.2,
         max_tokens: modelConfig.settings.defaultMaxTokens,
       });
     } catch (modelError) {
       console.error('Model error, falling back to GPT-4:', modelError);
-      // Fallback to GPT-4 if the specified model fails
       const fallbackConfig = getDefaultModel();
       response = await openai.chat.completions.create({
         model: fallbackConfig.model,
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          ...messages,
-        ],
-        temperature: fallbackConfig.settings.defaultTemperature,
+        messages: baseMessages,
+        tools,
+        tool_choice: 'auto',
+        temperature: 0.2,
         max_tokens: fallbackConfig.settings.defaultMaxTokens,
       });
     }
 
-    const content = response.choices[0]?.message?.content || 'Sorry, I could not process your request.';
+    // Handle tool calls (single round for idempotence/budget)
+    const toolCalls = response.choices?.[0]?.message?.tool_calls || []
+    let finalContent = response.choices?.[0]?.message?.content || ''
+    if (toolCalls.length > 0) {
+      const toolResults: any[] = []
+      for (const call of toolCalls) {
+        const name = call.function?.name
+        let args: any = {}
+        try { args = JSON.parse(call.function?.arguments || '{}') } catch {}
+
+        if (name === 'get_open_tasks') {
+          const site = args.siteId || resolvedSiteId
+          const tasks = await getOpenTasks(site)
+          toolResults.push({ id: call.id, name, result: tasks.slice(0, 10).map(t => ({ title: t.title, impact: t.impact, status: t.status })) })
+        } else if (name === 'get_latest_score') {
+          const site = args.siteId || resolvedSiteId
+          const latest = await prisma.technicalScore.findFirst({ where: { snapshot: { siteId: site } }, orderBy: { createdAt: 'desc' } })
+          toolResults.push({ id: call.id, name, result: latest ? { total: latest.total, createdAt: latest.createdAt } : null })
+        } else if (name === 'verify_task_by_template_key') {
+          const site = args.siteId || resolvedSiteId
+          const tpl = args.templateKey
+          const task = await prisma.task.findFirst({ where: { siteId: site, templateKey: tpl }, orderBy: { createdAt: 'desc' } })
+          let status = 'not_found'
+          if (task) {
+            const updated = await setTaskStatus(task.id, 'verified')
+            status = updated.status
+          }
+          toolResults.push({ id: call.id, name, result: { templateKey: tpl, status } })
+        }
+      }
+
+      const toolMessages = toolResults.map((tr) => ({ role: 'tool' as const, tool_call_id: tr.id, content: JSON.stringify(tr.result) }))
+      const followup = await openai.chat.completions.create({
+        model: getDefaultModel().model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'assistant', content: contextHeader },
+          ...messages,
+          response.choices[0].message,
+          ...toolMessages,
+        ],
+        temperature: 0.2,
+        max_tokens: getDefaultModel().settings.defaultMaxTokens,
+      })
+      finalContent = followup.choices?.[0]?.message?.content || finalContent
+    }
+
+    const content = finalContent || 'Sorry, I could not process your request.';
 
     return new Response(
-      JSON.stringify({ content }),
+      JSON.stringify({ content, citations }),
       { 
         status: 200,
         headers: { 'Content-Type': 'application/json' }

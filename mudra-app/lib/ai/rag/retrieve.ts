@@ -1,3 +1,4 @@
+import 'server-only'
 import { getServiceClient } from '@/lib/db/supabase-server'
 import { embedChunks } from './embeddings'
 

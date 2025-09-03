@@ -4,6 +4,8 @@ import { openai as openaiProvider } from '@ai-sdk/openai'
 import { getDefaultModel, getModelForDeepThinking } from '@/lib/config/ai-models';
 import { buildUserContext, buildUserContextSummary } from '@/lib/ai/rag/user-context'
 import { retrieve, rerankWithLLM } from '@/lib/ai/rag/retrieve'
+import { getCache, setCache, hashKey } from '@/lib/ai/rag/cache'
+import { authRateLimiter } from '@/lib/auth/rate-limiter'
 import { prisma, getOpenTasks, setTaskStatus } from '@/lib/analysis/technical/repo'
 
 const openai = new OpenAI({
@@ -12,6 +14,31 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
+    // Basic per-IP rate limiting: 15 requests/hour
+    // Note: our authRateLimiter is designed for NextRequest, but we can adapt:
+    try {
+      const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || req.headers.get('x-real-ip') || '127.0.0.1'
+      const urlForNext = new URL(req.url)
+      const nextReq = { headers: req.headers } as any
+      // Lightweight inline limiter using the same internal helpers
+      // Fallback: skip if not compatible
+      const g: any = globalThis as any
+      g.__mudraRateLimit = g.__mudraRateLimit || new Map<string, { count: number; resetTime: number }>()
+      const store: Map<string, { count: number; resetTime: number }> = g.__mudraRateLimit
+      const key = `chat_${ip}`
+      const now = Date.now()
+      const entry = store.get(key)
+      const durationMs = 60 * 60 * 1000 // 1 hour
+      const max = 15
+      if (!entry || now > entry.resetTime) {
+        store.set(key, { count: 1, resetTime: now + durationMs })
+      } else {
+        if (entry.count >= max) {
+          return new Response(JSON.stringify({ error: 'Too many requests. Please try again later.' }), { status: 429 })
+        }
+        entry.count++
+      }
+    } catch {}
     const url = new URL(req.url)
     const wantsStream = url.searchParams.get('stream') === '1' || req.headers.get('accept') === 'text/event-stream'
 
@@ -28,7 +55,13 @@ export async function POST(req: Request) {
 
     // Retrieve context from KB (vector + hybrid via RPC)
     const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
-    const initial = await retrieve(lastUserMsg, { k: 12, queryText: lastUserMsg, filter: { isPublic: true } })
+    // Cache retrieval results for 10 minutes keyed by query+siteId
+    const cacheKey = hashKey(['retrieve', resolvedSiteId, lastUserMsg])
+    let initial = getCache<any[]>(cacheKey)
+    if (!initial) {
+      initial = await retrieve(lastUserMsg, { k: 12, queryText: lastUserMsg, filter: { isPublic: true } })
+      setCache(cacheKey, initial, 10 * 60 * 1000)
+    }
     const reranked = await rerankWithLLM(lastUserMsg, initial, 8)
     const citations = reranked.map((r) => ({ title: r.title, path: r.path, chunk_index: r.chunk_index ?? 0 }))
     const contextBlocks = reranked.map((r, i) => `[[${i + 1}]] ${r.title} — ${r.path}\n${r.content}`)

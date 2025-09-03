@@ -105,7 +105,7 @@ export default function TasksPage() {
         </div>
       </SidebarInset>
       
-      <FloatingMudraButton />
+      <FloatingMudraButton siteId="test-site-1" />
     </SidebarProvider>
   )
 } 

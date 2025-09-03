@@ -652,6 +652,7 @@ export function TasksView() {
       
       {/* Context-aware AI Chat */}
       <FloatingMudraButton 
+        siteId="test-site-1"
         taskContext={tasks.map(task => ({
           id: task.id,
           header: task.header,

@@ -32,7 +32,7 @@ export default function BrandProfilePage() {
         </div>
       </SidebarInset>
       
-      <FloatingMudraButton />
+      <FloatingMudraButton siteId="test-site-1" />
     </SidebarProvider>
   )
 } 

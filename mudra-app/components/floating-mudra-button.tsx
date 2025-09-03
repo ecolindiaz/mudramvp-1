@@ -21,6 +21,7 @@ interface FloatingMudraButtonProps {
   altText?: string
   ariaLabel?: string
   taskContext?: TaskContext[]
+  siteId: string
 }
 
 export function FloatingMudraButton({
@@ -29,6 +30,7 @@ export function FloatingMudraButton({
   altText = "Mudra AI Assistant",
   ariaLabel = "Open Mudra AI Chat Assistant",
   taskContext,
+  siteId,
 }: FloatingMudraButtonProps) {
   const [open, setOpen] = useState(false)
 
@@ -59,7 +61,7 @@ export function FloatingMudraButton({
         />
       </button>
 
-      <AIChatInterface open={open} onOpenChange={setOpen} taskContext={taskContext} />
+      <AIChatInterface open={open} onOpenChange={setOpen} siteId={siteId} taskContext={taskContext} />
     </>
   )
 }

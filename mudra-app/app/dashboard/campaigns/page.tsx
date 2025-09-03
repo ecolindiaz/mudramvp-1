@@ -616,7 +616,7 @@ export default function CampaignsPage() {
         </div>
       </SidebarInset>
       
-      <FloatingMudraButton />
+      <FloatingMudraButton siteId="test-site-1" />
     </SidebarProvider>
   )
 }

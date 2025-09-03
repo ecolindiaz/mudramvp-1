@@ -7,6 +7,7 @@ import { retrieve, rerankWithLLM } from '@/lib/ai/rag/retrieve'
 import { getCache, setCache, hashKey } from '@/lib/ai/rag/cache'
 import { authRateLimiter } from '@/lib/auth/rate-limiter'
 import { prisma, getOpenTasks, setTaskStatus } from '@/lib/analysis/technical/repo'
+import { logChat, logRetrieval } from '@/lib/services/observability.service'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -59,8 +60,17 @@ export async function POST(req: Request) {
     const cacheKey = hashKey(['retrieve', resolvedSiteId, lastUserMsg])
     let initial = getCache<any[]>(cacheKey)
     if (!initial) {
+      const t0 = Date.now()
       initial = await retrieve(lastUserMsg, { k: 12, queryText: lastUserMsg, filter: { isPublic: true } })
+      const latency = Date.now() - t0
       setCache(cacheKey, initial, 10 * 60 * 1000)
+      // Fire-and-forget retrieval logging
+      logRetrieval({
+        siteId: resolvedSiteId,
+        query: lastUserMsg,
+        topk: initial.map((r: any) => ({ document_id: r.document_id, path: r.path, title: r.title, score: r.score })),
+        latencyMs: latency,
+      })
     }
     const reranked = await rerankWithLLM(lastUserMsg, initial, 8)
     const citations = reranked.map((r) => ({ title: r.title, path: r.path, chunk_index: r.chunk_index ?? 0 }))
@@ -276,13 +286,26 @@ Use your advanced reasoning to provide the most thorough, accurate, and actionab
 
     const content = finalContent || 'Sorry, I could not process your request.';
 
-    return new Response(
-      JSON.stringify({ content, citations }),
-      { 
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+    // Approx token/cost estimation (rough):
+    const tokenIn = (messages.map(m => m.content).join(' ').length + userCtxSummary.length + contextBlocks.join(' ').length) / 4
+    const tokenOut = content.length / 4
+    const costEstimate = 0
+
+    // Fire-and-forget chat logging
+    logChat({
+      userId: null,
+      siteId: resolvedSiteId,
+      messages: messages as any,
+      citations,
+      tokenIn: Math.round(tokenIn),
+      tokenOut: Math.round(tokenOut),
+      costEstimateUsd: costEstimate,
+    })
+
+    return new Response(JSON.stringify({ content, citations }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
   } catch (error) {
     console.error('AI Chat error:', error);
     return new Response(

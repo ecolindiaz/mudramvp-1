@@ -73,7 +73,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             <h2 className="text-xl md:text-2xl font-semibold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">What the AI sees in your data</h2>
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded border border-yellow-500/20 px-2.5 py-1 text-xs text-yellow-400 bg-yellow-500/10">
+            <div className="inline-flex items-center gap-2 rounded-xl border border-yellow-500/20 px-2.5 py-1 text-xs text-yellow-400 bg-yellow-500/10">
               <IconSparkles className="size-4 text-yellow-400" />
               AI Summary
             </div>
@@ -100,6 +100,17 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
               <p className="text-sm leading-relaxed text-white/85">
                 {summary}
               </p>
+              <div className="mt-3 flex justify-end">
+                <Button
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    window.dispatchEvent(new Event("mudra:open-chat"))
+                  }}
+                >
+                  <IconSparkles className="size-3.5 mr-1" /> Ask AI
+                </Button>
+              </div>
             </div>
 
             {/* Citations list */}

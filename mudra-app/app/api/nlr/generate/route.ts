@@ -8,14 +8,20 @@ function isAdmin(req: NextRequest): boolean {
   return token && token === process.env.ADMIN_API_TOKEN
 }
 
+function isCronSigned(req: NextRequest): boolean {
+  const sig = req.headers.get('x-cron-secret') || ''
+  return sig && sig === (process.env.CRON_SECRET || '')
+}
+
 export async function POST(req: NextRequest) {
   try {
-    if (!isAdmin(req)) {
+    if (!isAdmin(req) && !isCronSigned(req)) {
       return NextResponse.json({ success: false, error: { message: 'Unauthorized' } }, { status: 401 })
     }
     const body = await req.json().catch(() => ({}))
     const companyId: string = body?.companyId
-    const weekStartUtc: string = body?.weekStartUtc || new Date().toISOString().slice(0,10) + 'T00:00:00.000Z'
+    const weekStartRaw: string | undefined = body?.weekStart || body?.weekStartUtc
+    const weekStartUtc: string = weekStartRaw || new Date().toISOString().slice(0,10) + 'T00:00:00.000Z'
     if (!companyId) {
       return NextResponse.json({ success: false, error: { message: 'companyId is required' } }, { status: 400 })
     }

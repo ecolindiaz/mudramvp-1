@@ -85,16 +85,17 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
   let tokensIn = 0
   let tokensOut = 0
   try {
-    const r = await openai.chat.completions.create({
-      model: gpt5?.model || 'gpt-4',
-      messages,
-      temperature: 0.3,
-      max_tokens: gpt5?.settings.defaultMaxTokens || 1200,
-    })
-    content = r.choices?.[0]?.message?.content || ''
+    // GPT-5: use Responses API (no temperature)
+    const r = await openai.responses.create({
+      model: gpt5?.model || 'gpt-5',
+      input: `SYSTEM\n${system}\n\nUSER\n${user}`,
+      max_output_tokens: (gpt5?.settings.defaultMaxTokens as any) || 1200,
+    } as any)
+    content = (r as any).output_text || ((r as any).output?.[0]?.content?.[0]?.text ?? '')
+    usedModelId = gpt5?.id || 'gpt-5'
     const usage: any = (r as any).usage || {}
-    tokensIn = usage.prompt_tokens ?? usage.input_tokens ?? 0
-    tokensOut = usage.completion_tokens ?? usage.output_tokens ?? 0
+    tokensIn = usage.input_tokens ?? 0
+    tokensOut = usage.output_tokens ?? 0
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('NLR: gpt-5 failed, fallback to gpt-4:', err)

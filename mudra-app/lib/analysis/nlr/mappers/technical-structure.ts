@@ -1,5 +1,5 @@
 import { PrismaClient } from "@/lib/generated/prisma";
-import type { TechnicalStructureSummary, Delta } from "@/lib/analysis/nlr/types";
+import type { TechnicalStructureSummary, Delta, EvidenceRef } from "@/lib/analysis/nlr/types";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma: PrismaClient = globalForPrisma.prisma ?? new PrismaClient();
@@ -43,7 +43,54 @@ export async function mapTechnicalStructure(
 
   const overallScore = pctDelta(currentScore, previousScore);
 
-  // v1: derive sub-summaries as null; later we can compute from components
+  // Build key findings from latest snapshot raw data if available
+  const latest = snapshots[0] as any
+  const data = latest?.data as any | undefined
+  const findings: { title: string; importance?: "high" | "medium" | "low"; evidence?: EvidenceRef[] }[] = []
+  const evidenceBase: EvidenceRef[] = latest?.id
+    ? [{ sourceType: "crawl_snapshot", refTable: "crawl_snapshots", refId: latest.id, label: "Latest crawl snapshot" }]
+    : []
+
+  if (data) {
+    const hasRobots = Boolean(data?.txtFiles?.summary?.hasRobotsTxt)
+    const hasLlms = Boolean(data?.txtFiles?.summary?.hasLlmsTxt)
+    const jsonLdCount = Number(data?.schema?.summary?.jsonLdCount ?? 0)
+    const faqTotal = Number(data?.faqs?.summary?.totalUnique ?? 0)
+    const headingOK = Boolean(data?.htmlStructure?.hasProperStructure)
+    const h1Count = Array.isArray(data?.htmlStructure?.headings?.h1) ? data.htmlStructure.headings.h1.length : 0
+
+    findings.push({
+      title: hasRobots ? "robots.txt present" : "robots.txt missing",
+      importance: hasRobots ? "low" : "medium",
+      evidence: evidenceBase,
+    })
+    findings.push({
+      title: hasLlms ? "llms.txt present" : "llms.txt missing",
+      importance: hasLlms ? "low" : "high",
+      evidence: evidenceBase,
+    })
+    findings.push({
+      title: jsonLdCount > 0 ? `JSON-LD detected (${jsonLdCount})` : "No JSON-LD detected",
+      importance: jsonLdCount > 0 ? "medium" : "high",
+      evidence: evidenceBase,
+    })
+    findings.push({
+      title: faqTotal > 0 ? `FAQ content present (${faqTotal})` : "No FAQ content detected",
+      importance: faqTotal > 0 ? "medium" : "high",
+      evidence: evidenceBase,
+    })
+    findings.push({
+      title: h1Count > 0 ? `H1 present (${h1Count})` : "No H1 detected",
+      importance: h1Count > 0 ? "low" : "medium",
+      evidence: evidenceBase,
+    })
+    findings.push({
+      title: headingOK ? "Heading structure looks sane" : "Heading structure may be problematic",
+      importance: headingOK ? "low" : "medium",
+      evidence: evidenceBase,
+    })
+  }
+
   const summary: TechnicalStructureSummary = {
     overallScore,
     contentAuthority: null as unknown as Delta<number>,
@@ -52,7 +99,7 @@ export async function mapTechnicalStructure(
     entityRecognition: null as unknown as Delta<number>,
     faqOptimization: null as unknown as Delta<number>,
     contentFreshness: null as unknown as Delta<number>,
-    keyFindings: [],
+    keyFindings: findings,
   };
 
   return summary;

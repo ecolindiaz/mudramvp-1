@@ -10,7 +10,7 @@ function startOfIsoWeekUtc(d: Date): Date {
 }
 
 async function main() {
-  const domain = 'test.local'
+  const domain = process.argv[2] || 'test.local'
   let company = await prisma.company.findUnique({ where: { domain } })
   if (!company) {
     company = await prisma.company.create({ data: { domain } })

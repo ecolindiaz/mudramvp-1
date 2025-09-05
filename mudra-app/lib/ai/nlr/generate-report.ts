@@ -11,22 +11,18 @@ function toDate(value: Date | string): Date {
 
 function extractJsonAndMarkdown(text: string): { json: any | null; markdown: string } {
   if (!text) return { json: null, markdown: '' }
-  // Try to parse the first JSON object
   let json: any | null = null
+  let endIdx = -1
   try {
     const start = text.indexOf('{')
     const end = text.lastIndexOf('}')
     if (start >= 0 && end > start) {
       const candidate = text.slice(start, end + 1)
       json = JSON.parse(candidate)
+      endIdx = end
     }
   } catch {}
-  // Markdown is the rest after the JSON block
-  let markdown = text
-  if (json) {
-    const end = text.indexOf('}')
-    markdown = text.slice(end + 1).trim()
-  }
+  const markdown = endIdx >= 0 ? text.slice(endIdx + 1).trim() : text
   return { json, markdown }
 }
 
@@ -85,17 +81,20 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
   let tokensIn = 0
   let tokensOut = 0
   try {
-    // GPT-5: use Responses API (no temperature)
-    const r = await openai.responses.create({
+    // GPT-5: use Chat Completions with max_completion_tokens (no temperature)
+    const r = await openai.chat.completions.create({
       model: gpt5?.model || 'gpt-5',
-      input: `SYSTEM\n${system}\n\nUSER\n${user}`,
-      max_output_tokens: (gpt5?.settings.defaultMaxTokens as any) || 1200,
-    } as any)
-    content = (r as any).output_text || ((r as any).output?.[0]?.content?.[0]?.text ?? '')
+      messages,
+      max_completion_tokens: 8000, // Increased for reasoning + content
+    })
+    content = r.choices?.[0]?.message?.content || ''
     usedModelId = gpt5?.id || 'gpt-5'
-    const usage: any = (r as any).usage || {}
-    tokensIn = usage.input_tokens ?? 0
-    tokensOut = usage.output_tokens ?? 0
+    const usage: any = r.usage || {}
+    tokensIn = usage.prompt_tokens ?? usage.input_tokens ?? 0
+    tokensOut = usage.completion_tokens ?? usage.output_tokens ?? 0
+    if (!content || content.length < 20) {
+      throw new Error(`Empty content from GPT-5: length=${content.length}`)
+    }
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('NLR: gpt-5 failed, fallback to gpt-4:', err)
@@ -114,7 +113,8 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
 
   // 4) Extract JSON + Markdown
   const { json, markdown } = extractJsonAndMarkdown(content)
-  const summaryJson = validateSummaryJson(json) ? json : null
+  const inner = json && (json.summary_json || json.summaryJson || json)
+  const summaryJson = validateSummaryJson(inner) ? inner : null
   const summaryMarkdown = sanitizeMarkdown(markdown)
 
   // 4.5) Cost estimation

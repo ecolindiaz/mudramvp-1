@@ -6,11 +6,13 @@ import { validateScrapeSnapshot } from "@/lib/analysis/technical/validate";
 import { computeTechnicalScore } from "@/lib/analysis/technical/score";
 import { generateTasksFromSnapshot } from "@/lib/analysis/technical/task-generator";
 import { saveSnapshot, saveScore, saveTasks, getOpenTasks, recordVerification } from "@/lib/analysis/technical/repo";
+import { queueNlrJob } from "@/lib/jobs/nlr";
 
 export async function GET() {
   const summary: { siteId: string; url: string; createdTasks: number; verifiedTasks: number; score?: number }[] = [];
   try {
     const sites = await prisma.site.findMany();
+    const weekStartIso = new Date().toISOString().slice(0,10) + 'T00:00:00.000Z'
     for (const site of sites) {
       const url = site.url;
       let createdTasks = 0;
@@ -64,6 +66,10 @@ export async function GET() {
       }
 
       summary.push({ siteId: site.id, url, createdTasks, verifiedTasks, score: scoreVal });
+      // After per-site processing, enqueue NLR for the company (once)
+      try {
+        await queueNlrJob(site.companyId, weekStartIso, { jobId: `${site.companyId}:${weekStartIso}` })
+      } catch {}
     }
 
     return NextResponse.json({ success: true, data: { processed: summary.length, summary } });

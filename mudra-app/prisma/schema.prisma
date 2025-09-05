@@ -336,6 +336,7 @@ model Company {
   updatedAt DateTime @updatedAt
 
   sites     Site[]
+  weeklyReports WeeklyReport[]
 
   @@map("companies")
 }
@@ -420,4 +421,71 @@ model TaskVerification {
   @@map("task_verifications")
   @@index([taskId, createdAt])
   @@index([snapshotId])
+}
+
+// ============================
+// Natural Language Report
+// ============================
+
+model WeeklyReport {
+  id              String    @id @default(cuid())
+  companyId       String    @map("org_id")
+  weekStartUtc    DateTime  @map("week_start_utc")
+  status          String
+  model           String?
+  summaryMarkdown String?   @map("summary_markdown")
+  summaryJson     Json?     @map("summary_json")
+  tokensIn        Int?      @map("tokens_in")
+  tokensOut       Int?      @map("tokens_out")
+  costCents       Int?      @map("cost_cents")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt      @map("updated_at")
+
+  // Relations
+  company  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sections WeeklyReportSection[]
+
+  @@map("weekly_reports")
+  @@unique([companyId, weekStartUtc])
+  @@index([companyId])
+  @@index([weekStartUtc])
+}
+
+model WeeklyReportSection {
+  id            String   @id @default(cuid())
+  reportId      String   @map("report_id")
+  key           String
+  title         String?
+  order         Int      @default(0)
+  bodyMarkdown  String?  @map("body_markdown")
+  bodyJson      Json?    @map("body_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt      @map("updated_at")
+
+  // Relations
+  report  WeeklyReport           @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  sources WeeklyReportSourceRef[]
+
+  @@map("weekly_report_sections")
+  @@index([reportId])
+  @@index([key])
+}
+
+model WeeklyReportSourceRef {
+  id         String   @id @default(cuid())
+  sectionId  String   @map("section_id")
+  sourceType String   @map("source_type")
+  refTable   String?  @map("ref_table")
+  refId      String?  @map("ref_id")
+  url        String?
+  label      String?
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  section WeeklyReportSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@map("weekly_report_source_refs")
+  @@index([sectionId])
+  @@index([sourceType])
 }

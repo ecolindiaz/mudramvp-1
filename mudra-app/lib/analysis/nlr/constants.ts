@@ -16,4 +16,12 @@ export const NOTABILITY = {
   } as Record<string, { minRelative?: number; minAbsolute?: number }>,
 } as const;
 
+export const LENGTH = {
+  markdownWordMin: 70,
+  markdownWordTarget: 100,
+  markdownWordMax: 140,
+  perSentenceMaxWords: 18,
+  whatsChangedMaxItems: 3, // keep tight for a short summary
+} as const;
+
 

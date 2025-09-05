@@ -13,7 +13,20 @@ Mudra platform supports multiple AI models for different use cases, with OpenAI'
 - **Speed**: Medium
 - **Context**: 8K tokens
 
-### Deep Think (OpenAI o3)
+
+### Natural Language Reports (GPT-5)
+- **Model**: `gpt-5`
+- **Use Case**: Weekly Natural Language Report (NLR) generation — long-context summarization with structured JSON + Markdown output
+- **Cost**: ~$60 input / $120 output per 1M tokens (subject to provider updates)
+- **Speed**: Slow (high reasoning + long context)
+- **Context**: 200K tokens
+- **Max Output**: 8K tokens (default 3K for NLR)
+
+> Notes:
+> - Preferred for producing the Overview page section “What the AI sees in your data”.
+> - Use conservative temperature (0.3) and require JSON + Markdown dual-output via prompts.
+> - Fallback to `gpt-4` if `gpt-5` is unavailable.
+
 - **Model**: `o3` (Currently using `gpt-4-0125-preview` as fallback until o3 is available)
 - **Use Case**: Complex problem solving, detailed technical analysis, multi-step reasoning
 - **Cost**: $2,000 input / $8,000 output per 1M tokens ⚠️ **Premium Pricing** (when o3 is available)
@@ -59,6 +72,7 @@ The o3 model is designed for complex scenarios that require advanced reasoning:
 - Task context integration
 - Multi-step reasoning instructions
 - Strategic thinking frameworks
+ - For NLR (GPT-5), include: input schema summary, strict JSON schema for `summary_json`, and Markdown constraints for readability.
 
 ## Cost Management
 
@@ -83,6 +97,13 @@ export const AI_MODELS: Record<string, AIModelConfig> = {
     settings: {
       defaultTemperature: 0.3, // Lower for focused reasoning
       defaultMaxTokens: 100000  // Full output capacity
+    }
+  }
+  'gpt-5': {
+    // ... configuration
+    settings: {
+      defaultTemperature: 0.3,
+      defaultMaxTokens: 3000
     }
   }
 }

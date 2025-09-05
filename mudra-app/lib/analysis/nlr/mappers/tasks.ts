@@ -38,12 +38,16 @@ export async function mapTasks(
   // Previous week window
   const prevEnd = start;
   const prevStart = new Date(prevEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const [prevVerified] = await Promise.all([
+  const [prevOpened, prevCompleted, prevVerified] = await Promise.all([
+    prisma.task.count({ where: { siteId: { in: siteIds }, createdAt: { gte: prevStart, lt: prevEnd } } }),
+    prisma.task.count({ where: { siteId: { in: siteIds }, status: "done", updatedAt: { gte: prevStart, lt: prevEnd } } }),
     prisma.taskVerification.count({ where: { task: { siteId: { in: siteIds } }, createdAt: { gte: prevStart, lt: prevEnd }, passed: true } }),
   ]);
 
-  const currentRate = (openedThisWeek + completedThisWeek) > 0 ? verifiedThisWeek / (openedThisWeek + completedThisWeek) : 0;
-  const previousRate = prevVerified; // denom unknown last week; treat raw count as proxy for trend
+  const denomCurrent = openedThisWeek + completedThisWeek;
+  const denomPrev = prevOpened + prevCompleted;
+  const currentRate = denomCurrent > 0 ? verifiedThisWeek / denomCurrent : 0;
+  const previousRate = denomPrev > 0 ? prevVerified / denomPrev : 0;
 
   const summary: TasksSummary = {
     openedThisWeek,

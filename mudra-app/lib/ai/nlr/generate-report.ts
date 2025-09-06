@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { getModelConfig, estimateCost } from '@/lib/config/ai-models'
+import { logNlrJob } from '@/lib/services/observability.service'
 import { collectNlrInputs } from '@/lib/analysis/nlr/mappers'
 import { rankChanges } from '@/lib/analysis/nlr/diff'
 import { buildNlrPrompt } from '@/lib/ai/prompts/nlr-prompt'
@@ -61,6 +62,8 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
 
   // Mark running
   await prisma.weeklyReport.update({ where: { id: report.id }, data: { status: 'running' } })
+  // Log running
+  await logNlrJob({ companyId, weekStartUtc: weekStart.toISOString(), status: 'running' })
 
   // 2) Collect inputs and prepare prompt
   const nlrInput = await collectNlrInputs(companyId, weekStart)
@@ -134,6 +137,8 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
       status: 'ready',
     },
   })
+  // Log ready
+  await logNlrJob({ companyId, weekStartUtc: weekStart.toISOString(), status: 'ready', modelId: usedModelId, tokenIn: tokensIn, tokenOut: tokensOut, costCents })
 
   // Minimal sections: What's Changed + Highlights placeholders (extend later)
   const sections: { key: string; title: string; bodyMarkdown: string }[] = []

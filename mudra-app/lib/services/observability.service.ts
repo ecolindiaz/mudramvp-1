@@ -51,4 +51,34 @@ export async function logRetrieval(input: RetrievalLogInput): Promise<void> {
   }
 }
 
+export interface NlrJobLogInput {
+  companyId: string
+  weekStartUtc: string
+  status: 'queued' | 'running' | 'ready' | 'failed'
+  modelId?: string | null
+  tokenIn?: number | null
+  tokenOut?: number | null
+  costCents?: number | null
+  error?: string | null
+}
+
+export async function logNlrJob(input: NlrJobLogInput): Promise<void> {
+  try {
+    const supabase = getServiceClient()
+    await supabase.from('nlr_job_logs').insert({
+      company_id: input.companyId,
+      week_start_utc: input.weekStartUtc,
+      status: input.status,
+      model_id: input.modelId ?? null,
+      token_in: input.tokenIn ?? null,
+      token_out: input.tokenOut ?? null,
+      cost_cents: input.costCents ?? null,
+      error: input.error ?? null,
+      created_at: new Date().toISOString(),
+    })
+  } catch (err) {
+    console.warn('logNlrJob failed:', err)
+  }
+}
+
 

@@ -20,6 +20,8 @@ import {
   IconCopy, 
   IconInfoCircle
 } from "@tabler/icons-react"
+import { useNlr } from '@/hooks/use-nlr'
+import type { NlrSummaryJson } from '@/types/nlr'
 
 interface NaturalLanguageReportProps {
   className?: string
@@ -53,7 +55,49 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   void timeRange
   void selectedModel
 
-  const summary = generateSummary()
+  // TODO: Replace with real org/company context
+  const companyId = typeof window !== 'undefined' ? ((window as any).__companyId || 'cmf04t2tf0001ptr88pdwhpwi') : 'cmf04t2tf0001ptr88pdwhpwi'
+  const { report, isLoading, error } = useNlr(companyId)
+  const summaryJson = (report?.summaryJson || null) as NlrSummaryJson | null
+  const summaryFromModel = (report?.summaryMarkdown || '')
+    .replace(/^```(md|markdown)?/gi, '')
+    .replace(/```$/g, '')
+    .trim()
+  const whatsChanged = summaryJson?.sections?.whats_changed ?? []
+  const highlights = summaryJson?.sections?.highlights ?? []
+
+  function buildDigestibleSummary(): string {
+    if (!summaryJson) return summaryFromModel || generateSummary()
+    const parts: string[] = []
+
+    // Use highlights or whats_changed to make it conversational
+    const bullets = (highlights?.length ? highlights : whatsChanged.map(w => w.label)).slice(0, 4)
+    if (bullets.length > 0) {
+      parts.push(bullets.join(' '))
+    }
+
+    const tech = summaryJson.sections.technical_structure?.overall_change
+    if (tech && tech.direction) {
+      if (tech.direction === 'up') parts.push(`Technical health improved ${Math.round(((tech.relative || 0) * 100))}%`)
+      if (tech.direction === 'down') parts.push(`Technical health dipped ${Math.round(((tech.relative || 0) * 100))}%`)
+      if (tech.direction === 'flat') parts.push('Technical health stayed about the same')
+    }
+
+    const tasks = summaryJson.sections.tasks
+    if (tasks) {
+      if (tasks.opened_this_week != null || tasks.completed_this_week != null) {
+        parts.push(`This week you opened ${tasks.opened_this_week ?? 0} tasks and completed ${tasks.completed_this_week ?? 0}.`)
+      }
+    }
+
+    const next = summaryJson.sections.risks_next_steps?.[0]
+    if (next) parts.push(`Next: ${next}.`)
+
+    const text = parts.filter(Boolean).join(' ').trim()
+    return text || summaryFromModel || generateSummary()
+  }
+
+  const summary = buildDigestibleSummary()
   const citations: Array<{ domain: string; used: number }> = [
     { domain: "aimultiple.com", used: 20 },
     { domain: "medium.com", used: 20 },
@@ -63,6 +107,35 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   const lifetimeGeoTasks = 124
   const lifetimeTechnicalTasks = 98
   const lifetimeContentCreated = 36
+
+  if (isLoading) {
+    return (
+      <div className={cn("rounded-lg border border-white/10 bg-transparent backdrop-blur-sm p-6", className)}>
+        <div className="h-5 w-40 bg-white/10 animate-pulse rounded mb-3" />
+        <div className="space-y-2">
+          <div className="h-4 w-full bg-white/5 animate-pulse rounded" />
+          <div className="h-4 w-11/12 bg-white/5 animate-pulse rounded" />
+          <div className="h-4 w-10/12 bg-white/5 animate-pulse rounded" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className={cn("rounded-lg border border-red-600/30 bg-red-500/10 p-6 text-sm text-red-200", className)}>
+        Failed to load Natural Language Report. Please try again.
+      </div>
+    )
+  }
+
+  if (!report) {
+    return (
+      <div className={cn("rounded-lg border border-white/10 bg-transparent p-6 text-sm text-white/70", className)}>
+        Natural Language Report is not available yet.
+      </div>
+    )
+  }
 
   return (
     <div className={cn("rounded-lg border border-white/10 bg-transparent backdrop-blur-sm", className)}>

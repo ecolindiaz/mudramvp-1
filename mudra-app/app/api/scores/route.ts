@@ -39,7 +39,14 @@ export async function GET(req: NextRequest) {
           total: latestScore.total,
           components: latestScore.components,
           createdAt: latestScore.createdAt,
-          snapshotUrl: latestScore.snapshot.data?.url || null
+          snapshotUrl: (() => {
+            const raw = latestScore.snapshot?.data as unknown
+            if (raw && typeof raw === 'object' && 'url' in (raw as Record<string, unknown>)) {
+              const u = (raw as Record<string, unknown>)['url']
+              return typeof u === 'string' ? u : null
+            }
+            return null
+          })()
         }
       }
     });

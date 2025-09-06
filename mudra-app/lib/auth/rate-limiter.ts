@@ -87,3 +87,18 @@ export async function resetFailedAuth(ip: string): Promise<void> {
         console.error('Error resetting failed auth attempts:', error);
     }
 } 
+
+/**
+ * Generic in-memory rate limit by custom key.
+ * Returns true if allowed, false if rate limited.
+ */
+export function rateLimitByKey(key: string, maxPoints: number, durationSeconds: number): boolean {
+    try {
+        const store = getRateLimitStore();
+        return checkRateLimit(store, key, maxPoints, durationSeconds);
+    } catch (error) {
+        console.error('rateLimitByKey error:', error);
+        // Fail open on limiter error
+        return true;
+    }
+}

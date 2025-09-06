@@ -22,6 +22,7 @@ export const LENGTH = {
   markdownWordMax: 140,
   perSentenceMaxWords: 18,
   whatsChangedMaxItems: 3, // keep tight for a short summary
+  summaryMaxTokens: 180,
 } as const;
 
 

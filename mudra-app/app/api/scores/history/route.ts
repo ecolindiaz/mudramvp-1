@@ -24,11 +24,19 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    const scores = historicalScores.map(score => ({
-      total: score.total,
-      createdAt: score.createdAt,
-      snapshotUrl: score.snapshot.data?.url || null
-    }));
+    const scores = historicalScores.map(score => {
+      let snapshotUrl: string | null = null
+      const raw = score.snapshot?.data as unknown
+      if (raw && typeof raw === 'object' && 'url' in (raw as Record<string, unknown>)) {
+        const urlVal = (raw as Record<string, unknown>)['url']
+        if (typeof urlVal === 'string') snapshotUrl = urlVal
+      }
+      return {
+        total: score.total,
+        createdAt: score.createdAt,
+        snapshotUrl,
+      }
+    });
 
     return NextResponse.json({ 
       success: true, 

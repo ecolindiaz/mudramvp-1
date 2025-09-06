@@ -20,6 +20,7 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
     "2) A readable Markdown report containing the sections listed below.",
     "Do not wrap JSON in backticks. Do not include extra keys. Keep lines short.",
     `Markdown brevity rules: total ${LENGTH.markdownWordMin}-${LENGTH.markdownWordMax} words (target ~${LENGTH.markdownWordTarget}); sentences <= ${LENGTH.perSentenceMaxWords} words; avoid filler.`,
+    `Keep the entire report under ${LENGTH.summaryMaxTokens} tokens for the summary paragraph.`,
   ];
 
   const jsonSchema = {
@@ -114,6 +115,7 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
   userLines.push(`- Use short sentences (<= ${LENGTH.perSentenceMaxWords} words). No fluff.`);
   userLines.push("- If a section is null or empty, write a single line: 'Insufficient data this week.'");
   userLines.push("- After summary_json, output the Markdown sections with headings exactly as listed.");
+  userLines.push(`- The first Summary paragraph must not exceed ${LENGTH.summaryMaxTokens} tokens. Keep it crisp and conversational.`);
   userLines.push(`- Aim for ${LENGTH.markdownWordMin}-${LENGTH.markdownWordMax} words total.`);
 
   return {

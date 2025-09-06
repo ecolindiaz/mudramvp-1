@@ -4,7 +4,7 @@ import { getWeeklyReportByWeek, prisma } from "@/lib/db/reports";
 
 function isAdmin(req: NextRequest): boolean {
   const token = req.headers.get('x-admin-token') || ''
-  return token && token === process.env.ADMIN_API_TOKEN
+  return !!token && token === process.env.ADMIN_API_TOKEN
 }
 
 function isOrgAuthorized(req: NextRequest, companyId: string): boolean {

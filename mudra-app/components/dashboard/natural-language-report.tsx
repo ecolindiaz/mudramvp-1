@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -22,6 +23,7 @@ import {
 } from "@tabler/icons-react"
 import { useNlr } from '@/hooks/use-nlr'
 import type { NlrSummaryJson } from '@/types/nlr'
+import useSWR from 'swr'
 
 interface NaturalLanguageReportProps {
   className?: string
@@ -55,9 +57,29 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   void timeRange
   void selectedModel
 
-  // TODO: Replace with real org/company context
-  const companyId = typeof window !== 'undefined' ? ((window as any).__companyId || 'cmf04t2tf0001ptr88pdwhpwi') : 'cmf04t2tf0001ptr88pdwhpwi'
-  const { report, isLoading, error } = useNlr(companyId)
+  // Get siteId from localStorage and fetch companyId
+  const siteId = typeof window !== 'undefined' ? localStorage.getItem('mudra:siteId') : null
+  const { data: companyData } = useSWR(
+    siteId ? `/api/site/company?siteId=${siteId}` : null,
+    async (url: string) => {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('Failed to fetch company')
+      return res.json()
+    }
+  )
+  
+  const companyId = companyData?.data?.companyId || null
+  const { report, isLoading, error, refresh } = useNlr(companyId)
+
+  // Listen for refresh events from Generate Report button
+  React.useEffect(() => {
+    const handleRefresh = () => {
+      if (refresh) refresh()
+    }
+    
+    window.addEventListener('mudra:nlr-refresh', handleRefresh)
+    return () => window.removeEventListener('mudra:nlr-refresh', handleRefresh)
+  }, [refresh])
   const summaryJson = (report?.summaryJson || null) as NlrSummaryJson | null
   const summaryFromModel = (report?.summaryMarkdown || '')
     .replace(/^```(md|markdown)?/gi, '')

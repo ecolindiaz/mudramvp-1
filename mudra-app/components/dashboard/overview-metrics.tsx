@@ -34,7 +34,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   // Fetch latest score and historical data from database
   const fetchLatestScore = async () => {
     try {
-      const response = await fetch('/api/scores/history?siteId=test-site-1&limit=5')
+      const siteId = typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''
+      const response = await fetch(`/api/scores/history?siteId=${encodeURIComponent(siteId)}&limit=5`)
       const result = await response.json()
       
       if (result.success && result.data.latest) {

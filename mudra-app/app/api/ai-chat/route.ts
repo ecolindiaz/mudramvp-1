@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     } = await req.json()
 
     // Build user context (compact, redacted)
-    const resolvedSiteId = siteId || 'test-site-1'
+    const resolvedSiteId = siteId || ''
     const userCtx = await buildUserContext({ siteId: resolvedSiteId })
     const { summary: userCtxSummary } = buildUserContextSummary(userCtx, 1200)
 

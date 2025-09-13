@@ -47,7 +47,8 @@ export default function TasksPage() {
                         console.log('🚀 Generating tasks from latest snapshot...')
                         
                         // Fetch latest snapshot from database
-                        const response = await fetch('/api/tasks?siteId=test-site-1')
+                        const siteId = typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''
+                        const response = await fetch(`/api/tasks?siteId=${encodeURIComponent(siteId)}`)
                         const result = await response.json()
                         
                         if (!result.success || !result.data.latestSnapshot) {
@@ -62,7 +63,7 @@ export default function TasksPage() {
                         const generateResponse = await fetch('/api/tasks/generate', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ snapshot, siteId: 'test-site-1' })
+                          body: JSON.stringify({ snapshot, siteId })
                         })
                         
                         if (!generateResponse.ok) {
@@ -105,7 +106,7 @@ export default function TasksPage() {
         </div>
       </SidebarInset>
       
-      <FloatingMudraButton siteId="test-site-1" />
+      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
 } 

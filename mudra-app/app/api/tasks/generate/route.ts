@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { validateScrapeSnapshot } from "@/lib/analysis/technical/validate";
 import { computeTechnicalScore } from "@/lib/analysis/technical/score";
 import { generateTasksFromSnapshot } from "@/lib/analysis/technical/task-generator";
-import { saveSnapshot, saveScore, saveTasks } from "@/lib/analysis/technical/repo";
+import { saveSnapshot, saveScore, saveTasks, ensureCompanyAndSiteForUrl, ensureSiteByUrl } from "@/lib/analysis/technical/repo";
 import type { ScrapeSnapshot } from "@/lib/analysis/technical/types";
 // import { authRateLimiter } from "@/lib/auth/rate-limiter";
 import type { NextRequest } from "next/server";
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     // if (limited) return limited;
     const body = await req.json().catch(() => ({}));
     const candidate: unknown = body?.snapshot ?? body;
-    const siteId: string = body?.siteId || "test-site-1"; // Default to test site for development
+    let siteId: string | undefined = body?.siteId;
     
     const validation = validateScrapeSnapshot(candidate);
 
@@ -27,7 +27,13 @@ export async function POST(req: NextRequest) {
 
     const snapshot = validation.data as ScrapeSnapshot;
     
-    // 1. Save snapshot to database
+    // 1. Resolve siteId by URL if not provided, ensure existence
+    if (!siteId) {
+      const site = await ensureSiteByUrl(snapshot.url || "");
+      siteId = site.id;
+    } else {
+      await ensureCompanyAndSiteForUrl(siteId, snapshot.url || "");
+    }
     const savedSnapshot = await saveSnapshot(siteId, snapshot);
     
     // 2. Compute and save score
@@ -45,7 +51,8 @@ export async function POST(req: NextRequest) {
         tasks,
         snapshotId: savedSnapshot.id,
         scoreId: savedScore.id,
-        taskIds: savedTasks.map(t => t.id)
+        taskIds: savedTasks.map(t => t.id),
+        siteId
       } 
     });
   } catch (err) {

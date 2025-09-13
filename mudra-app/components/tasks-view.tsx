@@ -407,7 +407,8 @@ export function TasksView() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/tasks?siteId=test-site-1');
+      const siteId = typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : '';
+      const response = await fetch(`/api/tasks?siteId=${encodeURIComponent(siteId)}`);
       const result = await response.json();
       
       if (!result.success) {
@@ -471,10 +472,11 @@ export function TasksView() {
       const snapshot = detail?.snapshot || latestSnapshot
       if (!snapshot) return toast.warning("No snapshot provided for generation")
       try {
+        const siteId = typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : '';
         const res = await fetch("/api/tasks/generate", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ snapshot, siteId: "test-site-1" }),
+          body: JSON.stringify({ snapshot, siteId }),
         })
         const json = await res.json()
         if (!res.ok || !json?.success) throw new Error(json?.error?.message || "Failed to generate tasks")
@@ -652,7 +654,7 @@ export function TasksView() {
       
       {/* Context-aware AI Chat */}
       <FloatingMudraButton 
-        siteId="test-site-1"
+        siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''}
         taskContext={tasks.map(task => ({
           id: task.id,
           header: task.header,

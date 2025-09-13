@@ -91,6 +91,43 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
 		},
 		kbTopics: ["headings", "information architecture"],
 	},
+	// New: Ensure H2 sections exist when H1 exists
+	{
+		key: "add_h2_sections",
+		category: "SEO",
+		title: (s: ScrapeSnapshot) => `Add H2 sections to organize content for ${domainOf(s.url)}`,
+		impact: "Medium",
+		preconditions: (s: ScrapeSnapshot) => (s.htmlStructure?.headings?.h1 ?? []).length > 0 && (s.htmlStructure?.headings?.h2 ?? []).length === 0,
+		generateInputs: (s: ScrapeSnapshot) => ({
+			h1s: s.htmlStructure?.headings?.h1 ?? [],
+			currentH3s: s.htmlStructure?.headings?.h3 ?? [],
+			url: s.url,
+		}),
+		verificationCheck: {
+			key: "h2_present",
+			description: "At least one H2 exists to section the content",
+			predicate: (s: ScrapeSnapshot) => (s.htmlStructure?.headings?.h2 ?? []).length > 0,
+		},
+		kbTopics: ["H2 best practices", "headings", "information architecture", "semantic HTML"],
+	},
+	// New: Add H3 subsections when many H2s exist but no H3s
+	{
+		key: "add_h3_subsections",
+		category: "SEO",
+		title: (s: ScrapeSnapshot) => `Add H3 subsections under H2s for ${domainOf(s.url)}`,
+		impact: "Low",
+		preconditions: (s: ScrapeSnapshot) => (s.htmlStructure?.headings?.h2 ?? []).length >= 3 && (s.htmlStructure?.headings?.h3 ?? []).length === 0,
+		generateInputs: (s: ScrapeSnapshot) => ({
+			currentH2s: s.htmlStructure?.headings?.h2 ?? [],
+			url: s.url,
+		}),
+		verificationCheck: {
+			key: "h3_present",
+			description: "H3 subsections exist beneath H2 sections where appropriate",
+			predicate: (s: ScrapeSnapshot) => (s.htmlStructure?.headings?.h3 ?? []).length > 0,
+		},
+		kbTopics: ["H3 best practices", "headings", "information architecture", "semantic HTML"],
+	},
 	{
 		key: "add_jsonld_basic",
 		category: "SEO",
@@ -158,6 +195,33 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
 		},
 		kbTopics: ["headings", "information architecture"],
 	},
+	// New: Detect heading level skips (e.g., H3 without any H2)
+	{
+		key: "avoid_heading_level_skips",
+		category: "SEO",
+		title: (s: ScrapeSnapshot) => `Fix skipped heading levels on ${domainOf(s.url)}`,
+		impact: "Low",
+		preconditions: (s: ScrapeSnapshot) => {
+			const h = s.htmlStructure?.headings ?? {} as any;
+			const len = (k: string) => Array.isArray(h?.[k]) ? h[k].length : 0;
+			return (len("h3") > 0 && len("h2") === 0) || (len("h4") > 0 && len("h3") === 0) || (len("h5") > 0 && len("h4") === 0) || (len("h6") > 0 && len("h5") === 0);
+		},
+		generateInputs: (s: ScrapeSnapshot) => ({
+			headings: s.htmlStructure?.headings ?? {},
+			url: s.url,
+		}),
+		verificationCheck: {
+			key: "no_heading_level_skips",
+			description: "No skipped heading levels (e.g., H3 appears only when H2 exists)",
+			predicate: (s: ScrapeSnapshot) => {
+				const h = s.htmlStructure?.headings ?? {} as any;
+				const len = (k: string) => Array.isArray(h?.[k]) ? h[k].length : 0;
+				const hasSkip = (len("h3") > 0 && len("h2") === 0) || (len("h4") > 0 && len("h3") === 0) || (len("h5") > 0 && len("h4") === 0) || (len("h6") > 0 && len("h5") === 0);
+				return !hasSkip;
+			},
+		},
+		kbTopics: ["SEO heading tags", "semantic HTML", "accessibility", "information architecture"],
+	},
 	{
 		key: "add_favicon",
 		category: "SEO",
@@ -218,6 +282,24 @@ export function deriveEvidenceForTemplate(templateKey: string, s: ScrapeSnapshot
 			return [
 				{ path: "htmlStructure.hasProperStructure", value: s.htmlStructure?.hasProperStructure },
 				{ path: "htmlStructure.headings.h1", value: s.htmlStructure?.headings?.h1 ?? [] },
+			];
+		case "add_h2_sections":
+			return [
+				{ path: "htmlStructure.headings.h1", value: s.htmlStructure?.headings?.h1 ?? [] },
+				{ path: "htmlStructure.headings.h2", value: s.htmlStructure?.headings?.h2 ?? [] },
+			];
+		case "add_h3_subsections":
+			return [
+				{ path: "htmlStructure.headings.h2", value: s.htmlStructure?.headings?.h2 ?? [] },
+				{ path: "htmlStructure.headings.h3", value: s.htmlStructure?.headings?.h3 ?? [] },
+			];
+		case "avoid_heading_level_skips":
+			return [
+				{ path: "htmlStructure.headings.h2", value: s.htmlStructure?.headings?.h2 ?? [] },
+				{ path: "htmlStructure.headings.h3", value: s.htmlStructure?.headings?.h3 ?? [] },
+				{ path: "htmlStructure.headings.h4", value: s.htmlStructure?.headings?.h4 ?? [] },
+				{ path: "htmlStructure.headings.h5", value: s.htmlStructure?.headings?.h5 ?? [] },
+				{ path: "htmlStructure.headings.h6", value: s.htmlStructure?.headings?.h6 ?? [] },
 			];
 		case "add_favicon":
 			return [
@@ -296,6 +378,27 @@ export function baselineStepsForTemplate(templateKey: string, s: ScrapeSnapshot)
 				"Use H2 for sections and H3 for sub-sections (no level skipping)",
 				"Do not use headings purely for styling; use CSS classes",
 				"Deploy and verify heading hierarchy is logical",
+			];
+		case "add_h2_sections":
+			return [
+				"Identify 2–5 primary sections that support the H1",
+				"Add descriptive <h2> headings for each primary section",
+				"Keep <h2> concise, relevant, with natural keywords (no stuffing)",
+				"Deploy and verify at least one H2 renders in the DOM",
+			];
+		case "add_h3_subsections":
+			return [
+				"Group related content under appropriate <h2> sections",
+				"Add <h3> for logical subtopics beneath frequently long <h2> sections",
+				"Avoid skipping levels (place H3 only under H2)",
+				"Deploy and verify H3s appear under corresponding H2s",
+			];
+		case "avoid_heading_level_skips":
+			return [
+				"Audit headings for level ordering (H1 > H2 > H3 > H4...)",
+				"Insert missing levels where needed (e.g., add H2 before H3)",
+				"Refactor styling: use classes instead of incorrect heading tags",
+				"Deploy and verify no heading level is skipped",
 			];
 		case "add_favicon":
 			return [

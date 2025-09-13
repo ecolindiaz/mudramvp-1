@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const siteId = searchParams.get("siteId") || "test-site-1";
+    const siteId = searchParams.get("siteId") || "";
     const limit = parseInt(searchParams.get("limit") || "10");
     
     // Get historical scores for this site

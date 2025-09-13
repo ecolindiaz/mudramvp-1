@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const siteId = searchParams.get("siteId") || "test-site-1"; // Default to test site
+    const siteId = searchParams.get("siteId") || "";
     const status = searchParams.get("status") || "open"; // open, done, all
     
     let tasks;

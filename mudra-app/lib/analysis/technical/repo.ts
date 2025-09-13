@@ -7,6 +7,55 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 export const prisma: PrismaClient = globalForPrisma.prisma ?? new PrismaClient();
 if (!globalForPrisma.prisma) globalForPrisma.prisma = prisma;
 
+export async function ensureCompanyAndSiteForUrl(siteId: string, url: string) {
+  const domain = (() => { try { return new URL(url).host; } catch { return url; } })();
+
+  // If site already exists, return early
+  const existing = await prisma.site.findUnique({ where: { id: siteId } }).catch(() => null);
+  if (existing) return existing;
+
+  // Ensure company by domain
+  const company = await prisma.company.upsert({
+    where: { domain },
+    update: {},
+    create: { domain },
+  });
+
+  // Create site with provided id (okay to override default cuid)
+  const created = await prisma.site.create({
+    data: {
+      id: siteId,
+      companyId: company.id,
+      url,
+      domain,
+    },
+  });
+
+  return created;
+}
+
+export async function ensureSiteByUrl(url: string) {
+  const domain = (() => { try { return new URL(url).host; } catch { return url; } })();
+
+  const company = await prisma.company.upsert({
+    where: { domain },
+    update: {},
+    create: { domain },
+  });
+
+  let site = await prisma.site.findFirst({ where: { domain } });
+  if (!site) {
+    site = await prisma.site.create({
+      data: {
+        companyId: company.id,
+        url,
+        domain,
+      },
+    });
+  }
+  return site;
+}
+
 export async function saveSnapshot(siteId: string, snapshot: ScrapeSnapshot) {
   return prisma.crawlSnapshot.create({
     data: {

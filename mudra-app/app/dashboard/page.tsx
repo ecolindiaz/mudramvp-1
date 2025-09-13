@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics"
 import { NaturalLanguageReport } from "@/components/dashboard/natural-language-report"
+import { GenerateReportButton } from "@/components/dashboard/generate-report-button"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CountdownBadge } from "@/components/dashboard/countdown-badge"
@@ -55,7 +56,7 @@ export default function Page() {
       const scoreResponse = await fetch('/api/technical-analysis/score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ snapshot, siteId: 'test-site-1' })
+        body: JSON.stringify({ snapshot })
       })
 
       if (!scoreResponse.ok) {
@@ -64,6 +65,9 @@ export default function Page() {
 
       const scoreResult = await scoreResponse.json()
       console.log('✅ Technical score computed:', scoreResult.data.total)
+      if (scoreResult?.data?.siteId) {
+        try { localStorage.setItem('mudra:siteId', scoreResult.data.siteId) } catch {}
+      }
 
       // 3) Trigger UI refresh
       window.dispatchEvent(new CustomEvent('mudra:website-analyzed', {
@@ -121,6 +125,7 @@ export default function Page() {
                     >
                       {isAnalyzing ? "Analyzing..." : "Analyze Website"}
                     </Button>
+                    <GenerateReportButton />
                   </div>
                 </div>
               </div>
@@ -154,7 +159,7 @@ export default function Page() {
         </div>
       </SidebarInset>
       
-      <FloatingMudraButton siteId="test-site-1" />
+      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
 }

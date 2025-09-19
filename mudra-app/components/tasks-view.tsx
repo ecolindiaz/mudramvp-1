@@ -125,7 +125,7 @@ function PriorityTag({ level }: { level: 'high' | 'medium' | 'low' }) {
   )
 }
 
-function TaskDetailModal({ task, onComplete, onVerify, latestSnapshot, verifications }: { task: TaskItem; onComplete: (taskId: number) => void; onVerify?: (taskId: number) => void; latestSnapshot?: ScrapeSnapshot | null; verifications?: { time: string; passed: boolean }[] }) {
+function TaskDetailModal({ task, displayIndex, onComplete, onVerify, latestSnapshot, verifications }: { task: TaskItem; displayIndex: number; onComplete: (taskId: number) => void; onVerify?: (taskId: number) => void; latestSnapshot?: ScrapeSnapshot | null; verifications?: { time: string; passed: boolean }[] }) {
   const [stepStates, setStepStates] = useState<Record<number, boolean>>({})
   const [expandedStepId, setExpandedStepId] = useState<number | null>(null)
 
@@ -368,26 +368,17 @@ function TaskDetailModal({ task, onComplete, onVerify, latestSnapshot, verificat
               Mark as Complete
             </Button>
           </DialogClose>
-          {task.templateKey && onVerify ? (
-            <Button
-              variant="outline"
-              className="w-full h-11 rounded-lg"
-              onClick={() => onVerify(task.id)}
-            >
-              Verify
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              className="w-full h-11 rounded-lg"
-              onClick={() => {
-                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-                window.dispatchEvent(new Event('mudra:open-chat'))
-              }}
-            >
-              Ask AI
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            className="w-full h-11 rounded-lg"
+            onClick={() => {
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+              const detail = { initialMessage: `Help me do task number ${displayIndex}` }
+              window.dispatchEvent(new CustomEvent('mudra:open-chat', { detail } as any))
+            }}
+          >
+            Ask AI
+          </Button>
         </div>
       </div>
     </DialogContent>
@@ -553,7 +544,7 @@ export function TasksView() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tasks.map((task) => (
+                    {tasks.map((task, index) => (
                       <Dialog key={task.id}>
                         <DialogTrigger asChild>
                            <TableRow className="cursor-pointer align-middle transition-colors hover:bg-muted/40">
@@ -607,6 +598,7 @@ export function TasksView() {
                         </DialogTrigger>
                        <TaskDetailModal
                          task={task}
+                         displayIndex={index + 1}
                          onComplete={(taskId) =>
                            setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: 'Done' } : t)))
                          }

@@ -29,6 +29,75 @@ function devLog(label: string, payload: unknown) {
 	}
 }
 
+function isShortPlain(text: unknown, max = 220): boolean {
+  if (typeof text !== "string") return false;
+  const s = text.trim();
+  if (s.length === 0 || s.length > max) return false;
+  return true;
+}
+
+function hasAcronymWithoutDefinition(text: string): boolean {
+  const acronyms = ["JSON-LD", "FAQPage", "hreflang", "LCP", "CLS", "FID", "CWV"]; 
+  for (const a of acronyms) {
+    if (text.includes(a) && !text.includes("(")) return true;
+  }
+  return false;
+}
+
+function isVagueStart(text: string): boolean {
+  const vague = [/^identify\b/i, /^explore\b/i, /^consider\b/i, /^review\b/i, /^assess\b/i];
+  return vague.some((re) => re.test(text.trim()));
+}
+
+function looksActionable(text: string): boolean {
+  const actionHints = /(Add|Create|Update|Replace|Write|Draft|Publish|Check|Validate|Run|Open|Use|Install|Enable|Configure|Link)\b/i;
+  return actionHints.test(text);
+}
+
+function validateAndFormatSteps(parsed: any): { steps: string[] } | null {
+  // Prefer stepsDetailed when present and valid
+  if (Array.isArray(parsed?.stepsDetailed) && parsed.stepsDetailed.length > 0) {
+    const detailed = parsed.stepsDetailed.slice(0, 6);
+    if (detailed.length < 3) return null; // enforce 3–6 steps
+
+    const formatted: string[] = [];
+    for (const st of detailed) {
+      const titleOk = isShortPlain(st?.stepTitle, 80);
+      const descOk = isShortPlain(st?.stepDescription, 220);
+      const whoOk = typeof st?.who === "string" && ["Developer", "Marketer", "Founder"].includes(st.who);
+      const acOk = isShortPlain(st?.acceptanceCriteria ?? "", 220) || typeof st?.acceptanceCriteria === "undefined";
+      const verifyOk = isShortPlain(st?.howToVerify ?? "", 220) || typeof st?.howToVerify === "undefined";
+      const descStr = String(st?.stepDescription || "");
+      if (!titleOk || !descOk || !whoOk) return null;
+      // Soft acronym policy: allow but encourage definition; do not hard-reject
+      if (isVagueStart(descStr) && !looksActionable(descStr)) return null;
+
+      const compactTitle = String(st.stepTitle).trim().replace(/\.$/, "");
+      const compactDesc = descStr.trim().replace(/\s*\([^)]*\)/g, ""); // drop in-line definitions
+      const role = ` (Role: ${st.who}` + (isShortPlain(st?.estimatedTime, 30) ? `, ${String(st.estimatedTime).trim()}` : "") + ")";
+      const blocked = isShortPlain(st?.ifBlocked, 120) ? ` If blocked: ${String(st.ifBlocked).trim()}.` : "";
+      // Final compact line without verification/acceptance
+      const lineRaw = `${compactTitle}: ${compactDesc}.${role}.${blocked}`.replace(/\s+/g, " ").trim();
+      const line = lineRaw.length > 160 ? lineRaw.slice(0, 157) + "…" : lineRaw;
+      formatted.push(line);
+      if (formatted.length >= 6) break;
+    }
+    if (formatted.length >= 3 && formatted.length <= 6) return { steps: formatted };
+    return null;
+  }
+
+  // Fallback: plain steps[]
+  if (Array.isArray(parsed?.steps) && parsed.steps.length > 0) {
+    const out = parsed.steps
+      .slice(0, 6)
+      .map((s: unknown) => String(s))
+      .filter((s: string) => s && s.length < 200 && !(hasAcronymWithoutDefinition(s)) && !(isVagueStart(s) && !looksActionable(s)));
+    if (out.length >= 3 && out.length <= 6) return { steps: out };
+    return null;
+  }
+  return null;
+}
+
 export async function enrichTaskWithLLM(params: {
 	templateKey: string;
 	categoryTag: "SEO" | "GEO" | "Content";
@@ -88,15 +157,22 @@ export async function enrichTaskWithLLM(params: {
 	}
 
 	const parsed = tryParseEnrichmentJson(text);
-	if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
-		const steps = parsed.steps.slice(0, 8).map((s: unknown) => String(s)).filter(Boolean);
-		const why = typeof parsed.whyItMatters === "string" && parsed.whyItMatters.trim() ? parsed.whyItMatters : "This addresses a verified gap in your technical structure.";
-		const confidence = clamp01(parsed.confidence ?? 0.7);
-		const tags = Array.isArray(parsed.tags) ? parsed.tags.filter((t: string) => ["SEO","GEO","Content"].includes(t)) : [categoryTag];
-		const impact = ["High","Medium","Low"].includes(parsed.impact) ? parsed.impact : undefined;
-		const title = typeof parsed.title === "string" ? parsed.title : undefined;
-		devLog("OUTPUT", { ok: true, stepsCount: steps.length, confidence, tags, hasTitle: Boolean(title) });
-		return { title, whyItMatters: why, impact, steps, tags, confidence };
+	if (parsed) {
+    const normalized = validateAndFormatSteps(parsed);
+    const whyCandidate: unknown = parsed.whyItMatters ?? parsed.taskDescription;
+    const why = (typeof whyCandidate === "string" && isShortPlain(whyCandidate, 220) && !hasAcronymWithoutDefinition(whyCandidate))
+			? whyCandidate
+			: "This addresses a verified gap in your technical structure.";
+		if (normalized) {
+			const confidence = clamp01(parsed.confidence ?? 0.7);
+			const tags = Array.isArray(parsed.tags) ? parsed.tags.filter((t: string) => ["SEO","GEO","Content"].includes(t)) : [categoryTag];
+			const impact = ["High","Medium","Low"].includes(parsed.impact) ? parsed.impact : undefined;
+			const title = typeof parsed.title === "string" ? parsed.title : undefined;
+			devLog("OUTPUT", { ok: true, stepsCount: normalized.steps.length, confidence, tags, hasTitle: Boolean(title) });
+			return { title, whyItMatters: why, impact, steps: normalized.steps, tags, confidence };
+    } else {
+      devLog("OUTPUT", { ok: false, reason: "normalized_failed", parsedPreview: JSON.stringify(parsed).slice(0, 300) });
+    }
 	}
 
 	// Fallback to deterministic steps

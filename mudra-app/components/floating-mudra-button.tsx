@@ -36,7 +36,19 @@ export function FloatingMudraButton({
 
   // Listen for global event to programmatically open chat
   useEffect(() => {
-    const handler = () => setOpen(true)
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { initialMessage?: string } | undefined
+      if (detail?.initialMessage) {
+        try {
+          const inputEl = document.querySelector<HTMLTextAreaElement>('textarea[placeholder="Ask me anything..."]')
+          if (inputEl) {
+            inputEl.value = detail.initialMessage
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }))
+          }
+        } catch {}
+      }
+      setOpen(true)
+    }
     window.addEventListener('mudra:open-chat', handler)
     return () => window.removeEventListener('mudra:open-chat', handler)
   }, [])

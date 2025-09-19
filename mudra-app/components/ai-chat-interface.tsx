@@ -99,6 +99,18 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
     "How to implement schema markup"
   ])
 
+  // Allow other components to open chat with a prefilled message
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { initialMessage?: string } | undefined
+      if (detail?.initialMessage) {
+        setInput(detail.initialMessage)
+      }
+    }
+    window.addEventListener('mudra:open-chat', handler)
+    return () => window.removeEventListener('mudra:open-chat', handler)
+  }, [])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
   }

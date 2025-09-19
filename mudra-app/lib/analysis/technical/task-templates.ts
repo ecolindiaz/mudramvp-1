@@ -268,11 +268,14 @@ export function deriveEvidenceForTemplate(templateKey: string, s: ScrapeSnapshot
 		case "add_jsonld_basic":
 			return [
 				{ path: "schema.summary.jsonLdCount", value: s.schema?.summary?.jsonLdCount },
+				{ path: "metadata.title", value: s.metadata?.title },
+				{ path: "metadata.description", value: s.metadata?.description },
 			];
 		case "add_faq_schema":
 			return [
 				{ path: "schema.summary.faqSchemaCount", value: s.schema?.summary?.faqSchemaCount },
 				{ path: "faqs.summary.totalUnique", value: s.faqs?.summary?.totalUnique },
+				{ path: "faqs.merged.length", value: Array.isArray(s.faqs?.merged) ? s.faqs.merged.length : 0 },
 			];
 		case "add_faq_content":
 			return [
@@ -314,101 +317,98 @@ export function baselineStepsForTemplate(templateKey: string, s: ScrapeSnapshot)
 	const origin = (() => { try { return new URL(s.url).origin; } catch { return s.url; } })();
 	switch (templateKey) {
 		case "add_robots_txt":
-			return [
-				`Create a plain text file at ${origin}/robots.txt`,
-				"Add line: User-agent: *",
-				"Add line: Allow: /",
-				"Deploy and ensure /robots.txt returns HTTP 200",
-				"Open /robots.txt in a browser to confirm contents",
-			];
+				return [
+					`Create ${origin}/robots.txt with basic allow rules.`,
+					"Add two lines: 'User-agent: *' and 'Allow: /'.",
+					"Upload to the site root (deploy).",
+					`Verify: open ${origin}/robots.txt → HTTP 200 and both lines visible. Acceptance: directives match exactly.`,
+				];
 		case "add_llms_txt":
-			return [
-				`Create ${origin}/llms.txt`,
-				"List allowed AI crawlers and recommended sections to crawl",
-				"Include links to key pages (home, features, pricing, docs)",
-				"Deploy and ensure /llms.txt returns HTTP 200",
-				"Verify file is readable without auth",
-			];
+				return [
+					`Create ${origin}/llms.txt with an allowlist for AI crawlers.`,
+					"List 3–5 key URLs (home, features, pricing, docs) and an optional contact line.",
+					"Upload to the site root (deploy).",
+					`Verify: open ${origin}/llms.txt → HTTP 200; at least 3 URLs present. Acceptance: file readable without auth.`,
+				];
 		case "add_llms_full_txt":
-			return [
-				`Create ${origin}/llms-full.txt`,
-				"Provide detailed guidance (section priorities, rate limits, update cadence)",
-				"Reference sitemap if available",
-				"Deploy and ensure /llms-full.txt returns HTTP 200",
-				"Sanity-check content for accuracy and links",
-			];
+				return [
+					`Create ${origin}/llms-full.txt with crawl guidance.`,
+					"Add priorities, revisit cadence, rate limits, and link sitemap.xml/key docs.",
+					"Upload to the site root (deploy).",
+					`Verify: open ${origin}/llms-full.txt → HTTP 200; guidance present. Acceptance: references sitemap or 3+ key sections.`,
+				];
 		case "add_meta_description":
 			return [
-				"Add <meta name=\"description\" content=\"...\"> inside <head>",
-				"Keep to ~140–160 characters reflecting the core value prop",
-				"Avoid keyword stuffing; use natural language",
-				"Deploy and view page source to confirm the tag",
+				"Write a 140–160 character plain-language summary of the page's value.",
+				"Add <meta name=\"description\" content=\"...\"> inside <head>.",
+				"Avoid keyword stuffing; keep it readable.",
+				`Verify: view-source → <meta name=\"description\"> present with your text. Acceptance: tag exists, length ~140–160 chars.`,
 			];
 		case "add_h1":
-			return [
-				"Add a single descriptive <h1> near the top of the page",
-				"Align H1 with search intent and page title",
-				"Ensure only one H1 exists (use H2/H3 for sub-sections)",
-				"Deploy and verify H1 renders in the DOM",
-			];
+				return [
+					"Write a clear H1 that matches page intent (one per page).",
+					"Place it near the top; demote any extra H1s to H2/H3.",
+					"Publish the change.",
+					"Verify: DevTools shows exactly one <h1>. Acceptance: 1 visible H1.",
+				];
 		case "add_jsonld_basic":
-			return [
-				"Create JSON-LD for Organization and WebSite",
-				"Embed <script type=\"application/ld+json\"> in <head>",
-				"Include name, url, and description; validate with Rich Results Test",
-				"Deploy and confirm at least one JSON-LD block is present",
-			];
+				return [
+					"Add Organization JSON-LD with name, url, logo.",
+					"Add Website JSON-LD with url (and optional potentialAction).",
+					"Embed in <head> via <script type=\"application/ld+json\"> and publish.",
+					"Verify: Rich Results Test shows both with 0 errors. Acceptance: Organization and Website valid.",
+				];
 		case "add_faq_schema":
-			return [
-				"Select 3–5 on-page Q&A pairs users actually ask",
-				"Add FAQPage JSON-LD with Question/acceptedAnswer structure",
-				"Validate with Structured Data Testing Tool",
-				"Deploy and confirm FAQPage schema detected",
-			];
+				return [
+					"Pick 3–5 Q&As already on the page.",
+					"Create FAQPage JSON‑LD (Question + acceptedAnswer) and add to <head>.",
+					"Publish the change.",
+					"Verify: Rich Results Test detects FAQPage with 0 errors. Acceptance: all pairs found.",
+				];
 		case "add_faq_content":
-			return [
-				"Draft 3–5 concise FAQs (1–3 sentence answers)",
-				"Place them in a visible FAQ section on the page",
-				"Avoid duplicate questions; cover primary objections",
-				"Deploy and verify FAQs are extractable by the scraper",
-			];
+				return [
+					"Draft 3–5 concise FAQs (1–3 sentence answers).",
+					"Add a visible FAQ block on the page (not hidden tabs).",
+					"Avoid duplicates; cover objections and basics; publish.",
+					"Verify: DOM shows ≥3 unique Q&A. Acceptance: at least 3 visible Q&A.",
+				];
 		case "improve_heading_structure":
-			return [
-				"Ensure exactly one H1 on the page",
-				"Use H2 for sections and H3 for sub-sections (no level skipping)",
-				"Do not use headings purely for styling; use CSS classes",
-				"Deploy and verify heading hierarchy is logical",
-			];
+				return [
+					"Keep one H1; demote extras to H2/H3.",
+					"Use H2 for sections and H3 under H2 (no skips).",
+					"Replace style-only headings with CSS; publish.",
+					"Verify: DOM outline is H1 > H2 > H3. Acceptance: 1 H1, no skips.",
+				];
 		case "add_h2_sections":
-			return [
-				"Identify 2–5 primary sections that support the H1",
-				"Add descriptive <h2> headings for each primary section",
-				"Keep <h2> concise, relevant, with natural keywords (no stuffing)",
-				"Deploy and verify at least one H2 renders in the DOM",
-			];
+				return [
+					"List 2–4 main sections that support the H1.",
+					"Add clear H2 headings for each section; keep wording natural.",
+					"Publish the change.",
+					"Verify: DOM shows ≥1 H2. Acceptance: at least one relevant H2.",
+				];
 		case "add_h3_subsections":
-			return [
-				"Group related content under appropriate <h2> sections",
-				"Add <h3> for logical subtopics beneath frequently long <h2> sections",
-				"Avoid skipping levels (place H3 only under H2)",
-				"Deploy and verify H3s appear under corresponding H2s",
-			];
+				return [
+					"Under long H2 sections, add H3s for each subtopic.",
+					"Place H3s only under an H2; keep labels short.",
+					"Publish the change.",
+					"Verify: H3s nest under the correct H2. Acceptance: ≥1 H3 under a long H2.",
+				];
 		case "avoid_heading_level_skips":
-			return [
-				"Audit headings for level ordering (H1 > H2 > H3 > H4...)",
-				"Insert missing levels where needed (e.g., add H2 before H3)",
-				"Refactor styling: use classes instead of incorrect heading tags",
-				"Deploy and verify no heading level is skipped",
-			];
+				return [
+					"Find skips (e.g., H3 with no earlier H2).",
+					"Add the missing parent level (e.g., add an H2 before H3).",
+					"Replace style-only heading tags with CSS; publish.",
+					"Verify: DOM outline shows no skips. Acceptance: each Hx has H(x-1).",
+				];
 		case "add_favicon":
-			return [
-				"Generate a favicon (32x32 or 48x48 PNG/ICO)",
-				"Place at /favicon.ico and/or /favicons/*",
-				"Add <link rel=\"icon\" href=\"/favicon.ico\"> in <head>",
-				"Deploy and verify the favicon loads in the browser",
-			];
+				return [
+					"Create a 32×32 or 48×48 favicon (PNG/ICO).",
+					"Upload to /favicon.ico and reference in <head>.",
+					"Publish the change.",
+					"Verify: open site; favicon appears (no 404). Acceptance: icon visible.",
+				];
 		default:
-			return ["Implement the change and verify it is live."];
+			return ["Implement the change and verify it is live (state a simple verification and acceptance criteria)."];
 	}
 }
 

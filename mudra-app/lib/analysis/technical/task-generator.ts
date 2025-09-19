@@ -4,6 +4,8 @@ import { enrichTaskWithLLM } from "@/lib/analysis/technical/llm";
 import { cacheGet, cacheSet } from "@/lib/analysis/technical/cache";
 import crypto from "node:crypto";
 
+const TASKGEN_CACHE_VERSION = "v2-noverify"; // bump to invalidate older verbose results
+
 function getDomain(url: string): string {
 	try { return new URL(url).host; } catch { return url; }
 }
@@ -34,8 +36,8 @@ export async function generateTasksFromSnapshot(snapshot: ScrapeSnapshot, opts?:
 			const inputs = tmpl.generateInputs(snapshot);
 			const evidence = deriveEvidenceForTemplate(tmpl.key, snapshot);
 
-			// Cache per site/template/snapshot to dedupe within 24h
-			const cacheKey = `taskgen:${opts?.siteId || domain}:${snapshotHash}:${tmpl.key}`;
+			// Cache per site/template/snapshot to dedupe within 24h; include version to bust old formats
+			const cacheKey = `taskgen:${TASKGEN_CACHE_VERSION}:${opts?.siteId || domain}:${snapshotHash}:${tmpl.key}`;
 			const cached = await cacheGet(cacheKey);
 			if (cached) {
 				try {
@@ -67,12 +69,22 @@ export async function generateTasksFromSnapshot(snapshot: ScrapeSnapshot, opts?:
 
 			try { await cacheSet(cacheKey, JSON.stringify(enriched), 60 * 60 * 24); } catch { /* ignore */ }
 
+
+			function compactStepLine(line: string): string {
+				const noVerify = line
+					.replace(/\bVerify:[^.]*\.?/gi, "")
+					.replace(/\bAcceptance:[^.]*\.?/gi, "")
+					.replace(/\s+/g, " ")
+					.trim();
+				return noVerify.length > 160 ? noVerify.slice(0, 157) + "…" : noVerify;
+			}
+
 			return {
 				templateKey: tmpl.key,
 				title: enriched.title ?? tmpl.title(snapshot),
 				whyItMatters: enriched.whyItMatters,
 				impact: tmpl.impact,
-				steps: enriched.steps?.length ? enriched.steps : baselineStepsForTemplate(tmpl.key, snapshot),
+				steps: (enriched.steps?.length ? enriched.steps : baselineStepsForTemplate(tmpl.key, snapshot)).map((s) => compactStepLine(String(s))),
 				tags: enriched.tags ?? [tmpl.category],
 				evidence,
 				suggestedOwner: suggestOwner(tmpl.key),

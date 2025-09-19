@@ -112,6 +112,83 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
       }
     }
 
+    // Technical Snapshot Narrative (70–120 words)
+    const keyFindings = summaryJson.sections.technical_structure?.key_findings || []
+    if (keyFindings.length > 0) {
+      const lower = (s: string) => s.toLowerCase()
+      const findBy = (substr: string) => keyFindings.find(k => lower(k.title).includes(substr))
+
+      const robots = findBy('robots.txt')
+      const llms = findBy('llms.txt')
+      const jsonld = keyFindings.find(k => lower(k.title).includes('json-ld'))
+      const faq = keyFindings.find(k => lower(k.title).includes('faq'))
+      const headings = keyFindings.find(k => lower(k.title).includes('heading structure'))
+      const h1 = keyFindings.find(k => lower(k.title).startsWith('h1 '))
+
+      const jsonLdCountMatch = jsonld?.title.match(/\((\d+)\)/)
+      const faqCountMatch = faq?.title.match(/\((\d+)\)/)
+
+      const clauses: string[] = []
+      if (robots) clauses.push(robots.title.toLowerCase().includes('missing') ? 'robots.txt is missing' : 'robots.txt is present')
+      if (llms) clauses.push(llms.title.toLowerCase().includes('missing') ? 'llms.txt is missing' : 'llms.txt is present')
+      if (jsonld) {
+        if (lower(jsonld.title).includes('detected')) {
+          clauses.push(jsonLdCountMatch ? `JSON-LD detected (${jsonLdCountMatch[1]})` : 'JSON-LD detected')
+        } else {
+          clauses.push('no JSON-LD detected')
+        }
+      }
+      if (faq) {
+        if (lower(faq.title).includes('present')) {
+          clauses.push(faqCountMatch ? `FAQ content present (${faqCountMatch[1]})` : 'FAQ content present')
+        } else {
+          clauses.push('no FAQ content detected')
+        }
+      }
+      if (headings) clauses.push(lower(headings.title).includes('sane') ? 'headings look sane' : 'headings may be problematic')
+      if (h1) {
+        if (lower(h1.title).includes('present')) {
+          const m = h1.title.match(/\((\d+)\)/)
+          clauses.push(m ? `H1 count ${m[1]}` : 'H1 present')
+        } else {
+          clauses.push('no H1 detected')
+        }
+      }
+
+      const narrativeParts: string[] = []
+      if (clauses.length > 0) {
+        narrativeParts.push(`The crawler snapshot confirms ${clauses.join(', ')}.`)
+      }
+      if (jsonld || faq) {
+        narrativeParts.push('Structured signals like JSON-LD and FAQs help search and AI models understand your entities and answers.')
+      }
+      if (headings || h1) {
+        narrativeParts.push('Clear heading structure and a single primary H1 improve parsing and ranking consistency across pages.')
+      }
+      narrativeParts.push('Addressing gaps here increases the likelihood of being cited or summarized accurately in AI-generated answers.')
+
+      let narrative = narrativeParts.join(' ')
+      const nextTip = summaryJson.sections.risks_next_steps?.[0]
+      if (nextTip) narrative += ` Next: ${nextTip}.`
+
+      const wordCount = (s: string) => s.trim().split(/\s+/).filter(Boolean).length
+      const minWords = 70
+      const maxWords = 120
+
+      if (wordCount(narrative) < minWords) {
+        const topTasks = summaryJson.sections.tasks?.top_open?.map(t => t.title).slice(0, 3) || []
+        if (topTasks.length > 0) {
+          narrative += ` Prioritize: ${topTasks.join('; ')}.`
+        }
+      }
+      if (wordCount(narrative) > maxWords) {
+        const words = narrative.split(/\s+/).slice(0, maxWords)
+        narrative = words.join(' ').replace(/[;,]$/,'').trim() + '.'
+      }
+
+      parts.push(narrative)
+    }
+
     const next = summaryJson.sections.risks_next_steps?.[0]
     if (next) parts.push(`Next: ${next}.`)
 

@@ -115,6 +115,8 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
   userLines.push(`- Use short sentences (<= ${LENGTH.perSentenceMaxWords} words). No fluff.`);
   userLines.push("- If a section is null or empty, write a single line: 'Insufficient data this week.'");
   userLines.push("- After summary_json, output the Markdown sections with headings exactly as listed.");
+  userLines.push("- In the Technical Structure section, begin with a 70–120 word 'Technical Snapshot Digest' explaining the crawl snapshot in plain English (robots.txt, llms.txt, JSON-LD with counts if available, FAQ with counts, headings structure, H1 count). Make it contextual and precise, and interpret why it matters in one short clause.");
+  userLines.push("- When relevant, follow the digest with 2–4 short bullets for the most important key findings.");
   userLines.push(`- The first Summary paragraph must not exceed ${LENGTH.summaryMaxTokens} tokens. Keep it crisp and conversational.`);
   userLines.push(`- Aim for ${LENGTH.markdownWordMin}-${LENGTH.markdownWordMax} words total.`);
 

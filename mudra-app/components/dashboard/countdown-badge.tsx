@@ -1,8 +1,9 @@
 "use client"
 
 import React from "react"
-import { Timer } from "lucide-react"
+import { Timer, Code } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { isDevelopmentClient, shouldEnforceAnalysisRestrictions } from "@/lib/utils/dev-mode"
 
 interface CountdownBadgeProps {
   /** Target time in milliseconds since epoch */
@@ -27,12 +28,19 @@ export function CountdownBadge({ targetMs, className }: CountdownBadgeProps) {
   // Ensure SSR/CSR markup matches by avoiding Date.now() in render on the server.
   // We render a stable fallback (20:00:00) until mounted, then start the client timer.
   const [mounted, setMounted] = React.useState(false)
+  const [isDev, setIsDev] = React.useState(false)
   const targetRef = React.useRef<number | null>(null)
   const DEFAULT_DURATION_MS = 20 * 60 * 60 * 1000
   const [remaining, setRemaining] = React.useState<number>(DEFAULT_DURATION_MS)
 
   React.useEffect(() => {
     setMounted(true)
+    setIsDev(isDevelopmentClient())
+
+    // In development mode, don't enforce timer restrictions
+    if (!shouldEnforceAnalysisRestrictions()) {
+      return
+    }
 
     // Initialize target time on client if not provided
     if (targetRef.current == null) {
@@ -49,6 +57,26 @@ export function CountdownBadge({ targetMs, className }: CountdownBadgeProps) {
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [targetMs])
+
+  // Show development mode badge instead of timer in dev
+  if (mounted && isDev) {
+    return (
+      <div
+        className={cn(
+          "inline-flex items-center gap-2 h-9 rounded-xl border border-dashed px-3 text-sm font-medium",
+          "bg-green-500/10 text-green-400 border-green-400/40 hover:bg-green-500/20 transition-colors",
+          className
+        )}
+        aria-label="Development mode - unlimited analysis"
+        title="Development mode - unlimited analysis"
+      >
+        <Code className="size-4" aria-hidden="true" />
+        <span className="tracking-tight">
+          DEV MODE
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div

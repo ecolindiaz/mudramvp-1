@@ -1,19 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { StarBorder } from "@/components/ui/star-border"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Loader2 } from "lucide-react"
+import { useOnboarding } from "./onboarding-context"
 
 export function WelcomeForm() {
   const router = useRouter()
+  const { data, updateData } = useOnboarding()
+  const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
-    companyName: "",
-    companyWebsite: "",
-    companySocialMedia: ""
+    companyName: data.companyName,
+    companyWebsite: data.companyWebsite,
+    companySocialMedia: data.companySocialMedia
   })
 
   const handleInputChange = (field: string, value: string) => {
@@ -23,9 +26,27 @@ export function WelcomeForm() {
     }))
   }
 
-  const handleNext = () => {
-    console.log("Form data:", formData)
-    router.push("/welcome/profile")
+  const handleNext = async () => {
+    setIsLoading(true)
+    
+    try {
+      // Save form data to onboarding context
+      const success = await updateData({
+        companyName: formData.companyName,
+        companyWebsite: formData.companyWebsite,
+        companySocialMedia: formData.companySocialMedia
+      })
+      
+      if (success) {
+        console.log("✅ Welcome form data saved successfully")
+        router.push("/welcome/profile")
+      } else {
+        console.error("❌ Failed to save welcome form data")
+        alert("Failed to save data. Please try again.")
+      }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const isFormValid = formData.companyName.trim() !== "" && formData.companyWebsite.trim() !== ""
@@ -84,14 +105,23 @@ export function WelcomeForm() {
         </div>
 
         <StarBorder
-          onClick={isFormValid ? handleNext : undefined}
-          disabled={!isFormValid}
-          className={`w-full ${!isFormValid ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          onClick={isFormValid && !isLoading ? handleNext : undefined}
+          disabled={!isFormValid || isLoading}
+          className={`w-full ${(!isFormValid || isLoading) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           color="white"
         >
           <div className="flex items-center justify-center gap-2 text-white">
-            Next
-            <ArrowRight className="w-4 h-4" />
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                Next
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </div>
         </StarBorder>
       </CardContent>

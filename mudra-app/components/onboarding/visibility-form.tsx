@@ -8,19 +8,31 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { StarBorder } from "@/components/ui/star-border"
 import { ArrowRight, Upload } from "lucide-react"
+import { useOnboarding } from "./onboarding-context"
 
 export function VisibilityForm() {
   const router = useRouter()
-  const [files, setFiles] = useState<File[]>([])
+  const { data, updateData } = useOnboarding()
+  const [files, setFiles] = useState<File[]>(data.knowledgeBaseFiles)
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files ? Array.from(e.target.files) : []
     setFiles((prev) => [...prev, ...list])
   }
 
-  const handleNext = () => {
-    console.log("KB files:", files.map(f => f.name))
-    router.push("/welcome/prompts")
+  const handleNext = async () => {
+    // Save knowledge base files to onboarding context
+    const success = await updateData({
+      knowledgeBaseFiles: files
+    })
+    
+    if (success) {
+      console.log("✅ Knowledge base files saved successfully")
+      router.push("/welcome/prompts")
+    } else {
+      console.error("❌ Failed to save knowledge base files")
+      alert("Failed to save data. Please try again.")
+    }
   }
 
   const isFormValid = true

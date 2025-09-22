@@ -54,13 +54,24 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
   }, []);
 
   // Save profile to API and update state
-  const setProfile = (newProfile: typeof defaultProfile) => {
+  const setProfile = async (newProfile: typeof defaultProfile) => {
     setProfileState(newProfile);
-    fetch("/api/brand-profile", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newProfile)
-    });
+    
+    try {
+      const response = await fetch("/api/brand-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newProfile)
+      });
+      
+      if (!response.ok) {
+        console.error("Failed to save brand profile:", await response.text());
+      } else {
+        console.log("✅ Brand profile saved successfully");
+      }
+    } catch (error) {
+      console.error("Error saving brand profile:", error);
+    }
   };
 
   return (

@@ -8,10 +8,14 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { StarBorder } from "@/components/ui/star-border"
 import { ArrowRight, Plus, X } from "lucide-react"
+import { useOnboarding } from "./onboarding-context"
 
 export function CompetitorsForm() {
   const router = useRouter()
-  const [competitors, setCompetitors] = useState<string[]>(["", ""])
+  const { data, updateData } = useOnboarding()
+  const [competitors, setCompetitors] = useState<string[]>(
+    data.competitors.length > 0 ? data.competitors : ["", ""]
+  )
 
   const handleCompetitorChange = (index: number, value: string) => {
     const updated = [...competitors]
@@ -30,9 +34,19 @@ export function CompetitorsForm() {
     }
   }
 
-  const handleNext = () => {
-    console.log("Competitors:", competitors.filter(c => c.trim() !== ""))
-    router.push("/welcome/visibility")
+  const handleNext = async () => {
+    // Save competitors data to onboarding context
+    const success = await updateData({
+      competitors: competitors.filter(c => c.trim() !== "")
+    })
+    
+    if (success) {
+      console.log("✅ Competitors form data saved successfully")
+      router.push("/welcome/visibility")
+    } else {
+      console.error("❌ Failed to save competitors form data")
+      alert("Failed to save data. Please try again.")
+    }
   }
 
   const isFormValid = competitors.filter(c => c.trim() !== "").length >= 1

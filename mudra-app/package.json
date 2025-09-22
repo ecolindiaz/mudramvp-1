@@ -20,6 +20,9 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.8",
+    "@ai-sdk/google": "^2.0.11",
+    "@ai-sdk/openai": "^2.0.22",
     "@anthropic-ai/sdk": "^0.52.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
@@ -49,8 +52,8 @@
     "@tabler/icons-react": "^3.34.0",
     "@tanstack/react-query": "^5.79.0",
     "@tanstack/react-table": "^8.21.3",
-    "@types/pg": "^8.15.5",
     "@types/cheerio": "^0.22.35",
+    "@types/pg": "^8.15.5",
     "ai": "^4.3.16",
     "axios": "^1.9.0",
     "bcryptjs": "^3.0.2",

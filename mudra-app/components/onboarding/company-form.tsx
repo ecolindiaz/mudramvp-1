@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StarBorder } from "@/components/ui/star-border"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Plus, X } from "lucide-react"
+import { useOnboarding } from "./onboarding-context"
 
 function MultiRowInput({
   values,
@@ -59,11 +60,12 @@ function MultiRowInput({
 
 export function CompanyForm() {
   const router = useRouter()
+  const { data, updateData } = useOnboarding()
   const [formData, setFormData] = useState({
-    companyDescription: "",
-    companyIndustry: "",
-    servicesProducts: [] as string[],
-    companyICP: [] as string[]
+    companyDescription: data.companyDescription,
+    companyIndustry: data.companyIndustry,
+    servicesProducts: data.servicesProducts.length > 0 ? data.servicesProducts : [""],
+    companyICP: data.companyICP.length > 0 ? data.companyICP : [""]
   })
 
   const handleInputChange = (field: string, value: any) => {
@@ -73,9 +75,22 @@ export function CompanyForm() {
     }))
   }
 
-  const handleNext = () => {
-    console.log("Form data:", formData)
-    router.push("/welcome/competitors")
+  const handleNext = async () => {
+    // Save form data to onboarding context
+    const success = await updateData({
+      companyDescription: formData.companyDescription,
+      companyIndustry: formData.companyIndustry,
+      servicesProducts: formData.servicesProducts.filter(s => s.trim() !== ""),
+      companyICP: formData.companyICP.filter(s => s.trim() !== "")
+    })
+    
+    if (success) {
+      console.log("✅ Company form data saved successfully")
+      router.push("/welcome/competitors")
+    } else {
+      console.error("❌ Failed to save company form data")
+      alert("Failed to save data. Please try again.")
+    }
   }
 
   const isFormValid =

@@ -7,12 +7,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { StarBorder } from "@/components/ui/star-border"
 import { ArrowRight } from "lucide-react"
+import { useOnboarding } from "./onboarding-context"
 
 export function ProfileForm() {
   const router = useRouter()
+  const { data, updateData } = useOnboarding()
   const [formData, setFormData] = useState({
-    yourName: "",
-    yourRole: ""
+    userName: data.userName,
+    userRole: data.userRole
   })
 
   const handleInputChange = (field: string, value: string) => {
@@ -22,12 +24,23 @@ export function ProfileForm() {
     }))
   }
 
-  const handleNext = () => {
-    console.log("Form data:", formData)
-    router.push("/welcome/company")
+  const handleNext = async () => {
+    // Save form data to onboarding context
+    const success = await updateData({
+      userName: formData.userName,
+      userRole: formData.userRole
+    })
+    
+    if (success) {
+      console.log("✅ Profile form data saved successfully")
+      router.push("/welcome/company")
+    } else {
+      console.error("❌ Failed to save profile form data")
+      alert("Failed to save data. Please try again.")
+    }
   }
 
-  const isFormValid = formData.yourName.trim() !== "" && formData.yourRole.trim() !== ""
+  const isFormValid = formData.userName.trim() !== "" && formData.userRole.trim() !== ""
 
   return (
     <Card className="w-full max-w-md mx-auto bg-black border border-white/20 shadow-lg">
@@ -48,8 +61,8 @@ export function ProfileForm() {
             id="yourName"
             type="text"
             placeholder="Enter your full name"
-            value={formData.yourName}
-            onChange={(e) => handleInputChange("yourName", e.target.value)}
+            value={formData.userName}
+            onChange={(e) => handleInputChange("userName", e.target.value)}
             className="w-full bg-black border-white/20 text-white placeholder:text-white/50"
           />
         </div>
@@ -62,8 +75,8 @@ export function ProfileForm() {
             id="yourRole"
             type="text"
             placeholder="e.g. CEO, Marketing Manager, Founder"
-            value={formData.yourRole}
-            onChange={(e) => handleInputChange("yourRole", e.target.value)}
+            value={formData.userRole}
+            onChange={(e) => handleInputChange("userRole", e.target.value)}
             className="w-full bg-black border-white/20 text-white placeholder:text-white/50"
           />
         </div>

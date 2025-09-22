@@ -1,3 +1,5 @@
+"use client"
+
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { TasksView } from "@/components/tasks-view"
@@ -8,7 +10,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { Button } from "@/components/ui/button"
-import { IconPlus } from "@tabler/icons-react"
+
 
 export default function TasksPage() {
   return (
@@ -34,10 +36,56 @@ export default function TasksPage() {
                   <h1 className="text-2xl font-bold tracking-tight text-white">Tasks</h1>
                   <p className="text-muted-foreground">Manage and track optimization tasks</p>
                 </div>
-                <Button size="sm" className="h-9 rounded-xl">
-                  <IconPlus className="size-4 mr-2" />
-                  Add Task
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    className="h-9 rounded-xl"
+                    variant="outline"
+                    onClick={async () => {
+                      // Get latest snapshot from database and generate tasks
+                      try {
+                        console.log('🚀 Generating tasks from latest snapshot...')
+                        
+                        // Fetch latest snapshot from database
+                        const siteId = typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''
+                        const response = await fetch(`/api/tasks?siteId=${encodeURIComponent(siteId)}`)
+                        const result = await response.json()
+                        
+                        if (!result.success || !result.data.latestSnapshot) {
+                          alert('No website data found. Please analyze a website first from the Overview page.')
+                          return
+                        }
+                        
+                        const snapshot = result.data.latestSnapshot
+                        console.log('✅ Using latest snapshot for task generation')
+                        
+                        // Generate tasks using the latest snapshot
+                        const generateResponse = await fetch('/api/tasks/generate', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ snapshot, siteId })
+                        })
+                        
+                        if (!generateResponse.ok) {
+                          throw new Error(`Task generation failed: ${generateResponse.status}`)
+                        }
+                        
+                        const generateResult = await generateResponse.json()
+                        console.log('✅ Tasks generated:', generateResult.data.tasks.length)
+                        
+                        // Refresh tasks list
+                        window.dispatchEvent(new CustomEvent('mudra:refresh-tasks'))
+                        
+                      } catch (error) {
+                        console.error('❌ Error generating tasks:', error)
+                        alert(`Task generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                      }
+                    }}
+                  >
+                    Generate Tasks
+                  </Button>
+
+                </div>
               </div>
               <div className="mt-4">
                 <div className="relative">
@@ -58,7 +106,7 @@ export default function TasksPage() {
         </div>
       </SidebarInset>
       
-      <FloatingMudraButton />
+      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
 } 

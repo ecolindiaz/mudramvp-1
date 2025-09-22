@@ -49,6 +49,28 @@ export const AI_MODELS: Record<string, AIModelConfig> = {
     },
     bestFor: ['general chat', 'quick analysis', 'basic optimization tasks']
   },
+  'gpt-5': {
+    id: 'gpt-5',
+    name: 'GPT-5',
+    provider: 'openai',
+    model: 'gpt-5',
+    description: 'Latest OpenAI flagship for long-context summarization and reporting',
+    capabilities: {
+      reasoning: 'highest',
+      speed: 'slow',
+      contextWindow: 200000,
+      maxOutputTokens: 8192
+    },
+    pricing: {
+      inputCostPer1M: 60.00,
+      outputCostPer1M: 120.00
+    },
+    settings: {
+      defaultTemperature: 0.3,
+      defaultMaxTokens: 3000
+    },
+    bestFor: ['natural language reports', 'long-context summarization', 'policy-aware narrative synthesis']
+  },
   'o3': {
     id: 'o3',
     name: 'OpenAI o3',

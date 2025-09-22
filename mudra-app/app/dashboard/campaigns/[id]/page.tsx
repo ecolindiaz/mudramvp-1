@@ -255,7 +255,7 @@ export default function CampaignCanvasPage({
         </div>
       </SidebarInset>
       {/* Inline expand mode handled in-card; dialog removed */}
-      <FloatingMudraButton />
+      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
 }

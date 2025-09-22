@@ -616,7 +616,7 @@ export default function CampaignsPage() {
         </div>
       </SidebarInset>
       
-      <FloatingMudraButton />
+      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
 }

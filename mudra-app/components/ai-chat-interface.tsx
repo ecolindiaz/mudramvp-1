@@ -21,13 +21,22 @@ import {
   IconPlus,
   IconCopy,
   IconCheck,
+  IconExternalLink,
+  IconFileText,
 } from "@tabler/icons-react"
 import { SidebarOverviewIcon, SidebarTasksIcon, SidebarCampaignsIcon } from "@/components/icons"
+
+interface Citation {
+  title: string
+  path: string
+  chunk_index: number
+}
 
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  citations?: Citation[]
 }
 
 interface TaskContext {
@@ -55,6 +64,7 @@ interface TaskContext {
 interface AIChatInterfaceProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  siteId: string
   taskContext?: TaskContext[]
 }
 
@@ -68,7 +78,7 @@ const getPageContext = (pathname: string) => {
   return { icon: SidebarOverviewIcon, name: "Dashboard", color: "text-blue-400" }
 }
 
-export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInterfaceProps) {
+export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -81,11 +91,25 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
   const pageContext = getPageContext(pathname)
 
   const [quickPrompts] = useState([
-    "Tell me how to do this step by step",
-    "What should I work on first?", 
-    "Show me the detailed steps for my tasks",
-    "How long will these tasks take?"
+    "What should I work on first?",
+    "Explain my recent score changes", 
+    "How can I improve my AI search visibility?",
+    "Show me my open tasks",
+    "Best practices for SEO optimization",
+    "How to implement schema markup"
   ])
+
+  // Allow other components to open chat with a prefilled message
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { initialMessage?: string } | undefined
+      if (detail?.initialMessage) {
+        setInput(detail.initialMessage)
+      }
+    }
+    window.addEventListener('mudra:open-chat', handler)
+    return () => window.removeEventListener('mudra:open-chat', handler)
+  }, [])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
@@ -118,7 +142,7 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
         },
         body: JSON.stringify({
           messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })),
-          taskContext: taskContext || [],
+          siteId: siteId,
           deepThink: deepThink
         })
       })
@@ -129,7 +153,8 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: data.content
+          content: data.content,
+          citations: []
         }
         setMessages(prev => [...prev, assistantMessage])
       } else {
@@ -300,6 +325,29 @@ export function AIChatInterface({ open, onOpenChange, taskContext }: AIChatInter
                 <div className="whitespace-pre-wrap break-words text-sm leading-relaxed font-mono">
                   {message.content}
                 </div>
+                
+                {/* Citations */}
+                {message.role === 'assistant' && message.citations && message.citations.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-white/10">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <IconFileText className="size-3 text-white/60" />
+                      <span className="text-xs font-mono text-white/60">Sources</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {message.citations.map((citation, index) => (
+                        <button
+                          key={index}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono rounded border border-white/20 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition-all"
+                          title={`${citation.title} - ${citation.path}`}
+                        >
+                          <IconExternalLink className="size-2.5" />
+                          <span className="truncate max-w-24">{citation.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 {/* Copy button on hover */}
                 <button
                   type="button"

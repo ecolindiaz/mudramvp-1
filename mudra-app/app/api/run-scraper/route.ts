@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractEnhancedGEOData, type EnhancedGEOResult } from '@/lib/scrapers/enhanced-geo-scraper';
+import { scrapeCompanyPage, type ScrapeResult } from '@/lib/scrapers/enhanced-geo-scraper'; 
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,9 +32,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Run the enhanced GEO scraper
-    console.log(`🚀 Starting Enhanced GEO Analysis for: ${url}`);
-    const result: EnhancedGEOResult = await extractEnhancedGEOData(url);
+    // Run the enhanced company page scraper
+    console.log(`🧭 Starting Enhanced Company Page Scrape for: ${url}`);
+    const result: ScrapeResult = await scrapeCompanyPage(url, {
+      fresh: true,
+      useLlmJsonMode: false
+    });
 
     // Return success response
     return NextResponse.json({
@@ -43,7 +46,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('❌ Enhanced GEO Analysis failed:', error);
+    console.error('❌ Enhanced Company Page Scrape failed:', error);
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     

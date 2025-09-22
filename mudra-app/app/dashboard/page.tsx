@@ -13,7 +13,9 @@ import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics"
 import { NaturalLanguageReport } from "@/components/dashboard/natural-language-report"
+import { GenerateReportButton } from "@/components/dashboard/generate-report-button"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { CountdownBadge } from "@/components/dashboard/countdown-badge"
 import { useDirectGEOAnalysis } from "@/hooks/use-direct-geo-analysis"
 import { useBrandProfile } from "@/components/brand-profile-context"
@@ -23,58 +25,68 @@ import type { TimeRange } from "@/components/dashboard/time-range-selector"
 import type { AIModel } from "@/components/dashboard/model-selector"
 
 export default function Page() {
-  const [timeRange, setTimeRange] = useState<TimeRange>("7d")
-  const [selectedModel, setSelectedModel] = useState<AIModel>("chatgpt")
+  const [timeRange, setTimeRange] = React.useState<TimeRange>("7d")
+  const [selectedModel, setSelectedModel] = React.useState<AIModel>("chatgpt")
+  const [websiteUrl, setWebsiteUrl] = React.useState("")
+  const [isAnalyzing, setIsAnalyzing] = React.useState(false)
 
-  return (
-    <BrandProfileProvider>
-      <DashboardContent timeRange={timeRange} setTimeRange={setTimeRange} selectedModel={selectedModel} setSelectedModel={setSelectedModel} />
-    </BrandProfileProvider>
-  )
-}
+  const handleAnalyzeWebsite = async () => {
+    if (!websiteUrl.trim()) return
 
-function DashboardContent({ 
-  timeRange, 
-  setTimeRange, 
-  selectedModel, 
-  setSelectedModel 
-}: {
-  timeRange: TimeRange
-  setTimeRange: (range: TimeRange) => void
-  selectedModel: AIModel
-  setSelectedModel: (model: AIModel) => void
-}) {
-  const { profile } = useBrandProfile()
-  const { state, runAnalysis, loadLatestAnalysis } = useDirectGEOAnalysis()
-  const [isDev, setIsDev] = useState(false)
+    try {
+      setIsAnalyzing(true)
 
-  // Load existing analysis on mount and check dev mode
-  React.useEffect(() => {
-    setIsDev(isDevelopmentClient())
-    if (profile?.companyName) {
-      loadLatestAnalysis(profile.companyName)
+      // 1) Scrape the website
+      console.log(`🚀 Starting analysis for: ${websiteUrl}`)
+      const scrapeResponse = await fetch('/api/run-scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: websiteUrl.trim() }),
+      })
+
+      if (!scrapeResponse.ok) {
+        throw new Error(`Scraping failed: ${scrapeResponse.status}`)
+      }
+
+      const scrapeResult = await scrapeResponse.json()
+      if (!scrapeResult.success) {
+        throw new Error(scrapeResult.error?.message || 'Scraping failed')
+      }
+
+      console.log('✅ Scraping completed')
+
+      // 2) Convert to snapshot and score (this will save to DB)
+      const { toScrapeSnapshot } = await import('@/lib/analysis/technical/adapter')
+      const snapshot = toScrapeSnapshot(scrapeResult.data)
+
+      const scoreResponse = await fetch('/api/technical-analysis/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshot })
+      })
+
+      if (!scoreResponse.ok) {
+        throw new Error(`Scoring failed: ${scoreResponse.status}`)
+      }
+
+      const scoreResult = await scoreResponse.json()
+      console.log('✅ Technical score computed:', scoreResult.data.total)
+      if (scoreResult?.data?.siteId) {
+        try { localStorage.setItem('mudra:siteId', scoreResult.data.siteId) } catch {}
+      }
+
+      // 3) Trigger UI refresh
+      window.dispatchEvent(new CustomEvent('mudra:website-analyzed', {
+        detail: { url: websiteUrl, score: scoreResult.data.total }
+      }))
+
+    } catch (error) {
+      console.error('❌ Website analysis failed:', error)
+      alert(`Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsAnalyzing(false)
     }
-  }, [profile?.companyName, loadLatestAnalysis])
-
-  const handleRunAnalysis = async () => {
-    if (!profile?.companyName) {
-      console.error("No brand profile available for analysis")
-      return
-    }
-
-    await runAnalysis({
-      brandName: profile.companyName,
-      website: profile.companyWebsite || undefined,
-      industry: profile.companyIndustry || undefined,
-      description: profile.companyDescription || undefined,
-      competitors: profile.competitors || [],
-    })
   }
-
-  // In development mode, always allow analysis
-  // In production, add timer restrictions if needed
-  const isAnalysisDisabled = state.isRunning || !profile?.companyName || 
-    (shouldEnforceAnalysisRestrictions() && false) // Add timer logic here for production
 
   return (
     <SidebarProvider
@@ -108,25 +120,24 @@ function DashboardContent({
                 </div>
                 <div className="flex items-center gap-3">
                   <CountdownBadge />
-                  <Button
-                    variant="dashed"
-                    className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={handleRunAnalysis}
-                    disabled={isAnalysisDisabled}
-                    title={isDev ? "Development mode - unlimited analysis" : undefined}
-                  >
-                    {state.isRunning ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        {state.stage}
-                      </>
-                    ) : (
-                      <>
-                        <Target className="w-4 h-4 mr-2" />
-                        Run Analysis {isDev && "(DEV)"}
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Enter website URL (e.g., paradigmai.com)"
+                      value={websiteUrl}
+                      onChange={(e) => setWebsiteUrl(e.target.value)}
+                      className="w-64 h-9 bg-white text-black placeholder:text-gray-500"
+                      disabled={isAnalyzing}
+                    />
+                    <Button
+                      variant="dashed"
+                      className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
+                      onClick={handleAnalyzeWebsite}
+                      disabled={isAnalyzing || !websiteUrl.trim()}
+                    >
+                      {isAnalyzing ? "Analyzing..." : "Analyze Website"}
+                    </Button>
+                    <GenerateReportButton />
+                  </div>
                 </div>
               </div>
               
@@ -200,7 +211,7 @@ function DashboardContent({
         </div>
       </SidebarInset>
       
-      <FloatingMudraButton />
+      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
 }

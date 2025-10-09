@@ -103,8 +103,19 @@ export async function performAnalysis({
     }));
   } else {
     const prompts = await generatePromptsForCompany(company, competitors);
-    // Note: Changed from 8 to 4 to match UI - this should be configurable
-    analysisPrompts = prompts.slice(0, 4);
+    
+    // Filter out prompts that mention the brand name (for unbiased visibility testing)
+    const brandName = company.name.toLowerCase();
+    const unbiasedPrompts = prompts.filter(p => 
+      !p.prompt.toLowerCase().includes(brandName)
+    );
+    
+    console.log(`🎯 Filtered prompts: ${prompts.length} total → ${unbiasedPrompts.length} unbiased (removed ${prompts.length - unbiasedPrompts.length} that mention "${company.name}")`);
+    
+    // Use first 30 unbiased prompts to reduce cost (~$1-2 per analysis vs $5-7 for 100)
+    analysisPrompts = unbiasedPrompts.slice(0, 30);
+    
+    console.log(`✅ Using ${analysisPrompts.length} prompts for analysis`);
   }
 
   // Send prompt generated events
@@ -160,8 +171,9 @@ export async function performAnalysis({
   // Check if we should use mock mode (no API keys configured)
   const useMockMode = process.env.USE_MOCK_MODE === 'true' || availableProviders.length === 0;
 
-  // Process prompts in parallel batches of 3
-  const BATCH_SIZE = 3;
+  // Process prompts in parallel batches of 10 (increased from 3 for faster analysis)
+  // With 30 prompts × 2 providers = 60 API calls, this means ~6 batches instead of 20
+  const BATCH_SIZE = 10;
   
   for (let batchStart = 0; batchStart < analysisPrompts.length; batchStart += BATCH_SIZE) {
     const batchEnd = Math.min(batchStart + BATCH_SIZE, analysisPrompts.length);

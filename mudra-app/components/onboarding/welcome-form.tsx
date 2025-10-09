@@ -31,19 +31,17 @@ export function WelcomeForm() {
     
     try {
       // Save form data to onboarding context
-      const success = await updateData({
+      updateData({
         companyName: formData.companyName,
         companyWebsite: formData.companyWebsite,
         companySocialMedia: formData.companySocialMedia
       })
       
-      if (success) {
-        console.log("✅ Welcome form data saved successfully")
-        router.push("/welcome/profile")
-      } else {
-        console.error("❌ Failed to save welcome form data")
-        alert("Failed to save data. Please try again.")
-      }
+      console.log("✅ Welcome form data saved successfully")
+      router.push("/welcome/profile")
+    } catch (error) {
+      console.error("❌ Failed to save welcome form data", error)
+      alert("Failed to save data. Please try again.")
     } finally {
       setIsLoading(false)
     }

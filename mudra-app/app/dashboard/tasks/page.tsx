@@ -10,9 +10,57 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { Button } from "@/components/ui/button"
+import { DirectGeoResults } from "@/components/direct-geo-results"
+import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
+import { useEffect, useState } from "react"
+import { Loader2 } from "lucide-react"
+import type { DirectGEOResult } from "@/lib/services/direct-geo-analysis.service"
 
 
-export default function TasksPage() {
+function TasksPageInner() {
+  const { profile } = useBrandProfile()
+  const [geoResults, setGeoResults] = useState<DirectGEOResult | null>(null)
+  const [isLoadingGeo, setIsLoadingGeo] = useState(false)
+
+  // Fetch latest GEO analysis from database
+  const fetchLatestGeoAnalysis = async () => {
+    if (!profile.id) return
+
+    setIsLoadingGeo(true)
+    try {
+      const response = await fetch(
+        `/api/analysis/geo/latest?brandProfileId=${profile.id}`
+      )
+      const result = await response.json()
+
+      if (result.success && result.data) {
+        setGeoResults(result.data)
+      } else {
+        setGeoResults(null)
+      }
+    } catch (error) {
+      console.error('Error fetching GEO analysis:', error)
+      setGeoResults(null)
+    } finally {
+      setIsLoadingGeo(false)
+    }
+  }
+
+  // Load on mount and when profile changes
+  useEffect(() => {
+    fetchLatestGeoAnalysis()
+  }, [profile.id])
+
+  // Refresh when analysis completes
+  useEffect(() => {
+    const handleAnalysisComplete = () => {
+      fetchLatestGeoAnalysis()
+    }
+
+    window.addEventListener('mudra:website-analyzed', handleAnalysisComplete)
+    return () => window.removeEventListener('mudra:website-analyzed', handleAnalysisComplete)
+  }, [profile.id])
+
   return (
     <SidebarProvider
       className="bg-dark-grey"
@@ -98,6 +146,21 @@ export default function TasksPage() {
             </div>
 
             <div className="flex flex-col gap-5 md:gap-6 pb-6 md:pb-8">
+              {/* AI Visibility Analysis Results - Recommendations and Prompts */}
+              {isLoadingGeo ? (
+                <div className="px-4 lg:px-6">
+                  <div className="flex items-center justify-center py-8 bg-white/5 rounded-lg">
+                    <Loader2 className="h-5 w-5 animate-spin text-white/60 mr-2" />
+                    <span className="text-white/60">Loading AI visibility analysis...</span>
+                  </div>
+                </div>
+              ) : geoResults ? (
+                <div className="px-4 lg:px-6">
+                  <DirectGeoResults results={geoResults} />
+                </div>
+              ) : null}
+
+              {/* Tasks List */}
               <div>
                 <TasksView />
               </div>
@@ -109,4 +172,12 @@ export default function TasksPage() {
       <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
-} 
+}
+
+export default function TasksPage() {
+  return (
+    <BrandProfileProvider>
+      <TasksPageInner />
+    </BrandProfileProvider>
+  )
+}

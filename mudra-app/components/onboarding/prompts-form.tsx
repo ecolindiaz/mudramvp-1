@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { StarBorder } from "@/components/ui/star-border"
-import { ArrowRight, Sparkles, CheckCircle, Target, BarChart3 } from "lucide-react"
-import { useDirectGEOAnalysis } from "@/hooks/use-direct-geo-analysis"
+import { ArrowRight, Sparkles, CheckCircle, Target, BarChart3, Activity, Code } from "lucide-react"
+import { useAnalysisPipeline } from "@/hooks/use-analysis-pipeline"
 import { useBrandProfile } from "@/components/brand-profile-context"
 import { useOnboarding } from "./onboarding-context"
 
@@ -13,43 +13,116 @@ export function PromptsForm() {
   const router = useRouter()
   const { profile } = useBrandProfile()
   const { data: onboardingData, saveToProfile } = useOnboarding()
-  const { state, runAnalysis } = useDirectGEOAnalysis()
+  const { state, progress, results, error, runPipeline } = useAnalysisPipeline()
   const [analysisStarted, setAnalysisStarted] = useState(false)
+  const hasSaved = useRef(false) // Track if we've already saved
+
+  // Debug: Log when component mounts
+  useEffect(() => {
+    console.log("🟣 [PromptsForm] Component mounted")
+    console.log("🟣 [PromptsForm] Initial onboardingData:", onboardingData)
+    console.log("🟣 [PromptsForm] Initial profile:", profile)
+  }, [])
 
   useEffect(() => {
-    // First save onboarding data to brand profile, then start analysis
-    if (!analysisStarted && onboardingData.companyName) {
+    // First save onboarding data to brand profile, then start full analysis pipeline
+    // Only run once when we have company name and haven't saved yet
+    if (!hasSaved.current && !analysisStarted && onboardingData.companyName) {
+      hasSaved.current = true // Mark as saved to prevent re-runs
+      
       const saveAndAnalyze = async () => {
-        console.log("Saving onboarding data to brand profile...")
+        console.log("🔵 [PromptsForm] Starting save process...")
+        console.log("🔵 [PromptsForm] Onboarding data:", onboardingData)
         
         // Save to profile and wait for completion
         await saveToProfile()
+        console.log("🔵 [PromptsForm] Profile saved, waiting for state update...")
         
+        // Wait a bit more for the profile state to update with the ID
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        console.log("🔵 [PromptsForm] Setting analysisStarted to true")
         setAnalysisStarted(true)
-        
-        // Start GEO analysis with onboarding data
-        setTimeout(() => {
-          runAnalysis({
-            brandName: onboardingData.companyName,
-            website: onboardingData.companyWebsite || undefined,
-            industry: onboardingData.companyIndustry || undefined,
-            description: onboardingData.companyDescription || undefined,
-            competitors: onboardingData.competitors || [],
-          })
-        }, 500) // Small delay to ensure profile is saved
       }
       
       saveAndAnalyze()
     }
-  }, [onboardingData, analysisStarted, runAnalysis, saveToProfile])
+  }, [onboardingData.companyName, analysisStarted, saveToProfile]) // Only depend on companyName, not whole object
+
+  useEffect(() => {
+    // Start analysis once we have analysisStarted flag AND a valid profile ID
+    console.log("🟢 [PromptsForm] Profile ID check - analysisStarted:", analysisStarted, "profile.id:", profile?.id, "companyName:", onboardingData.companyName)
+    
+    if (analysisStarted && onboardingData.companyName && profile?.id && profile.id > 0) {
+      console.log("🟢 🟢 🟢 [PromptsForm] ✅✅✅ TRIGGERING ANALYSIS NOW WITH PROFILE ID:", profile.id)
+      
+      const config = {
+        brandProfileId: profile.id, // ✅ Use actual profile ID from database
+        brandName: onboardingData.companyName,
+        website: onboardingData.companyWebsite || '',
+        industry: onboardingData.companyIndustry || undefined,
+        description: onboardingData.companyDescription || undefined,
+        competitors: onboardingData.competitors || [],
+      }
+      
+      console.log("🟢 [PromptsForm] Pipeline config:", config)
+      runPipeline(config)
+    } else {
+      console.log("🔴 [PromptsForm] Analysis NOT triggered - Waiting for:", {
+        analysisStarted,
+        hasCompanyName: !!onboardingData.companyName,
+        profileId: profile?.id,
+        profileIdValid: profile?.id && profile.id > 0
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisStarted, profile?.id]) // ✅ Trigger when analysisStarted OR profile.id changes
 
   const handleFinish = () => {
-    console.log("Onboarding completed with GEO analysis!")
+    console.log("Onboarding completed with full analysis pipeline!")
+    // Clear onboarding data from localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('onboardingData')
+    }
     router.push("/dashboard")
   }
 
-  const isAnalysisComplete = state.results !== null && !state.isRunning
-  const hasError = state.error !== null
+  const isAnalysisComplete = state === 'completed'
+  const hasError = state === 'error'
+  const isRunning = state === 'running'
+
+  // Calculate overall progress based on pipeline steps
+  const calculateProgress = () => {
+    if (state === 'completed') return 100;
+    if (state === 'error') return 0;
+    if (state === 'idle') return 0;
+    
+    const steps = [
+      progress.geoAnalysis,
+      progress.trafficMetrics,
+      progress.technicalStructure,
+      progress.report,
+    ];
+    
+    const completed = steps.filter(s => s === 'completed').length;
+    return (completed / steps.length) * 100;
+  }
+
+  const getCurrentStage = () => {
+    if (state === 'completed') return 'Analysis Complete';
+    if (state === 'error') return 'Analysis Failed';
+    if (state === 'idle') return 'Preparing analysis...';
+    
+    if (progress.geoAnalysis === 'pending') return 'Analyzing AI Visibility...';
+    if (progress.trafficMetrics === 'pending') return 'Collecting Traffic Metrics...';
+    if (progress.technicalStructure === 'pending') return 'Running Technical Analysis...';
+    if (progress.report === 'pending') return 'Generating Report...';
+    
+    return 'Processing...';
+  }
+
+  const currentProgress = calculateProgress()
+  const currentStage = getCurrentStage()
 
   return (
     <Card className="w-full max-w-md mx-auto bg-black border border-white/20 shadow-lg">
@@ -75,7 +148,7 @@ export function PromptsForm() {
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-red-400 text-sm">{state.error}</p>
+                <p className="text-red-400 text-sm">{error || 'An error occurred during analysis'}</p>
                 <p className="text-white/60 text-xs">
                   Don't worry - you can run analysis later from your dashboard
                 </p>
@@ -85,23 +158,43 @@ export function PromptsForm() {
             <>
               <CheckCircle className="w-16 h-16 mx-auto text-green-400" />
               <div className="space-y-2">
-                <p className="text-4xl font-bold text-white">{state.results?.overallScore}</p>
-                <p className="text-white/70 text-sm">AI Visibility Score</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-white/10 rounded-lg p-2">
-                    <div className="flex items-center gap-1 text-white/60">
+                <p className="text-2xl font-bold text-white">Analysis Complete!</p>
+                <p className="text-white/70 text-sm">Your brand analysis is ready</p>
+                <div className="grid grid-cols-2 gap-2 text-xs mt-4">
+                  <div className="bg-white/10 rounded-lg p-3">
+                    <div className="flex items-center gap-1 text-white/60 mb-1">
                       <Target className="w-3 h-3" />
-                      Providers
-                    </div>
-                    <div className="text-white font-medium">{state.results?.analyses.length || 0}</div>
-                  </div>
-                  <div className="bg-white/10 rounded-lg p-2">
-                    <div className="flex items-center gap-1 text-white/60">
-                      <BarChart3 className="w-3 h-3" />
-                      Tests Run
+                      AI Visibility
                     </div>
                     <div className="text-white font-medium">
-                      {state.results?.analyses.reduce((sum, a) => sum + a.promptTests.length, 0) || 0}
+                      {progress.geoAnalysis === 'completed' ? '✓' : '○'}
+                    </div>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-3">
+                    <div className="flex items-center gap-1 text-white/60 mb-1">
+                      <Activity className="w-3 h-3" />
+                      Traffic
+                    </div>
+                    <div className="text-white font-medium">
+                      {progress.trafficMetrics === 'completed' ? '✓' : '○'}
+                    </div>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-3">
+                    <div className="flex items-center gap-1 text-white/60 mb-1">
+                      <Code className="w-3 h-3" />
+                      Technical
+                    </div>
+                    <div className="text-white font-medium">
+                      {progress.technicalStructure === 'completed' ? '✓' : '○'}
+                    </div>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-3">
+                    <div className="flex items-center gap-1 text-white/60 mb-1">
+                      <BarChart3 className="w-3 h-3" />
+                      Report
+                    </div>
+                    <div className="text-white font-medium">
+                      {progress.report === 'completed' ? '✓' : '○'}
                     </div>
                   </div>
                 </div>
@@ -116,12 +209,12 @@ export function PromptsForm() {
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-4xl font-bold text-white">{state.progress}%</p>
-                <p className="text-white/70 text-sm">{state.stage}</p>
+                <p className="text-4xl font-bold text-white">{Math.round(currentProgress)}%</p>
+                <p className="text-white/70 text-sm">{currentStage}</p>
                 <div className="w-full bg-white/20 rounded-full h-2">
                   <div 
                     className="bg-white h-2 rounded-full transition-all duration-300 ease-out"
-                    style={{ width: `${state.progress}%` }}
+                    style={{ width: `${currentProgress}%` }}
                   ></div>
                 </div>
               </div>

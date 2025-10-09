@@ -13,7 +13,7 @@ const RankingSchema = z.object({
   })),
   analysis: z.object({
     brandMentioned: z.boolean(),
-    brandPosition: z.number().optional(),
+    brandPosition: z.number().nullable().optional().transform(val => val ?? undefined),
     competitors: z.array(z.string()),
     overallSentiment: z.enum(['positive', 'neutral', 'negative']),
     confidence: z.number().min(0).max(1),

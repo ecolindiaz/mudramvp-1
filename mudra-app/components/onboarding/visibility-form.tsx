@@ -21,16 +21,16 @@ export function VisibilityForm() {
   }
 
   const handleNext = async () => {
-    // Save knowledge base files to onboarding context
-    const success = await updateData({
-      knowledgeBaseFiles: files
-    })
-    
-    if (success) {
+    try {
+      // Save knowledge base files to onboarding context
+      updateData({
+        knowledgeBaseFiles: files
+      })
+      
       console.log("✅ Knowledge base files saved successfully")
       router.push("/welcome/prompts")
-    } else {
-      console.error("❌ Failed to save knowledge base files")
+    } catch (error) {
+      console.error("❌ Failed to save knowledge base files", error)
       alert("Failed to save data. Please try again.")
     }
   }

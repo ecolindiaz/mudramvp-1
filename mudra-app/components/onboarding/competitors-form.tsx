@@ -35,16 +35,16 @@ export function CompetitorsForm() {
   }
 
   const handleNext = async () => {
-    // Save competitors data to onboarding context
-    const success = await updateData({
-      competitors: competitors.filter(c => c.trim() !== "")
-    })
-    
-    if (success) {
+    try {
+      // Save competitors data to onboarding context
+      updateData({
+        competitors: competitors.filter(c => c.trim() !== "")
+      })
+      
       console.log("✅ Competitors form data saved successfully")
       router.push("/welcome/visibility")
-    } else {
-      console.error("❌ Failed to save competitors form data")
+    } catch (error) {
+      console.error("❌ Failed to save competitors form data", error)
       alert("Failed to save data. Please try again.")
     }
   }

@@ -2,6 +2,9 @@
 import { createContext, useContext, useState, useEffect } from "react"
 
 const defaultProfile = {
+  // ID from database
+  id: 0,
+  
   // Company Information
   companyName: "",
   companyWebsite: "",
@@ -55,9 +58,11 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
 
   // Save profile to API and update state
   const setProfile = async (newProfile: typeof defaultProfile) => {
+    console.log("🟡 [BrandProfileContext] setProfile called with:", newProfile)
     setProfileState(newProfile);
     
     try {
+      console.log("🟡 [BrandProfileContext] Sending POST to /api/brand-profile...")
       const response = await fetch("/api/brand-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,12 +70,19 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
       });
       
       if (!response.ok) {
-        console.error("Failed to save brand profile:", await response.text());
+        console.error("🔴 [BrandProfileContext] Failed to save brand profile:", await response.text());
       } else {
-        console.log("✅ Brand profile saved successfully");
+        const data = await response.json();
+        console.log("🟡 [BrandProfileContext] ✅ Brand profile saved successfully, response:", data);
+        
+        // Update state with the saved profile including the ID
+        if (data.profile) {
+          console.log("🟡 [BrandProfileContext] Updating state with profile ID:", data.profile.id)
+          setProfileState(data.profile);
+        }
       }
     } catch (error) {
-      console.error("Error saving brand profile:", error);
+      console.error("🔴 [BrandProfileContext] Error saving brand profile:", error);
     }
   };
 

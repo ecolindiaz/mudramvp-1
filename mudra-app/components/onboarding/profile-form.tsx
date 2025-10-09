@@ -25,17 +25,17 @@ export function ProfileForm() {
   }
 
   const handleNext = async () => {
-    // Save form data to onboarding context
-    const success = await updateData({
-      userName: formData.userName,
-      userRole: formData.userRole
-    })
-    
-    if (success) {
+    try {
+      // Save form data to onboarding context
+      updateData({
+        userName: formData.userName,
+        userRole: formData.userRole
+      })
+      
       console.log("✅ Profile form data saved successfully")
       router.push("/welcome/company")
-    } else {
-      console.error("❌ Failed to save profile form data")
+    } catch (error) {
+      console.error("❌ Failed to save profile form data", error)
       alert("Failed to save data. Please try again.")
     }
   }

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react"
 import { useBrandProfile } from "../brand-profile-context"
 
 interface OnboardingData {
@@ -43,7 +43,7 @@ const defaultOnboardingData: OnboardingData = {
 interface OnboardingContextType {
   data: OnboardingData
   updateData: (updates: Partial<OnboardingData>) => void
-  saveToProfile: () => void
+  saveToProfile: () => Promise<void>
   isComplete: () => boolean
 }
 
@@ -58,16 +58,41 @@ export function useOnboarding() {
 }
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
+  // Always start with default data to ensure SSR/CSR match
   const [data, setData] = useState<OnboardingData>(defaultOnboardingData)
   const { setProfile } = useBrandProfile()
 
+  // Load from localStorage after mount (client-side only)
+  useEffect(() => {
+    const saved = localStorage.getItem('onboardingData')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        setData(parsed)
+        console.log('📦 Loaded onboarding data from localStorage:', parsed)
+      } catch (e) {
+        console.error('Failed to parse saved onboarding data:', e)
+      }
+    }
+  }, [])
+
   const updateData = (updates: Partial<OnboardingData>) => {
-    setData(prev => ({ ...prev, ...updates }))
+    setData(prev => {
+      const newData = { ...prev, ...updates }
+      // Save to localStorage whenever data updates
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('onboardingData', JSON.stringify(newData))
+      }
+      return newData
+    })
   }
 
-  const saveToProfile = () => {
+  const saveToProfile = useCallback(async () => {
     // Convert onboarding data to brand profile format
     const profile = {
+      // ID (will be set by database or updated from existing)
+      id: 0,
+      
       // Company Information
       companyName: data.companyName,
       companyWebsite: data.companyWebsite,
@@ -98,8 +123,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
 
     console.log("Saving onboarding data to brand profile:", profile)
-    setProfile(profile)
-  }
+    await setProfile(profile)
+    console.log("✅ Profile saved, waiting for ID to be available...")
+  }, [data, setProfile]) // Add dependencies so function is stable unless data or setProfile changes
 
   const isComplete = () => {
     return !!(

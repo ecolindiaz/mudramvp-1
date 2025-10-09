@@ -1,4 +1,4 @@
-import { PrismaClient } from "@/lib/generated/prisma";
+import { PrismaClient } from "@prisma/client";
 import type { TasksSummary, Delta } from "@/lib/analysis/nlr/types";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };

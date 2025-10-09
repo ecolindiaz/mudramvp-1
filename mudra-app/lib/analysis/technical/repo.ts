@@ -1,5 +1,4 @@
-import { PrismaClient } from "@/lib/generated/prisma";
-import type { Prisma } from "@/lib/generated/prisma";
+import { PrismaClient, Prisma } from "@prisma/client";
 import type { ScrapeSnapshot, ScoreResult, TaskInstance } from "@/lib/analysis/technical/types";
 
 // Singleton Prisma client (works in Next.js app router)

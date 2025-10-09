@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@/lib/generated/prisma'
+import { PrismaClient } from '@prisma/client'
 import { saveAnalysisResults } from '@/lib/services/technical-analysis.service'
 import { extractEnhancedGEOData } from '@/lib/scrapers/enhanced-geo-scraper'
 

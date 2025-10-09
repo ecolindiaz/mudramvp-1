@@ -79,7 +79,10 @@ export default function DirectGEOAnalysis() {
         throw new Error(data.error || 'Analysis failed');
       }
 
-      setResults(data.data);
+      setResults({
+        ...data.data,
+        timestamp: data.data?.timestamp ? new Date(data.data.timestamp) : new Date(),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {

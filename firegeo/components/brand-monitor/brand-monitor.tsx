@@ -22,6 +22,7 @@ import {
 } from '@/lib/brand-monitor-utils';
 import { getEnabledProviders } from '@/lib/provider-config';
 import { useSaveBrandAnalysis } from '@/hooks/useBrandAnalyses';
+import { getPromptTexts } from '@/lib/prompt-generator';
 
 // Components
 import { UrlInputSection } from './url-input-section';
@@ -180,11 +181,8 @@ export function BrandMonitor({
       return;
     }
 
-    // Check if user has enough credits for initial scrape (1 credit)
-    if (creditsAvailable < 1) {
-      dispatch({ type: 'SET_ERROR', payload: 'Insufficient credits. You need at least 1 credit to analyze a URL.' });
-      return;
-    }
+    // Credit check DISABLED for development - unlimited access
+    console.log('[Brand Monitor Client] Credit check disabled - unlimited access');
 
     console.log('Starting scrape for URL:', url);
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -346,31 +344,31 @@ export function BrandMonitor({
     // Reset saved flag for new analysis
     hasSavedRef.current = false;
 
-    // Check if user has enough credits
-    if (creditsAvailable < CREDITS_PER_BRAND_ANALYSIS) {
-      dispatch({ type: 'SET_ERROR', payload: `Insufficient credits. You need at least ${CREDITS_PER_BRAND_ANALYSIS} credits to run an analysis.` });
-      return;
-    }
+    // Credit check DISABLED for development - unlimited access
+    console.log('[Brand Monitor Client] Credit check disabled for analysis - unlimited access');
 
-    // Immediately trigger credit update to reflect deduction in navbar
+    // Trigger credit update callback (for UI refresh, not actual deduction)
     if (onCreditsUpdate) {
       onCreditsUpdate();
     }
 
-    // Collect all prompts (default + custom)
-    const serviceType = detectServiceType(company);
-    const currentYear = new Date().getFullYear();
-    const defaultPrompts = [
-      `Best ${serviceType}s in ${currentYear}?`,
-      `Top ${serviceType}s for startups?`,
-      `Most popular ${serviceType}s today?`,
-      `Recommended ${serviceType}s for developers?`
-    ].filter((_, index) => !removedDefaultPrompts.includes(index));
+    // Generate 100 prompts based on brand information
+    const generatedPrompts = getPromptTexts({
+      name: company.name,
+      description: company.description || `${company.name} company`,
+      industry: company.industry || 'technology',
+      mainProducts: company.scrapedData?.mainProducts || [],
+      icp: undefined, // TODO: Add ICP field to company data
+      competitors: identifiedCompetitors.map(c => c.name)
+    });
     
-    const allPrompts = [...defaultPrompts, ...customPrompts];
+    // Use generated prompts + any custom prompts
+    const allPrompts = [...generatedPrompts, ...customPrompts];
     
     // Store the prompts for UI display - make sure they're normalized
     const normalizedPrompts = allPrompts.map(p => p.trim());
+    
+    console.log(`🎯 Generated ${generatedPrompts.length} prompts for ${company.name}`);
     dispatch({ type: 'SET_ANALYZING_PROMPTS', payload: normalizedPrompts });
 
     console.log('Starting analysis...');

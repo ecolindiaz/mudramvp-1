@@ -46,6 +46,28 @@ interface BrandContext {
   competitors?: string[];
 }
 
+interface RunAnalysisPayload {
+  company: {
+    name: string;
+    url: string;
+    description?: string;
+    industry?: string;
+  };
+  prompts?: string[];
+  competitors?: Array<string | { name: string }>;
+  useWebSearch?: boolean;
+  save?: boolean;
+}
+
+interface RunAnalysisResponse {
+  success: boolean;
+  data?: {
+    analysis: any;
+    savedAnalysis?: any;
+  };
+  error?: string;
+}
+
 export class FiregeoClient {
   private baseUrl: string;
   private apiToken: string;
@@ -81,7 +103,15 @@ export class FiregeoClient {
       }
       
       if (!response.ok) {
-        throw new Error(`Firegeo API error: ${response.status} ${response.statusText}`);
+        // Try to get error details from response body
+        let errorDetails = '';
+        try {
+          const errorBody = await response.text();
+          errorDetails = errorBody ? ` - ${errorBody}` : '';
+        } catch (e) {
+          // Ignore if we can't read the body
+        }
+        throw new Error(`Firegeo API error: ${response.status} ${response.statusText}${errorDetails}`);
       }
       
       return response;
@@ -123,6 +153,14 @@ export class FiregeoClient {
     const response = await this.makeRequest('/api/dashboard/metrics', {
       method: 'POST',
       body: JSON.stringify(request),
+    });
+    return response.json();
+  }
+
+  async runAnalysis(payload: RunAnalysisPayload): Promise<RunAnalysisResponse> {
+    const response = await this.makeRequest('/api/external/run-analysis', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
     return response.json();
   }

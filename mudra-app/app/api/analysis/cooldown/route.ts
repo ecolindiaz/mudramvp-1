@@ -1,0 +1,33 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { canRunAnalysis } from '@/lib/services/analysis-run.service'
+
+/**
+ * GET /api/analysis/cooldown?brandProfileId={id}
+ * Check if brand can run analysis (24-hour cooldown check)
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams
+    const brandProfileId = searchParams.get('brandProfileId')
+
+    if (!brandProfileId) {
+      return NextResponse.json(
+        { error: 'brandProfileId is required' },
+        { status: 400 }
+      )
+    }
+
+    const result = await canRunAnalysis(parseInt(brandProfileId))
+
+    return NextResponse.json({
+      success: true,
+      ...result
+    })
+  } catch (error) {
+    console.error('Error checking cooldown:', error)
+    return NextResponse.json(
+      { error: 'Failed to check analysis cooldown' },
+      { status: 500 }
+    )
+  }
+}

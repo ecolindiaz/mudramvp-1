@@ -171,12 +171,20 @@ function generateFallbackPrompts(brandInfo: BrandInfo): GeneratedPrompts {
  * Convert brand profile to BrandInfo format
  */
 export function profileToBrandInfo(profile: any): BrandInfo {
+  // Handle competitors - could be array or comma-separated string
+  let competitors: string[] = [];
+  if (Array.isArray(profile.competitors)) {
+    competitors = profile.competitors;
+  } else if (typeof profile.competitors === 'string' && profile.competitors.trim()) {
+    competitors = profile.competitors.split(',').map((c: string) => c.trim()).filter((c: string) => c);
+  }
+  
   return {
     companyName: profile.companyName || 'Unknown Company',
     companyDescription: profile.companyDescription || 'A technology company',
     industry: profile.companyIndustry || 'Technology',
     productsServices: profile.companyServices ? profile.companyServices.split(',').map((s: string) => s.trim()) : ['Software'],
     idealCustomer: profile.companyICP || 'Small to medium businesses',
-    competitors: profile.competitors || [],
+    competitors: competitors.length > 0 ? competitors : ['Industry competitors'],
   };
 }

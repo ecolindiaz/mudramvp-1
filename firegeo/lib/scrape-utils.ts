@@ -115,25 +115,45 @@ export async function scrapeCompanyInfo(url: string, maxAge?: number): Promise<C
   } catch (error) {
     console.error('Error scraping company info:', error);
     
+    // Check if it's a Firecrawl credit error
+    const isFirecrawlCreditError = error instanceof Error && 
+      (error.message.includes('402') || error.message.includes('Insufficient credits'));
+    
+    if (isFirecrawlCreditError) {
+      console.warn('⚠️  Firecrawl credits exhausted - Using fallback data for development');
+      console.warn('💡 To fix: Get a new Firecrawl API key at https://firecrawl.dev');
+    }
+    
     // Ensure URL has protocol for fallback
     let normalizedUrl = url.trim();
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
       normalizedUrl = `https://${normalizedUrl}`;
     }
     
-    // Fallback: extract company name from URL
+    // Fallback: extract company name from URL and return mock data
     const urlObj = new URL(normalizedUrl);
     const domain = urlObj.hostname.replace('www.', '');
     const companyName = domain.split('.')[0];
     const formattedName = companyName.charAt(0).toUpperCase() + companyName.slice(1);
+    
+    console.log(`📦 Returning mock data for: ${formattedName}`);
 
     return {
       id: crypto.randomUUID(),
       url: normalizedUrl,
       name: formattedName,
-      description: `Information about ${formattedName}`,
+      description: `${formattedName} is a technology company. (Mock data - Firecrawl scraping unavailable)`,
       industry: 'technology',
+      favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
       scraped: false,
+      scrapedData: {
+        title: formattedName,
+        description: `Information about ${formattedName}`,
+        keywords: ['technology', 'business', companyName.toLowerCase()],
+        mainContent: `Mock content for ${formattedName}. This is fallback data because web scraping is currently unavailable.`,
+        mainProducts: ['Software Products', 'Digital Services'],
+        competitors: ['Competitor A', 'Competitor B'],
+      },
     };
   }
 } 

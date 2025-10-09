@@ -17,6 +17,7 @@ datasource db {
 
 model BrandProfile {
   id                Int      @id @default(autoincrement())
+  userId            String?  // Link to User model
   companyName       String?  
   companyWebsite    String?  
   companyLinkedIn   String?  
@@ -33,8 +34,58 @@ model BrandProfile {
   aiRecommendations String?  
   stage             String?  
   resources         String?  // Store as JSON string if needed
+  lastAnalysisRunAt DateTime?  // Track when analysis was last run
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  
+  // Relations
+  user              User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  prompts           Prompt[]
+  analysisRuns      AnalysisRun[]
+  technicalStructureAnalyses TechnicalStructureAnalysis[]
+  geoAnalysisResults         GeoAnalysisResult[]
+  organicTrafficMetrics      OrganicTrafficMetrics[]
+  naturalLanguageReports     NaturalLanguageReport[]
+  
+  @@index([userId])
+}
+
+// Prompt Management Models
+model Prompt {
+  id              Int      @id @default(autoincrement())
+  brandProfileId  Int
+  text            String   @db.Text
+  category        String?  // e.g., "product", "service", "comparison"
+  isCustom        Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  brandProfile    BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@map("prompts")
+  @@index([brandProfileId])
+  @@index([brandProfileId, isActive])
+}
+
+model AnalysisRun {
+  id              Int      @id @default(autoincrement())
+  brandProfileId  Int
+  promptsUsed     Json     // Array of prompt IDs used
+  results         Json     // Store the full analysis results
+  overallScore    Float    @default(0)
+  status          String   @default("pending") // pending, running, completed, failed
+  ranAt           DateTime @default(now())
+  completedAt     DateTime?
+  
+  // Relations
+  brandProfile    BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@map("analysis_runs")
+  @@index([brandProfileId])
+  @@index([brandProfileId, ranAt])
+  @@index([status])
 }
 
 // Enums for type safety
@@ -336,14 +387,15 @@ model AnalysisRecommendation {
 
 // User model (add this relation to your existing User model)
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   
   // Relations
-  websites  Website[]
+  websites      Website[]
+  brandProfiles BrandProfile[]
   
   @@map("users")
 }
@@ -511,4 +563,78 @@ model WeeklyReportSourceRef {
   @@map("weekly_report_source_refs")
   @@index([sectionId])
   @@index([sourceType])
+}
+
+// Analysis Pipeline Results Models
+model TechnicalStructureAnalysis {
+  id                Int      @id @default(autoincrement())
+  brandProfileId    Int
+  websiteUrl        String
+  overallScore      Float    @default(0)
+  performanceScore  Float?
+  seoScore          Float?
+  accessibilityScore Float?
+  securityScore     Float?
+  structureScore    Float?
+  insights          Json     @default("[]")
+  recommendations   Json     @default("[]")
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@index([brandProfileId])
+  @@index([brandProfileId, createdAt])
+}
+
+model GeoAnalysisResult {
+  id              Int      @id @default(autoincrement())
+  brandProfileId  Int
+  overallScore    Float    @default(0)
+  analyses        Json     @default("[]")
+  summary         Json     @default("{}")
+  timestamp       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  brandProfile    BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@index([brandProfileId])
+  @@index([brandProfileId, timestamp])
+}
+
+model OrganicTrafficMetrics {
+  id                    Int      @id @default(autoincrement())
+  brandProfileId        Int
+  monthlyVisitors       Int      @default(0)
+  monthOverMonthGrowth  Float    @default(0)
+  topPages              Json     @default("[]")
+  topKeywords           Json     @default("[]")
+  metadata              Json     @default("{}")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  // Relations
+  brandProfile          BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@index([brandProfileId])
+}
+
+model NaturalLanguageReport {
+  id              Int      @id @default(autoincrement())
+  brandProfileId  Int
+  reportText      String   @db.Text
+  insights        Json     @default("[]")
+  recommendations Json     @default("[]")
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  brandProfile    BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@index([brandProfileId])
+  @@index([brandProfileId, createdAt])
 }

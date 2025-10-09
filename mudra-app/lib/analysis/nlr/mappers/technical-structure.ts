@@ -1,4 +1,4 @@
-import { PrismaClient } from "@/lib/generated/prisma";
+import { PrismaClient, Site, CrawlSnapshot } from "@prisma/client";
 import type { TechnicalStructureSummary, Delta, EvidenceRef } from "@/lib/analysis/nlr/types";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
@@ -18,18 +18,12 @@ function pctDelta(current: number | null, previous: number | null): Delta<number
 
 /**
  * Map latest TechnicalScore for the company's primary site to NLR summary.
- * v1 assumption: pick the most recent snapshot across the company's sites and compare to the previous one.
  */
-export async function mapTechnicalStructure(
-  companyId: string,
-  weekStartUtc: Date | string
-): Promise<TechnicalStructureSummary | null> {
-  // Find latest two scores across all sites for this company before and up to weekStart+7d
-  const sites = await prisma.site.findMany({ where: { companyId }, select: { id: true } });
-  if (sites.length === 0) return null;
-  const siteIds = sites.map((s) => s.id);
+export async function mapTechnicalStructure(companyId: string): Promise<TechnicalStructureSummary | null> {
+  const sites: Site[] = await prisma.site.findMany({ where: { companyId }, select: { id: true } });
+  const siteIds = sites.map((s: Site) => s.id);
 
-  const snapshots = await prisma.crawlSnapshot.findMany({
+  const snapshots: CrawlSnapshot[] = await prisma.crawlSnapshot.findMany({
     where: { siteId: { in: siteIds } },
     orderBy: { crawledAt: "desc" },
     take: 2,

@@ -12,6 +12,7 @@ export async function fetchRelevantCaseStudies(query: string, n_results: number 
 // This utility builds the system prompt for the LLM, inserting user context and retrieved case studies.
 
 export type BrandProfile = {
+  id?: number;
   companyName?: string;
   companyWebsite?: string;
   companyLinkedIn?: string;

@@ -14,7 +14,7 @@ const RankingSchema = z.object({
   })),
   analysis: z.object({
     brandMentioned: z.boolean(),
-    brandPosition: z.number().optional(),
+    brandPosition: z.number().nullable().optional().transform(val => val ?? undefined),
     competitors: z.array(z.string()),
     overallSentiment: z.enum(['positive', 'neutral', 'negative']),
     confidence: z.number().min(0).max(1),
@@ -203,110 +203,40 @@ export async function generatePromptsForCompany(company: Company, competitors: s
   const description = scrapedData?.description || company.description || '';
   
   // Debug log to see what data we're working with
-  console.log('Generating prompts for:', {
+  console.log('🎯 Generating 100 prompts for:', {
     brandName,
     industry: company.industry,
     mainProducts,
-    keywords: keywords.slice(0, 5),
+    description: description.substring(0, 100) + '...',
     competitors: competitors.slice(0, 5)
   });
   
-  // Build a more specific context from the scraped data
-  let productContext = '';
-  let categoryContext = '';
+  // Use the new prompt generator
+  const { getPromptTexts } = await import('./prompt-generator');
+  const generatedPrompts = getPromptTexts({
+    name: brandName,
+    description: description || `${brandName} company`,
+    industry: company.industry || 'technology',
+    mainProducts: mainProducts,
+    icp: undefined, // TODO: Add ICP field to company data
+    competitors: competitors
+  });
   
-  // If we have specific products, use those first
-  if (mainProducts.length > 0) {
-    productContext = mainProducts.slice(0, 2).join(' and ');
-    // Infer category from products
-    const productsLower = mainProducts.join(' ').toLowerCase();
-    if (productsLower.includes('cooler') || productsLower.includes('drinkware')) {
-      categoryContext = 'outdoor gear brands';
-    } else if (productsLower.includes('software') || productsLower.includes('api')) {
-      categoryContext = 'software companies';
-    } else {
-      categoryContext = `${mainProducts[0]} brands`;
-    }
-  }
-  
-  // Analyze keywords and description to understand what the company actually does
-  const keywordsLower = keywords.map(k => k.toLowerCase()).join(' ');
-  const descLower = description.toLowerCase();
-  const allContext = `${keywordsLower} ${descLower} ${mainProducts.join(' ')}`;
-  
-  // Only determine category if we don't already have it from mainProducts
-  if (!productContext) {
-    // Check industry first for more accurate categorization
-    const industryLower = (company.industry || '').toLowerCase();
+  // Convert to BrandPrompt format
+  generatedPrompts.forEach((promptText, index) => {
+    // Categorize based on whether it mentions the brand
+    const mentionsBrand = promptText.toLowerCase().includes(brandName.toLowerCase());
+    const category = mentionsBrand ? 'recommendations' : 'ranking';
     
-    if (industryLower === 'outdoor gear' || allContext.includes('cooler') || allContext.includes('drinkware') || allContext.includes('tumbler') || allContext.includes('outdoor')) {
-      productContext = 'coolers and drinkware';
-      categoryContext = 'outdoor gear brands';
-    } else if (industryLower === 'web scraping' || allContext.includes('web scraping') || allContext.includes('data extraction') || allContext.includes('crawler')) {
-      productContext = 'web scraping tools';
-      categoryContext = 'data extraction services';
-    } else if (allContext.includes('ai') || allContext.includes('artificial intelligence') || allContext.includes('machine learning')) {
-      productContext = 'AI tools';
-      categoryContext = 'artificial intelligence platforms';
-    } else if (allContext.includes('software') || allContext.includes('saas') || allContext.includes('application')) {
-      productContext = 'software solutions';
-      categoryContext = 'SaaS platforms';
-    } else if (allContext.includes('clothing') || allContext.includes('apparel') || allContext.includes('fashion')) {
-      productContext = 'clothing and apparel';
-      categoryContext = 'fashion brands';
-    } else if (allContext.includes('furniture') || allContext.includes('home') || allContext.includes('decor')) {
-      productContext = 'furniture and home goods';
-      categoryContext = 'home furnishing brands';
-    } else {
-      // Fallback: use the most prominent keywords, but avoid misclassifications
-      productContext = keywords.slice(0, 3).join(' and ') || 'products';
-      categoryContext = company.industry || 'companies';
-    }
-  }
-  
-  // Safety check: if we somehow got "beverage" but it's clearly not a beverage company
-  if (productContext.includes('beverage') && (brandName.toLowerCase() === 'yeti' || allContext.includes('cooler'))) {
-    productContext = 'coolers and outdoor gear';
-    categoryContext = 'outdoor equipment brands';
-  }
-
-  // Generate contextually relevant prompts
-  const contextualTemplates = {
-    ranking: [
-      `best ${productContext} in 2024`,
-      `top ${categoryContext} ranked by quality`,
-      mainProducts.length > 0 ? `most recommended ${mainProducts[0]}` : `most recommended ${productContext}`,
-      keywords.length > 0 ? `best brands for ${keywords[0]}` : `popular ${categoryContext}`,
-    ],
-    comparison: [
-      `${brandName} vs ${competitors.slice(0, 2).join(' vs ')} for ${productContext}`,
-      `how does ${brandName} compare to other ${categoryContext}`,
-      competitors[0] && mainProducts[0] ? `${competitors[0]} or ${brandName} which has better ${mainProducts[0]}` : `${brandName} compared to alternatives`,
-    ],
-    alternatives: [
-      `alternatives to ${brandName} ${mainProducts[0] || productContext}`,
-      `${categoryContext} similar to ${brandName}`,
-      `competitors of ${brandName} in ${productContext.split(' ')[0]} market`,
-    ],
-    recommendations: [
-      mainProducts.length > 0 ? `is ${brandName} ${mainProducts[0]} worth buying` : `is ${brandName} worth it for ${productContext}`,
-      `${brandName} ${productContext} reviews and recommendations`,
-      `should I buy ${brandName} or other ${categoryContext}`,
-      `best ${productContext} for ${keywords.includes('professional') ? 'professionals' : keywords.includes('outdoor') ? 'outdoor enthusiasts' : 'everyday use'}`,
-    ],
-  };
-
-  // Generate prompts from contextual templates
-  Object.entries(contextualTemplates).forEach(([category, templates]) => {
-    templates.forEach(prompt => {
-      prompts.push({
-        id: (++promptId).toString(),
-        prompt,
-        category: category as BrandPrompt['category'],
-      });
+    prompts.push({
+      id: (++promptId).toString(),
+      prompt: promptText,
+      category: category as BrandPrompt['category'],
     });
   });
-
+  
+  console.log(`✅ Generated ${prompts.length} prompts (${prompts.filter(p => p.prompt.toLowerCase().includes(brandName.toLowerCase())).length} mention brand)`);
+  
   return prompts;
 }
 

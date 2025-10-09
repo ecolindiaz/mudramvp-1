@@ -1,11 +1,11 @@
 // Database - Use the generated Prisma client from the correct path
-import { PrismaClient, RecommendationSeverity, RecommendationImpact, RecommendationCategory } from '@/lib/generated/prisma'
+import { PrismaClient, RecommendationSeverity, RecommendationImpact, RecommendationCategory } from "@prisma/client";
+import type { TechnicalAnalysis, Website, User } from "@prisma/client";
 
 // Algorithm - Import from the scrapers directory
 import { extractEnhancedGEOData } from '../scrapers/enhanced-geo-scraper'
 
 // Types - Use Prisma generated types
-import type { TechnicalAnalysis, Website, User } from '@/lib/generated/prisma'
 import type { EnhancedGEOResult } from '../scrapers/enhanced-geo-scraper'
 
 // Validation

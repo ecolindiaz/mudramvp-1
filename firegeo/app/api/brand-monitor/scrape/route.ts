@@ -27,7 +27,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user has enough credits (1 credit for URL scraping)
-    try {
+    // DISABLED FOR DEVELOPMENT - Unlimited credits
+    console.log('[Brand Monitor Scrape] Credit check DISABLED for development - unlimited access');
+    /* try {
       const access = await autumn.check({
         customer_id: sessionResponse.user.id,
         feature_id: FEATURE_ID_MESSAGES,
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
       }
       console.error('[Brand Monitor Scrape] Credit check error:', error);
       throw new ExternalServiceError('Unable to verify credits. Please try again', 'autumn');
-    }
+    } */
 
     const { url, maxAge } = await request.json();
 

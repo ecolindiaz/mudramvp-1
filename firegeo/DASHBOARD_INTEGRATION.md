@@ -99,6 +99,57 @@ POST /api/brand-monitor/analyses
 DELETE /api/brand-monitor/analyses/[analysisId]
 ```
 
+### External Run Analysis Endpoint
+For server-to-server integrations you can trigger a fresh AI visibility run using an API token that includes the `analysis:run` scope.
+
+```typescript
+// Run a new analysis (requires Bearer token: fsg_xxx with analysis:run scope)
+POST /api/external/run-analysis
+
+// Example payload
+{
+  "company": {
+    "name": "Acme Corp",
+    "url": "https://acme.com",
+    "industry": "SaaS"
+  },
+  "competitors": ["Competitor A", "Competitor B"],
+  "prompts": ["Best AI analytics platforms", "Top SaaS marketing tools"],
+  "useWebSearch": true,
+  "save": true
+}
+```
+
+The response includes the full analysis payload and, when `save` is left as `true`, the stored database record id.
+
+#### Logging runs to Supabase
+
+The Mudra dashboard records every run in your Supabase instance so you can audit usage, aggregate KPIs, or trigger downstream workflows. The API writes to a `geo_analysis_runs` table using the service role key via `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` environment variables.
+
+```sql
+create table if not exists geo_analysis_runs (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  brand_name text not null,
+  website text,
+  industry text,
+  description text,
+  competitors text[] default '{}',
+  used_firegeo boolean not null default false,
+  status text not null,
+  overall_score numeric,
+  firegeo_analysis_id text,
+  duration_ms integer,
+  request_payload jsonb,
+  firegeo_raw jsonb,
+  result jsonb,
+  firegeo_error text,
+  error text
+);
+```
+
+Each row includes the normalized request payload, the mapped dashboard result, and (when available) the raw FireGEO payload or saved analysis identifier. This makes it easy to reconcile Mudra dashboard activity with FireGEO usage or share the data with analytics tools.
+
 ### Chat & Usage APIs
 ```typescript
 // Chat interactions

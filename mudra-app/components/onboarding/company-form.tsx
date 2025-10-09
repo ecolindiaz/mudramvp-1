@@ -76,19 +76,19 @@ export function CompanyForm() {
   }
 
   const handleNext = async () => {
-    // Save form data to onboarding context
-    const success = await updateData({
-      companyDescription: formData.companyDescription,
-      companyIndustry: formData.companyIndustry,
-      servicesProducts: formData.servicesProducts.filter(s => s.trim() !== ""),
-      companyICP: formData.companyICP.filter(s => s.trim() !== "")
-    })
-    
-    if (success) {
+    try {
+      // Save form data to onboarding context
+      updateData({
+        companyDescription: formData.companyDescription,
+        companyIndustry: formData.companyIndustry,
+        servicesProducts: formData.servicesProducts.filter(s => s.trim() !== ""),
+        companyICP: formData.companyICP.filter(s => s.trim() !== "")
+      })
+      
       console.log("✅ Company form data saved successfully")
       router.push("/welcome/competitors")
-    } else {
-      console.error("❌ Failed to save company form data")
+    } catch (error) {
+      console.error("❌ Failed to save company form data", error)
       alert("Failed to save data. Please try again.")
     }
   }

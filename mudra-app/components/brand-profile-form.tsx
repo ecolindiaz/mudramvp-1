@@ -47,9 +47,40 @@ const initialData = {
 }
 
 export function BrandProfileForm() {
+  const { profile, setProfile } = useBrandProfile() // ✅ Get both profile AND setProfile from context
   const [formData, setFormData] = useState(initialData)
   const [isEditing, setIsEditing] = useState(false)
   const [kbFiles, setKbFiles] = useState<File[]>([])
+
+  // Helper function to safely parse JSON or return default
+  const safeParseArray = (value: any, fallback: string[]): string[] => {
+    if (Array.isArray(value)) return value
+    if (typeof value === 'string' && value.trim()) {
+      try {
+        const parsed = JSON.parse(value)
+        return Array.isArray(parsed) ? parsed : [value]
+      } catch {
+        // If JSON parse fails, treat as a single-item array
+        return [value]
+      }
+    }
+    return fallback
+  }
+
+  // Load profile data from context on mount
+  useEffect(() => {
+    if (profile && profile.companyName) {
+      // Ensure arrays are properly parsed
+      const profileData = {
+        ...initialData,
+        ...profile,
+        companyServices: safeParseArray(profile.companyServices, initialData.companyServices),
+        companyICP: safeParseArray(profile.companyICP, initialData.companyICP),
+        competitors: safeParseArray(profile.competitors, initialData.competitors),
+      }
+      setFormData(profileData)
+    }
+  }, [profile])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -77,16 +108,16 @@ export function BrandProfileForm() {
     setFormData(prev => ({ ...prev, [field]: arr.length ? arr : [""] }))
   }
 
-  const handleSave = () => {
-    setProfile(formData); // Persist to context
-    // TODO: Optionally, send to backend API here
-    setIsEditing(false);
-  };
+  const handleSave = async () => {
+    console.log('💾 Saving brand profile:', formData)
+    await setProfile(formData) // ✅ Persist to context and API
+    setIsEditing(false)
+  }
 
   const handleCancel = () => {
-    setFormData(profile); // Reset to last saved context
-    setIsEditing(false);
-  };
+    setFormData(profile) // Reset to last saved context
+    setIsEditing(false)
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

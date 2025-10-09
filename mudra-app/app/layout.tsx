@@ -30,6 +30,7 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        suppressHydrationWarning
       >
         <NextAuthSessionProvider>
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">

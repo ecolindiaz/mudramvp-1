@@ -16,12 +16,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
+import { useAnalysisPipeline } from "@/hooks/use-analysis-pipeline"
+import { useBrandProfile } from "@/contexts/brand-profile-context"
 
 export function MagicButton() {
   const [open, setOpen] = useState(false)
   const [url, setUrl] = useState("")
+  const [companyName, setCompanyName] = useState("")
   const [isRunning, setIsRunning] = useState(false)
   const router = useRouter()
+  const { runPipeline } = useAnalysisPipeline()
+  const { brandProfile, refreshBrandProfile } = useBrandProfile()
 
   const handleAnalysis = async () => {
     if (!url.trim()) {
@@ -30,10 +35,16 @@ export function MagicButton() {
     }
 
     // Basic URL validation
+    let normalizedUrl = url.trim()
     try {
-      new URL(url.startsWith('http') ? url : `https://${url}`)
+      new URL(normalizedUrl.startsWith('http') ? normalizedUrl : `https://${normalizedUrl}`)
     } catch {
       toast.error("Please enter a valid URL")
+      return
+    }
+
+    if (!companyName.trim()) {
+      toast.error("Please enter a company name")
       return
     }
 
@@ -41,18 +52,60 @@ export function MagicButton() {
     setOpen(false)
 
     try {
-      // Store URL in sessionStorage for the report page
-      sessionStorage.setItem('magicAnalysisUrl', url.trim())
-      
       toast.info("🎯 Magic Button Activated!", {
-        description: `Starting Enhanced GEO Analysis...`
+        description: `Starting Full Analysis Pipeline...`
       })
 
-      // Navigate to report page with magic parameter
-      router.push('/report?magic=true')
+      // Ensure we have a brand profile
+      let profileId = brandProfile?.id
+      if (!profileId) {
+        // Create a temporary brand profile if none exists
+        const response = await fetch('/api/brand-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyName: companyName.trim(),
+            companyWebsite: normalizedUrl,
+            stage: 'magic',
+          }),
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          profileId = data.id
+          await refreshBrandProfile()
+        } else {
+          throw new Error('Failed to create brand profile')
+        }
+      }
+
+      // Trigger the full analysis pipeline
+      await runPipeline({
+        brandProfileId: profileId,
+        brandName: companyName.trim(),
+        website: normalizedUrl,
+        description: `${companyName} - AI visibility analysis`,
+        industry: 'technology',
+        competitors: [],
+      })
+
+      toast.success("✅ Analysis Complete!", {
+        description: "View your results on the dashboard"
+      })
+
+      // Dispatch refresh event
+      console.log("🎯 [Magic Button] Dispatching refresh event")
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('mudra:analysis-complete'));
+      }
+
+      // Navigate to dashboard to see results
+      router.push('/dashboard')
     } catch (error) {
-      console.error('Navigation error:', error)
-      toast.error("Failed to start analysis")
+      console.error('Analysis error:', error)
+      toast.error("Failed to complete analysis", {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      })
     } finally {
       setIsRunning(false)
     }
@@ -60,8 +113,9 @@ export function MagicButton() {
 
   const handleQuickAnalysis = (sampleUrl: string, name: string) => {
     setUrl(sampleUrl)
+    setCompanyName(name)
     toast.info(`🚀 Quick Analysis: ${name}`, {
-      description: "URL loaded, click Analyze to start"
+      description: "Company and URL loaded, click Analyze to start"
     })
   }
 
@@ -86,11 +140,22 @@ export function MagicButton() {
             Magic GEO Analysis
           </DialogTitle>
           <DialogDescription>
-            Enter a website URL to analyze its AI visibility and generate optimization tasks
+            Run full analysis: AI Visibility + Traffic Metrics + Technical SEO + AI Report
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label htmlFor="magic-company">Company Name</Label>
+            <Input
+              id="magic-company"
+              placeholder="e.g., OpenAI, Y Combinator"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !isRunning && handleAnalysis()}
+            />
+          </div>
+          
           <div className="space-y-2">
             <Label htmlFor="magic-url">Website URL</Label>
             <Input

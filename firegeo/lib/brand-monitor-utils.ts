@@ -1,8 +1,18 @@
 import { Company } from './types';
 
 export function validateUrl(url: string): boolean {
+  // Return false for empty or very short URLs without throwing errors
+  if (!url || url.trim().length < 3) {
+    return false;
+  }
+  
   try {
-    const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+    // Add protocol if not present
+    const urlWithProtocol = url.startsWith('http://') || url.startsWith('https://') 
+      ? url 
+      : `https://${url}`;
+    
+    const urlObj = new URL(urlWithProtocol);
     
     // Basic domain validation - must have at least one dot and valid TLD
     const hostname = urlObj.hostname;
@@ -24,7 +34,7 @@ export function validateUrl(url: string): boolean {
     
     return true;
   } catch (e) {
-    console.error('URL validation error:', e);
+    // Silently return false for invalid URLs during typing
     return false;
   }
 }

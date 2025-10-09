@@ -36,7 +36,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user has enough credits (10 credits per analysis)
-    try {
+    // DISABLED FOR DEVELOPMENT - Unlimited credits
+    console.log('[Brand Monitor] Credit check DISABLED for development - unlimited access');
+    /* try {
       console.log('[Brand Monitor] Checking access - Customer ID:', sessionResponse.user.id);
       const access = await autumn.check({
         customer_id: sessionResponse.user.id,
@@ -55,7 +57,7 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error('[Brand Monitor] Failed to check access:', err);
       throw new ExternalServiceError('Unable to verify credits. Please try again', 'autumn');
-    }
+    } */
 
     // Track usage (10 credits)
     try {

@@ -1,0 +1,66 @@
+# Vercel Ignore - Exclude these from deployment
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Development files
+.env
+.env.local
+.env.*.local
+*.log
+
+# Tests
+test-*.js
+check-*.js
+debug-*.js
+quick-*.js
+
+# Scripts
+scripts/
+setup-*.js
+create-*.js
+
+# Docker
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+.dockerignore
+start-docker.*
+
+# Database
+*.sql
+prisma/migrations/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+tailwindcss-*.log
+
+# Build artifacts
+.next/
+out/
+build/
+dist/
+
+# Cache
+.cache/
+node_modules/.cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Temporary files
+*.tmp
+*.temp
+*.bak

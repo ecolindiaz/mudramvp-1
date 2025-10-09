@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { IconCamera, IconFileDescription, IconSearch, IconUser, IconPhone, IconMessage, IconFileAi, IconSparkles, IconTarget } from "@tabler/icons-react"
+import { IconCamera, IconFileDescription, IconSearch, IconUser, IconPhone, IconMessage, IconFileAi } from "@tabler/icons-react"
 import { SidebarOverviewIcon, SidebarTasksIcon, SidebarCampaignsIcon } from "@/components/icons"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
@@ -77,26 +77,6 @@ const data = {
           title: "Brand Profile",
           url: "/dashboard/brand-profile",
           icon: IconUser,
-        },
-      ]
-    },
-    {
-      title: "Tools",
-      items: [
-        {
-          title: "Campaign Generator",
-          url: "/dashboard/campaign-generator",
-          icon: IconSparkles,
-        },
-        {
-          title: "AI Visibility",
-          url: "/ai-visibility",
-          icon: IconTarget,
-        },
-        {
-          title: "Direct GEO Analysis",
-          url: "/direct-geo",
-          icon: IconTarget,
         },
       ]
     },

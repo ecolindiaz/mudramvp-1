@@ -16,12 +16,14 @@ export function AccountForm() {
   const router = useRouter()
   const { updateData } = useOnboarding()
   const [username, setUsername] = useState("")
+  const [email, setEmail] = useState("")
   const [generatedPassword, setGeneratedPassword] = useState("")
   const [userId, setUserId] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [copied, setCopied] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
 
   // Generate a secure random password
   const generatePassword = () => {
@@ -40,6 +42,11 @@ export function AccountForm() {
       return
     }
 
+    if (!email.trim() || !email.includes("@")) {
+      setError("Please enter a valid email address")
+      return
+    }
+
     setIsLoading(true)
     setError("")
 
@@ -52,7 +59,7 @@ export function AccountForm() {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, email, password })
       })
 
       if (!response.ok) {

@@ -42,6 +42,7 @@ export function useAnalysisPipeline() {
       report: 'pending',
     },
   });
+  const [simulatedProgress, setSimulatedProgress] = useState(0);
 
   const runPipeline = async (config: AnalysisPipelineConfig) => {
     console.log("🔴 [useAnalysisPipeline] runPipeline called with config:", config)
@@ -55,8 +56,39 @@ export function useAnalysisPipeline() {
         report: 'pending',
       },
     });
+    setSimulatedProgress(0);
     
     console.log("🔴 [useAnalysisPipeline] State set to 'running', calling API...")
+    
+    // Simulate progress updates while analysis runs
+    const progressInterval = setInterval(() => {
+      setSimulatedProgress(prev => {
+        if (prev >= 90) return prev; // Cap at 90% until completion
+        return prev + Math.random() * 10;
+      });
+    }, 1500);
+    
+    // Update stage indicators progressively
+    setTimeout(() => {
+      setPipelineState(prev => ({
+        ...prev,
+        progress: { ...prev.progress, geoAnalysis: 'completed' as const }
+      }));
+    }, 5000);
+    
+    setTimeout(() => {
+      setPipelineState(prev => ({
+        ...prev,
+        progress: { ...prev.progress, trafficMetrics: 'completed' as const }
+      }));
+    }, 10000);
+    
+    setTimeout(() => {
+      setPipelineState(prev => ({
+        ...prev,
+        progress: { ...prev.progress, technicalStructure: 'completed' as const }
+      }));
+    }, 15000)
 
     try {
       const response = await fetch('/api/analysis/pipeline', {
@@ -73,14 +105,22 @@ export function useAnalysisPipeline() {
         throw new Error(`Pipeline failed: ${response.statusText}`);
       }
 
+      clearInterval(progressInterval);
+      
       const result = await response.json();
       console.log("🔴 [useAnalysisPipeline] API result:", result)
 
       if (result.success) {
         console.log("🔴 [useAnalysisPipeline] Pipeline completed successfully!")
+        setSimulatedProgress(100);
         setPipelineState({
           state: 'completed',
-          progress: result.progress,
+          progress: {
+            geoAnalysis: 'completed',
+            trafficMetrics: 'completed',
+            technicalStructure: 'completed',
+            report: 'completed',
+          },
           results: {
             geoAnalysisId: result.geoAnalysisId,
             trafficMetricsId: result.trafficMetricsId,
@@ -101,6 +141,8 @@ export function useAnalysisPipeline() {
         }
       } else {
         console.error("🔴 [useAnalysisPipeline] Pipeline failed:", result.error)
+        clearInterval(progressInterval);
+        setSimulatedProgress(0);
         setPipelineState({
           state: 'error',
           progress: result.progress,
@@ -110,6 +152,8 @@ export function useAnalysisPipeline() {
 
       return result;
     } catch (error) {
+      clearInterval(progressInterval);
+      setSimulatedProgress(0);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
       setPipelineState({
@@ -128,6 +172,7 @@ export function useAnalysisPipeline() {
   };
 
   const reset = () => {
+    setSimulatedProgress(0);
     setPipelineState({
       state: 'idle',
       progress: {
@@ -141,6 +186,7 @@ export function useAnalysisPipeline() {
 
   return {
     ...pipelineState,
+    simulatedProgress,
     runPipeline,
     reset,
   };

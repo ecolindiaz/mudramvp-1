@@ -4,6 +4,10 @@ import { createContext, useContext, useState, useCallback, useEffect, ReactNode 
 import { useBrandProfile } from "../brand-profile-context"
 
 interface OnboardingData {
+  // Account data
+  userId: number | null
+  username: string
+  
   // Welcome form data
   companyName: string
   companyWebsite: string
@@ -27,6 +31,8 @@ interface OnboardingData {
 }
 
 const defaultOnboardingData: OnboardingData = {
+  userId: null,
+  username: "",
   companyName: "",
   companyWebsite: "",
   companySocialMedia: "",
@@ -93,6 +99,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       // ID (will be set by database or updated from existing)
       id: 0,
       
+      // User ID (from account creation)
+      userId: data.userId,
+      
       // Company Information
       companyName: data.companyName,
       companyWebsite: data.companyWebsite,
@@ -122,7 +131,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       resources: { teamSize: 0, budget: 0 }
     }
 
-    console.log("Saving onboarding data to brand profile:", profile)
+    console.log("Saving onboarding data to brand profile (with userId):", profile)
     await setProfile(profile)
     console.log("✅ Profile saved, waiting for ID to be available...")
   }, [data, setProfile]) // Add dependencies so function is stable unless data or setProfile changes

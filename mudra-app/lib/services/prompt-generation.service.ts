@@ -27,13 +27,15 @@ function getPromptGenerationSystem(): string {
     return readFileSync(promptPath, 'utf-8');
   } catch (error) {
     console.error('Failed to load PromptGeneration.txt:', error);
-    // Fallback system prompt
+    // Fallback system prompt - optimized for speed with 20 prompts
     return `You generate natural-language search queries to test a brand's visibility in generative engines.
-Generate exactly 50 queries in 4 sections:
-1) Organic (30 queries) - Generic discovery queries
-2) Competitor (8 queries) - Queries comparing to competitors  
-3) How-to Guides (7 queries) - Actionable task queries
-4) Brand-Specific (5 queries) - Direct brand queries
+Generate exactly 20 high-quality queries in 4 sections:
+1) Organic (12 queries) - Generic discovery queries
+2) Competitor (3 queries) - Queries comparing to competitors  
+3) How-to Guides (3 queries) - Actionable task queries
+4) Brand-Specific (2 queries) - Direct brand queries
+
+Focus on the MOST IMPACTFUL queries that best represent how users search.
 
 Output format:
 Organic
@@ -65,7 +67,7 @@ PRODUCTS_SERVICES: ${brandInfo.productsServices.join(', ')}
 IDEAL_CUSTOMER: ${brandInfo.idealCustomer}
 COMPETITORS: ${brandInfo.competitors.join(', ')}
 
-Generate the 50 queries now.`;
+Generate 20 high-quality queries now (focusing on the most impactful prompts).`;
 
   try {
     const openai = new OpenAI({
@@ -73,7 +75,7 @@ Generate the 50 queries now.`;
     });
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini', // Faster, cheaper model for prompt generation
       messages: [
         {
           role: 'system',
@@ -85,7 +87,7 @@ Generate the 50 queries now.`;
         },
       ],
       temperature: 0.7,
-      max_tokens: 3000,
+      max_tokens: 1500, // Reduced for 20 prompts instead of 50
     });
 
     const text = response.choices[0]?.message?.content || '';
@@ -153,16 +155,22 @@ function generateFallbackPrompts(brandInfo: BrandInfo): GeneratedPrompts {
       `Most popular ${industry} services`,
       `${industry} software comparison`,
       `Free ${industry} tools for beginners`,
+      `${industry} software reviews`,
+      `Best ${industry} platforms for teams`,
+      `${industry} tools for remote work`,
+      `Cloud-based ${industry} solutions`,
+      `${industry} automation tools`,
+      `Enterprise ${industry} software`,
     ],
-    competitor: competitors.slice(0, 3).map(comp => `${comp} alternatives`),
+    competitor: competitors.slice(0, 3).map(comp => `${comp} vs alternatives`),
     howToGuides: [
       `How to choose the right ${industry} tool`,
       `Setting up ${industry} workflow for beginners`,
+      `${industry} best practices for startups`,
     ],
     brandSpecific: [
       `What is ${companyName}?`,
-      `${companyName} reviews`,
-      `Is ${companyName} good for small business?`,
+      `${companyName} reviews and pricing`,
     ],
   };
 }

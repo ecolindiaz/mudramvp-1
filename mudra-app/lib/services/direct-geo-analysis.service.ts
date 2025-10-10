@@ -69,12 +69,12 @@ async function generateGEOPrompts(config: DirectGEOConfig): Promise<string[]> {
     // Generate sophisticated prompts using the Mudra system
     const generatedPrompts = await generateSophisticatedPrompts(brandInfo);
     
-    // Combine all prompt categories for testing
+    // Combine all prompt categories for testing - OPTIMIZED for speed (15 total)
     const allPrompts = [
-      ...generatedPrompts.organic.slice(0, 8),        // Top 8 organic queries
-      ...generatedPrompts.competitor.slice(0, 4),     // Top 4 competitor queries  
+      ...generatedPrompts.organic.slice(0, 10),       // Top 10 organic queries
+      ...generatedPrompts.competitor.slice(0, 2),     // Top 2 competitor queries  
       ...generatedPrompts.howToGuides.slice(0, 2),    // Top 2 how-to queries
-      ...generatedPrompts.brandSpecific.slice(0, 2),  // Top 2 brand-specific queries
+      ...generatedPrompts.brandSpecific.slice(0, 1),  // Top 1 brand-specific query
     ];
 
     console.log(`Generated ${allPrompts.length} sophisticated prompts using Mudra system`);

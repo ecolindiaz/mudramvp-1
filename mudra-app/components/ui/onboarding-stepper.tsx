@@ -8,12 +8,13 @@ interface OnboardingStepperProps {
 }
 
 const steps = [
+  "Account",
   "Welcome",
   "About You",
-  "Company Profile",
+  "Company",
   "Competitors",
-  "Knowledge Base",
-  "Prompts"
+  "Visibility",
+  "Analysis"
 ]
 
 export function OnboardingStepper({ currentStep, className }: OnboardingStepperProps) {

@@ -43,6 +43,12 @@ export async function saveBrandProfile(profile: any) {
   const prisma = createFreshPrismaClient()
   try {
     const data = serializeProfile(profile);
+    
+    // Remove id: 0 from data to prevent invalid updates
+    if (data.id === 0) {
+      delete data.id;
+    }
+    
     const existing = await prisma.brandProfile.findFirst();
     
     if (existing) {
@@ -55,31 +61,39 @@ export async function saveBrandProfile(profile: any) {
       console.log("🟢 [saveBrandProfile] Creating new brand profile...");
       
       try {
-        // Try to create user if userId column exists in schema
-        const userEmail = profile.companyWebsite 
-          ? `user@${new URL(profile.companyWebsite).hostname}`
-          : `user-${Date.now()}@mudra.app`;
+        let userIdToUse = profile.userId;
         
-        const userName = profile.userName || profile.companyName || 'New User';
-        
-        const user = await prisma.user.create({
-          data: {
-            email: userEmail,
-            name: userName,
-          }
-        });
-        
-        console.log("🟢 [saveBrandProfile] Created user with ID:", user.id);
+        // If userId is provided from onboarding, use it
+        if (userIdToUse) {
+          console.log("🟢 [saveBrandProfile] Using provided userId:", userIdToUse);
+        } else {
+          // Legacy: create user if no userId provided
+          const userEmail = profile.companyWebsite 
+            ? `user@${new URL(profile.companyWebsite).hostname}`
+            : `user-${Date.now()}@mudra.app`;
+          
+          const userName = profile.userName || profile.companyName || 'New User';
+          
+          const user = await prisma.user.create({
+            data: {
+              email: userEmail,
+              name: userName,
+            }
+          });
+          
+          userIdToUse = user.id;
+          console.log("🟢 [saveBrandProfile] Created user with ID:", user.id);
+        }
         
         // Create brand profile with userId
         const created = await prisma.brandProfile.create({ 
           data: {
             ...data,
-            userId: user.id,
+            userId: userIdToUse,
           }
         });
         
-        console.log("🟢 [saveBrandProfile] Created brand profile with ID:", created.id, "linked to user:", user.id);
+        console.log("🟢 [saveBrandProfile] Created brand profile with ID:", created.id, "linked to user:", userIdToUse);
         
         return deserializeProfile(created);
       } catch (userError: any) {

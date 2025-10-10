@@ -13,7 +13,7 @@ export function PromptsForm() {
   const router = useRouter()
   const { profile } = useBrandProfile()
   const { data: onboardingData, saveToProfile } = useOnboarding()
-  const { state, progress, results, error, runPipeline } = useAnalysisPipeline()
+  const { state, progress, results, error, simulatedProgress, runPipeline } = useAnalysisPipeline()
   const [analysisStarted, setAnalysisStarted] = useState(false)
   const hasSaved = useRef(false) // Track if we've already saved
 
@@ -91,21 +91,14 @@ export function PromptsForm() {
   const hasError = state === 'error'
   const isRunning = state === 'running'
 
-  // Calculate overall progress based on pipeline steps
+  // Calculate overall progress using simulated progress for smoother UX
   const calculateProgress = () => {
     if (state === 'completed') return 100;
     if (state === 'error') return 0;
     if (state === 'idle') return 0;
     
-    const steps = [
-      progress.geoAnalysis,
-      progress.trafficMetrics,
-      progress.technicalStructure,
-      progress.report,
-    ];
-    
-    const completed = steps.filter(s => s === 'completed').length;
-    return (completed / steps.length) * 100;
+    // Use simulated progress for smoother UX while analysis runs
+    return Math.round(simulatedProgress);
   }
 
   const getCurrentStage = () => {

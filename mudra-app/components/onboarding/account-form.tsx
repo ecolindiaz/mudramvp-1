@@ -75,6 +75,23 @@ export function AccountForm() {
       // Store userId in onboarding context
       updateData({ userId: data.userId, username })
 
+      // Send credentials email
+      try {
+        const emailResponse = await fetch("/api/auth/send-credentials", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, username, password })
+        })
+        
+        if (emailResponse.ok) {
+          setEmailSent(true)
+          console.log("✅ Credentials email sent")
+        }
+      } catch (emailErr) {
+        console.error("Failed to send email:", emailErr)
+        // Don't block the flow if email fails
+      }
+
       // Auto-login the user
       const signInResult = await signIn("credentials", {
         username,
@@ -141,6 +158,22 @@ export function AccountForm() {
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-white">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="john@example.com"
+                  className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
+                  disabled={isLoading}
+                />
+                <p className="text-xs text-white/50">
+                  We'll send your beta password to this email
+                </p>
+              </div>
+
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
@@ -151,7 +184,7 @@ export function AccountForm() {
             <StarBorder as="div">
               <Button
                 onClick={handleCreateAccount}
-                disabled={isLoading || !username.trim()}
+                disabled={isLoading || !username.trim() || !email.trim()}
                 className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
               >
                 {isLoading ? "Creating Account..." : "Create Account"}
@@ -218,10 +251,19 @@ export function AccountForm() {
                 </p>
               </div>
 
+              {/* Email Sent Confirmation */}
+              {emailSent && (
+                <Alert className="bg-green-500/10 border-green-500/30">
+                  <AlertDescription className="text-green-200 text-sm">
+                    ✅ <strong>Email sent!</strong> We've sent your login credentials to {email}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {/* Warning */}
               <Alert className="bg-yellow-500/10 border-yellow-500/30">
                 <AlertDescription className="text-yellow-200 text-sm">
-                  ⚠️ <strong>Important:</strong> Save this password now! You'll need it to log in later.
+                  ⚠️ <strong>Important:</strong> Save this password now! {emailSent ? "Check your email for a copy." : "You'll need it to log in later."}
                 </AlertDescription>
               </Alert>
             </div>

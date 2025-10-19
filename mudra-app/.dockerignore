@@ -1,32 +1,123 @@
-# Dependencies
+# ============================================
+# DOCKER IGNORE FILE
+# Optimized for faster builds and smaller images
+# ============================================
+
+# Dependencies (will be installed in container)
 node_modules
 npm-debug.log
+yarn-debug.log
+yarn-error.log
+pnpm-debug.log
+.pnpm-store
 
-# Next.js build output
+# Next.js build output (will be built in container)
 .next
 out
-
-# Production build
+build
 dist
 
-# Environment variables
+# Next.js cache
+.next/cache
+.swc
+
+# Environment variables (except .env.docker)
+.env
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.production
 .env.production.local
 
-# IDE
+# Allow .env.docker for Docker builds
+!.env.docker
+
+# IDE and editor files
 .vscode
 .idea
+*.swp
+*.swo
+*.swn
+.DS_Store
+.editorconfig
+.eslintcache
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Git
+# Git files
 .git
 .gitignore
+.gitattributes
+.github
 
-# Prisma
+# Docker files (no need to copy into image)
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+*.md
+README*
+CHANGELOG*
+LICENSE
+docs/
+documentation/
+
+# Test files
+__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.test.js
+**/*.test.jsx
+**/*.spec.ts
+**/*.spec.tsx
+**/*.spec.js
+**/*.spec.jsx
+coverage
+.nyc_output
+jest.config.js
+cypress
+cypress.config.js
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Prisma (keep schema, ignore migrations in build)
 prisma/migrations/*
 !prisma/migrations/.gitkeep
+!prisma/schema.prisma
+
+# Temporary files
+*.tmp
+*.temp
+.cache
+tmp/
+temp/
+
+# Build artifacts
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Scripts that shouldn't be in container
+scripts/archive/
+scripts/startup/*.sh
+scripts/startup/*.bat
+scripts/startup/*.ps1
+
+# Vercel
+.vercel
+
+# Misc
+.turbo
+*.orig

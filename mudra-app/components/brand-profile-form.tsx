@@ -110,12 +110,28 @@ export function BrandProfileForm() {
 
   const handleSave = async () => {
     console.log('💾 Saving brand profile:', formData)
-    await setProfile(formData) // ✅ Persist to context and API
+    // Convert arrays to strings and merge with existing profile to preserve id, stage, resources
+    const profileToSave = {
+      ...profile,
+      ...formData,
+      companyServices: JSON.stringify(formData.companyServices),
+      companyICP: JSON.stringify(formData.companyICP),
+      competitors: formData.competitors, // Keep as array
+    }
+    await setProfile(profileToSave as any) // ✅ Persist to context and API
     setIsEditing(false)
   }
 
   const handleCancel = () => {
-    setFormData(profile) // Reset to last saved context
+    // Reset to last saved context, parsing arrays
+    const profileData = {
+      ...initialData,
+      ...profile,
+      companyServices: safeParseArray(profile.companyServices, initialData.companyServices),
+      companyICP: safeParseArray(profile.companyICP, initialData.companyICP),
+      competitors: safeParseArray(profile.competitors, initialData.competitors),
+    }
+    setFormData(profileData)
     setIsEditing(false)
   }
 

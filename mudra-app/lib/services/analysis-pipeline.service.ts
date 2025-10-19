@@ -158,7 +158,7 @@ async function runGeoAnalysis(config: AnalysisPipelineConfig) {
 
     if (!response.ok) {
       // Update analysis run as failed
-      await updateAnalysisRun(analysisRun.id, {
+      await updateAnalysisRun(String(analysisRun.id), {
         status: 'failed',
         errorMessage: `DirectGEO API failed: ${response.statusText}`
       });
@@ -179,7 +179,7 @@ async function runGeoAnalysis(config: AnalysisPipelineConfig) {
     });
 
     // Update analysis run with results
-    await updateAnalysisRun(analysisRun.id, {
+    await updateAnalysisRun(String(analysisRun.id), {
       status: 'completed',
       results: data,
       overallScore: data.overallScore || 0,
@@ -322,7 +322,7 @@ async function runTechnicalAnalysis(config: AnalysisPipelineConfig) {
           category: f.category
         })),
         recommendations: recommendations,
-        metadata: {
+        metadata: JSON.parse(JSON.stringify({
           components: scoreResult.components,
           structuredData: {
             hasJsonLd: snapshot.schema?.summary?.jsonLdCount ?? 0 > 0,
@@ -348,7 +348,7 @@ async function runTechnicalAnalysis(config: AnalysisPipelineConfig) {
           criticalIssues: scoreResult.findings.filter(f => f.severity === 'high').map(f => f.message),
           warnings: scoreResult.findings.filter(f => f.severity === 'medium').map(f => f.message),
           suggestions: scoreResult.findings.filter(f => f.severity === 'low').map(f => f.message),
-        },
+        })),
       },
     });
 
@@ -418,11 +418,11 @@ async function generateAnalysisReport(data: {
   try {
     // Fetch analysis data
     const geoAnalysis = data.geoAnalysisId 
-      ? await prisma.geoAnalysisResult.findUnique({ where: { id: data.geoAnalysisId } })
+      ? await prisma.geoAnalysisResult.findUnique({ where: { id: parseInt(data.geoAnalysisId) } })
       : null;
 
     const technicalAnalysis = data.technicalAnalysisId
-      ? await prisma.technicalStructureAnalysis.findUnique({ where: { id: data.technicalAnalysisId } })
+      ? await prisma.technicalStructureAnalysis.findUnique({ where: { id: parseInt(data.technicalAnalysisId) } })
       : null;
 
     // Generate report content
@@ -511,18 +511,34 @@ async function generateReportContent(data: {
 export async function getLatestAnalysisResults(brandProfileId: number) {
   console.log(`[getLatestAnalysisResults] Fetching results for brandProfileId: ${brandProfileId}`);
   
+  // Validate brandProfileId
+  if (!brandProfileId || brandProfileId === 0) {
+    console.error(`[getLatestAnalysisResults] ❌ Invalid brandProfileId: ${brandProfileId}`);
+    throw new Error('Invalid brand profile ID. Please ensure your profile is properly set up.');
+  }
+  
   const [geoAnalysis, technicalAnalysis, report] = await Promise.all([
     prisma.geoAnalysisResult.findFirst({
-      where: { brandProfileId },
+      where: { 
+        brandProfileId,
+        // Exclude invalid records
+        id: { not: 0 }
+      },
       orderBy: { timestamp: 'desc' },
     }),
     prisma.technicalStructureAnalysis.findFirst({
-      where: { brandProfileId },
-      orderBy: { analyzedAt: 'desc' },
+      where: { 
+        brandProfileId,
+        id: { not: 0 }
+      },
+      orderBy: { createdAt: 'desc' },
     }),
     prisma.naturalLanguageReport.findFirst({
-      where: { brandProfileId },
-      orderBy: { generatedAt: 'desc' },
+      where: { 
+        brandProfileId,
+        id: { not: 0 }
+      },
+      orderBy: { createdAt: 'desc' },
     }),
   ]);
 
@@ -531,6 +547,7 @@ export async function getLatestAnalysisResults(brandProfileId: number) {
     hasTechnical: !!technicalAnalysis,
     hasReport: !!report,
     geoScore: geoAnalysis?.overallScore,
+    technicalScore: technicalAnalysis?.overallScore,
   });
 
   return {

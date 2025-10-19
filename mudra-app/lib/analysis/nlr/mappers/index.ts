@@ -9,7 +9,7 @@ export async function collectNlrInputs(
 ): Promise<NlrInput> {
   const [aiVisibility, technical, tasks] = await Promise.all([
     mapAiVisibility(companyId, weekStartUtc),
-    mapTechnicalStructure(companyId, weekStartUtc),
+    mapTechnicalStructure(companyId),
     mapTasks(companyId, weekStartUtc),
   ]);
 

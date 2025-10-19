@@ -7,10 +7,10 @@ const prisma = new PrismaClient()
 
 export async function POST(
   _request: NextRequest,
-  { params }: { params: { websiteId: string } }
+  { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const { websiteId } = params
+    const { websiteId } = await params
 
     if (!websiteId) {
       return NextResponse.json(

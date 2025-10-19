@@ -12,6 +12,35 @@ This is a **dual-application monorepo**:
 - **`firegeo/`** - Open-source SaaS starter (Next.js 15 + Drizzle + Better Auth)
 - **`llm/`** - Python FAISS API for semantic search
 
+## 🚨 Critical Patterns (Read First!)
+
+### Prisma Client Singleton Pattern
+**NEVER create new PrismaClient instances.** Always import the shared singleton from `lib/prisma.ts`:
+
+```typescript
+// ✅ CORRECT
+import { prisma } from '@/lib/prisma'
+
+// ❌ WRONG - causes connection pool exhaustion
+import { PrismaClient } from '@prisma/client'
+const prisma = new PrismaClient()
+```
+
+**Why:** Supabase pgBouncer has connection limits. Multiple clients exhaust the pool and cause API timeouts.
+
+### Database URL Configuration
+**Always use the IPv4-compatible pooler endpoint** in `.env.docker`:
+
+```bash
+# ✅ CORRECT - IPv4 pooler (port 6543)
+DATABASE_URL="postgresql://user:pass@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+
+# ❌ WRONG - IPv6-only direct connection (Docker DNS fails)
+DATABASE_URL="postgresql://user:pass@db.bqobjllkucuskllghosv.supabase.com:5432/postgres"
+```
+
+**Why:** Alpine Linux containers struggle with IPv6 DNS resolution. Direct Supabase endpoints often return AAAA (IPv6) records only.
+
 ## Critical Architecture Pattern: Unified Analysis Service
 
 **The most important architectural decision:** Both onboarding and dashboard use the **same analysis logic** via `unified-analysis.service.ts`.
@@ -54,14 +83,25 @@ AnalysisRun               → Analysis execution history
 npm install --force
 npx prisma generate && npx prisma db push
 
-# Development
+# Development (Local)
 npm run dev                     # Start on localhost:3000
 npx prisma studio               # Database GUI
+
+# Development (Docker) - PREFERRED for consistency
+npm run docker:dev              # Builds & starts container on port 3000
+npm run docker:down             # Stop container
+npm run docker:logs             # View logs
 
 # Database operations
 npx prisma migrate dev          # Create migration
 npx prisma db push              # Push schema changes
 ```
+
+**Docker Development Notes:**
+- Uses Turbopack (`--turbo`) for fast startup (~2.7s)
+- Health checks via `/api/health` endpoint
+- Volume mounts enable hot-reload without rebuilds
+- If container hangs on "Starting", check: DNS resolution, Prisma singleton pattern, or CSS compilation errors
 
 ### firegeo (SaaS Starter)
 ```powershell
@@ -98,12 +138,17 @@ npm run db:studio               # Drizzle Studio GUI
 - Use `import type { ... }` for type-only imports
 - Enable strict mode - avoid `any`, use `unknown` if needed
 - Prisma types: `import { BrandProfile } from "@prisma/client"`
+- **Process.env in Node contexts**: Wrap in globalThis casting to avoid TypeScript errors:
+  ```typescript
+  const env = ((globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {});
+  ```
 
 ### React/Next.js
 - **Server Components by default** - only use `"use client"` when necessary (state, events, hooks)
 - **Data fetching:** Fetch in Server Components, pass props down
 - **Mutations:** Use API routes, not Server Actions (project convention)
 - **Error handling:** Always implement loading states and error boundaries
+- **Turbopack configuration**: Use `next.config.ts` with `turbopack` (not `experimental.turbo`) and `onDemandEntries` for fast dev startup
 
 ## External Service Integration
 
@@ -207,3 +252,41 @@ FIRECRAWL_API_KEY=...
 3. Is this a new API route? (Check existing feature-grouped structure)
 4. Does this involve database queries? (Always filter by `brandProfileId` if user-specific)
 5. Is this a Server or Client Component? (Default to Server unless state/interactivity needed)
+
+## Common Issues & Solutions
+
+### Docker Container Hangs on Startup
+**Symptoms:** `npm run docker:dev` hangs on "✓ Starting..." indefinitely
+**Root causes:**
+1. **Prisma connection pool exhaustion** - Check for `new PrismaClient()` instead of singleton import
+2. **IPv6 DNS resolution failure** - Use `aws-0-us-east-1.pooler.supabase.com` not `db.*.supabase.com`
+3. **CSS compilation errors** - Ensure `@tailwind base/components/utilities` directives present in globals.css
+4. **Page compilation blocking** - Use `onDemandEntries` in next.config.ts to defer compilation
+
+**Debug steps:**
+```powershell
+docker exec mudra-app-dev netstat -tlnp  # Check if Next.js listening on 0.0.0.0:3000
+docker exec mudra-app-dev curl -v http://127.0.0.1:3000/api/health  # Test health endpoint
+docker logs mudra-app-dev  # Check for compilation errors
+```
+
+### Tailwind CSS Not Working
+**Issue:** Styles not applying or "missing content configuration" warning
+**Solution:** Ensure `tailwind.config.js` has content paths:
+```javascript
+module.exports = {
+  content: [
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  // ...
+}
+```
+
+### API Route Timeouts
+**Symptoms:** 504 Gateway Timeout or requests hang indefinitely
+**Solutions:**
+- Add timeout wrappers to database queries (see `app/api/brand-profile/route.ts`)
+- Implement retry logic with exponential backoff in contexts
+- Never call `prisma.$disconnect()` in API routes - singleton handles lifecycle

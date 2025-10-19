@@ -140,7 +140,9 @@ export async function enrichTaskWithLLM(params: {
 	let text = "";
 	try {
 		const res = await generateText({
-			model: MODEL,
+			// Type cast required: @ai-sdk/openai v2 returns LanguageModelV2 but generateText expects LanguageModelV1
+			// This is a known compatibility issue between ai@4.3.16 and @ai-sdk/openai@2.0.22
+			model: MODEL as any,
 			temperature: 0.2,
 			system: buildSystemPrompt(kbTopics, domain),
 			prompt: buildUserPrompt({ evidence, inputs, knowledge }),

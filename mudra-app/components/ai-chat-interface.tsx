@@ -88,7 +88,7 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const pathname = usePathname()
-  const pageContext = getPageContext(pathname)
+  const pageContext = getPageContext(pathname || '/')
 
   const [quickPrompts] = useState([
     "What should I work on first?",

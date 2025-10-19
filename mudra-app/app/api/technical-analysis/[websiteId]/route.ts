@@ -3,10 +3,10 @@ import { getLatestAnalysis } from '@/lib/services/technical-analysis.service'
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { websiteId: string } }
+  { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const { websiteId } = params
+    const { websiteId } = await params
 
     if (!websiteId) {
       return NextResponse.json(

@@ -169,21 +169,21 @@ function DashboardPageInner() {
       className="bg-dark-grey text-foreground"
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 52)",
-          "--header-height": "calc(var(--spacing) * 12)",
+          "--sidebar-width": "16rem",
+          "--header-height": "3rem",
         } as React.CSSProperties
       }
     >
       <AppSidebar />
-      <SidebarInset className="bg-dark-grey text-foreground m-0 shadow-none rounded-none border-none">
+      <SidebarInset className="bg-dark-grey text-foreground m-0 shadow-none rounded-none border-none overflow-x-hidden max-w-full">
         <SiteHeader />
         <Separator className="w-full border-border" />
-        <div className="flex flex-1 flex-col pb-8 md:pb-10">
-          <div className="@container/main flex flex-1 flex-col gap-3 md:gap-4">
+        <div className="flex flex-1 flex-col pb-8 md:pb-10 overflow-x-hidden max-w-full">
+          <div className="@container/main flex flex-1 flex-col gap-3 md:gap-4 overflow-x-hidden max-w-full">
             {/* Page Header */}
-            <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
-              <div className="flex items-center justify-between">
-                <div>
+            <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6 max-w-full overflow-x-hidden">
+              <div className="flex items-center justify-between flex-wrap gap-4 max-w-full">
+                <div className="min-w-0">
                   <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
                   <p className="text-muted-foreground">
                     Your brands performance across AI Search Engines
@@ -194,19 +194,19 @@ function DashboardPageInner() {
                     )}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-shrink-0">
                   <CountdownBadge />
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap min-w-0">
                     <Input
                       placeholder="Enter website URL (e.g., paradigmai.com)"
                       value={websiteUrl}
                       onChange={(e) => setWebsiteUrl(e.target.value)}
-                      className="w-64 h-9 bg-white text-white placeholder:text-gray-500"
+                      className="w-full sm:w-64 h-9 bg-white text-white placeholder:text-gray-500 min-w-0"
                       disabled={isAnalyzing}
                     />
                     <Button
                       variant="dashed"
-                      className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
+                      className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent whitespace-nowrap flex-shrink-0"
                       onClick={handleAnalyzeWebsite}
                       disabled={profileLoading || isAnalyzing || geoState.isRunning || !hasWebsiteSource || !profile.id || profile.id === 0}
                     >
@@ -265,16 +265,16 @@ function DashboardPageInner() {
               </div>
             </div>
             
-            <div className="flex flex-col gap-5 md:gap-6 pb-6 md:pb-8">
+            <div className="flex flex-col gap-5 md:gap-6 pb-6 md:pb-8 max-w-full overflow-x-hidden">
               {/* Analysis Results Grid */}
               {(analysisResults.geoAnalysis || analysisResults.trafficMetrics || analysisResults.technicalAnalysis || analysisResults.report) && (
-                <div className="px-4 lg:px-6">
+                <div className="px-4 lg:px-6 max-w-full overflow-x-hidden">
                   <div className="mb-4">
                     <h2 className="text-xl font-semibold text-white">Comprehensive Analysis</h2>
                     <p className="text-white/60 text-sm mt-1">Latest analysis results for your brand</p>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 max-w-full">
                     {analysisResults.geoAnalysis && (
                       <GeoMetricsCard data={analysisResults.geoAnalysis} />
                     )}

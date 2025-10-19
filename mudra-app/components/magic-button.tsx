@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { useAnalysisPipeline } from "@/hooks/use-analysis-pipeline"
-import { useBrandProfile } from "@/contexts/brand-profile-context"
+import { useBrandProfile } from "@/components/brand-profile-context"
 
 export function MagicButton() {
   const [open, setOpen] = useState(false)

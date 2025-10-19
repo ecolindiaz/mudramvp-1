@@ -1,6 +1,11 @@
 import NextAuth from "next-auth";
-import TwitterProvider from "next-auth/providers/twitter";
+// import TwitterProvider from "next-auth/providers/twitter";
+import CredentialsProvider from "next-auth/providers/credentials";
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { Session } from "next-auth";
+
+const prisma = new PrismaClient();
 
 // Extend the Session type to include accessToken
 declare module "next-auth" {
@@ -13,11 +18,53 @@ declare module "next-auth" {
 
 export default NextAuth({
   providers: [
-    TwitterProvider({
-      clientId: process.env.TWITTER_CONSUMER_KEY || "",
-      clientSecret: process.env.TWITTER_CONSUMER_SECRET || "",
-      version: "1.0A", // Twitter OAuth 1.0A
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        username: { label: "Username", type: "text" },
+        password: { label: "Password", type: "password" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.username || !credentials?.password) {
+          return null;
+        }
+
+        try {
+          const user = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { name: credentials.username },
+                { email: credentials.username },
+                { email: `${credentials.username}@mudra.app` }
+              ]
+            }
+          });
+
+          if (!user || !user.password) {
+            return null;
+          }
+
+          const isValid = await bcrypt.compare(credentials.password, user.password);
+          if (!isValid) {
+            return null;
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+          };
+        } catch (error) {
+          console.error("Auth error:", error);
+          return null;
+        }
+      }
     }),
+    // TwitterProvider({
+    //   clientId: process.env.TWITTER_CONSUMER_KEY || "",
+    //   clientSecret: process.env.TWITTER_CONSUMER_SECRET || "",
+    //   version: "1.0A", // Twitter OAuth 1.0A
+    // }),
   ],
   session: {
     strategy: "jwt",

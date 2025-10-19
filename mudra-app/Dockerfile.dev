@@ -1,26 +1,83 @@
-# Use Node.js 18 Alpine for development
-FROM node:18-alpine
+# ============================================
+# DEVELOPMENT DOCKERFILE WITH HOT RELOAD
+# Fixed: Permissions & .next directory
+# ============================================
+
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Install dependencies for development
-RUN apk add --no-cache libc6-compat
+# Install system dependencies for development
+# Includes tools for debugging and native module compilation
+RUN apk add --no-cache \
+    libc6-compat \
+    openssl \
+    ca-certificates \
+    bash \
+    curl \
+    git \
+    postgresql-client \
+    python3 \
+    make \
+    g++ \
+    dumb-init \
+    && update-ca-certificates
 
-# Copy package files
-COPY package*.json ./
+# Create directories with proper permissions BEFORE switching user
+RUN mkdir -p /app/node_modules /app/.next /app/.next/cache /app/.next/types && \
+    touch /app/.next/trace && \
+    chown -R node:node /app
 
-# Install dependencies
-RUN npm ci
+# Set npm configurations for better reliability
+RUN npm config set fetch-timeout 300000 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set audit false
 
-# Copy prisma schema
-COPY prisma ./prisma/
+# Switch to node user BEFORE copying files
+USER node
 
-# Generate Prisma client
+# Copy package files first (better layer caching)
+COPY --chown=node:node package*.json ./
+
+# Install dependencies with error handling
+# Use --legacy-peer-deps to handle React 19 peer dependency issues
+RUN npm ci --legacy-peer-deps 2>&1 | tee /tmp/npm-install.log || \
+    (cat /tmp/npm-install.log && npm install --legacy-peer-deps) && \
+    npm cache clean --force
+
+# Copy prisma schema and generate client
+COPY --chown=node:node prisma ./prisma/
 RUN npx prisma generate
 
-# Expose port
-EXPOSE 3000
+# NOTE: Removed @tailwindcss/oxide rebuild since we're using Tailwind v3
+# If you're still on v4, this will fail in Docker anyway
 
-# Start development server
-CMD ["npm", "run", "dev"]
+# Copy application code (respects .dockerignore)
+COPY --chown=node:node . .
+
+# Ensure .next directory has correct permissions (redundant but safe)
+USER root
+RUN chown -R node:node /app/.next && chmod -R 755 /app/.next
+USER node
+
+# Set development environment variables
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV WATCHPACK_POLLING=true
+ENV CHOKIDAR_USEPOLLING=true
+
+# Expose port and debugger port
+EXPOSE 3000
+EXPOSE 9229
+
+# Health check for development using simple health endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Start development server with improved logging and turbo mode
+CMD ["sh", "-c", "echo 'Starting development server...' && npm run dev -- --hostname 0.0.0.0 --turbo"]

@@ -1,14 +1,36 @@
+# ============================================
+# PRODUCTION DOCKER COMPOSE CONFIGURATION
+# ============================================
+version: '3.9'
+
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+      # Enable BuildKit for better caching and performance
+      cache_from:
+        - mudra-app:latest
+    
+    image: mudra-app:latest
+    container_name: mudra-app-prod
+    
     ports:
       - "3000:3000"
+    
+    # Environment variables with fallback defaults
     environment:
+      - NODE_ENV=production
+      - PORT=3000
       - DATABASE_URL=${DATABASE_URL}
       - DIRECT_URL=${DIRECT_URL}
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DIRECTGEO_API_KEY=${DIRECTGEO_API_KEY}
+      - DIRECTGEO_API_URL=${DIRECTGEO_API_URL}
       - TWITTER_CONSUMER_KEY=${TWITTER_CONSUMER_KEY}
       - TWITTER_CONSUMER_SECRET=${TWITTER_CONSUMER_SECRET}
       - FIREGEO_API_URL=${FIREGEO_API_URL}
@@ -19,9 +41,66 @@ services:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    
     env_file:
       - .env
+    
+    # Named volumes for persistence (no bind mounts in production)
     volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/.next
+      - app-data:/app/.next
+      - node-modules:/app/node_modules
+    
+    # Restart policy for high availability
+    restart: unless-stopped
+    
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Network configuration
+    networks:
+      - mudra-network
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Read-only root filesystem (except for necessary writable paths)
+    # Uncomment if your app doesn't need to write to filesystem
+    # read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+
+# Named volumes for data persistence
+volumes:
+  app-data:
+    driver: local
+  node-modules:
+    driver: local
+
+# Network configuration
+networks:
+  mudra-network:
+    driver: bridge

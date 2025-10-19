@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Skip initial page compilation in development
+  onDemandEntries: {
+    maxInactiveAge: 60 * 1000,
+    pagesBufferLength: 2,
+  },
   // Speed up development builds
   experimental: {
     optimizePackageImports: [
@@ -17,16 +22,11 @@ const nextConfig: NextConfig = {
       'lucide-react'
     ],
   },
-  webpack: (config, { dev }) => {
-    if (dev) {
-      // Speed up development builds
-      config.optimization = {
-        ...config.optimization,
-        usedExports: false,
-        sideEffects: false,
-      }
-    }
-    return config
+  // Turbopack configuration (moved from experimental)
+  turbopack: {
+    rules: {
+      // Turbopack optimization rules can be added here if needed
+    },
   },
 };
 

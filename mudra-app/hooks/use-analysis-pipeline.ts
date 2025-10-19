@@ -58,7 +58,7 @@ export function useAnalysisPipeline() {
     });
     setSimulatedProgress(0);
     
-    console.log("🔴 [useAnalysisPipeline] State set to 'running', calling API...")
+    console.log("🔴 [useAnalysisPipeline] State set to 'running', calling UNIFIED API...")
     
     // Simulate progress updates while analysis runs
     const progressInterval = setInterval(() => {
@@ -68,7 +68,7 @@ export function useAnalysisPipeline() {
       });
     }, 1500);
     
-    // Update stage indicators progressively
+    // Update stage indicators progressively (simulated for better UX)
     setTimeout(() => {
       setPipelineState(prev => ({
         ...prev,
@@ -79,24 +79,34 @@ export function useAnalysisPipeline() {
     setTimeout(() => {
       setPipelineState(prev => ({
         ...prev,
-        progress: { ...prev.progress, trafficMetrics: 'completed' as const }
+        progress: { ...prev.progress, technicalStructure: 'completed' as const }
       }));
     }, 10000);
     
     setTimeout(() => {
       setPipelineState(prev => ({
         ...prev,
-        progress: { ...prev.progress, technicalStructure: 'completed' as const }
+        progress: { ...prev.progress, report: 'completed' as const }
       }));
     }, 15000)
 
     try {
-      const response = await fetch('/api/analysis/pipeline', {
+      // Call the UNIFIED analysis endpoint (used by both onboarding and dashboard)
+      const response = await fetch('/api/analysis/unified', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(config),
+        body: JSON.stringify({
+          brandProfileId: config.brandProfileId,
+          brandName: config.brandName,
+          website: config.website,
+          description: config.description,
+          industry: config.industry,
+          competitors: config.competitors || [],
+          skipCooldown: false, // Respect cooldown for onboarding
+          generateReport: true, // Generate report during onboarding
+        }),
       });
 
       console.log("🔴 [useAnalysisPipeline] API response status:", response.status)
@@ -108,24 +118,25 @@ export function useAnalysisPipeline() {
       clearInterval(progressInterval);
       
       const result = await response.json();
-      console.log("🔴 [useAnalysisPipeline] API result:", result)
+      console.log("🔴 [useAnalysisPipeline] Unified API result:", result)
 
       if (result.success) {
-        console.log("🔴 [useAnalysisPipeline] Pipeline completed successfully!")
+        console.log("🔴 [useAnalysisPipeline] Unified analysis completed successfully!")
+        console.log("🔴 [useAnalysisPipeline] Scores:", result.data?.scores)
         setSimulatedProgress(100);
         setPipelineState({
           state: 'completed',
           progress: {
-            geoAnalysis: 'completed',
-            trafficMetrics: 'completed',
-            technicalStructure: 'completed',
-            report: 'completed',
+            geoAnalysis: result.data?.geoAnalysisId ? 'completed' : 'failed',
+            trafficMetrics: 'completed', // Not used in unified but kept for UI compatibility
+            technicalStructure: result.data?.technicalAnalysisId ? 'completed' : 'failed',
+            report: result.data?.reportId ? 'completed' : 'failed',
           },
           results: {
-            geoAnalysisId: result.geoAnalysisId,
-            trafficMetricsId: result.trafficMetricsId,
-            technicalAnalysisId: result.technicalAnalysisId,
-            reportId: result.reportId,
+            geoAnalysisId: result.data?.geoAnalysisId,
+            trafficMetricsId: undefined, // Not used in unified analysis
+            technicalAnalysisId: result.data?.technicalAnalysisId,
+            reportId: result.data?.reportId,
           },
         });
 
@@ -135,18 +146,23 @@ export function useAnalysisPipeline() {
           window.dispatchEvent(new CustomEvent('mudra:website-analyzed', {
             detail: {
               brandProfileId: config.brandProfileId,
-              results: result,
+              results: result.data,
             }
           }));
         }
       } else {
-        console.error("🔴 [useAnalysisPipeline] Pipeline failed:", result.error)
+        console.error("🔴 [useAnalysisPipeline] Unified analysis failed:", result.error)
         clearInterval(progressInterval);
         setSimulatedProgress(0);
         setPipelineState({
           state: 'error',
-          progress: result.progress,
-          error: result.error || 'Pipeline failed',
+          progress: {
+            geoAnalysis: 'failed',
+            trafficMetrics: 'failed',
+            technicalStructure: 'failed',
+            report: 'failed',
+          },
+          error: result.error || 'Analysis failed',
         });
       }
 

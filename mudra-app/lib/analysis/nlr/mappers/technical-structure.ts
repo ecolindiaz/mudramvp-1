@@ -20,10 +20,10 @@ function pctDelta(current: number | null, previous: number | null): Delta<number
  * Map latest TechnicalScore for the company's primary site to NLR summary.
  */
 export async function mapTechnicalStructure(companyId: string): Promise<TechnicalStructureSummary | null> {
-  const sites: Site[] = await prisma.site.findMany({ where: { companyId }, select: { id: true } });
-  const siteIds = sites.map((s: Site) => s.id);
+  const sites = await prisma.site.findMany({ where: { companyId }, select: { id: true } });
+  const siteIds = sites.map((s) => s.id);
 
-  const snapshots: CrawlSnapshot[] = await prisma.crawlSnapshot.findMany({
+  const snapshots = await prisma.crawlSnapshot.findMany({
     where: { siteId: { in: siteIds } },
     orderBy: { crawledAt: "desc" },
     take: 2,

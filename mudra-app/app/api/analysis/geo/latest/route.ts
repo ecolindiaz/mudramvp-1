@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+// import { prisma } from '@/lib/prisma';
 
 /**
  * GET /api/analysis/geo/latest
  * Fetch the latest GEO analysis result for a brand
+ * TEMPORARILY DISABLED - Schema sync issues
  */
 export async function GET(request: NextRequest) {
+  return NextResponse.json(
+    { success: false, error: 'This endpoint is temporarily disabled' },
+    { status: 503 }
+  );
+  /*
   try {
     const { searchParams } = new URL(request.url);
     const brandProfileId = searchParams.get('brandProfileId');
@@ -19,14 +25,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Build the where clause based on available parameters
-    const whereClause: any = {
-      status: 'completed',
-    };
+    const whereClause: any = {};
 
     if (brandProfileId) {
       whereClause.brandProfileId = parseInt(brandProfileId, 10);
     } else if (brandName) {
-      whereClause.brandName = brandName;
+      // If brandName is provided, we need to join with BrandProfile
+      // For now, just require brandProfileId
+      return NextResponse.json(
+        { success: false, error: 'brandProfileId is required' },
+        { status: 400 }
+      );
     }
 
     // Fetch the latest completed GEO analysis
@@ -51,13 +60,11 @@ export async function GET(request: NextRequest) {
       data: {
         id: latestAnalysis.id,
         brandProfileId: latestAnalysis.brandProfileId,
-        brandName: latestAnalysis.brandName,
         overallScore: latestAnalysis.overallScore,
         analyses: latestAnalysis.analyses,
-        competitorData: latestAnalysis.competitorData,
-        recommendations: latestAnalysis.recommendations,
+        summary: latestAnalysis.summary,
         timestamp: latestAnalysis.timestamp,
-        status: latestAnalysis.status,
+        createdAt: latestAnalysis.createdAt,
       },
     });
   } catch (error) {
@@ -70,4 +77,5 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+  */
 }

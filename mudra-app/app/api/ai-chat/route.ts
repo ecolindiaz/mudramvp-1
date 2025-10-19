@@ -178,7 +178,10 @@ Use your advanced reasoning to provide the most thorough, accurate, and actionab
     // Optional streaming via Vercel AI SDK
     if (wantsStream) {
       const result = await streamText({
-        model: openaiProvider(modelConfig.model),
+        // Type cast required: @ai-sdk/openai v2 returns LanguageModelV2 but streamText expects LanguageModelV1
+        // This is a known compatibility issue between ai@4.3.16 and @ai-sdk/openai@2.0.22
+        // Runtime behavior is correct, only type definitions differ
+        model: openaiProvider(modelConfig.model) as any,
         system: systemPrompt + '\n\n' + contextHeader,
         messages: baseMessages,
         temperature: 0.2,

@@ -8,13 +8,49 @@ Mudra is a GEO (Generative Engine Optimization) platform designed to analyze, op
 
 ## 📋 Prerequisites
 
-- Node.js 18+ 
+### Local Development
+- Node.js 20+ 
 - PostgreSQL (local or Supabase)
-- Redis (local or cloud)
-- API Keys for: OpenAI, Anthropic, Perplexity, Google AI
-- Stripe account (for payments)
+- API Keys: DirectGEO, Firecrawl, OpenAI
+
+### Docker Development (Recommended)
+- Docker Desktop 4.0+ (Windows/Mac) or Docker Engine 20.10+ (Linux)
+- 4GB+ available RAM
+- API Keys: DirectGEO, Firecrawl, OpenAI
 
 ## 🛠 Installation
+
+### Option 1: Docker (Recommended) ⭐
+
+**Quick Start:**
+```bash
+# 1. Create environment file
+cp .env.docker.example .env.docker
+# Edit .env.docker with your values
+
+# 2. Build and start (PowerShell on Windows)
+.\docker-helper.ps1 build-dev
+.\docker-helper.ps1 start-dev
+
+# 3. Access app at http://localhost:3000
+```
+
+**What You Get:**
+- ✅ Production-ready multi-stage builds
+- ✅ Hot-reload development environment
+- ✅ Health monitoring and auto-restart
+- ✅ Chrome DevTools debugging (port 9229)
+- ✅ Resource management (CPU/memory limits)
+- ✅ Security hardening (non-root user)
+
+**Documentation:**
+- **Complete Guide**: `/docs/deployment/DOCKER_COMPLETE_GUIDE.md` (700+ lines)
+- **Quick Reference**: `/docs/deployment/DOCKER_QUICK_REFERENCE.md`
+- **Setup Summary**: `/docs/deployment/DOCKER_SETUP_COMPLETE.md`
+
+---
+
+### Option 2: Local Development
 
 1. **Clone the repository**
    ```bash

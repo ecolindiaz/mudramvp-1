@@ -1,21 +1,80 @@
+version: '3.9'
+
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile.dev
+      args:
+        NODE_ENV: development
+    
+    image: mudra-app:dev
+    container_name: mudra-app-dev
+    
+    user: node
+    
+    env_file:
+      - .env.docker
+    
+    environment:
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+      - NEXT_TELEMETRY_DISABLED=1
+    
     ports:
       - "3000:3000"
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - NEXTAUTH_URL=http://localhost:3000
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - TWITTER_CONSUMER_KEY=${TWITTER_CONSUMER_KEY}
-      - TWITTER_CONSUMER_SECRET=${TWITTER_CONSUMER_SECRET}
-      - FIREGEO_API_URL=http://host.docker.internal:3001
-      - FIREGEO_API_TOKEN=${FIREGEO_API_TOKEN}
-      - FIREGEO_WEBHOOK_SECRET=${FIREGEO_WEBHOOK_SECRET}
+      - "9229:9229"
+    
     volumes:
-      - .:/app
+      - type: bind
+        source: .
+        target: /app
+        consistency: delegated
       - /app/node_modules
       - /app/.next
+      - /app/.next/cache
+      - /app/.next/types
+      - prisma-client:/app/node_modules/.prisma
+    
+    restart: on-failure
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # FIXED: Use wget instead of curl (wget is pre-installed in Alpine)
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 180s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    networks:
+      - mudra-dev-network
+    
+    labels:
+      - "com.mudra.environment=development"
+      - "com.mudra.service=app"
+    
+    stdin_open: true
+    tty: true
+
+volumes:
+  prisma-client:
+    driver: local
+
+networks:
+  mudra-dev-network:
+    driver: bridge

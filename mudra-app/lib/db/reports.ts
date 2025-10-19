@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaClient, Prisma, WeeklyReport, WeeklyReportSection, WeeklyReportSourceRef } from "@prisma/client";
 
 // Local singleton Prisma client (mirrors pattern used elsewhere)
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };

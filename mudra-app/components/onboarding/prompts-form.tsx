@@ -11,11 +11,12 @@ import { useOnboarding } from "./onboarding-context"
 
 export function PromptsForm() {
   const router = useRouter()
-  const { profile } = useBrandProfile()
+  const { profile, refreshBrandProfile } = useBrandProfile()
   const { data: onboardingData, saveToProfile } = useOnboarding()
   const { state, progress, results, error, simulatedProgress, runPipeline } = useAnalysisPipeline()
   const [analysisStarted, setAnalysisStarted] = useState(false)
   const hasSaved = useRef(false) // Track if we've already saved
+  const hasTriggeredAnalysis = useRef(false) // Track if we've already triggered analysis
 
   // Debug: Log when component mounts
   useEffect(() => {
@@ -36,10 +37,14 @@ export function PromptsForm() {
         
         // Save to profile and wait for completion
         await saveToProfile()
-        console.log("🔵 [PromptsForm] Profile saved, waiting for state update...")
+        console.log("🔵 [PromptsForm] Profile saved, refreshing to get ID...")
+        
+        // Refresh the profile to ensure we have the latest data with ID
+        await refreshBrandProfile()
+        console.log("🔵 [PromptsForm] Profile refreshed, waiting for state update...")
         
         // Wait a bit more for the profile state to update with the ID
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise(resolve => setTimeout(resolve, 500))
         
         console.log("🔵 [PromptsForm] Setting analysisStarted to true")
         setAnalysisStarted(true)
@@ -47,13 +52,15 @@ export function PromptsForm() {
       
       saveAndAnalyze()
     }
-  }, [onboardingData.companyName, analysisStarted, saveToProfile]) // Only depend on companyName, not whole object
+  }, [onboardingData.companyName, analysisStarted, saveToProfile, refreshBrandProfile]) // Add refreshBrandProfile to dependencies
 
   useEffect(() => {
     // Start analysis once we have analysisStarted flag AND a valid profile ID
-    console.log("🟢 [PromptsForm] Profile ID check - analysisStarted:", analysisStarted, "profile.id:", profile?.id, "companyName:", onboardingData.companyName)
+    console.log("🟢 [PromptsForm] Profile ID check - analysisStarted:", analysisStarted, "profile.id:", profile?.id, "companyName:", onboardingData.companyName, "hasTriggeredAnalysis:", hasTriggeredAnalysis.current)
     
-    if (analysisStarted && onboardingData.companyName && profile?.id && profile.id > 0) {
+    if (analysisStarted && onboardingData.companyName && profile?.id && profile.id > 0 && !hasTriggeredAnalysis.current) {
+      hasTriggeredAnalysis.current = true // Mark as triggered to prevent duplicate runs
+      
       console.log("🟢 🟢 🟢 [PromptsForm] ✅✅✅ TRIGGERING ANALYSIS NOW WITH PROFILE ID:", profile.id)
       
       const config = {
@@ -72,7 +79,8 @@ export function PromptsForm() {
         analysisStarted,
         hasCompanyName: !!onboardingData.companyName,
         profileId: profile?.id,
-        profileIdValid: profile?.id && profile.id > 0
+        profileIdValid: profile?.id && profile.id > 0,
+        alreadyTriggered: hasTriggeredAnalysis.current
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,10 +114,12 @@ export function PromptsForm() {
     if (state === 'error') return 'Analysis Failed';
     if (state === 'idle') return 'Preparing analysis...';
     
-    if (progress.geoAnalysis === 'pending') return 'Analyzing AI Visibility...';
-    if (progress.trafficMetrics === 'pending') return 'Collecting Traffic Metrics...';
-    if (progress.technicalStructure === 'pending') return 'Running Technical Analysis...';
-    if (progress.report === 'pending') return 'Generating Report...';
+    // Unified analysis stages (runs in parallel, but shown sequentially for UX)
+    if (simulatedProgress < 30) return 'Testing AI Visibility (ChatGPT, Claude, Gemini)...';
+    if (simulatedProgress < 60) return 'Analyzing Technical Structure & SEO...';
+    if (simulatedProgress < 90) return 'Generating Your Custom Report...';
+    if (progress.report === 'pending') return 'Finalizing Analysis...';
+
     
     return 'Processing...';
   }
@@ -153,7 +163,7 @@ export function PromptsForm() {
               <div className="space-y-2">
                 <p className="text-2xl font-bold text-white">Analysis Complete!</p>
                 <p className="text-white/70 text-sm">Your brand analysis is ready</p>
-                <div className="grid grid-cols-2 gap-2 text-xs mt-4">
+                <div className="grid grid-cols-3 gap-2 text-xs mt-4">
                   <div className="bg-white/10 rounded-lg p-3">
                     <div className="flex items-center gap-1 text-white/60 mb-1">
                       <Target className="w-3 h-3" />
@@ -161,15 +171,6 @@ export function PromptsForm() {
                     </div>
                     <div className="text-white font-medium">
                       {progress.geoAnalysis === 'completed' ? '✓' : '○'}
-                    </div>
-                  </div>
-                  <div className="bg-white/10 rounded-lg p-3">
-                    <div className="flex items-center gap-1 text-white/60 mb-1">
-                      <Activity className="w-3 h-3" />
-                      Traffic
-                    </div>
-                    <div className="text-white font-medium">
-                      {progress.trafficMetrics === 'completed' ? '✓' : '○'}
                     </div>
                   </div>
                   <div className="bg-white/10 rounded-lg p-3">

@@ -1,4 +1,5 @@
 import { generateSophisticatedPrompts, profileToBrandInfo, type GeneratedPrompts } from './prompt-generation.service';
+import OpenAI from 'openai';
 
 // Types for direct GEO analysis
 export interface DirectGEOConfig {
@@ -69,15 +70,20 @@ async function generateGEOPrompts(config: DirectGEOConfig): Promise<string[]> {
     // Generate sophisticated prompts using the Mudra system
     const generatedPrompts = await generateSophisticatedPrompts(brandInfo);
     
-    // Combine all prompt categories for testing - OPTIMIZED for speed (15 total)
+    // Combine all prompt categories - USE ALL 50 PROMPTS from PromptGeneration.txt
     const allPrompts = [
-      ...generatedPrompts.organic.slice(0, 10),       // Top 10 organic queries
-      ...generatedPrompts.competitor.slice(0, 2),     // Top 2 competitor queries  
-      ...generatedPrompts.howToGuides.slice(0, 2),    // Top 2 how-to queries
-      ...generatedPrompts.brandSpecific.slice(0, 1),  // Top 1 brand-specific query
+      ...generatedPrompts.organic,        // All 30 organic queries
+      ...generatedPrompts.competitor,     // All 8 competitor queries  
+      ...generatedPrompts.howToGuides,    // All 7 how-to queries
+      ...generatedPrompts.brandSpecific,  // All 5 brand-specific queries
     ];
 
-    console.log(`Generated ${allPrompts.length} sophisticated prompts using Mudra system`);
+    console.log(`✅ Generated ${allPrompts.length} sophisticated prompts using Mudra PromptGeneration.txt specification`);
+    console.log(`   - Organic: ${generatedPrompts.organic.length}`);
+    console.log(`   - Competitor: ${generatedPrompts.competitor.length}`);
+    console.log(`   - How-to Guides: ${generatedPrompts.howToGuides.length}`);
+    console.log(`   - Brand-Specific: ${generatedPrompts.brandSpecific.length}`);
+    
     return allPrompts;
 
   } catch (error) {
@@ -148,14 +154,28 @@ async function analyzePromptWithProvider(
   config: DirectGEOConfig
 ): Promise<PromptTest> {
   if (!config.apiKeys.openai) {
+    console.error('❌ OpenAI API key is missing in config.apiKeys');
     throw new Error('OpenAI API key required for analysis');
+  }
+
+  // Log API key info (first few characters for debugging)
+  const apiKey = config.apiKeys.openai;
+  const apiKeyPreview = apiKey.substring(0, 15) + '...' + apiKey.substring(apiKey.length - 4);
+  const apiKeyLength = apiKey.length;
+  console.log(`🔑 Using OpenAI API key (length: ${apiKeyLength}): ${apiKeyPreview}`);
+  console.log(`🔑 Key starts with: ${apiKey.substring(0, 8)}`);
+  console.log(`🔑 Key ends with: ${apiKey.substring(apiKey.length - 8)}`);
+
+  // Validate key format
+  if (!apiKey.startsWith('sk-')) {
+    console.error(`❌ Invalid API key format - doesn't start with 'sk-'`);
+    throw new Error('Invalid OpenAI API key format');
   }
 
   // For now, use OpenAI for all analysis to avoid model compatibility issues
   // We can expand to other providers later
-  const OpenAI = require('openai').default;
   const openai = new OpenAI({
-    apiKey: config.apiKeys.openai,
+    apiKey: apiKey.trim(), // Trim any whitespace
   });
 
   // System prompt for consistent ranking behavior
@@ -350,28 +370,43 @@ function generateRecommendations(
 export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<DirectGEOResult> {
   console.log(`Starting direct GEO analysis for ${config.brandName}...`);
   
-  // Generate test prompts
+  // Generate test prompts - ALL 50 from PromptGeneration.txt specification
   const prompts = await generateGEOPrompts(config);
   console.log(`Generated ${prompts.length} test prompts`);
   
-  // Get available providers (for now, just use OpenAI to avoid compatibility issues)
-  const availableProviders = config.apiKeys.openai ? ['openai'] : [];
+  // Get available providers - use all configured providers
+  const availableProviders: string[] = [];
+  if (config.apiKeys.openai) availableProviders.push('openai');
+  if (config.apiKeys.anthropic) availableProviders.push('anthropic');
+  if (config.apiKeys.google) availableProviders.push('google');
   
   if (availableProviders.length === 0) {
-    throw new Error('OpenAI API key required for analysis');
+    throw new Error('At least one API key required (OpenAI, Anthropic, or Google)');
   }
   
-  console.log(`Testing with providers: ${availableProviders.join(', ')}`);
+  console.log(`Testing with ${availableProviders.length} provider(s): ${availableProviders.join(', ')}`);
+  console.log(`Distributing ${prompts.length} prompts across providers...`);
   
   const analyses: ProviderAnalysis[] = [];
   
-  // Run analysis for each provider
-  for (const provider of availableProviders) {
-    console.log(`Analyzing with ${provider}...`);
+  // Calculate prompts per provider (distribute all 50 prompts evenly)
+  const promptsPerProvider = Math.ceil(prompts.length / availableProviders.length);
+  console.log(`Each provider will test ~${promptsPerProvider} prompts`);
+  
+  // Run analysis for each provider with its assigned prompts
+  for (let i = 0; i < availableProviders.length; i++) {
+    const provider = availableProviders[i];
+    
+    // Get this provider's subset of prompts
+    const startIdx = i * promptsPerProvider;
+    const endIdx = Math.min(startIdx + promptsPerProvider, prompts.length);
+    const providerPrompts = prompts.slice(startIdx, endIdx);
+    
+    console.log(`\n🔍 Analyzing with ${provider}: testing ${providerPrompts.length} prompts (${startIdx + 1}-${endIdx})...`);
     const promptTests: PromptTest[] = [];
     
-    // Test each prompt with this provider
-    for (const prompt of prompts.slice(0, 6)) { // Limit to 6 prompts to control costs
+    // Test each assigned prompt with this provider
+    for (const prompt of providerPrompts) {
       try {
         const test = await analyzePromptWithProvider(prompt, provider, config);
         promptTests.push(test);
@@ -393,7 +428,7 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
       sentiment: metrics.sentiment,
     });
     
-    console.log(`  ${provider} results: ${metrics.visibilityScore}/100 score, ${Math.round(metrics.mentionRate * 100)}% mention rate`);
+    console.log(`  ✅ ${provider} results: ${metrics.visibilityScore.toFixed(1)}/100 score, ${Math.round(metrics.mentionRate * 100)}% mention rate`);
   }
   
   // Calculate competitor comparison
@@ -447,16 +482,19 @@ export function createDirectGEOConfig(
     apiKeys?: Partial<DirectGEOConfig['apiKeys']>;
   } = {}
 ): DirectGEOConfig {
+  // Get environment object safely (works in Node.js environment)
+  const env = ((globalThis as any).process?.env ?? {});
+  
   return {
     brandName,
     industry: options.industry || 'technology',
     description: options.description || `${brandName} is a company in the ${options.industry || 'technology'} industry`,
     competitors: options.competitors || [],
     apiKeys: {
-      openai: options.apiKeys?.openai || process.env.OPENAI_API_KEY,
-      anthropic: options.apiKeys?.anthropic || process.env.ANTHROPIC_API_KEY,
-      google: options.apiKeys?.google || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-      perplexity: options.apiKeys?.perplexity || process.env.PERPLEXITY_API_KEY,
+      openai: options.apiKeys?.openai || env.OPENAI_API_KEY,
+      anthropic: options.apiKeys?.anthropic || env.ANTHROPIC_API_KEY,
+      google: options.apiKeys?.google || env.GOOGLE_GENERATIVE_AI_API_KEY,
+      perplexity: options.apiKeys?.perplexity || env.PERPLEXITY_API_KEY,
     },
   };
 }

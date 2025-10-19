@@ -27,6 +27,8 @@ export function WelcomeForm() {
   }
 
   const handleNext = async () => {
+    console.log("🚀 handleNext called")
+    console.log("Form data:", formData)
     setIsLoading(true)
     
     try {
@@ -48,6 +50,14 @@ export function WelcomeForm() {
   }
 
   const isFormValid = formData.companyName.trim() !== "" && formData.companyWebsite.trim() !== ""
+  
+  useEffect(() => {
+    console.log("Form validation state:", {
+      companyName: formData.companyName,
+      companyWebsite: formData.companyWebsite,
+      isFormValid
+    })
+  }, [formData, isFormValid])
 
   return (
     <Card className="w-full max-w-md mx-auto bg-black border border-white/20 shadow-lg">
@@ -103,9 +113,11 @@ export function WelcomeForm() {
         </div>
 
         <StarBorder
-          onClick={isFormValid && !isLoading ? handleNext : undefined}
+          as="button"
+          type="button"
+          onClick={handleNext}
           disabled={!isFormValid || isLoading}
-          className={`w-full ${(!isFormValid || isLoading) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          className={`w-full ${(!isFormValid || isLoading) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-90'}`}
           color="white"
         >
           <div className="flex items-center justify-center gap-2 text-white">

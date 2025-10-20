@@ -61,7 +61,7 @@ const data = {
         {
           title: "Tracked Prompts",
           url: "/dashboard/tracked-prompts",
-          icon: IconFileAi,
+          icon: (props: any) => <SidebarCampaignsIcon className="w-4 h-4 mr-2.5" {...props} />,
         },
         {
           title: "Tasks",

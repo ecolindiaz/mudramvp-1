@@ -153,7 +153,13 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
   return (
     <>
       <SearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
-      <Sidebar collapsible="offcanvas" className="bg-dark-grey" {...props}>
+      <Sidebar 
+        side="left"
+        variant="sidebar"
+        collapsible="offcanvas" 
+        className="bg-dark-grey" 
+        {...props}
+      >
         <SidebarHeader className="pb-0 bg-dark-grey h-[var(--header-height)] flex items-center">
           {/* Company Header */}
           <div className="px-2 w-full isolate">

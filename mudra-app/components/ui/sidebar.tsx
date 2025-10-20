@@ -237,7 +237,7 @@ function Sidebar({
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2"
-            : "group-data-[side=left]:border-r group-data-[side=right]:border-l",
+            : "",
           className
         )}
         {...props}

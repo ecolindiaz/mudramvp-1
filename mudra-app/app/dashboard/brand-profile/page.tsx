@@ -13,13 +13,12 @@ export default function BrandProfilePage() {
         className="bg-dark-grey"
         style={
           {
-            "--sidebar-width": "calc(var(--spacing) * 72)", // pick the one you want: 52 or 72
-            "--header-height": "calc(var(--spacing) * 12)",
+            "--sidebar-width": "16rem",
           } as React.CSSProperties
         }
       >
         <AppSidebar />
-        <SidebarInset className="bg-dark-grey m-0 shadow-none rounded-none border-none">
+        <SidebarInset>
           <SiteHeader />
           <Separator className="w-full border-border" />
           <div className="flex flex-1 flex-col bg-dark-grey">

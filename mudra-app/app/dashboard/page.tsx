@@ -166,16 +166,15 @@ function DashboardPageInner() {
 
   return (
     <SidebarProvider
-      className="bg-dark-grey text-foreground"
+      className="bg-dark-grey"
       style={
         {
           "--sidebar-width": "16rem",
-          "--header-height": "3rem",
         } as React.CSSProperties
       }
     >
       <AppSidebar />
-      <SidebarInset className="bg-dark-grey text-foreground m-0 shadow-none rounded-none border-none overflow-x-hidden max-w-full">
+      <SidebarInset>
         <SiteHeader />
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col pb-8 md:pb-10 overflow-x-hidden max-w-full">
@@ -201,7 +200,7 @@ function DashboardPageInner() {
                       placeholder="Enter website URL (e.g., paradigmai.com)"
                       value={websiteUrl}
                       onChange={(e) => setWebsiteUrl(e.target.value)}
-                      className="w-full sm:w-64 h-9 bg-white text-white placeholder:text-gray-500 min-w-0"
+                      className="w-full sm:w-64 h-9 bg-background text-white placeholder:text-gray-500 min-w-0"
                       disabled={isAnalyzing}
                     />
                     <Button

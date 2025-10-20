@@ -196,7 +196,7 @@ export default function CampaignsPage() {
                           New Campaign
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-3xl p-0 overflow-hidden rounded-lg sm:max-w-3xl md:max-w-4xl">
+                      <DialogContent className="max-w-3xl p-0 overflow-hidden rounded-lg sm:max-w-3xl md:max-w-4xl border-white/[0.06] shadow-[0_10px_30px_rgba(0,0,0,0.45)]">
                         <div className="p-5 md:p-6 lg:p-7">
                           <DialogHeader className="pb-2">
                             <DialogTitle className="text-lg md:text-xl font-semibold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">Create a Campaign</DialogTitle>
@@ -289,10 +289,10 @@ export default function CampaignsPage() {
                                       </Tooltip>
                                     </div>
                                     <Select value={selectedPrompt ?? undefined} onValueChange={(v) => setSelectedPrompt(v)}>
-                                      <SelectTrigger className="h-9 rounded-lg bg-transparent border-white/10 text-white/90 w-full">
+                                      <SelectTrigger className="h-9 rounded-lg bg-transparent border-white/[0.06] text-white/90 w-full">
                                         <SelectValue placeholder="Select a prompt" />
                                       </SelectTrigger>
-                                      <SelectContent>
+                                      <SelectContent className="border-white/[0.06]">
                                         {promptSuggestions.map((p) => (
                                           <SelectItem key={p} value={p}>{p}</SelectItem>
                                         ))}
@@ -310,10 +310,10 @@ export default function CampaignsPage() {
                                       </Tooltip>
                                     </div>
                                     <Select value={selectedIcp ?? undefined} onValueChange={(v) => setSelectedIcp(v)}>
-                                      <SelectTrigger className="h-9 rounded-lg bg-transparent border-white/10 text-white/90 w-full">
+                                      <SelectTrigger className="h-9 rounded-lg bg-transparent border-white/[0.06] text-white/90 w-full">
                                         <SelectValue placeholder="Select an ICP" />
                                       </SelectTrigger>
-                                      <SelectContent>
+                                      <SelectContent className="border-white/[0.06]">
                                         {icpSuggestions.map((i) => (
                                           <SelectItem key={i} value={i}>{i}</SelectItem>
                                         ))}
@@ -554,7 +554,7 @@ export default function CampaignsPage() {
             
             {/* Content */}
             <div className="flex flex-col flex-1">
-              <div className="px-4 lg:px-6 mt-4 md:mt-6 pb-6 md:pb-8">
+              <div className="px-4 lg:px-6 mt-2 md:mt-4 pb-6 md:pb-8">
                 <Card className="pt-2 bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.06]">
                   <div className="flex items-center justify-between px-4 lg:px-6 pt-2 pb-3 border-b border-white/[0.06]">
                     <div ref={filterContainerRef} className="relative inline-flex items-center gap-1 p-1.5 bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08]">

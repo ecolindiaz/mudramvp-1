@@ -144,7 +144,7 @@ function TasksPageInner() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-5 md:gap-6 pb-6 md:pb-8">
+            <div className="flex flex-col gap-5 md:gap-6 -mt-1 md:-mt-1 pb-6 md:pb-8">
               {/* AI Visibility Analysis Results - Recommendations and Prompts */}
               {isLoadingGeo ? (
                 <div className="px-4 lg:px-6">

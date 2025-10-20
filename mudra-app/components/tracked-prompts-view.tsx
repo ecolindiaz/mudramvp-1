@@ -621,9 +621,9 @@ export function TrackedPromptsView({ prompts = [], analysis }: TrackedPromptsVie
   return (
     <div className="flex flex-col gap-4 w-full px-4 lg:px-6 pt-4 md:pt-6">
               {/* Header Cards */}
-        <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Card 
-            className="@container/card bg-card border-0 shadow-none"
+            className="bg-card border-0 shadow-none"
             data-slot="card"
           >
             <CardHeader>
@@ -661,14 +661,14 @@ export function TrackedPromptsView({ prompts = [], analysis }: TrackedPromptsVie
                   </Badge>
                 </div>
               </div>
-              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              <CardTitle className="text-2xl font-semibold tabular-nums md:text-3xl">
                 {displayPrompts.length}
               </CardTitle>
             </CardHeader>
           </Card>
           
           <Card 
-            className="@container/card bg-card border-0 shadow-none"
+            className="bg-card border-0 shadow-none"
             data-slot="card"
           >
             <CardHeader>
@@ -706,7 +706,7 @@ export function TrackedPromptsView({ prompts = [], analysis }: TrackedPromptsVie
                   </Badge>
                 </div>
               </div>
-              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              <CardTitle className="text-2xl font-semibold tabular-nums md:text-3xl">
                 {highPriorityPrompts.length}
               </CardTitle>
             </CardHeader>
@@ -715,7 +715,7 @@ export function TrackedPromptsView({ prompts = [], analysis }: TrackedPromptsVie
 
       {/* Main Table */}
       <div>
-        <Card className="border-0 shadow-none bg-card">
+        <Card className="border border-white/10 shadow-none bg-card">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -731,7 +731,7 @@ export function TrackedPromptsView({ prompts = [], analysis }: TrackedPromptsVie
           </CardHeader>
           <div className="overflow-hidden">
             <Table>
-                                <TableHeader>
+                                <TableHeader className="bg-white/[0.03]">
                     <TableRow>
                       <TableHead className="w-12"></TableHead>
                       <TableHead className="w-12"></TableHead>

@@ -68,14 +68,14 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
     <CommandDialog 
       open={open} 
       onOpenChange={onOpenChange}
-      className="bg-black/95 border-white/10 backdrop-blur-xl"
+      className="bg-dark-grey border-white/[0.06]"
       showCloseButton={false}
     >
       <CommandInput 
         placeholder="Search Mudra..." 
         className="h-12 border-0 border-b border-white/10 bg-transparent text-white placeholder:text-white/30 focus:ring-0"
       />
-      <CommandList className="max-h-[400px] overflow-y-auto overflow-x-hidden bg-black/95">
+      <CommandList className="max-h-[400px] overflow-y-auto overflow-x-hidden bg-dark-grey">
         <CommandEmpty className="py-6 text-center text-sm text-white/50">
           No results found.
         </CommandEmpty>
@@ -119,7 +119,7 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
           </CommandItem>
         </CommandGroup>
         
-        <CommandSeparator className="bg-white/10" />
+        <CommandSeparator className="bg-white/[0.06]" />
         
         <CommandGroup heading="AI Analysis" className="text-white/70">
           <CommandItem
@@ -153,7 +153,7 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
           </CommandItem>
         </CommandGroup>
         
-        <CommandSeparator className="bg-white/10" />
+        <CommandSeparator className="bg-white/[0.06]" />
         
         <CommandGroup heading="Actions" className="text-white/70">
           <CommandItem
@@ -183,7 +183,7 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
         </CommandGroup>
       </CommandList>
       
-      <div className="flex items-center justify-between border-t border-white/10 px-4 py-2 bg-black/95">
+      <div className="flex items-center justify-between border-t border-white/[0.06] px-4 py-2 bg-dark-grey">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1">
             <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border border-white/10 bg-white/5 px-1.5 font-mono text-[10px] font-medium text-white/50">

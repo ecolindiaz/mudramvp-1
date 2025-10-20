@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -309,11 +310,13 @@ function TrackedPromptsPageInner() {
   const [showAll, setShowAll] = useState(false)
   type IntentFilter = TrackedPrompt["intent"] | "All"
   const [intentFilter, setIntentFilter] = useState<IntentFilter>("All")
+  const [searchQuery, setSearchQuery] = useState("")
 
-  const tableData = useMemo(
-    () => (intentFilter === "All" ? data : data.filter((p) => p.intent === intentFilter)),
-    [data, intentFilter]
-  )
+  const tableData = useMemo(() => {
+    const byIntent = intentFilter === "All" ? data : data.filter((p) => p.intent === intentFilter)
+    const q = searchQuery.trim().toLowerCase()
+    return q ? byIntent.filter((p) => p.prompt.toLowerCase().includes(q)) : byIntent
+  }, [data, intentFilter, searchQuery])
 
   const table = useReactTable({
     data: tableData,
@@ -387,6 +390,12 @@ function TrackedPromptsPageInner() {
                   >
                     {showAll ? "Collapse" : "All Prompts"}
                   </Button>
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search prompts..."
+                    className="h-9 w-56 md:w-64 rounded-lg bg-transparent border-white/[0.06] text-white/80 placeholder:text-white/40 focus:ring-0"
+                  />
                   <Select value={intentFilter} onValueChange={(v) => setIntentFilter(v as IntentFilter)}>
                     <SelectTrigger className="h-9 w-44 rounded-lg bg-transparent border-white/[0.06] text-white/80">
                       <SelectValue placeholder="Intent: All" />

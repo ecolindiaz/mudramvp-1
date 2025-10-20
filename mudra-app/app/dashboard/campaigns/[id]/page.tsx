@@ -13,7 +13,7 @@ import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Maximize2, Minimize2, Users, MessageSquareText, Link as LinkIcon, Search } from "lucide-react"
+import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Maximize2, Minimize2, Users, MessageSquareText, Link as LinkIcon, Search, Loader2 } from "lucide-react"
 
 export default function CampaignCanvasPage({
   params,
@@ -34,17 +34,10 @@ export default function CampaignCanvasPage({
   const [keyword, setKeyword] = React.useState("")
   const [editorExpanded, setEditorExpanded] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
+  const [isLoading, setIsLoading] = React.useState(true)
 
-  const initialTitle = React.useMemo(() => {
-    return "Product Launch Blog"
-  }, [])
-
-  const initialBody = React.useMemo(() => (
-    `## Introduction\n\nWrite a friendly, confident introduction that sets context for the reader and clarifies the value of this post.\n\n## Key Benefits\n\n- Clear value proposition\n- Actionable steps for visibility\n- Real examples and citations\n\n## Steps\n\n1. Identify the right prompts and ICP\n2. Generate content aligned to search intent\n3. Add citations and publish\n\n## Conclusion\n\nWrap up with a concise CTA and links to resources.`
-  ), [])
-
-  const [title, setTitle] = React.useState(initialTitle)
-  const [body, setBody] = React.useState(initialBody)
+  const [title, setTitle] = React.useState("")
+  const [body, setBody] = React.useState("")
 
   const wordCount = React.useMemo(() => body.trim().split(/\s+/).filter(Boolean).length, [body])
   const readMinutes = Math.max(1, Math.round(wordCount / 200))
@@ -62,23 +55,63 @@ export default function CampaignCanvasPage({
     }, 700)
   }
 
-  // Initialize from URL params (mock data passed from create flow)
+  // Initialize from URL params and load generated content
   React.useEffect(() => {
     if (prompt) setCampaignPrompt(prompt)
     if (icp) setTargetIcp(icp)
     if (kwParam) setKeyword(kwParam)
-  }, [prompt, icp, kwParam])
+    
+    // Load generated content from localStorage with retry logic
+    const storageKey = `mudra_campaign_${id}`
+    let attempts = 0
+    const maxAttempts = 30 // 30 seconds max wait
+    
+    const checkForContent = () => {
+      const stored = localStorage.getItem(storageKey)
+      
+      if (stored) {
+        try {
+          const data = JSON.parse(stored)
+          if (data.generated && data.title && data.body) {
+            setTitle(data.title)
+            setBody(data.body)
+            setIsLoading(false)
+            console.log('✅ Loaded generated content from storage')
+            return
+          }
+        } catch (e) {
+          console.error('Failed to parse stored content:', e)
+        }
+      }
+      
+      attempts++
+      if (attempts < maxAttempts) {
+        // Check more frequently initially (every 200ms for first 5 seconds, then every second)
+        const delay = attempts < 25 ? 200 : 1000
+        setTimeout(checkForContent, delay)
+      } else {
+        // Timeout - show placeholder
+        setTitle("Content Generation Timed Out")
+        setBody("The content generation is taking longer than expected. Please try again or contact support.")
+        setIsLoading(false)
+      }
+    }
+    
+    checkForContent()
+  }, [id, prompt, icp, kwParam])
 
   return (
     <SidebarProvider
       className="bg-dark-grey"
       style={{
-        "--sidebar-width": "calc(var(--spacing) * 52)",
+        "--sidebar-width": "0rem",
         "--header-height": "calc(var(--spacing) * 12)",
       } as React.CSSProperties}
     >
-      <AppSidebar />
-      <SidebarInset className="bg-dark-grey m-0 shadow-none rounded-none border-none">
+      <div style={{ display: 'none' }}>
+        <AppSidebar />
+      </div>
+      <SidebarInset className="bg-dark-grey m-0 shadow-none rounded-none border-none !ml-0">
         <SiteHeader />
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-dark-grey">
@@ -102,6 +135,33 @@ export default function CampaignCanvasPage({
             </div>
 
             <div className="px-4 lg:px-6 pb-6 md:pb-8">
+              {isLoading ? (
+                /* Loading State */
+                <div className="flex flex-col items-center justify-center min-h-[60vh]">
+                  <Card className="w-full max-w-md bg-transparent backdrop-blur-sm border-white/10">
+                    <CardContent className="pt-6 pb-6">
+                      <div className="flex flex-col items-center gap-4 text-center">
+                        <div className="relative">
+                          <Loader2 className="size-16 text-primary animate-spin" />
+                          <div className="absolute inset-0 blur-xl bg-primary/20 animate-pulse" />
+                        </div>
+                        <div className="space-y-2">
+                          <h3 className="text-xl font-semibold text-white">Loading Campaign Canvas</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Preparing your AI-generated content...
+                          </p>
+                        </div>
+                        <div className="w-full max-w-xs">
+                          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-primary to-white/90 rounded-full animate-[shimmer_2s_ease-in-out_infinite]" 
+                                 style={{ width: '70%' }} />
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
                 <div className="grid grid-cols-1 gap-4 md:gap-6">
                 {/* Top Row: three cards like Tasks header */}
                 <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
@@ -191,7 +251,9 @@ export default function CampaignCanvasPage({
                       <div className="flex items-center justify-between">
                         <div>
                             <CardTitle className="text-lg text-white">Editor</CardTitle>
-                            <CardDescription className="text-white/70">Edit the generated content</CardDescription>
+                            <CardDescription className="text-white/70">
+                              {isLoading ? "Loading..." : "Edit your campaign content"}
+                            </CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
                           <Button
@@ -230,14 +292,25 @@ export default function CampaignCanvasPage({
                       </div>
                     </CardHeader>
                     <CardContent className={`space-y-3 ${editorExpanded ? "pb-28" : ""}`}>
-                        <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-11 rounded-lg bg-transparent border-white/10 focus-visible:border-white/20 placeholder:text-white/50" placeholder="Post title" />
+                        <Input 
+                          value={title} 
+                          onChange={(e) => setTitle(e.target.value)} 
+                          disabled={isLoading}
+                          className="h-11 rounded-lg bg-transparent border-white/10 focus-visible:border-white/20 placeholder:text-white/50 disabled:opacity-50" 
+                          placeholder="Post title" 
+                        />
                       {preview ? (
                           <div className={`rounded-lg border border-white/10 bg-transparent p-4 prose prose-invert max-w-none ${editorExpanded ? "min-h-[80vh]" : ""}`}>
                           <h1 className="mb-2 text-xl font-bold">{title}</h1>
                           <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/80">{body}</div>
                         </div>
                       ) : (
-                          <Textarea value={body} onChange={(e) => setBody(e.target.value)} className={`${editorExpanded ? "min-h-[80vh]" : "min-h-[420px]"} rounded-lg bg-transparent border border-white/10 focus-visible:border-white/20`} />
+                          <Textarea 
+                            value={body} 
+                            onChange={(e) => setBody(e.target.value)} 
+                            disabled={isLoading}
+                            className={`${editorExpanded ? "min-h-[80vh]" : "min-h-[420px]"} rounded-lg bg-transparent border border-white/10 focus-visible:border-white/20 disabled:opacity-50`} 
+                          />
                       )}
                     </CardContent>
                   </Card>
@@ -248,8 +321,8 @@ export default function CampaignCanvasPage({
                     </div>
                   </div>
                 </div>
-
               </div>
+              )}
             </div>
           </div>
         </div>

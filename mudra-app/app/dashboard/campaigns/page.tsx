@@ -29,6 +29,7 @@ export default function CampaignsPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [progressIndex, setProgressIndex] = useState(0)
   const [generationComplete, setGenerationComplete] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
   // Configuration state (mock values for now)
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null)
   const [selectedIcp, setSelectedIcp] = useState<string | null>(null)
@@ -124,42 +125,85 @@ export default function CampaignsPage() {
     "Final review",
   ]
 
-  const startGeneration = () => {
+  const startGeneration = async () => {
     if (improvement !== "geo" && improvement !== "seo") return
+    
+    // Close the dialog immediately
+    setDialogOpen(false)
+    
     setIsGenerating(true)
     setGenerationComplete(false)
     setProgressIndex(0)
     const steps = improvement === "seo" ? seoSteps : geoSteps
     const total = steps.length
     let i = 0
-    const tick = () => {
+    
+    // Start generating content in parallel with the animation
+    const id = `cmp_${Date.now().toString(36)}`
+    const modeParam = improvement === "seo" ? "seo" : "geo"
+    
+    const contentPromise = fetch("/api/campaigns/generate-content", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: selectedType,
+        mode: modeParam,
+        prompt: selectedPrompt,
+        icp: selectedIcp,
+        keyword: keywords.join(", "),
+      }),
+    }).then(res => res.json()).catch(err => {
+      console.error("Generation failed:", err)
+      return null
+    })
+    
+    const tick = async () => {
       i += 1
       setProgressIndex(i)
-      if (i < total) {
-        setTimeout(tick, 1200)
-      } else {
-        // Brief success state before navigating
-        setGenerationComplete(true)
+      
+      // If we're at the second-to-last step (before "Final review"), wait for content generation
+      if (i === total - 1) {
+        // Wait for content generation to complete before moving to final step
+        const data = await contentPromise
+        
+        // Store generated content in localStorage
+        if (data && data.success) {
+          localStorage.setItem(`mudra_campaign_${id}`, JSON.stringify({
+            title: data.title,
+            body: data.body,
+            generated: true
+          }))
+        }
+        
+        // Now proceed to final step and navigate immediately
         setTimeout(() => {
-          const id = `cmp_${Date.now().toString(36)}`
-          const modeParam = improvement === "seo" ? "seo" : "geo"
-          // pass configured mock values via query params to prefill canvas chips
-          let extra = ""
-          if (modeParam === "geo") {
-            if (selectedPrompt) extra += `&prompt=${encodeURIComponent(selectedPrompt)}`
-            if (selectedIcp) extra += `&icp=${encodeURIComponent(selectedIcp)}`
-          } else if (modeParam === "seo") {
-            const keywordStr = keywords.join(", ")
-            if (keywordStr) extra += `&keyword=${encodeURIComponent(keywordStr)}`
-          }
-          router.push(`/dashboard/campaigns/${id}?type=blog&mode=${modeParam}${extra}`)
-          setIsGenerating(false)
-          setStep(1)
-          setGenerationComplete(false)
-        }, 1400)
+          i += 1
+          setProgressIndex(i)
+          
+          // Navigate immediately - keep animation visible during navigation
+          setTimeout(() => {
+            let extra = ""
+            if (modeParam === "geo") {
+              if (selectedPrompt) extra += `&prompt=${encodeURIComponent(selectedPrompt)}`
+              if (selectedIcp) extra += `&icp=${encodeURIComponent(selectedIcp)}`
+            } else if (modeParam === "seo") {
+              const keywordStr = keywords.join(", ")
+              if (keywordStr) extra += `&keyword=${encodeURIComponent(keywordStr)}`
+            }
+            // Don't set isGenerating to false - let it stay visible during navigation
+            router.push(`/dashboard/campaigns/${id}?type=${selectedType}&mode=${modeParam}${extra}`)
+            // Reset states will happen when component unmounts
+          }, 500)
+        }, 800)
+        
+      } else if (i < total - 1) {
+        // Regular steps - slower timing (1.8 seconds per step)
+        setTimeout(tick, 1800)
       }
     }
-    setTimeout(tick, 800)
+    
+    // Start with initial delay
+    setTimeout(tick, 1000)
   }
 
   return (
@@ -189,7 +233,7 @@ export default function CampaignsPage() {
                       </p>
                   </div>
                   <div className="flex items-center">
-                     <Dialog onOpenChange={(open) => { if (open) { setStep(1); setImprovement(null); setSelectedType("blog"); setSelectedPrompt(null); setSelectedIcp(null); setKeywords([]); setKeywordInput("") } }}>
+                     <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (open) { setStep(1); setImprovement(null); setSelectedType("blog"); setSelectedPrompt(null); setSelectedIcp(null); setKeywords([]); setKeywordInput("") } }}>
                       <DialogTrigger asChild>
                         <Button size="sm" className="h-9 rounded-lg">
                           <Plus className="size-4 mr-2" />
@@ -548,11 +592,66 @@ export default function CampaignsPage() {
                 </div>
               </div>
             </div>
-            </div>
+
+            {/* Progress Animation - Shown on main page when generating */}
+            {isGenerating && (
+              <div className="px-4 lg:px-6 pt-6">
+                <Card className="max-w-2xl mx-auto bg-transparent backdrop-blur-sm border-white/10">
+                  <CardHeader>
+                    <CardTitle className="text-lg text-white flex items-center gap-2">
+                      <Loader2 className="size-5 animate-spin text-primary" />
+                      Generating {selectedType === "blog" ? "Blog Post" : selectedType === "newsletter" ? "Newsletter" : "Case Study"}
+                    </CardTitle>
+                    <CardDescription className="text-white/70">
+                      {improvement === "geo" ? "Optimizing for Generative Engine" : "Optimizing for Search Engines"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {(improvement === "seo" ? seoSteps : geoSteps).map((label, idx) => {
+                      const done = idx < progressIndex
+                      const active = idx === progressIndex
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex items-center gap-3 rounded-lg border px-4 py-3 shadow-sm bg-transparent transition-all ${
+                            done
+                              ? "border-emerald-500/30"
+                              : active
+                                ? "border-white/20 ring-1 ring-white/20"
+                                : "border-white/10"
+                          }`}
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center">
+                            {done ? (
+                              <CheckCircle2 className="size-5 text-emerald-400" />
+                            ) : active ? (
+                              <Loader2 className="size-4 text-white/70 animate-spin" />
+                            ) : (
+                              <div className="size-2 rounded bg-white/30" />
+                            )}
+                          </div>
+                          <div className={`text-sm ${done ? "text-white/80" : active ? "text-white" : "text-white/70"}`}>
+                            {idx + 1}. {label}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {generationComplete && (
+                      <div className="flex items-center gap-3 pt-1 text-[15px] text-white">
+                        <CheckCircle2 className="size-5 text-emerald-400" />
+                        <span className="text-white/90">Document is ready! Redirecting...</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
 
             
             
-            {/* Content */}
+            {/* Content - Hide when generating */}
+            {!isGenerating && (
             <div className="flex flex-col flex-1">
               <div className="px-4 lg:px-6 mt-4 md:mt-6 pb-6 md:pb-8">
                 <Card className="pt-2 bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.06]">
@@ -611,6 +710,7 @@ export default function CampaignsPage() {
                 </Card>
               </div>
             </div>
+            )}
           </div>
         </div>
       </SidebarInset>

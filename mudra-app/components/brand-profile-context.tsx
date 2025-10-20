@@ -55,7 +55,7 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
       console.log("🔄 [BrandProfileContext] Refreshing brand profile...")
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout (increased for slow DB queries)
       
       const response = await fetch("/api/brand-profile", {
         signal: controller.signal
@@ -75,18 +75,19 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.error("🔴 [BrandProfileContext] Request timed out after 5s");
+        console.error("🔴 [BrandProfileContext] Request timed out after 10s");
+        // Don't retry on timeout - the backend already has its own timeout handling
       } else {
         console.error("🔴 [BrandProfileContext] Error refreshing profile:", error);
-      }
-      
-      // Retry logic - max 3 attempts with exponential backoff
-      if (retryCount < 3) {
-        const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-        console.log(`🔄 [BrandProfileContext] Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
-        setTimeout(() => {
-          setRetryCount((prev: number) => prev + 1);
-        }, delay);
+        
+        // Retry logic - max 3 attempts with exponential backoff
+        if (retryCount < 3) {
+          const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+          console.log(`🔄 [BrandProfileContext] Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
+          setTimeout(() => {
+            setRetryCount((prev: number) => prev + 1);
+          }, delay);
+        }
       }
     }
   };

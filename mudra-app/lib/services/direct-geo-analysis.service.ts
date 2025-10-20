@@ -393,43 +393,51 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
   const promptsPerProvider = Math.ceil(prompts.length / availableProviders.length);
   console.log(`Each provider will test ~${promptsPerProvider} prompts`);
   
-  // Run analysis for each provider with its assigned prompts
-  for (let i = 0; i < availableProviders.length; i++) {
-    const provider = availableProviders[i];
-    
+  // Run analysis for each provider with its assigned prompts IN PARALLEL
+  const providerAnalysisPromises = availableProviders.map(async (provider, i) => {
     // Get this provider's subset of prompts
     const startIdx = i * promptsPerProvider;
     const endIdx = Math.min(startIdx + promptsPerProvider, prompts.length);
     const providerPrompts = prompts.slice(startIdx, endIdx);
     
     console.log(`\n🔍 Analyzing with ${provider}: testing ${providerPrompts.length} prompts (${startIdx + 1}-${endIdx})...`);
-    const promptTests: PromptTest[] = [];
     
-    // Test each assigned prompt with this provider
-    for (const prompt of providerPrompts) {
+    // Test ALL prompts for this provider IN PARALLEL using Promise.all
+    const promptTestPromises = providerPrompts.map(async (prompt) => {
       try {
         const test = await analyzePromptWithProvider(prompt, provider, config);
-        promptTests.push(test);
-        console.log(`  ✓ "${prompt.substring(0, 50)}..." - Brand mentioned: ${test.brandMentioned}`);
+        console.log(`  ✓ [${provider}] "${prompt.substring(0, 50)}..." - Brand mentioned: ${test.brandMentioned}`);
+        return test;
       } catch (error) {
-        console.error(`  ✗ Failed prompt: ${prompt.substring(0, 50)}...`, error);
+        console.error(`  ✗ [${provider}] Failed prompt: ${prompt.substring(0, 50)}...`, error);
+        return null;
       }
-    }
+    });
+    
+    // Wait for all prompts for this provider to complete
+    const promptTestResults = await Promise.all(promptTestPromises);
+    
+    // Filter out failed tests (null values)
+    const promptTests = promptTestResults.filter((test): test is PromptTest => test !== null);
     
     // Calculate metrics for this provider
     const metrics = calculateBrandMetrics(promptTests);
     
-    analyses.push({
+    console.log(`  ✅ ${provider} results: ${metrics.visibilityScore.toFixed(1)}/100 score, ${Math.round(metrics.mentionRate * 100)}% mention rate`);
+    
+    return {
       provider: provider.charAt(0).toUpperCase() + provider.slice(1),
       promptTests,
       brandVisibilityScore: metrics.visibilityScore,
       averagePosition: metrics.averagePosition,
       mentionRate: metrics.mentionRate,
       sentiment: metrics.sentiment,
-    });
-    
-    console.log(`  ✅ ${provider} results: ${metrics.visibilityScore.toFixed(1)}/100 score, ${Math.round(metrics.mentionRate * 100)}% mention rate`);
-  }
+    };
+  });
+  
+  // Wait for all providers to complete (providers also run in parallel!)
+  const analysesResults = await Promise.all(providerAnalysisPromises);
+  analyses.push(...analysesResults);
   
   // Calculate competitor comparison
   const allCompetitorMentions = analyses.flatMap(a => 

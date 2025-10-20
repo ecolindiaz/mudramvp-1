@@ -196,7 +196,7 @@ export default function CampaignsPage() {
                           New Campaign
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-3xl p-0 overflow-hidden rounded-lg sm:max-w-3xl md:max-w-4xl border-white/[0.06] shadow-[0_10px_30px_rgba(0,0,0,0.45)]">
+                      <DialogContent className="max-w-3xl p-0 overflow-hidden rounded-lg sm:max-w-3xl md:max-w-4xl bg-dark-grey border-0">
                         <div className="p-5 md:p-6 lg:p-7">
                           <DialogHeader className="pb-2">
                             <DialogTitle className="text-lg md:text-xl font-semibold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">Create a Campaign</DialogTitle>
@@ -292,7 +292,7 @@ export default function CampaignsPage() {
                                       <SelectTrigger className="h-9 rounded-lg bg-transparent border-white/[0.06] text-white/90 w-full">
                                         <SelectValue placeholder="Select a prompt" />
                                       </SelectTrigger>
-                                      <SelectContent className="border-white/[0.06]">
+                                      <SelectContent className="border-0 bg-dark-grey">
                                         {promptSuggestions.map((p) => (
                                           <SelectItem key={p} value={p}>{p}</SelectItem>
                                         ))}
@@ -313,7 +313,7 @@ export default function CampaignsPage() {
                                       <SelectTrigger className="h-9 rounded-lg bg-transparent border-white/[0.06] text-white/90 w-full">
                                         <SelectValue placeholder="Select an ICP" />
                                       </SelectTrigger>
-                                      <SelectContent className="border-white/[0.06]">
+                                      <SelectContent className="border-0 bg-dark-grey">
                                         {icpSuggestions.map((i) => (
                                           <SelectItem key={i} value={i}>{i}</SelectItem>
                                         ))}
@@ -358,7 +358,7 @@ export default function CampaignsPage() {
                                         }
                                       }}
                                       placeholder="Type a keyword and press Enter"
-                                      className="h-9 rounded-lg bg-transparent border-white/10 flex-1"
+                                      className="h-9 rounded-lg bg-transparent border-white/[0.06] flex-1"
                                     />
                                     {keywords.length > 0 && (
                                       <Button variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => setKeywords([])}>Clear</Button>
@@ -409,7 +409,7 @@ export default function CampaignsPage() {
                             {/* Review summary */}
                             {isGenerating && improvement === "geo" ? (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div className="rounded-lg border border-white/10 bg-transparent p-3">
+                                <div className="rounded-lg border border-white/[0.06] bg-transparent p-3">
                                   <div className="flex items-center gap-2">
                                     <span className="inline-flex items-center justify-center size-7 rounded-lg bg-transparent border border-white/10">
                                       <Lightbulb className="size-4 text-white/80" />
@@ -420,7 +420,7 @@ export default function CampaignsPage() {
                                     {selectedPrompt || "—"}
                                   </div>
                                 </div>
-                                <div className="rounded-lg border border-white/10 bg-transparent p-3">
+                                <div className="rounded-lg border border-white/[0.06] bg-transparent p-3">
                                   <div className="flex items-center gap-2">
                                     <span className="inline-flex items-center justify-center size-7 rounded-lg bg-transparent border border-white/10">
                                       <Tag className="size-4 text-white/80" />
@@ -433,7 +433,7 @@ export default function CampaignsPage() {
                                 </div>
                               </div>
                             ) : (
-                              <Card className="border-white/10 bg-transparent">
+                              <Card className="border-white/[0.06] bg-transparent">
                                 <CardHeader className="pb-2">
                                   <CardTitle className="text-base">Review</CardTitle>
                                   <CardDescription className="text-xs">Confirm your selections before generating</CardDescription>
@@ -441,7 +441,7 @@ export default function CampaignsPage() {
                                 <CardContent className="pt-0">
                                   {improvement === "geo" ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                      <div className="rounded-lg border border-white/10 bg-transparent p-3">
+                                      <div className="rounded-lg border border-white/[0.06] bg-transparent p-3">
                                         <div className="flex items-center gap-2">
                                           <span className="inline-flex items-center justify-center size-7 rounded-lg bg-transparent border border-white/10">
                                             <Lightbulb className="size-4 text-white/80" />
@@ -452,7 +452,7 @@ export default function CampaignsPage() {
                                           {selectedPrompt || "—"}
                                         </div>
                                       </div>
-                                      <div className="rounded-lg border border-white/10 bg-transparent p-3">
+                                      <div className="rounded-lg border border-white/[0.06] bg-transparent p-3">
                                         <div className="flex items-center gap-2">
                                           <span className="inline-flex items-center justify-center size-7 rounded-lg bg-transparent border border-white/10">
                                             <Tag className="size-4 text-white/80" />

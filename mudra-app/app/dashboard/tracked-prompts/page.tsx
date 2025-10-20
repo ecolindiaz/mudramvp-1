@@ -307,9 +307,16 @@ function TrackedPromptsPageInner() {
   const [newPromptText, setNewPromptText] = useState("")
   const [newIntent, setNewIntent] = useState<TrackedPrompt["intent"]>("Organic")
   const [showAll, setShowAll] = useState(false)
+  type IntentFilter = TrackedPrompt["intent"] | "All"
+  const [intentFilter, setIntentFilter] = useState<IntentFilter>("All")
+
+  const tableData = useMemo(
+    () => (intentFilter === "All" ? data : data.filter((p) => p.intent === intentFilter)),
+    [data, intentFilter]
+  )
 
   const table = useReactTable({
-    data,
+    data: tableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -380,6 +387,18 @@ function TrackedPromptsPageInner() {
                   >
                     {showAll ? "Collapse" : "All Prompts"}
                   </Button>
+                  <Select value={intentFilter} onValueChange={(v) => setIntentFilter(v as IntentFilter)}>
+                    <SelectTrigger className="h-9 w-44 rounded-lg bg-transparent border-white/[0.06] text-white/80">
+                      <SelectValue placeholder="Intent: All" />
+                    </SelectTrigger>
+                    <SelectContent className="border-0 bg-dark-grey">
+                      <SelectItem value="All">Intent: All</SelectItem>
+                      <SelectItem value="Organic">Organic</SelectItem>
+                      <SelectItem value="Competitor">Competitor</SelectItem>
+                      <SelectItem value="How-to Guides">How-to Guides</SelectItem>
+                      <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button size="sm" className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5" onClick={() => setAddOpen(true)}>
                     <Plus className="h-4 w-4" />
                     Add Prompt
@@ -399,7 +418,7 @@ function TrackedPromptsPageInner() {
             {/* Content Area */}
             <div className="flex flex-col flex-1">
               <div className="px-4 lg:px-6 -mt-1 md:-mt-1 pb-6 md:pb-8 space-y-4">
-                <div className="overflow-hidden rounded-md border border-white/10 bg-transparent">
+                <div className="overflow-hidden rounded-md border border-white/[0.06] bg-transparent">
                   <Table className="table-fixed text-[14px] md:text-[15px]">
                     <TableHeader className="bg-white/[0.03]">
                       {table.getHeaderGroups().map((headerGroup) => (
@@ -501,12 +520,12 @@ function TrackedPromptsPageInner() {
                     <div className="space-y-4 pt-2">
                       <div className="space-y-2">
                         <Label htmlFor="prompt-text">Prompt</Label>
-                        <Textarea id="prompt-text" value={newPromptText} onChange={(e) => setNewPromptText(e.target.value)} placeholder="Type your prompt..." className="min-h-[90px] rounded-lg border-white/10" />
+                        <Textarea id="prompt-text" value={newPromptText} onChange={(e) => setNewPromptText(e.target.value)} placeholder="Type your prompt..." className="min-h-[90px] rounded-lg bg-transparent border-white/[0.06] focus:ring-0 focus:outline-none" />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="intent">Intent</Label>
                         <Select value={newIntent} onValueChange={(v) => setNewIntent(v as TrackedPrompt["intent"]) }>
-                          <SelectTrigger id="intent" className="w-full rounded-lg">
+                          <SelectTrigger id="intent" className="w-full rounded-lg bg-transparent border-white/[0.06] focus:ring-0">
                             <SelectValue placeholder="Select intent" />
                           </SelectTrigger>
                           <SelectContent className="border-0 bg-dark-grey">

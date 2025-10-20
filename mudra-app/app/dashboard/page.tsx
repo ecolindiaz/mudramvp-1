@@ -206,7 +206,7 @@ function DashboardPageInner() {
                     />
                     <Button
                       variant="dashed"
-                      className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent whitespace-nowrap flex-shrink-0"
+                      className="h-9 rounded-lg bg-black text-white hover:bg-black/90 border-transparent whitespace-nowrap flex-shrink-0"
                       onClick={handleAnalyzeWebsite}
                       disabled={profileLoading || isAnalyzing || geoState.isRunning || !hasWebsiteSource || !profile.id || profile.id === 0}
                     >

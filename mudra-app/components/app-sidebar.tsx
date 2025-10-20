@@ -59,6 +59,11 @@ const data = {
           icon: (props: any) => <SidebarOverviewIcon className="w-4 h-4 mr-2.5" {...props} />,
         },
         {
+          title: "Tracked Prompts",
+          url: "/dashboard/tracked-prompts",
+          icon: IconFileAi,
+        },
+        {
           title: "Tasks",
           url: "/dashboard/tasks",
           icon: (props: any) => <SidebarTasksIcon className="w-4 h-4 mr-2.5" {...props} />,
@@ -101,21 +106,6 @@ const data = {
     {
       title: "Proposal",
       icon: IconFileDescription,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Prompts",
-      icon: IconFileAi,
       url: "#",
       items: [
         {

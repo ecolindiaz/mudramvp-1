@@ -10,6 +10,7 @@ const getPageTitle = (pathname: string) => {
   if (pathname === "/dashboard") return "Overview"
   if (pathname === "/dashboard/campaigns") return "Campaigns"
   if (pathname === "/dashboard/tasks") return "Tasks"
+  if (pathname === "/dashboard/tracked-prompts") return "Tracked Prompts"
   // Chat page removed; popup only
   if (pathname === "/dashboard/brand-profile") return "Brand Profile"
   return "Overview" // fallback

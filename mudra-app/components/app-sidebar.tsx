@@ -59,6 +59,11 @@ const data = {
           icon: (props: any) => <SidebarOverviewIcon className="w-4 h-4 mr-2.5" {...props} />,
         },
         {
+          title: "Tracked Prompts",
+          url: "/dashboard/tracked-prompts",
+          icon: (props: any) => <SidebarCampaignsIcon className="w-4 h-4 mr-2.5" {...props} />,
+        },
+        {
           title: "Tasks",
           url: "/dashboard/tasks",
           icon: (props: any) => <SidebarTasksIcon className="w-4 h-4 mr-2.5" {...props} />,

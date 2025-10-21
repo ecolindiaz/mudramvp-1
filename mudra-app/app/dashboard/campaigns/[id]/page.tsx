@@ -47,12 +47,31 @@ export default function CampaignCanvasPage({
   }, [body])
   const outlineItems = headings.length > 0 ? headings : []
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true)
-    setTimeout(() => {
+    try {
+      const response = await fetch("/api/campaigns/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          title,
+          body,
+          type,
+          mode,
+          status: published ? "published" : "draft"
+        })
+      })
+      
+      if (response.ok) {
+        setSavedAt(Date.now())
+        console.log("✅ Campaign saved successfully")
+      }
+    } catch (error) {
+      console.error("Failed to save campaign:", error)
+    } finally {
       setSaving(false)
-      setSavedAt(Date.now())
-    }, 700)
+    }
   }
 
   // Initialize from URL params and load generated content
@@ -61,43 +80,71 @@ export default function CampaignCanvasPage({
     if (icp) setTargetIcp(icp)
     if (kwParam) setKeyword(kwParam)
     
-    // Load generated content from localStorage with retry logic
+    // Check if this is a newly generated campaign or an existing one
     const storageKey = `mudra_campaign_${id}`
-    let attempts = 0
-    const maxAttempts = 30 // 30 seconds max wait
     
-    const checkForContent = () => {
-      const stored = localStorage.getItem(storageKey)
-      
-      if (stored) {
-        try {
-          const data = JSON.parse(stored)
-          if (data.generated && data.title && data.body) {
-            setTitle(data.title)
-            setBody(data.body)
-            setIsLoading(false)
-            console.log('✅ Loaded generated content from storage')
-            return
-          }
-        } catch (e) {
-          console.error('Failed to parse stored content:', e)
+    // First, try to load from localStorage immediately
+    const stored = localStorage.getItem(storageKey)
+    if (stored) {
+      try {
+        const data = JSON.parse(stored)
+        if (data.generated && data.title && data.body) {
+          setTitle(data.title)
+          setBody(data.body)
+          setIsLoading(false)
+          console.log('✅ Loaded generated content from storage')
+          return
         }
-      }
-      
-      attempts++
-      if (attempts < maxAttempts) {
-        // Check more frequently initially (every 200ms for first 5 seconds, then every second)
-        const delay = attempts < 25 ? 200 : 1000
-        setTimeout(checkForContent, delay)
-      } else {
-        // Timeout - show placeholder
-        setTitle("Content Generation Timed Out")
-        setBody("The content generation is taking longer than expected. Please try again or contact support.")
-        setIsLoading(false)
+      } catch (e) {
+        console.error('Failed to parse stored content:', e)
       }
     }
     
-    checkForContent()
+    // If we have prompt/icp/keyword params, it's a newly generated campaign - wait for content
+    if (prompt || icp || kwParam) {
+      let attempts = 0
+      const maxAttempts = 30 // 30 seconds max wait
+      
+      const checkForContent = () => {
+        const stored = localStorage.getItem(storageKey)
+        
+        if (stored) {
+          try {
+            const data = JSON.parse(stored)
+            if (data.generated && data.title && data.body) {
+              setTitle(data.title)
+              setBody(data.body)
+              setIsLoading(false)
+              console.log('✅ Loaded generated content from storage')
+              return
+            }
+          } catch (e) {
+            console.error('Failed to parse stored content:', e)
+          }
+        }
+        
+        attempts++
+        if (attempts < maxAttempts) {
+          // Check more frequently initially (every 200ms for first 5 seconds, then every second)
+          const delay = attempts < 25 ? 200 : 1000
+          setTimeout(checkForContent, delay)
+        } else {
+          // Timeout - show placeholder
+          setTitle("Content Generation Timed Out")
+          setBody("The content generation is taking longer than expected. Please try again or contact support.")
+          setIsLoading(false)
+        }
+      }
+      
+      checkForContent()
+    } else {
+      // No params means it's an existing campaign - load placeholder immediately
+      setTitle("Existing Campaign")
+      setBody("## Welcome to Campaign Canvas\n\nThis is an existing campaign. Start editing your content here.\n\n## Content Structure\n\nAdd your sections, headings, and content below.")
+      setIsLoading(false)
+      console.log('📝 Loaded existing campaign (placeholder content)')
+    }
+    
   }, [id, prompt, icp, kwParam])
 
   return (
@@ -122,7 +169,25 @@ export default function CampaignCanvasPage({
                   <h1 className="text-2xl font-bold tracking-tight text-white">Campaign Canvas</h1>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button onClick={() => setPublished(true)} variant="outline" size="sm" className={`h-9 rounded-lg gap-2 ${published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : ""}`}>
+                  <Button 
+                    onClick={async () => {
+                      setPublished(true)
+                      // Update campaign status to published
+                      try {
+                        await fetch(`/api/campaigns/${id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ status: "published" })
+                        })
+                        console.log("✅ Campaign published")
+                      } catch (error) {
+                        console.error("Failed to publish campaign:", error)
+                      }
+                    }} 
+                    variant="outline" 
+                    size="sm" 
+                    className={`h-9 rounded-lg gap-2 ${published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : ""}`}
+                  >
                     <CheckCircle2 className="size-4" />{published ? 'Published' : 'Mark as published'}
                   </Button>
                   

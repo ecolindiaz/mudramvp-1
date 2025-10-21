@@ -6,14 +6,26 @@ Integrated AI-powered campaign content generation system that generates blog pos
 ## Quick Start
 
 ### Prerequisites
-1. OpenAI API key in `.env.local`:
-```env
-OPENAI_API_KEY=sk-your-key-here
-```
 
-2. Start the dev server:
+1. **Database Setup** - Run the campaigns table migration:
 ```bash
 cd mudra-app
+node scripts/setup-campaigns-db.js
+```
+
+2. **Environment Variables** in `.env.local`:
+```env
+# Required
+OPENAI_API_KEY=sk-your-key-here
+DATABASE_URL="file:./prisma/dev.db"
+
+# Optional
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=any-random-string
+```
+
+3. **Start the dev server**:
+```bash
 npm run dev
 ```
 
@@ -25,8 +37,11 @@ npm run dev
 5. Configure parameters (prompts, ICP, or keywords)
 6. Click "Generate"
 7. Wait for progress animation (~10-25 seconds)
-8. Content loads automatically on canvas
-9. Edit, save, or publish
+8. **Campaign auto-saved to Drafts** ✨
+9. Content loads automatically on canvas
+10. Edit and click "Save" to save changes
+11. Click "Mark as published" to publish
+12. Published campaigns appear in Published tab
 
 ## How It Works
 
@@ -262,15 +277,63 @@ const delay = attempts < 25 ? 200 : 1000  // 200ms for first 5 seconds
 - ✅ Content appears instantly when ready
 - ✅ Fullscreen editing experience
 
+## Database Persistence
+
+### Tables
+- **campaigns**: Stores all campaigns with title, body, type, mode, status
+- Automatic timestamps (createdAt, updatedAt, publishedAt)
+- Status tracking (draft → published)
+
+### API Endpoints
+- `POST /api/campaigns/save` - Save/update campaign
+- `GET /api/campaigns/save?status=draft` - Get drafts
+- `GET /api/campaigns/save?status=published` - Get published
+- `GET /api/campaigns/[id]` - Get single campaign
+- `PATCH /api/campaigns/[id]` - Update campaign
+
+### Workflow
+```
+Generate Campaign
+    ↓
+Auto-save to database (status: draft)
+    ↓
+Appears in Drafts tab
+    ↓
+User edits + clicks Save
+    ↓
+Updated in database
+    ↓
+User clicks "Mark as published"
+    ↓
+Status → published
+    ↓
+Moves to Published tab
+```
+
 ## Related Files
 
-- `app/api/campaigns/generate-content/route.ts` - Generation API
+**API Layer:**
+- `app/api/campaigns/generate-content/route.ts` - Content generation
+- `app/api/campaigns/save/route.ts` - Save/list campaigns
+- `app/api/campaigns/[id]/route.ts` - Get/update single campaign
+
+**Frontend:**
 - `app/dashboard/campaigns/page.tsx` - Campaign list & progress
 - `app/dashboard/campaigns/[id]/page.tsx` - Canvas editor
+
+**Database:**
+- `prisma/migrations/add_campaigns.sql` - Campaign table schema
+- `scripts/setup-campaigns-db.js` - Migration setup script
+
+**Utilities:**
 - `app/globals.css` - Shimmer animation styles
 - `lib/llm/build-llm-prompt.ts` - Prompt construction helpers
 
+**Documentation:**
+- `docs/CAMPAIGNS_DATABASE_SETUP.md` - Database setup guide
+- `docs/CAMPAIGN_CONTENT_GENERATION.md` - This file
+
 ---
 
-**Result**: A polished, production-ready campaign content generation system with seamless UX! 🎉
+**Result**: A polished, production-ready campaign content generation system with database persistence, seamless UX, and full draft/publish workflow! 🎉
 

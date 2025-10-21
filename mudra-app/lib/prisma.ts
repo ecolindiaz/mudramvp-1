@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import path from 'path'
 
 // Prevent multiple instances of Prisma Client in development
 const globalForPrisma = globalThis as unknown as {
@@ -10,11 +11,30 @@ const env = (
     .process?.env ?? {}
 );
 
-// Create a single Prisma instance with optimized settings for pgBouncer
+// Convert relative SQLite paths to absolute paths for API routes
+const getDatabaseUrl = () => {
+  const envUrl = env.DATABASE_URL || '';
+  
+  // If it's a remote database or already absolute, use as-is
+  if (envUrl.startsWith('postgresql://') || envUrl.startsWith('postgres://') || path.isAbsolute(envUrl)) {
+    return envUrl;
+  }
+  
+  // For SQLite file:// URLs, convert to absolute path
+  if (envUrl.startsWith('file:')) {
+    const relativePath = envUrl.replace('file:', '');
+    const absolutePath = path.resolve(process.cwd(), relativePath);
+    return `file:${absolutePath}`;
+  }
+  
+  return envUrl;
+};
+
+// Create a single Prisma instance with absolute path support
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   datasources: {
     db: {
-      url: env.DATABASE_URL,
+      url: getDatabaseUrl(),
     },
   },
   log: env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],

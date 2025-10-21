@@ -56,16 +56,31 @@ export default function CampaignsPage() {
     "startup go-to-market",
     "ai citations",
   ]
-  const [campaigns] = useState<Array<{ id: string; title: string; type: string; mode: string; status: "Draft" | "Scheduled" | "Published"; updatedAt: number }>>([
-    { id: "cmp_1", title: "Product Launch Blog", type: "Blog Post", mode: "GEO", status: "Draft", updatedAt: Date.now() - 60 * 60 * 1000 },
-    { id: "cmp_2", title: "Weekly Update Newsletter", type: "Newsletter", mode: "SEO", status: "Scheduled", updatedAt: Date.now() - 24 * 60 * 60 * 1000 },
-    { id: "cmp_3", title: "Case Study: Customer X", type: "Case Study", mode: "GEO", status: "Published", updatedAt: Date.now() - 3 * 24 * 60 * 60 * 1000 },
-    { id: "cmp_4", title: "SEO Best Practices Update", type: "Blog Post", mode: "SEO", status: "Published", updatedAt: Date.now() - 5 * 24 * 60 * 60 * 1000 },
-    { id: "cmp_5", title: "Quarterly Product Recap", type: "Newsletter", mode: "GEO", status: "Draft", updatedAt: Date.now() - 2 * 60 * 60 * 1000 },
-    { id: "cmp_6", title: "Case Study: Partner Y", type: "Case Study", mode: "SEO", status: "Published", updatedAt: Date.now() - 7 * 24 * 60 * 60 * 1000 },
-    { id: "cmp_7", title: "Thought Leadership Article", type: "Blog Post", mode: "GEO", status: "Draft", updatedAt: Date.now() - 30 * 60 * 1000 },
-  ])
+  const [campaigns, setCampaigns] = useState<Array<{ id: string; title: string; type: string; mode: string; status: string; updatedAt: number }>>([])
   const [statusFilter, setStatusFilter] = useState<"draft" | "published">("draft")
+  
+  // Load campaigns from database
+  useEffect(() => {
+    const fetchCampaigns = async () => {
+      try {
+        const res = await fetch(`/api/campaigns/save?status=${statusFilter}`)
+        const data = await res.json()
+        if (data.success && data.campaigns) {
+          setCampaigns(data.campaigns.map((c: any) => ({
+            id: c.id,
+            title: c.title,
+            type: c.type,
+            mode: c.mode,
+            status: c.status === "draft" ? "Draft" : "Published",
+            updatedAt: new Date(c.updatedAt).getTime()
+          })))
+        }
+      } catch (error) {
+        console.error("Failed to load campaigns:", error)
+      }
+    }
+    fetchCampaigns()
+  }, [statusFilter, isGenerating]) // Reload when status filter changes or generation completes
   const filteredCampaigns = campaigns.filter(c => c.status.toLowerCase() === statusFilter)
 
   // Animated indicator for filter pills
@@ -166,13 +181,33 @@ export default function CampaignsPage() {
         // Wait for content generation to complete before moving to final step
         const data = await contentPromise
         
-        // Store generated content in localStorage
+        // Store generated content in localStorage and database
         if (data && data.success) {
-          localStorage.setItem(`mudra_campaign_${id}`, JSON.stringify({
+          const campaignData = {
             title: data.title,
             body: data.body,
             generated: true
-          }))
+          };
+          localStorage.setItem(`mudra_campaign_${id}`, JSON.stringify(campaignData));
+          
+          // Save to database
+          fetch("/api/campaigns/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id,
+              title: data.title,
+              body: data.body,
+              type: selectedType,
+              mode: modeParam,
+              status: "draft",
+              metadata: {
+                prompt: selectedPrompt,
+                icp: selectedIcp,
+                keywords: keywords
+              }
+            })
+          }).catch(err => console.error("Failed to save campaign to database:", err));
         }
         
         // Now proceed to final step and navigate immediately

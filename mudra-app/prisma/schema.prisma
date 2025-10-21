@@ -11,9 +11,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model BrandProfile {
@@ -34,7 +33,7 @@ model BrandProfile {
   monthlySearchVolume String?
   aiRecommendations String?  
   stage             String?  
-  resources         String?  // Store as JSON string if needed
+  resources         String?  // Store as String string if needed
   lastAnalysisRunAt DateTime?  // Track when analysis was last run
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -55,7 +54,7 @@ model BrandProfile {
 model Prompt {
   id              Int      @id @default(autoincrement())
   brandProfileId  Int
-  text            String   @db.Text
+  text            String
   category        String?  // e.g., "product", "service", "comparison"
   isCustom        Boolean  @default(false)
   isActive        Boolean  @default(true)
@@ -73,8 +72,8 @@ model Prompt {
 model AnalysisRun {
   id              Int      @id @default(autoincrement())
   brandProfileId  Int
-  promptsUsed     Json     // Array of prompt IDs used
-  results         Json     // Store the full analysis results
+  promptsUsed     String   // Array of prompt IDs used (JSON string for SQLite)
+  results         String   // Store the full analysis results (JSON string for SQLite)
   overallScore    Float    @default(0)
   status          String   @default("pending") // pending, running, completed, failed
   ranAt           DateTime @default(now())
@@ -176,16 +175,16 @@ model StructuredData {
   technicalAnalysis     TechnicalAnalysis @relation(fields: [technicalAnalysisId], references: [id], onDelete: Cascade)
   
   // Raw Structured Data (matching your algorithm exactly)
-  jsonLdData            Json              // Store the jsonLd array
-  microdataData         Json              // Store the microdata array  
-  rdfaData              Json              // Store the rdfa array
-  schemaTypes           Json              // Store the schemaTypes string array
-  faqSchemas            Json              // Store the faqSchemas array
+  jsonLdData String // Store the jsonLd array
+  microdataData String // Store the microdata array  
+  rdfaData String // Store the rdfa array
+  schemaTypes String // Store the schemaTypes string array
+  faqSchemas String // Store the faqSchemas array
   
   // Specific Schema Objects (optional, matching your algorithm)
-  organizationSchema    Json?             // Store the organizationSchema object
-  websiteSchema         Json?             // Store the websiteSchema object
-  breadcrumbSchema      Json?             // Store the breadcrumbSchema object
+  organizationSchema String? // Store the organizationSchema object
+  websiteSchema String? // Store the websiteSchema object
+  breadcrumbSchema String? // Store the breadcrumbSchema object
   
   // Derived Boolean Flags (for quick querying)
   hasOrganizationSchema Boolean           @default(false)
@@ -207,11 +206,11 @@ model EntityRecognition {
   technicalAnalysis    TechnicalAnalysis @relation(fields: [technicalAnalysisId], references: [id], onDelete: Cascade)
   
   // Entity Data (JSON Arrays - matching your algorithm exactly)
-  organizations        Json              // string[] - Organizations found
-  people              Json              // string[] - People found  
-  technologies        Json              // string[] - Technologies mentioned
-  products            Json              // string[] - Products/services
-  locations           Json              // string[] - Geographic locations
+  organizations String // string[] - Organizations found
+  people String // string[] - People found  
+  technologies String // string[] - Technologies mentioned
+  products String // string[] - Products/services
+  locations String // string[] - Geographic locations
   
   // Entity Counts (derived for quick querying)
   organizationsCount   Int               @default(0)
@@ -239,7 +238,7 @@ model FAQAnalysis {
   faqSchemaPresent      Boolean           @default(false) // Matches your algorithm exactly
   
   // FAQ content storage
-  faqSections           Json              // Store the faqSections array (removed ?)
+  faqSections String // Store the faqSections array (removed ?)
   
   // Derived count for quick querying
   faqSectionCount       Int               @default(0) // Derived from faqSections.length
@@ -261,7 +260,7 @@ model ContentFreshness {
   publishDate          String?           // Your algo uses string, not DateTime
   lastModified         String?           // Your algo uses string, not DateTime
   updateFrequency      String?
-  freshnessSignals     Json              // Store the freshnessSignals array
+  freshnessSignals String // Store the freshnessSignals array
   
   // Derived count for quick querying
   freshnessSignalsCount Int              @default(0)
@@ -278,7 +277,7 @@ model ContentStructure {
   technicalAnalysis    TechnicalAnalysis @relation(fields: [technicalAnalysisId], references: [id], onDelete: Cascade)
   
   // Headings Hierarchy (store actual content + counts)
-  headingsHierarchy    Json              // Store the complete hierarchy object
+  headingsHierarchy String // Store the complete hierarchy object
   h1Count              Int               @default(0)
   h2Count              Int               @default(0)
   h3Count              Int               @default(0)
@@ -287,7 +286,7 @@ model ContentStructure {
   h6Count              Int               @default(0)
   
   // Authority Signals (store actual content + counts)
-  authoritySignals     Json              // Store the complete authority signals object
+  authoritySignals String // Store the complete authority signals object
   statisticsCount      Int               @default(0)
   expertQuotesCount    Int               @default(0)
   citationsCount       Int               @default(0)
@@ -314,7 +313,7 @@ model TechnicalAccessibility {
   technicalAnalysis     TechnicalAnalysis @relation(fields: [technicalAnalysisId], references: [id], onDelete: Cascade)
   
   // Meta Tags (store actual data + presence flags)
-  metaTags              Json              // Store complete metaTags object
+  metaTags String // Store complete metaTags object
   hasTitle              Boolean           @default(false)
   hasDescription        Boolean           @default(false)
   hasCanonical          Boolean           @default(false)
@@ -322,15 +321,15 @@ model TechnicalAccessibility {
   hreflangCount         Int               @default(0)
   
   // Open Graph & Twitter Cards (store actual data)
-  openGraphData         Json              // Store openGraph Record<string, string>
-  twitterCardData       Json              // Store twitterCard Record<string, string> 
+  openGraphData String // Store openGraph Record<string, string>
+  twitterCardData String // Store twitterCard Record<string, string> 
   hasOgTitle            Boolean           @default(false)
   hasOgDescription      Boolean           @default(false)
   hasOgImage            Boolean           @default(false)
   hasTwitterCard        Boolean           @default(false)
   
   // Technical Elements (matching your algorithm exactly)
-  technicalElements     Json              // Store complete technicalElements object
+  technicalElements String // Store complete technicalElements object
   httpsStatus           Boolean           @default(false)
   statusCode            Int?
   contentType           String?
@@ -344,7 +343,7 @@ model TechnicalAccessibility {
   cls                   Float?            // Cumulative Layout Shift
   
   // Accessibility (store actual data + counts)
-  accessibilityData     Json              // Store complete accessibility object
+  accessibilityData String // Store complete accessibility object
   altTextCount          Int               @default(0)
   ariaLabelsCount       Int               @default(0)
   semanticElementsCount Int               @default(0)
@@ -511,7 +510,7 @@ model WeeklyReport {
   status          String
   model           String?
   summaryMarkdown String?   @map("summary_markdown")
-  summaryJson     Json?     @map("summary_json")
+  summaryJson String? @map("summary_json")
   tokensIn        Int?      @map("tokens_in")
   tokensOut       Int?      @map("tokens_out")
   costCents       Int?      @map("cost_cents")
@@ -535,7 +534,7 @@ model WeeklyReportSection {
   title         String?
   order         Int      @default(0)
   bodyMarkdown  String?  @map("body_markdown")
-  bodyJson      Json?    @map("body_json")
+  bodyJson String? @map("body_json")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt      @map("updated_at")
 
@@ -578,9 +577,9 @@ model TechnicalStructureAnalysis {
   accessibilityScore Float?
   securityScore     Float?
   structureScore    Float?
-  insights          Json     @default("[]")
-  recommendations   Json     @default("[]")
-  metadata          Json     @default("{}")
+  insights          String   @default("[]")
+  recommendations   String   @default("[]")
+  metadata          String   @default("{}")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   
@@ -595,8 +594,8 @@ model GeoAnalysisResult {
   id              Int      @id @default(autoincrement())
   brandProfileId  Int
   overallScore    Float    @default(0)
-  analyses        Json     @default("[]")
-  summary         Json     @default("{}")
+  analyses        String   @default("[]")
+  summary         String   @default("{}")
   timestamp       DateTime @default(now())
   createdAt       DateTime @default(now())
   
@@ -612,9 +611,9 @@ model OrganicTrafficMetrics {
   brandProfileId        Int
   monthlyVisitors       Int      @default(0)
   monthOverMonthGrowth  Float    @default(0)
-  topPages              Json     @default("[]")
-  topKeywords           Json     @default("[]")
-  metadata              Json     @default("{}")
+  topPages              String   @default("[]")
+  topKeywords           String   @default("[]")
+  metadata              String   @default("{}")
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   
@@ -627,10 +626,10 @@ model OrganicTrafficMetrics {
 model NaturalLanguageReport {
   id              Int      @id @default(autoincrement())
   brandProfileId  Int
-  reportText      String   @db.Text
-  insights        Json     @default("[]")
-  recommendations Json     @default("[]")
-  metadata        Json     @default("{}")
+  reportText      String
+  insights        String   @default("[]")
+  recommendations String   @default("[]")
+  metadata        String   @default("{}")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   

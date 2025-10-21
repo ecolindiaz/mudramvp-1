@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -307,9 +308,18 @@ function TrackedPromptsPageInner() {
   const [newPromptText, setNewPromptText] = useState("")
   const [newIntent, setNewIntent] = useState<TrackedPrompt["intent"]>("Organic")
   const [showAll, setShowAll] = useState(false)
+  type IntentFilter = TrackedPrompt["intent"] | "All"
+  const [intentFilter, setIntentFilter] = useState<IntentFilter>("All")
+  const [searchQuery, setSearchQuery] = useState("")
+
+  const tableData = useMemo(() => {
+    const byIntent = intentFilter === "All" ? data : data.filter((p) => p.intent === intentFilter)
+    const q = searchQuery.trim().toLowerCase()
+    return q ? byIntent.filter((p) => p.prompt.toLowerCase().includes(q)) : byIntent
+  }, [data, intentFilter, searchQuery])
 
   const table = useReactTable({
-    data,
+    data: tableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -353,7 +363,7 @@ function TrackedPromptsPageInner() {
         <SiteHeader />
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-dark-grey">
-          <div className="@container/main flex flex-1 flex-col gap-3 md:gap-4 bg-dark-grey">
+          <div className="container-type-inline-size container-name-main flex flex-1 flex-col gap-3 md:gap-4 bg-dark-grey">
             {/* Page Header (match Overview spacing) */}
               <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
               <div className="flex items-center justify-between">
@@ -380,6 +390,24 @@ function TrackedPromptsPageInner() {
                   >
                     {showAll ? "Collapse" : "All Prompts"}
                   </Button>
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search prompts..."
+                    className="h-9 w-56 md:w-64 rounded-lg bg-transparent border-white/[0.06] text-white/80 placeholder:text-white/40 focus:ring-0"
+                  />
+                  <Select value={intentFilter} onValueChange={(v) => setIntentFilter(v as IntentFilter)}>
+                    <SelectTrigger className="h-9 w-44 rounded-lg bg-transparent border-white/[0.06] text-white/80">
+                      <SelectValue placeholder="Intent: All" />
+                    </SelectTrigger>
+                    <SelectContent className="border-0 bg-dark-grey">
+                      <SelectItem value="All">Intent: All</SelectItem>
+                      <SelectItem value="Organic">Organic</SelectItem>
+                      <SelectItem value="Competitor">Competitor</SelectItem>
+                      <SelectItem value="How-to Guides">How-to Guides</SelectItem>
+                      <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button size="sm" className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5" onClick={() => setAddOpen(true)}>
                     <Plus className="h-4 w-4" />
                     Add Prompt
@@ -398,10 +426,10 @@ function TrackedPromptsPageInner() {
 
             {/* Content Area */}
             <div className="flex flex-col flex-1">
-              <div className="px-4 lg:px-6 mt-2 md:mt-4 pb-6 md:pb-8 space-y-4">
+              <div className="px-4 lg:px-6 -mt-1 md:-mt-1 pb-6 md:pb-8 space-y-4">
                 <div className="overflow-hidden rounded-md border border-white/[0.06] bg-transparent">
                   <Table className="table-fixed text-[14px] md:text-[15px]">
-                    <TableHeader className="bg-white/[0.04]">
+                    <TableHeader className="bg-white/[0.03]">
                       {table.getHeaderGroups().map((headerGroup) => (
                         <TableRow key={headerGroup.id} className="hover:bg-transparent text-[13px] md:text-sm">
                           {headerGroup.headers.map((header) => (
@@ -493,7 +521,7 @@ function TrackedPromptsPageInner() {
 
                 {/* Add Prompt Dialog */}
                 <Dialog open={addOpen} onOpenChange={setAddOpen}>
-                  <DialogContent className="sm:max-w-lg rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl">
+                  <DialogContent className="sm:max-w-lg rounded-xl border-0 bg-dark-grey">
                     <DialogHeader>
                       <DialogTitle>Add Prompt</DialogTitle>
                       <DialogDescription>Manually add a prompt to track.</DialogDescription>
@@ -501,15 +529,15 @@ function TrackedPromptsPageInner() {
                     <div className="space-y-4 pt-2">
                       <div className="space-y-2">
                         <Label htmlFor="prompt-text">Prompt</Label>
-                        <Textarea id="prompt-text" value={newPromptText} onChange={(e) => setNewPromptText(e.target.value)} placeholder="Type your prompt..." className="min-h-[90px] rounded-lg border-white/10" />
+                        <Textarea id="prompt-text" value={newPromptText} onChange={(e) => setNewPromptText(e.target.value)} placeholder="Type your prompt..." className="min-h-[90px] rounded-lg bg-transparent border-white/[0.06] focus:ring-0 focus:outline-none" />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="intent">Intent</Label>
-                        <Select value={newIntent} onValueChange={(v) => setNewIntent(v as TrackedPrompt["intent"])}>
-                          <SelectTrigger id="intent" className="w-full rounded-lg">
+                        <Select value={newIntent} onValueChange={(v) => setNewIntent(v as TrackedPrompt["intent"]) }>
+                          <SelectTrigger id="intent" className="w-full rounded-lg bg-transparent border-white/[0.06] focus:ring-0">
                             <SelectValue placeholder="Select intent" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="border-0 bg-dark-grey">
                             <SelectItem value="How-to Guides">How-to Guides</SelectItem>
                             <SelectItem value="Organic">Organic</SelectItem>
                             <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>

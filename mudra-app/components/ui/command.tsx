@@ -67,13 +67,13 @@ function CommandInput({
   return (
     <div
       data-slot="command-input-wrapper"
-      className="flex h-9 items-center gap-2 border-b px-3"
+      className="flex h-9 items-center gap-2 border-b border-white/[0.06] px-3"
     >
       <SearchIcon className="size-4 shrink-0 opacity-50 text-white/30" />
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(
-          "placeholder:text-muted-foreground flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+          "placeholder:text-muted-foreground flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden border-0 focus:outline-none focus:ring-0 shadow-none disabled:cursor-not-allowed disabled:opacity-50",
           className
         )}
         {...props}
@@ -133,7 +133,7 @@ function CommandSeparator({
   return (
     <CommandPrimitive.Separator
       data-slot="command-separator"
-      className={cn("bg-border -mx-1 h-px", className)}
+      className={cn("bg-white/[0.06] -mx-1 h-px", className)}
       {...props}
     />
   )

@@ -79,13 +79,16 @@ export const NavMain = memo(function NavMain({
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-0.5">
-              {section.items.map((item) => (
-                <NavigationItem
-                  key={item.title}
-                  item={item}
-                  isActive={pathname === item.url}
-                />
-              ))}
+              {section.items.map((item) => {
+                const isActive = pathname === item.url || (item.url === "/dashboard/campaigns" && pathname.startsWith("/dashboard/campaigns/"))
+                return (
+                  <NavigationItem
+                    key={item.title}
+                    item={item}
+                    isActive={isActive}
+                  />
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

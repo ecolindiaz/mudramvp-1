@@ -83,7 +83,7 @@ export const NavMain = memo(function NavMain({
                 <NavigationItem
                   key={item.title}
                   item={item}
-                  isActive={pathname === item.url}
+                  isActive={pathname ? pathname === item.url : false}
                 />
               ))}
             </SidebarMenu>

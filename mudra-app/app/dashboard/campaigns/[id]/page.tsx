@@ -73,12 +73,11 @@ export default function CampaignCanvasPage({
     <SidebarProvider
       className="bg-dark-grey"
       style={{
-        "--sidebar-width": "calc(var(--spacing) * 52)",
-        "--header-height": "calc(var(--spacing) * 12)",
+        "--sidebar-width": "16rem",
       } as React.CSSProperties}
     >
       <AppSidebar />
-      <SidebarInset className="bg-dark-grey m-0 shadow-none rounded-none border-none">
+      <SidebarInset className="bg-dark-grey">
         <SiteHeader />
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-dark-grey">
@@ -118,16 +117,16 @@ export default function CampaignCanvasPage({
                     </CardHeader>
                     <CardContent className="px-4 pt-1">
                       {mode === "geo" ? (
-                        <div className="flex flex-wrap gap-2">
-                          <span className="inline-flex items-center gap-1.5 rounded border border-white/12 bg-transparent px-2.5 py-1 text-xs text-white/85" title={targetIcp || "Not set"}>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded border border-white/[0.06] bg-transparent px-2.5 py-1 text-xs text-white/85" title={targetIcp || "Not set"}>
                             <Users className="size-3.5" />
                             ICP: {targetIcp ? (targetIcp.length > 36 ? `${targetIcp.slice(0, 36)}…` : targetIcp) : "Not set"}
                           </span>
-                          <span className="inline-flex items-center gap-1.5 rounded border border-white/12 bg-transparent px-2.5 py-1 text-xs text-white/85" title={campaignPrompt || "Not set"}>
+                      <span className="inline-flex items-center gap-1.5 rounded border border-white/[0.06] bg-transparent px-2.5 py-1 text-xs text-white/85" title={campaignPrompt || "Not set"}>
                             <MessageSquareText className="size-3.5" />
                             {`Prompt: ${campaignPrompt ? (campaignPrompt.length > 48 ? campaignPrompt.slice(0, 48) + "…" : campaignPrompt) : "Not set"}`}
                           </span>
-                          <span className="inline-flex items-center gap-1.5 rounded border border-white/12 bg-transparent px-2.5 py-1 text-xs text-white/85" title={slug || "Not set"}>
+                      <span className="inline-flex items-center gap-1.5 rounded border border-white/[0.06] bg-transparent px-2.5 py-1 text-xs text-white/85" title={slug || "Not set"}>
                             <LinkIcon className="size-3.5" />
                             {`Slug: ${slug ? (slug.length > 32 ? slug.slice(0, 32) + "…" : slug) : "Not set"}`}
                           </span>

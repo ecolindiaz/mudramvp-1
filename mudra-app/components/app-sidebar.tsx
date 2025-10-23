@@ -68,6 +68,11 @@ const data = {
           url: "/dashboard/tasks",
           icon: (props: any) => <SidebarTasksIcon className="w-4 h-4 mr-2.5" {...props} />,
         },
+      ]
+    },
+    {
+      title: "Presence Lab",
+      items: [
         {
           title: "Campaigns",
           url: "/dashboard/campaigns",

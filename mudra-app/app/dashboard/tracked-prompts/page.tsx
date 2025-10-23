@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -462,7 +463,7 @@ function TrackedPromptsPageInner() {
         <SiteHeader />
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-dark-grey">
-          <div className="@container/main flex flex-1 flex-col gap-3 md:gap-4 bg-dark-grey">
+          <div className="container-type-inline-size container-name-main flex flex-1 flex-col gap-3 md:gap-4 bg-dark-grey">
             {/* Page Header (match Overview spacing) */}
               <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
               <div className="flex items-center justify-between">
@@ -570,7 +571,7 @@ function TrackedPromptsPageInner() {
                 </div>
                 <div className="overflow-hidden rounded-md border border-white/[0.06] bg-transparent">
                   <Table className="table-fixed text-[14px] md:text-[15px]">
-                    <TableHeader className="bg-white/[0.04]">
+                    <TableHeader className="bg-white/[0.03]">
                       {table.getHeaderGroups().map((headerGroup) => (
                         <TableRow key={headerGroup.id} className="hover:bg-transparent text-[13px] md:text-sm">
                           {headerGroup.headers.map((header) => (
@@ -690,7 +691,7 @@ function TrackedPromptsPageInner() {
 
                 {/* Add Prompt Dialog */}
                 <Dialog open={addOpen} onOpenChange={setAddOpen}>
-                  <DialogContent className="sm:max-w-lg rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl">
+                  <DialogContent className="sm:max-w-lg rounded-xl border-0 bg-dark-grey">
                     <DialogHeader>
                       <DialogTitle>Add Prompt</DialogTitle>
                       <DialogDescription>

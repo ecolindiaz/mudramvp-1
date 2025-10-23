@@ -9,6 +9,7 @@ export interface DirectGEOConfig {
   competitors?: string[];
   targetAudience?: string;
   keyProducts?: string[];
+  customPrompts?: string[]; // Allow passing pre-generated prompts from database
   apiKeys: {
     openai?: string;
     anthropic?: string;
@@ -56,6 +57,12 @@ export interface CompetitorAnalysis {
  * Generate contextual prompts for GEO testing using sophisticated prompt generation
  */
 async function generateGEOPrompts(config: DirectGEOConfig): Promise<string[]> {
+  // If custom prompts are provided (from database), use them directly
+  if (config.customPrompts && config.customPrompts.length > 0) {
+    console.log(`✅ Using ${config.customPrompts.length} custom prompts from database`);
+    return config.customPrompts;
+  }
+  
   try {
     // Convert config to BrandInfo format
     const brandInfo = {
@@ -210,26 +217,54 @@ Be helpful and comprehensive in your response.`;
 
     const text = response.choices[0]?.message?.content || '';
 
-    // Analyze the response for brand mentions and sentiment
-    const analysisPrompt = `Analyze this response about ${config.brandName}:
+    // Analyze the response for brand mentions and sentiment using AI
+    const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
 
-Response: "${text}"
+BRAND NAME: ${config.brandName}
+COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
 
-Extract:
-1. Is ${config.brandName} mentioned anywhere? (even in passing)
-2. What position/rank does ${config.brandName} have (if any)?
-3. Which of these competitors are mentioned: ${config.competitors?.join(', ') || 'None specified'}
-4. What's the sentiment towards ${config.brandName}?
-5. How confident are you in this analysis?
+RESPONSE TEXT:
+"${text}"
 
-Provide a brief explanation of your findings.`;
+Extract the following information:
+
+1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
+
+2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given?
+   - Look for patterns like "1st", "2nd", "3rd", "#1", "first place", "ranked 1", etc.
+   - Extract ONLY the number (1, 2, 3, etc.)
+   - If no explicit position/ranking is found, return null
+   - Examples:
+     * "### 1st: Y Combinator" → 1
+     * "2nd Place: Y Combinator" → 2  
+     * "#3: Y Combinator" → 3
+     * "Y Combinator is mentioned but no ranking" → null
+
+3. **competitorsMentioned**: Array of competitor names that appear in the response
+
+4. **sentiment**: Overall sentiment toward "${config.brandName}" in this response:
+   - "positive" if the response praises, recommends, or ranks highly
+   - "neutral" if factual/balanced with no clear opinion
+   - "negative" if critical or dismissive
+
+5. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
+
+Return ONLY a valid JSON object with these exact keys:
+{
+  "brandMentioned": boolean,
+  "brandPosition": number or null,
+  "competitorsMentioned": string[],
+  "sentiment": "positive" | "neutral" | "negative",
+  "confidence": number,
+  "explanation": "brief reasoning"
+}`;
 
     const analysisResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: 'You are an expert at analyzing text for brand mentions and sentiment. Respond with a JSON object containing: brandMentioned (boolean), brandPosition (number or null), competitorsMentioned (array of strings), sentiment ("positive", "neutral", or "negative"), confidence (number 0-1), explanation (string).',
+          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
         },
         {
           role: 'user',
@@ -238,6 +273,7 @@ Provide a brief explanation of your findings.`;
       ],
       temperature: 0.1,
       max_tokens: 500,
+      response_format: { type: "json_object" }, // Force JSON output
     });
 
     const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
@@ -245,15 +281,58 @@ Provide a brief explanation of your findings.`;
     // Try to parse JSON, with fallback
     let analysis;
     try {
-      analysis = JSON.parse(analysisText);
-    } catch {
+      // Remove markdown code blocks if present
+      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+      analysis = JSON.parse(cleanedText);
+    } catch (parseError) {
+      console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
+      
+      // Fallback: manual regex extraction
+      const brandNameLower = config.brandName.toLowerCase();
+      const textLower = text.toLowerCase();
+      const brandMentioned = textLower.includes(brandNameLower);
+      
+      // Try to extract position with regex
+      let brandPosition = null;
+      const positionPatterns = [
+        new RegExp(`(?:^|\\n)(?:###?\\s*)?([1-9]\\d?)(?:st|nd|rd|th)(?:\\s*[Pp]lace)?:?\\s*\\*?\\*?${config.brandName}`, 'i'),
+        new RegExp(`#([1-9]\\d?):\\s*${config.brandName}`, 'i'),
+        new RegExp(`(?:ranked?|position)\\s*#?([1-9]\\d?).*${config.brandName}`, 'i'),
+      ];
+      
+      for (const pattern of positionPatterns) {
+        const match = text.match(pattern);
+        if (match) {
+          brandPosition = parseInt(match[1], 10);
+          break;
+        }
+      }
+      
+      // Heuristic sentiment analysis
+      let sentiment: 'positive' | 'neutral' | 'negative' = 'neutral';
+      if (brandMentioned) {
+        const positiveWords = ['best', 'top', 'leading', 'premier', 'excellent', 'outstanding', 'highly regarded', 'prestigious', 'renowned'];
+        const negativeWords = ['worst', 'poor', 'inadequate', 'failing', 'struggling'];
+        
+        const contextStart = Math.max(0, textLower.indexOf(brandNameLower) - 100);
+        const contextEnd = Math.min(textLower.length, textLower.indexOf(brandNameLower) + brandNameLower.length + 100);
+        const context = textLower.substring(contextStart, contextEnd);
+        
+        const hasPositive = positiveWords.some(word => context.includes(word));
+        const hasNegative = negativeWords.some(word => context.includes(word));
+        
+        if (hasPositive && !hasNegative) sentiment = 'positive';
+        else if (hasNegative && !hasPositive) sentiment = 'negative';
+        else if (brandPosition && brandPosition <= 3) sentiment = 'positive'; // Top 3 ranking = positive
+      }
+      
       analysis = {
-        brandMentioned: text.toLowerCase().includes(config.brandName.toLowerCase()),
-        brandPosition: undefined,
+        brandMentioned,
+        brandPosition,
         competitorsMentioned: [],
-        sentiment: 'neutral' as const,
-        confidence: 0.5,
-        explanation: 'Failed to parse analysis',
+        sentiment,
+        confidence: 0.6,
+        explanation: 'Fallback regex extraction used',
       };
     }
 
@@ -487,6 +566,7 @@ export function createDirectGEOConfig(
     industry?: string;
     description?: string;
     competitors?: string[];
+    customPrompts?: string[];
     apiKeys?: Partial<DirectGEOConfig['apiKeys']>;
   } = {}
 ): DirectGEOConfig {
@@ -498,6 +578,7 @@ export function createDirectGEOConfig(
     industry: options.industry || 'technology',
     description: options.description || `${brandName} is a company in the ${options.industry || 'technology'} industry`,
     competitors: options.competitors || [],
+    customPrompts: options.customPrompts,
     apiKeys: {
       openai: options.apiKeys?.openai || env.OPENAI_API_KEY,
       anthropic: options.apiKeys?.anthropic || env.ANTHROPIC_API_KEY,

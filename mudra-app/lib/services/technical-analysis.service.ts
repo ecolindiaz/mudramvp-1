@@ -41,7 +41,7 @@ const CreateWebsiteSchema = z.object({
 })
 
 // Prisma Client Instance
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export async function saveAnalysisResults(websiteId: string, scraperResults: EnhancedGEOResult): Promise<TechnicalAnalysis> {
     try {

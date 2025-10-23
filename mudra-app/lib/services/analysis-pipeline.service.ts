@@ -6,9 +6,7 @@
  * 3. Natural Language Report Generation
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export interface AnalysisPipelineConfig {
   brandProfileId: number;

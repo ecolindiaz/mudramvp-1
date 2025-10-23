@@ -1,0 +1,316 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { 
+  calculateAggregateScore, 
+  calculatePerPromptScore,
+  type PromptTestResult 
+} from '@/lib/services/visibility-scoring.service'
+
+/**
+ * GET /api/prompts/with-results?brandProfileId={id}
+ * Get prompts used in the latest analysis run with their results
+ * Includes both aggregate metrics (Firegeo-style) and per-prompt scores (Mudra-style)
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams
+    const brandProfileId = searchParams.get('brandProfileId')
+
+    if (!brandProfileId) {
+      return NextResponse.json(
+        { error: 'brandProfileId is required' },
+        { status: 400 }
+      )
+    }
+
+    const profileId = parseInt(brandProfileId)
+
+    // Step 1: Get the latest COMPLETED analysis run for this brand profile
+    const latestAnalysisRun = await prisma.analysisRun.findFirst({
+      where: {
+        brandProfileId: profileId,
+        status: 'completed'
+      },
+      orderBy: {
+        ranAt: 'desc'
+      }
+    })
+
+    if (!latestAnalysisRun) {
+      console.log(`No completed analysis runs found for brand profile ${profileId}`)
+      return NextResponse.json({ 
+        success: true, 
+        prompts: [],
+        count: 0,
+        hasAnalysis: false,
+        message: 'No completed analysis found'
+      })
+    }
+
+    // Step 2: Get the GEO analysis result which contains the actual tested prompts
+    const latestAnalysis = await prisma.geoAnalysisResult.findFirst({
+      where: {
+        brandProfileId: profileId
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
+
+    if (!latestAnalysis || !latestAnalysis.analyses) {
+      console.log(`No GEO analysis results found for brand profile ${profileId}`)
+      return NextResponse.json({ 
+        success: true, 
+        prompts: [],
+        count: 0,
+        hasAnalysis: false,
+        message: 'No analysis results found'
+      })
+    }
+
+    // Step 3: Extract unique prompt texts from the analyses JSON
+    const analyses = latestAnalysis.analyses as any[]
+    const uniquePromptTexts = new Set<string>()
+    
+    // Handle both structures: 
+    // 1. Direct array of prompt results: [{ prompt, response, brandMentioned, ... }]
+    // 2. Provider-grouped structure: [{ provider, promptTests: [...] }]
+    for (const item of analyses) {
+      // Direct prompt result structure
+      if (item.prompt) {
+        uniquePromptTexts.add(item.prompt)
+      }
+      // Provider-grouped structure
+      else if (item.promptTests) {
+        for (const test of item.promptTests) {
+          if (test.prompt) {
+            uniquePromptTexts.add(test.prompt)
+          }
+        }
+      }
+    }
+
+    const promptTextsArray = Array.from(uniquePromptTexts)
+    console.log(`📋 Found ${promptTextsArray.length} unique prompts in analysis results`)
+
+    if (promptTextsArray.length === 0) {
+      return NextResponse.json({ 
+        success: true, 
+        prompts: [],
+        count: 0,
+        hasAnalysis: true,
+        message: 'No prompts found in analysis results'
+      })
+    }
+
+    // Step 4: Get ACTIVE prompts from Prompts table for this brand to match with texts
+    const allPrompts = await prisma.prompt.findMany({
+      where: {
+        brandProfileId: profileId,
+        isActive: true // Only show active prompts
+      }
+    })
+
+    console.log(`📝 Retrieved ${allPrompts.length} active prompts from database`)
+
+    // Step 5: Match prompt texts from analysis with Prompt records using normalized text
+    const normalizeText = (text: string): string => {
+      return text
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s]/g, '')
+        .replace(/\s+/g, ' ')
+    }
+
+    // Create a map of normalized text to prompt records
+    const promptMap = new Map()
+    for (const prompt of allPrompts) {
+      const normalized = normalizeText(prompt.text)
+      promptMap.set(normalized, prompt)
+    }
+
+    // Match tested prompts with database records
+    const matchedPrompts = []
+    for (const promptText of promptTextsArray) {
+      const normalized = normalizeText(promptText)
+      const promptRecord = promptMap.get(normalized)
+      
+      if (promptRecord) {
+        matchedPrompts.push({
+          ...promptRecord,
+          originalText: promptText // Keep the original text from analysis
+        })
+      } else {
+        // Prompt was tested but not in database (shouldn't happen normally)
+        console.warn(`⚠️  Prompt not found in database: "${promptText.substring(0, 50)}..."`)
+      }
+    }
+
+    console.log(`✅ Matched ${matchedPrompts.length} prompts from analysis with database records`)
+    
+    const prompts = matchedPrompts
+
+    // Build a map of prompts with their results (including ALL providers)
+    const promptsWithResults = prompts.map((prompt: any) => {
+      // Use the original text from analysis for exact matching
+      const promptTextToMatch = prompt.originalText || prompt.text
+      const normalizedPromptText = normalizeText(promptTextToMatch)
+
+      // Collect ALL test results for this prompt across all providers
+      const testResults: PromptTestResult[] = []
+
+      // Search through all analyses for this prompt
+      for (const item of analyses) {
+        let matchingTest: any = null
+        let providerName: string | null = null
+
+        // Direct prompt result structure
+        if (item.prompt) {
+          const normalizedTestPrompt = normalizeText(item.prompt || '')
+          if (normalizedTestPrompt === normalizedPromptText) {
+            matchingTest = item
+            providerName = item.provider || item.model || 'ChatGPT'
+          }
+        }
+        // Provider-grouped structure
+        else if (item.promptTests) {
+          matchingTest = item.promptTests.find((test: any) => {
+            const normalizedTestPrompt = normalizeText(test.prompt || '')
+            return normalizedTestPrompt === normalizedPromptText
+          })
+          if (matchingTest) {
+            providerName = item.provider || null
+          }
+        }
+
+        if (matchingTest && providerName) {
+          // Add this test result
+          testResults.push({
+            prompt: matchingTest.prompt,
+            brandMentioned: matchingTest.brandMentioned || false,
+            brandPosition: matchingTest.brandPosition,
+            sentiment: matchingTest.sentiment,
+            provider: providerName,
+            model: providerName
+          })
+        }
+      }
+
+      // Calculate per-prompt scores using new service
+      const perPromptScores = testResults.map(test => calculatePerPromptScore(test))
+
+      // Calculate aggregate for this specific prompt across models (Firegeo methodology)
+      const promptAggregate = testResults.length > 0 
+        ? calculateAggregateScore(testResults)
+        : null
+
+      // Map to results format with all providers
+      const results = perPromptScores.map((score, index) => ({
+        model: score.model,
+        intent: prompt.category,
+        visibility: score.visibilityScore,
+        position: score.position,
+        sentiment: score.sentiment,
+        mentioned: score.brandMentioned,
+        responseSnippet: null // Not included in PerPromptScore
+      }))
+
+      // For backward compatibility, also include top-level metrics from first result
+      const firstResult = perPromptScores[0]
+
+      return {
+        id: prompt.id,
+        text: prompt.text,
+        category: prompt.category,
+        isCustom: prompt.isCustom,
+        // Top-level metrics (backward compatibility - uses first provider)
+        visibility: firstResult?.visibilityScore ?? 0,
+        position: firstResult?.position ?? null,
+        model: firstResult?.model ?? null,
+        sentiment: firstResult?.sentiment ?? null,
+        // Detailed breakdown by provider
+        results,
+        // Aggregate metrics for this prompt across all providers (Firegeo)
+        promptAggregate: promptAggregate ? {
+          overallScore: Math.round(promptAggregate.overallScore * 10) / 10, // Round to 1 decimal
+          mentionRate: Math.round(promptAggregate.mentionRate * 100), // Convert to percentage
+          averagePosition: promptAggregate.averagePosition,
+          totalTests: testResults.length,
+          mentionedIn: testResults.filter(t => t.brandMentioned).length
+        } : null,
+        createdAt: prompt.createdAt,
+        updatedAt: prompt.updatedAt
+      }
+    })
+
+    // Calculate OVERALL aggregate score (all prompts, all providers) - Firegeo methodology
+    const allTestResults: PromptTestResult[] = []
+    for (const item of analyses) {
+      if (item.prompt) {
+        // Direct structure
+        allTestResults.push({
+          prompt: item.prompt,
+          brandMentioned: item.brandMentioned || false,
+          brandPosition: item.brandPosition,
+          sentiment: item.sentiment,
+          provider: item.provider || item.model || 'ChatGPT',
+          model: item.provider || item.model || 'ChatGPT'
+        })
+      } else if (item.promptTests && item.provider) {
+        // Provider-grouped structure
+        item.promptTests.forEach((test: any) => {
+          allTestResults.push({
+            prompt: test.prompt,
+            brandMentioned: test.brandMentioned || false,
+            brandPosition: test.brandPosition,
+            sentiment: test.sentiment,
+            provider: item.provider,
+            model: item.provider
+          })
+        })
+      }
+    }
+
+    const overallAggregate = allTestResults.length > 0
+      ? calculateAggregateScore(allTestResults)
+      : null
+
+    console.log(`✅ Returning ${promptsWithResults.length} prompts with analysis results`)
+    console.log(`   Sample prompts:`, promptsWithResults.slice(0, 3).map((p: any) => ({
+      id: p.id,
+      text: p.text.substring(0, 50) + '...',
+      visibility: p.visibility,
+      category: p.category,
+      resultsCount: p.results?.length || 0
+    })))
+    console.log(`   Overall aggregate score: ${overallAggregate?.overallScore.toFixed(1) || 'N/A'} (Firegeo methodology)`)
+
+    return NextResponse.json({ 
+      success: true, 
+      prompts: promptsWithResults,
+      count: promptsWithResults.length,
+      hasAnalysis: true,
+      analysisDate: latestAnalysis.createdAt,
+      // Overall aggregate metrics (Firegeo methodology for dashboard overview)
+      aggregate: overallAggregate ? {
+        overallScore: Math.round(overallAggregate.overallScore * 10) / 10,
+        mentionRate: Math.round(overallAggregate.mentionRate * 100), // Convert to percentage
+        averagePosition: overallAggregate.averagePosition,
+        totalTests: allTestResults.length,
+        mentionedIn: allTestResults.filter(t => t.brandMentioned).length,
+        sentiment: {
+          positive: overallAggregate.sentiment.positive,
+          neutral: overallAggregate.sentiment.neutral,
+          negative: overallAggregate.sentiment.negative,
+          dominant: overallAggregate.sentiment.dominant
+        }
+      } : null
+    })
+  } catch (error) {
+    console.error('❌ Error fetching prompts with results:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch prompts with results' },
+      { status: 500 }
+    )
+  }
+}

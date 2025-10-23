@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
 
   try {
     requestBody = (await request.json()) as DirectGeoRequestBody;
-    let { brandName, website, industry, description, competitors } = requestBody;
+    let { brandName, website, industry, description, competitors, customPrompts } = requestBody as DirectGeoRequestBody & { customPrompts?: string[] };
 
     if (!Array.isArray(competitors)) {
       competitors = typeof competitors === 'string' && competitors.length > 0
@@ -152,53 +152,66 @@ export async function POST(request: NextRequest) {
       industry,
       description,
       competitors: normalizedCompetitors,
+      customPrompts,
     });
 
     console.log('Starting GEO analysis for:', brandName);
 
     let results: DirectGEOResult | null = null;
 
-  const canUseFiregeo = Boolean(process.env.FIREGEO_API_URL && process.env.FIREGEO_API_TOKEN && website);
+    // Use DirectGEO as primary analysis engine (provides better position/sentiment data)
+    // Firegeo can be used as optional fallback if DirectGEO fails
+    const env = ((globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {});
+    const useFiregeoFallback = Boolean(env.USE_FIREGEO_FALLBACK === 'true' && env.FIREGEO_API_URL && env.FIREGEO_API_TOKEN && website);
 
-  if (canUseFiregeo && website) {
-      try {
-        const firegeoPayload = {
-          company: {
-            name: brandName,
-            url: website,
-            description,
-            industry,
-          },
-          competitors: normalizedCompetitors,
-          useWebSearch: true,
-        };
-        
-        console.log('🔥 Calling Firegeo API with payload:', JSON.stringify(firegeoPayload, null, 2));
-        
-        const firegeoResponse = await firegeoClient.runAnalysis(firegeoPayload);
-
-        if (firegeoResponse?.success && firegeoResponse.data?.analysis) {
-          results = mapFiregeoAnalysisToDirectResult(firegeoResponse.data.analysis);
-          usedFiregeo = true;
-          firegeoRawAnalysis = firegeoResponse.data.analysis;
-          firegeoSavedAnalysisId = firegeoResponse.data.savedAnalysis?.id ?? firegeoResponse.data.savedAnalysis?.analysisId;
-          console.log('✅ Firegeo analysis completed for:', brandName);
-        } else if (firegeoResponse?.error) {
-          firegeoErrorMessage = firegeoResponse.error;
-          console.warn('⚠️ Firegeo analysis returned error, falling back:', firegeoResponse.error);
-        }
-      } catch (firegeoError) {
-        firegeoErrorMessage = firegeoError instanceof Error ? firegeoError.message : 'Unknown Firegeo error';
-        console.warn('❌ Firegeo analysis failed, falling back to local implementation:', firegeoError);
-      }
-    }
-
-    if (!results) {
-      const fallback = await runDirectGEOAnalysis(config);
+    try {
+      console.log('🎯 Running DirectGEO analysis (primary)...');
+      const directResult = await runDirectGEOAnalysis(config);
       results = {
-        ...fallback,
+        ...directResult,
         timestamp: new Date().toISOString(),
       } as DirectGEOResult;
+      console.log('✅ DirectGEO analysis completed successfully');
+      usedFiregeo = false;
+    } catch (directError) {
+      const errorMessage = directError instanceof Error ? directError.message : 'Unknown DirectGEO error';
+      console.error('❌ DirectGEO analysis failed:', errorMessage);
+
+      // Try Firegeo as fallback only if enabled
+      if (useFiregeoFallback && website) {
+        try {
+          const firegeoPayload = {
+            company: {
+              name: brandName,
+              url: website,
+              description,
+              industry,
+            },
+            competitors: normalizedCompetitors,
+            useWebSearch: true,
+          };
+          
+          console.log('🔥 Falling back to Firegeo API...');
+          const firegeoResponse = await firegeoClient.runAnalysis(firegeoPayload);
+
+          if (firegeoResponse?.success && firegeoResponse.data?.analysis) {
+            results = mapFiregeoAnalysisToDirectResult(firegeoResponse.data.analysis);
+            usedFiregeo = true;
+            firegeoRawAnalysis = firegeoResponse.data.analysis;
+            firegeoSavedAnalysisId = firegeoResponse.data.savedAnalysis?.id ?? firegeoResponse.data.savedAnalysis?.analysisId;
+            console.log('✅ Firegeo fallback analysis completed');
+          } else {
+            firegeoErrorMessage = firegeoResponse?.error || 'Firegeo returned no data';
+            throw new Error(firegeoErrorMessage);
+          }
+        } catch (firegeoError) {
+          firegeoErrorMessage = firegeoError instanceof Error ? firegeoError.message : 'Unknown Firegeo error';
+          console.error('❌ Firegeo fallback also failed:', firegeoErrorMessage);
+          throw directError; // Throw original DirectGEO error
+        }
+      } else {
+        throw directError; // No fallback available
+      }
     }
 
     const durationMs = Date.now() - startedAt;

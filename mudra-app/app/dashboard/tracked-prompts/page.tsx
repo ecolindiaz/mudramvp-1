@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import {
   ColumnDef,
   flexRender,
@@ -11,7 +11,7 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, CheckSquare } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, CheckSquare, Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -47,16 +47,16 @@ import {
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
-import { BrandProfileProvider } from "@/components/brand-profile-context"
+import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 
 type TrackedPrompt = {
   id: string
   prompt: string
   visibility: number
-  model: "ChatGPT" | "Perplexity"
-  intent: "Organic" | "Competitor" | "How-to Guides" | "Brand-Specific"
-  sentiment: "Positive" | "Neutral" | "Negative"
-  position: number
+  model: string | null
+  intent: string | null
+  sentiment: "Positive" | "Neutral" | "Negative" | null
+  position: number | null
 }
 
 const columns: ColumnDef<TrackedPrompt>[] = [
@@ -120,7 +120,7 @@ const columns: ColumnDef<TrackedPrompt>[] = [
       const value = Number(row.getValue("visibility"))
       return <div className="w-24 mx-auto text-center text-white/90 font-semibold">{value}%</div>
     },
-    enableSorting: false,
+    enableSorting: true,
     size: 160,
   },
   {
@@ -134,12 +134,15 @@ const columns: ColumnDef<TrackedPrompt>[] = [
     ),
     accessorKey: "position",
     cell: ({ row }) => {
-      const pos = Number(row.getValue("position"))
+      const pos = row.getValue("position") as number | null
+      if (!pos) {
+        return <span className="text-muted-foreground text-sm">—</span>
+      }
       return (
-        <Badge variant="outline" className="px-2 rounded text-muted-foreground"># {pos.toFixed(1)}</Badge>
+        <Badge className="px-2 rounded text-muted-foreground bg-white/5 border-0"># {pos.toFixed(1)}</Badge>
       )
     },
-    enableSorting: false,
+    enableSorting: true,
     size: 120,
   },
   {
@@ -153,16 +156,22 @@ const columns: ColumnDef<TrackedPrompt>[] = [
     ),
     accessorKey: "model",
     cell: ({ row }) => {
-      const model = String(row.getValue("model"))
+      const model = row.getValue("model") as string | null
+      if (!model) {
+        return <span className="text-muted-foreground text-sm">—</span>
+      }
+      
       const iconSrc =
-        model === "ChatGPT"
+        model.toLowerCase().includes("gpt") || model.toLowerCase().includes("openai")
           ? "/images/Group%2048095369.png"
-          : model === "Perplexity"
+          : model.toLowerCase().includes("perplexity")
           ? "/images/Group%2048095371%20(1).png"
+          : model.toLowerCase().includes("claude") || model.toLowerCase().includes("anthropic")
+          ? "/images/Group%2048095369.png" // Add Claude icon if you have one
           : null
 
       return (
-        <Badge variant="outline" className="text-muted-foreground px-2 rounded inline-flex items-center gap-1.5">
+        <Badge className="text-muted-foreground px-2 rounded inline-flex items-center gap-1.5 bg-white/5 border-0">
           {iconSrc ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -196,9 +205,13 @@ const columns: ColumnDef<TrackedPrompt>[] = [
       </Tooltip>
     ),
     accessorKey: "intent",
-    cell: ({ row }) => (
-      <Badge className="px-2 rounded bg-white text-black">{row.getValue("intent")}</Badge>
-    ),
+    cell: ({ row }) => {
+      const intent = row.getValue("intent") as string | null
+      if (!intent) {
+        return <span className="text-muted-foreground text-sm">—</span>
+      }
+      return <Badge className="px-2 rounded bg-white text-black">{intent}</Badge>
+    },
     enableSorting: false,
     size: 170,
   },
@@ -212,104 +225,128 @@ const columns: ColumnDef<TrackedPrompt>[] = [
       </Tooltip>
     ),
     accessorKey: "sentiment",
-    cell: ({ row }) => (
-      <Badge
-        className={cn(
-          "px-2 rounded",
-          row.getValue("sentiment") === "Negative" &&
-            "bg-red-500/20 text-red-300",
-          row.getValue("sentiment") === "Neutral" &&
-            "bg-white/10 text-white/80",
-          row.getValue("sentiment") === "Positive" &&
-            "bg-emerald-500/20 text-emerald-300"
-        )}
-      >
-        {row.getValue("sentiment")}
-      </Badge>
-    ),
+    cell: ({ row }) => {
+      const sentiment = row.getValue("sentiment") as string | null
+      if (!sentiment) {
+        return <span className="text-muted-foreground text-sm">—</span>
+      }
+      return (
+        <Badge
+          className={cn(
+            "px-2 rounded",
+            sentiment === "negative" && "bg-red-500/20 text-red-300",
+            sentiment === "neutral" && "bg-white/10 text-white/80",
+            sentiment === "positive" && "bg-emerald-500/20 text-emerald-300"
+          )}
+        >
+          {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)}
+        </Badge>
+      )
+    },
     enableSorting: false,
     size: 140,
   },
 ]
 
 function TrackedPromptsPageInner() {
-  const hardcodedData: TrackedPrompt[] = useMemo(
-    () => [
-      { id: "1", prompt: "Best data annotation tools for AI research labs in the AI/ML industry", visibility: 68, model: "ChatGPT", intent: "Organic", sentiment: "Positive", position: 1.0 },
-      { id: "2", prompt: "Affordable labeling data services for machine learning projects", visibility: 55, model: "Perplexity", intent: "Competitor", sentiment: "Neutral", position: 2.0 },
-      { id: "3", prompt: "Top providers of supervised fine tuning data for AI models", visibility: 61, model: "Perplexity", intent: "Brand-Specific", sentiment: "Positive", position: 2.0 },
-      { id: "4", prompt: "Alternatives to traditional data labeling for AI research labs", visibility: 43, model: "Perplexity", intent: "Organic", sentiment: "Neutral", position: 2.5 },
-      { id: "5", prompt: "How to improve model accuracy with high-quality training data", visibility: 72, model: "ChatGPT", intent: "How-to Guides", sentiment: "Positive", position: 1.3 },
-      { id: "6", prompt: "Effective ways to source supervised fine tuning data for AI models", visibility: 49, model: "ChatGPT", intent: "How-to Guides", sentiment: "Neutral", position: 4.5 },
-      { id: "7", prompt: "What are the best practices for data labeling in machine learning?", visibility: 58, model: "Perplexity", intent: "How-to Guides", sentiment: "Positive", position: 1.0 },
-      { id: "8", prompt: "Recommendations for data quality tools for AI research projects", visibility: 37, model: "Perplexity", intent: "Organic", sentiment: "Negative", position: 3.0 },
-      { id: "9", prompt: "How to choose a data provider for AI model enhancement", visibility: 64, model: "ChatGPT", intent: "Brand-Specific", sentiment: "Positive", position: 1.0 },
-      { id: "10", prompt: "Comparing data annotation services for AI and ML applications", visibility: 41, model: "ChatGPT", intent: "Competitor", sentiment: "Neutral", position: 4.0 },
-      { id: "11", prompt: "Who are the leading data annotation companies for training AI models?", visibility: 70, model: "ChatGPT", intent: "Organic", sentiment: "Positive", position: 1.8 },
-      { id: "12", prompt: "Which data providers specialize in RLHF datasets for LLMs?", visibility: 52, model: "Perplexity", intent: "Brand-Specific", sentiment: "Neutral", position: 2.6 },
-      { id: "13", prompt: "Cheapest managed data labeling platforms for startups", visibility: 46, model: "ChatGPT", intent: "Competitor", sentiment: "Neutral", position: 3.2 },
-      { id: "14", prompt: "Best tools to audit and improve training data quality", visibility: 57, model: "Perplexity", intent: "How-to Guides", sentiment: "Positive", position: 2.1 },
-      { id: "15", prompt: "Vendors that provide synthetic data for computer vision", visibility: 44, model: "Perplexity", intent: "Brand-Specific", sentiment: "Neutral", position: 2.9 },
-      { id: "16", prompt: "Enterprise-grade platforms for multi-language text annotation", visibility: 62, model: "ChatGPT", intent: "Competitor", sentiment: "Positive", position: 1.7 },
-      { id: "17", prompt: "Where to source high-quality evaluation datasets for LLMs", visibility: 48, model: "ChatGPT", intent: "Organic", sentiment: "Neutral", position: 2.4 },
-      { id: "18", prompt: "Recommended open datasets for supervised fine-tuning", visibility: 53, model: "Perplexity", intent: "How-to Guides", sentiment: "Positive", position: 2.2 },
-      { id: "19", prompt: "How to compare top data labeling vendors and pricing", visibility: 45, model: "Perplexity", intent: "Competitor", sentiment: "Neutral", position: 3.6 },
-      { id: "20", prompt: "AI-ready data marketplaces for machine learning teams", visibility: 50, model: "ChatGPT", intent: "Brand-Specific", sentiment: "Positive", position: 2.8 },
-    ],
-    []
-  )
+  const { profile } = useBrandProfile()
+  const [data, setData] = useState<TrackedPrompt[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [addOpen, setAddOpen] = useState(false)
+  const [newPromptText, setNewPromptText] = useState("")
+  const [newIntent, setNewIntent] = useState<string>("Organic")
+  const [showAll, setShowAll] = useState(false)
+  
+  // Filter states
+  const [selectedModel, setSelectedModel] = useState<string>("all")
+  const [selectedIntent, setSelectedIntent] = useState<string>("all")
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 12, // show 12 prompts initially
+    pageSize: 50, // show all 50 prompts on one page
   })
   const [sorting, setSorting] = useState<SortingState>([
     { id: "visibility", desc: true },
   ])
-  // Add 30 more hardcoded prompts (total ~50)
-  const extraPrompts: TrackedPrompt[] = useMemo(() => [
-    { id: "21", prompt: "Top labeling tools for multilingual datasets", visibility: 47, model: "Perplexity", intent: "Organic", sentiment: "Neutral", position: 3.1 },
-    { id: "22", prompt: "Guide to building RLHF datasets at startup scale", visibility: 52, model: "ChatGPT", intent: "How-to Guides", sentiment: "Positive", position: 2.3 },
-    { id: "23", prompt: "Compare open-source data labeling frameworks", visibility: 40, model: "Perplexity", intent: "Competitor", sentiment: "Neutral", position: 3.9 },
-    { id: "24", prompt: "Vendors offering privacy-first annotation solutions", visibility: 51, model: "ChatGPT", intent: "Brand-Specific", sentiment: "Positive", position: 2.6 },
-    { id: "25", prompt: "How to evaluate training data vendors for LLMs", visibility: 56, model: "Perplexity", intent: "How-to Guides", sentiment: "Positive", position: 2.2 },
-    { id: "26", prompt: "Crowdsourcing vs in-house labeling: which is better?", visibility: 43, model: "ChatGPT", intent: "Organic", sentiment: "Neutral", position: 3.5 },
-    { id: "27", prompt: "Best ways to measure data quality for AI projects", visibility: 59, model: "Perplexity", intent: "How-to Guides", sentiment: "Positive", position: 1.9 },
-    { id: "28", prompt: "Where to buy domain-specific datasets for LLMs", visibility: 46, model: "ChatGPT", intent: "Brand-Specific", sentiment: "Neutral", position: 3.2 },
-    { id: "29", prompt: "Annotation tools for video and multimodal datasets", visibility: 42, model: "Perplexity", intent: "Organic", sentiment: "Neutral", position: 3.7 },
-    { id: "30", prompt: "How to structure prompts to assess brand visibility", visibility: 54, model: "ChatGPT", intent: "How-to Guides", sentiment: "Positive", position: 2.0 },
-    { id: "31", prompt: "Affordable options for expert human-in-the-loop labeling", visibility: 44, model: "Perplexity", intent: "Competitor", sentiment: "Neutral", position: 3.4 },
-    { id: "32", prompt: "What datasets improve retrieval quality for RAG systems?", visibility: 58, model: "ChatGPT", intent: "How-to Guides", sentiment: "Positive", position: 1.8 },
-    { id: "33", prompt: "Top annotation vendors with SOC2 compliance", visibility: 45, model: "Perplexity", intent: "Brand-Specific", sentiment: "Neutral", position: 3.0 },
-    { id: "34", prompt: "Evaluating dataset bias and mitigation techniques", visibility: 49, model: "ChatGPT", intent: "How-to Guides", sentiment: "Neutral", position: 2.7 },
-    { id: "35", prompt: "Best tools for active learning workflows in labeling", visibility: 50, model: "Perplexity", intent: "Organic", sentiment: "Positive", position: 2.4 },
-    { id: "36", prompt: "Benchmarks to validate fine-tuned model accuracy", visibility: 53, model: "ChatGPT", intent: "How-to Guides", sentiment: "Positive", position: 2.1 },
-    { id: "37", prompt: "Providers offering healthcare-compliant data labeling", visibility: 41, model: "Perplexity", intent: "Brand-Specific", sentiment: "Neutral", position: 3.8 },
-    { id: "38", prompt: "How to track impact of better data on model KPIs", visibility: 57, model: "ChatGPT", intent: "How-to Guides", sentiment: "Positive", position: 1.7 },
-    { id: "39", prompt: "Starter datasets for evaluating LLM guardrails", visibility: 45, model: "Perplexity", intent: "Organic", sentiment: "Neutral", position: 3.1 },
-    { id: "40", prompt: "Comparison of Perplexity vs ChatGPT for research queries", visibility: 48, model: "ChatGPT", intent: "Competitor", sentiment: "Neutral", position: 2.9 },
-    { id: "41", prompt: "How to scope a data labeling pilot for your team", visibility: 55, model: "Perplexity", intent: "How-to Guides", sentiment: "Positive", position: 2.2 },
-    { id: "42", prompt: "Recommended dataset licensing models for startups", visibility: 43, model: "ChatGPT", intent: "Organic", sentiment: "Neutral", position: 3.2 },
-    { id: "43", prompt: "Top European data annotation providers", visibility: 47, model: "Perplexity", intent: "Competitor", sentiment: "Neutral", position: 2.7 },
-    { id: "44", prompt: "How to design labeling guidelines for consistency", visibility: 60, model: "ChatGPT", intent: "How-to Guides", sentiment: "Positive", position: 1.5 },
-    { id: "45", prompt: "What are the best QA processes for labeled data?", visibility: 52, model: "Perplexity", intent: "How-to Guides", sentiment: "Positive", position: 2.0 },
-    { id: "46", prompt: "Vendors for multilingual sentiment and intent labels", visibility: 46, model: "ChatGPT", intent: "Brand-Specific", sentiment: "Neutral", position: 2.8 },
-    { id: "47", prompt: "Open datasets for evaluation of classification models", visibility: 49, model: "Perplexity", intent: "Organic", sentiment: "Neutral", position: 2.6 },
-    { id: "48", prompt: "How to choose KPIs for annotation program success", visibility: 55, model: "ChatGPT", intent: "How-to Guides", sentiment: "Positive", position: 1.9 },
-    { id: "49", prompt: "Pros and cons of managed vs self-hosted labeling tools", visibility: 44, model: "Perplexity", intent: "Competitor", sentiment: "Neutral", position: 3.3 },
-    { id: "50", prompt: "Checklist for buying AI-ready datasets", visibility: 58, model: "ChatGPT", intent: "How-to Guides", sentiment: "Positive", position: 1.6 },
-  ], [])
 
-  const fullData = useMemo(() => [...hardcodedData, ...extraPrompts], [hardcodedData, extraPrompts])
+  // State for delete/add operations
+  const [isDeleting, setIsDeleting] = useState<string | null>(null)
+  const [isAdding, setIsAdding] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const [data, setData] = useState<TrackedPrompt[]>(() => hardcodedData)
-  const [addOpen, setAddOpen] = useState(false)
-  const [newPromptText, setNewPromptText] = useState("")
-  const [newIntent, setNewIntent] = useState<TrackedPrompt["intent"]>("Organic")
-  const [showAll, setShowAll] = useState(false)
+  // Fetch prompts with their analysis results
+  useEffect(() => {
+    async function fetchPrompts() {
+      if (!profile.id || profile.id === 0) {
+        console.log('⏳ Waiting for brand profile to load...')
+        return
+      }
+
+      setIsLoading(true)
+      try {
+        console.log(`📡 Fetching prompts for brand profile ${profile.id}...`)
+        const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
+        const result = await response.json()
+
+        if (result.success && result.prompts) {
+          console.log(`✅ Loaded ${result.prompts.length} prompts with analysis results`)
+          console.log(`   Has analysis: ${result.hasAnalysis}`)
+          console.log(`   Analysis Run ID: ${result.analysisRunId}`)
+          console.log(`   Analysis Run Date: ${result.analysisRunDate}`)
+          
+          // Transform API data to match table format
+          const transformedData: TrackedPrompt[] = result.prompts.map((p: any) => ({
+            id: String(p.id),
+            prompt: p.text,
+            visibility: p.visibility || 0,
+            model: p.model || null,
+            intent: p.category || null,
+            sentiment: p.sentiment || null,
+            position: p.position || null
+          }))
+          
+          console.log(`📊 Transformed ${transformedData.length} prompts for display`)
+          console.log(`   Sample prompt:`, transformedData[0])
+          console.log(`   Pagination pageSize: ${pagination.pageSize}`)
+          
+          setData(transformedData)
+        } else {
+          console.error('❌ Failed to fetch prompts:', result.error)
+          setData([])
+        }
+      } catch (error) {
+        console.error('❌ Error fetching prompts:', error)
+        setData([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchPrompts()
+  }, [profile.id])
+
+  // Filter the data based on selected filters
+  const filteredData = useMemo(() => {
+    return data.filter((item) => {
+      const modelMatch = selectedModel === "all" || item.model === selectedModel
+      const intentMatch = selectedIntent === "all" || item.intent === selectedIntent
+      return modelMatch && intentMatch
+    })
+  }, [data, selectedModel, selectedIntent])
+
+  // Get unique models and intents for filter dropdowns
+  const availableModels = useMemo(() => {
+    const models = Array.from(new Set(data.map(item => item.model).filter(Boolean)))
+    return models.sort()
+  }, [data])
+
+  const availableIntents = useMemo(() => {
+    const intents = Array.from(new Set(data.map(item => item.intent).filter(Boolean)))
+    return intents.sort()
+  }, [data])
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -321,22 +358,94 @@ function TrackedPromptsPageInner() {
   })
 
   const selectedCount = Object.keys(table.getState().rowSelection).length
-  const handleAddPrompt = () => {
-    const text = newPromptText.trim()
-    if (!text) return
-    const next: TrackedPrompt = {
-      id: `${Date.now()}`,
-      prompt: text,
-      visibility: 50,
-      model: "ChatGPT",
-      intent: newIntent,
-      sentiment: "Neutral",
-      position: 3.0,
+  
+  const handleDeletePrompt = async (promptId: string) => {
+    setIsDeleting(promptId)
+    setErrorMessage(null)
+    
+    try {
+      console.log('🗑️ Deleting prompt:', promptId, 'for brand:', profile.id)
+      
+      const response = await fetch('/api/prompts/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          promptId: parseInt(promptId), // Convert to number
+          brandProfileId: profile.id,
+        }),
+      })
+
+      const result = await response.json()
+      console.log('📥 Delete prompt response:', result)
+
+      if (result.success) {
+        // Remove from UI
+        setData((prev) => prev.filter((p) => p.id !== promptId))
+        console.log('✅ Prompt deleted successfully')
+      } else {
+        const errorMsg = result.error?.message || result.message || 'Failed to delete prompt'
+        setErrorMessage(errorMsg)
+        console.error('❌ Delete failed:', result)
+      }
+    } catch (error) {
+      console.error('❌ Error deleting prompt:', error)
+      setErrorMessage('Failed to delete prompt. Please try again.')
+    } finally {
+      setIsDeleting(null)
     }
-    setData((prev) => [next, ...prev])
-    setAddOpen(false)
-    setNewPromptText("")
-    setNewIntent("Organic")
+  }
+
+  const handleAddPrompt = async () => {
+    const text = newPromptText.trim()
+    if (!text) {
+      setErrorMessage('Please enter a prompt')
+      return
+    }
+
+    setIsAdding(true)
+    setErrorMessage(null)
+
+    try {
+      const response = await fetch('/api/prompts/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          promptText: text,
+          category: newIntent,
+          brandProfileId: profile.id,
+        }),
+      })
+
+      const result = await response.json()
+      console.log('📥 Add prompt response:', { status: response.status, result })
+
+      if (response.ok && result.success) {
+        // Add to UI with temporary data (will be updated on next fetch)
+        const newPrompt: TrackedPrompt = {
+          id: result.data.prompt.id.toString(),
+          prompt: result.data.prompt.text, // Use 'text' field from Prisma schema
+          visibility: 0, // Not analyzed yet
+          model: null,
+          intent: result.data.prompt.category,
+          sentiment: null,
+          position: null,
+        }
+        setData((prev) => [newPrompt, ...prev])
+        setAddOpen(false)
+        setNewPromptText("")
+        setNewIntent("Organic")
+        console.log('✅ Prompt added successfully')
+      } else {
+        const errorMsg = result.error?.message || result.message || 'Failed to add prompt'
+        setErrorMessage(errorMsg)
+        console.error('❌ Add failed:', { status: response.status, result })
+      }
+    } catch (error) {
+      console.error('❌ Error adding prompt:', error)
+      setErrorMessage('Failed to add prompt. Please try again.')
+    } finally {
+      setIsAdding(false)
+    }
   }
 
   return (
@@ -362,25 +471,39 @@ function TrackedPromptsPageInner() {
                   <p className="text-muted-foreground">Monitor prompts and mentions across AI models</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {isLoading ? (
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading prompts...
+                    </div>
+                  ) : (
+                    <div className={`text-sm ${data.length >= 50 ? 'text-yellow-400' : 'text-muted-foreground'}`}>
+                      {data.length} / 50 prompts tracked
+                      {data.length >= 50 && ' (Max)'}
+                    </div>
+                  )}
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="h-9 rounded-lg"
+                    className="h-9 rounded-lg bg-white/5 text-white hover:bg-white/10 border-0"
                     onClick={() => {
                       if (showAll) {
-                        setData(hardcodedData)
-                        setPagination((p) => ({ ...p, pageIndex: 0, pageSize: 12 }))
+                        setPagination((p: PaginationState) => ({ ...p, pageIndex: 0, pageSize: 12 }))
                         setShowAll(false)
                       } else {
-                        setData(fullData)
-                        setPagination((p) => ({ ...p, pageIndex: 0, pageSize: fullData.length }))
+                        setPagination((p: PaginationState) => ({ ...p, pageIndex: 0, pageSize: filteredData.length }))
                         setShowAll(true)
                       }
                     }}
+                    disabled={isLoading || filteredData.length === 0}
                   >
                     {showAll ? "Collapse" : "All Prompts"}
                   </Button>
-                  <Button size="sm" className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5" onClick={() => setAddOpen(true)}>
+                  <Button 
+                    size="sm" 
+                    className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5" 
+                    onClick={() => setAddOpen(true)}
+                    disabled={isLoading}
+                  >
                     <Plus className="h-4 w-4" />
                     Add Prompt
                   </Button>
@@ -389,9 +512,6 @@ function TrackedPromptsPageInner() {
               <div className="mt-4">
                 <div className="relative">
                   <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                  <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -399,6 +519,55 @@ function TrackedPromptsPageInner() {
             {/* Content Area */}
             <div className="flex flex-col flex-1">
               <div className="px-4 lg:px-6 mt-2 md:mt-4 pb-6 md:pb-8 space-y-4">
+                {/* Filters */}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Filter by:</span>
+                  </div>
+                  <Select value={selectedModel} onValueChange={setSelectedModel}>
+                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white">
+                      <SelectValue placeholder="All Models" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Models</SelectItem>
+                      {availableModels.map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={selectedIntent} onValueChange={setSelectedIntent}>
+                    <SelectTrigger className="w-[180px] h-9 bg-white/5 border-white/10 text-white">
+                      <SelectValue placeholder="All Intents" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Intents</SelectItem>
+                      {availableIntents.map((intent) => (
+                        <SelectItem key={intent} value={intent}>
+                          {intent}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(selectedModel !== "all" || selectedIntent !== "all") && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 text-muted-foreground hover:text-white"
+                      onClick={() => {
+                        setSelectedModel("all")
+                        setSelectedIntent("all")
+                      }}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Clear filters
+                    </Button>
+                  )}
+                  <div className="ml-auto text-sm text-muted-foreground">
+                    Showing {filteredData.length} of {data.length} prompts
+                  </div>
+                </div>
                 <div className="overflow-hidden rounded-md border border-white/[0.06] bg-transparent">
                   <Table className="table-fixed text-[14px] md:text-[15px]">
                     <TableHeader className="bg-white/[0.04]">
@@ -447,7 +616,16 @@ function TrackedPromptsPageInner() {
                       ))}
                     </TableHeader>
                     <TableBody>
-                      {table.getRowModel().rows?.length ? (
+                      {isLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={columns.length} className="h-32 text-center">
+                            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                              <Loader2 className="h-6 w-6 animate-spin" />
+                              <div>Loading prompts...</div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : table.getRowModel().rows?.length ? (
                         table.getRowModel().rows.map((row) => (
                           <TableRow key={row.id} data-state={row.getIsSelected() && "selected"} className="text-[14px] md:text-[15px]">
                             {row.getVisibleCells().map((cell) => (
@@ -459,8 +637,11 @@ function TrackedPromptsPageInner() {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={columns.length} className="h-24 text-center">
-                            No results.
+                          <TableCell colSpan={columns.length} className="h-32 text-center">
+                            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                              <div className="text-lg">No prompts tracked yet</div>
+                              <div className="text-sm">Run an analysis to generate prompts or add custom prompts manually</div>
+                            </div>
                           </TableCell>
                         </TableRow>
                       )}
@@ -483,9 +664,25 @@ function TrackedPromptsPageInner() {
                         <X className="h-4 w-4" />
                         Clear
                       </Button>
-                      <Button variant="destructive" size="sm" className="h-8 rounded-md gap-1.5">
-                        <Trash2 className="h-4 w-4" />
-                        Delete Prompt
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        className="h-8 rounded-md gap-1.5"
+                        disabled={isDeleting !== null}
+                        onClick={async () => {
+                          const selectedRows = table.getFilteredSelectedRowModel().rows
+                          for (const row of selectedRows) {
+                            await handleDeletePrompt(row.original.id)
+                          }
+                          table.resetRowSelection()
+                        }}
+                      >
+                        {isDeleting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                        Delete {selectedCount > 1 ? 'Prompts' : 'Prompt'}
                       </Button>
                     </div>
                   </div>
@@ -496,21 +693,41 @@ function TrackedPromptsPageInner() {
                   <DialogContent className="sm:max-w-lg rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl">
                     <DialogHeader>
                       <DialogTitle>Add Prompt</DialogTitle>
-                      <DialogDescription>Manually add a prompt to track.</DialogDescription>
+                      <DialogDescription>
+                        Manually add a prompt to track. Maximum 50 active prompts allowed.
+                      </DialogDescription>
                     </DialogHeader>
+                    
+                    {errorMessage && (
+                      <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
+                        {errorMessage}
+                      </div>
+                    )}
+                    
                     <div className="space-y-4 pt-2">
                       <div className="space-y-2">
                         <Label htmlFor="prompt-text">Prompt</Label>
-                        <Textarea id="prompt-text" value={newPromptText} onChange={(e) => setNewPromptText(e.target.value)} placeholder="Type your prompt..." className="min-h-[90px] rounded-lg border-white/10" />
+                        <Textarea 
+                          id="prompt-text" 
+                          value={newPromptText} 
+                          onChange={(e) => setNewPromptText(e.target.value)} 
+                          placeholder="Type your prompt..." 
+                          className="min-h-[90px] rounded-lg border-white/10"
+                          disabled={isAdding}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="intent">Intent</Label>
-                        <Select value={newIntent} onValueChange={(v) => setNewIntent(v as TrackedPrompt["intent"])}>
+                        <Select 
+                          value={newIntent} 
+                          onValueChange={(v) => setNewIntent(v as TrackedPrompt["intent"])}
+                          disabled={isAdding}
+                        >
                           <SelectTrigger id="intent" className="w-full rounded-lg">
                             <SelectValue placeholder="Select intent" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="How-to Guides">How-to Guides</SelectItem>
+                            <SelectItem value="How-to">How-to</SelectItem>
                             <SelectItem value="Organic">Organic</SelectItem>
                             <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
                             <SelectItem value="Competitor">Competitor</SelectItem>
@@ -519,8 +736,32 @@ function TrackedPromptsPageInner() {
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-3">
-                      <Button variant="outline" onClick={() => setAddOpen(false)} className="h-9 rounded-lg">Cancel</Button>
-                      <Button onClick={handleAddPrompt} className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent">Add Prompt</Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setAddOpen(false)
+                          setErrorMessage(null)
+                          setNewPromptText("")
+                        }} 
+                        className="h-9 rounded-lg"
+                        disabled={isAdding}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleAddPrompt} 
+                        className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
+                        disabled={isAdding || !newPromptText.trim()}
+                      >
+                        {isAdding ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Adding...
+                          </>
+                        ) : (
+                          'Add Prompt'
+                        )}
+                      </Button>
                     </div>
                   </DialogContent>
                 </Dialog>

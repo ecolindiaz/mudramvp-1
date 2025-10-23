@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client'
 import { generateSophisticatedPrompts, profileToBrandInfo } from './prompt-generation.service'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export interface SavedPrompt {
   id: string
@@ -117,9 +115,8 @@ export async function generateAndSaveInitialPrompts(brandProfileId: number): Pro
   } catch (error) {
     console.error('Failed to generate and save initial prompts:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }
 
 /**

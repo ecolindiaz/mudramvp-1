@@ -1,6 +1,7 @@
 "use client"
 import React from "react"
 import Link from "next/link"
+import ReactMarkdown from "react-markdown"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -327,7 +328,7 @@ export default function CampaignCanvasPage({
                             className="h-8 rounded-lg gap-1.5"
                             onClick={() => setPreview((v) => !v)}
                           >
-                            <Eye className="size-3.5" /> {preview ? "Hide Preview" : "Preview"}
+                            <Eye className="size-3.5" /> {preview ? "Show Preview" : "Raw Text"}
                           </Button>
                           <Button
                             variant="outline"
@@ -364,10 +365,26 @@ export default function CampaignCanvasPage({
                           className="h-11 rounded-lg bg-transparent border-white/10 focus-visible:border-white/20 placeholder:text-white/50 disabled:opacity-50" 
                           placeholder="Post title" 
                         />
-                      {preview ? (
+                      {!preview ? (
                           <div className={`rounded-lg border border-white/10 bg-transparent p-4 prose prose-invert max-w-none ${editorExpanded ? "min-h-[80vh]" : ""}`}>
                           <h1 className="mb-2 text-xl font-bold">{title}</h1>
-                          <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/80">{body}</div>
+                          <ReactMarkdown 
+                            components={{
+                              h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 text-white">{children}</h1>,
+                              h2: ({ children }) => <h2 className="text-xl font-semibold mb-3 text-white">{children}</h2>,
+                              h3: ({ children }) => <h3 className="text-lg font-medium mb-2 text-white">{children}</h3>,
+                              p: ({ children }) => <p className="mb-3 text-white/80 leading-relaxed">{children}</p>,
+                              ul: ({ children }) => <ul className="mb-3 ml-4 text-white/80">{children}</ul>,
+                              ol: ({ children }) => <ol className="mb-3 ml-4 text-white/80">{children}</ol>,
+                              li: ({ children }) => <li className="mb-1 text-white/80">{children}</li>,
+                              strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                              em: ({ children }) => <em className="italic text-white/90">{children}</em>,
+                              code: ({ children }) => <code className="bg-white/10 px-1 py-0.5 rounded text-sm text-white/90">{children}</code>,
+                              blockquote: ({ children }) => <blockquote className="border-l-4 border-white/20 pl-4 italic text-white/70">{children}</blockquote>,
+                            }}
+                          >
+                            {body}
+                          </ReactMarkdown>
                         </div>
                       ) : (
                           <Textarea 

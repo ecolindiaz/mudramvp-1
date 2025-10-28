@@ -151,7 +151,6 @@ export default function CampaignCanvasPage({
     <SidebarProvider
       className="bg-dark-grey"
       style={{
-<<<<<<< HEAD
         "--sidebar-width": "0rem",
         "--header-height": "calc(var(--spacing) * 12)",
       } as React.CSSProperties}
@@ -160,13 +159,6 @@ export default function CampaignCanvasPage({
         <AppSidebar />
       </div>
       <SidebarInset className="bg-dark-grey m-0 shadow-none rounded-none border-none !ml-0">
-=======
-        "--sidebar-width": "16rem",
-      } as React.CSSProperties}
-    >
-      <AppSidebar />
-      <SidebarInset className="bg-dark-grey">
->>>>>>> main
         <SiteHeader />
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-dark-grey">

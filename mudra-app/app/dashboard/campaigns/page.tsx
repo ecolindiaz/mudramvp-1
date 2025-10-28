@@ -36,13 +36,8 @@ export default function CampaignsPage() {
   const [keywords, setKeywords] = useState<string[]>([])
   const [keywordInput, setKeywordInput] = useState("")
 
-  // Mock suggestions (replace with real data later)
-  const promptSuggestions = [
-    "Product launch announcement",
-    "Weekly update outline",
-    "Case study request",
-    "Thought leadership Q&A",
-  ]
+  // Tracked prompts from database
+  const [promptSuggestions, setPromptSuggestions] = useState<Array<{id: string, text: string, category: string}>>([])
   const icpSuggestions = [
     "Seed‑stage startup founders",
     "GTM leads at SaaS startups",
@@ -59,6 +54,26 @@ export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Array<{ id: string; title: string; type: string; mode: string; status: string; updatedAt: number }>>([])
   const [statusFilter, setStatusFilter] = useState<"draft" | "published">("draft")
   
+  // Load tracked prompts from database
+  useEffect(() => {
+    const fetchPrompts = async () => {
+      try {
+        // For now, use brandProfileId = 1 (the existing user)
+        // In a real app, this would come from the user's session
+        const res = await fetch('/api/campaigns/prompts?brandProfileId=1')
+        const data = await res.json()
+        if (data.success && data.prompts) {
+          setPromptSuggestions(data.prompts)
+        }
+      } catch (error) {
+        console.error("Failed to load prompts:", error)
+        // Fallback to empty array if API fails
+        setPromptSuggestions([])
+      }
+    }
+    fetchPrompts()
+  }, [])
+
   // Load campaigns from database
   useEffect(() => {
     const fetchCampaigns = async () => {
@@ -373,7 +388,7 @@ export default function CampaignsPage() {
                                       </SelectTrigger>
                                       <SelectContent className="border-0 bg-dark-grey">
                                         {promptSuggestions.map((p) => (
-                                          <SelectItem key={p} value={p}>{p}</SelectItem>
+                                          <SelectItem key={p.id} value={p.text}>{p.text}</SelectItem>
                                         ))}
                                       </SelectContent>
                                     </Select>

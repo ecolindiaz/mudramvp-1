@@ -386,7 +386,7 @@ export default function CampaignsPage() {
                                       <SelectTrigger className="h-9 rounded-lg bg-transparent border-white/[0.06] text-white/90 w-full">
                                         <SelectValue placeholder="Select a prompt" />
                                       </SelectTrigger>
-                                      <SelectContent className="border-0 bg-dark-grey">
+                                      <SelectContent className="border-0 bg-dark-grey max-h-[300px] overflow-y-auto">
                                         {promptSuggestions.map((p) => (
                                           <SelectItem key={p.id} value={p.text}>{p.text}</SelectItem>
                                         ))}

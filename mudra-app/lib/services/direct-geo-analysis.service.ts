@@ -147,6 +147,8 @@ function isProviderAvailable(provider: string, apiKeys: DirectGEOConfig['apiKeys
       return !!apiKeys.anthropic;
     case 'google':
       return !!apiKeys.google;
+    case 'perplexity':
+      return !!apiKeys.perplexity;
     default:
       return false;
   }
@@ -160,29 +162,40 @@ async function analyzePromptWithProvider(
   provider: string,
   config: DirectGEOConfig
 ): Promise<PromptTest> {
+  // Route to appropriate provider function
+  switch (provider) {
+    case 'openai':
+      return await analyzeWithOpenAI(prompt, config);
+    case 'perplexity':
+      return await analyzeWithPerplexity(prompt, config);
+    case 'anthropic':
+      // For now, fallback to OpenAI for Anthropic
+      console.warn('Anthropic not yet implemented, using OpenAI as fallback');
+      return await analyzeWithOpenAI(prompt, config);
+    case 'google':
+      // For now, fallback to OpenAI for Google
+      console.warn('Google not yet implemented, using OpenAI as fallback');
+      return await analyzeWithOpenAI(prompt, config);
+    default:
+      throw new Error(`Unknown provider: ${provider}`);
+  }
+}
+
+/**
+ * Analyze with OpenAI
+ */
+async function analyzeWithOpenAI(
+  prompt: string,
+  config: DirectGEOConfig
+): Promise<PromptTest> {
   if (!config.apiKeys.openai) {
     console.error('❌ OpenAI API key is missing in config.apiKeys');
     throw new Error('OpenAI API key required for analysis');
   }
 
-  // Log API key info (first few characters for debugging)
   const apiKey = config.apiKeys.openai;
-  const apiKeyPreview = apiKey.substring(0, 15) + '...' + apiKey.substring(apiKey.length - 4);
-  const apiKeyLength = apiKey.length;
-  console.log(`🔑 Using OpenAI API key (length: ${apiKeyLength}): ${apiKeyPreview}`);
-  console.log(`🔑 Key starts with: ${apiKey.substring(0, 8)}`);
-  console.log(`🔑 Key ends with: ${apiKey.substring(apiKey.length - 8)}`);
-
-  // Validate key format
-  if (!apiKey.startsWith('sk-')) {
-    console.error(`❌ Invalid API key format - doesn't start with 'sk-'`);
-    throw new Error('Invalid OpenAI API key format');
-  }
-
-  // For now, use OpenAI for all analysis to avoid model compatibility issues
-  // We can expand to other providers later
   const openai = new OpenAI({
-    apiKey: apiKey.trim(), // Trim any whitespace
+    apiKey: apiKey.trim(),
   });
 
   // System prompt for consistent ranking behavior
@@ -346,7 +359,182 @@ Return ONLY a valid JSON object with these exact keys:
       confidence: analysis.confidence || 0.5,
     };
   } catch (error) {
-    console.error(`Error analyzing with ${provider}:`, error);
+    console.error(`Error analyzing with OpenAI:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Analyze with Perplexity
+ */
+async function analyzeWithPerplexity(
+  prompt: string,
+  config: DirectGEOConfig
+): Promise<PromptTest> {
+  if (!config.apiKeys.perplexity) {
+    throw new Error('Perplexity API key required for analysis');
+  }
+
+  const apiKey = config.apiKeys.perplexity;
+  
+  console.log('[Perplexity] API Key configured:', apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4));
+
+  // Perplexity uses OpenAI-compatible API
+  const perplexity = new OpenAI({
+    apiKey: apiKey.trim(),
+    baseURL: 'https://api.perplexity.ai',
+  });
+
+  try {
+    // Get the provider's response to the prompt
+    // Perplexity's sonar models are optimized for search and current information
+    // Using current 'sonar' model (Oct 2024)
+    // Reference: https://docs.perplexity.ai/guides/model-cards
+    console.log('[Perplexity] Testing prompt:', prompt.substring(0, 60) + '...');
+    
+    const response = await perplexity.chat.completions.create({
+      model: 'sonar', // Current default model with real-time search
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.2,
+      max_tokens: 800,
+    });
+
+    const text = response.choices[0]?.message?.content || '';
+    console.log('[Perplexity] Response received:', text.substring(0, 100) + '...');
+
+    // Use OpenAI to analyze the Perplexity response for brand mentions
+    if (!config.apiKeys.openai) {
+      throw new Error('OpenAI API key required for analyzing Perplexity responses');
+    }
+
+    const openai = new OpenAI({
+      apiKey: config.apiKeys.openai.trim(),
+    });
+
+    // Analyze the response for brand mentions and sentiment using AI
+    const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
+
+BRAND NAME: ${config.brandName}
+COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
+
+RESPONSE TEXT:
+"${text}"
+
+Extract the following information:
+
+1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
+
+2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given?
+   - Look for patterns like "1st", "2nd", "3rd", "#1", "first place", "ranked 1", etc.
+   - Extract ONLY the number (1, 2, 3, etc.)
+   - If no explicit position/ranking is found, return null
+   - Examples:
+     * "### 1st: Y Combinator" → 1
+     * "2nd Place: Y Combinator" → 2  
+     * "#3: Y Combinator" → 3
+     * "Y Combinator is mentioned but no ranking" → null
+
+3. **competitorsMentioned**: Array of competitor names that appear in the response
+
+4. **sentiment**: Overall sentiment toward "${config.brandName}" in this response:
+   - "positive" if the response praises, recommends, or ranks highly
+   - "neutral" if factual/balanced with no clear opinion
+   - "negative" if critical or dismissive
+
+5. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
+
+Return ONLY a valid JSON object with these exact keys:
+{
+  "brandMentioned": boolean,
+  "brandPosition": number or null,
+  "competitorsMentioned": string[],
+  "sentiment": "positive" | "neutral" | "negative",
+  "confidence": number,
+  "explanation": "brief reasoning"
+}`;
+
+    const analysisResponse = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
+        },
+        {
+          role: 'user',
+          content: analysisPrompt,
+        },
+      ],
+      temperature: 0.1,
+      max_tokens: 500,
+      response_format: { type: "json_object" },
+    });
+
+    const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
+    
+    // Parse JSON
+    let analysis;
+    try {
+      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+      analysis = JSON.parse(cleanedText);
+    } catch (parseError) {
+      console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
+      
+      // Fallback: manual regex extraction
+      const brandNameLower = config.brandName.toLowerCase();
+      const textLower = text.toLowerCase();
+      const brandMentioned = textLower.includes(brandNameLower);
+      
+      let brandPosition = null;
+      const positionPatterns = [
+        new RegExp(`(?:^|\\n)(?:###?\\s*)?([1-9]\\d?)(?:st|nd|rd|th)(?:\\s*[Pp]lace)?:?\\s*\\*?\\*?${config.brandName}`, 'i'),
+        new RegExp(`#([1-9]\\d?):\\s*${config.brandName}`, 'i'),
+        new RegExp(`(?:ranked?|position)\\s*#?([1-9]\\d?).*${config.brandName}`, 'i'),
+      ];
+
+      for (const pattern of positionPatterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+          brandPosition = parseInt(match[1], 10);
+          break;
+        }
+      }
+
+      const sentiment: 'positive' | 'neutral' | 'negative' = brandMentioned ? 'neutral' : 'neutral';
+
+      analysis = {
+        brandMentioned,
+        brandPosition,
+        competitorsMentioned: [],
+        sentiment,
+        confidence: 0.6,
+        explanation: 'Fallback regex extraction used',
+      };
+    }
+
+    return {
+      prompt,
+      response: text,
+      brandMentioned: analysis.brandMentioned || false,
+      brandPosition: analysis.brandPosition,
+      competitors: analysis.competitorsMentioned || [],
+      sentiment: analysis.sentiment || 'neutral',
+      confidence: analysis.confidence || 0.5,
+    };
+  } catch (error: any) {
+    console.error(`❌ Error analyzing with Perplexity:`, error.message || error);
+    if (error.response) {
+      console.error(`   Status: ${error.response.status}`);
+      console.error(`   Data:`, JSON.stringify(error.response.data, null, 2));
+    }
+    if (error.code) {
+      console.error(`   Error code:`, error.code);
+    }
     throw error;
   }
 }
@@ -458,9 +646,10 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
   if (config.apiKeys.openai) availableProviders.push('openai');
   if (config.apiKeys.anthropic) availableProviders.push('anthropic');
   if (config.apiKeys.google) availableProviders.push('google');
+  if (config.apiKeys.perplexity) availableProviders.push('perplexity');
   
   if (availableProviders.length === 0) {
-    throw new Error('At least one API key required (OpenAI, Anthropic, or Google)');
+    throw new Error('At least one API key required (OpenAI, Anthropic, Google, or Perplexity)');
   }
   
   console.log(`Testing with ${availableProviders.length} provider(s): ${availableProviders.join(', ')}`);

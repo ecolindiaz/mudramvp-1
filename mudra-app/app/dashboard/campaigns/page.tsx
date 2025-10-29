@@ -205,6 +205,14 @@ export default function CampaignsPage() {
           };
           localStorage.setItem(`mudra_campaign_${id}`, JSON.stringify(campaignData));
           
+          // Generate slug from title
+          const slug = data.title
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/-+/g, '-')
+            .trim('-');
+
           // Save to database
           fetch("/api/campaigns/save", {
             method: "POST",
@@ -216,13 +224,26 @@ export default function CampaignsPage() {
               type: selectedType,
               mode: modeParam,
               status: "draft",
+              slug: slug,
+              prompt: selectedPrompt,
+              icp: selectedIcp,
+              keyword: keywords.join(", "),
               metadata: {
-                prompt: selectedPrompt,
-                icp: selectedIcp,
                 keywords: keywords
               }
             })
-          }).catch(err => console.error("Failed to save campaign to database:", err));
+          })
+          .then(res => res.json())
+          .then(result => {
+            if (result.success) {
+              console.log("✅ Campaign saved to database successfully:", result);
+            } else {
+              console.error("❌ Campaign save failed:", result);
+            }
+          })
+          .catch(err => {
+            console.error("❌ Failed to save campaign to database:", err);
+          });
         }
         
         // Now proceed to final step and navigate immediately

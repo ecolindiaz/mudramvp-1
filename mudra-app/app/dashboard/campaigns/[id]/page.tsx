@@ -14,7 +14,7 @@ import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Maximize2, Minimize2, Users, MessageSquareText, Link as LinkIcon, Search, Loader2 } from "lucide-react"
+import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Maximize2, Minimize2, Users, MessageSquareText, Link as LinkIcon, Search, Loader2, Trash2 } from "lucide-react"
 
 export default function CampaignCanvasPage({
   params,
@@ -36,12 +36,24 @@ export default function CampaignCanvasPage({
   const [editorExpanded, setEditorExpanded] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(true)
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
 
   const [title, setTitle] = React.useState("")
   const [body, setBody] = React.useState("")
 
   const wordCount = React.useMemo(() => body.trim().split(/\s+/).filter(Boolean).length, [body])
   const readMinutes = Math.max(1, Math.round(wordCount / 200))
+
+  // Debug: Log current field values
+  React.useEffect(() => {
+    console.log('🔍 Current field values:', JSON.stringify({
+      targetIcp: targetIcp || 'empty',
+      campaignPrompt: campaignPrompt || 'empty',
+      slug: slug || 'empty',
+      keyword: keyword || 'empty'
+    }, null, 2))
+  }, [targetIcp, campaignPrompt, slug, keyword])
 
   const headings = React.useMemo(() => {
     return body.split("\n").filter((l) => l.startsWith("## ")).map((h) => h.replace(/^##\s+/, ""))
@@ -60,7 +72,11 @@ export default function CampaignCanvasPage({
           body,
           type,
           mode,
-          status: published ? "published" : "draft"
+          status: published ? "published" : "draft",
+          slug,
+          prompt: campaignPrompt,
+          icp: targetIcp,
+          keyword: keyword
         })
       })
       
@@ -75,77 +91,144 @@ export default function CampaignCanvasPage({
     }
   }
 
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const response = await fetch(`/api/campaigns/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" }
+      })
+      
+      if (response.ok) {
+        console.log("✅ Campaign deleted successfully")
+        // Redirect to campaigns list
+        window.location.href = "/dashboard/campaigns"
+      } else {
+        console.error("Failed to delete campaign")
+      }
+    } catch (error) {
+      console.error("Failed to delete campaign:", error)
+    } finally {
+      setDeleting(false)
+      setShowDeleteConfirm(false)
+    }
+  }
+
   // Initialize from URL params and load generated content
   React.useEffect(() => {
-    if (prompt) setCampaignPrompt(prompt)
-    if (icp) setTargetIcp(icp)
-    if (kwParam) setKeyword(kwParam)
-    
-    // Check if this is a newly generated campaign or an existing one
-    const storageKey = `mudra_campaign_${id}`
-    
-    // First, try to load from localStorage immediately
-    const stored = localStorage.getItem(storageKey)
-    if (stored) {
-      try {
-        const data = JSON.parse(stored)
-        if (data.generated && data.title && data.body) {
-          setTitle(data.title)
-          setBody(data.body)
-          setIsLoading(false)
-          console.log('✅ Loaded generated content from storage')
-          return
-        }
-      } catch (e) {
-        console.error('Failed to parse stored content:', e)
-      }
-    }
-    
-    // If we have prompt/icp/keyword params, it's a newly generated campaign - wait for content
-    if (prompt || icp || kwParam) {
-      let attempts = 0
-      const maxAttempts = 30 // 30 seconds max wait
+    const loadContent = async () => {
+      setIsLoading(true)
       
-      const checkForContent = () => {
-        const stored = localStorage.getItem(storageKey)
+      // Always try to load from database first
+      try {
+        const response = await fetch(`/api/campaigns/${id}`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.campaign) {
+            const campaign = data.campaign
+            setTitle(campaign.title || "Untitled Campaign")
+            setBody(campaign.body || "## Welcome to Campaign Canvas\n\nStart editing your content here.")
+            setPublished(campaign.status === "published")
+            setSlug(campaign.slug || "")
+            setCampaignPrompt(campaign.prompt || "")
+            setTargetIcp(campaign.icp || "")
+            setKeyword(campaign.keyword || "")
+            setIsLoading(false)
+            
+            // Log immediately after setting
+            console.log('🔧 Fields set to:', JSON.stringify({
+              slug: campaign.slug || "",
+              prompt: campaign.prompt || "",
+              icp: campaign.icp || "",
+              keyword: campaign.keyword || ""
+            }, null, 2))
+            console.log('✅ Loaded campaign from database')
+            console.log('📝 Database field values:', JSON.stringify({
+              slug: campaign.slug,
+              prompt: campaign.prompt,
+              icp: campaign.icp,
+              keyword: campaign.keyword
+            }, null, 2))
+            return
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load campaign from database:', error)
+      }
+      
+      // Fallback to localStorage for newly generated campaigns
+      const storageKey = `mudra_campaign_${id}`
+      const stored = localStorage.getItem(storageKey)
+      if (stored) {
+        try {
+          const data = JSON.parse(stored)
+          if (data.generated && data.title && data.body) {
+            setTitle(data.title)
+            setBody(data.body)
+            // Set fields from URL parameters if they exist
+            if (prompt) setCampaignPrompt(prompt)
+            if (icp) setTargetIcp(icp)
+            if (kwParam) setKeyword(kwParam)
+            setIsLoading(false)
+            console.log('✅ Loaded generated content from storage')
+            console.log('📝 Field values set:', JSON.stringify({ 
+              prompt: prompt || 'undefined', 
+              icp: icp || 'undefined', 
+              kwParam: kwParam || 'undefined' 
+            }, null, 2))
+            return
+          }
+        } catch (e) {
+          console.error('Failed to parse stored content:', e)
+        }
+      }
+      
+      // If we have URL params but no content yet, wait for generation
+      if (prompt || icp || kwParam) {
+        let attempts = 0
+        const maxAttempts = 30 // 30 seconds max wait
         
-        if (stored) {
-          try {
-            const data = JSON.parse(stored)
-            if (data.generated && data.title && data.body) {
-              setTitle(data.title)
-              setBody(data.body)
-              setIsLoading(false)
-              console.log('✅ Loaded generated content from storage')
-              return
+        const checkForContent = () => {
+          const stored = localStorage.getItem(storageKey)
+          
+          if (stored) {
+            try {
+              const data = JSON.parse(stored)
+              if (data.generated && data.title && data.body) {
+                setTitle(data.title)
+                setBody(data.body)
+                setIsLoading(false)
+                console.log('✅ Loaded generated content from storage')
+                return
+              }
+            } catch (e) {
+              console.error('Failed to parse stored content:', e)
             }
-          } catch (e) {
-            console.error('Failed to parse stored content:', e)
+          }
+          
+          attempts++
+          if (attempts < maxAttempts) {
+            // Check more frequently initially (every 200ms for first 5 seconds, then every second)
+            const delay = attempts < 25 ? 200 : 1000
+            setTimeout(checkForContent, delay)
+          } else {
+            // Timeout - show placeholder
+            setTitle("Content Generation Timed Out")
+            setBody("The content generation is taking longer than expected. Please try again or contact support.")
+            setIsLoading(false)
           }
         }
         
-        attempts++
-        if (attempts < maxAttempts) {
-          // Check more frequently initially (every 200ms for first 5 seconds, then every second)
-          const delay = attempts < 25 ? 200 : 1000
-          setTimeout(checkForContent, delay)
-        } else {
-          // Timeout - show placeholder
-          setTitle("Content Generation Timed Out")
-          setBody("The content generation is taking longer than expected. Please try again or contact support.")
-          setIsLoading(false)
-        }
+        checkForContent()
+      } else {
+        // No content found anywhere - show placeholder
+        setTitle("Campaign Not Found")
+        setBody("## Welcome to Campaign Canvas\n\nThis campaign could not be loaded. Start editing your content here.\n\n## Content Structure\n\nAdd your sections, headings, and content below.")
+        setIsLoading(false)
       }
-      
-      checkForContent()
-    } else {
-      // No params means it's an existing campaign - load placeholder immediately
-      setTitle("Existing Campaign")
-      setBody("## Welcome to Campaign Canvas\n\nThis is an existing campaign. Start editing your content here.\n\n## Content Structure\n\nAdd your sections, headings, and content below.")
-      setIsLoading(false)
-      console.log('📝 Loaded existing campaign (placeholder content)')
     }
     
+    loadContent()
   }, [id, prompt, icp, kwParam])
 
   return (
@@ -193,6 +276,16 @@ export default function CampaignCanvasPage({
                   </Button>
                   
                   <Button onClick={handleSave} disabled={saving} variant="outline" size="sm" className="h-9 rounded-lg gap-2"><Save className="size-4" />{saving ? 'Saving…' : 'Save'}</Button>
+                  
+                  <Button 
+                    onClick={() => setShowDeleteConfirm(true)} 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-9 rounded-lg gap-2 text-red-400 border-red-500/20 hover:bg-red-500/10"
+                  >
+                    <Trash2 className="size-4" />Delete
+                  </Button>
+                  
                   <Button asChild size="sm" className="h-9 rounded-lg">
                     <Link href="/dashboard/campaigns">Back to Campaigns</Link>
                   </Button>
@@ -411,6 +504,47 @@ export default function CampaignCanvasPage({
       </SidebarInset>
       {/* Inline expand mode handled in-card; dialog removed */}
       <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-dark-grey border border-white/10 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-white mb-2">Delete Campaign</h3>
+            <p className="text-white/70 mb-4">
+              Are you sure you want to delete this campaign? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={() => setShowDeleteConfirm(false)}
+                variant="outline"
+                size="sm"
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDelete}
+                variant="destructive"
+                size="sm"
+                disabled={deleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="size-4 mr-2" />
+                    Delete
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </SidebarProvider>
   )
 }

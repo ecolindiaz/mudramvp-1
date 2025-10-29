@@ -22,29 +22,8 @@ export async function GET(request: NextRequest) {
     // Get active prompts for the brand profile
     const prompts = await getActivePrompts(profileId)
 
-    // Define the exact order from Tracked Prompts page (first 12)
-    const trackedPromptsOrder = [
-      "Best data annotation tools for AI research labs in the AI/ML industry",
-      "Affordable labeling data services for machine learning projects",
-      "Top providers of supervised fine tuning data for AI models",
-      "Alternatives to traditional data labeling for AI research labs",
-      "How to improve model accuracy with high-quality training data",
-      "Effective ways to source supervised fine tuning data for AI models",
-      "What are the best practices for data labeling in machine learning?",
-      "Recommendations for data quality tools for AI research projects",
-      "How to choose a data provider for AI model enhancement",
-      "Comparing data annotation services for AI and ML applications",
-      "Who are the leading data annotation companies for training AI models?",
-      "Which data providers specialize in RLHF datasets for LLMs?"
-    ]
-
-    // Sort prompts to match the Tracked Prompts page order
-    const sortedPrompts = trackedPromptsOrder
-      .map(text => prompts.find(p => p.text === text))
-      .filter((prompt): prompt is NonNullable<typeof prompt> => prompt !== undefined)
-
     // Transform prompts to the format expected by the campaigns page
-    const promptOptions = sortedPrompts.map(prompt => ({
+    const promptOptions = prompts.map(prompt => ({
       id: prompt.id,
       text: prompt.text,
       category: prompt.category

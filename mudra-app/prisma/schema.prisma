@@ -46,6 +46,7 @@ model BrandProfile {
   geoAnalysisResults         GeoAnalysisResult[]
   organicTrafficMetrics      OrganicTrafficMetrics[]
   naturalLanguageReports     NaturalLanguageReport[]
+  campaigns                  Campaign[]
   
   @@index([userId])
 }
@@ -638,4 +639,32 @@ model NaturalLanguageReport {
   
   @@index([brandProfileId])
   @@index([brandProfileId, createdAt])
+}
+
+// Campaign Management
+model Campaign {
+  id              String   @id @default(cuid())
+  userId          String?  // Optional for now, can be linked to user later
+  brandProfileId  Int?     // Optional for now
+  title           String
+  body            String
+  type            String   @default("blog") // blog, newsletter, case
+  mode            String   @default("geo")  // geo, seo
+  status          String   @default("draft") // draft, published
+  slug            String?  // URL slug
+  prompt          String?  // The prompt used for generation
+  icp             String?  // Ideal Customer Profile
+  keyword         String?  // SEO keyword if applicable
+  metadata        String   @default("{}") // JSON string for additional data
+  publishedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  brandProfile    BrandProfile? @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@index([brandProfileId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
 }

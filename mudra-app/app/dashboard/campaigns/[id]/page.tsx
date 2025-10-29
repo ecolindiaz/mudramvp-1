@@ -459,25 +459,33 @@ export default function CampaignCanvasPage({
                           placeholder="Post title" 
                         />
                       {!preview ? (
-                          <div className={`rounded-lg border border-white/10 bg-transparent p-4 prose prose-invert max-w-none ${editorExpanded ? "min-h-[80vh]" : ""}`}>
-                          <h1 className="mb-2 text-xl font-bold">{title}</h1>
-                          <ReactMarkdown 
-                            components={{
-                              h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 text-white">{children}</h1>,
-                              h2: ({ children }) => <h2 className="text-xl font-semibold mb-3 text-white">{children}</h2>,
-                              h3: ({ children }) => <h3 className="text-lg font-medium mb-2 text-white">{children}</h3>,
-                              p: ({ children }) => <p className="mb-3 text-white/80 leading-relaxed">{children}</p>,
-                              ul: ({ children }) => <ul className="mb-3 ml-4 text-white/80">{children}</ul>,
-                              ol: ({ children }) => <ol className="mb-3 ml-4 text-white/80">{children}</ol>,
-                              li: ({ children }) => <li className="mb-1 text-white/80">{children}</li>,
-                              strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-                              em: ({ children }) => <em className="italic text-white/90">{children}</em>,
-                              code: ({ children }) => <code className="bg-white/10 px-1 py-0.5 rounded text-sm text-white/90">{children}</code>,
-                              blockquote: ({ children }) => <blockquote className="border-l-4 border-white/20 pl-4 italic text-white/70">{children}</blockquote>,
-                            }}
-                          >
-                            {body}
-                          </ReactMarkdown>
+                          <div className={`rounded-lg border border-white/10 bg-transparent p-6 overflow-auto ${editorExpanded ? "min-h-[80vh]" : "max-h-[70vh]"}`}>
+                          <div className="prose prose-invert max-w-none">
+                            <ReactMarkdown 
+                              components={{
+                                h1: ({ children }) => <h1 className="text-3xl font-bold mb-6 text-white">{children}</h1>,
+                                h2: ({ children }) => <h2 className="text-2xl font-semibold mb-4 text-white mt-8">{children}</h2>,
+                                h3: ({ children }) => <h3 className="text-xl font-medium mb-3 text-white mt-6">{children}</h3>,
+                                h4: ({ children }) => <h4 className="text-lg font-medium mb-2 text-white mt-4">{children}</h4>,
+                                p: ({ children }) => <p className="mb-4 text-white/90 leading-relaxed">{children}</p>,
+                                ul: ({ children }) => <ul className="mb-4 ml-6 text-white/90 space-y-2">{children}</ul>,
+                                ol: ({ children }) => <ol className="mb-4 ml-6 text-white/90 space-y-2">{children}</ol>,
+                                li: ({ children }) => <li className="text-white/90 leading-relaxed">{children}</li>,
+                                strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                                em: ({ children }) => <em className="italic text-white/90">{children}</em>,
+                                code: ({ children }) => <code className="bg-white/10 px-2 py-1 rounded text-sm text-white/90 font-mono">{children}</code>,
+                                blockquote: ({ children }) => <blockquote className="border-l-4 border-white/30 pl-6 italic text-white/80 my-4">{children}</blockquote>,
+                                table: ({ children }) => <div className="overflow-x-auto mb-4"><table className="w-full border-collapse border border-white/20 min-w-full">{children}</table></div>,
+                                thead: ({ children }) => <thead className="bg-white/10">{children}</thead>,
+                                tbody: ({ children }) => <tbody>{children}</tbody>,
+                                tr: ({ children }) => <tr className="border-b border-white/10">{children}</tr>,
+                                th: ({ children }) => <th className="border border-white/20 px-4 py-2 text-left text-white font-semibold">{children}</th>,
+                                td: ({ children }) => <td className="border border-white/20 px-4 py-2 text-white/90">{children}</td>,
+                              }}
+                            >
+                              {body}
+                            </ReactMarkdown>
+                          </div>
                         </div>
                       ) : (
                           <Textarea 

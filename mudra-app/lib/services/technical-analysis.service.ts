@@ -242,9 +242,9 @@ export async function saveAnalysisResults(websiteId: string, scraperResults: Enh
     }
 }
 
-export async function getLatestAnalysis(websiteId: string): Promise<(TechnicalStructureAnalysis & { recommendations: any[] }) | null> {
+export async function getLatestAnalysis(websiteId: string): Promise<(TechnicalAnalysis & { recommendations: any[] }) | null> {
     try {
-      const analysis = await prisma.technicalStructureAnalysis.findFirst({
+      const analysis = await prisma.technicalAnalysis.findFirst({
         where: { websiteId },
         orderBy: { createdAt: 'desc' },
         include: {

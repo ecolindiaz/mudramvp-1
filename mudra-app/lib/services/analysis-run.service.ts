@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 
 export interface AnalysisRunData {
   brandProfileId: number
-  promptsUsed: string[] // Array of prompt IDs
+  promptsUsed: number[] // Array of prompt IDs
   results: any // Full analysis results
   overallScore: number
   competitorData?: any

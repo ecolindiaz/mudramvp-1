@@ -26,9 +26,9 @@ export interface UnifiedAnalysisConfig {
 
 export interface UnifiedAnalysisResult {
   success: boolean;
-  geoAnalysisId?: string;
-  technicalAnalysisId?: string;
-  reportId?: string;
+  geoAnalysisId?: number;
+  technicalAnalysisId?: number;
+  reportId?: number;
   error?: string;
   scores: {
     aiVisibility?: number;
@@ -322,8 +322,8 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
  */
 async function generateReport(data: {
   brandProfileId: number;
-  geoAnalysisId?: string;
-  technicalAnalysisId?: string;
+  geoAnalysisId?: number;
+  technicalAnalysisId?: number;
 }) {
   try {
     const geoAnalysis = data.geoAnalysisId 

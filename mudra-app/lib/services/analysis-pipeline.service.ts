@@ -19,9 +19,9 @@ export interface AnalysisPipelineConfig {
 
 export interface AnalysisPipelineResult {
   success: boolean;
-  geoAnalysisId?: string;
-  technicalAnalysisId?: string;
-  reportId?: string;
+  geoAnalysisId?: number;
+  technicalAnalysisId?: number;
+  reportId?: number;
   error?: string;
   progress: {
     geoAnalysis: 'pending' | 'completed' | 'failed';
@@ -410,17 +410,17 @@ function generateActionFromFinding(finding: any): string {
  */
 async function generateAnalysisReport(data: {
   brandProfileId: number;
-  geoAnalysisId?: string;
-  technicalAnalysisId?: string;
+  geoAnalysisId?: number;
+  technicalAnalysisId?: number;
 }) {
   try {
     // Fetch analysis data
     const geoAnalysis = data.geoAnalysisId 
-      ? await prisma.geoAnalysisResult.findUnique({ where: { id: parseInt(data.geoAnalysisId) } })
+      ? await prisma.geoAnalysisResult.findUnique({ where: { id: data.geoAnalysisId } })
       : null;
 
     const technicalAnalysis = data.technicalAnalysisId
-      ? await prisma.technicalStructureAnalysis.findUnique({ where: { id: parseInt(data.technicalAnalysisId) } })
+      ? await prisma.technicalStructureAnalysis.findUnique({ where: { id: data.technicalAnalysisId } })
       : null;
 
     // Generate report content

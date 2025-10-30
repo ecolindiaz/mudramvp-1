@@ -47,7 +47,7 @@ const CreateWebsiteSchema = z.object({
 // Prisma Client Instance
 import { prisma } from '@/lib/prisma'
 
-export async function saveAnalysisResults(websiteId: string, scraperResults: EnhancedGEOResult): Promise<TechnicalStructureAnalysis> {
+export async function saveAnalysisResults(websiteId: string, scraperResults: EnhancedGEOResult): Promise<TechnicalAnalysis> {
     try {
       // Validate input data
       SaveAnalysisSchema.parse({ websiteId, scraperResults })

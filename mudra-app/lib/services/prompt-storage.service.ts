@@ -74,7 +74,7 @@ export async function generateAndSaveInitialPrompts(brandProfileId: number): Pro
         console.warn('⚠️ Prompt table does not exist yet. Returning generated prompts without saving.');
         // Return prompts in the expected format even if we can't save them
         return promptsToSave.map((p, index) => ({
-          id: index + 1,
+          id: String(index + 1),
           ...p,
           createdAt: new Date(),
           updatedAt: new Date()
@@ -104,7 +104,7 @@ export async function generateAndSaveInitialPrompts(brandProfileId: number): Pro
       if (dbError.code === 'P2021' || dbError.message?.includes('does not exist') || dbError.message?.includes('undefined') || dbError.message?.includes('Null constraint violation')) {
         console.warn('⚠️ Prompt table error, returning generated prompts without saving:', dbError.message)
         return promptsToSave.map((p, index) => ({
-          id: index + 1,
+          id: String(index + 1),
           ...p,
           createdAt: new Date(),
           updatedAt: new Date()
@@ -280,7 +280,7 @@ export async function getPromptStats(brandProfileId: number) {
       total,
       active,
       custom,
-      byCategory: byCategory.map(cat => ({
+      byCategory: byCategory.map((cat: { category: string; _count: number }) => ({
         category: cat.category,
         count: cat._count
       }))

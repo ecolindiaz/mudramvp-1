@@ -466,9 +466,9 @@ async function generateReportContent(data: {
   // TODO: Use OpenAI/Claude to generate narrative report
   // For now, create structured report from available data
   
-  const sections = [];
-  const insights = [];
-  const recommendations = [];
+  const sections: Array<{ title: string; content: string }> = [];
+  const insights: string[] = [];
+  const recommendations: unknown[] = [];
 
   // AI Visibility Section
   if (data.geoAnalysis) {

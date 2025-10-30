@@ -726,7 +726,8 @@ function TrackedPromptsPageInner() {
                         <Select 
                           value={newIntent} 
                           onValueChange={(v) => {
-                            if (v !== null) setNewIntent(v as TrackedPrompt["intent"])
+                            // Ensure we always set a non-null string; fallback to "Organic"
+                            setNewIntent(v ?? "Organic")
                           }}
                           disabled={isAdding}
                         >

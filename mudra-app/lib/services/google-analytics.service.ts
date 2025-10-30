@@ -34,15 +34,14 @@ function getGoogleAuth(): any | null {
     return null;
   }
 
-  return new google.auth.JWT(
-    clientEmail,
-    undefined,
-    privateKey,
-    [
+  return new google.auth.JWT({
+    email: clientEmail,
+    key: privateKey,
+    scopes: [
       'https://www.googleapis.com/auth/analytics.readonly',
       'https://www.googleapis.com/auth/webmasters.readonly',
     ]
-  );
+  });
 }
 
 /**

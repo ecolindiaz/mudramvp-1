@@ -253,13 +253,11 @@ function DashboardPageInner() {
                 </div>
               )}
 
-              {/* Elegant Separator with White Dot (mirrors Insights) */}
+              {/* Elegant Separator (dot removed) */}
               <div className="mt-4">
                 <div className="relative">
                   <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                  <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                  </div>
+                  {/* white dot removed to simplify UI */}
                 </div>
               </div>
             </div>

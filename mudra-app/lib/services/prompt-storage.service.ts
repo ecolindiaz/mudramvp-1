@@ -5,7 +5,7 @@ export interface SavedPrompt {
   id: number
   brandProfileId: number
   text: string
-  category: string
+  category: string | null
   isCustom: boolean
   isActive: boolean
   createdAt: Date

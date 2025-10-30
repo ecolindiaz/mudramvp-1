@@ -120,7 +120,7 @@ export async function getAnalysisRuns(brandProfileId: number, limit: number = 10
   try {
     const runs = await prisma.analysisRun.findMany({
       where: { brandProfileId },
-      orderBy: { startedAt: 'desc' },
+      orderBy: { ranAt: 'desc' },
       take: limit
     })
 
@@ -250,7 +250,7 @@ export async function getAnalysisStats(brandProfileId: number) {
         select: {
           id: true,
           overallScore: true,
-          startedAt: true,
+          ranAt: true,
           completedAt: true
         }
       })

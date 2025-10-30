@@ -434,15 +434,15 @@ async function generateAnalysisReport(data: {
       data: {
         brandProfileId: data.brandProfileId,
         reportText: report.fullReport || report.summary || 'Analysis report generated',
-        insights: report.insights || [],
-        recommendations: report.recommendations || [],
+        insights: (report.insights || []) as any,
+        recommendations: (report.recommendations || []) as any,
         metadata: {
           reportType: 'onboarding',
           title: 'Brand Analysis Report',
           summary: report.summary,
           sections: report.sections,
           model: 'gpt-4',
-        },
+        } as any,
       },
     });
 

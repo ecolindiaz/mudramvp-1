@@ -280,7 +280,7 @@ export async function getPromptStats(brandProfileId: number) {
       total,
       active,
       custom,
-      byCategory: byCategory.map((cat: { category: string; _count: number }) => ({
+      byCategory: byCategory.map((cat: { category: string | null; _count: number }) => ({
         category: cat.category,
         count: cat._count
       }))

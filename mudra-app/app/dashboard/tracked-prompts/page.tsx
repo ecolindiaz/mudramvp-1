@@ -531,11 +531,13 @@ function TrackedPromptsPageInner() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Models</SelectItem>
-                      {availableModels.map((model) => (
-                        <SelectItem key={model} value={model}>
-                          {model}
-                        </SelectItem>
-                      ))}
+                      {availableModels
+                        .filter((model): model is string => model !== null)
+                        .map((model) => (
+                          <SelectItem key={model} value={model}>
+                            {model}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <Select value={selectedIntent} onValueChange={setSelectedIntent}>

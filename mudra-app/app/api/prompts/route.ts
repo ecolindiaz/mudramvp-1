@@ -109,7 +109,7 @@ export async function PATCH(request: NextRequest) {
     if (category !== undefined) updates.category = category
     if (isActive !== undefined) updates.isActive = isActive
 
-    const prompt = await updatePrompt(promptId, updates)
+    const prompt = await updatePrompt(parseInt(promptId), updates)
 
     return NextResponse.json({ 
       success: true, 
@@ -140,7 +140,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const prompt = await deletePrompt(promptId)
+    const prompt = await deletePrompt(parseInt(promptId))
 
     return NextResponse.json({ 
       success: true, 

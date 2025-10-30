@@ -62,7 +62,7 @@ export async function createAnalysisRun(data: AnalysisRunData) {
  * Update an analysis run (mark as completed/failed)
  */
 export async function updateAnalysisRun(
-  analysisRunId: string,
+  analysisRunId: string | number,
   updates: {
     status?: string
     results?: any

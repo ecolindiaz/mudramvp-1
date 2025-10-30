@@ -205,7 +205,7 @@ export async function createCustomPrompt(
  * Update a prompt
  */
 export async function updatePrompt(
-  promptId: string,
+  promptId: number,
   updates: Partial<{ text: string; category: string; isActive: boolean }>
 ): Promise<SavedPrompt> {
   try {
@@ -224,7 +224,7 @@ export async function updatePrompt(
 /**
  * Delete a prompt (soft delete by setting isActive to false)
  */
-export async function deletePrompt(promptId: string): Promise<SavedPrompt> {
+export async function deletePrompt(promptId: number): Promise<SavedPrompt> {
   try {
     return await prisma.prompt.update({
       where: { id: promptId },
@@ -241,7 +241,7 @@ export async function deletePrompt(promptId: string): Promise<SavedPrompt> {
 /**
  * Hard delete a prompt from database
  */
-export async function hardDeletePrompt(promptId: string): Promise<void> {
+export async function hardDeletePrompt(promptId: number): Promise<void> {
   try {
     await prisma.prompt.delete({
       where: { id: promptId }

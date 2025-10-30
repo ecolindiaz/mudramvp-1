@@ -295,7 +295,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
           criticalIssues: scoreResult.findings.filter(f => f.severity === 'high').map(f => f.message),
           warnings: scoreResult.findings.filter(f => f.severity === 'medium').map(f => f.message),
           suggestions: scoreResult.findings.filter(f => f.severity === 'low').map(f => f.message),
-        },
+        } as any,
       },
     });
 

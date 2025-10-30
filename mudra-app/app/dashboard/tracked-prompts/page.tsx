@@ -546,11 +546,13 @@ function TrackedPromptsPageInner() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Intents</SelectItem>
-                      {availableIntents.map((intent) => (
-                        <SelectItem key={intent} value={intent}>
-                          {intent}
-                        </SelectItem>
-                      ))}
+                      {availableIntents
+                        .filter((intent): intent is string => intent !== null)
+                        .map((intent) => (
+                          <SelectItem key={intent} value={intent}>
+                            {intent}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   {(selectedModel !== "all" || selectedIntent !== "all") && (
@@ -723,7 +725,9 @@ function TrackedPromptsPageInner() {
                         <Label htmlFor="intent">Intent</Label>
                         <Select 
                           value={newIntent} 
-                          onValueChange={(v) => setNewIntent(v as TrackedPrompt["intent"])}
+                          onValueChange={(v) => {
+                            if (v !== null) setNewIntent(v as TrackedPrompt["intent"])
+                          }}
                           disabled={isAdding}
                         >
                           <SelectTrigger id="intent" className="w-full rounded-lg">

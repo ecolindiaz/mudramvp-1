@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
 import { saveAnalysisResults } from '@/lib/services/technical-analysis.service'
 import { extractEnhancedGEOData } from '@/lib/scrapers/enhanced-geo-scraper'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma';
 
 export async function POST(
   _request: NextRequest,

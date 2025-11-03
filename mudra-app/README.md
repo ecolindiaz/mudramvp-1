@@ -133,7 +133,33 @@ npm run test         # Run tests (coming soon)
 npm run test:e2e     # Run E2E tests (coming soon)
 ```
 
-## 📚 Documentation
+## � Analysis Engine Configuration
+
+### DirectGEO vs Firegeo
+
+Mudra uses **DirectGEO** (local OpenAI-powered analysis) as the **default** analysis engine. This provides:
+- ✅ Better position/ranking extraction from AI responses
+- ✅ Multi-model sentiment analysis
+- ✅ Custom prompt support (50 prompts from database)
+- ✅ Detailed brand mention detection
+- ✅ Competitor comparison tracking
+
+**Firegeo** (external API) can be enabled as an **optional fallback**:
+```bash
+# In .env.local or .env.docker
+USE_FIREGEO_FALLBACK=true
+FIREGEO_API_URL=https://api.firegeo.com
+FIREGEO_API_TOKEN=your_token_here
+```
+
+**Required Environment Variables:**
+```bash
+OPENAI_API_KEY=sk-...        # Required for DirectGEO
+FIRECRAWL_API_KEY=fc-...     # Required for web scraping
+DATABASE_URL=postgresql://... # Required for Prisma
+```
+
+## �📚 Documentation
 
 - [Project Context](../project-context.md) - Business logic & requirements
 - [Structure](../structure.md) - Detailed project structure

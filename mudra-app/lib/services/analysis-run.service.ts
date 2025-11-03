@@ -1,10 +1,8 @@
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export interface AnalysisRunData {
   brandProfileId: number
-  promptsUsed: string[] // Array of prompt IDs
+  promptsUsed: number[] // Array of prompt IDs
   results: any // Full analysis results
   overallScore: number
   competitorData?: any
@@ -64,7 +62,7 @@ export async function createAnalysisRun(data: AnalysisRunData) {
  * Update an analysis run (mark as completed/failed)
  */
 export async function updateAnalysisRun(
-  analysisRunId: string,
+  analysisRunId: string | number,
   updates: {
     status?: string
     results?: any
@@ -122,7 +120,7 @@ export async function getAnalysisRuns(brandProfileId: number, limit: number = 10
   try {
     const runs = await prisma.analysisRun.findMany({
       where: { brandProfileId },
-      orderBy: { startedAt: 'desc' },
+      orderBy: { ranAt: 'desc' },
       take: limit
     })
 
@@ -252,7 +250,7 @@ export async function getAnalysisStats(brandProfileId: number) {
         select: {
           id: true,
           overallScore: true,
-          startedAt: true,
+          ranAt: true,
           completedAt: true
         }
       })

@@ -80,7 +80,7 @@ export const NavMain = memo(function NavMain({
           <SidebarGroupContent>
             <SidebarMenu className="space-y-0.5">
               {section.items.map((item) => {
-                const isActive = pathname === item.url || (item.url === "/dashboard/campaigns" && pathname.startsWith("/dashboard/campaigns/"))
+                const isActive = !!(pathname && (pathname === item.url || (item.url === "/dashboard/campaigns" && pathname.startsWith("/dashboard/campaigns/"))))
                 return (
                   <NavigationItem
                     key={item.title}

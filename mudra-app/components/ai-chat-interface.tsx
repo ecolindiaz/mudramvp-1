@@ -69,7 +69,8 @@ interface AIChatInterfaceProps {
 }
 
 // Helper function to get page context
-const getPageContext = (pathname: string) => {
+const getPageContext = (pathname: string | null) => {
+  if (!pathname) return { icon: SidebarOverviewIcon, name: "Dashboard", color: "text-blue-400" }
   if (pathname === "/dashboard") return { icon: SidebarOverviewIcon, name: "Overview", color: "text-blue-400" }
   if (pathname === "/dashboard/campaigns") return { icon: SidebarCampaignsIcon, name: "Campaigns", color: "text-green-400" }
   if (pathname === "/dashboard/tasks") return { icon: SidebarTasksIcon, name: "Tasks", color: "text-orange-400" }

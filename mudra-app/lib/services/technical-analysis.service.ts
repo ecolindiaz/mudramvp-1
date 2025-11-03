@@ -1,6 +1,10 @@
 // Database - Use the generated Prisma client from the correct path
-import { PrismaClient, RecommendationSeverity, RecommendationImpact, RecommendationCategory } from "@prisma/client";
-import type { TechnicalAnalysis, Website, User } from "@prisma/client";
+import type { TechnicalAnalysis, TechnicalStructureAnalysis, Website, Prisma } from "@prisma/client";
+import { 
+  RecommendationCategory,
+  RecommendationSeverity,
+  RecommendationImpact
+} from "@prisma/client";
 
 // Algorithm - Import from the scrapers directory
 import { extractEnhancedGEOData } from '../scrapers/enhanced-geo-scraper'
@@ -41,14 +45,14 @@ const CreateWebsiteSchema = z.object({
 })
 
 // Prisma Client Instance
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export async function saveAnalysisResults(websiteId: string, scraperResults: EnhancedGEOResult): Promise<TechnicalAnalysis> {
     try {
       // Validate input data
       SaveAnalysisSchema.parse({ websiteId, scraperResults })
       
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // Step 1: Create main technical analysis record
         const analysis = await tx.technicalAnalysis.create({
         data: {

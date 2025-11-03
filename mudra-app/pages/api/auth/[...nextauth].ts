@@ -1,11 +1,9 @@
 import NextAuth from "next-auth";
 // import TwitterProvider from "next-auth/providers/twitter";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { Session } from "next-auth";
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // Extend the Session type to include accessToken
 declare module "next-auth" {

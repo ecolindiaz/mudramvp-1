@@ -11,9 +11,7 @@
  */
 
 import type { AnalysisPipelineConfig, AnalysisPipelineResult } from './analysis-pipeline.service';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export interface UnifiedAnalysisConfig {
   brandProfileId: number;
@@ -28,9 +26,9 @@ export interface UnifiedAnalysisConfig {
 
 export interface UnifiedAnalysisResult {
   success: boolean;
-  geoAnalysisId?: string;
-  technicalAnalysisId?: string;
-  reportId?: string;
+  geoAnalysisId?: number;
+  technicalAnalysisId?: number;
+  reportId?: number;
   error?: string;
   scores: {
     aiVisibility?: number;
@@ -297,7 +295,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
           criticalIssues: scoreResult.findings.filter(f => f.severity === 'high').map(f => f.message),
           warnings: scoreResult.findings.filter(f => f.severity === 'medium').map(f => f.message),
           suggestions: scoreResult.findings.filter(f => f.severity === 'low').map(f => f.message),
-        },
+        } as any,
       },
     });
 
@@ -324,8 +322,8 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
  */
 async function generateReport(data: {
   brandProfileId: number;
-  geoAnalysisId?: string;
-  technicalAnalysisId?: string;
+  geoAnalysisId?: number;
+  technicalAnalysisId?: number;
 }) {
   try {
     const geoAnalysis = data.geoAnalysisId 

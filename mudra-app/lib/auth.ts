@@ -1,10 +1,8 @@
 // import TwitterProvider from "next-auth/providers/twitter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import type { NextAuthOptions } from "next-auth";
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export const authOptions: NextAuthOptions = {
   providers: [

@@ -1,13 +1,11 @@
-import { PrismaClient } from '@prisma/client'
 import { generateSophisticatedPrompts, profileToBrandInfo } from './prompt-generation.service'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export interface SavedPrompt {
-  id: string
+  id: number
   brandProfileId: number
   text: string
-  category: string
+  category: string | null
   isCustom: boolean
   isActive: boolean
   createdAt: Date
@@ -117,9 +115,8 @@ export async function generateAndSaveInitialPrompts(brandProfileId: number): Pro
   } catch (error) {
     console.error('Failed to generate and save initial prompts:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }
 
 /**
@@ -208,7 +205,7 @@ export async function createCustomPrompt(
  * Update a prompt
  */
 export async function updatePrompt(
-  promptId: string,
+  promptId: number,
   updates: Partial<{ text: string; category: string; isActive: boolean }>
 ): Promise<SavedPrompt> {
   try {
@@ -227,7 +224,7 @@ export async function updatePrompt(
 /**
  * Delete a prompt (soft delete by setting isActive to false)
  */
-export async function deletePrompt(promptId: string): Promise<SavedPrompt> {
+export async function deletePrompt(promptId: number): Promise<SavedPrompt> {
   try {
     return await prisma.prompt.update({
       where: { id: promptId },
@@ -244,7 +241,7 @@ export async function deletePrompt(promptId: string): Promise<SavedPrompt> {
 /**
  * Hard delete a prompt from database
  */
-export async function hardDeletePrompt(promptId: string): Promise<void> {
+export async function hardDeletePrompt(promptId: number): Promise<void> {
   try {
     await prisma.prompt.delete({
       where: { id: promptId }
@@ -283,7 +280,7 @@ export async function getPromptStats(brandProfileId: number) {
       total,
       active,
       custom,
-      byCategory: byCategory.map(cat => ({
+      byCategory: byCategory.map((cat: { category: string | null; _count: number }) => ({
         category: cat.category,
         count: cat._count
       }))

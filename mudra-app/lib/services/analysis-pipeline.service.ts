@@ -6,9 +6,7 @@
  * 3. Natural Language Report Generation
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export interface AnalysisPipelineConfig {
   brandProfileId: number;
@@ -21,9 +19,9 @@ export interface AnalysisPipelineConfig {
 
 export interface AnalysisPipelineResult {
   success: boolean;
-  geoAnalysisId?: string;
-  technicalAnalysisId?: string;
-  reportId?: string;
+  geoAnalysisId?: number;
+  technicalAnalysisId?: number;
+  reportId?: number;
   error?: string;
   progress: {
     geoAnalysis: 'pending' | 'completed' | 'failed';
@@ -412,17 +410,17 @@ function generateActionFromFinding(finding: any): string {
  */
 async function generateAnalysisReport(data: {
   brandProfileId: number;
-  geoAnalysisId?: string;
-  technicalAnalysisId?: string;
+  geoAnalysisId?: number;
+  technicalAnalysisId?: number;
 }) {
   try {
     // Fetch analysis data
     const geoAnalysis = data.geoAnalysisId 
-      ? await prisma.geoAnalysisResult.findUnique({ where: { id: parseInt(data.geoAnalysisId) } })
+      ? await prisma.geoAnalysisResult.findUnique({ where: { id: data.geoAnalysisId } })
       : null;
 
     const technicalAnalysis = data.technicalAnalysisId
-      ? await prisma.technicalStructureAnalysis.findUnique({ where: { id: parseInt(data.technicalAnalysisId) } })
+      ? await prisma.technicalStructureAnalysis.findUnique({ where: { id: data.technicalAnalysisId } })
       : null;
 
     // Generate report content
@@ -436,15 +434,15 @@ async function generateAnalysisReport(data: {
       data: {
         brandProfileId: data.brandProfileId,
         reportText: report.fullReport || report.summary || 'Analysis report generated',
-        insights: report.insights || [],
-        recommendations: report.recommendations || [],
+        insights: (report.insights || []) as any,
+        recommendations: (report.recommendations || []) as any,
         metadata: {
           reportType: 'onboarding',
           title: 'Brand Analysis Report',
           summary: report.summary,
           sections: report.sections,
           model: 'gpt-4',
-        },
+        } as any,
       },
     });
 
@@ -468,9 +466,9 @@ async function generateReportContent(data: {
   // TODO: Use OpenAI/Claude to generate narrative report
   // For now, create structured report from available data
   
-  const sections = [];
-  const insights = [];
-  const recommendations = [];
+  const sections: Array<{ title: string; content: string }> = [];
+  const insights: string[] = [];
+  const recommendations: unknown[] = [];
 
   // AI Visibility Section
   if (data.geoAnalysis) {

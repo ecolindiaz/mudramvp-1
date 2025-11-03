@@ -12,6 +12,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, CheckSquare, Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -49,6 +50,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
+import { mockTrackedPrompts } from "@/lib/mock-data/tracked-prompts"
 
 type TrackedPrompt = {
   id: string
@@ -60,7 +62,8 @@ type TrackedPrompt = {
   position: number | null
 }
 
-const columns: ColumnDef<TrackedPrompt>[] = [
+// Create columns function to access router
+const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedPrompt>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -100,7 +103,13 @@ const columns: ColumnDef<TrackedPrompt>[] = [
     ),
     accessorKey: "prompt",
     cell: ({ row }) => (
-      <div className="font-medium text-white/90 text-[15px] md:text-base leading-relaxed">
+      <div 
+        className="font-medium text-white/90 text-[15px] md:text-base leading-relaxed cursor-pointer hover:text-white transition-colors"
+        onClick={(e) => {
+          e.stopPropagation()
+          router.push(`/dashboard/tracked-prompts/${row.original.id}`)
+        }}
+      >
         {row.getValue("prompt")}
       </div>
     ),
@@ -250,6 +259,7 @@ const columns: ColumnDef<TrackedPrompt>[] = [
 ]
 
 function TrackedPromptsPageInner() {
+  const router = useRouter()
   const { profile } = useBrandProfile()
   const [data, setData] = useState<TrackedPrompt[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -261,6 +271,9 @@ function TrackedPromptsPageInner() {
   // Filter states
   const [selectedModel, setSelectedModel] = useState<string>("all")
   const [selectedIntent, setSelectedIntent] = useState<string>("all")
+  
+  // Create columns with router access
+  const columns = useMemo(() => createColumns(router), [router])
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -275,48 +288,33 @@ function TrackedPromptsPageInner() {
   const [isAdding, setIsAdding] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // Fetch prompts with their analysis results
+  // Fetch prompts with their analysis results (using mock data)
   useEffect(() => {
     async function fetchPrompts() {
-      if (!profile.id || profile.id === 0) {
-        console.log('⏳ Waiting for brand profile to load...')
-        return
-      }
-
+      console.log('📡 Loading mock tracked prompts...')
       setIsLoading(true)
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       try {
-        console.log(`📡 Fetching prompts for brand profile ${profile.id}...`)
-        const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
-        const result = await response.json()
-
-        if (result.success && result.prompts) {
-          console.log(`✅ Loaded ${result.prompts.length} prompts with analysis results`)
-          console.log(`   Has analysis: ${result.hasAnalysis}`)
-          console.log(`   Analysis Run ID: ${result.analysisRunId}`)
-          console.log(`   Analysis Run Date: ${result.analysisRunDate}`)
-          
-          // Transform API data to match table format
-          const transformedData: TrackedPrompt[] = result.prompts.map((p: any) => ({
-            id: String(p.id),
-            prompt: p.text,
-            visibility: p.visibility || 0,
-            model: p.model || null,
-            intent: p.category || null,
-            sentiment: p.sentiment || null,
-            position: p.position || null
-          }))
-          
-          console.log(`📊 Transformed ${transformedData.length} prompts for display`)
-          console.log(`   Sample prompt:`, transformedData[0])
-          console.log(`   Pagination pageSize: ${pagination.pageSize}`)
-          
-          setData(transformedData)
-        } else {
-          console.error('❌ Failed to fetch prompts:', result.error)
-          setData([])
-        }
+        // Transform mock data to match table format
+        const transformedData: TrackedPrompt[] = mockTrackedPrompts.map((p) => ({
+          id: p.id,
+          prompt: p.prompt,
+          visibility: p.visibility,
+          model: p.model,
+          intent: p.category,
+          sentiment: p.sentiment,
+          position: p.position
+        }))
+        
+        console.log(`✅ Loaded ${transformedData.length} mock prompts`)
+        console.log(`   Sample prompt:`, transformedData[0])
+        
+        setData(transformedData)
       } catch (error) {
-        console.error('❌ Error fetching prompts:', error)
+        console.error('❌ Error loading mock prompts:', error)
         setData([])
       } finally {
         setIsLoading(false)
@@ -324,7 +322,7 @@ function TrackedPromptsPageInner() {
     }
 
     fetchPrompts()
-  }, [profile.id])
+  }, [])
 
   // Filter the data based on selected filters
   const filteredData = useMemo(() => {
@@ -337,12 +335,12 @@ function TrackedPromptsPageInner() {
 
   // Get unique models and intents for filter dropdowns
   const availableModels = useMemo(() => {
-    const models = Array.from(new Set(data.map(item => item.model).filter(Boolean)))
+    const models = Array.from(new Set(data.map(item => item.model).filter((m): m is string => Boolean(m))))
     return models.sort()
   }, [data])
 
   const availableIntents = useMemo(() => {
-    const intents = Array.from(new Set(data.map(item => item.intent).filter(Boolean)))
+    const intents = Array.from(new Set(data.map(item => item.intent).filter((i): i is string => Boolean(i))))
     return intents.sort()
   }, [data])
 

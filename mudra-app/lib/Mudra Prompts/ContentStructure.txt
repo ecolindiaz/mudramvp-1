@@ -116,12 +116,6 @@ Use this scaffold to implement the Content Structure thesis.
 - [Bullet point tip or example]
 - [Bullet point tip or example]
 
-## Comparison
-| Criteria | Option A | Option B |
-|---|---|---|
-| [Row 1] | [Fact] | [Fact] |
-| [Row 2] | [Fact] | [Fact] |
-
 ## Mini case study
 [Narrative paragraph (3–5 sentences) that ties back to the guidance above — Problem → Approach → Outcome with a concrete metric/timeframe and optional evidence link. No bullets.]
 

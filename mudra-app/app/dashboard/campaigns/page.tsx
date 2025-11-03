@@ -22,16 +22,56 @@ import { useRouter } from "next/navigation"
  
  
 
+// Format types mapping
+type FormatType = "blog" | "listicle" | "howto" | "guide"
+
+const FORMAT_OPTIONS: Record<string, { value: FormatType; label: string }[]> = {
+  "Organic": [
+    { value: "blog", label: "General Blog Post" },
+    { value: "listicle", label: "Listicle" },
+    { value: "howto", label: "How-To Guide" },
+    { value: "guide", label: "Comprehensive Guide" },
+  ],
+  "Competitor": [
+    { value: "blog", label: "General Blog Post" },
+    { value: "guide", label: "Comprehensive Guide" },
+  ],
+  "How-to Guides": [
+    { value: "blog", label: "General Blog Post" },
+    { value: "listicle", label: "Listicle (X Steps to...)" },
+    { value: "howto", label: "How-To Guide" },
+    { value: "guide", label: "Comprehensive Guide" },
+  ],
+  "How-to Guide": [ // Also support singular form
+    { value: "blog", label: "General Blog Post" },
+    { value: "listicle", label: "Listicle (X Steps to...)" },
+    { value: "howto", label: "How-To Guide" },
+    { value: "guide", label: "Comprehensive Guide" },
+  ],
+  "Brand-Specific": [
+    { value: "blog", label: "General Blog Post" },
+    { value: "listicle", label: "Listicle" },
+    { value: "guide", label: "Comprehensive Guide" },
+  ],
+}
+
+// Get available formats for a prompt category
+const getAvailableFormats = (category: string | null | undefined): { value: FormatType; label: string }[] => {
+  if (!category) return FORMAT_OPTIONS["Organic"] // Default to Organic if no category
+  // Try exact match first, then fallback to Organic
+  return FORMAT_OPTIONS[category] || FORMAT_OPTIONS["Organic"]
+}
+
 export default function CampaignsPage() {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
-  const [selectedType, setSelectedType] = useState<"blog" | "newsletter" | "case">("blog")
+  const [step, setStep] = useState<1 | 2 | 3>(1) // Now only 3 steps: 1=GEO/SEO, 2=Config, 3=Generate
+  const [selectedFormat, setSelectedFormat] = useState<FormatType>("blog")
   const [improvement, setImprovement] = useState<"geo" | "seo" | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [progressIndex, setProgressIndex] = useState(0)
   const [generationComplete, setGenerationComplete] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
-  // Configuration state (mock values for now)
-  const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null)
+  // Configuration state
+  const [selectedPrompt, setSelectedPrompt] = useState<{id: string, text: string, category: string} | null>(null)
   const [selectedIcp, setSelectedIcp] = useState<string | null>(null)
   const [keywords, setKeywords] = useState<string[]>([])
   const [keywordInput, setKeywordInput] = useState("")
@@ -176,9 +216,9 @@ export default function CampaignsPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        type: selectedType,
+        type: selectedFormat, // Use format instead of type
         mode: modeParam,
-        prompt: selectedPrompt,
+        prompt: selectedPrompt?.text || selectedPrompt,
         icp: selectedIcp,
         keyword: keywords.join(", "),
       }),
@@ -221,15 +261,17 @@ export default function CampaignsPage() {
               id,
               title: data.title,
               body: data.body,
-              type: selectedType,
+              type: selectedFormat, // Use format instead of selectedType
               mode: modeParam,
               status: "draft",
               slug: slug,
-              prompt: selectedPrompt,
+              prompt: selectedPrompt?.text || selectedPrompt,
               icp: selectedIcp,
               keyword: keywords.join(", "),
               metadata: {
-                keywords: keywords
+                keywords: keywords,
+                format: selectedFormat,
+                promptCategory: selectedPrompt?.category
               }
             })
           })
@@ -262,7 +304,7 @@ export default function CampaignsPage() {
               if (keywordStr) extra += `&keyword=${encodeURIComponent(keywordStr)}`
             }
             // Don't set isGenerating to false - let it stay visible during navigation
-            router.push(`/dashboard/campaigns/${id}?type=${selectedType}&mode=${modeParam}${extra}`)
+            router.push(`/dashboard/campaigns/${id}?type=${selectedFormat}&mode=${modeParam}${extra}`)
             // Reset states will happen when component unmounts
           }, 500)
         }, 800)
@@ -304,7 +346,7 @@ export default function CampaignsPage() {
                       </p>
                   </div>
                   <div className="flex items-center">
-                     <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (open) { setStep(1); setImprovement(null); setSelectedType("blog"); setSelectedPrompt(null); setSelectedIcp(null); setKeywords([]); setKeywordInput("") } }}>
+                     <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (open) { setStep(1); setImprovement(null); setSelectedFormat("blog"); setSelectedPrompt(null); setSelectedIcp(null); setKeywords([]); setKeywordInput("") } }}>
                       <DialogTrigger asChild>
                         <Button size="sm" className="h-9 rounded-lg">
                           <Plus className="size-4 mr-2" />
@@ -317,58 +359,23 @@ export default function CampaignsPage() {
                             <DialogTitle className="text-lg md:text-xl font-semibold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">Create a Campaign</DialogTitle>
                              <DialogDescription className="text-muted-foreground/90 text-sm">
                                {step === 1
-                                 ? "Choose a content type to start"
+                                 ? "Choose what to improve"
                                  : step === 2
-                                   ? "Choose what to improve"
-                                   : step === 3
-                                     ? improvement === "geo"
-                                       ? "Select the prompt and ICP"
-                                       : "Add your target keywords"
-                                     : "Generating your document"}
+                                   ? improvement === "geo"
+                                     ? "Select the prompt, format, and ICP"
+                                     : "Add your target keywords"
+                                   : "Review and generate your document"}
                              </DialogDescription>
                           </DialogHeader>
                           {/* Linear Stepper (lines only) */}
                           <div className="mt-2 mb-5 md:mt-3 md:mb-6">
                              <div className="relative h-[3px] bg-white/10 rounded overflow-hidden">
-                               <div className={`absolute left-0 top-0 h-[3px] bg-gradient-to-r from-primary to-white/90 rounded transition-[width] duration-300 ease-out ${step <= 1 ? "w-0" : step === 2 ? "w-1/3" : step === 3 ? "w-2/3" : "w-full"}`} />
+                               <div className={`absolute left-0 top-0 h-[3px] bg-gradient-to-r from-primary to-white/90 rounded transition-[width] duration-300 ease-out ${step === 1 ? "w-0" : step === 2 ? "w-1/2" : "w-full"}`} />
                 </div>
             </div>
                           {step === 1 && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-                              <Card onClick={() => { setSelectedType("blog"); setStep(2) }} className="group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-lg hover:translate-y-[-1px]">
-                                <CardHeader className="items-start gap-3 pb-3">
-                                  <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
-                                    <FileText className="size-5" />
-                                  </div>
-                                  <CardTitle className="text-base">Blog Post</CardTitle>
-                                  <CardDescription className="text-xs">Long‑form content for visibility</CardDescription>
-                                </CardHeader>
-                              </Card>
-                              <Card className="group border-white/10 transition-colors cursor-not-allowed opacity-75 rounded-lg ">
-                                <CardHeader className="items-start gap-3 pb-3">
-                                  <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
-                                    <Newspaper className="size-5" />
-                                  </div>
-                                  <CardTitle className="text-base">Newsletter</CardTitle>
-                                  <CardDescription className="text-xs">Email update to your audience</CardDescription>
-                                  <Badge variant="outline" className="mt-1 text-xs">Soon</Badge>
-                                </CardHeader>
-                              </Card>
-                              <Card className="group border-white/10 transition-colors cursor-not-allowed opacity-75 rounded-lg ">
-                                <CardHeader className="items-start gap-3 pb-3">
-                                  <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
-                                    <Briefcase className="size-5" />
-                                  </div>
-                                  <CardTitle className="text-base">Case Study</CardTitle>
-                                  <CardDescription className="text-xs">Show results and credibility</CardDescription>
-                                  <Badge variant="outline" className="mt-1 text-xs">Soon</Badge>
-                                </CardHeader>
-                              </Card>
-                            </div>
-                          )}
-                           {step === 2 && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mt-1">
-                              <Card onClick={() => { setImprovement("geo"); setSelectedPrompt(null); setSelectedIcp(null); setKeywords([]); setKeywordInput(""); setStep(3) }} className={`group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-lg  hover:translate-y-[-1px] ${improvement === "geo" ? "ring-1 ring-white/30" : ""}`}>
+                              <Card onClick={() => { setImprovement("geo"); setSelectedPrompt(null); setSelectedIcp(null); setKeywords([]); setKeywordInput(""); setStep(2) }} className={`group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-lg  hover:translate-y-[-1px] ${improvement === "geo" ? "ring-1 ring-white/30" : ""}`}>
                                 <CardHeader className="items-start gap-3 pb-3">
                                   <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
                                     <Target className="size-5" />
@@ -377,7 +384,7 @@ export default function CampaignsPage() {
                                   <CardDescription className="text-xs">Use your prompt set and audience</CardDescription>
                                 </CardHeader>
                               </Card>
-                              <Card onClick={() => { setImprovement("seo"); setSelectedPrompt(null); setSelectedIcp(null); setKeywords([]); setKeywordInput(""); setStep(3) }} className={`group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-lg  hover:translate-y-[-1px] ${improvement === "seo" ? "ring-1 ring-white/30" : ""}`}>
+                              <Card onClick={() => { setImprovement("seo"); setSelectedPrompt(null); setSelectedIcp(null); setKeywords([]); setKeywordInput(""); setStep(2) }} className={`group border-white/10 hover:border-white/20 transition-all cursor-pointer rounded-lg  hover:translate-y-[-1px] ${improvement === "seo" ? "ring-1 ring-white/30" : ""}`}>
                                 <CardHeader className="items-start gap-3 pb-3">
                                   <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
                                     <Search className="size-5" />
@@ -388,7 +395,7 @@ export default function CampaignsPage() {
                               </Card>
                             </div>
                           )}
-                        {step === 3 && (
+                        {step === 2 && (
                           <div className="pt-3 md:pt-5">
                             {improvement === "geo" ? (
                               <div className="space-y-5">
@@ -403,7 +410,20 @@ export default function CampaignsPage() {
                                         <TooltipContent>Pick a prompt template to guide the content.</TooltipContent>
                                       </Tooltip>
                                     </div>
-                                    <Select value={selectedPrompt ?? undefined} onValueChange={(v) => setSelectedPrompt(v)}>
+                                    <Select 
+                                      value={selectedPrompt?.text ?? undefined} 
+                                      onValueChange={(v) => {
+                                        const prompt = promptSuggestions.find(p => p.text === v)
+                                        if (prompt) {
+                                          setSelectedPrompt(prompt)
+                                          // Reset format to first available option for this category
+                                          const availableFormats = getAvailableFormats(prompt.category)
+                                          if (availableFormats.length > 0) {
+                                            setSelectedFormat(availableFormats[0].value)
+                                          }
+                                        }
+                                      }}
+                                    >
                                       <SelectTrigger className="h-9 rounded-lg bg-transparent border-white/[0.06] text-white/90 w-full">
                                         <SelectValue placeholder="Select a prompt" />
                                       </SelectTrigger>
@@ -436,11 +456,37 @@ export default function CampaignsPage() {
                                     </Select>
                                   </div>
                                 </div>
+                                {/* Format dropdown on new line */}
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <Label className="text-xs text-white/80">Format</Label>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Info className="size-3.5 text-white/50" />
+                                      </TooltipTrigger>
+                                      <TooltipContent>Choose the content format based on your prompt category.</TooltipContent>
+                                    </Tooltip>
+                                  </div>
+                                  <Select 
+                                    value={selectedFormat} 
+                                    onValueChange={(v) => setSelectedFormat(v as FormatType)}
+                                    disabled={!selectedPrompt}
+                                  >
+                                    <SelectTrigger className="h-9 rounded-lg bg-transparent border-white/[0.06] text-white/90 w-full">
+                                      <SelectValue placeholder="Select format" />
+                                    </SelectTrigger>
+                                    <SelectContent className="border-0 bg-dark-grey">
+                                      {getAvailableFormats(selectedPrompt?.category).map((format) => (
+                                        <SelectItem key={format.value} value={format.value}>{format.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                                 <div className="flex items-center justify-between pt-1">
-                                  <Button variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => setStep(2)}>
+                                  <Button variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => setStep(1)}>
                                     <ChevronLeft className="size-4 mr-1" /> Back
                                   </Button>
-                                  <Button disabled={!selectedPrompt || !selectedIcp} onClick={() => setStep(4)} className="h-9 rounded-lg">
+                                  <Button disabled={!selectedPrompt || !selectedIcp || !selectedFormat} onClick={() => setStep(3)} className="h-9 rounded-lg">
                                     Continue
                                   </Button>
                                 </div>
@@ -508,10 +554,10 @@ export default function CampaignsPage() {
                                   </div>
                                 </div>
                                 <div className="flex items-center justify-between pt-1">
-                                  <Button variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => setStep(2)}>
+                                  <Button variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => setStep(1)}>
                                     <ChevronLeft className="size-4 mr-1" /> Back
                                   </Button>
-                                  <Button disabled={keywords.length === 0} onClick={() => setStep(4)} className="h-9 rounded-lg">
+                                  <Button disabled={keywords.length === 0} onClick={() => setStep(3)} className="h-9 rounded-lg">
                                     Continue
                                   </Button>
                                 </div>
@@ -519,11 +565,11 @@ export default function CampaignsPage() {
                             )}
                           </div>
                         )}
-                        {step === 4 && (
+                        {step === 3 && (
                           <div className="pt-3 md:pt-5 space-y-4">
                             {/* Review summary */}
                             {isGenerating && improvement === "geo" ? (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <div className="rounded-lg border border-white/[0.06] bg-transparent p-3">
                                   <div className="flex items-center gap-2">
                                     <span className="inline-flex items-center justify-center size-7 rounded-lg bg-transparent border border-white/10">
@@ -531,8 +577,19 @@ export default function CampaignsPage() {
                                     </span>
                                     <div className="text-[11px] uppercase tracking-wide text-white/60">Prompt</div>
                                   </div>
-                                  <div className="mt-1.5 text-sm text-white/90 truncate" title={selectedPrompt || "—"}>
-                                    {selectedPrompt || "—"}
+                                  <div className="mt-1.5 text-sm text-white/90 truncate" title={selectedPrompt?.text || "—"}>
+                                    {selectedPrompt?.text || "—"}
+                                  </div>
+                                </div>
+                                <div className="rounded-lg border border-white/[0.06] bg-transparent p-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center justify-center size-7 rounded-lg bg-transparent border border-white/10">
+                                      <FileText className="size-4 text-white/80" />
+                                    </span>
+                                    <div className="text-[11px] uppercase tracking-wide text-white/60">Format</div>
+                                  </div>
+                                  <div className="mt-1.5 text-sm text-white/90 truncate" title={getAvailableFormats(selectedPrompt?.category).find(f => f.value === selectedFormat)?.label || "—"}>
+                                    {getAvailableFormats(selectedPrompt?.category).find(f => f.value === selectedFormat)?.label || "—"}
                                   </div>
                                 </div>
                                 <div className="rounded-lg border border-white/[0.06] bg-transparent p-3">
@@ -555,7 +612,7 @@ export default function CampaignsPage() {
                                 </CardHeader>
                                 <CardContent className="pt-0">
                                   {improvement === "geo" ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                       <div className="rounded-lg border border-white/[0.06] bg-transparent p-3">
                                         <div className="flex items-center gap-2">
                                           <span className="inline-flex items-center justify-center size-7 rounded-lg bg-transparent border border-white/10">
@@ -563,8 +620,19 @@ export default function CampaignsPage() {
                                           </span>
                                           <div className="text-[11px] uppercase tracking-wide text-white/60">Prompt</div>
                                         </div>
-                                        <div className="mt-1.5 text-sm text-white/90 truncate" title={selectedPrompt || "—"}>
-                                          {selectedPrompt || "—"}
+                                        <div className="mt-1.5 text-sm text-white/90 truncate" title={selectedPrompt?.text || "—"}>
+                                          {selectedPrompt?.text || "—"}
+                                        </div>
+                                      </div>
+                                      <div className="rounded-lg border border-white/[0.06] bg-transparent p-3">
+                                        <div className="flex items-center gap-2">
+                                          <span className="inline-flex items-center justify-center size-7 rounded-lg bg-transparent border border-white/10">
+                                            <FileText className="size-4 text-white/80" />
+                                          </span>
+                                          <div className="text-[11px] uppercase tracking-wide text-white/60">Format</div>
+                                        </div>
+                                        <div className="mt-1.5 text-sm text-white/90 truncate" title={getAvailableFormats(selectedPrompt?.category).find(f => f.value === selectedFormat)?.label || "—"}>
+                                          {getAvailableFormats(selectedPrompt?.category).find(f => f.value === selectedFormat)?.label || "—"}
                                         </div>
                                       </div>
                                       <div className="rounded-lg border border-white/[0.06] bg-transparent p-3">
@@ -635,12 +703,12 @@ export default function CampaignsPage() {
                               </div>
                             ) : (
                               <div className="flex items-center justify-between">
-                                <Button variant="outline" size="sm" className="h-10 rounded-lg" onClick={() => setStep(3)}>
+                                <Button variant="outline" size="sm" className="h-10 rounded-lg" onClick={() => setStep(2)}>
                                   <ChevronLeft className="size-4 mr-1" /> Edit selections
                                 </Button>
                                 <Button
                                   onClick={startGeneration}
-                                  disabled={(improvement === "geo" && (!selectedPrompt || !selectedIcp)) || (improvement === "seo" && keywords.length === 0)}
+                                  disabled={(improvement === "geo" && (!selectedPrompt || !selectedIcp || !selectedFormat)) || (improvement === "seo" && keywords.length === 0)}
                                   className="h-10 px-5 rounded-lg bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 shadow-sm gap-2"
                                 >
                                   <Sparkles className="size-4" />
@@ -671,7 +739,7 @@ export default function CampaignsPage() {
                   <CardHeader>
                     <CardTitle className="text-lg text-white flex items-center gap-2">
                       <Loader2 className="size-5 animate-spin text-primary" />
-                      Generating {selectedType === "blog" ? "Blog Post" : selectedType === "newsletter" ? "Newsletter" : "Case Study"}
+                      Generating {getAvailableFormats(selectedPrompt?.category).find(f => f.value === selectedFormat)?.label || "Campaign"}
                     </CardTitle>
                     <CardDescription className="text-white/70">
                       {improvement === "geo" ? "Optimizing for Generative Engine" : "Optimizing for Search Engines"}

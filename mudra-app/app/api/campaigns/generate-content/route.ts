@@ -19,7 +19,16 @@ export async function POST(req: NextRequest) {
     // Build system prompt using the combined system prompts
     const systemPrompt = getCombinedSystemPrompt(mode, type, prompt, icp, keyword, title);
 
-    const userPrompt = `Generate the ${type} post content in Markdown format. Start directly with the content (no meta commentary). Use ## for main sections.`;
+    // Format type labels
+    const formatLabels: Record<string, string> = {
+      blog: "blog post",
+      listicle: "listicle",
+      howto: "how-to guide",
+      guide: "comprehensive guide",
+    }
+    const formatLabel = formatLabels[type] || "blog post"
+    
+    const userPrompt = `Generate the ${formatLabel} content in Markdown format. Start directly with the content (no meta commentary). Use ## for main sections.`;
 
     // Call OpenAI
     const response = await openai.chat.completions.create({

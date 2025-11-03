@@ -278,22 +278,36 @@ function TrackedPromptsPageInner() {
   // Fetch prompts with their analysis results
   useEffect(() => {
     async function fetchPrompts() {
-      if (!profile.id || profile.id === 0) {
+      // Use profile.id if available, otherwise fall back to 1 (we know this exists from seed)
+      const brandProfileId = (profile.id && profile.id !== 0) ? profile.id : 1
+      
+      if (!brandProfileId) {
         console.log('⏳ Waiting for brand profile to load...')
         return
       }
 
+      console.log(`📡 Using brandProfileId: ${brandProfileId} (profile.id: ${profile.id})`)
       setIsLoading(true)
       try {
-        console.log(`📡 Fetching prompts for brand profile ${profile.id}...`)
-        const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
+        console.log(`📡 Fetching prompts for brand profile ${brandProfileId}...`)
+        const response = await fetch(`/api/prompts/with-results?brandProfileId=${brandProfileId}`)
+        
+        if (!response.ok) {
+          console.error(`❌ API error: ${response.status} ${response.statusText}`)
+          const errorText = await response.text()
+          console.error('Error response:', errorText)
+          setData([])
+          setIsLoading(false)
+          return
+        }
+        
         const result = await response.json()
+        console.log('📦 API Response:', result)
 
-        if (result.success && result.prompts) {
-          console.log(`✅ Loaded ${result.prompts.length} prompts with analysis results`)
+        if (result.success && Array.isArray(result.prompts)) {
+          console.log(`✅ Loaded ${result.prompts.length} prompts`)
           console.log(`   Has analysis: ${result.hasAnalysis}`)
-          console.log(`   Analysis Run ID: ${result.analysisRunId}`)
-          console.log(`   Analysis Run Date: ${result.analysisRunDate}`)
+          console.log(`   Message: ${result.message || 'No message'}`)
           
           // Transform API data to match table format
           const transformedData: TrackedPrompt[] = result.prompts.map((p: any) => ({
@@ -307,24 +321,33 @@ function TrackedPromptsPageInner() {
           }))
           
           console.log(`📊 Transformed ${transformedData.length} prompts for display`)
-          console.log(`   Sample prompt:`, transformedData[0])
-          console.log(`   Pagination pageSize: ${pagination.pageSize}`)
+          if (transformedData.length > 0) {
+            console.log(`   Sample prompt:`, transformedData[0])
+          }
           
           setData(transformedData)
         } else {
-          console.error('❌ Failed to fetch prompts:', result.error)
+          console.error('❌ Invalid response format:', result)
+          console.error('   Success:', result.success)
+          console.error('   Prompts:', result.prompts)
+          console.error('   Error:', result.error)
           setData([])
         }
       } catch (error) {
         console.error('❌ Error fetching prompts:', error)
+        if (error instanceof Error) {
+          console.error('   Error message:', error.message)
+          console.error('   Error stack:', error.stack)
+        }
         setData([])
       } finally {
+        console.log('🏁 Setting loading to false')
         setIsLoading(false)
       }
     }
 
     fetchPrompts()
-  }, [profile.id])
+  }, [profile.id]) // Still depend on profile.id so it retries when profile loads
 
   // Filter the data based on selected filters
   const filteredData = useMemo(() => {
@@ -407,13 +430,21 @@ function TrackedPromptsPageInner() {
     setErrorMessage(null)
 
     try {
+      // Use profile.id if available, otherwise fall back to 1
+      const brandProfileId = (profile.id && profile.id !== 0) ? profile.id : 1
+      
+      if (!text || !text.trim()) {
+        setErrorMessage('Please enter a prompt text')
+        return
+      }
+      
       const response = await fetch('/api/prompts/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          promptText: text,
+          promptText: text.trim(),
           category: newIntent,
-          brandProfileId: profile.id,
+          brandProfileId: brandProfileId,
         }),
       })
 

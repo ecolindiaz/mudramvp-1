@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 import {
@@ -21,9 +22,11 @@ import {
   IconCopy, 
   IconInfoCircle
 } from "@tabler/icons-react"
+import { Clock, FileText } from "lucide-react"
 import { useNlr } from '@/hooks/use-nlr'
 import type { NlrSummaryJson } from '@/types/nlr'
 import useSWR from 'swr'
+import { useRouter } from 'next/navigation'
 
 interface NaturalLanguageReportProps {
   className?: string
@@ -53,6 +56,9 @@ function generateSummary(): string {
 }
 
 export function NaturalLanguageReport({ className, timeRange, selectedModel }: NaturalLanguageReportProps) {
+  const router = useRouter()
+  const [showReportHistory, setShowReportHistory] = React.useState(false)
+  
   // Suppress unused variable warnings for now; wiring into real data later
   void timeRange
   void selectedModel
@@ -202,50 +208,101 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     { domain: "medium.com", used: 20 },
     { domain: "appen.com", used: 18 },
     { domain: "geeksforgeeks.org", used: 18 },
+    { domain: "scale.com", used: 16 },
   ]
-  const lifetimeGeoTasks = 124
-  const lifetimeTechnicalTasks = 98
-  const lifetimeContentCreated = 36
+  
+  // Competitor rankings data (will be connected to backend)
+  const competitorRankings: Array<{ name: string; visibility: number; isUser: boolean }> = [
+    { name: "Scale AI", visibility: 72, isUser: true },
+    { name: "Appen", visibility: 68, isUser: false },
+    { name: "Labelbox", visibility: 65, isUser: false },
+    { name: "Snorkel AI", visibility: 58, isUser: false },
+    { name: "Datasaur", visibility: 52, isUser: false },
+  ]
 
-  if (isLoading) {
-    return (
-      <div className={cn("rounded-lg border border-white/10 bg-transparent backdrop-blur-sm p-6", className)}>
-        <div className="h-5 w-40 bg-white/10 animate-pulse rounded mb-3" />
-        <div className="space-y-2">
-          <div className="h-4 w-full bg-white/5 animate-pulse rounded" />
-          <div className="h-4 w-11/12 bg-white/5 animate-pulse rounded" />
-          <div className="h-4 w-10/12 bg-white/5 animate-pulse rounded" />
-        </div>
-      </div>
-    )
+  // Recent chats data (will be connected to backend)
+  const recentChats: Array<{ id: string; promptId: string; question: string; timestamp: string; model: string }> = [
+    { id: "chat_1", promptId: "prompt_abc123", question: "What are the best AI training data platforms?", timestamp: "2h ago", model: "ChatGPT" },
+    { id: "chat_2", promptId: "prompt_def456", question: "How to label data for machine learning models?", timestamp: "5h ago", model: "Claude" },
+    { id: "chat_3", promptId: "prompt_ghi789", question: "What is RLHF and how does it work?", timestamp: "1d ago", model: "Perplexity" },
+  ]
+
+  const handleChatClick = (promptId: string) => {
+    // Navigate to tracked prompt detail page
+    router.push(`/dashboard/tracked-prompts/${promptId}`)
   }
 
-  if (error) {
-    return (
-      <div className={cn("rounded-lg border border-red-600/30 bg-red-500/10 p-6 text-sm text-red-200", className)}>
-        Failed to load Natural Language Report. Please try again.
-      </div>
-    )
+  // Report history data (will be connected to backend)
+  const reportHistory: Array<{ id: string; title: string; date: string }> = [
+    { id: "report_1", title: "Nov 10 - Performance Report", date: "3 days ago" },
+    { id: "report_2", title: "Nov 7 - Technical Improvements", date: "6 days ago" },
+    { id: "report_3", title: "Nov 4 - Content Optimization", date: "9 days ago" },
+    { id: "report_4", title: "Nov 1 - AI Traffic Report", date: "12 days ago" },
+    { id: "report_5", title: "Oct 29 - Schema Deployment", date: "15 days ago" },
+    { id: "report_6", title: "Oct 26 - Weekly Analysis", date: "18 days ago" },
+  ]
+
+  // Model logo mapping - using public folder
+  const getModelIcon = (model: string) => {
+    const modelLower = model.toLowerCase()
+    
+    if (modelLower.includes('claude') || modelLower.includes('anthropic')) {
+      return "/claude-ai-icon.svg"
+    }
+    if (modelLower.includes('perplexity')) {
+      return "/perplexity (2).svg"
+    }
+    if (modelLower.includes('gemini') || modelLower.includes('google')) {
+      return "/gemini (3).svg"
+    }
+    if (modelLower.includes('gpt') || modelLower.includes('openai') || modelLower.includes('chatgpt')) {
+      return "/openai_dark.svg"
+    }
+    
+    // Default fallback
+    return "/openai_dark.svg"
   }
 
-  if (!report) {
-    return (
-      <div className={cn("rounded-lg border border-white/10 bg-transparent p-6 text-sm text-white/70", className)}>
-        Natural Language Report is not available yet.
-      </div>
-    )
-  }
+  // Temporarily render with mock data for UI review
+  // if (isLoading) {
+  //   return (
+  //     <div className={cn("rounded-lg border border-white/10 bg-transparent backdrop-blur-sm p-6", className)}>
+  //       <div className="h-5 w-40 bg-white/10 animate-pulse rounded mb-3" />
+  //       <div className="space-y-2">
+  //         <div className="h-4 w-full bg-white/5 animate-pulse rounded" />
+  //         <div className="h-4 w-11/12 bg-white/5 animate-pulse rounded" />
+  //         <div className="h-4 w-10/12 bg-white/5 animate-pulse rounded" />
+  //       </div>
+  //     </div>
+  //   )
+  // }
+
+  // if (error) {
+  //   return (
+  //     <div className={cn("rounded-lg border border-red-600/30 bg-red-500/10 p-6 text-sm text-red-200", className)}>
+  //       Failed to load Natural Language Report. Please try again.
+  //     </div>
+  //   )
+  // }
+
+  // if (!report) {
+  //   return (
+  //     <div className={cn("rounded-lg border border-white/10 bg-transparent p-6 text-sm text-white/70", className)}>
+  //       Natural Language Report is not available yet.
+  //     </div>
+  //   )
+  // }
 
   return (
-    <div className={cn("rounded-lg border border-white/10 bg-transparent backdrop-blur-sm", className)}>
-      <div className="p-5 md:p-6 lg:p-8">
-        <div className="flex items-center justify-between mb-4">
+    <div className={cn("rounded-lg border border-white/[0.08] bg-transparent backdrop-blur-sm", className)}>
+      <div className="p-6 md:p-7 lg:p-9">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <p className="text-xs uppercase tracking-wider text-white/60">Natural Language Report</p>
             <h2 className="text-xl md:text-2xl font-semibold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">What the AI sees in your data</h2>
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded-xl border border-yellow-500/20 px-2.5 py-1 text-xs text-yellow-400 bg-yellow-500/10">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-yellow-500/20 px-2.5 py-1 text-xs text-yellow-400 bg-yellow-500/10">
               <IconSparkles className="size-4 text-yellow-400" />
               AI Summary
             </div>
@@ -262,32 +319,52 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
         {/* KPIs removed (already shown above) */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-2">
-            <div className="rounded-lg border border-white/10 bg-transparent p-4">
-              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-white/90">
-                <IconSparkles className="size-4" />
-                Summary
+            <div className="rounded-lg border border-white/[0.08] bg-transparent p-5">
+              <div className="mb-2 flex items-center justify-between text-sm font-medium text-white/90">
+                <div className="flex items-center gap-2">
+                  <IconSparkles className="size-4" />
+                  Summary
+                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <IconInfoCircle className="size-4 text-white/60 hover:text-white/90 transition-colors cursor-default" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={8}>AI-generated summary of your visibility performance</TooltipContent>
+                </Tooltip>
               </div>
               <p className="text-sm leading-relaxed text-white/85">
                 {summary}
               </p>
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex justify-between items-center">
+                <div className="rounded-md border border-white/[0.08] px-2 py-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-0 text-white/60 hover:text-white hover:bg-transparent text-xs font-normal"
+                    onClick={() => setShowReportHistory(true)}
+                  >
+                    <FileText className="size-3.5 mr-1.5" /> History
+                  </Button>
+                </div>
                 <Button
                   size="sm"
-                  className="h-7 px-2 text-xs"
+                  className="h-7 px-3 text-xs"
                   onClick={() => {
                     window.dispatchEvent(new Event("mudra:open-chat"))
                   }}
                 >
-                  <IconSparkles className="size-3.5 mr-1" /> Ask AI
+                  <IconSparkles className="size-3.5 mr-1.5" /> Ask AI
                 </Button>
               </div>
             </div>
 
             {/* Citations list */}
-            <div className="mt-4 rounded-lg border border-white/10 bg-transparent overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <div className="mt-5 rounded-lg border border-white/[0.08] bg-transparent overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
                 <div>
                   <div className="text-sm font-medium text-white/90">Citations</div>
                   <div className="text-xs text-white/60">Sources across active models</div>
@@ -301,15 +378,15 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                   <TooltipContent sideOffset={8}>Top sources AI cites from your industry.</TooltipContent>
                 </Tooltip>
               </div>
-              <div className="divide-y divide-white/8">
+              <div className="divide-y divide-white/[0.06]">
                 <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2 text-xs text-white/60">
                   <span>Source</span>
                   <span>Rate of mention</span>
                 </div>
                 {citations.map((c, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_auto] items-center px-4 py-3 hover:bg-transparent transition-colors">
+                  <div key={idx} className="grid grid-cols-[1fr_auto] items-center px-4 py-3 hover:bg-white/[0.02] transition-colors">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/10 text-[10px] text-white/80">
+                      <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/[0.08] text-[10px] text-white/80">
                         {c.domain[0].toUpperCase()}
                       </span>
                       <span className="truncate text-sm text-white/85">{c.domain}</span>
@@ -320,58 +397,154 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-4">
-            <div className="rounded-lg border border-white/[0.08] bg-transparent p-4 min-h-[120px]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/10">
-                    <IconCheck className="size-3.5 text-white/80" />
-                  </span>
-                  GEO tasks completed
-                </div>
-                <span className="text-[10px] uppercase tracking-wide text-white/60">All‑time</span>
+          
+          <div className="flex flex-col gap-5">
+            {/* Competitor Rankings Table */}
+            <div className="rounded-lg border border-white/[0.08] bg-transparent overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
+                <div className="text-sm font-medium text-white/90">Competitor Rankings</div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <IconInfoCircle className="size-4 text-white/60" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={8}>Compare your AI visibility against competitors.</TooltipContent>
+                </Tooltip>
               </div>
-              <div className="mt-4 border-t border-white/10 pt-4 flex items-center justify-start">
-                <span className="inline-flex items-center rounded border border-white/12 bg-white/5 px-3.5 py-1.5 text-base font-semibold tabular-nums text-white/90">
-                  {lifetimeGeoTasks}
-                </span>
+              <div className="divide-y divide-white/[0.06]">
+                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 text-xs text-white/60">
+                  <span className="w-6">#</span>
+                  <span>Company</span>
+                  <span>Visibility</span>
+                </div>
+                {competitorRankings.map((competitor, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-colors ${
+                      competitor.isUser ? 'bg-white/[0.03]' : 'hover:bg-white/[0.02]'
+                    }`}
+                  >
+                    <div className="w-6 text-sm text-white/60 tabular-nums">{idx + 1}</div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`text-sm truncate ${competitor.isUser ? 'text-white font-medium' : 'text-white/85'}`}>
+                        {competitor.name}
+                        {competitor.isUser && (
+                          <span className="ml-2 text-[10px] text-white/60">(You)</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-medium tabular-nums text-white/90">{competitor.visibility}%</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="rounded-lg border border-white/[0.08] bg-transparent p-4 min-h-[120px]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/10">
-                    <IconCheck className="size-3.5 text-white/80" />
-                  </span>
-                  Technical Structure tasks completed
+            
+            {/* Recent Chats Widget - Horizontal Grid */}
+            <div className="rounded-lg border border-white/[0.08] bg-transparent overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
+                <div className="flex items-center gap-2">
+                  <svg className="size-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  <div className="text-sm font-medium text-white/90">Recent Chats</div>
                 </div>
-                <span className="text-[10px] uppercase tracking-wide text-white/60">All‑time</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <IconInfoCircle className="size-4 text-white/60 hover:text-white/90 transition-colors cursor-default" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Recent AI model queries and their results</TooltipContent>
+                </Tooltip>
               </div>
-              <div className="mt-4 border-t border-white/10 pt-4 flex items-center justify-start">
-                <span className="inline-flex items-center rounded border border-white/12 bg-white/5 px-3.5 py-1.5 text-base font-semibold tabular-nums text-white/90">
-                  {lifetimeTechnicalTasks}
-                </span>
-              </div>
-            </div>
-            <div className="rounded-lg border border-white/[0.08] bg-transparent p-4 min-h-[120px]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/10">
-                    <IconSparkles className="size-3.5 text-white/80" />
-                  </span>
-                  Content created
+              <div className="p-4">
+                <div className="grid grid-cols-3 gap-3">
+                  {recentChats.map((chat) => (
+                    <div 
+                      key={chat.id} 
+                      onClick={() => handleChatClick(chat.promptId)}
+                      className="rounded-lg border border-white/[0.08] bg-transparent p-4 hover:bg-white/[0.02] hover:border-white/[0.12] transition-all cursor-pointer min-h-[125px] flex flex-col"
+                    >
+                      <div className="flex items-start gap-2.5 mb-3 flex-1">
+                        <div className="flex items-center justify-center size-5 flex-shrink-0 mt-0.5">
+                          <img 
+                            src={getModelIcon(chat.model)} 
+                            alt={chat.model}
+                            className="size-5 object-contain"
+                          />
+                        </div>
+                        <p className="text-sm text-white/90 leading-relaxed line-clamp-3 flex-1">
+                          {chat.question}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-end pt-2 mt-auto border-t border-white/[0.06]">
+                        <span className="text-[10px] text-white/50">{chat.timestamp}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <span className="text-[10px] uppercase tracking-wide text-white/60">All‑time</span>
-              </div>
-              <div className="mt-4 border-t border-white/10 pt-4 flex items-center justify-start">
-                <span className="inline-flex items-center rounded border border-white/12 bg-white/5 px-3.5 py-1.5 text-base font-semibold tabular-nums text-white/90">
-                  {lifetimeContentCreated}
-                </span>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Report History Modal */}
+      <Dialog open={showReportHistory} onOpenChange={setShowReportHistory}>
+        <DialogContent className="max-w-2xl bg-dark-grey border-0 p-0 overflow-hidden">
+          <DialogHeader className="p-7 pb-5 border-b border-white/[0.08]">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-lg font-semibold text-white">Report History</DialogTitle>
+                <DialogDescription className="text-white/60 text-sm mt-1">
+                  {reportHistory.length} reports generated
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="p-6">
+            <div className="space-y-2">
+              {reportHistory.map((report, idx) => (
+                <div 
+                  key={report.id} 
+                  className="rounded-lg border border-white/[0.08] bg-transparent p-4 hover:bg-white/[0.02] hover:border-white/[0.12] transition-all cursor-pointer group"
+                  onClick={() => console.log('Open report:', report.id)}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex items-center justify-center size-8 rounded-md bg-white/5 border border-white/[0.08] flex-shrink-0 group-hover:border-white/[0.12] transition-colors">
+                        <FileText className="size-4 text-white/70 group-hover:text-white/90 transition-colors" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-medium text-white/90 group-hover:text-white transition-colors">
+                          {report.title}
+                        </h3>
+                        <p className="text-xs text-white/50 mt-1">{report.date}</p>
+                      </div>
+                    </div>
+                    
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      className="h-8 w-8 p-0 rounded-md opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-all flex-shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        console.log('Download report:', report.id)
+                      }}
+                    >
+                      <IconDownload className="size-4 text-white/70" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

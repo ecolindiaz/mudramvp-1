@@ -63,13 +63,13 @@ export function FloatingMudraButton({
       <button
         onClick={handleClick}
         aria-label={ariaLabel}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-black hover:bg-black/90 border border-white/20 rounded flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-lg z-50 group"
+        className="fixed bottom-6 right-6 w-14 h-14 bg-dark-grey hover:bg-white/10 border border-white/[0.08] hover:border-white/[0.12] rounded-lg flex items-center justify-center transition-all duration-200 shadow-lg hover:shadow-xl z-50 group"
         type="button"
       >
         <img
           src={imageSrc}
           alt={altText}
-          className="w-8 h-8 group-hover:scale-110 transition-transform duration-200 drop-shadow-sm"
+          className="w-8 h-8 transition-all duration-200 opacity-90 group-hover:opacity-100"
         />
       </button>
 

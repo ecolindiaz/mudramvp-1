@@ -218,23 +218,28 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
         onClick={() => onOpenChange(false)}
       />
       <div
-        className={`fixed ${expanded ? 'right-6 bottom-8 w-[720px] h-[80vh]' : 'right-6 bottom-20 w-[440px] h-[560px]'} bg-black/40 backdrop-blur-xl border border-white/20 rounded-lg shadow-2xl z-[1000] flex flex-col overflow-hidden transition-all duration-300 ease-out`}
+        className={`fixed ${expanded ? 'right-6 bottom-8 w-[720px] h-[80vh]' : 'right-6 bottom-20 w-[440px] h-[560px]'} bg-dark-grey backdrop-blur-xl border border-white/[0.08] rounded-lg shadow-2xl z-[1000] flex flex-col overflow-hidden transition-all duration-300 ease-out`}
       >
       {/* Header */}
-      <div className="p-3 border-b border-white/10 bg-black/20 backdrop-blur-sm">
+      <div className="p-4 border-b border-white/[0.08] bg-transparent">
         <div className="flex items-center justify-between">
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
+            <img 
+              src="/images/mudra-logo.png" 
+              alt="Mudra" 
+              className="w-5 h-5 opacity-90"
+            />
             <div className="flex flex-col">
-              <h3 className="text-sm font-mono font-semibold tracking-tight leading-none">Mudra Chat</h3>
-              <span className="text-[10px] font-mono text-white/60 mt-0.5">{pageContext.name}</span>
+              <h3 className="text-sm font-semibold tracking-tight leading-none text-white">Mudra Chat</h3>
+              <span className="text-[10px] text-white/60 mt-0.5">{pageContext.name}</span>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setExpanded((v) => !v)}
-              className="h-7 w-7 rounded text-white/70 hover:text-white bg-transparent hover:bg-white/10 border border-white/20 hover:border-white/30 transition-all"
+              className="h-7 w-7 rounded-md text-white/70 hover:text-white bg-transparent hover:bg-white/5 border-0 transition-all"
               title={expanded ? 'Minimize' : 'Expand'}
             >
               {expanded ? <IconArrowsMinimize className="size-3.5" /> : <IconArrowsMaximize className="size-3.5" />}
@@ -242,17 +247,8 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setMicEnabled((v) => !v)}
-              className={`h-7 w-7 rounded transition-all border border-white/20 hover:border-white/30 ${micEnabled ? 'text-primary bg-primary/10 border-primary/30' : 'text-white/70 hover:text-white bg-transparent hover:bg-white/10'}`}
-              title="Voice input (placeholder)"
-            >
-              <IconMicrophone className="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
               onClick={() => setMessages([])}
-              className="h-7 w-7 rounded text-white/70 hover:text-white bg-transparent hover:bg-white/10 border border-white/20 hover:border-white/30 transition-all"
+              className="h-7 w-7 rounded-md text-white/70 hover:text-white bg-transparent hover:bg-white/5 border-0 transition-all"
               title="New chat"
             >
               <IconPlus className="size-3.5" />
@@ -261,7 +257,7 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
               variant="ghost" 
               size="icon"
               onClick={() => onOpenChange(false)}
-              className="h-7 w-7 rounded text-white/70 hover:text-red-400 bg-transparent hover:bg-red-500/10 border border-white/20 hover:border-red-400/50 transition-all"
+              className="h-7 w-7 rounded-md text-white/70 hover:text-white bg-transparent hover:bg-white/5 border-0 transition-all"
               title="Close"
             >
               <IconX className="size-3.5" />
@@ -284,9 +280,9 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
                 />
               </div>
               
-              <h3 className="text-lg font-mono font-semibold mb-1">Ask anything about your data</h3>
-              <p className="text-muted-foreground mb-6 max-w-xs mx-auto text-sm font-mono">
-                Ask to do or show anything using natural language
+              <h3 className="text-lg font-semibold mb-1 text-white">Ask anything about your data</h3>
+              <p className="text-white/60 mb-6 max-w-xs mx-auto text-sm">
+                Get insights and answers from your platform data
               </p>
               
               {/* Quick Prompts */}
@@ -295,7 +291,7 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
                   <Button
                     key={index}
                     variant="outline"
-                    className="h-8 px-3 text-xs font-mono rounded border-white/15 bg-white/5 hover:bg-white/10 text-foreground/90"
+                    className="h-8 px-3 text-xs rounded-md border-white/[0.08] bg-transparent hover:bg-white/[0.05] text-white/80 hover:text-white"
                     onClick={() => handleQuickPrompt(prompt)}
                   >
                     {prompt}
@@ -307,38 +303,38 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
 
           {messages.map((message) => (
             <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`w-7 h-7 rounded flex items-center justify-center flex-shrink-0 ${
+              <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
                 message.role === 'user' 
-                  ? 'bg-white/10 border border-white/20' 
-                  : 'bg-gradient-to-r from-primary to-primary/80 border border-primary/30'
+                  ? 'bg-white/10 border border-white/[0.08]' 
+                  : 'bg-white/10 border border-white/[0.08]'
               }`}>
                 {message.role === 'user' ? (
                   <IconUser className="size-3.5 text-white/80" />
                 ) : (
-                  <IconSparkles className="size-3.5 text-primary-foreground" />
+                  <IconSparkles className="size-3.5 text-white/80" />
                 )}
               </div>
-              <div className={`group relative max-w-[75%] md:max-w-[70%] px-3 py-2.5 rounded-lg border ${
+              <div className={`group relative max-w-[75%] md:max-w-[70%] px-4 py-3 rounded-lg border ${
                 message.role === 'user' 
-                  ? 'bg-white/5 border-white/20 backdrop-blur-sm' 
-                  : 'bg-primary/5 border-primary/20 backdrop-blur-sm'
+                  ? 'bg-white/[0.03] border-white/[0.08] backdrop-blur-sm' 
+                  : 'bg-white/[0.03] border-white/[0.08] backdrop-blur-sm'
               }`}>
-                <div className="whitespace-pre-wrap break-words text-sm leading-relaxed font-mono">
+                <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-white/90">
                   {message.content}
                 </div>
                 
                 {/* Citations */}
                 {message.role === 'assistant' && message.citations && message.citations.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-white/10">
+                  <div className="mt-3 pt-3 border-t border-white/[0.08]">
                     <div className="flex items-center gap-1.5 mb-2">
                       <IconFileText className="size-3 text-white/60" />
-                      <span className="text-xs font-mono text-white/60">Sources</span>
+                      <span className="text-xs text-white/60">Sources</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {message.citations.map((citation, index) => (
                         <button
                           key={index}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono rounded border border-white/20 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition-all"
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] text-white/80 hover:text-white transition-all"
                           title={`${citation.title} - ${citation.path}`}
                         >
                           <IconExternalLink className="size-2.5" />
@@ -353,11 +349,11 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
                 <button
                   type="button"
                   onClick={() => handleCopy(message.content, message.id)}
-                  className="absolute -top-2 -right-2 hidden group-hover:flex items-center justify-center w-6 h-6 rounded border border-white/30 bg-black/60 hover:bg-black/80 backdrop-blur-sm transition-all"
+                  className="absolute -top-2 -right-2 hidden group-hover:flex items-center justify-center w-6 h-6 rounded-md border border-white/[0.08] bg-dark-grey hover:bg-white/10 backdrop-blur-sm transition-all"
                   title="Copy"
                 >
                   {copiedId === message.id ? (
-                    <IconCheck className="size-3 text-green-400" />
+                    <IconCheck className="size-3 text-emerald-400" />
                   ) : (
                     <IconCopy className="size-3 text-white/70 hover:text-white" />
                   )}
@@ -368,21 +364,17 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
 
           {(isLoading || isDeepThinking) && (
             <div className="flex gap-3">
-              <div className="w-7 h-7 bg-gradient-to-r from-primary to-primary/80 border border-primary/30 rounded flex items-center justify-center flex-shrink-0">
-                {isDeepThinking ? (
-                  <IconBrain className="size-3.5 text-primary-foreground" />
-                ) : (
-                  <IconSparkles className="size-3.5 text-primary-foreground" />
-                )}
+              <div className="w-7 h-7 bg-white/10 border border-white/[0.08] rounded-md flex items-center justify-center flex-shrink-0">
+                <IconLoader className="size-3.5 text-white/80 animate-spin" />
               </div>
-              <div className="flex-1 p-3 rounded-lg border border-primary/20 bg-primary/5 backdrop-blur-sm">
+              <div className="flex-1 p-3 rounded-lg border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
                 <div className="flex items-center gap-2">
                   <span className="inline-flex gap-1">
-                    <span className="block w-1.5 h-1.5 rounded bg-primary animate-bounce [animation-delay:-200ms]"></span>
-                    <span className="block w-1.5 h-1.5 rounded bg-primary animate-bounce [animation-delay:-100ms]"></span>
-                    <span className="block w-1.5 h-1.5 rounded bg-primary animate-bounce"></span>
+                    <span className="block w-1.5 h-1.5 rounded bg-white/60 animate-bounce [animation-delay:-200ms]"></span>
+                    <span className="block w-1.5 h-1.5 rounded bg-white/60 animate-bounce [animation-delay:-100ms]"></span>
+                    <span className="block w-1.5 h-1.5 rounded bg-white/60 animate-bounce"></span>
                   </span>
-                  <span className="text-sm text-white/80 font-mono">
+                  <span className="text-sm text-white/80">
                     {isDeepThinking ? 'Thinking deeply…' : 'Thinking…'}
                   </span>
                 </div>
@@ -393,32 +385,14 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
       </ScrollArea>
 
       {/* Input Area */}
-      <div className="p-3 border-t border-white/10 bg-black/20 backdrop-blur-sm">
-        {isDeepThinking && (
-          <div className="mb-3 p-3 bg-gradient-to-t from-primary/5 to-card border border-border/20 rounded-lg shadow-xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 bg-gradient-to-r from-primary to-primary/80 rounded flex items-center justify-center">
-                  <IconBrain className="size-3.5 text-primary-foreground" />
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium text-foreground font-mono">Deep Think Mode</span>
-                  <span className="text-xs text-muted-foreground font-mono">Powered by advanced reasoning</span>
-                </div>
-              </div>
-              <Badge variant="outline" className="text-xs font-medium font-mono">
-                o3 Ready
-              </Badge>
-            </div>
-          </div>
-        )}
+      <div className="p-4 border-t border-white/[0.08] bg-transparent">
         <form onSubmit={handleSubmit} className="flex gap-2 items-end">
           <Textarea
             value={input}
             onChange={handleInputChange}
             placeholder="Ask me anything..."
             disabled={isLoading || isDeepThinking}
-            className="flex-1 min-h-[40px] max-h-28 h-10 resize-none rounded border border-white/20 bg-white/5 focus-visible:border-white/30 focus-visible:bg-white/10 placeholder:text-white/50 font-mono transition-all"
+            className="flex-1 min-h-[40px] max-h-28 h-10 resize-none rounded-lg border border-white/[0.08] bg-white/[0.02] focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] placeholder:text-white/40 transition-all text-white/90"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault()
@@ -433,23 +407,9 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
             autoFocus
           />
           <Button 
-            type="button"
-            onClick={handleDeepThink}
-            disabled={isLoading || isDeepThinking || !input.trim()}
-            variant="outline"
-            className={`h-10 px-3 rounded border border-white/20 transition-all duration-200 ${
-              !input.trim() 
-                ? 'opacity-50 cursor-not-allowed bg-transparent' 
-                : 'bg-white/5 hover:bg-primary/10 hover:border-primary/30 hover:text-primary'
-            }`}
-            title={!input.trim() ? "Type a message first to use deep thinking" : "Deep Think (o3) - Advanced reasoning with OpenAI's most powerful model"}
-          >
-            <IconBrain className={`size-4 ${isDeepThinking ? 'text-primary' : ''}`} />
-          </Button>
-          <Button 
             type="submit" 
             disabled={isLoading || isDeepThinking || !input.trim()}
-            className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 h-10 px-4 rounded border border-primary/20 shadow-sm hover:shadow-md transition-all"
+            className="bg-white text-black hover:bg-white/90 h-10 px-4 rounded-lg border-0 shadow-sm hover:shadow transition-all"
           >
             <IconSend className="size-4" />
           </Button>

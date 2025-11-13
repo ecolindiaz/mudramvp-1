@@ -49,6 +49,8 @@ interface DashboardStatCardProps {
   onCtaClick?: () => void
   accentColor?: string
   info?: string
+  lastUpdated?: Date
+  showLastPeriod?: boolean // If true, shows "Vs Last Period", if false shows "Last Updated"
 }
 
 function defaultFormat(n: number) {
@@ -74,11 +76,14 @@ export function DashboardStatCard({
   onCtaClick,
   accentColor,
   info,
+  lastUpdated,
+  showLastPeriod = true,
 }: DashboardStatCardProps) {
   const formatValue = format ?? defaultFormat
   const formatLast = lastFormat ?? format ?? defaultFormat
   const accent = accentColor || (positive ? "rgba(16,185,129,0.9)" : "rgba(248,113,113,0.9)")
   const cardStyle = { ["--accent-color" as any]: accent } as React.CSSProperties
+  const displayTime = lastUpdated || new Date()
 
   return (
     <Card style={cardStyle} className={cn("group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3", className)}>
@@ -90,7 +95,18 @@ export function DashboardStatCard({
             <CardTitle className="text-muted-foreground text-sm font-medium">{title}</CardTitle>
           </div>
           <CardAction>
-            {info ? (
+            {info && onCtaClick ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="-me-1.5" aria-label="About this metric" onClick={onCtaClick}>
+                    <Info className="size-4 text-white/70" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={8} className="max-w-xs text-white/90">
+                  {info}
+                </TooltipContent>
+              </Tooltip>
+            ) : info ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="icon" className="-me-1.5" aria-label="About this metric">
@@ -193,13 +209,22 @@ export function DashboardStatCard({
         )}
         <div className="mt-2 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
           <div className="text-xs text-muted-foreground">
-            {lastValue === 0 && delta === 0 ? (
-              "No previous data"
+            {showLastPeriod ? (
+              lastValue === 0 && delta === 0 ? (
+                <span className="opacity-0">-</span>
+              ) : (
+                <>
+                  Vs last period:{" "}
+                  <span className="font-medium text-foreground">
+                    {lastFormat ? lastFormat(lastValue) : `${prefix}${formatLast(lastValue)}${suffix}`}
+                  </span>
+                </>
+              )
             ) : (
               <>
-                Vs last period:{" "}
+                Last Updated:{" "}
                 <span className="font-medium text-foreground">
-                  {lastFormat ? lastFormat(lastValue) : `${prefix}${formatLast(lastValue)}${suffix}`}
+                  {displayTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </>
             )}

@@ -27,6 +27,17 @@ import { BrandProfileProvider } from "@/components/brand-profile-context"
 import { useParams } from "next/navigation"
 import { getPromptById } from "@/lib/mock-data/tracked-prompts"
 
+// Model icon mapping - helper function to get icon based on model name
+const getModelIcon = (model: string): string | null => {
+  const modelLower = model.toLowerCase()
+  if (modelLower.includes('chatgpt') || modelLower.includes('gpt') || modelLower.includes('openai')) return "/openai_dark.svg"
+  if (modelLower.includes('claude') || modelLower.includes('anthropic')) return "/claude-ai-icon.svg"
+  if (modelLower.includes('perplexity')) return "/perplexity (2).svg"
+  if (modelLower.includes('gemini')) return "/gemini (3).svg"
+  if (modelLower.includes('google') || modelLower.includes('aio') || modelLower.includes('overviews')) return "/google-logo.svg"
+  return null
+}
+
 // Mock visibility data for chart (top-left card)
 const visibilityTrendData = [
   { day: "Oct 20", you: 35, competitors: 60 },
@@ -479,16 +490,83 @@ function TrackedPromptDeepViewInner() {
                 </div>
                 <div className="hidden md:flex items-center gap-3">
                   <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white">
+                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
                       <SelectValue placeholder="All Platforms" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Platforms</SelectItem>
-                      <SelectItem value="ChatGPT">ChatGPT</SelectItem>
-                      <SelectItem value="Claude">Claude</SelectItem>
-                      <SelectItem value="Perplexity">Perplexity</SelectItem>
-                      <SelectItem value="AI Overviews">AI Overviews</SelectItem>
-                      <SelectItem value="Gemini">Gemini</SelectItem>
+                    <SelectContent className="bg-dark-grey border-white/10">
+                      <SelectItem value="all" className="focus:bg-white/10 outline-none">
+                        All Platforms
+                      </SelectItem>
+                      <SelectItem value="ChatGPT" className="focus:bg-white/10 outline-none">
+                        <div className="flex items-center gap-2">
+                          {getModelIcon("ChatGPT") && (
+                            <Image 
+                              src={getModelIcon("ChatGPT")!} 
+                              alt="" 
+                              width={16} 
+                              height={16}
+                              className="shrink-0"
+                            />
+                          )}
+                          <span>ChatGPT</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="Claude" className="focus:bg-white/10 outline-none">
+                        <div className="flex items-center gap-2">
+                          {getModelIcon("Claude") && (
+                            <Image 
+                              src={getModelIcon("Claude")!} 
+                              alt="" 
+                              width={16} 
+                              height={16}
+                              className="shrink-0"
+                            />
+                          )}
+                          <span>Claude</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="Perplexity" className="focus:bg-white/10 outline-none">
+                        <div className="flex items-center gap-2">
+                          {getModelIcon("Perplexity") && (
+                            <Image 
+                              src={getModelIcon("Perplexity")!} 
+                              alt="" 
+                              width={16} 
+                              height={16}
+                              className="shrink-0"
+                            />
+                          )}
+                          <span>Perplexity</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="Gemini" className="focus:bg-white/10 outline-none">
+                        <div className="flex items-center gap-2">
+                          {getModelIcon("Gemini") && (
+                            <Image 
+                              src={getModelIcon("Gemini")!} 
+                              alt="" 
+                              width={16} 
+                              height={16}
+                              className="shrink-0"
+                            />
+                          )}
+                          <span>Gemini</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="AI Overviews" className="focus:bg-white/10 outline-none">
+                        <div className="flex items-center gap-2">
+                          {getModelIcon("Google AIO") && (
+                            <Image 
+                              src={getModelIcon("Google AIO")!} 
+                              alt="" 
+                              width={16} 
+                              height={16}
+                              className="shrink-0"
+                            />
+                          )}
+                          <span>Google AIO</span>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   <div className="flex items-center gap-2">

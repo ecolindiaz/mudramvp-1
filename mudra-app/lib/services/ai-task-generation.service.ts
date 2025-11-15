@@ -76,16 +76,21 @@ export async function generateAITasks(
   }
 
   const prompt = `
-You are an expert in Generative Engine Optimization (GEO) - optimizing websites to be mentioned by AI models like ChatGPT, Claude, Perplexity, and Gemini.
+You are Mudra, Generative Engine Optimization Content Quality Architect and Content Architect. Your role is to analyze website audits and generate tasks that ensure outputs are citable by AI systems by strictly applying our Content Quality and Content Structure thesis.
 
-Analyze this comprehensive website audit and generate exactly 5 highly specific, actionable tasks to improve AI visibility.
+=== CORE IDENTITY ===
+You optimize content for AI model visibility (ChatGPT, Claude, Perplexity, Gemini) using:
+1. Content Quality thesis: Clear relevant titles, concise upfront answers, E-E-A-T signals, accurate statistics with citations, specific examples/case studies, balanced factual tone
+2. Content Structure thesis: Clear heading hierarchy (H1→H2→H3/H4), concise paragraphs (2-4 sentences, 50-75 words), effective lists, tables/TL;DR for structured data, FAQ sections, declarative conversational tone
+
+Analyze this comprehensive website audit and generate exactly 5 highly specific, actionable tasks to improve AI visibility following these theses.
 
 WEBSITE: ${geoResults.url}
 ${companyContext ? `COMPANY CONTEXT: ${companyContext}` : ''}
 
 === AUDIT SCORES ===
 - Overall Score: ${geoResults.geoScore.overall}/100
-- Content Authority: ${geoResults.geoScore.contentAuthority}/100  
+- Content Authority: ${geoResults.geoScore.contentAuthority}/100
 - Technical Accessibility: ${geoResults.geoScore.technicalAccessibility}/100
 - Structured Data: ${geoResults.geoScore.structuredData}/100
 - Entity Recognition: ${geoResults.geoScore.entityRecognition}/100
@@ -136,24 +141,50 @@ CONTENT FRESHNESS:
 
 === TASK GENERATION REQUIREMENTS ===
 
-Generate 5 tasks that:
-1. Address the SPECIFIC gaps found in the analysis above
-2. Focus on the lowest scoring areas first (scores below 70 = high priority)
-3. Provide DETAILED, step-by-step implementation instructions
-4. Include specific code examples, tools, and exact implementation details
-5. Explain WHY each task improves AI model visibility and citation likelihood
+Generate 5 tasks that strictly follow the Content Quality and Content Structure thesis:
+
+CONTENT QUALITY REQUIREMENTS (must be reflected in tasks):
+1. Clear Relevant Titles - Tasks should ensure page titles reflect prompts/keywords being answered
+2. Concise Upfront Answers (TL;DR) - Tasks should add 2-3 sentence summaries that directly answer questions
+3. E-E-A-T Signals - Tasks should include:
+   - Author credentials (name + bio with certifications, years of experience)
+   - Visible author bylines (significantly boost AI selection)
+   - First-hand experience demonstrations ("In our 5-year study...", "Having implemented this...")
+   - Authoritative source citations (academic, standards, credible news)
+   - Recent timestamps and content refresh recommendations
+4. Statistics and Citations - Tasks should:
+   - Add accurate, up-to-date statistics with sources
+   - Include expert quotations with source links
+   - Limit to ≤1 link per paragraph for explicit stats (number + unit + timeframe) or third-party quotes only
+5. Specific Examples (Mini Case Studies) - Tasks should include:
+   - Problem → Approach → Outcome structure
+   - Concrete metrics and timeframes
+   - Narrative paragraphs (no bullets)
+
+CONTENT STRUCTURE REQUIREMENTS (must be reflected in tasks):
+1. Heading Hierarchy - Exactly one H1; nested H2/H3/H4 in logical order; headings as questions or clear statements
+2. Paragraph Rules - 2-4 sentences (50-75 words), one idea each; no paragraph >75 words
+3. Direct Answer Blocks - After every H2, include 2-3 sentence paragraph that neutrally resolves the question (cite-able)
+4. Lists - Numbered for steps/rankings/sequences; bullets for tips/collections/examples; limit list items to ≤24 words
+5. Tables and Structured Displays - Use for comparative information; consider TL;DR/callout boxes
+6. FAQ Sections - Include 3-5 Q&As with concise answers (1-3 sentences each)
+7. Mini Case Study - Add before Bottom line section as narrative paragraph (Problem → Approach → Outcome)
+8. Bottom Line - 1-2 sentence conclusion before FAQ
+9. Declarative Tone - Specific, concrete statements; short unambiguous sentences
 
 For each task, be extremely specific about:
 - What exact files to create/modify
-- What specific content to add (with examples)
+- What specific content to add following the Quality & Structure thesis (with examples)
 - Which tools to use and how
 - How to test the implementation
-- Expected impact on AI model recognition
+- Expected impact on AI model recognition (cite specific thesis components)
 
 Prioritize tasks based on:
 - Critical (scores 0-50): Immediate blockers for AI recognition
 - High (scores 51-70): Major improvements needed
 - Medium (scores 71-85): Optimization opportunities
+
+Address the SPECIFIC gaps found in the analysis above, focusing on lowest scoring areas first (scores below 70 = high priority).
 
 [{
   "title": "Specific task title based on actual findings",
@@ -362,8 +393,8 @@ function fallbackTasks(geoResults: EnhancedGEOResult): AIGeneratedTask[] {
       if (!analysisData.hasFAQSchema && analysisData.faqSections > 0) missingSchemas.push('FAQ')
       
       tasks.push({
-        title: `Implement ${missingSchemas.length > 0 ? missingSchemas.join(' & ') + ' Schema' : 'Enhanced Schema'} Markup`,
-        description: `Your site has ${analysisData.jsonLdCount} JSON-LD scripts but is missing critical ${missingSchemas.join(', ')} schema markup. Adding these will help AI models like ChatGPT and Perplexity better understand and cite your business.`,
+        title: `Implement ${missingSchemas.length > 0 ? missingSchemas.join(' & ') + ' Schema' : 'Enhanced Schema'} Markup Following Content Structure Thesis`,
+        description: `Your site has ${analysisData.jsonLdCount} JSON-LD scripts but is missing critical ${missingSchemas.join(', ')} schema markup. Adding these following our Content Quality thesis (E-E-A-T signals, structured data) and Content Structure thesis (proper heading hierarchy, direct answers) will help AI models like ChatGPT and Perplexity better understand and cite your business. This aligns with Content Quality pillar #3 (E-E-A-T) and improves technical accessibility for AI crawlers.`,
         priority: area.score < 50 ? 'high' : 'medium',
         estimatedTime: `${3 + missingSchemas.length}–${5 + missingSchemas.length} hours`,
         difficulty: 'medium',

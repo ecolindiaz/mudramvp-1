@@ -13,6 +13,8 @@ System architecture, design patterns, and technical diagrams:
 ### `/implementation`
 Feature implementation guides and technical specifications:
 - `UNIFIED_ANALYSIS_IMPLEMENTATION.md` - Detailed unified service implementation
+- `TRACKED_PROMPTS_DEEP_VIEW.md` - Tracked prompts deep view frontend specification
+- `DROIDS_LAB_UI_FRONTEND_IMPLEMENTATION.md` - **NEW**: Complete frontend implementation guide for droids lab UI
 - `PROMPT_MANAGEMENT_IMPLEMENTATION.md` - Prompt generation and storage system
 - `TECHNICAL_ANALYSIS.md` - Technical analysis scoring system
 - `TECHNICAL_STRUCTURE_ANALYSIS_FLOW.md` - Technical analysis workflow
@@ -39,7 +41,7 @@ User guides, reference materials, and business documentation:
 - `QUICK_REFERENCE.md` - Quick reference for developers
 - `project-context.md` - Business logic and feature specs
 - `structure.md` - Project structure overview
-- `dashboard-frontend.md` - Dashboard UI guide
+- `dashboard-frontend.md` - Dashboard UI guide (see also: DROIDS_LAB_UI_FRONTEND_IMPLEMENTATION.md for latest)
 - `onboarding-frontend.md` - Onboarding UI guide
 - `AI_VISIBILITY_ONBOARDING_VERIFICATION.md` - AI visibility testing
 - `GEO_IMPROVEMENT_RESULTS.md` - GEO improvement tracking

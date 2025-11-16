@@ -101,6 +101,9 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   const [organicTraffic, setOrganicTraffic] = useState(0)
   const [organicTrafficPrevious, setOrganicTrafficPrevious] = useState<number | null>(null)
   const [hasTrafficHistory, setHasTrafficHistory] = useState(false)
+  const [loadingAIVisibility, setLoadingAIVisibility] = useState(true)
+  const [loadingTechnical, setLoadingTechnical] = useState(true)
+  const [loadingTraffic, setLoadingTraffic] = useState(true)
 
   // State for AI Referral Traffic
   // TODO: Backend integration - fetch from API endpoint: GET /api/analytics/ai-referral
@@ -144,6 +147,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     if (!profile.id) return
 
     try {
+      setLoadingAIVisibility(true)
       // Fetch current aggregate score (Firegeo methodology)
       const currentResponse = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
       const currentResult = await currentResponse.json()
@@ -176,6 +180,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       }
     } catch (error) {
       console.error('Error fetching AI visibility history:', error)
+    } finally {
+      setLoadingAIVisibility(false)
     }
   }
 
@@ -184,6 +190,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     if (!profile.id) return
 
     try {
+      setLoadingTechnical(true)
       const response = await fetch(`/api/analysis/technical-history?brandProfileId=${profile.id}&limit=2`)
       const result = await response.json()
       
@@ -206,6 +213,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       }
     } catch (error) {
       console.error('Error fetching technical history:', error)
+    } finally {
+      setLoadingTechnical(false)
     }
   }
 
@@ -214,6 +223,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     if (!profile.id) return
 
     try {
+      setLoadingTraffic(true)
       const response = await fetch(`/api/analysis/results?brandProfileId=${profile.id}`)
       const result = await response.json()
       
@@ -232,6 +242,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       }
     } catch (error) {
       console.error('Error fetching traffic metrics:', error)
+    } finally {
+      setLoadingTraffic(false)
     }
   }
 
@@ -286,6 +298,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         accentColor="rgba(255,255,255,0.9)"
         info="Overall brand visibility combining mention rate (50%) and average ranking (50%) across all AI providers. Firegeo methodology."
         showLastPeriod={true}
+        loading={loadingAIVisibility}
       />
 
       <DashboardStatCard
@@ -299,6 +312,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         accentColor="rgba(167, 139, 250, 0.9)"
         info={averagePosition > 0 ? `Average ranking position across all mentions. Position #1 is best. Lower numbers indicate better visibility.` : "No position data available yet."}
         showLastPeriod={true}
+        loading={loadingAIVisibility}
       />
 
       <DashboardStatCard
@@ -312,6 +326,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         accentColor="rgba(255,255,255,0.9)"
         info={isGeneratingScore ? "Calculating score..." : "How well your site is optimized for AI and SEO."}
         showLastPeriod={true}
+        loading={loadingTechnical}
       />
 
       {/* AI Referral Traffic Card */}
@@ -472,19 +487,23 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
       {/* AI Referral Tracking Setup Modal */}
       <Dialog open={showTrackingModal} onOpenChange={setShowTrackingModal}>
-        <DialogContent className="max-w-3xl bg-dark-grey border-0 p-0 overflow-hidden">
-          <DialogHeader className="p-7 pb-5">
-            <DialogTitle className="text-lg font-semibold text-white">
-              {isTrackingConnected ? "AI Referral Tracking Settings" : "Connect AI Referral Tracking"}
-            </DialogTitle>
-            <DialogDescription className="text-white/60 text-sm mt-1.5">
-              {isTrackingConnected 
-                ? "View your tracking script and setup instructions." 
-                : "Track traffic from AI search engines by adding our tracking script."}
-            </DialogDescription>
+        <DialogContent className="!max-w-3xl sm:!max-w-3xl bg-dark-grey border-white/10 p-0 !rounded-[12px] overflow-hidden shadow-xl">
+          <DialogHeader className="sr-only">
+            <DialogTitle>AI Referral Tracking</DialogTitle>
           </DialogHeader>
+          <div className="bg-dark-grey px-6 pt-6 pb-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white mb-2 tracking-tight">
+                {isTrackingConnected ? "AI Referral Tracking Settings" : "Connect AI Referral Tracking"}
+              </h2>
+              <p className="text-sm text-white/60 leading-relaxed max-w-2xl">
+                {isTrackingConnected 
+                  ? "View your tracking script and setup instructions." 
+                  : "Track traffic from AI search engines by adding our tracking script."}
+              </p>
+            </div>
 
-          <div className="px-7 pb-7 space-y-5">
+            <div className="space-y-5">
             {/* Step 1: Copy Script */}
             <div className="space-y-2.5">
               <div className="flex items-center gap-2.5">
@@ -545,12 +564,13 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
             {/* Verify Button */}
             <div className="pt-5 border-t border-white/[0.08]">
               <Button 
-                className="w-full h-10 bg-white text-black hover:bg-white/90 font-medium rounded-lg"
+                className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium transition-all shadow-sm hover:shadow-md border-0"
                 onClick={handleVerifyScript}
                 disabled={isConnecting}
               >
                 {isConnecting ? "Verifying..." : "Script Added - Verify Connection"}
               </Button>
+            </div>
             </div>
           </div>
         </DialogContent>

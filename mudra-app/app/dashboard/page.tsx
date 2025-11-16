@@ -29,7 +29,7 @@ const platformOptions = [
 ]
 
 function DashboardPageInner() {
-  const [timeRange, setTimeRange] = React.useState<TimeRange>("7d")
+  const [timeRange] = React.useState<TimeRange>("7d")
   const [selectedPlatform, setSelectedPlatform] = React.useState<PlatformFilter>("all")
   const selectedModel: AIModel = selectedPlatform === "all" ? "chatgpt" : selectedPlatform
   const [currentTime, setCurrentTime] = React.useState(new Date())
@@ -64,30 +64,30 @@ function DashboardPageInner() {
       <SidebarInset>
         <SiteHeader />
         <Separator className="w-full border-border" />
-        <div className="flex flex-1 flex-col pb-8 md:pb-10 overflow-x-hidden max-w-full">
-          <div className="@container/main flex flex-1 flex-col gap-3 md:gap-4 overflow-x-hidden max-w-full">
+        <div className="flex flex-1 flex-col overflow-x-hidden max-w-full">
+          <div className="@container/main flex flex-1 flex-col overflow-x-hidden max-w-full">
             {/* Page Header */}
-            <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6 max-w-full overflow-x-hidden">
-              <div className="flex items-center justify-between flex-wrap gap-4 max-w-full">
+            <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="min-w-0">
-                  <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
-                  <p className="text-muted-foreground">
+                  <h1 className="text-2xl font-bold tracking-tight text-white">Overview</h1>
+                  <p className="text-sm text-white/60 mt-1">
                     Your brands performance across AI Search Engines
                   </p>
                 </div>
                 
-                <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="flex items-center gap-2.5 flex-shrink-0">
                   {/* Platform Filter */}
                   <Select value={selectedPlatform} onValueChange={(value) => setSelectedPlatform(value as PlatformFilter)}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
+                    <SelectTrigger className="w-[160px] h-9 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white rounded-lg transition-colors focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
                       <SelectValue placeholder="All Models" />
                     </SelectTrigger>
-                    <SelectContent className="bg-dark-grey border-white/10">
+                    <SelectContent className="bg-dark-grey border-white/[0.08]">
                       {platformOptions.map((option) => (
                         <SelectItem 
                           key={option.value} 
                           value={option.value}
-                          className="focus:bg-white/10 outline-none"
+                          className="focus:bg-white/10 outline-none text-white"
                         >
                           <div className="flex items-center gap-2">
                             {option.icon && (
@@ -107,37 +107,33 @@ function DashboardPageInner() {
                   </Select>
 
                   {/* Timer */}
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 backdrop-blur-sm">
-                    <svg className="size-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <div className="flex items-center gap-2 h-9 px-3 rounded-lg border border-white/[0.08] bg-white/5">
+                    <svg className="size-3.5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                       <circle cx="12" cy="12" r="10" />
                       <path strokeLinecap="round" d="M12 6v6l4 2" />
                     </svg>
-                    <span className="text-sm font-medium text-white/90 tabular-nums" suppressHydrationWarning>
+                    <span className="text-sm font-medium text-white/80 tabular-nums" suppressHydrationWarning>
                       {formatTime(currentTime)}
                     </span>
                   </div>
                 </div>
               </div>
-              
-              {/* Elegant Separator */}
-              <div className="mt-6">
-                <div className="relative">
-                  <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                </div>
-              </div>
             </div>
             
-            <div className="flex flex-col gap-6 md:gap-8 pb-6 md:pb-8 max-w-full overflow-x-hidden">
-              {/* Overview Metrics with subtle animation */}
-              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <OverviewMetrics 
-                timeRange={timeRange}
-                selectedModel={selectedModel}
-              />
+            {/* Divider Line - Full Width */}
+            <div className="h-[1px] bg-white/10"></div>
+            
+            <div className="flex flex-1 flex-col pt-6 pb-8">
+              {/* Overview Metrics */}
+              <div>
+                <OverviewMetrics 
+                  timeRange={timeRange}
+                  selectedModel={selectedModel}
+                />
               </div>
 
               {/* Natural Language Report */}
-              <div className="px-4 lg:px-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="px-4 lg:px-6 pt-6">
                 <NaturalLanguageReport 
                   timeRange={timeRange}
                   selectedModel={selectedModel}

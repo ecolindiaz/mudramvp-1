@@ -553,16 +553,14 @@ function TrackedPromptsPageInner() {
                   </Button>
                 </div>
               </div>
-              <div className="mt-4">
-                <div className="relative">
-                  <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                </div>
-              </div>
             </div>
+
+            {/* Clean Divider Line - Full Width */}
+            <div className="h-[1px] bg-white/10"></div>
 
             {/* Content Area */}
             <div className="flex flex-col flex-1">
-              <div className="px-4 lg:px-6 mt-2 md:mt-4 pb-6 md:pb-8 space-y-4">
+              <div className="px-4 lg:px-6 pt-6 pb-6 md:pb-8 space-y-4">
                 {/* Filters */}
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">

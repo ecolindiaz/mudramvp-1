@@ -196,22 +196,22 @@ export default function CampaignsPage() {
                           New Campaign
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-3xl p-0 overflow-hidden rounded-lg sm:max-w-3xl md:max-w-4xl bg-dark-grey border-0">
-                        <div className="p-5 md:p-6 lg:p-7">
-                          <DialogHeader className="pb-2">
-                            <DialogTitle className="text-lg md:text-xl font-semibold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">Create a Campaign</DialogTitle>
-                             <DialogDescription className="text-muted-foreground/90 text-sm">
-                               {step === 1
-                                 ? "Choose a content type to start"
-                                 : step === 2
-                                   ? "Choose what to improve"
-                                   : step === 3
-                                     ? improvement === "geo"
-                                       ? "Select the prompt and ICP"
-                                       : "Add your target keywords"
-                                     : "Generating your document"}
-                             </DialogDescription>
-                          </DialogHeader>
+                      <DialogContent className="!max-w-3xl sm:!max-w-3xl bg-dark-grey border-white/10 p-0 !rounded-[12px] overflow-hidden shadow-xl">
+                        <div className="bg-dark-grey px-6 pt-6 pb-6">
+                          <div className="mb-6">
+                            <h2 className="text-xl font-semibold text-white mb-2 tracking-tight">Create a Campaign</h2>
+                            <p className="text-sm text-white/60 leading-relaxed max-w-2xl">
+                              {step === 1
+                                ? "Choose a content type to start"
+                                : step === 2
+                                  ? "Choose what to improve"
+                                  : step === 3
+                                    ? improvement === "geo"
+                                      ? "Select the prompt and ICP"
+                                      : "Add your target keywords"
+                                    : "Generating your document"}
+                            </p>
+                          </div>
                           {/* Linear Stepper (lines only) */}
                           <div className="mt-2 mb-5 md:mt-3 md:mb-6">
                              <div className="relative h-[3px] bg-white/10 rounded overflow-hidden">
@@ -325,7 +325,7 @@ export default function CampaignsPage() {
                                   <Button variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => setStep(2)}>
                                     <ChevronLeft className="size-4 mr-1" /> Back
                                   </Button>
-                                  <Button disabled={!selectedPrompt || !selectedIcp} onClick={() => setStep(4)} className="h-9 rounded-lg">
+                                  <Button disabled={!selectedPrompt || !selectedIcp} onClick={() => setStep(4)} className="h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium transition-all shadow-sm hover:shadow-md border-0">
                                     Continue
                                   </Button>
                                 </div>
@@ -396,7 +396,7 @@ export default function CampaignsPage() {
                                   <Button variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => setStep(2)}>
                                     <ChevronLeft className="size-4 mr-1" /> Back
                                   </Button>
-                                  <Button disabled={keywords.length === 0} onClick={() => setStep(4)} className="h-9 rounded-lg">
+                                  <Button disabled={keywords.length === 0} onClick={() => setStep(4)} className="h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium transition-all shadow-sm hover:shadow-md border-0">
                                     Continue
                                   </Button>
                                 </div>
@@ -526,7 +526,7 @@ export default function CampaignsPage() {
                                 <Button
                                   onClick={startGeneration}
                                   disabled={(improvement === "geo" && (!selectedPrompt || !selectedIcp)) || (improvement === "seo" && keywords.length === 0)}
-                                  className="h-10 px-5 rounded-lg bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 shadow-sm gap-2"
+                                  className="h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium transition-all shadow-sm hover:shadow-md border-0 gap-2"
                                 >
                                   <Sparkles className="size-4" />
                                   Generate
@@ -540,21 +540,14 @@ export default function CampaignsPage() {
                     </Dialog>
               </div>
             </div>
-                <div className="mt-4">
-              <div className="relative">
-                <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                <div className="absolute left-1/2 top-0 transform -translate-x-1/2 -translate-y-1/2">
-                  <div className="w-2 h-2 bg-white rounded-full"></div>
-                </div>
-              </div>
-            </div>
             </div>
 
-            
+            {/* Clean Divider Line - Full Width */}
+            <div className="h-[1px] bg-white/10"></div>
             
             {/* Content */}
             <div className="flex flex-col flex-1">
-              <div className="px-4 lg:px-6 mt-2 md:mt-4 pb-6 md:pb-8">
+              <div className="px-4 lg:px-6 pt-6 pb-6 md:pb-8">
                 <Card className="pt-2 bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.06]">
                   <div className="flex items-center justify-between px-4 lg:px-6 pt-2 pb-3 border-b border-white/[0.06]">
                     <div ref={filterContainerRef} className="relative inline-flex items-center gap-1 p-1.5 bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08]">

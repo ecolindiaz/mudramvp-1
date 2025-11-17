@@ -42,6 +42,7 @@ export interface PromptTest {
   brandMentioned: boolean;
   brandPosition?: number;
   competitors: string[];
+  competitorPositions?: Record<string, number>; // Maps competitor name to their position
   sentiment: 'positive' | 'neutral' | 'negative';
   confidence: number;
 }
@@ -182,6 +183,110 @@ async function analyzePromptWithProvider(
 }
 
 /**
+ * Extract competitor positions using regex patterns (more reliable than LLM for structured lists)
+ */
+function extractCompetitorPositionsWithRegex(text: string, brandName: string): Record<string, number> {
+  const positions: Record<string, number> = {};
+  
+  // Method 1: Standard numbered list "1. Company" or "1. **Company**"
+  const numberedListRegex = /^(\d+)\.\s+\*?\*?([^*\n]+?)\*?\*?(?:\s*[-:]|$)/gm;
+  let match;
+  
+  while ((match = numberedListRegex.exec(text)) !== null) {
+    const pos = parseInt(match[1]);
+    let company = match[2].trim();
+    
+    // Clean up company name (remove trailing colons, asterisks, markdown)
+    company = company.replace(/[:\*]+$/, '').trim();
+    company = company.split(/\n/)[0].trim(); // Take only first line
+    
+    if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2) {
+      positions[company] = pos;
+    }
+  }
+  
+  // Method 2: "### 1st Place:" or "### 1st:" format
+  const headingRankRegex = /###\s*(\d+)(?:st|nd|rd|th)\s+(?:Place)?:?\s*\*?\*?([^*\n]+)/gi;
+  
+  while ((match = headingRankRegex.exec(text)) !== null) {
+    const pos = parseInt(match[1]);
+    let company = match[2].trim();
+    company = company.replace(/[:\*]+$/, '').trim();
+    
+    if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2) {
+      if (!positions[company]) { // Don't overwrite if already found
+        positions[company] = pos;
+      }
+    }
+  }
+  
+  // Method 3: "1st Place: Company" or "Ranked 1st: Company" inline format
+  const inlineRankRegex = /(?:Ranked\s+)?(\d+)(?:st|nd|rd|th)\s+(?:Place)?:?\s+\*?\*?([A-Z][^.\n]{2,40}?)\*?\*?(?=\s|$|\*|\n)/g;
+  
+  while ((match = inlineRankRegex.exec(text)) !== null) {
+    const pos = parseInt(match[1]);
+    let company = match[2].trim();
+    company = company.replace(/[:\*]+$/, '').trim();
+    
+    if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2) {
+      if (!positions[company]) {
+        positions[company] = pos;
+      }
+    }
+  }
+  
+  // Method 4: Markdown table rows (extract position from row order)
+  // This is specifically for Perplexity responses with tables
+  // Extract from tables ONLY if we found fewer than 3 numbered positions
+  if (Object.keys(positions).length < 3) {
+    const lines = text.split('\n');
+    let inTable = false;
+    let tablePosition = 0;
+    
+    for (const line of lines) {
+      // Detect table separator (|----|----|----|)
+      if (line.match(/^\|[\s\-:]+\|/)) {
+        inTable = true;
+        continue;
+      }
+      
+      // If we're in a table, extract company names from rows
+      if (inTable && line.startsWith('|')) {
+        // Match: | **Company Name** | ... | ... |
+        const rowMatch = line.match(/^\|\s*\*?\*?([^|\*\n]{3,50}?)\*?\*?\s*\|/);
+        
+        if (rowMatch) {
+          let company = rowMatch[1].trim();
+          
+          // Skip if it looks like a header or separator
+          if (company.toLowerCase().includes('accelerator') || 
+              company.toLowerCase().includes('funding') ||
+              company.toLowerCase().includes('equity') ||
+              company.toLowerCase().includes('focus') ||
+              company === '') {
+            continue;
+          }
+          
+          tablePosition++;
+          
+          if (company && company.toLowerCase() !== brandName.toLowerCase()) {
+            // Only add if not already found via numbered list
+            if (!positions[company]) {
+              positions[company] = tablePosition;
+            }
+          }
+        }
+      } else if (inTable) {
+        // Empty line or non-table line means table ended
+        inTable = false;
+      }
+    }
+  }
+  
+  return positions;
+}
+
+/**
  * Analyze with OpenAI
  */
 async function analyzeWithOpenAI(
@@ -253,20 +358,43 @@ Extract the following information:
      * "#3: Y Combinator" → 3
      * "Y Combinator is mentioned but no ranking" → null
 
-3. **competitorsMentioned**: Array of competitor names that appear in the response
+3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
+   - Extract ALL proper company names that are competitors, alternatives, or mentioned alongside the brand
+   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
+   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "a16z", "Entrepreneurs First", "Boost VC")
+   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
+   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
+   - Return empty array [] if no competitors are mentioned
+   - Examples:
+     * From "Top 5 accelerators: 1. Y Combinator, 2. Techstars, 3. 500 Global, 4. Seedcamp, 5. MassChallenge"
+       → competitorsMentioned should be: ["Techstars", "500 Global", "Seedcamp", "MassChallenge"]
+     * From "Top 7: 1. YC, 2. Techstars, 3. 500 Global, 4. a16z Speedrun, 5. Antler, 6. Entrepreneurs First, 7. Boost VC"
+       → competitorsMentioned should be: ["Techstars", "500 Global", "a16z Speedrun", "Antler", "Entrepreneurs First", "Boost VC"]
 
-4. **sentiment**: Overall sentiment toward "${config.brandName}" in this response:
+4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
+   - Extract numerical positions for each competitor mentioned
+   - Format: { "CompanyName": position_number }
+   - Only include competitors that have an explicit position/ranking
+   - Examples:
+     * "2. Techstars" → { "Techstars": 2 }
+     * "3rd: 500 Startups" → { "500 Startups": 3 }
+     * From "Top 5: 1. Y Combinator, 2. Techstars, 3. 500 Startups"
+       → { "Techstars": 2, "500 Startups": 3 }
+   - Return empty object {} if no competitors have positions
+
+5. **sentiment**: Overall sentiment toward "${config.brandName}" in this response:
    - "positive" if the response praises, recommends, or ranks highly
    - "neutral" if factual/balanced with no clear opinion
    - "negative" if critical or dismissive
 
-5. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
+6. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
 
 Return ONLY a valid JSON object with these exact keys:
 {
   "brandMentioned": boolean,
   "brandPosition": number or null,
   "competitorsMentioned": string[],
+  "competitorPositions": { [key: string]: number },
   "sentiment": "positive" | "neutral" | "negative",
   "confidence": number,
   "explanation": "brief reasoning"
@@ -277,7 +405,7 @@ Return ONLY a valid JSON object with these exact keys:
       messages: [
         {
           role: 'system',
-          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
+          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully for both the brand and competitors. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
         },
         {
           role: 'user',
@@ -339,15 +467,81 @@ Return ONLY a valid JSON object with these exact keys:
         else if (brandPosition && brandPosition <= 3) sentiment = 'positive'; // Top 3 ranking = positive
       }
       
+      // Try to extract competitor names (basic heuristic)
+      const competitors: string[] = [];
+      
+      // Pattern 1: Numbered lists with company names (e.g., "2. Techstars")
+      const numberedListPattern = /(?:^|\n)\s*(?:[0-9]+[\.\)]|[-•])\s*\*?\*?([A-Z][A-Za-z0-9\s&]+(?:AI|Labs|Inc|LLC|Corp|Ltd)?)\*?\*?(?:\s*[-:]|\n|$)/g;
+      let match;
+      while ((match = numberedListPattern.exec(text)) !== null) {
+        const companyName = match[1].trim();
+        if (companyName !== config.brandName && companyName.length > 2 && companyName.length < 50) {
+          if (!competitors.includes(companyName)) {
+            competitors.push(companyName);
+          }
+        }
+      }
+      
+      // Pattern 2: Companies mentioned in comparisons (e.g., "including X, Y, and Z")
+      const comparisonPattern = /(?:including|such as|like|versus|vs|compared to|alternatives?:?)\s+([A-Z][A-Za-z0-9\s,&]+(?:AI|Labs|Inc|LLC|Corp|Ltd)?)/gi;
+      while ((match = comparisonPattern.exec(text)) !== null) {
+        const companyList = match[1].split(/,\s*(?:and\s+)?|(?:\s+and\s+)/);
+        companyList.forEach(name => {
+          const companyName = name.trim().replace(/\.$/, '');
+          if (companyName !== config.brandName && companyName.length > 2 && companyName.length < 50) {
+            if (!competitors.includes(companyName)) {
+              competitors.push(companyName);
+            }
+          }
+        });
+      }
+      
+      // Limit to top 10 competitors
+      const finalCompetitors = competitors.slice(0, 10);
+      
       analysis = {
         brandMentioned,
         brandPosition,
-        competitorsMentioned: [],
+        competitorsMentioned: finalCompetitors,
+        competitorPositions: {}, // Fallback doesn't extract positions
         sentiment,
         confidence: 0.6,
         explanation: 'Fallback regex extraction used',
       };
     }
+
+    // ENHANCEMENT: Use regex extraction to fill in missing positions
+    // This is more reliable than LLM for structured numbered lists
+    const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
+    
+    // Merge regex positions with LLM positions (regex takes priority for missing values)
+    const mergedPositions = { ...(analysis.competitorPositions || {}) };
+    
+    // For each competitor mentioned, try to get position from regex if not in LLM result
+    (analysis.competitorsMentioned || []).forEach((competitor: string) => {
+      // Check if this competitor has a regex-extracted position
+      const regexMatch = Object.keys(regexPositions).find(
+        regexComp => regexComp.toLowerCase() === competitor.toLowerCase() ||
+                     regexComp.includes(competitor) ||
+                     competitor.includes(regexComp)
+      );
+      
+      if (regexMatch && !mergedPositions[competitor]) {
+        mergedPositions[competitor] = regexPositions[regexMatch];
+      }
+    });
+    
+    // Also add any regex-found competitors that LLM might have missed
+    Object.entries(regexPositions).forEach(([company, position]) => {
+      const alreadyMentioned = (analysis.competitorsMentioned || []).some(
+        (comp: string) => comp.toLowerCase() === company.toLowerCase()
+      );
+      
+      if (!alreadyMentioned) {
+        analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
+        mergedPositions[company] = position;
+      }
+    });
 
     return {
       prompt,
@@ -355,6 +549,7 @@ Return ONLY a valid JSON object with these exact keys:
       brandMentioned: analysis.brandMentioned || false,
       brandPosition: analysis.brandPosition,
       competitors: analysis.competitorsMentioned || [],
+      competitorPositions: mergedPositions,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
     };
@@ -439,20 +634,43 @@ Extract the following information:
      * "#3: Y Combinator" → 3
      * "Y Combinator is mentioned but no ranking" → null
 
-3. **competitorsMentioned**: Array of competitor names that appear in the response
+3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
+   - Extract ALL proper company names that are competitors, alternatives, or mentioned alongside the brand
+   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
+   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "a16z", "Entrepreneurs First", "Boost VC")
+   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
+   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
+   - Return empty array [] if no competitors are mentioned
+   - Examples:
+     * From "Top 5 accelerators: 1. Y Combinator, 2. Techstars, 3. 500 Global, 4. Seedcamp, 5. MassChallenge"
+       → competitorsMentioned should be: ["Techstars", "500 Global", "Seedcamp", "MassChallenge"]
+     * From "Top 7: 1. YC, 2. Techstars, 3. 500 Global, 4. a16z Speedrun, 5. Antler, 6. Entrepreneurs First, 7. Boost VC"
+       → competitorsMentioned should be: ["Techstars", "500 Global", "a16z Speedrun", "Antler", "Entrepreneurs First", "Boost VC"]
 
-4. **sentiment**: Overall sentiment toward "${config.brandName}" in this response:
+4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
+   - Extract numerical positions for each competitor mentioned
+   - Format: { "CompanyName": position_number }
+   - Only include competitors that have an explicit position/ranking
+   - Examples:
+     * "2. Techstars" → { "Techstars": 2 }
+     * "3rd: 500 Startups" → { "500 Startups": 3 }
+     * From "Top 5: 1. Y Combinator, 2. Techstars, 3. 500 Startups"
+       → { "Techstars": 2, "500 Startups": 3 }
+   - Return empty object {} if no competitors have positions
+
+5. **sentiment**: Overall sentiment toward "${config.brandName}" in this response:
    - "positive" if the response praises, recommends, or ranks highly
    - "neutral" if factual/balanced with no clear opinion
    - "negative" if critical or dismissive
 
-5. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
+6. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
 
 Return ONLY a valid JSON object with these exact keys:
 {
   "brandMentioned": boolean,
   "brandPosition": number or null,
   "competitorsMentioned": string[],
+  "competitorPositions": { [key: string]: number },
   "sentiment": "positive" | "neutral" | "negative",
   "confidence": number,
   "explanation": "brief reasoning"
@@ -463,7 +681,7 @@ Return ONLY a valid JSON object with these exact keys:
       messages: [
         {
           role: 'system',
-          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
+          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully for both the brand and competitors. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
         },
         {
           role: 'user',
@@ -507,15 +725,77 @@ Return ONLY a valid JSON object with these exact keys:
 
       const sentiment: 'positive' | 'neutral' | 'negative' = brandMentioned ? 'neutral' : 'neutral';
 
+      // Try to extract competitor names (basic heuristic)
+      const competitors: string[] = [];
+      
+      // Pattern 1: Numbered lists with company names
+      const numberedListPattern = /(?:^|\n)\s*(?:[0-9]+[\.\)]|[-•])\s*\*?\*?([A-Z][A-Za-z0-9\s&]+(?:AI|Labs|Inc|LLC|Corp|Ltd)?)\*?\*?(?:\s*[-:]|\n|$)/g;
+      let match;
+      while ((match = numberedListPattern.exec(text)) !== null) {
+        const companyName = match[1].trim();
+        if (companyName !== config.brandName && companyName.length > 2 && companyName.length < 50) {
+          if (!competitors.includes(companyName)) {
+            competitors.push(companyName);
+          }
+        }
+      }
+      
+      // Pattern 2: Companies in comparisons
+      const comparisonPattern = /(?:including|such as|like|versus|vs|compared to|alternatives?:?)\s+([A-Z][A-Za-z0-9\s,&]+(?:AI|Labs|Inc|LLC|Corp|Ltd)?)/gi;
+      while ((match = comparisonPattern.exec(text)) !== null) {
+        const companyList = match[1].split(/,\s*(?:and\s+)?|(?:\s+and\s+)/);
+        companyList.forEach(name => {
+          const companyName = name.trim().replace(/\.$/, '');
+          if (companyName !== config.brandName && companyName.length > 2 && companyName.length < 50) {
+            if (!competitors.includes(companyName)) {
+              competitors.push(companyName);
+            }
+          }
+        });
+      }
+      
+      const finalCompetitors = competitors.slice(0, 10);
+
       analysis = {
         brandMentioned,
         brandPosition,
-        competitorsMentioned: [],
+        competitorsMentioned: finalCompetitors,
+        competitorPositions: {}, // Fallback doesn't extract positions
         sentiment,
         confidence: 0.6,
         explanation: 'Fallback regex extraction used',
       };
     }
+
+    // ENHANCEMENT: Use regex extraction to fill in missing positions (same as OpenAI function)
+    const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
+    
+    // Merge regex positions with LLM positions
+    const mergedPositions = { ...(analysis.competitorPositions || {}) };
+    
+    (analysis.competitorsMentioned || []).forEach((competitor: string) => {
+      const regexMatch = Object.keys(regexPositions).find(
+        regexComp => regexComp.toLowerCase() === competitor.toLowerCase() ||
+                     regexComp.includes(competitor) ||
+                     competitor.includes(regexComp)
+      );
+      
+      if (regexMatch && !mergedPositions[competitor]) {
+        mergedPositions[competitor] = regexPositions[regexMatch];
+      }
+    });
+    
+    // Add regex-found competitors that LLM missed
+    Object.entries(regexPositions).forEach(([company, position]) => {
+      const alreadyMentioned = (analysis.competitorsMentioned || []).some(
+        (comp: string) => comp.toLowerCase() === company.toLowerCase()
+      );
+      
+      if (!alreadyMentioned) {
+        analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
+        mergedPositions[company] = position;
+      }
+    });
 
     return {
       prompt,
@@ -523,6 +803,7 @@ Return ONLY a valid JSON object with these exact keys:
       brandMentioned: analysis.brandMentioned || false,
       brandPosition: analysis.brandPosition,
       competitors: analysis.competitorsMentioned || [],
+      competitorPositions: mergedPositions,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
     };

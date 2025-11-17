@@ -23,9 +23,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { BrandProfileProvider } from "@/components/brand-profile-context"
+import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { useParams } from "next/navigation"
-import { getPromptById } from "@/lib/mock-data/tracked-prompts"
+import { useEffect } from "react"
 
 // Mock visibility data for chart (top-left card)
 const visibilityTrendData = [
@@ -67,13 +67,6 @@ function LegendChip({ color, label }: { color: string; label: string }) {
 
 type CompetitorRow = { rank: number; company: string; visibility: number; position: number | null; sentiment: 'Positive' | 'Neutral' | 'Negative' }
 
-const competitorsData: CompetitorRow[] = [
-  { rank: 1, company: "Labelbox", visibility: 83, position: 1.6, sentiment: 'Positive' },
-  { rank: 2, company: "Scale AI", visibility: 63, position: 2.0, sentiment: 'Neutral' },
-  { rank: 3, company: "Appen", visibility: 58, position: 3.1, sentiment: 'Neutral' },
-  { rank: 4, company: "DataCurve", visibility: 0, position: null, sentiment: 'Negative' },
-]
-
 // Citations & Sources data model and mock entries
 type CitationSource = {
   domain: string
@@ -95,7 +88,7 @@ const sortedCitationSources = [...citationSources].sort((a, b) => b.frequency - 
 
 
 
-// Recent chats history (mock)
+// Recent chats history
 type ChatHistoryEntry = {
   id: string
   provider: 'Google' | 'OpenAI' | 'Anthropic' | 'Perplexity' | 'Gemini'
@@ -111,7 +104,8 @@ type ChatHistoryEntry = {
   responseCitations?: { domain: string; type?: 'Example' | 'Listicle' | 'Blog Post' | 'Case Study' | 'Docs' | 'Other' }[]
 }
 
-const recentChats: ChatHistoryEntry[] = [
+// Mock fallback data (will be replaced with real data)
+const mockRecentChats: ChatHistoryEntry[] = [
   {
     id: 'h1',
     provider: 'Google',
@@ -255,6 +249,17 @@ const recentChats: ChatHistoryEntry[] = [
   },
 ]
 
+// Helper to map provider names from API to UI format
+function mapProviderName(provider: string): ChatHistoryEntry['provider'] {
+  const lower = provider.toLowerCase()
+  if (lower.includes('openai') || lower.includes('chatgpt') || lower.includes('gpt')) return 'OpenAI'
+  if (lower.includes('anthropic') || lower.includes('claude')) return 'Anthropic'
+  if (lower.includes('perplexity')) return 'Perplexity'
+  if (lower.includes('gemini')) return 'Gemini'
+  if (lower.includes('google')) return 'Google'
+  return 'OpenAI' // Default fallback
+}
+
 function getProviderBadgeClass(_provider: ChatHistoryEntry['provider']) {
   // Neutral, minimalist chip regardless of provider
   return 'bg-white/10 text-white/80'
@@ -351,23 +356,51 @@ function CitationCategoryIcon({ category }: { category: CitationCategory }) {
   }
 }
 
-// Derived metrics for bottom stats (UI only; will be wired later)
-const avgYouVisibility = Math.round(
-  visibilityTrendData.reduce((sum, p) => sum + p.you, 0) / visibilityTrendData.length
-)
-const bestPositionValue = Math.min(
-  ...competitorsData.map((c) => (c.position === null ? Number.POSITIVE_INFINITY : c.position))
-)
-const bestPosition = Number.isFinite(bestPositionValue) ? bestPositionValue.toFixed(1) : "—"
-const topCompetitor = competitorsData.find((c) => c.rank === 1)?.company || "—"
+// (Derived metrics moved inside component)
 
 function TrackedPromptDeepViewInner() {
+  const { profile } = useBrandProfile()
   const [dateRange, setDateRange] = useState<'7d' | '14d' | '30d'>('7d')
   const params = useParams() as { id?: string } | undefined
   const promptId = params?.id
-  const promptDetails = getPromptById(promptId || '')
-  const promptLabel = promptDetails?.prompt || (promptId ? `Prompt ${promptId}` : 'Current Prompt')
-  const promptIntentRaw = promptDetails?.category
+  
+  // Real data state
+  const [promptData, setPromptData] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  
+  // Fetch prompt details from API
+  useEffect(() => {
+    if (!profile?.id || !promptId) {
+      return
+    }
+
+    async function fetchPromptDetails() {
+      setIsLoading(true)
+      setError(null)
+      
+      try {
+        const response = await fetch(`/api/prompts/${promptId}?brandProfileId=${profile.id}`)
+        const result = await response.json()
+        
+        if (response.ok && result.success) {
+          setPromptData(result.prompt)
+        } else {
+          setError(result.error || 'Failed to load prompt')
+        }
+      } catch (err) {
+        console.error('Error fetching prompt:', err)
+        setError('Failed to load prompt details')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchPromptDetails()
+  }, [profile?.id, promptId])
+  
+  const promptLabel = promptData?.text || (promptId ? `Prompt ${promptId}` : 'Current Prompt')
+  const promptIntentRaw = promptData?.category
   const promptIntentLabel = promptIntentRaw
     ? (promptIntentRaw === 'How-to' ? 'Guide' : promptIntentRaw.replace('-', ' '))
     : null
@@ -392,6 +425,41 @@ function TrackedPromptDeepViewInner() {
         return 'Gemini'
     }
   }
+  // Compute recent chats from API response
+  const recentChats: ChatHistoryEntry[] = useMemo(() => {
+    if (!promptData?.testResults) {
+      return mockRecentChats
+    }
+    
+    return promptData.testResults.map((result: any, index: number) => {
+      const provider = mapProviderName(result.provider || result.model)
+      const snippet = result.response 
+        ? result.response.substring(0, 100) + (result.response.length > 100 ? '…' : '')
+        : 'No response available'
+      
+      // Calculate time ago (using analysisDate)
+      const analysisDate = promptData.analysisDate ? new Date(promptData.analysisDate) : new Date()
+      const now = new Date()
+      const hoursAgo = Math.floor((now.getTime() - analysisDate.getTime()) / (1000 * 60 * 60))
+      const timeAgo = hoursAgo < 24 ? `${hoursAgo} hr. ago` : `${Math.floor(hoursAgo / 24)} days ago`
+      
+      return {
+        id: `chat_${index}`,
+        provider,
+        snippet,
+        rank: index + 1,
+        timeAgo,
+        avgPosition: result.position || 0,
+        date: analysisDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+        mentioned: result.mentioned || false,
+        position: result.position || 0,
+        extraMentions: result.competitorsMentioned?.length || 0,
+        fullResponse: result.response || 'No response available',
+        responseCitations: [] // TODO: Extract citations from response if available
+      }
+    })
+  }, [promptData])
+  
   const filteredChats = recentChats.filter((c) => selectedPlatform === 'all' || providerKey(c.provider) === selectedPlatform)
   const [chatVisibleCount, setChatVisibleCount] = useState(INITIAL_VISIBLE)
   const visibleChats = filteredChats.slice(0, chatVisibleCount)
@@ -405,6 +473,33 @@ function TrackedPromptDeepViewInner() {
   // Selected competitor (single-select like radio)
   const [activeCompetitor, setActiveCompetitor] = useState<string | null>(null)
 
+  // Compute competitors data from API response
+  const competitorsData: CompetitorRow[] = useMemo(() => {
+    // Try to use the detailed metrics first, fallback to simple list
+    if (promptData?.competitiveLandscape?.competitorsWithMetrics) {
+      return promptData.competitiveLandscape.competitorsWithMetrics.map((competitor: any, index: number) => ({
+        rank: index + 1,
+        company: competitor.name,
+        visibility: competitor.visibility,
+        position: competitor.position,
+        sentiment: competitor.sentiment as 'Positive' | 'Neutral' | 'Negative'
+      }))
+    }
+    
+    // Fallback: if only the simple 'mentioned' list is available
+    if (promptData?.competitiveLandscape?.mentioned) {
+      return promptData.competitiveLandscape.mentioned.map((company: string, index: number) => ({
+        rank: index + 1,
+        company,
+        visibility: 0,
+        position: null,
+        sentiment: 'Neutral' as const
+      }))
+    }
+    
+    return []
+  }, [promptData])
+
   // Dynamic competitor series config
   const competitorSeries = useMemo(() => {
     return competitorsData.map((c, idx) => ({
@@ -413,7 +508,7 @@ function TrackedPromptDeepViewInner() {
       color: COMPETITOR_COLORS[idx % COMPETITOR_COLORS.length],
       visibility: c.visibility,
     }))
-  }, [])
+  }, [competitorsData])
 
   const computedChartConfig = useMemo(() => {
     const cfg: ChartConfig = {}
@@ -433,7 +528,74 @@ function TrackedPromptDeepViewInner() {
       return row
     })
   }, [competitorSeries])
+
+  // Derived metrics for bottom stats (computed after competitorsData is available)
+  const avgYouVisibility = useMemo(() => {
+    return Math.round(
+      visibilityTrendData.reduce((sum, p) => sum + p.you, 0) / visibilityTrendData.length
+    )
+  }, [])
+
+  const bestPosition = useMemo(() => {
+    const bestPositionValue = Math.min(
+      ...competitorsData.map((c) => (c.position === null ? Number.POSITIVE_INFINITY : c.position))
+    )
+    return Number.isFinite(bestPositionValue) ? bestPositionValue.toFixed(1) : "—"
+  }, [competitorsData])
+
+  const topCompetitor = useMemo(() => {
+    return competitorsData.find((c) => c.rank === 1)?.company || "—"
+  }, [competitorsData])
+
   const rowHeightClass = 'h-12'
+  
+  // Show loading state
+  if (isLoading) {
+    return (
+      <SidebarProvider
+        className="bg-dark-grey"
+        style={{ "--sidebar-width": "16rem" } as React.CSSProperties}
+      >
+        <AppSidebar />
+        <SidebarInset>
+          <SiteHeader />
+          <Separator className="w-full border-border" />
+          <div className="flex flex-1 flex-col items-center justify-center bg-dark-grey p-8">
+            <div className="text-muted-foreground">Loading prompt details...</div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    )
+  }
+  
+  // Show error state
+  if (error || !promptData) {
+    return (
+      <SidebarProvider
+        className="bg-dark-grey"
+        style={{ "--sidebar-width": "16rem" } as React.CSSProperties}
+      >
+        <AppSidebar />
+        <SidebarInset>
+          <SiteHeader />
+          <Separator className="w-full border-border" />
+          <div className="flex flex-1 flex-col items-center justify-center bg-dark-grey p-8">
+            <div className="text-center space-y-4">
+              <div className="text-xl text-white">Prompt Not Found</div>
+              <div className="text-muted-foreground">{error || 'The requested prompt could not be found.'}</div>
+              <Link href="/dashboard/tracked-prompts">
+                <Button variant="outline">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Tracked Prompts
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    )
+  }
+  
   return (
     <SidebarProvider
       className="bg-dark-grey"
@@ -445,7 +607,7 @@ function TrackedPromptDeepViewInner() {
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-dark-grey">
           <div className="container-type-inline-size container-name-main flex flex-1 flex-col gap-3 md:gap-4 bg-dark-grey">
-            {/* Page Header (mock) */}
+            {/* Page Header */}
             <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -629,7 +791,20 @@ function TrackedPromptDeepViewInner() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                            {competitorsData.map((row) => (
+                            {competitorsData.length === 0 ? (
+                              <TableRow className="hover:bg-transparent">
+                                <TableCell colSpan={6} className="h-32 text-center">
+                                  <div className="flex flex-col items-center justify-center gap-2 text-white/60">
+                                    <Building2 className="h-8 w-8 opacity-40" />
+                                    <div className="text-sm">No competitor data available yet</div>
+                                    <div className="text-xs text-white/40">
+                                      Competitors will appear here after they are mentioned in AI responses
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              competitorsData.map((row) => (
                                 <TableRow key={row.rank} className="hover:bg-white/10 h-12 md:h-14 border-b border-white/10 last:border-b-0">
                                   <TableCell className="px-4 align-middle">
                                     <Checkbox
@@ -667,7 +842,8 @@ function TrackedPromptDeepViewInner() {
                                   )}
                                 </TableCell>
                               </TableRow>
-                            ))}
+                            ))
+                            )}
                             </TableBody>
                           </Table>
                         </div>

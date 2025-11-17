@@ -50,7 +50,6 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
-import { mockTrackedPrompts } from "@/lib/mock-data/tracked-prompts"
 
 type TrackedPrompt = {
   id: string
@@ -288,41 +287,69 @@ function TrackedPromptsPageInner() {
   const [isAdding, setIsAdding] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // Fetch prompts with their analysis results (using mock data)
-  useEffect(() => {
-    async function fetchPrompts() {
-      console.log('📡 Loading mock tracked prompts...')
-      setIsLoading(true)
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      try {
-        // Transform mock data to match table format
-        const transformedData: TrackedPrompt[] = mockTrackedPrompts.map((p) => ({
-          id: p.id,
-          prompt: p.prompt,
-          visibility: p.visibility,
-          model: p.model,
-          intent: p.category,
-          sentiment: p.sentiment,
-          position: p.position
-        }))
-        
-        console.log(`✅ Loaded ${transformedData.length} mock prompts`)
-        console.log(`   Sample prompt:`, transformedData[0])
-        
-        setData(transformedData)
-      } catch (error) {
-        console.error('❌ Error loading mock prompts:', error)
-        setData([])
-      } finally {
-        setIsLoading(false)
-      }
+  // Fetch prompts function (extracted for reuse)
+  const fetchPrompts = async () => {
+    if (!profile?.id) {
+      console.log('⏳ Waiting for brand profile...')
+      return
     }
 
+    console.log('📡 Fetching tracked prompts for brand:', profile.id)
+    setIsLoading(true)
+    
+    try {
+      const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
+      const result = await response.json()
+      
+      console.log('📥 Prompts API response:', { 
+        success: result.success, 
+        count: result.count,
+        hasAnalysis: result.hasAnalysis 
+      })
+      
+      if (result.success && result.prompts) {
+        // Transform API response to table format
+        const transformedData: TrackedPrompt[] = result.prompts.map((p: any) => ({
+          id: p.id.toString(),
+          prompt: p.text,
+          visibility: Math.round(p.visibility || 0), // Ensure integer percentage
+          model: p.model || null,
+          intent: p.category || null,
+          sentiment: p.sentiment || null,
+          position: p.position || null
+        }))
+        
+        console.log(`✅ Loaded ${transformedData.length} prompts with analysis results`)
+        if (transformedData.length > 0) {
+          console.log(`   Sample prompt:`, {
+            id: transformedData[0].id,
+            text: transformedData[0].prompt.substring(0, 50) + '...',
+            visibility: transformedData[0].visibility,
+            model: transformedData[0].model
+          })
+        }
+        
+        setData(transformedData)
+      } else if (!result.hasAnalysis) {
+        console.warn('⚠️  No analysis run yet for this brand')
+        setData([])
+      } else {
+        console.warn('⚠️  No prompts found')
+        setData([])
+      }
+    } catch (error) {
+      console.error('❌ Error fetching prompts:', error)
+      setData([])
+      setErrorMessage('Failed to load prompts. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Fetch prompts on mount and when profile changes
+  useEffect(() => {
     fetchPrompts()
-  }, [])
+  }, [profile?.id])
 
   // Filter the data based on selected filters
   const filteredData = useMemo(() => {
@@ -378,9 +405,9 @@ function TrackedPromptsPageInner() {
       console.log('📥 Delete prompt response:', result)
 
       if (result.success) {
-        // Remove from UI
-        setData((prev) => prev.filter((p) => p.id !== promptId))
         console.log('✅ Prompt deleted successfully')
+        // Refresh data from server to ensure consistency
+        await fetchPrompts()
       } else {
         const errorMsg = result.error?.message || result.message || 'Failed to delete prompt'
         setErrorMessage(errorMsg)
@@ -419,21 +446,16 @@ function TrackedPromptsPageInner() {
       console.log('📥 Add prompt response:', { status: response.status, result })
 
       if (response.ok && result.success) {
-        // Add to UI with temporary data (will be updated on next fetch)
-        const newPrompt: TrackedPrompt = {
-          id: result.data.prompt.id.toString(),
-          prompt: result.data.prompt.text, // Use 'text' field from Prisma schema
-          visibility: 0, // Not analyzed yet
-          model: null,
-          intent: result.data.prompt.category,
-          sentiment: null,
-          position: null,
-        }
-        setData((prev) => [newPrompt, ...prev])
+        console.log('✅ Prompt added successfully')
+        
+        // Close dialog and reset form
         setAddOpen(false)
         setNewPromptText("")
         setNewIntent("Organic")
-        console.log('✅ Prompt added successfully')
+        setErrorMessage(null)
+        
+        // Refresh data from server to get the new prompt
+        await fetchPrompts()
       } else {
         const errorMsg = result.error?.message || result.message || 'Failed to add prompt'
         setErrorMessage(errorMsg)

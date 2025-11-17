@@ -170,6 +170,17 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
     // Update last analysis timestamp
     await updateLastAnalysisTime(config.brandProfileId);
 
+    // DEBUG: Log what we're saving
+    console.log('[GEO Core] Saving analyses with test count:', data.analyses?.length);
+    if (data.analyses && data.analyses.length > 0) {
+      const firstAnalysis = data.analyses[0];
+      console.log('[GEO Core] First analysis structure:', {
+        prompt: firstAnalysis.prompt?.substring(0, 50),
+        testsCount: firstAnalysis.tests?.length,
+        firstTestHasCompetitors: firstAnalysis.tests?.[0]?.competitorsMentioned?.length || 0
+      });
+    }
+
     // Save to database
     const geoAnalysis = await prisma.geoAnalysisResult.create({
       data: {

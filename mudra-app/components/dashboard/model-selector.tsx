@@ -11,7 +11,7 @@ import {
   SelectLabel,
 } from "@/components/ui/select"
 
-export type AIModel = "chatgpt" | "perplexity" | "gemini" | "google-aio"
+export type AIModel = "chatgpt" | "claude" | "perplexity" | "gemini" | "google-aio"
 
 interface ModelSelectorProps {
   value?: AIModel
@@ -20,6 +20,7 @@ interface ModelSelectorProps {
 
 const modelLabels = {
   chatgpt: "ChatGPT",
+  claude: "Claude",
   perplexity: "Perplexity",
   gemini: "Gemini",
   "google-aio": "Google AIO"

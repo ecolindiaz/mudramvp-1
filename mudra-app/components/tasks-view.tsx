@@ -631,13 +631,20 @@ export function TasksView() {
                 </Table>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <IconTarget className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No Tasks Generated Yet</h3>
-                <p className="text-muted-foreground text-sm max-w-md">
-                  Use the AI Task Generator above to analyze a website and get personalized GEO optimization tasks, 
-                  or click the Magic Button to analyze a site and generate tasks automatically.
-                </p>
+              <div className="flex flex-col items-center justify-center py-16 px-6">
+                <div className="flex flex-col items-center max-w-md text-center w-full">
+                  <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden group">
+                    <div className="text-center mb-5">
+                      <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
+                        No Tasks Generated Yet
+                      </h3>
+                      <p className="text-sm text-white/60 leading-relaxed">
+                        Use the AI Task Generator above to analyze a website and get personalized GEO optimization tasks, 
+                        or click the Magic Button to analyze a site and generate tasks automatically.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </Card>

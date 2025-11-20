@@ -12,6 +12,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, CheckSquare, Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -49,6 +50,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
+import { mockTrackedPrompts } from "@/lib/mock-data/tracked-prompts"
 
 type TrackedPrompt = {
   id: string
@@ -58,9 +60,35 @@ type TrackedPrompt = {
   intent: string | null
   sentiment: "Positive" | "Neutral" | "Negative" | null
   position: number | null
+  lastRun: string | null
 }
 
-const columns: ColumnDef<TrackedPrompt>[] = [
+// Model logo mapping - same as Recent Chats
+const getModelIcon = (model: string) => {
+  const modelLower = model.toLowerCase()
+  
+  if (modelLower.includes('claude') || modelLower.includes('anthropic')) {
+    return "/claude-ai-icon.svg"
+  }
+  if (modelLower.includes('perplexity')) {
+    return "/perplexity (2).svg"
+  }
+  if (modelLower.includes('gemini')) {
+    return "/gemini (3).svg"
+  }
+  if (modelLower.includes('google') && !modelLower.includes('gemini')) {
+    return "/google-logo.svg"
+  }
+  if (modelLower.includes('gpt') || modelLower.includes('openai') || modelLower.includes('chatgpt')) {
+    return "/openai_dark.svg"
+  }
+  
+  // Default fallback
+  return "/openai_dark.svg"
+}
+
+// Create columns function to access router
+const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedPrompt>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -100,7 +128,13 @@ const columns: ColumnDef<TrackedPrompt>[] = [
     ),
     accessorKey: "prompt",
     cell: ({ row }) => (
-      <div className="font-medium text-white/90 text-[15px] md:text-base leading-relaxed">
+      <div 
+        className="font-medium text-white/90 text-[15px] md:text-base leading-relaxed cursor-pointer hover:text-white transition-colors"
+        onClick={(e) => {
+          e.stopPropagation()
+          router.push(`/dashboard/tracked-prompts/${row.original.id}`)
+        }}
+      >
         {row.getValue("prompt")}
       </div>
     ),
@@ -150,7 +184,7 @@ const columns: ColumnDef<TrackedPrompt>[] = [
     header: () => (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="cursor-default">Model</div>
+          <div className="cursor-default text-center">Model</div>
         </TooltipTrigger>
         <TooltipContent>AI model used for the last check</TooltipContent>
       </Tooltip>
@@ -159,42 +193,60 @@ const columns: ColumnDef<TrackedPrompt>[] = [
     cell: ({ row }) => {
       const model = row.getValue("model") as string | null
       if (!model) {
-        return <span className="text-muted-foreground text-sm">—</span>
+        return (
+          <div className="flex items-center justify-center">
+            <span className="text-muted-foreground text-sm">—</span>
+          </div>
+        )
       }
-      
-      const iconSrc =
-        model.toLowerCase().includes("gpt") || model.toLowerCase().includes("openai")
-          ? "/images/Group%2048095369.png"
-          : model.toLowerCase().includes("perplexity")
-          ? "/images/Group%2048095371%20(1).png"
-          : model.toLowerCase().includes("claude") || model.toLowerCase().includes("anthropic")
-          ? "/images/Group%2048095369.png" // Add Claude icon if you have one
-          : null
 
       return (
-        <Badge className="text-muted-foreground px-2 rounded inline-flex items-center gap-1.5 bg-white/5 border-0">
-          {iconSrc ? (
+        <div className="flex items-center justify-center">
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center">
-                  <Image
-                    src={iconSrc}
-                    width={16}
-                    height={16}
-                    alt={`${model} icon`}
-                    className="rounded-[3px]"
+              <span className="inline-flex items-center justify-center size-6 rounded-full bg-white/5 border border-white/[0.08] flex-shrink-0 p-1 cursor-default">
+                <img 
+                  src={getModelIcon(model)} 
+                  alt={model}
+                  className="size-4 object-contain"
                   />
                 </span>
               </TooltipTrigger>
               <TooltipContent>{model}</TooltipContent>
             </Tooltip>
-          ) : null}
-          <span>{model}</span>
-        </Badge>
+        </div>
       )
     },
     enableSorting: false,
-    size: 140,
+    size: 100,
+  },
+  {
+    header: () => (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="cursor-default text-center">Last Run</div>
+        </TooltipTrigger>
+        <TooltipContent>Time since the last analysis</TooltipContent>
+      </Tooltip>
+    ),
+    accessorKey: "lastRun",
+    cell: ({ row }) => {
+      const lastRun = row.getValue("lastRun") as string | null
+      if (!lastRun) {
+        return (
+          <div className="flex items-center justify-center">
+            <span className="text-muted-foreground text-sm">—</span>
+          </div>
+        )
+      }
+      return (
+        <div className="flex items-center justify-center">
+          <span className="text-white/70 text-sm">{lastRun}</span>
+        </div>
+      )
+    },
+    enableSorting: false,
+    size: 120,
   },
   {
     header: () => (
@@ -250,6 +302,7 @@ const columns: ColumnDef<TrackedPrompt>[] = [
 ]
 
 function TrackedPromptsPageInner() {
+  const router = useRouter()
   const { profile } = useBrandProfile()
   const [data, setData] = useState<TrackedPrompt[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -261,6 +314,9 @@ function TrackedPromptsPageInner() {
   // Filter states
   const [selectedModel, setSelectedModel] = useState<string>("all")
   const [selectedIntent, setSelectedIntent] = useState<string>("all")
+  
+  // Create columns with router access
+  const columns = useMemo(() => createColumns(router), [router])
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -275,79 +331,42 @@ function TrackedPromptsPageInner() {
   const [isAdding, setIsAdding] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // Fetch prompts with their analysis results
+  // Fetch prompts with their analysis results (using mock data)
   useEffect(() => {
     async function fetchPrompts() {
-      // Use profile.id if available, otherwise fall back to 1 (we know this exists from seed)
-      const brandProfileId = (profile.id && profile.id !== 0) ? profile.id : 1
-      
-      if (!brandProfileId) {
-        console.log('⏳ Waiting for brand profile to load...')
-        return
-      }
-
-      console.log(`📡 Using brandProfileId: ${brandProfileId} (profile.id: ${profile.id})`)
+      console.log('📡 Loading mock tracked prompts...')
       setIsLoading(true)
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       try {
-        console.log(`📡 Fetching prompts for brand profile ${brandProfileId}...`)
-        const response = await fetch(`/api/prompts/with-results?brandProfileId=${brandProfileId}`)
+        // Transform mock data to match table format
+        const transformedData: TrackedPrompt[] = mockTrackedPrompts.map((p) => ({
+          id: p.id,
+          prompt: p.prompt,
+          visibility: p.visibility,
+          model: p.model,
+          intent: p.category,
+          sentiment: p.sentiment,
+          position: p.position,
+          lastRun: p.lastRun || "2h ago" // Mock last run time
+        }))
         
-        if (!response.ok) {
-          console.error(`❌ API error: ${response.status} ${response.statusText}`)
-          const errorText = await response.text()
-          console.error('Error response:', errorText)
-          setData([])
-          setIsLoading(false)
-          return
-        }
+        console.log(`✅ Loaded ${transformedData.length} mock prompts`)
+        console.log(`   Sample prompt:`, transformedData[0])
         
-        const result = await response.json()
-        console.log('📦 API Response:', result)
-
-        if (result.success && Array.isArray(result.prompts)) {
-          console.log(`✅ Loaded ${result.prompts.length} prompts`)
-          console.log(`   Has analysis: ${result.hasAnalysis}`)
-          console.log(`   Message: ${result.message || 'No message'}`)
-          
-          // Transform API data to match table format
-          const transformedData: TrackedPrompt[] = result.prompts.map((p: any) => ({
-            id: String(p.id),
-            prompt: p.text,
-            visibility: p.visibility || 0,
-            model: p.model || null,
-            intent: p.category || null,
-            sentiment: p.sentiment || null,
-            position: p.position || null
-          }))
-          
-          console.log(`📊 Transformed ${transformedData.length} prompts for display`)
-          if (transformedData.length > 0) {
-            console.log(`   Sample prompt:`, transformedData[0])
-          }
-          
-          setData(transformedData)
-        } else {
-          console.error('❌ Invalid response format:', result)
-          console.error('   Success:', result.success)
-          console.error('   Prompts:', result.prompts)
-          console.error('   Error:', result.error)
-          setData([])
-        }
+        setData(transformedData)
       } catch (error) {
-        console.error('❌ Error fetching prompts:', error)
-        if (error instanceof Error) {
-          console.error('   Error message:', error.message)
-          console.error('   Error stack:', error.stack)
-        }
+        console.error('❌ Error loading mock prompts:', error)
         setData([])
       } finally {
-        console.log('🏁 Setting loading to false')
         setIsLoading(false)
       }
     }
 
     fetchPrompts()
-  }, [profile.id]) // Still depend on profile.id so it retries when profile loads
+  }, [])
 
   // Filter the data based on selected filters
   const filteredData = useMemo(() => {
@@ -360,12 +379,12 @@ function TrackedPromptsPageInner() {
 
   // Get unique models and intents for filter dropdowns
   const availableModels = useMemo(() => {
-    const models = Array.from(new Set(data.map(item => item.model).filter(Boolean)))
+    const models = Array.from(new Set(data.map(item => item.model).filter((m): m is string => Boolean(m))))
     return models.sort()
   }, [data])
 
   const availableIntents = useMemo(() => {
-    const intents = Array.from(new Set(data.map(item => item.intent).filter(Boolean)))
+    const intents = Array.from(new Set(data.map(item => item.intent).filter((i): i is string => Boolean(i))))
     return intents.sort()
   }, [data])
 
@@ -430,21 +449,13 @@ function TrackedPromptsPageInner() {
     setErrorMessage(null)
 
     try {
-      // Use profile.id if available, otherwise fall back to 1
-      const brandProfileId = (profile.id && profile.id !== 0) ? profile.id : 1
-      
-      if (!text || !text.trim()) {
-        setErrorMessage('Please enter a prompt text')
-        return
-      }
-      
       const response = await fetch('/api/prompts/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          promptText: text.trim(),
+          promptText: text,
           category: newIntent,
-          brandProfileId: brandProfileId,
+          brandProfileId: profile.id,
         }),
       })
 
@@ -461,6 +472,7 @@ function TrackedPromptsPageInner() {
           intent: result.data.prompt.category,
           sentiment: null,
           position: null,
+          lastRun: null,
         }
         setData((prev) => [newPrompt, ...prev])
         setAddOpen(false)
@@ -541,32 +553,47 @@ function TrackedPromptsPageInner() {
                   </Button>
                 </div>
               </div>
-              <div className="mt-4">
-                <div className="relative">
-                  <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                </div>
-              </div>
             </div>
+
+            {/* Clean Divider Line - Full Width */}
+            <div className="h-[1px] bg-white/10"></div>
 
             {/* Content Area */}
             <div className="flex flex-col flex-1">
-              <div className="px-4 lg:px-6 mt-2 md:mt-4 pb-6 md:pb-8 space-y-4">
+              <div className="px-4 lg:px-6 pt-6 pb-6 md:pb-8 space-y-4">
                 {/* Filters */}
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Filter by:</span>
                   </div>
                   <Select value={selectedModel} onValueChange={setSelectedModel}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white">
+                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
                       <SelectValue placeholder="All Models" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Models</SelectItem>
+                    <SelectContent className="bg-dark-grey border-white/10">
+                      <SelectItem value="all" className="focus:bg-white/10 outline-none">
+                        All Models
+                      </SelectItem>
                       {availableModels
                         .filter((model): model is string => model !== null)
                         .map((model) => (
-                          <SelectItem key={model} value={model}>
-                            {model}
+                          <SelectItem 
+                            key={model} 
+                            value={model}
+                            className="focus:bg-white/10 outline-none"
+                          >
+                            <div className="flex items-center gap-2">
+                              {getModelIcon(model) && (
+                                <Image 
+                                  src={getModelIcon(model)!} 
+                                  alt="" 
+                                  width={16} 
+                                  height={16}
+                                  className="shrink-0"
+                                />
+                              )}
+                              <span>{model}</span>
+                            </div>
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -748,7 +775,7 @@ function TrackedPromptsPageInner() {
                           value={newPromptText} 
                           onChange={(e) => setNewPromptText(e.target.value)} 
                           placeholder="Type your prompt..." 
-                          className="min-h-[90px] rounded-lg border-white/10"
+                          className="min-h-[90px] rounded-lg border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none"
                           disabled={isAdding}
                         />
                       </div>
@@ -762,10 +789,10 @@ function TrackedPromptsPageInner() {
                           }}
                           disabled={isAdding}
                         >
-                          <SelectTrigger id="intent" className="w-full rounded-lg">
+                          <SelectTrigger id="intent" className="w-full rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 outline-none border-white/10">
                             <SelectValue placeholder="Select intent" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="rounded-lg">
                             <SelectItem value="How-to">How-to</SelectItem>
                             <SelectItem value="Organic">Organic</SelectItem>
                             <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>

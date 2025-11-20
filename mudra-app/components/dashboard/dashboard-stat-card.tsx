@@ -30,6 +30,7 @@ import {
   ArrowDown,
   ArrowRight,
   Info,
+  type LucideIcon,
 } from "lucide-react"
 
 interface DashboardStatCardProps {
@@ -38,6 +39,7 @@ interface DashboardStatCardProps {
   delta: number
   lastValue: number
   positive: boolean
+  loading?: boolean
   prefix?: string
   suffix?: string
   format?: (v: number) => string
@@ -49,6 +51,9 @@ interface DashboardStatCardProps {
   onCtaClick?: () => void
   accentColor?: string
   info?: string
+  lastUpdated?: Date
+  showLastPeriod?: boolean // If true, shows "Vs Last Period", if false shows "Last Updated"
+  icon?: LucideIcon
 }
 
 function defaultFormat(n: number) {
@@ -74,23 +79,44 @@ export function DashboardStatCard({
   onCtaClick,
   accentColor,
   info,
+  lastUpdated,
+  showLastPeriod = true,
+  icon: Icon,
+  loading = false,
 }: DashboardStatCardProps) {
   const formatValue = format ?? defaultFormat
   const formatLast = lastFormat ?? format ?? defaultFormat
   const accent = accentColor || (positive ? "rgba(16,185,129,0.9)" : "rgba(248,113,113,0.9)")
   const cardStyle = { ["--accent-color" as any]: accent } as React.CSSProperties
+  const displayTime = lastUpdated || new Date()
 
   return (
-    <Card style={cardStyle} className={cn("group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3", className)}>
+    <Card style={cardStyle} className={cn("group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] hover:border-white/[0.12] transition-all duration-200 gap-3", className)}>
 
 
       <CardHeader className="border-0">
         <div className="flex items-start justify-between gap-4">
-          <div>
+          <div className="flex items-center gap-2">
+            {Icon && (
+              <div className="flex items-center justify-center size-5 rounded-md bg-white/[0.05] border border-white/[0.08] group-hover:bg-white/[0.08] group-hover:border-white/[0.12] transition-all duration-200 flex-shrink-0">
+                <Icon className="size-3 text-white/60 group-hover:text-white/80 transition-colors" />
+              </div>
+            )}
             <CardTitle className="text-muted-foreground text-sm font-medium">{title}</CardTitle>
           </div>
           <CardAction>
-            {info ? (
+            {info && onCtaClick ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="-me-1.5" aria-label="About this metric" onClick={onCtaClick}>
+                    <Info className="size-4 text-white/70" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={8} className="max-w-xs text-white/90">
+                  {info}
+                </TooltipContent>
+              </Tooltip>
+            ) : info ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="icon" className="-me-1.5" aria-label="About this metric">
@@ -135,20 +161,31 @@ export function DashboardStatCard({
       </CardHeader>
       <CardContent className="space-y-1.5">
         <div className="flex items-center justify-between gap-2.5">
-          <span className="text-2xl font-medium text-foreground tracking-tight">
-            {format ? format(value) : `${prefix}${formatValue(value)}${suffix}`}
-          </span>
-          {(lastValue !== 0 || delta !== 0) && (
-            <Badge
-              variant={positive ? "success" : "destructive"}
-              className={cn("appearance-light", positive ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "")}
-            >
-              {delta > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
-              {delta}%
-            </Badge>
+          {loading ? (
+            <>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-6 w-20 rounded bg-white/10 animate-pulse" />
+              </span>
+              <span className="h-5 w-14 rounded bg-white/10 animate-pulse" />
+            </>
+          ) : (
+            <>
+              <span className="text-2xl font-medium text-foreground tracking-tight">
+                {format ? format(value) : `${prefix}${formatValue(value)}${suffix}`}
+              </span>
+              {(lastValue !== 0 || delta !== 0) && (
+                <Badge
+                  variant={positive ? "success" : "destructive"}
+                  className={cn("appearance-light", positive ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "")}
+                >
+                  {delta > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+                  {delta}%
+                </Badge>
+              )}
+            </>
           )}
         </div>
-        {Array.isArray(sparkline) && sparkline.length > 1 && (
+        {!loading && Array.isArray(sparkline) && sparkline.length > 1 && (
           <div className="overflow-hidden transition-all duration-300 ease-out max-h-0 group-hover:max-h-12">
             <div className="h-10 w-full opacity-0 -translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
               <svg viewBox="0 0 100 20" className="w-full h-full text-white/70">
@@ -193,13 +230,24 @@ export function DashboardStatCard({
         )}
         <div className="mt-2 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
           <div className="text-xs text-muted-foreground">
-            {lastValue === 0 && delta === 0 ? (
-              "No previous data"
+            {loading ? (
+              <span className="inline-block h-3 w-32 rounded bg-white/10 animate-pulse" />
+            ) : showLastPeriod ? (
+              lastValue === 0 && delta === 0 ? (
+                <span className="opacity-0">-</span>
+              ) : (
+                <>
+                  Vs last period:{" "}
+                  <span className="font-medium text-foreground">
+                    {lastFormat ? lastFormat(lastValue) : `${prefix}${formatLast(lastValue)}${suffix}`}
+                  </span>
+                </>
+              )
             ) : (
               <>
-                Vs last period:{" "}
+                Last Updated:{" "}
                 <span className="font-medium text-foreground">
-                  {lastFormat ? lastFormat(lastValue) : `${prefix}${formatLast(lastValue)}${suffix}`}
+                  {displayTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </>
             )}
@@ -210,6 +258,7 @@ export function DashboardStatCard({
               size="sm"
               className="h-7 px-2 text-xs text-white/70 hover:text-white"
               onClick={onCtaClick}
+              disabled={loading}
             >
               {ctaLabel ?? "View"}
               <ArrowRight className="ml-1 size-3" />

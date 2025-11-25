@@ -27,6 +27,17 @@ import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profil
 import { useParams } from "next/navigation"
 import { useEffect } from "react"
 
+// Model icon mapping - helper function to get icon based on model name
+const getModelIcon = (model: string): string | null => {
+  const modelLower = model.toLowerCase()
+  if (modelLower.includes('chatgpt') || modelLower.includes('gpt') || modelLower.includes('openai')) return "/openai_dark.svg"
+  if (modelLower.includes('claude') || modelLower.includes('anthropic')) return "/claude-ai-icon.svg"
+  if (modelLower.includes('perplexity')) return "/perplexity (2).svg"
+  if (modelLower.includes('gemini')) return "/gemini (3).svg"
+  if (modelLower.includes('google') || modelLower.includes('aio') || modelLower.includes('overviews')) return "/google-logo.svg"
+  return null
+}
+
 // Mock visibility data for chart (top-left card)
 const visibilityTrendData = [
   { day: "Oct 20", you: 35, competitors: 60 },
@@ -641,16 +652,83 @@ function TrackedPromptDeepViewInner() {
                 </div>
                 <div className="hidden md:flex items-center gap-3">
                   <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white">
+                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
                       <SelectValue placeholder="All Platforms" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Platforms</SelectItem>
-                      <SelectItem value="ChatGPT">ChatGPT</SelectItem>
-                      <SelectItem value="Claude">Claude</SelectItem>
-                      <SelectItem value="Perplexity">Perplexity</SelectItem>
-                      <SelectItem value="AI Overviews">AI Overviews</SelectItem>
-                      <SelectItem value="Gemini">Gemini</SelectItem>
+                    <SelectContent className="bg-dark-grey border-white/10">
+                      <SelectItem value="all" className="focus:bg-white/10 outline-none">
+                        All Platforms
+                      </SelectItem>
+                      <SelectItem value="ChatGPT" className="focus:bg-white/10 outline-none">
+                        <div className="flex items-center gap-2">
+                          {getModelIcon("ChatGPT") && (
+                            <Image 
+                              src={getModelIcon("ChatGPT")!} 
+                              alt="" 
+                              width={16} 
+                              height={16}
+                              className="shrink-0"
+                            />
+                          )}
+                          <span>ChatGPT</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="Claude" className="focus:bg-white/10 outline-none">
+                        <div className="flex items-center gap-2">
+                          {getModelIcon("Claude") && (
+                            <Image 
+                              src={getModelIcon("Claude")!} 
+                              alt="" 
+                              width={16} 
+                              height={16}
+                              className="shrink-0"
+                            />
+                          )}
+                          <span>Claude</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="Perplexity" className="focus:bg-white/10 outline-none">
+                        <div className="flex items-center gap-2">
+                          {getModelIcon("Perplexity") && (
+                            <Image 
+                              src={getModelIcon("Perplexity")!} 
+                              alt="" 
+                              width={16} 
+                              height={16}
+                              className="shrink-0"
+                            />
+                          )}
+                          <span>Perplexity</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="Gemini" className="focus:bg-white/10 outline-none">
+                        <div className="flex items-center gap-2">
+                          {getModelIcon("Gemini") && (
+                            <Image 
+                              src={getModelIcon("Gemini")!} 
+                              alt="" 
+                              width={16} 
+                              height={16}
+                              className="shrink-0"
+                            />
+                          )}
+                          <span>Gemini</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="AI Overviews" className="focus:bg-white/10 outline-none">
+                        <div className="flex items-center gap-2">
+                          {getModelIcon("Google AIO") && (
+                            <Image 
+                              src={getModelIcon("Google AIO")!} 
+                              alt="" 
+                              width={16} 
+                              height={16}
+                              className="shrink-0"
+                            />
+                          )}
+                          <span>Google AIO</span>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   <div className="flex items-center gap-2">
@@ -675,18 +753,13 @@ function TrackedPromptDeepViewInner() {
                   </div>
                 </div>
               </div>
-              <div className="mt-4">
-                <div className="relative">
-                  <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                  <div className="absolute left-1/2 top-0 transform -translate-x-1/2 -translate-y-1/2">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                  </div>
-                </div>
-              </div>
             </div>
 
+            {/* Clean Divider Line - Full Width */}
+            <div className="h-[1px] bg-white/10"></div>
+
             {/* Content */}
-            <div className="flex flex-1 px-4 lg:px-6 pb-6 md:pb-8">
+            <div className="flex flex-1 px-4 lg:px-6 pt-6 pb-6 md:pb-8">
               <div className="w-full space-y-4">
                 {/* Top row: two metric containers */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -750,7 +823,7 @@ function TrackedPromptDeepViewInner() {
                   <Card className="bg-transparent rounded-lg border border-white/[0.06] py-0">
                     <CardContent className="p-0 min-h-[340px] md:min-h-[380px]">
                       <div>
-                        <div className="rounded-none border-0 overflow-hidden max-h-[340px] md:max-h-[360px] overflow-y-auto">
+                        <div className="rounded-lg border-0 overflow-hidden max-h-[340px] md:max-h-[360px] overflow-y-auto">
                           <Table className="w-full text-[15px]">
                           <TableHeader className="bg-white/5 sticky top-0 z-10 backdrop-blur-sm border-b border-white/10 text-[13px]">
                               <TableRow className="hover:bg-transparent h-12">
@@ -879,7 +952,7 @@ function TrackedPromptDeepViewInner() {
                     {bottomView === 'sources' ? (
                       <div className="p-0">
                         <Table className="w-full text-[15px] table-fixed">
-                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/10 text-[13px]">
+                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
                             <TableRow className="hover:bg-transparent h-12">
                               <TableHead className="w-[56px] text-center text-white/70 px-2">#</TableHead>
                               <TableHead className="w-[50%] text-white/70 pl-2 pr-4">
@@ -936,7 +1009,7 @@ function TrackedPromptDeepViewInner() {
                                     </TableCell>
                                   </TableRow>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-4xl md:max-w-4xl rounded-xl border-0 bg-dark-grey p-0 max-h-[90vh] overflow-y-auto">
+                                <DialogContent className="sm:max-w-4xl md:max-w-4xl rounded-xl border border-white/[0.08] bg-transparent backdrop-blur-sm p-0 max-h-[90vh] overflow-y-auto">
                                   <DialogHeader>
                                     <DialogTitle className="sr-only">Source Details</DialogTitle>
                                   </DialogHeader>
@@ -1035,10 +1108,10 @@ function TrackedPromptDeepViewInner() {
                                       const remainingLocal = Math.max(0, chatsForDomain.length - visibleChatsLocal.length)
 
                                       return (
-                                        <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.03]">
+                                        <div className="mt-3 rounded-lg border border-white/[0.08] bg-transparent">
                                           <div className="max-h-[30vh] overflow-y-auto">
                                             <Table className="w-full text-[14px] md:text-[15px] table-fixed">
-                                              <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/10 text-[13px]">
+                                              <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
                                                 <TableRow className="hover:bg-transparent h-10">
                                                   <TableHead className="w-[220px] text-white/70 px-4">Platform</TableHead>
                                                   <TableHead className="text-white/70">Response</TableHead>
@@ -1048,9 +1121,12 @@ function TrackedPromptDeepViewInner() {
                                               </TableHeader>
                                               <TableBody>
                                                 {visibleChatsLocal.map((chat) => (
-                                                  <TableRow key={chat.id} className="hover:bg-white/10 border-b border-white/10 last:border-b-0">
+                                                  <TableRow key={chat.id} className="hover:bg-white/[0.04] border-b border-white/[0.08] last:border-b-0">
                                                     <TableCell className="px-4">
                                                       <div className="flex items-center gap-2">
+                                                        <div className="flex items-center justify-center size-7 rounded-md border border-white/10 bg-white/5">
+                                                          <Image src={getProviderIconSrc(chat.provider)} alt={`${chat.provider} icon`} width={12} height={12} />
+                                                        </div>
                                                         <span className="text-sm text-white/90">{getProviderDisplay(chat.provider)}</span>
                                                       </div>
                                                     </TableCell>
@@ -1060,7 +1136,7 @@ function TrackedPromptDeepViewInner() {
                                                       </div>
                                                     </TableCell>
                                                     <TableCell className="text-center text-white/80 px-2">
-                                                      <Badge variant="outline" className="h-6 px-2 text-[12px] rounded-md border-white/10 bg-white/5 text-white/90">
+                                                      <Badge variant="outline" className="h-6 px-2 text-[12px] rounded-md border-white/[0.08] bg-white/5 text-white/90">
                                                         {Math.max(1, (chat.responseCitations || []).filter((c) => (c as any).domain === row.domain).length)}
                                                       </Badge>
                                                     </TableCell>
@@ -1077,12 +1153,12 @@ function TrackedPromptDeepViewInner() {
                                               </TableBody>
                                             </Table>
                                           </div>
-                                          <div className="flex items-center justify-between px-4 py-2 border-t border-white/10">
+                                          <div className="flex items-center justify-between px-4 py-2 border-t border-white/[0.08]">
                                             <div className="flex items-center gap-2">
                                               <Button
                                                 variant="outline"
                                                 size="sm"
-                                                className="h-8 px-3 rounded-md border-white/10 bg-white/5 text-white/80 hover:text-white"
+                                                className="h-8 px-3 rounded-md border-white/[0.08] bg-white/5 text-white/80 hover:text-white"
                                                 onClick={() => setSourceChatsVisibleCount(Math.min(sourceChatsVisibleCount + INITIAL_VISIBLE, chatsForDomain.length))}
                                                 aria-label="Expand chats for this source"
                                                 disabled={remainingLocal <= 0}
@@ -1106,7 +1182,7 @@ function TrackedPromptDeepViewInner() {
                                     <div className="rounded-lg border border-white/10 bg-white/[0.03]">
                                       <div className="max-h-[45vh] overflow-y-auto">
                                         <Table className="w-full text-[15px]">
-                                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/10 text-[13px]">
+                                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
                                             <TableRow className="hover:bg-transparent h-10">
                                               <TableHead className="text-white/70 px-4">URL</TableHead>
                                               <TableHead className="w-[180px] text-center text-white/70 px-2">
@@ -1188,7 +1264,7 @@ function TrackedPromptDeepViewInner() {
                     ) : (
                       <div className="p-0">
                         <Table className="w-full text-[14px] md:text-[15px] table-fixed">
-                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/10 text-[13px]">
+                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
                             <TableRow className="hover:bg-transparent h-12">
                               <TableHead className="w-[220px] text-white/70 px-4">
                                 <Tooltip>
@@ -1264,7 +1340,7 @@ function TrackedPromptDeepViewInner() {
                                 <TableCell className="text-center text-white/80 px-2">{chat.date}</TableCell>
                                   </TableRow>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-3xl rounded-xl border-0 bg-dark-grey p-0">
+                                <DialogContent className="sm:max-w-3xl rounded-xl border border-white/[0.08] bg-transparent backdrop-blur-sm p-0">
                                   <DialogHeader>
                                     <DialogTitle className="sr-only">Chat Details</DialogTitle>
                                   </DialogHeader>
@@ -1302,11 +1378,12 @@ function TrackedPromptDeepViewInner() {
                                     </div>
 
                                     {/* Response container */}
-                                    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 max-h-[45vh] overflow-y-auto">
+                                    <div className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-4 max-h-[45vh] overflow-y-auto">
                                       <div className="text-xs text-white/60 mb-2">Model Response</div>
-                                      <div className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap">
+                                      <pre className="text-[13px] text-white/85 leading-relaxed whitespace-pre-wrap font-mono">
+{``}
                                         {chat.fullResponse}
-                                      </div>
+                                      </pre>
                                     </div>
 
                                     {/* Citations widgets */}
@@ -1332,7 +1409,7 @@ function TrackedPromptDeepViewInner() {
                                                 </div>
                                               </div>
                                             </DialogTrigger>
-                                            <DialogContent className="sm:max-w-4xl md:max-w-4xl rounded-xl border-0 bg-dark-grey p-0 max-h-[90vh] overflow-y-auto">
+                                            <DialogContent className="sm:max-w-4xl md:max-w-4xl rounded-xl border border-white/[0.08] bg-transparent backdrop-blur-sm p-0 max-h-[90vh] overflow-y-auto">
                                               <DialogHeader>
                                                 <DialogTitle className="sr-only">Source Details</DialogTitle>
                                               </DialogHeader>
@@ -1435,7 +1512,7 @@ function TrackedPromptDeepViewInner() {
                                                     <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.03]">
                                                       <div className="max-h-[30vh] overflow-y-auto">
                                                         <Table className="w-full text-[14px] md:text-[15px] table-fixed">
-                                                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/10 text-[13px]">
+                                                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
                                                             <TableRow className="hover:bg-transparent h-10">
                                                               <TableHead className="w-[220px] text-white/70 px-4">Platform</TableHead>
                                                               <TableHead className="text-white/70">Response</TableHead>
@@ -1502,7 +1579,7 @@ function TrackedPromptDeepViewInner() {
                                                   <div className="rounded-lg border border-white/10 bg-white/[0.03]">
                                                     <div className="max-h-[45vh] overflow-y-auto">
                                                       <Table className="w-full text-[15px]">
-                                                        <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/10 text-[13px]">
+                                                        <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
                                                           <TableRow className="hover:bg-transparent h-10">
                                                             <TableHead className="text-white/70 px-4">URL</TableHead>
                                                             <TableHead className="w-[180px] text-center text-white/70 px-2">

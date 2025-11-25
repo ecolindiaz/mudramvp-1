@@ -27,10 +27,16 @@ if (env.NODE_ENV !== 'production') {
 
 // Graceful shutdown handling
 if (typeof window === 'undefined') {
-  const processObj = (globalThis as unknown as { process?: { on: Function } }).process;
-  if (processObj) {
+  const globalWithListenerFlag = globalThis as unknown as {
+    __mudraPrismaBeforeExitAdded?: boolean
+    process?: { on: Function }
+  }
+  const processObj = globalWithListenerFlag.process
+
+  if (processObj && !globalWithListenerFlag.__mudraPrismaBeforeExitAdded) {
     processObj.on('beforeExit', async () => {
       await prisma.$disconnect()
     })
+    globalWithListenerFlag.__mudraPrismaBeforeExitAdded = true
   }
 }

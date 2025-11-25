@@ -6,6 +6,12 @@ import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 import { useState, useEffect } from "react"
 import { useBrandProfile } from "@/components/brand-profile-context"
+import { Card, CardContent, CardHeader, CardTitle, CardAction } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Info, Link, Copy, Check, ExternalLink, X, ArrowUp, Settings } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 interface OverviewMetricsProps {
   showAll?: boolean
@@ -27,6 +33,53 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   void selectedModel
 
   const { profile } = useBrandProfile()
+  
+  // AI Referral Tracking modal state
+  const [showTrackingModal, setShowTrackingModal] = useState(false)
+  const [scriptCopied, setScriptCopied] = useState(false)
+  const [isTrackingConnected, setIsTrackingConnected] = useState(false) // Default to false (not connected)
+  const [isConnecting, setIsConnecting] = useState(false) // Loading state
+  
+  // Generate tracking script with user's site ID (will use actual siteId from backend)
+  const siteId = typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || 'your-site-id') : 'your-site-id'
+  const trackingScript = `<!-- Mudra AI Referral Tracking -->
+<script>
+  (function() {
+    var script = document.createElement('script');
+    script.src = 'https://cdn.mudra.ai/tracker.js';
+    script.async = true;
+    script.setAttribute('data-site-id', '${siteId}');
+    document.head.appendChild(script);
+  })();
+</script>`
+
+  const handleCopyScript = async () => {
+    try {
+      await navigator.clipboard.writeText(trackingScript)
+      setScriptCopied(true)
+      setTimeout(() => setScriptCopied(false), 2000)
+    } catch (error) {
+      console.error('Failed to copy script:', error)
+    }
+  }
+
+  const handleConnect = () => {
+    setShowTrackingModal(true)
+  }
+
+  const handleVerifyScript = async () => {
+    setShowTrackingModal(false)
+    setIsConnecting(true)
+    
+    // Simulate checking for traffic (will be replaced with backend API call)
+    // TODO: Replace with actual backend API call to check for tracking script installation
+    // Backend should return: { connected: boolean, traffic: number, lastUpdated: timestamp }
+    setTimeout(() => {
+      setIsConnecting(false)
+      setIsTrackingConnected(true)
+      setLastUpdated(new Date()) // Update timestamp when data is refreshed
+    }, 3000) // Simulate 3 second loading/verification
+  }
 
   // State for dynamic technical score
   const [technicalScore, setTechnicalScore] = useState(0)
@@ -48,6 +101,20 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   const [organicTraffic, setOrganicTraffic] = useState(0)
   const [organicTrafficPrevious, setOrganicTrafficPrevious] = useState<number | null>(null)
   const [hasTrafficHistory, setHasTrafficHistory] = useState(false)
+  const [loadingAIVisibility, setLoadingAIVisibility] = useState(true)
+  const [loadingTechnical, setLoadingTechnical] = useState(true)
+  const [loadingTraffic, setLoadingTraffic] = useState(true)
+
+  // State for AI Referral Traffic
+  // TODO: Backend integration - fetch from API endpoint: GET /api/analytics/ai-referral
+  // Response shape: { traffic: number, previous: number, lastUpdated: string, connected: boolean }
+  const [aiReferralTraffic, setAiReferralTraffic] = useState(247) // Mock data
+  const [aiReferralPrevious, setAiReferralPrevious] = useState(189) // Mock previous
+  const hasAiTrafficHistory = true
+  
+  // Last updated timestamp for all metrics (will be fetched from backend)
+  // TODO: Backend should return lastUpdated timestamp for each metric
+  const [lastUpdated, setLastUpdated] = useState(new Date()) // Track when data was last refreshed
 
   // Fetch latest score and historical data from database
   const fetchLatestScore = async () => {
@@ -80,6 +147,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     if (!profile.id) return
 
     try {
+      setLoadingAIVisibility(true)
       // Fetch current aggregate score (Firegeo methodology)
       const currentResponse = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
       const currentResult = await currentResponse.json()
@@ -112,6 +180,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       }
     } catch (error) {
       console.error('Error fetching AI visibility history:', error)
+    } finally {
+      setLoadingAIVisibility(false)
     }
   }
 
@@ -120,6 +190,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     if (!profile.id) return
 
     try {
+      setLoadingTechnical(true)
       const response = await fetch(`/api/analysis/technical-history?brandProfileId=${profile.id}&limit=2`)
       const result = await response.json()
       
@@ -142,6 +213,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       }
     } catch (error) {
       console.error('Error fetching technical history:', error)
+    } finally {
+      setLoadingTechnical(false)
     }
   }
 
@@ -150,6 +223,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     if (!profile.id) return
 
     try {
+      setLoadingTraffic(true)
       const response = await fetch(`/api/analysis/results?brandProfileId=${profile.id}`)
       const result = await response.json()
       
@@ -168,6 +242,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       }
     } catch (error) {
       console.error('Error fetching traffic metrics:', error)
+    } finally {
+      setLoadingTraffic(false)
     }
   }
 
@@ -205,29 +281,24 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     ? Math.round(((organicTraffic - organicTrafficPrevious) / organicTrafficPrevious) * 100)
     : 0
 
+  const aiReferralDelta = hasAiTrafficHistory && aiReferralPrevious !== null && aiReferralPrevious > 0
+    ? Math.round(((aiReferralTraffic - aiReferralPrevious) / aiReferralPrevious) * 100)
+    : 0
+
   return (
-    <div className="grid grid-cols-1 gap-4 md:gap-5 px-4 lg:px-6 @xl/main:grid-cols-2 @4xl/main:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:gap-5 px-4 lg:px-6 @xl/main:grid-cols-2 @3xl/main:grid-cols-4">
       <DashboardStatCard
         title="AI Visibility Score"
         value={aiVisibilityScore}
+        suffix="%"
         delta={aiVisibilityDelta}
         lastValue={hasAiHistory && aiVisibilityPrevious !== null ? aiVisibilityPrevious : 0}
         positive={aiVisibilityScore > (aiVisibilityPrevious || 0)}
         sparkline={aiVisibilityScore > 0 ? [0, Math.max(10, aiVisibilityScore * 0.5), Math.max(20, aiVisibilityScore * 0.7), aiVisibilityScore] : [0]}
         accentColor="rgba(255,255,255,0.9)"
         info="Overall brand visibility combining mention rate (50%) and average ranking (50%) across all AI providers. Firegeo methodology."
-      />
-
-      <DashboardStatCard
-        title="Share of Voice"
-        value={mentionRate}
-        suffix="%"
-        delta={0}
-        lastValue={0}
-        positive={true}
-        sparkline={mentionRate > 0 ? [0, Math.max(10, mentionRate * 0.6), Math.max(20, mentionRate * 0.8), mentionRate] : [0]}
-        accentColor="rgba(147, 197, 253, 0.9)"
-        info={`Brand mentioned in ${mentionRate}% of AI responses across ${totalTests} total tests. Higher is better.`}
+        showLastPeriod={true}
+        loading={loadingAIVisibility}
       />
 
       <DashboardStatCard
@@ -240,18 +311,270 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         sparkline={averagePosition > 0 ? [10, Math.min(8, averagePosition * 1.2), averagePosition, Math.max(1, averagePosition * 0.8)] : [0]}
         accentColor="rgba(167, 139, 250, 0.9)"
         info={averagePosition > 0 ? `Average ranking position across all mentions. Position #1 is best. Lower numbers indicate better visibility.` : "No position data available yet."}
+        showLastPeriod={true}
+        loading={loadingAIVisibility}
       />
 
       <DashboardStatCard
         title="Technical Structure Score"
         value={isGeneratingScore ? 0 : technicalScore}
+        suffix="%"
         delta={hasHistoricalData && previousScore !== null ? Math.round(((technicalScore - previousScore) / previousScore) * 100) : 0}
         lastValue={hasHistoricalData && previousScore !== null ? previousScore : 0}
         positive={hasHistoricalData && previousScore !== null ? technicalScore > previousScore : true}
         sparkline={hasHistoricalData ? undefined : technicalScore > 0 ? [0, Math.max(10, technicalScore * 0.6), Math.max(20, technicalScore * 0.8), technicalScore] : [0]}
         accentColor="rgba(255,255,255,0.9)"
         info={isGeneratingScore ? "Calculating score..." : "How well your site is optimized for AI and SEO."}
+        showLastPeriod={true}
+        loading={loadingTechnical}
       />
+
+      {/* AI Referral Traffic Card */}
+      {isTrackingConnected ? (
+        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3">
+          <CardHeader className="border-0">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
+              </div>
+              <CardAction>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="-me-1.5" aria-label="About this metric">
+                      <Info className="size-4 text-white/70" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={8} className="max-w-xs text-white/90">
+                    Traffic referred from AI Models
+                  </TooltipContent>
+                </Tooltip>
+              </CardAction>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2.5">
+              <span className="text-2xl font-medium text-foreground tracking-tight">
+                {aiReferralTraffic.toLocaleString()}
+              </span>
+              <Badge
+                variant="success"
+                className="appearance-light bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+              >
+                <ArrowUp className="size-3" />
+                {aiReferralDelta}%
+              </Badge>
+            </div>
+            <div className="overflow-hidden transition-all duration-300 ease-out max-h-0 group-hover:max-h-12">
+              <div className="h-10 w-full opacity-0 -translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+                <svg viewBox="0 0 100 20" className="w-full h-full text-emerald-400/70">
+                  <defs>
+                    <linearGradient id="aiTrafficGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="currentColor" stopOpacity="0.4" />
+                      <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <polyline
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="0.8"
+                    points="0,15 14.3,13 28.6,11 42.9,9 57.1,10 71.4,7 85.7,5 100,3"
+                  />
+                  <polygon
+                    fill="url(#aiTrafficGradient)"
+                    points="0,15 14.3,13 28.6,11 42.9,9 57.1,10 71.4,7 85.7,5 100,3 100,20 0,20"
+                  />
+                </svg>
+              </div>
+            </div>
+            <div className="mt-2 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
+              <div className="text-xs text-muted-foreground">
+                Last Updated:{" "}
+                <span className="font-medium text-foreground">
+                  {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-white/70 hover:text-white"
+                onClick={() => setShowTrackingModal(true)}
+              >
+                Settings
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : isConnecting ? (
+        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3">
+          <CardHeader className="border-0">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="relative size-8">
+                  <div className="absolute inset-0 rounded-full border-2 border-white/10"></div>
+                  <div className="absolute inset-0 rounded-full border-2 border-t-emerald-500 border-r-emerald-500/50 border-b-transparent border-l-transparent animate-spin"></div>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-base font-medium text-white/90">Connecting...</span>
+                  <span className="text-xs text-white/60">Detecting traffic</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 border-t border-white/10 pt-2.5">
+              <div className="text-xs text-muted-foreground">
+                Verifying script installation...
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3 hover:border-white/[0.12] transition-colors">
+          <CardHeader className="border-0">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
+              </div>
+              <CardAction>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="-me-1.5 hover:bg-white/5" aria-label="About this metric">
+                      <Info className="size-4 text-white/70 group-hover:text-white/90 transition-colors" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={8} className="max-w-xs text-white/90">
+                    Track traffic referred from AI agents and chatbots
+                  </TooltipContent>
+                </Tooltip>
+              </CardAction>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-center size-8 rounded-md border border-white/10 bg-white/5 group-hover:border-white/20 transition-colors">
+                  <Link className="size-4 text-white/80" />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-base font-medium text-foreground">Not Connected</span>
+                </div>
+              </div>
+              <Button 
+                size="sm" 
+                onClick={handleConnect}
+                className="h-8 px-3 rounded-md bg-white text-black hover:bg-white/90 text-xs font-medium shadow-sm hover:shadow transition-shadow"
+              >
+                Connect
+              </Button>
+            </div>
+            <div className="mt-2 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
+              <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <svg className="size-3 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path strokeLinecap="round" d="M12 6v6l4 2" />
+                </svg>
+                2 min setup
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI Referral Tracking Setup Modal */}
+      <Dialog open={showTrackingModal} onOpenChange={setShowTrackingModal}>
+        <DialogContent className="!max-w-3xl sm:!max-w-3xl bg-dark-grey border-white/10 p-0 !rounded-[12px] overflow-hidden shadow-xl">
+          <DialogHeader className="sr-only">
+            <DialogTitle>AI Referral Tracking</DialogTitle>
+          </DialogHeader>
+          <div className="bg-dark-grey px-6 pt-6 pb-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white mb-2 tracking-tight">
+                {isTrackingConnected ? "AI Referral Tracking Settings" : "Connect AI Referral Tracking"}
+              </h2>
+              <p className="text-sm text-white/60 leading-relaxed max-w-2xl">
+                {isTrackingConnected 
+                  ? "View your tracking script and setup instructions." 
+                  : "Track traffic from AI search engines by adding our tracking script."}
+              </p>
+            </div>
+
+            <div className="space-y-5">
+            {/* Step 1: Copy Script */}
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2.5">
+                <span className="inline-flex items-center justify-center size-5 rounded-full bg-white/10 text-white text-xs font-medium">1</span>
+                <h3 className="text-sm font-medium text-white">Copy the tracking script</h3>
+              </div>
+              <div className="relative">
+                <pre className="rounded-lg border border-white/[0.08] bg-black/40 p-4 pr-24 text-[11px] text-white/85 leading-relaxed overflow-hidden">
+                  <code style={{ display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{trackingScript}</code>
+                </pre>
+                <Button
+                  size="sm"
+                  onClick={handleCopyScript}
+                  className="absolute top-3 right-3 h-7 px-3 text-xs bg-white/10 hover:bg-white/20 text-white border-0 rounded-md"
+                  variant="ghost"
+                >
+                  {scriptCopied ? (
+                    <>
+                      <Check className="size-3.5 mr-1.5" /> Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-3.5 mr-1.5" /> Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Step 2: Paste in Head */}
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2.5">
+                <span className="inline-flex items-center justify-center size-5 rounded-full bg-white/10 text-white text-xs font-medium">2</span>
+                <h3 className="text-sm font-medium text-white">Paste it in the <code className="text-white/90 font-mono text-xs">&lt;head&gt;</code> of your site</h3>
+              </div>
+              <p className="text-sm text-white/60 pl-7 leading-relaxed">
+                Add the script to the <code className="px-1.5 py-0.5 rounded bg-white/10 text-white/90 text-xs font-mono">&lt;head&gt;</code> section, preferably before the closing <code className="px-1.5 py-0.5 rounded bg-white/10 text-white/90 text-xs font-mono">&lt;/head&gt;</code> tag.
+              </p>
+            </div>
+
+            {/* Step 3: Help Links */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center justify-center size-6 rounded-full bg-white/10 text-white text-sm font-medium">3</span>
+                <h3 className="text-sm font-medium text-white">Need help?</h3>
+              </div>
+              <div className="flex items-center gap-2.5 pl-7 flex-wrap">
+                <a href="#" className="inline-flex items-center gap-1.5 text-xs text-white/70 hover:text-white transition-colors">
+                  <ExternalLink className="size-3" /> Installation Guide
+                </a>
+                <span className="text-white/30">•</span>
+                <a href="#" className="inline-flex items-center gap-1.5 text-xs text-white/70 hover:text-white transition-colors">
+                  <ExternalLink className="size-3" /> Troubleshooting
+                </a>
+              </div>
+            </div>
+
+            {/* Verify Button */}
+            <div className="pt-5 border-t border-white/[0.08]">
+              <Button 
+                className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium transition-all shadow-sm hover:shadow-md border-0"
+                onClick={handleVerifyScript}
+                disabled={isConnecting}
+              >
+                {isConnecting ? "Verifying..." : "Script Added - Verify Connection"}
+              </Button>
+            </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

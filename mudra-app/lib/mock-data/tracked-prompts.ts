@@ -15,6 +15,7 @@ export type TrackedPromptWithDetails = {
   sentiment: 'Positive' | 'Neutral' | 'Negative';
   position: number | null;
   brandMentioned: boolean;
+  lastRun?: string | null; // Time since last analysis (e.g., "2h ago", "1d ago")
   
   // Detailed analysis data
   fullResponse: string;
@@ -111,7 +112,7 @@ export const mockTrackedPrompts: TrackedPromptWithDetails[] = [
     prompt: 'How to optimize for AI search engines and LLM citations',
     category: 'How-to',
     visibility: 88,
-    model: 'Claude 3',
+    model: 'Claude',
     provider: 'Anthropic',
     intent: 'Informational',
     sentiment: 'Positive',
@@ -308,6 +309,78 @@ Most tools are still early-stage as AI search is evolving rapidly. The market is
     },
   },
 
+  {
+    id: '4b',
+    prompt: 'How to improve brand visibility in AI search results',
+    category: 'How-to',
+    visibility: 78,
+    model: 'Google AIO',
+    provider: 'Google',
+    intent: 'Informational',
+    sentiment: 'Positive',
+    position: 3,
+    brandMentioned: true,
+    fullResponse: `Improving your brand's visibility in AI-powered search results requires a strategic approach combining traditional SEO with AI-specific optimization:
+
+**1. Optimize for AI Understanding**
+Create structured content that AI models can easily parse and cite. Use clear headings, FAQ sections, and schema markup. Tools like MudraAI help identify gaps in your AI-readable content structure.
+
+**2. Build Authoritative Content**
+Focus on depth over breadth. Create comprehensive resources that become the definitive source for your topics. Include:
+- Data and statistics
+- Expert insights
+- Real-world examples
+- Case studies
+
+**3. Implement GEO Best Practices**
+- Add llms.txt files to guide AI models
+- Use proper schema markup (Organization, FAQ, HowTo)
+- Optimize meta descriptions for conversational queries
+- Create content clusters around key topics
+
+**4. Monitor Your AI Presence**
+Track how often your brand appears in AI responses using platforms like MudraAI. Monitor:
+- Citation frequency
+- Competitive positioning
+- Sentiment of mentions
+- Context accuracy
+
+**5. Leverage Different AI Platforms**
+Each AI model has unique preferences. Test your content across ChatGPT, Claude, Gemini, and Google's AI Overviews to optimize for all platforms.
+
+**Key Metrics:**
+- AI Visibility Score: How often you're cited
+- Average Position: Where you rank among competitors
+- Citation Quality: Relevance and context of mentions`,
+    competitiveLandscape: {
+      mentioned: ['MudraAI', 'SEMrush', 'BrightEdge', 'Ahrefs'],
+      notMentioned: ['Moz'],
+      totalMentioned: 4,
+      brandPosition: 1,
+    },
+    citationQuality: 4.3,
+    contextRelevance: 4.6,
+    historicalData: [
+      { date: '2025-10-21', visibility: 70, position: 4, sentiment: 'Neutral' },
+      { date: '2025-10-22', visibility: 73, position: 3, sentiment: 'Positive' },
+      { date: '2025-10-23', visibility: 75, position: 3, sentiment: 'Positive' },
+      { date: '2025-10-24', visibility: 76, position: 3, sentiment: 'Positive' },
+      { date: '2025-10-25', visibility: 78, position: 3, sentiment: 'Positive' },
+    ],
+    relatedPrompts: [
+      'GEO optimization strategies',
+      'AI search visibility best practices',
+      'How to rank in Google AI Overviews',
+    ],
+    timestamp: '2025-10-28T10:34:00Z',
+    lastUpdated: '2025-10-28T10:34:00Z',
+    aiModel: {
+      name: 'Google AIO',
+      version: 'Gemini-Pro',
+      temperature: 0.6,
+    },
+  },
+
   // LOW VISIBILITY - Not Mentioned
   {
     id: '5',
@@ -394,7 +467,7 @@ Most businesses start with Google Analytics and add specialized tools as they sc
     prompt: 'Limitations of current GEO tools and platforms',
     category: 'Organic',
     visibility: 45,
-    model: 'Claude 3',
+    model: 'Claude',
     provider: 'Anthropic',
     intent: 'Informational',
     sentiment: 'Negative',

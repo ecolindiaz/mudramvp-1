@@ -75,8 +75,8 @@ function TasksPageInner() {
         <SiteHeader />
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-dark-grey">
-          <div className="@container/main flex flex-1 flex-col gap-3 md:gap-4 bg-dark-grey">
-            {/* Page Header (matches Overview format) */}
+          <div className="@container/main flex flex-1 flex-col bg-dark-grey">
+            {/* Page Header */}
             <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -134,17 +134,12 @@ function TasksPageInner() {
 
                 </div>
               </div>
-              <div className="mt-4">
-                <div className="relative">
-                  <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                  <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                  </div>
-                </div>
-              </div>
             </div>
 
-            <div className="flex flex-col gap-5 md:gap-6 -mt-1 md:-mt-1 pb-6 md:pb-8">
+            {/* Clean Divider Line - Full Width */}
+            <div className="h-[1px] bg-white/10"></div>
+
+            <div className="flex flex-col gap-5 md:gap-6 pb-6 md:pb-8 pt-6">
               {/* AI Visibility Analysis Results - Recommendations and Prompts */}
               {isLoadingGeo ? (
                 <div className="px-4 lg:px-6">

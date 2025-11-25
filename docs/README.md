@@ -13,6 +13,8 @@ System architecture, design patterns, and technical diagrams:
 ### `/implementation`
 Feature implementation guides and technical specifications:
 - `UNIFIED_ANALYSIS_IMPLEMENTATION.md` - Detailed unified service implementation
+- `TRACKED_PROMPTS_DEEP_VIEW.md` - **NEW** Tracked prompts frontend implementation
+- `UI_CHANGES_SPECIFICATION.md` - **NEW** Frontend UI changes and specifications
 - `PROMPT_MANAGEMENT_IMPLEMENTATION.md` - Prompt generation and storage system
 - `TECHNICAL_ANALYSIS.md` - Technical analysis scoring system
 - `TECHNICAL_STRUCTURE_ANALYSIS_FLOW.md` - Technical analysis workflow
@@ -39,7 +41,8 @@ User guides, reference materials, and business documentation:
 - `QUICK_REFERENCE.md` - Quick reference for developers
 - `project-context.md` - Business logic and feature specs
 - `structure.md` - Project structure overview
-- `dashboard-frontend.md` - Dashboard UI guide
+- `dashboard-frontend.md` - **UPDATED** Dashboard UI guide with latest changes
+- `TRACKED_PROMPTS_FRONTEND_GUIDE.md` - **NEW** Comprehensive tracked prompts implementation guide
 - `onboarding-frontend.md` - Onboarding UI guide
 - `AI_VISIBILITY_ONBOARDING_VERIFICATION.md` - AI visibility testing
 - `GEO_IMPROVEMENT_RESULTS.md` - GEO improvement tracking
@@ -92,6 +95,35 @@ The following documentation remains in their original locations as they are acti
 - **Setup Guide**: `/mudra-app/SETUP.md`
 - **Quick Reference**: `/guides/QUICK_REFERENCE.md`
 - **Architecture Overview**: `/architecture/SYSTEM_ARCHITECTURE.md`
+
+## 🆕 Recent Updates (November 2025)
+
+### Tracked Prompts Frontend Implementation
+A comprehensive AI visibility tracking system has been implemented with the following key features:
+
+**New Pages:**
+- `/dashboard/tracked-prompts` - Interactive table with filtering and bulk operations
+- `/dashboard/tracked-prompts/[id]` - Detailed analysis with charts and competitor insights
+
+**Key Features:**
+- **Interactive Data Tables**: Sortable, filterable tables using @tanstack/react-table
+- **Visualization Charts**: Line charts with competitor comparison using Recharts
+- **Modal Dialog System**: Complex nested dialogs for detailed analysis
+- **Mock Data System**: Comprehensive test scenarios with realistic GEO data
+- **Responsive Design**: Mobile-first approach with desktop enhancements
+- **Dark Theme**: Consistent styling matching the main dashboard
+
+**Documentation Added:**
+- `TRACKED_PROMPTS_DEEP_VIEW.md` - Complete technical implementation guide
+- `UI_CHANGES_SPECIFICATION.md` - Detailed specification of all UI changes
+- `TRACKED_PROMPTS_FRONTEND_GUIDE.md` - Comprehensive developer guide
+- Updated `dashboard-frontend.md` - Enhanced with latest features
+
+**Integration Ready:**
+- Clean API contracts defined for backend integration
+- Loading states and error handling prepared
+- Cursor pagination support ready
+- Real-time data update capability
 
 ## 🗂️ Archived Files
 

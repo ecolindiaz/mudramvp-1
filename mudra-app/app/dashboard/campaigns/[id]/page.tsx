@@ -10,11 +10,69 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AppSidebar } from "@/components/app-sidebar"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Maximize2, Minimize2, Users, MessageSquareText, Link as LinkIcon, Search, Loader2, Trash2 } from "lucide-react"
+import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Maximize2, Minimize2, Users, MessageSquareText, Link as LinkIcon, Search, Loader2, Trash2, FileText, Image as ImageIcon, Code2, FileCode, Edit, Send, X, Plus } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+
+// Helper function to accurately count words in markdown content
+function countWordsInMarkdown(content: string): number {
+  if (!content || content.trim().length === 0) return 0
+  
+  // Remove code blocks (```code```)
+  let text = content.replace(/```[\s\S]*?```/g, '')
+  
+  // Remove inline code (`code`)
+  text = text.replace(/`[^`]+`/g, '')
+  
+  // Remove markdown links [text](url) but keep the text
+  text = text.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+  
+  // Remove markdown images ![alt](url)
+  text = text.replace(/!\[([^\]]*)\]\([^\)]+\)/g, '')
+  
+  // Remove markdown headers (# ## ### etc.)
+  text = text.replace(/^#{1,6}\s+/gm, '')
+  
+  // Remove markdown bold/italic markers
+  text = text.replace(/\*\*([^*]+)\*\*/g, '$1')
+  text = text.replace(/\*([^*]+)\*/g, '$1')
+  text = text.replace(/__([^_]+)__/g, '$1')
+  text = text.replace(/_([^_]+)_/g, '$1')
+  
+  // Remove markdown list markers
+  text = text.replace(/^[\s]*[-*+]\s+/gm, '')
+  text = text.replace(/^[\s]*\d+\.\s+/gm, '')
+  
+  // Remove markdown blockquotes
+  text = text.replace(/^>\s+/gm, '')
+  
+  // Remove markdown horizontal rules
+  text = text.replace(/^---$/gm, '')
+  text = text.replace(/^\*\*\*$/gm, '')
+  
+  // Remove HTML tags if any
+  text = text.replace(/<[^>]+>/g, '')
+  
+  // Remove URLs
+  text = text.replace(/https?:\/\/[^\s]+/g, '')
+  
+  // Remove email addresses
+  text = text.replace(/[^\s]+@[^\s]+/g, '')
+  
+  // Remove extra whitespace and normalize
+  text = text.replace(/\s+/g, ' ').trim()
+  
+  // Split by whitespace and filter out empty strings and pure punctuation
+  const words = text.split(/\s+/).filter(word => {
+    // Remove punctuation from start/end but keep the word if it has letters/numbers
+    const cleaned = word.replace(/^[^\w]+|[^\w]+$/g, '')
+    return cleaned.length > 0
+  })
+  
+  return words.length
+}
 
 export default function CampaignCanvasPage({
   params,
@@ -38,6 +96,13 @@ export default function CampaignCanvasPage({
   const [isLoading, setIsLoading] = React.useState(true)
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
+  const [activeTab, setActiveTab] = React.useState("copy")
+  const [metaDescription, setMetaDescription] = React.useState("")
+  const [editMode, setEditMode] = React.useState(false)
+  const [chatMessages, setChatMessages] = React.useState<Array<{ id: string; role: 'user' | 'assistant'; content: string }>>([])
+  const [chatInput, setChatInput] = React.useState("")
+  const [isChatLoading, setIsChatLoading] = React.useState(false)
+  const chatScrollRef = React.useRef<HTMLDivElement>(null)
 
   const [title, setTitle] = React.useState("")
   const [body, setBody] = React.useState("")
@@ -231,23 +296,89 @@ export default function CampaignCanvasPage({
     loadContent()
   }, [id, prompt, icp, kwParam])
 
+  // Auto-scroll chat to bottom
+  React.useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+    }
+  }, [chatMessages, isChatLoading])
+
+  // Handle chat submission
+  const handleChatSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    if (!chatInput.trim() || isChatLoading) return
+
+    const userMessage = {
+      id: Date.now().toString(),
+      role: 'user' as const,
+      content: chatInput.trim()
+    }
+
+    setChatMessages(prev => [...prev, userMessage])
+    setChatInput('')
+    setIsChatLoading(true)
+
+    try {
+      const siteId = typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''
+      const response = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...chatMessages, userMessage].map(m => ({ role: m.role, content: m.content })),
+          siteId: siteId,
+          deepThink: false,
+          context: {
+            campaignId: id,
+            currentTitle: title,
+            currentBody: body,
+            task: 'edit_content'
+          }
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.content) {
+        const assistantMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant' as const,
+          content: data.content
+        }
+        setChatMessages(prev => [...prev, assistantMessage])
+        
+        // If the response contains updated content, apply it
+        if (data.updatedTitle) setTitle(data.updatedTitle)
+        if (data.updatedBody) setBody(data.updatedBody)
+      } else {
+        throw new Error(data.error || 'Failed to get response')
+      }
+    } catch (error) {
+      console.error('Chat error:', error)
+      const errorMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant' as const,
+        content: 'Sorry, I encountered an error. Please try again.'
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsChatLoading(false)
+    }
+  }
+
   return (
     <SidebarProvider
       className="bg-dark-grey"
       style={{
-        "--sidebar-width": "0rem",
+        "--sidebar-width": "16rem",
         "--header-height": "calc(var(--spacing) * 12)",
       } as React.CSSProperties}
     >
-      <div style={{ display: 'none' }}>
-        <AppSidebar />
-      </div>
-      <SidebarInset className="bg-dark-grey m-0 shadow-none rounded-none border-none !ml-0">
+      <AppSidebar />
+      <SidebarInset className="bg-dark-grey m-0 shadow-none rounded-none border-none">
         <SiteHeader />
         <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col bg-dark-grey">
-          <div className="@container/main flex flex-1 flex-col gap-4">
-            <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
+          <div className="px-4 lg:px-6 pt-3 md:pt-4 pb-3 md:pb-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight text-white">Campaign Canvas</h1>
@@ -270,35 +401,40 @@ export default function CampaignCanvasPage({
                     }} 
                     variant="outline" 
                     size="sm" 
-                    className={`h-9 rounded-lg gap-2 ${published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : ""}`}
+                    className={`h-9 px-4 rounded-md gap-2 text-xs font-medium transition-all duration-200 ${published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-white/5 text-white hover:bg-white/10 border-white/[0.08]"}`}
                   >
-                    <CheckCircle2 className="size-4" />{published ? 'Published' : 'Mark as published'}
+                    <CheckCircle2 className="size-3.5" />{published ? 'Published' : 'Publish'}
                   </Button>
                   
-                  <Button onClick={handleSave} disabled={saving} variant="outline" size="sm" className="h-9 rounded-lg gap-2"><Save className="size-4" />{saving ? 'Saving…' : 'Save'}</Button>
+                  <Button onClick={handleSave} disabled={saving} variant="outline" size="sm" className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium gap-2 disabled:opacity-50">
+                    <Save className="size-3.5" />{saving ? 'Saving…' : 'Save'}
+                  </Button>
                   
                   <Button 
                     onClick={() => setShowDeleteConfirm(true)} 
                     variant="outline" 
                     size="sm" 
-                    className="h-9 rounded-lg gap-2 text-red-400 border-red-500/20 hover:bg-red-500/10"
+                    className="h-9 px-4 rounded-md bg-white/5 text-red-400 hover:bg-red-500/10 border-red-500/20 text-xs font-medium gap-2"
                   >
-                    <Trash2 className="size-4" />Delete
+                    <Trash2 className="size-3.5" />Delete
                   </Button>
                   
-                  <Button asChild size="sm" className="h-9 rounded-lg">
-                    <Link href="/dashboard/campaigns">Back to Campaigns</Link>
+                  <Button asChild size="sm" className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium">
+                    <Link href="/dashboard/campaigns">Back</Link>
                   </Button>
                 </div>
               </div>
             </div>
 
-            <div className="px-4 lg:px-6 pb-6 md:pb-8">
+          {/* Header Divider */}
+          <div className="h-[1px] bg-white/10"></div>
+
+          <div className="px-4 lg:px-6 pb-4 md:pb-6 pt-4">
               {isLoading ? (
                 /* Loading State */
                 <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                  <Card className="w-full max-w-md bg-transparent backdrop-blur-sm border-white/10">
-                    <CardContent className="pt-6 pb-6">
+                  <Card className="w-full max-w-md rounded-xl border border-white/[0.08] bg-[#1a1a1a] shadow-sm">
+                    <CardContent className="pt-6 pb-6 px-6">
                       <div className="flex flex-col items-center gap-4 text-center">
                         <div className="relative">
                           <Loader2 className="size-16 text-primary animate-spin" />
@@ -321,96 +457,15 @@ export default function CampaignCanvasPage({
                   </Card>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-4 md:gap-6">
-                {/* Top Row: three cards like Tasks header */}
-                <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
-                  {/* Outline / GEO inputs */}
-                    <Card className="relative overflow-hidden min-h-[100px] py-3 bg-transparent backdrop-blur-sm rounded-lg border border-white/10">
-                    <div className="pointer-events-none absolute left-3 right-3 top-0 h-[2px] rounded-full opacity-60" style={{ background: "linear-gradient(to right, transparent, rgba(255,255,255,0.25), transparent)" }} />
-                      <CardHeader className="pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/10">
-                          <ListTree className="size-3.5 text-white/80" />
-                        </span>
-                        <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Outline</CardDescription>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="px-4 pt-1">
-                      {mode === "geo" ? (
-                    <div className="flex flex-wrap gap-2">
-                      <span className="inline-flex items-center gap-1.5 rounded border border-white/[0.06] bg-transparent px-2.5 py-1 text-xs text-white/85" title={targetIcp || "Not set"}>
-                            <Users className="size-3.5" />
-                            ICP: {targetIcp ? (targetIcp.length > 36 ? `${targetIcp.slice(0, 36)}…` : targetIcp) : "Not set"}
-                          </span>
-                      <span className="inline-flex items-center gap-1.5 rounded border border-white/[0.06] bg-transparent px-2.5 py-1 text-xs text-white/85" title={campaignPrompt || "Not set"}>
-                            <MessageSquareText className="size-3.5" />
-                            {`Prompt: ${campaignPrompt ? (campaignPrompt.length > 48 ? campaignPrompt.slice(0, 48) + "…" : campaignPrompt) : "Not set"}`}
-                          </span>
-                      <span className="inline-flex items-center gap-1.5 rounded border border-white/[0.06] bg-transparent px-2.5 py-1 text-xs text-white/85" title={slug || "Not set"}>
-                            <LinkIcon className="size-3.5" />
-                            {`Slug: ${slug ? (slug.length > 32 ? slug.slice(0, 32) + "…" : slug) : "Not set"}`}
-                          </span>
-                        </div>
-                      ) : mode === "seo" ? (
-                        <div className="flex flex-wrap gap-2">
-                          <span className="inline-flex items-center gap-1.5 rounded border border-white/12 bg-transparent px-2.5 py-1 text-xs text-white/85" title={keyword || "Not set"}>
-                            <Search className="size-3.5" />
-                            {`Keyword: ${keyword ? (keyword.length > 36 ? keyword.slice(0, 36) + "…" : keyword) : "Not set"}`}
-                          </span>
-                          <span className="inline-flex items-center gap-1.5 rounded border border-white/12 bg-transparent px-2.5 py-1 text-xs text-white/85" title={slug || "Not set"}>
-                            <LinkIcon className="size-3.5" />
-                            {`Slug: ${slug ? (slug.length > 32 ? slug.slice(0, 32) + "…" : slug) : "Not set"}`}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-white/70">No outline data yet.</div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Details */}
-                    <Card className="relative overflow-hidden min-h-[100px] py-3 bg-transparent backdrop-blur-sm rounded-lg border border-white/10">
-                    <div className="pointer-events-none absolute left-3 right-3 top-0 h-[2px] rounded-full opacity-60" style={{ background: "linear-gradient(to right, transparent, rgba(255,255,255,0.25), transparent)" }} />
-                      <CardHeader className="pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/10">
-                          <Info className="size-3.5 text-white/80" />
-                        </span>
-                        <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Details</CardDescription>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="px-4 pt-1 text-sm text-white/80 space-y-2">
-                      <div className="flex items-center justify-between"><span>Type</span><Badge variant="outline" className="capitalize">{type}</Badge></div>
-                      <div className="flex items-center justify-between"><span>Mode</span><Badge variant="outline" className="uppercase">{mode}</Badge></div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Status */}
-                    <Card className="relative overflow-hidden min-h-[100px] py-3 bg-transparent backdrop-blur-sm rounded-lg border border-white/10">
-                    <div className="pointer-events-none absolute left-3 right-3 top-0 h-[2px] rounded-full opacity-60" style={{ background: "linear-gradient(to right, transparent, rgba(255,255,255,0.25), transparent)" }} />
-                      <CardHeader className="pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/10">
-                          <Clock className="size-3.5 text-white/80" />
-                        </span>
-                        <CardDescription className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</CardDescription>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="px-4 pt-1 text-sm text-white/80 space-y-2">
-                      <div className="flex items-center justify-between"><span>Publication</span><Badge variant="outline" className={published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : ""}>{published ? "Published" : "Draft"}</Badge></div>
-                      <div className="flex items-center justify-between"><span>Last Saved</span><span className="text-white/60">{savedAt ? new Date(savedAt).toLocaleTimeString() : "—"}</span></div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Editor (below) */}
-                <div className="space-y-3">
-                    <Card className="bg-transparent backdrop-blur-sm rounded-lg border border-white/10">
-                    <CardHeader className="pb-3">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4 items-start h-full">
+                {/* Editor (left side) */}
+                <div className="lg:col-span-2 space-y-2 order-1 lg:order-1 flex flex-col">
+                    <Card className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col">
+                    <CardHeader className="pb-2 px-5 pt-4 flex-shrink-0">
                       <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle className="text-lg text-white">Editor</CardTitle>
-                            <CardDescription className="text-white/70">
+                            <CardTitle className="text-base font-semibold text-white">Editor</CardTitle>
+                            <CardDescription className="text-white/60 text-xs mt-0.5">
                               {isLoading ? "Loading..." : "Edit your campaign content"}
                             </CardDescription>
                         </div>
@@ -418,15 +473,23 @@ export default function CampaignCanvasPage({
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 rounded-lg gap-1.5"
-                            onClick={() => setPreview((v) => !v)}
+                            className={`h-8 px-3 rounded-md text-xs font-medium gap-1.5 ${editMode ? "bg-white text-[#0a0a0a] hover:bg-white/90 border-white" : "bg-white/5 text-white hover:bg-white/10 border-white/[0.08]"}`}
+                            onClick={() => setEditMode((v) => !v)}
                           >
-                            <Eye className="size-3.5" /> {preview ? "Show Preview" : "Raw Text"}
+                            <Edit className="size-3.5" /> Edit
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 rounded-lg"
+                            className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium gap-1.5"
+                            onClick={() => setPreview((v) => !v)}
+                          >
+                            <Eye className="size-3.5" /> {preview ? "Preview" : "Raw"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium gap-1.5"
                             onClick={async () => {
                               try {
                                 await navigator.clipboard.writeText(`${title}\n\n${body}`)
@@ -437,29 +500,29 @@ export default function CampaignCanvasPage({
                               }
                             }}
                           >
-                            <CopyIcon className="size-3.5 mr-1" /> {copied ? "Copied" : "Copy"}
+                            <CopyIcon className="size-3.5" /> {copied ? "Copied" : "Copy"}
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 rounded-lg"
+                            className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium gap-1.5"
                             onClick={() => setEditorExpanded((v) => !v)}
                           >
-                            {editorExpanded ? (<><Minimize2 className="size-3.5 mr-1" /> Collapse</>) : (<><Maximize2 className="size-3.5 mr-1" /> Expand</>)}
+                            {editorExpanded ? (<><Minimize2 className="size-3.5" /> Collapse</>) : (<><Maximize2 className="size-3.5" /> Expand</>)}
                           </Button>
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className={`space-y-3 ${editorExpanded ? "pb-28" : ""}`}>
+                    <CardContent className={`px-5 pb-4 space-y-3 ${editorExpanded ? "pb-28" : ""}`}>
                         <Input 
                           value={title} 
                           onChange={(e) => setTitle(e.target.value)} 
                           disabled={isLoading}
-                          className="h-11 rounded-lg bg-transparent border-white/10 focus-visible:border-white/20 placeholder:text-white/50 disabled:opacity-50" 
+                          className="h-9 rounded-lg bg-white/[0.03] border-white/[0.08] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] disabled:opacity-50 text-sm" 
                           placeholder="Post title" 
                         />
                       {!preview ? (
-                          <div className={`rounded-lg border border-white/10 bg-transparent p-6 overflow-auto ${editorExpanded ? "min-h-[80vh]" : "max-h-[70vh]"}`}>
+                          <div className={`rounded-lg border border-white/[0.08] bg-white/[0.02] p-4 overflow-auto ${editorExpanded ? "min-h-[80vh]" : "max-h-[70vh]"}`}>
                           <div className="prose prose-invert max-w-none">
                             <ReactMarkdown 
                               components={{
@@ -492,26 +555,459 @@ export default function CampaignCanvasPage({
                             value={body} 
                             onChange={(e) => setBody(e.target.value)} 
                             disabled={isLoading}
-                            className={`${editorExpanded ? "min-h-[80vh]" : "min-h-[420px]"} rounded-lg bg-transparent border border-white/10 focus-visible:border-white/20 disabled:opacity-50`} 
+                            className={`${editorExpanded ? "min-h-[80vh]" : "min-h-[400px]"} rounded-lg bg-white/[0.03] border-white/[0.08] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] disabled:opacity-50 text-sm`} 
                           />
                       )}
                     </CardContent>
                   </Card>
 
-                  <div className="flex items-center justify-between text-xs text-white/60 px-1">
-                    <div className="flex items-center gap-2">
-                      {savedAt && <span>Saved {new Date(savedAt).toLocaleTimeString()}</span>}
+                  {savedAt && (
+                    <div className="flex items-center text-xs text-white/60 px-1">
+                      <span>Saved {new Date(savedAt).toLocaleTimeString()}</span>
                     </div>
+                  )}
+                </div>
+
+                {/* Right Side: Chat (Edit Mode) or Tabs (Normal Mode) */}
+                <div className="order-2 lg:order-2 flex flex-col h-full self-start">
+                  {editMode ? (
+                    /* Chat Sidebar */
+                    <Card className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col w-full flex-1 min-h-0">
+                      {/* Chat Header */}
+                      <div className="px-5 pt-4 pb-3 border-b border-white/[0.08] flex-shrink-0">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <img 
+                              src="/images/mudra-logo.png" 
+                              alt="Mudra" 
+                              className="w-5 h-5 opacity-90"
+                            />
+                            <div className="flex flex-col">
+                              <h3 className="text-sm font-semibold tracking-tight leading-none text-white">Edit Content</h3>
+                              <span className="text-[10px] text-white/60 mt-0.5">Tell AI what you want changed</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setChatMessages([])}
+                              className="h-7 w-7 rounded-md text-white/70 hover:text-white bg-transparent hover:bg-white/5 border-0 transition-all"
+                              title="New chat"
+                            >
+                              <Plus className="size-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setEditMode(false)}
+                              className="h-7 w-7 rounded-md text-white/70 hover:text-white bg-transparent hover:bg-white/5 border-0 transition-all"
+                              title="Close"
+                            >
+                              <X className="size-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Messages Area */}
+                      <div 
+                        ref={chatScrollRef}
+                        className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0"
+                      >
+                        {chatMessages.length === 0 ? (
+                          <div className="text-center py-8">
+                            <div className="w-16 h-16 mx-auto mb-5 opacity-90">
+                              <img 
+                                src="/images/mudra-logo.png" 
+                                alt="Mudra Logo" 
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                            <h3 className="text-base font-semibold mb-2 text-white">Edit your content with AI</h3>
+                            <p className="text-white/60 mb-5 text-sm max-w-xs mx-auto">
+                              Ask AI to rewrite, improve, or modify your campaign content
+                            </p>
+                            <div className="flex flex-wrap gap-2 justify-center max-w-sm mx-auto">
+                              {[
+                                "Make the introduction more engaging",
+                                "Add a conclusion section",
+                                "Improve the tone to be more professional",
+                                "Shorten the content by 20%"
+                              ].map((prompt, index) => (
+                                <Button
+                                  key={index}
+                                  variant="outline"
+                                  className="h-8 px-4 text-sm rounded-md border-white/[0.08] bg-transparent hover:bg-white/[0.05] text-white/80 hover:text-white"
+                                  onClick={() => setChatInput(prompt)}
+                                >
+                                  {prompt}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          chatMessages.map((message) => (
+                            <div
+                              key={message.id}
+                              className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                            >
+                              {message.role === 'assistant' && (
+                                <div className="flex-shrink-0 w-6 h-6 rounded-md bg-white/5 border border-white/[0.08] flex items-center justify-center">
+                                  <img 
+                                    src="/images/mudra-logo.png" 
+                                    alt="Mudra" 
+                                    className="w-4 h-4 opacity-90"
+                                  />
+                                </div>
+                              )}
+                              <div
+                                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                                  message.role === 'user'
+                                    ? 'bg-white text-[#0a0a0a]'
+                                    : 'bg-white/[0.05] text-white/90 border border-white/[0.08]'
+                                }`}
+                              >
+                                <div className="whitespace-pre-wrap break-words">
+                                  {message.content}
+                                </div>
+                              </div>
+                              {message.role === 'user' && (
+                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-white/10 border border-white/[0.08] flex items-center justify-center">
+                                  <Users className="size-3.5 text-white/70" />
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                        {isChatLoading && (
+                          <div className="flex gap-3 justify-start">
+                            <div className="flex-shrink-0 w-6 h-6 rounded-md bg-white/5 border border-white/[0.08] flex items-center justify-center">
+                              <img 
+                                src="/images/mudra-logo.png" 
+                                alt="Mudra" 
+                                className="w-4 h-4 opacity-90"
+                              />
+                            </div>
+                            <div className="bg-white/[0.05] text-white/90 border border-white/[0.08] rounded-lg px-3 py-2">
+                              <Loader2 className="size-4 animate-spin text-white/60" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Input Area */}
+                      <div className="px-4 pb-4 pt-3 border-t border-white/[0.08] flex-shrink-0">
+                        <form onSubmit={handleChatSubmit} className="flex gap-2 items-center">
+                          <Textarea
+                            value={chatInput}
+                            onChange={(e) => setChatInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault()
+                                handleChatSubmit()
+                              }
+                            }}
+                            placeholder="Ask a question..."
+                            disabled={isChatLoading}
+                            className="flex-1 min-h-[40px] max-h-[120px] rounded-lg bg-white/[0.03] border-white/[0.08] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] disabled:opacity-50 text-sm resize-none"
+                            rows={1}
+                          />
+                          <Button
+                            type="submit"
+                            disabled={!chatInput.trim() || isChatLoading}
+                            className="h-[40px] w-[40px] rounded-lg bg-white text-[#0a0a0a] hover:bg-white/90 border-0 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex-shrink-0"
+                          >
+                            {isChatLoading ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Send className="size-4" />
+                            )}
+                          </Button>
+                        </form>
+                      </div>
+                    </Card>
+                  ) : (
+                    /* Normal Tabs */
+                    <Card className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col w-full flex-1 min-h-0">
+                      <CardContent className="p-0 flex flex-col flex-1 min-h-0">
+                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col flex-1 min-h-0">
+                        <div className="px-5 pt-2 pb-3 border-b border-white/[0.08] flex-shrink-0">
+                          <TabsList className="bg-white/[0.03] border border-white/[0.08] rounded-lg p-1 h-9 gap-1">
+                            <TabsTrigger 
+                              value="copy" 
+                              className="px-4 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0a0a0a] data-[state=active]:shadow-sm border-0 data-[state=inactive]:text-white/70"
+                            >
+                              Copy
+                            </TabsTrigger>
+                            <TabsTrigger 
+                              value="seo" 
+                              className="px-4 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0a0a0a] data-[state=active]:shadow-sm border-0 data-[state=inactive]:text-white/70"
+                            >
+                              SEO Settings
+                            </TabsTrigger>
+                          </TabsList>
+                        </div>
+
+                        <TabsContent value="copy" className="p-5 space-y-4 mt-0 flex-1 overflow-y-auto">
+                          {/* Outline Section */}
+                          <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
+                            <div className="flex items-center gap-2">
+                              <ListTree className="size-4 text-white/80" />
+                              <h3 className="text-sm font-semibold text-white">Outline</h3>
+                            </div>
+                            <div className="space-y-2.5 pl-5">
+                              {mode === "geo" ? (
+                                <>
+                                  <div className="flex items-start justify-between gap-4">
+                                    <span className="text-white/60 text-xs font-medium uppercase tracking-wide min-w-[60px]">ICP</span>
+                                    <span className="text-white/90 text-sm truncate text-right flex-1" title={targetIcp || "Not set"}>
+                                      {targetIcp || "Not set"}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-start justify-between gap-4">
+                                    <span className="text-white/60 text-xs font-medium uppercase tracking-wide min-w-[60px]">Prompt</span>
+                                    <span className="text-white/90 text-sm truncate text-right flex-1" title={campaignPrompt || "Not set"}>
+                                      {campaignPrompt || "Not set"}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-start justify-between gap-4">
+                                    <span className="text-white/60 text-xs font-medium uppercase tracking-wide min-w-[60px]">Slug</span>
+                                    <span className="text-white/90 text-sm truncate text-right flex-1" title={slug || "Not set"}>
+                                      {slug || "Not set"}
+                                    </span>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="flex items-start justify-between gap-4">
+                                    <span className="text-white/60 text-xs font-medium uppercase tracking-wide min-w-[60px]">Keyword</span>
+                                    <span className="text-white/90 text-sm truncate text-right flex-1" title={keyword || "Not set"}>
+                                      {keyword || "Not set"}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-start justify-between gap-4">
+                                    <span className="text-white/60 text-xs font-medium uppercase tracking-wide min-w-[60px]">Slug</span>
+                                    <span className="text-white/90 text-sm truncate text-right flex-1" title={slug || "Not set"}>
+                                      {slug || "Not set"}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Details Section */}
+                          <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
+                            <div className="flex items-center gap-2">
+                              <Info className="size-4 text-white/80" />
+                              <h3 className="text-sm font-semibold text-white">Details</h3>
+                            </div>
+                            <div className="space-y-2.5 pl-5">
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-white/60 text-xs font-medium uppercase tracking-wide">Type</span>
+                                <Badge variant="outline" className="capitalize bg-white/5 border-white/[0.08] text-white/90 text-xs">{type}</Badge>
+                              </div>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-white/60 text-xs font-medium uppercase tracking-wide">Mode</span>
+                                <Badge variant="outline" className="uppercase bg-white/5 border-white/[0.08] text-white/90 text-xs">{mode}</Badge>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Status Section */}
+                          <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
+                            <div className="flex items-center gap-2">
+                              <Clock className="size-4 text-white/80" />
+                              <h3 className="text-sm font-semibold text-white">Status</h3>
+                            </div>
+                            <div className="space-y-2.5 pl-5">
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-white/60 text-xs font-medium uppercase tracking-wide">Publication</span>
+                                <Badge variant="outline" className={published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-white/5 border-white/[0.08] text-white/90"} style={{ fontSize: '11px' }}>
+                                  {published ? "Published" : "Draft"}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-white/60 text-xs font-medium uppercase tracking-wide">Last Saved</span>
+                                <span className="text-white/60 text-xs">{savedAt ? new Date(savedAt).toLocaleTimeString() : "—"}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Word Count Section */}
+                          <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4 space-y-2">
+                            <h3 className="text-sm font-semibold text-white">Word Count</h3>
+                            <div className="space-y-1">
+                              <div className="text-4xl font-bold text-white tracking-tight">
+                                {countWordsInMarkdown(body || '').toLocaleString()}
+                              </div>
+                              <p className="text-xs text-white/60">Total words in content</p>
+                            </div>
+                          </div>
+
+                          {/* Metadata Section */}
+                          <div className="space-y-3 pt-1">
+                            <h3 className="text-sm font-semibold text-white">Metadata</h3>
+                            <div className="space-y-4">
+                              {/* Meta Title */}
+                              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-medium text-white/70 uppercase tracking-wide">Meta title</span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(title || "")
+                                    }}
+                                    className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
+                                    title="Copy meta title"
+                                  >
+                                    <CopyIcon className="size-3.5" />
+                                  </button>
+                                </div>
+                                <p className="text-sm text-white/90 leading-relaxed break-words">{title || "Not set"}</p>
+                              </div>
+
+                              {/* Meta Description */}
+                              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-medium text-white/70 uppercase tracking-wide">Meta description</span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(metaDescription || "")
+                                    }}
+                                    className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
+                                    title="Copy meta description"
+                                  >
+                                    <CopyIcon className="size-3.5" />
+                                  </button>
+                                </div>
+                                <p className="text-sm text-white/90 leading-relaxed break-words">{metaDescription || "Not set"}</p>
+                              </div>
+
+                              {/* Slug */}
+                              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-medium text-white/70 uppercase tracking-wide">Slug</span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(slug || "")
+                                    }}
+                                    className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
+                                    title="Copy slug"
+                                  >
+                                    <CopyIcon className="size-3.5" />
+                                  </button>
+                                </div>
+                                <p className="text-sm text-white/90 leading-relaxed break-words font-mono">{slug || "Not set"}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="seo" className="p-5 space-y-4 mt-0 flex-1 overflow-y-auto">
+                          {/* Search Preview */}
+                          <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
+                            <div className="flex items-center gap-2">
+                              <Search className="size-4 text-white/80" />
+                              <h3 className="text-sm font-semibold text-white">Search Preview</h3>
+                            </div>
+                            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4 space-y-1.5">
+                              <div className="text-sm hover:underline cursor-pointer truncate" style={{ color: '#1a0dab' }}>
+                                {title || "Your article title"}
+                              </div>
+                              <div className="text-xs" style={{ color: '#006621' }}>
+                                {slug ? `example.com/${slug}` : "example.com/article"}
+                              </div>
+                              <div className="text-xs text-white/70 line-clamp-2 leading-relaxed">
+                                {metaDescription || "Your meta description will appear here..."}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Social Image */}
+                          <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
+                            <div className="flex items-center gap-2">
+                              <ImageIcon className="size-4 text-white/80" />
+                              <h3 className="text-sm font-semibold text-white">Social Image</h3>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full h-20 rounded-lg border-dashed border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.12] text-white/70 text-xs font-medium border-2"
+                            >
+                              Upload image
+                            </Button>
+                            <p className="text-xs text-white/50 pl-1">Recommended: 1200x630px for social sharing</p>
+                          </div>
+
+                          {/* Meta Description */}
+                          <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
+                            <div className="flex items-center gap-2">
+                              <FileText className="size-4 text-white/80" />
+                              <h3 className="text-sm font-semibold text-white">Meta Description</h3>
+                            </div>
+                            <Textarea
+                              value={metaDescription}
+                              onChange={(e) => setMetaDescription(e.target.value)}
+                              placeholder="Unlock high-quality coding datasets in 5 steps to enhance AI performance..."
+                              className="min-h-[80px] rounded-lg bg-white/[0.03] border-white/[0.08] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] text-sm"
+                            />
+                            <div className="flex items-center justify-between text-xs text-white/50 pl-1">
+                              <span>{metaDescription.length}/160</span>
+                            </div>
+                          </div>
+
+                          {/* Schema Markup */}
+                          <div className="space-y-2.5">
+                            <div className="flex items-center gap-2">
+                              <Code2 className="size-4 text-white/80" />
+                              <h3 className="text-sm font-semibold text-white">Schema Markup</h3>
+                            </div>
+                            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
+                              <pre className="text-xs text-white/70 font-mono overflow-x-auto whitespace-pre-wrap break-words">
+{`{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "${title || "Your article title"}",
+  "author": {
+    "@type": "Person",
+    "name": "Editorial Team"
+  }
+}`}
+                              </pre>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full h-8 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium border-0"
+                              onClick={() => {
+                                const schema = JSON.stringify({
+                                  "@context": "https://schema.org",
+                                  "@type": "BlogPosting",
+                                  "headline": title || "Your article title",
+                                  "author": {
+                                    "@type": "Person",
+                                    "name": "Editorial Team"
+                                  }
+                                }, null, 2)
+                                navigator.clipboard.writeText(schema)
+                              }}
+                            >
+                              <CopyIcon className="size-3.5 mr-1.5" />
+                              Copy
+                            </Button>
                   </div>
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+                  )}
                 </div>
               </div>
               )}
-            </div>
           </div>
         </div>
       </SidebarInset>
-      {/* Inline expand mode handled in-card; dialog removed */}
-      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
 
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (

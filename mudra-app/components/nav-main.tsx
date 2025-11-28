@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { memo } from "react"
-import { IconCirclePlusFilled, IconMail, type Icon } from "@tabler/icons-react"
+import type { LucideIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -20,7 +20,7 @@ const NavigationItem = memo(({
   item, 
   isActive 
 }: { 
-  item: { title: string; url: string; icon?: Icon }
+  item: { title: string; url: string; icon?: LucideIcon }
   isActive: boolean 
 }) => (
   <SidebarMenuItem>
@@ -63,7 +63,7 @@ export const NavMain = memo(function NavMain({
     items: {
       title: string
       url: string
-      icon?: Icon
+      icon?: LucideIcon
       isActive?: boolean
     }[]
   }[]

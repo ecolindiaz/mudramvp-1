@@ -7,10 +7,11 @@ import { prisma } from '@/lib/prisma'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const promptId = parseInt(params.id)
+    const { id } = await params
+    const promptId = parseInt(id)
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
 
@@ -178,11 +179,13 @@ export async function GET(
     promptTestResults.forEach(result => {
       const competitors = result.competitorsMentioned || []
       const competitorPositions = result.competitorPositions || {}
+      const competitorSentiments = result.competitorSentiments || {}
       
       // IMPORTANT: Also extract competitors from competitorPositions object
       // because sometimes they're only in positions but not in the mentions array
       const competitorsFromPositions = Object.keys(competitorPositions)
-      const allCompetitorsInTest = new Set([...competitors, ...competitorsFromPositions])
+      const competitorsFromSentiments = Object.keys(competitorSentiments)
+      const allCompetitorsInTest = new Set([...competitors, ...competitorsFromPositions, ...competitorsFromSentiments])
       
       allCompetitorsInTest.forEach((competitor: string) => {
         if (!competitorMetrics.has(competitor)) {
@@ -202,6 +205,11 @@ export async function GET(
           metrics.positions.push(competitorPositions[competitor])
         }
         
+        // Track sentiment if available for this competitor in this test
+        if (competitorSentiments[competitor]) {
+          metrics.sentiments.push(competitorSentiments[competitor])
+        }
+        
         // For visibility: count how many times competitor appeared across tests
         // Note: We're counting mentions per test, so visibility = (mentions / totalTests) * 100
       })
@@ -216,13 +224,25 @@ export async function GET(
         ? Math.round((metrics.positions.reduce((sum, pos) => sum + pos, 0) / metrics.positions.length) * 10) / 10
         : null
       
-      // Dominant sentiment (for now, neutral - we'd need to extract this from responses)
+      // Dominant sentiment based on most frequent sentiment across tests
       const sentimentCount = {
-        positive: 0,
-        neutral: 0,
-        negative: 0
+        positive: metrics.sentiments.filter(s => s === 'positive').length,
+        neutral: metrics.sentiments.filter(s => s === 'neutral').length,
+        negative: metrics.sentiments.filter(s => s === 'negative').length
       }
-      const dominantSentiment = 'Neutral' // Default until we implement sentiment per competitor
+      
+      let dominantSentiment: string = 'Neutral' // Default when no sentiment data
+      
+      // Only calculate dominant sentiment if we have sentiment data
+      if (metrics.sentiments.length > 0) {
+        if (sentimentCount.positive > sentimentCount.neutral && sentimentCount.positive > sentimentCount.negative) {
+          dominantSentiment = 'Positive'
+        } else if (sentimentCount.negative > sentimentCount.neutral && sentimentCount.negative > sentimentCount.positive) {
+          dominantSentiment = 'Negative'
+        } else {
+          dominantSentiment = 'Neutral' // Most common or tie
+        }
+      }
       
       return {
         name,
@@ -256,7 +276,8 @@ export async function GET(
       response: result.response,
       timestamp: result.timestamp,
       competitorsMentioned: result.competitorsMentioned,
-      competitorPositions: result.competitorPositions // IMPORTANT: Include positions data!
+      competitorPositions: result.competitorPositions, // Include positions data
+      competitorSentiments: result.competitorSentiments // Include sentiment data per competitor
     }))
 
     // Step 8: Return comprehensive prompt details

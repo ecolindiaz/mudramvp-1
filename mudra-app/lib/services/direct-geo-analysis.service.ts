@@ -43,6 +43,7 @@ export interface PromptTest {
   brandPosition?: number;
   competitors: string[];
   competitorPositions?: Record<string, number>; // Maps competitor name to their position
+  competitorSentiments?: Record<string, 'positive' | 'neutral' | 'negative'>; // Maps competitor name to sentiment
   sentiment: 'positive' | 'neutral' | 'negative';
   confidence: number;
 }
@@ -382,12 +383,25 @@ Extract the following information:
        → { "Techstars": 2, "500 Startups": 3 }
    - Return empty object {} if no competitors have positions
 
-5. **sentiment**: Overall sentiment toward "${config.brandName}" in this response:
+5. **competitorSentiments**: Object mapping competitor names to sentiment about them in this specific response
+   - Analyze how each competitor is portrayed/discussed in the response text
+   - Format: { "CompanyName": "positive" | "neutral" | "negative" }
+   - **positive**: Praised, recommended, highlighted positively, described with superlatives ("excellent", "best", "top", "leading", "outstanding")
+   - **neutral**: Mentioned factually without strong opinion, listed in rankings without commentary, or described objectively
+   - **negative**: Criticized, mentioned negatively, described as inferior or problematic
+   - Examples:
+     * "Techstars is excellent for mentorship and has strong network" → { "Techstars": "positive" }
+     * "500 Global offers $150K for 6% equity" → { "500 Global": "neutral" }
+     * "Antler has faced criticism for..." → { "Antler": "negative" }
+   - Include ALL competitors from competitorsMentioned array
+   - Default to "neutral" if no clear sentiment indicators are present
+
+6. **sentiment**: Overall sentiment toward "${config.brandName}" in this response:
    - "positive" if the response praises, recommends, or ranks highly
    - "neutral" if factual/balanced with no clear opinion
    - "negative" if critical or dismissive
 
-6. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
+7. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
 
 Return ONLY a valid JSON object with these exact keys:
 {
@@ -395,6 +409,7 @@ Return ONLY a valid JSON object with these exact keys:
   "brandPosition": number or null,
   "competitorsMentioned": string[],
   "competitorPositions": { [key: string]: number },
+  "competitorSentiments": { [key: string]: "positive" | "neutral" | "negative" },
   "sentiment": "positive" | "neutral" | "negative",
   "confidence": number,
   "explanation": "brief reasoning"
@@ -550,6 +565,7 @@ Return ONLY a valid JSON object with these exact keys:
       brandPosition: analysis.brandPosition,
       competitors: analysis.competitorsMentioned || [],
       competitorPositions: mergedPositions,
+      competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
     };
@@ -658,12 +674,25 @@ Extract the following information:
        → { "Techstars": 2, "500 Startups": 3 }
    - Return empty object {} if no competitors have positions
 
-5. **sentiment**: Overall sentiment toward "${config.brandName}" in this response:
+5. **competitorSentiments**: Object mapping competitor names to sentiment about them in this specific response
+   - Analyze how each competitor is portrayed/discussed in the response text
+   - Format: { "CompanyName": "positive" | "neutral" | "negative" }
+   - **positive**: Praised, recommended, highlighted positively, described with superlatives ("excellent", "best", "top", "leading", "outstanding")
+   - **neutral**: Mentioned factually without strong opinion, listed in rankings without commentary, or described objectively
+   - **negative**: Criticized, mentioned negatively, described as inferior or problematic
+   - Examples:
+     * "Techstars is excellent for mentorship and has strong network" → { "Techstars": "positive" }
+     * "500 Global offers $150K for 6% equity" → { "500 Global": "neutral" }
+     * "Antler has faced criticism for..." → { "Antler": "negative" }
+   - Include ALL competitors from competitorsMentioned array
+   - Default to "neutral" if no clear sentiment indicators are present
+
+6. **sentiment**: Overall sentiment toward "${config.brandName}" in this response:
    - "positive" if the response praises, recommends, or ranks highly
    - "neutral" if factual/balanced with no clear opinion
    - "negative" if critical or dismissive
 
-6. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
+7. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
 
 Return ONLY a valid JSON object with these exact keys:
 {
@@ -671,6 +700,7 @@ Return ONLY a valid JSON object with these exact keys:
   "brandPosition": number or null,
   "competitorsMentioned": string[],
   "competitorPositions": { [key: string]: number },
+  "competitorSentiments": { [key: string]: "positive" | "neutral" | "negative" },
   "sentiment": "positive" | "neutral" | "negative",
   "confidence": number,
   "explanation": "brief reasoning"
@@ -804,6 +834,7 @@ Return ONLY a valid JSON object with these exact keys:
       brandPosition: analysis.brandPosition,
       competitors: analysis.competitorsMentioned || [],
       competitorPositions: mergedPositions,
+      competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
     };

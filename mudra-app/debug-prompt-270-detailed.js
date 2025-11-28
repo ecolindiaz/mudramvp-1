@@ -21,8 +21,11 @@ const prisma = new PrismaClient();
         console.log(`Prompt: "${test.prompt}"`);
         console.log(`\nCompetitors mentioned:`, test.competitors || []);
         console.log(`\nCompetitor Positions:`, test.competitorPositions || {});
+        console.log(`\nCompetitor Sentiments:`, test.competitorSentiments || {});
         console.log(`\nPosition keys:`, Object.keys(test.competitorPositions || {}));
         console.log(`Position values:`, Object.values(test.competitorPositions || {}));
+        console.log(`\nSentiment keys:`, Object.keys(test.competitorSentiments || {}));
+        console.log(`Sentiment values:`, Object.values(test.competitorSentiments || {}));
         console.log('\n---\n');
       }
     }

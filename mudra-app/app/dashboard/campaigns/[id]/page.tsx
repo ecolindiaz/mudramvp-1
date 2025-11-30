@@ -2,6 +2,7 @@
 import React from "react"
 import Link from "next/link"
 import ReactMarkdown from "react-markdown"
+import { CampaignEditor } from "@/components/editor/campaign-editor"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -106,6 +107,7 @@ export default function CampaignCanvasPage({
 
   const [title, setTitle] = React.useState("")
   const [body, setBody] = React.useState("")
+  const [contentLoaded, setContentLoaded] = React.useState(false)
 
   const wordCount = React.useMemo(() => body.trim().split(/\s+/).filter(Boolean).length, [body])
   const readMinutes = Math.max(1, Math.round(wordCount / 200))
@@ -198,6 +200,7 @@ export default function CampaignCanvasPage({
             setCampaignPrompt(campaign.prompt || "")
             setTargetIcp(campaign.icp || "")
             setKeyword(campaign.keyword || "")
+            setContentLoaded(true)
             setIsLoading(false)
             
             // Log immediately after setting
@@ -234,6 +237,7 @@ export default function CampaignCanvasPage({
             if (prompt) setCampaignPrompt(prompt)
             if (icp) setTargetIcp(icp)
             if (kwParam) setKeyword(kwParam)
+            setContentLoaded(true)
             setIsLoading(false)
             console.log('✅ Loaded generated content from storage')
             console.log('📝 Field values set:', JSON.stringify({ 
@@ -262,6 +266,7 @@ export default function CampaignCanvasPage({
               if (data.generated && data.title && data.body) {
                 setTitle(data.title)
                 setBody(data.body)
+                setContentLoaded(true)
                 setIsLoading(false)
                 console.log('✅ Loaded generated content from storage')
                 return
@@ -280,6 +285,7 @@ export default function CampaignCanvasPage({
             // Timeout - show placeholder
             setTitle("Content Generation Timed Out")
             setBody("The content generation is taking longer than expected. Please try again or contact support.")
+            setContentLoaded(true)
             setIsLoading(false)
           }
         }
@@ -289,6 +295,7 @@ export default function CampaignCanvasPage({
         // No content found anywhere - show placeholder
         setTitle("Campaign Not Found")
         setBody("## Welcome to Campaign Canvas\n\nThis campaign could not be loaded. Start editing your content here.\n\n## Content Structure\n\nAdd your sections, headings, and content below.")
+        setContentLoaded(true)
         setIsLoading(false)
       }
     }
@@ -482,14 +489,6 @@ export default function CampaignCanvasPage({
                             variant="outline"
                             size="sm"
                             className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium gap-1.5"
-                            onClick={() => setPreview((v) => !v)}
-                          >
-                            <Eye className="size-3.5" /> {preview ? "Preview" : "Raw"}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium gap-1.5"
                             onClick={async () => {
                               try {
                                 await navigator.clipboard.writeText(`${title}\n\n${body}`)
@@ -521,43 +520,22 @@ export default function CampaignCanvasPage({
                           className="h-9 rounded-lg bg-white/[0.03] border-white/[0.08] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] disabled:opacity-50 text-sm" 
                           placeholder="Post title" 
                         />
-                      {!preview ? (
-                          <div className={`rounded-lg border border-white/[0.08] bg-white/[0.02] p-4 overflow-auto ${editorExpanded ? "min-h-[80vh]" : "max-h-[70vh]"}`}>
-                          <div className="prose prose-invert max-w-none">
-                            <ReactMarkdown 
-                              components={{
-                                h1: ({ children }) => <h1 className="text-3xl font-bold mb-6 text-white">{children}</h1>,
-                                h2: ({ children }) => <h2 className="text-2xl font-semibold mb-4 text-white mt-8">{children}</h2>,
-                                h3: ({ children }) => <h3 className="text-xl font-medium mb-3 text-white mt-6">{children}</h3>,
-                                h4: ({ children }) => <h4 className="text-lg font-medium mb-2 text-white mt-4">{children}</h4>,
-                                p: ({ children }) => <p className="mb-4 text-white/90 leading-relaxed">{children}</p>,
-                                ul: ({ children }) => <ul className="mb-4 ml-6 text-white/90 space-y-2">{children}</ul>,
-                                ol: ({ children }) => <ol className="mb-4 ml-6 text-white/90 space-y-2">{children}</ol>,
-                                li: ({ children }) => <li className="text-white/90 leading-relaxed">{children}</li>,
-                                strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-                                em: ({ children }) => <em className="italic text-white/90">{children}</em>,
-                                code: ({ children }) => <code className="bg-white/10 px-2 py-1 rounded text-sm text-white/90 font-mono">{children}</code>,
-                                blockquote: ({ children }) => <blockquote className="border-l-4 border-white/30 pl-6 italic text-white/80 my-4">{children}</blockquote>,
-                                table: ({ children }) => <div className="overflow-x-auto mb-4"><table className="w-full border-collapse border border-white/20 min-w-full">{children}</table></div>,
-                                thead: ({ children }) => <thead className="bg-white/10">{children}</thead>,
-                                tbody: ({ children }) => <tbody>{children}</tbody>,
-                                tr: ({ children }) => <tr className="border-b border-white/10">{children}</tr>,
-                                th: ({ children }) => <th className="border border-white/20 px-4 py-2 text-left text-white font-semibold">{children}</th>,
-                                td: ({ children }) => <td className="border border-white/20 px-4 py-2 text-white/90">{children}</td>,
-                              }}
-                            >
-                              {body}
-                            </ReactMarkdown>
-                          </div>
-                        </div>
-                      ) : (
-                          <Textarea 
-                            value={body} 
-                            onChange={(e) => setBody(e.target.value)} 
-                            disabled={isLoading}
-                            className={`${editorExpanded ? "min-h-[80vh]" : "min-h-[400px]"} rounded-lg bg-white/[0.03] border-white/[0.08] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] disabled:opacity-50 text-sm`} 
+                      <div className={`${editorExpanded ? "h-[80vh]" : "h-[70vh]"}`}>
+                        {!isLoading && contentLoaded && (
+                          <CampaignEditor
+                            key={`editor-${id}-${contentLoaded ? 'loaded' : 'empty'}`} // Force re-render when content is loaded
+                            value={body}
+                            onChange={(value) => setBody(value)}
+                            placeholder="Start typing your content here..."
+                            readOnly={false}
                           />
-                      )}
+                        )}
+                        {!isLoading && !contentLoaded && (
+                          <div className="flex items-center justify-center h-full text-white/60">
+                            Loading content...
+                          </div>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
 

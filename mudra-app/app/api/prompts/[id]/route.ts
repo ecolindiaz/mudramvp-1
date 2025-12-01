@@ -123,6 +123,7 @@ export async function GET(
         // Note: DirectGEO returns 'competitors', not 'competitorsMentioned'
         const competitors = matchingTest.competitors || matchingTest.competitorsMentioned || []
         const competitorPositions = matchingTest.competitorPositions || {}
+        const citations = matchingTest.citations || []
         
         promptTestResults.push({
           provider: providerName,
@@ -133,6 +134,7 @@ export async function GET(
           response: matchingTest.response || '',
           competitorsMentioned: competitors,
           competitorPositions: competitorPositions,
+          citations: citations,
           timestamp: matchingTest.timestamp || latestAnalysis.createdAt
         })
 
@@ -277,7 +279,8 @@ export async function GET(
       timestamp: result.timestamp,
       competitorsMentioned: result.competitorsMentioned,
       competitorPositions: result.competitorPositions, // Include positions data
-      competitorSentiments: result.competitorSentiments // Include sentiment data per competitor
+      competitorSentiments: result.competitorSentiments, // Include sentiment data per competitor
+      citations: result.citations || [] // Include citations from live search APIs
     }))
 
     // Step 8: Return comprehensive prompt details

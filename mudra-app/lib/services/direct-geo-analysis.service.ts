@@ -2,6 +2,13 @@ import { generateSophisticatedPrompts, profileToBrandInfo, type GeneratedPrompts
 import OpenAI from 'openai';
 
 // Types for direct GEO analysis
+export interface Citation {
+  title?: string;
+  url: string;
+  snippet?: string;
+  position?: number;
+}
+
 export interface DirectGEOConfig {
   brandName: string;
   industry?: string;
@@ -46,6 +53,8 @@ export interface PromptTest {
   competitorSentiments?: Record<string, 'positive' | 'neutral' | 'negative'>; // Maps competitor name to sentiment
   sentiment: 'positive' | 'neutral' | 'negative';
   confidence: number;
+  citations?: Citation[]; // Sources and citations from live search
+  searchQueries?: string[]; // Queries used for grounding (Gemini)
 }
 
 export interface CompetitorAnalysis {
@@ -317,9 +326,11 @@ When asked about tools, services, or companies:
 Be helpful and comprehensive in your response.`;
 
   try {
-    // Get the provider's response to the prompt
+    // Get the provider's response
+    // Note: OpenAI's web_search tool is not yet in stable API
+    // Using GPT-4o for best quality responses
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o', // Using GPT-4o for better quality
       messages: [
         {
           role: 'system',
@@ -331,10 +342,14 @@ Be helpful and comprehensive in your response.`;
         },
       ],
       temperature: 0.7,
-      max_tokens: 800,
+      max_tokens: 1200,
     });
 
     const text = response.choices[0]?.message?.content || '';
+    
+    // Citations not available in standard OpenAI API yet
+    // Will be added when web_search tool becomes available in stable API
+    const citations: Citation[] | undefined = undefined;
 
     // Analyze the response for brand mentions and sentiment using AI
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
@@ -568,6 +583,7 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
+      citations,
     };
   } catch (error) {
     console.error(`Error analyzing with OpenAI:`, error);
@@ -599,12 +615,12 @@ async function analyzeWithPerplexity(
   try {
     // Get the provider's response to the prompt
     // Perplexity's sonar models are optimized for search and current information
-    // Using current 'sonar' model (Oct 2024)
+    // Using sonar-pro for enhanced search quality and citations
     // Reference: https://docs.perplexity.ai/guides/model-cards
     console.log('[Perplexity] Testing prompt:', prompt.substring(0, 60) + '...');
     
-    const response = await perplexity.chat.completions.create({
-      model: 'sonar', // Current default model with real-time search
+    const response: any = await perplexity.chat.completions.create({
+      model: 'sonar-pro', // Pro model with enhanced search and citations
       messages: [
         {
           role: 'user',
@@ -612,11 +628,25 @@ async function analyzeWithPerplexity(
         },
       ],
       temperature: 0.2,
-      max_tokens: 800,
+      max_tokens: 1200,
     });
 
     const text = response.choices[0]?.message?.content || '';
     console.log('[Perplexity] Response received:', text.substring(0, 100) + '...');
+    
+    // Extract citations from Perplexity response
+    // Perplexity returns citations in the response object
+    const citations: Citation[] = [];
+    
+    if (response.citations && Array.isArray(response.citations)) {
+      response.citations.forEach((url: string, index: number) => {
+        citations.push({
+          url: url,
+          position: index + 1,
+        });
+      });
+      console.log(`[Perplexity] Extracted ${citations.length} citations`);
+    }
 
     // Use OpenAI to analyze the Perplexity response for brand mentions
     if (!config.apiKeys.openai) {
@@ -837,6 +867,7 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
+      citations: citations.length > 0 ? citations : undefined,
     };
   } catch (error: any) {
     console.error(`❌ Error analyzing with Perplexity:`, error.message || error);

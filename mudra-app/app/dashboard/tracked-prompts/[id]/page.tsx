@@ -330,6 +330,29 @@ function mapCitationCategory(original?: string): CitationCategory {
   return 'Social Content'
 }
 
+// Helper to extract domain from URL
+function extractDomain(url: string): string {
+  try {
+    const urlObj = new URL(url)
+    return urlObj.hostname.replace('www.', '')
+  } catch {
+    // If URL parsing fails, try to extract domain with regex
+    const match = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/]+)/)
+    return match ? match[1] : url
+  }
+}
+
+// Helper to map citation metadata to type
+function mapCitationType(title: string): 'Example' | 'Listicle' | 'Blog Post' | 'Case Study' | 'Docs' | 'Other' {
+  const titleLower = title.toLowerCase()
+  if (titleLower.includes('example')) return 'Example'
+  if (titleLower.includes('list') || titleLower.includes('top ') || titleLower.includes('best ')) return 'Listicle'
+  if (titleLower.includes('blog') || titleLower.includes('article')) return 'Blog Post'
+  if (titleLower.includes('case study') || titleLower.includes('success story')) return 'Case Study'
+  if (titleLower.includes('docs') || titleLower.includes('documentation') || titleLower.includes('guide')) return 'Docs'
+  return 'Other'
+}
+
 type ContentType = 'Blog Post' | 'Listicle' | 'Guide' | 'Discussion'
 function mapContentType(original?: string): ContentType {
   const src = (original || '').toLowerCase()
@@ -454,6 +477,12 @@ function TrackedPromptDeepViewInner() {
       const hoursAgo = Math.floor((now.getTime() - analysisDate.getTime()) / (1000 * 60 * 60))
       const timeAgo = hoursAgo < 24 ? `${hoursAgo} hr. ago` : `${Math.floor(hoursAgo / 24)} days ago`
       
+      // Extract citations from API response
+      const responseCitations = (result.citations || []).map((citation: any) => ({
+        domain: extractDomain(citation.url),
+        type: mapCitationType(citation.title || '')
+      }))
+      
       return {
         id: `chat_${index}`,
         provider,
@@ -466,7 +495,7 @@ function TrackedPromptDeepViewInner() {
         position: result.position || 0,
         extraMentions: result.competitorsMentioned?.length || 0,
         fullResponse: result.response || 'No response available',
-        responseCitations: [] // TODO: Extract citations from response if available
+        responseCitations
       }
     })
   }, [promptData])

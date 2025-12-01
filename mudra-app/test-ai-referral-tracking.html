@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Referral Tracking Test</title>
+  
+  <!-- Mudra AI Referral Tracking Script -->
+  <!-- Replace data-site-id with actual siteId from Mudra dashboard -->
+  <script>
+    (function() {
+      var script = document.createElement('script');
+      script.src = 'http://localhost:3000/tracker.js';
+      script.async = true;
+      script.setAttribute('data-site-id', 'site_1_test123');
+      document.head.appendChild(script);
+    })();
+  </script>
+</head>
+<body style="font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px;">
+  <h1>🧪 AI Referral Tracking Test Page</h1>
+  
+  <div style="background: #f5f5f5; border-left: 4px solid #4CAF50; padding: 20px; margin: 20px 0; border-radius: 4px;">
+    <h2 style="margin-top: 0;">✅ Test Instructions</h2>
+    <ol style="line-height: 1.8;">
+      <li>Open this page in your browser</li>
+      <li>Open DevTools (F12) → Console</li>
+      <li>Check for tracking script initialization message</li>
+      <li>Verify <code>window.mudraTracking</code> object exists</li>
+      <li>Simulate AI referrer by running test command below</li>
+    </ol>
+  </div>
+
+  <div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 20px; margin: 20px 0; border-radius: 4px;">
+    <h2 style="margin-top: 0;">🔍 Manual Testing</h2>
+    <p>Run this in DevTools Console to simulate ChatGPT referral:</p>
+    <pre style="background: #263238; color: #aed581; padding: 15px; border-radius: 4px; overflow-x: auto;"><code>// Simulate ChatGPT referral
+Object.defineProperty(document, 'referrer', {
+  value: 'https://chatgpt.com/',
+  writable: false
+});
+
+// Reload tracking script
+window.location.reload();</code></pre>
+  </div>
+
+  <div style="background: #fff3e0; border-left: 4px solid #FF9800; padding: 20px; margin: 20px 0; border-radius: 4px;">
+    <h2 style="margin-top: 0;">📊 Debug Information</h2>
+    <button onclick="showDebugInfo()" style="background: #FF9800; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px;">
+      Show Tracking Status
+    </button>
+    <div id="debugOutput" style="margin-top: 15px; padding: 15px; background: white; border-radius: 4px; font-family: monospace; font-size: 12px; white-space: pre-wrap; display: none;"></div>
+  </div>
+
+  <div style="background: #f3e5f5; border-left: 4px solid #9C27B0; padding: 20px; margin: 20px 0; border-radius: 4px;">
+    <h2 style="margin-top: 0;">🌐 Supported AI Referrers</h2>
+    <ul style="line-height: 1.8;">
+      <li><strong>ChatGPT:</strong> chatgpt.com, chat.openai.com</li>
+      <li><strong>Perplexity:</strong> perplexity.ai, www.perplexity.ai</li>
+      <li><strong>Claude:</strong> claude.ai</li>
+      <li><strong>Gemini:</strong> gemini.google.com, bard.google.com</li>
+    </ul>
+  </div>
+
+  <script>
+    function showDebugInfo() {
+      const output = document.getElementById('debugOutput');
+      output.style.display = 'block';
+      
+      const info = {
+        'Tracker Loaded': typeof window.mudraTracking !== 'undefined',
+        'Tracker Version': window.mudraTracking?.version || 'N/A',
+        'Site ID': window.mudraTracking?.siteId || 'N/A',
+        'Is Active': window.mudraTracking?.isActive || false,
+        'Last Check': window.mudraTracking?.lastCheck || 'N/A',
+        'Current Referrer': document.referrer || '(direct)',
+        'Current Path': window.location.pathname,
+        'Session ID': sessionStorage.getItem('mudra:sessionId') || 'N/A',
+        'Recent Visits': JSON.parse(localStorage.getItem('mudra:recentVisits') || '[]').length
+      };
+      
+      let debugText = 'MUDRA TRACKING DEBUG INFO\n';
+      debugText += '='.repeat(50) + '\n\n';
+      
+      for (const [key, value] of Object.entries(info)) {
+        debugText += `${key.padEnd(20)}: ${value}\n`;
+      }
+      
+      // Show recent visits
+      const recentVisits = JSON.parse(localStorage.getItem('mudra:recentVisits') || '[]');
+      if (recentVisits.length > 0) {
+        debugText += '\n' + '='.repeat(50) + '\n';
+        debugText += 'RECENT VISITS:\n\n';
+        recentVisits.forEach((visit, i) => {
+          debugText += `Visit ${i + 1}:\n`;
+          debugText += `  Referrer: ${visit.referrer}\n`;
+          debugText += `  Provider: ${visit.aiProvider}\n`;
+          debugText += `  Path: ${visit.path}\n`;
+          debugText += `  Time: ${new Date(visit.timestamp).toLocaleString()}\n\n`;
+        });
+      }
+      
+      output.textContent = debugText;
+    }
+    
+    // Auto-show debug info after 2 seconds
+    setTimeout(() => {
+      if (typeof window.mudraTracking !== 'undefined') {
+        console.log('✅ Mudra Tracking loaded successfully!');
+        console.log('Tracker info:', window.mudraTracking);
+      } else {
+        console.warn('⚠️ Mudra Tracking script not loaded');
+      }
+    }, 2000);
+  </script>
+
+  <hr style="margin: 40px 0; border: none; border-top: 1px solid #ddd;">
+  
+  <p style="text-align: center; color: #666; font-size: 14px;">
+    <strong>Note:</strong> This is a test page for development. Replace the siteId in the tracking script with your actual ID from Mudra dashboard.
+  </p>
+</body>
+</html>

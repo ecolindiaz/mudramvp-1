@@ -47,6 +47,8 @@ model BrandProfile {
   geoAnalysisResults         GeoAnalysisResult[]
   organicTrafficMetrics      OrganicTrafficMetrics[]
   naturalLanguageReports     NaturalLanguageReport[]
+  aiReferralVisits           AIReferralVisit[]
+  aiReferralAnalytics        AIReferralAnalytics[]
   
   @@index([userId])
 }
@@ -639,4 +641,51 @@ model NaturalLanguageReport {
   
   @@index([brandProfileId])
   @@index([brandProfileId, createdAt])
+}
+
+// AI Referral Traffic Tracking
+model AIReferralVisit {
+  id              Int      @id @default(autoincrement())
+  brandProfileId  Int
+  siteId          String   // Unique tracking ID per site
+  referrer        String   // Full referrer URL (e.g., "https://chatgpt.com")
+  aiProvider      String   // Normalized: chatgpt, perplexity, claude, gemini
+  path            String   // Path visited (e.g., "/blog/article")
+  userAgent       String?  // Browser user agent
+  ipAddress       String?  // IP address (hashed for privacy)
+  sessionId       String?  // Session identifier
+  metadata        Json     @default("{}") // Additional tracking data
+  timestamp       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  brandProfile    BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@index([brandProfileId])
+  @@index([siteId])
+  @@index([brandProfileId, timestamp])
+  @@index([brandProfileId, aiProvider, timestamp])
+  @@index([aiProvider])
+}
+
+model AIReferralAnalytics {
+  id                    Int      @id @default(autoincrement())
+  brandProfileId        Int
+  totalVisits           Int      @default(0)
+  chatgptVisits         Int      @default(0)
+  perplexityVisits      Int      @default(0)
+  claudeVisits          Int      @default(0)
+  geminiVisits          Int      @default(0)
+  topPages              Json     @default("[]") // [{path: string, visits: number}]
+  periodStart           DateTime
+  periodEnd             DateTime
+  metadata              Json     @default("{}")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  // Relations
+  brandProfile          BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@index([brandProfileId])
+  @@index([brandProfileId, periodStart])
 }

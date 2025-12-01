@@ -40,9 +40,38 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   const [isTrackingConnected, setIsTrackingConnected] = useState(false) // Default to false (not connected)
   const [isConnecting, setIsConnecting] = useState(false) // Loading state
   
-  // Generate tracking script with user's site ID (will use actual siteId from backend)
-  const siteId = typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || 'your-site-id') : 'your-site-id'
-  const trackingScript = `<!-- Mudra AI Referral Tracking -->
+  // Generate tracking script dynamically from backend
+  const [trackingScript, setTrackingScript] = useState('')
+  const [siteIdValue, setSiteIdValue] = useState('')
+  
+  // Fetch tracking script when modal opens
+  useEffect(() => {
+    const loadTrackingScript = async () => {
+      if (!showTrackingModal || !profile.id) return
+      
+      try {
+        const response = await fetch(`/api/analytics/script?brandProfileId=${profile.id}`)
+        const result = await response.json()
+        
+        if (result.success && result.data) {
+          setTrackingScript(result.data.script)
+          setSiteIdValue(result.data.siteId)
+          // Store siteId for future use
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('mudra:siteId', result.data.siteId)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching tracking script:', error)
+      }
+    }
+    
+    loadTrackingScript()
+  }, [showTrackingModal, profile.id])
+  
+  // Old static script generation (kept as fallback)
+  const siteId = typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || siteIdValue || 'your-site-id') : 'your-site-id'
+  const fallbackTrackingScript = `<!-- Mudra AI Referral Tracking -->
 <script>
   (function() {
     var script = document.createElement('script');
@@ -55,7 +84,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
   const handleCopyScript = async () => {
     try {
-      await navigator.clipboard.writeText(trackingScript)
+      const scriptToCopy = trackingScript || fallbackTrackingScript
+      await navigator.clipboard.writeText(scriptToCopy)
       setScriptCopied(true)
       setTimeout(() => setScriptCopied(false), 2000)
     } catch (error) {
@@ -68,17 +98,39 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   }
 
   const handleVerifyScript = async () => {
+    if (!profile.id || !siteIdValue) {
+      console.error('Missing brandProfileId or siteId')
+      return
+    }
+    
     setShowTrackingModal(false)
     setIsConnecting(true)
     
-    // Simulate checking for traffic (will be replaced with backend API call)
-    // TODO: Replace with actual backend API call to check for tracking script installation
-    // Backend should return: { connected: boolean, traffic: number, lastUpdated: timestamp }
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/analytics/script/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandProfileId: profile.id,
+          siteId: siteIdValue
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        setIsTrackingConnected(result.data.connected)
+        
+        if (result.data.connected) {
+          // Fetch actual traffic data
+          await fetchAiReferralTraffic()
+        }
+      }
+    } catch (error) {
+      console.error('Error verifying tracking script:', error)
+    } finally {
       setIsConnecting(false)
-      setIsTrackingConnected(true)
-      setLastUpdated(new Date()) // Update timestamp when data is refreshed
-    }, 3000) // Simulate 3 second loading/verification
+    }
   }
 
   // State for dynamic technical score
@@ -106,15 +158,10 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   const [loadingTraffic, setLoadingTraffic] = useState(true)
 
   // State for AI Referral Traffic
-  // TODO: Backend integration - fetch from API endpoint: GET /api/analytics/ai-referral
-  // Response shape: { traffic: number, previous: number, lastUpdated: string, connected: boolean }
-  const [aiReferralTraffic, setAiReferralTraffic] = useState(247) // Mock data
-  const [aiReferralPrevious, setAiReferralPrevious] = useState(189) // Mock previous
-  const hasAiTrafficHistory = true
-  
-  // Last updated timestamp for all metrics (will be fetched from backend)
-  // TODO: Backend should return lastUpdated timestamp for each metric
-  const [lastUpdated, setLastUpdated] = useState(new Date()) // Track when data was last refreshed
+  const [aiReferralTraffic, setAiReferralTraffic] = useState(0)
+  const [aiReferralPrevious, setAiReferralPrevious] = useState<number | null>(null)
+  const [hasAiTrafficHistory, setHasAiTrafficHistory] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState(new Date())
 
   // Fetch latest score and historical data from database
   const fetchLatestScore = async () => {
@@ -247,12 +294,43 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     }
   }
 
+  // Fetch AI Referral Traffic data from analytics API
+  const fetchAiReferralTraffic = async () => {
+    if (!profile.id) return
+
+    try {
+      const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&days=7`)
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        setAiReferralTraffic(result.data.traffic || 0)
+        setAiReferralPrevious(result.data.previous || 0)
+        setHasAiTrafficHistory(result.data.previous > 0)
+        setIsTrackingConnected(result.data.connected)
+        
+        if (result.data.lastUpdated) {
+          setLastUpdated(new Date(result.data.lastUpdated))
+        }
+        
+        console.log('📊 AI Referral Traffic updated:', {
+          traffic: result.data.traffic,
+          previous: result.data.previous,
+          growth: result.data.growth,
+          connected: result.data.connected
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching AI referral traffic:', error)
+    }
+  }
+
   // Initial data fetch
   useEffect(() => {
     if (profile.id) {
       fetchAiVisibilityHistory()
       fetchTechnicalHistory()
       fetchTrafficMetrics()
+      fetchAiReferralTraffic()
     }
   }, [profile.id])
 
@@ -264,7 +342,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       await Promise.all([
         fetchAiVisibilityHistory(),
         fetchTechnicalHistory(),
-        fetchTrafficMetrics()
+        fetchTrafficMetrics(),
+        fetchAiReferralTraffic()
       ])
     }
 
@@ -512,7 +591,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
               </div>
               <div className="relative">
                 <pre className="rounded-lg border border-white/[0.08] bg-black/40 p-4 pr-24 text-[11px] text-white/85 leading-relaxed overflow-hidden">
-                  <code style={{ display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{trackingScript}</code>
+                  <code style={{ display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{trackingScript || fallbackTrackingScript}</code>
                 </pre>
                 <Button
                   size="sm"

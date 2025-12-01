@@ -1,84 +1,200 @@
-import NextAuth from "next-auth";
-// import TwitterProvider from "next-auth/providers/twitter";
+import NextAuth, { NextAuthOptions } from "next-auth";
+import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { Session } from "next-auth";
-import { prisma } from '@/lib/prisma';
+import { PrismaClient } from "@prisma/client";
 
-// Extend the Session type to include accessToken
+// Initialize Prisma Client directly in this file for NextAuth adapter
+const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+});
+
 declare module "next-auth" {
   interface Session {
-    accessToken?: string;
-    accessSecret?: string;
+    user: {
+      id: string;
+      email: string;
+      name?: string | null;
+      image?: string | null;
+      emailVerified?: Date | null;
+    }
+  }
+  
+  interface User {
+    emailVerified?: Date | null;
   }
 }
 
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    emailVerified?: Date | null;
+  }
+}
 
-export default NextAuth({
+export const authOptions: NextAuthOptions = {
+  // NOTE: Not using adapter with JWT strategy - we handle user creation manually in callbacks
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      allowDangerousEmailAccountLinking: true,
+    }),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        username: { label: "Username", type: "text" },
+        email: { label: "Email", type: "email", placeholder: "you@example.com" },
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
-          return null;
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Email and password required");
         }
 
         try {
-          const user = await prisma.user.findFirst({
-            where: {
-              OR: [
-                { name: credentials.username },
-                { email: credentials.username },
-                { email: `${credentials.username}@mudra.app` }
-              ]
-            }
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email.toLowerCase() }
           });
 
           if (!user || !user.password) {
-            return null;
+            throw new Error("Invalid email or password");
           }
 
           const isValid = await bcrypt.compare(credentials.password, user.password);
           if (!isValid) {
-            return null;
+            throw new Error("Invalid email or password");
           }
+
+          // Check if email is verified (optional - can be enforced later)
+          // if (!user.emailVerified) {
+          //   throw new Error("Please verify your email before logging in");
+          // }
 
           return {
             id: user.id,
             email: user.email,
             name: user.name,
+            emailVerified: user.emailVerified,
           };
         } catch (error) {
           console.error("Auth error:", error);
-          return null;
+          throw error;
         }
       }
     }),
-    // TwitterProvider({
-    //   clientId: process.env.TWITTER_CONSUMER_KEY || "",
-    //   clientSecret: process.env.TWITTER_CONSUMER_SECRET || "",
-    //   version: "1.0A", // Twitter OAuth 1.0A
-    // }),
   ],
+  pages: {
+    signIn: '/login',
+    signOut: '/login',
+    error: '/login',
+    newUser: '/welcome',
+  },
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production', // false for local dev
+      }
+    }
   },
   callbacks: {
-    async jwt({ token, account }: { token: any; account?: any }) {
-      if (account) {
-        token.accessToken = account.oauth_token;
-        token.accessSecret = account.oauth_token_secret;
+    async signIn({ user, account, profile }) {
+      // Handle OAuth sign-in (Google)
+      if (account?.provider === "google" && profile?.email) {
+        try {
+          // Check if user exists
+          let dbUser = await prisma.user.findUnique({
+            where: { email: profile.email.toLowerCase() }
+          });
+
+          if (!dbUser) {
+            // Create new user
+            dbUser = await prisma.user.create({
+              data: {
+                email: profile.email.toLowerCase(),
+                name: profile.name || null,
+                image: (profile as any).picture || null,
+                emailVerified: new Date(),
+              }
+            });
+            console.log("✅ New Google user created:", dbUser.email);
+          } else {
+            // Update existing user with Google profile data
+            dbUser = await prisma.user.update({
+              where: { id: dbUser.id },
+              data: {
+                name: profile.name || dbUser.name,
+                image: (profile as any).picture || dbUser.image,
+                emailVerified: dbUser.emailVerified || new Date(),
+              }
+            });
+            console.log("✅ Existing user updated:", dbUser.email);
+          }
+
+          // Store the database user ID for JWT
+          user.id = dbUser.id;
+          user.emailVerified = dbUser.emailVerified;
+        } catch (error) {
+          console.error("❌ Error creating/updating user:", error);
+          return false;
+        }
       }
+      
+      return true;
+    },
+    async jwt({ token, user, account, trigger }) {
+      // Initial sign in
+      if (user) {
+        token.id = user.id;
+        token.emailVerified = user.emailVerified;
+      }
+      
+      // OAuth sign in
+      if (account?.provider === "google") {
+        token.emailVerified = new Date();
+      }
+
       return token;
     },
-    async session({ session, token }: { session: any; token: any }) {
-      session.accessToken = token.accessToken;
-      session.accessSecret = token.accessSecret;
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id;
+        session.user.emailVerified = token.emailVerified ?? null;
+      }
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      // Redirect to dashboard after successful login
+      if (url === baseUrl || url === `${baseUrl}/login`) {
+        return `${baseUrl}/dashboard`;
+      }
+      // Allows relative callback URLs
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Allows callback URLs on the same origin
+      if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
   },
-});
+  events: {
+    async createUser({ user }) {
+      console.log("✅ New user created:", user.email);
+      // TODO: Send welcome email
+    },
+    async signIn({ user, account, isNewUser }) {
+      console.log("🔐 User signed in:", user.email, "via", account?.provider);
+      if (isNewUser) {
+        console.log("🎉 First time user!");
+      }
+    },
+  },
+  debug: process.env.NODE_ENV === 'development',
+};
+
+export default NextAuth(authOptions);

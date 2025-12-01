@@ -17,9 +17,10 @@ services:
       - .env.docker
     
     environment:
-      - WATCHPACK_POLLING=true
-      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=false
+      - CHOKIDAR_USEPOLLING=false
       - NEXT_TELEMETRY_DISABLED=1
+      - NODE_OPTIONS=--max-old-space-size=7168
     
     ports:
       - "3000:3000"
@@ -32,8 +33,6 @@ services:
         consistency: delegated
       - /app/node_modules
       - /app/.next
-      - /app/.next/cache
-      - /app/.next/types
       - prisma-client:/app/node_modules/.prisma
     
     restart: on-failure
@@ -41,11 +40,11 @@ services:
     deploy:
       resources:
         limits:
+          cpus: '4'
+          memory: 10G
+        reservations:
           cpus: '2'
           memory: 4G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     
     # FIXED: Use wget instead of curl (wget is pre-installed in Alpine)
     healthcheck:

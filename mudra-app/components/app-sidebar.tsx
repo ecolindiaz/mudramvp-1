@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { forwardRef } from "react"
+import { useSession } from "next-auth/react"
 import { IconSearch, IconPhone, IconMessage } from "@tabler/icons-react"
 import { LayoutDashboard, MessageSquare, CheckSquare, FileText, User, Sparkles, Link as LinkIcon } from "lucide-react"
 import type { LucideProps } from "lucide-react"
@@ -251,7 +252,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
             </button>
           </div>
           
-          <NavUser user={data.user} />
+          <NavUser user={userData} />
         </SidebarFooter>
       </Sidebar>
     </>

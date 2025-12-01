@@ -19,6 +19,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
+# Copy prisma schema before installing dependencies (needed for postinstall)
+COPY prisma ./prisma/
+
 # Install production dependencies only
 # Use clean install for reproducible builds
 RUN npm ci --only=production --legacy-peer-deps && \
@@ -42,6 +45,10 @@ RUN apk add --no-cache \
 
 # Copy package files and install ALL dependencies (including dev)
 COPY package*.json ./
+
+# Copy prisma schema before installing dependencies (needed for postinstall)
+COPY prisma ./prisma/
+
 RUN npm ci --legacy-peer-deps
 
 # Copy prisma schema and generate client

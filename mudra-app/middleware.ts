@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { nanoid } from 'nanoid'
+import { getToken } from 'next-auth/jwt'
+
+// Public routes that don't require authentication
+const PUBLIC_ROUTES = [
+    '/',
+    '/login',
+    '/signup',
+    '/api/auth',
+    '/api/health',
+    '/images',
+    '/_next',
+    '/favicon.ico',
+]
 
 // Routes that require CSRF protection
 const PROTECTED_ROUTES = [
@@ -10,7 +23,29 @@ const PROTECTED_ROUTES = [
 ]
 
 export async function middleware(request: NextRequest) {
+    const { pathname } = request.nextUrl
     const response = NextResponse.next()
+
+    // Check if route is public
+    const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route))
+    
+    // Get session token
+    const token = await getToken({ 
+        req: request, 
+        secret: process.env.NEXTAUTH_SECRET 
+    })
+
+    // Redirect to login if accessing protected route without auth
+    if (!isPublicRoute && !token) {
+        const loginUrl = new URL('/login', request.url)
+        loginUrl.searchParams.set('callbackUrl', pathname)
+        return NextResponse.redirect(loginUrl)
+    }
+
+    // Redirect to dashboard if accessing login/signup while authenticated
+    if ((pathname === '/login' || pathname === '/signup') && token) {
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
 
     // Add security headers
     const headers = response.headers
@@ -22,11 +57,11 @@ export async function middleware(request: NextRequest) {
     headers.set('X-Permitted-Cross-Domain-Policies', 'none')
     headers.set(
         'Content-Security-Policy',
-        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://accounts.google.com https://*.supabase.co; frame-src 'self' https://accounts.google.com;"
     )
 
     // Handle CSRF protection for protected routes
-    if (PROTECTED_ROUTES.includes(request.nextUrl.pathname)) {
+    if (PROTECTED_ROUTES.includes(pathname)) {
         const csrfToken = request.cookies.get('csrf_token')?.value
 
         if (request.method !== 'GET') {

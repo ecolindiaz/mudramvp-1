@@ -7,28 +7,95 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Icons } from '@/components/icons'
 import Image from 'next/image'
+import Link from 'next/link'
+import { signIn } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
+
+const signupSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Please enter a valid email'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+})
+
+type SignupFormData = z.infer<typeof signupSchema>
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 function SignUpForm({ className, ...props }: UserAuthFormProps) {
   const [isLoading, setIsLoading] = React.useState<boolean>(false)
+  const [isGoogleLoading, setIsGoogleLoading] = React.useState<boolean>(false)
+  const router = useRouter()
+  
+  const { register, handleSubmit, formState: { errors } } = useForm<SignupFormData>({
+    resolver: zodResolver(signupSchema)
+  })
 
-  async function onSubmit(event: React.SyntheticEvent) {
-    event.preventDefault()
+  async function onSubmit(data: SignupFormData) {
     setIsLoading(true)
 
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: data.name,
+          email: data.email,
+          password: data.password,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create account')
+      }
+
+      toast.success('Account created successfully!')
+      
+      // Auto-login after registration
+      const signInResult = await signIn('credentials', {
+        email: data.email,
+        password: data.password,
+        redirect: false,
+      })
+
+      if (signInResult?.ok) {
+        router.push('/welcome')
+        router.refresh()
+      } else {
+        router.push('/login')
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create account')
+      console.error('Signup error:', error)
+    } finally {
       setIsLoading(false)
-    }, 3000)
+    }
+  }
+
+  const handleGoogleSignUp = async () => {
+    try {
+      setIsGoogleLoading(true)
+      await signIn('google', { callbackUrl: '/welcome' })
+    } catch (error) {
+      toast.error('Failed to sign up with Google')
+      console.error('Google sign up error:', error)
+      setIsGoogleLoading(false)
+    }
   }
 
   return (
     <div className={cn('grid gap-10', className)} {...props}>
-      <form onSubmit={onSubmit}>
+      <form onSubmit={handleSubmit(onSubmit)}>
         <div className="grid gap-6">
           <div className="grid gap-4">
             <Label htmlFor="name" className="text-base text-white">Full Name</Label>
             <Input
+              {...register('name')}
               id="name"
               placeholder="John Doe"
               type="text"
@@ -38,8 +105,13 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
               disabled={isLoading}
               className="h-12 bg-[#111111] border-[#222222] text-white placeholder:text-gray-500"
             />
+            {errors.name && (
+              <p className="text-sm text-red-500">{errors.name.message}</p>
+            )}
+            
             <Label htmlFor="email" className="text-base text-white">Email</Label>
             <Input
+              {...register('email')}
               id="email"
               placeholder="name@example.com"
               type="email"
@@ -49,8 +121,13 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
               disabled={isLoading}
               className="h-12 bg-[#111111] border-[#222222] text-white placeholder:text-gray-500"
             />
+            {errors.email && (
+              <p className="text-sm text-red-500">{errors.email.message}</p>
+            )}
+            
             <Label htmlFor="password" className="text-base text-white">Password</Label>
             <Input
+              {...register('password')}
               id="password"
               placeholder="••••••••"
               type="password"
@@ -60,8 +137,11 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
               disabled={isLoading}
               className="h-12 bg-[#111111] border-[#222222] text-white placeholder:text-gray-500"
             />
+            {errors.password && (
+              <p className="text-sm text-red-500">{errors.password.message}</p>
+            )}
           </div>
-          <Button disabled={isLoading} className="h-12 text-base mt-4 bg-white text-black hover:bg-gray-100">
+          <Button type="submit" disabled={isLoading} className="h-12 text-base mt-4 bg-white text-black hover:bg-gray-100">
             {isLoading && (
               <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
             )}
@@ -81,8 +161,13 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
         </div>
       </div>
 
-      <Button variant="outline" type="button" disabled={isLoading} className="h-12 border-[#222222] text-white hover:bg-[#111111]">
-        {isLoading ? (
+      <Button 
+        variant="outline" 
+        type="button" 
+        onClick={handleGoogleSignUp}
+        disabled={isLoading || isGoogleLoading} 
+        className="h-12 border-[#222222] text-white hover:bg-[#111111]">
+        {isGoogleLoading ? (
           <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
         ) : (
           <svg

@@ -1,5 +1,7 @@
 "use client"
 
+import { signOut } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import {
   IconCreditCard,
   IconDotsVertical,
@@ -39,6 +41,38 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const router = useRouter()
+
+  const handleSignOut = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    console.log('Signing out...')
+    
+    try {
+      // Get CSRF token first
+      const csrfResponse = await fetch('/api/auth/csrf')
+      const { csrfToken } = await csrfResponse.json()
+      
+      // Call signout with CSRF token
+      const response = await fetch('/api/auth/signout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `csrfToken=${csrfToken}`,
+      })
+      
+      console.log('Sign out response:', response.status)
+      
+      // Redirect to login
+      window.location.href = '/login'
+    } catch (error) {
+      console.error('Sign out error:', error)
+      // Force redirect even if there's an error
+      window.location.href = '/login'
+    }
+  }
 
   return (
     <SidebarMenu>
@@ -99,7 +133,10 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator className="!bg-white/[0.08] my-2 mx-2" />
             <div className="px-2 py-1">
-              <DropdownMenuItem className="rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 focus:text-red-300 cursor-pointer">
+              <DropdownMenuItem 
+                onClick={handleSignOut}
+                onSelect={(e) => e.preventDefault()}
+                className="rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 focus:text-red-300 cursor-pointer">
                 <IconLogout className="w-4 h-4" />
               Log out
             </DropdownMenuItem>

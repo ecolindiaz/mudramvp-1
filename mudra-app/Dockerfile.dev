@@ -79,5 +79,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start development server with improved logging and turbo mode
-CMD ["sh", "-c", "echo 'Starting development server...' && npm run dev -- --hostname 0.0.0.0 --turbo"]
+# Start development server with improved logging (without Turbopack to reduce memory usage)
+CMD ["sh", "-c", "echo 'Starting development server...' && npm run dev -- --hostname 0.0.0.0"]

@@ -528,6 +528,7 @@ export default function CampaignCanvasPage({
                             onChange={(value) => setBody(value)}
                             placeholder="Start typing your content here..."
                             readOnly={false}
+                            showToolbar={editMode}
                           />
                         )}
                         {!isLoading && !contentLoaded && (
@@ -823,9 +824,11 @@ export default function CampaignCanvasPage({
                               <p className="text-xs text-white/60">Total words in content</p>
                             </div>
                           </div>
+                        </TabsContent>
 
+                        <TabsContent value="seo" className="p-5 space-y-4 mt-0 flex-1 overflow-y-auto">
                           {/* Metadata Section */}
-                          <div className="space-y-3 pt-1">
+                          <div className="space-y-3 pb-4 border-b border-white/[0.06]">
                             <h3 className="text-sm font-semibold text-white">Metadata</h3>
                             <div className="space-y-4">
                               {/* Meta Title */}
@@ -878,60 +881,6 @@ export default function CampaignCanvasPage({
                                 </div>
                                 <p className="text-sm text-white/90 leading-relaxed break-words font-mono">{slug || "Not set"}</p>
                               </div>
-                            </div>
-                          </div>
-                        </TabsContent>
-
-                        <TabsContent value="seo" className="p-5 space-y-4 mt-0 flex-1 overflow-y-auto">
-                          {/* Search Preview */}
-                          <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
-                            <div className="flex items-center gap-2">
-                              <Search className="size-4 text-white/80" />
-                              <h3 className="text-sm font-semibold text-white">Search Preview</h3>
-                            </div>
-                            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4 space-y-1.5">
-                              <div className="text-sm hover:underline cursor-pointer truncate" style={{ color: '#1a0dab' }}>
-                                {title || "Your article title"}
-                              </div>
-                              <div className="text-xs" style={{ color: '#006621' }}>
-                                {slug ? `example.com/${slug}` : "example.com/article"}
-                              </div>
-                              <div className="text-xs text-white/70 line-clamp-2 leading-relaxed">
-                                {metaDescription || "Your meta description will appear here..."}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Social Image */}
-                          <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
-                            <div className="flex items-center gap-2">
-                              <ImageIcon className="size-4 text-white/80" />
-                              <h3 className="text-sm font-semibold text-white">Social Image</h3>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full h-20 rounded-lg border-dashed border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.12] text-white/70 text-xs font-medium border-2"
-                            >
-                              Upload image
-                            </Button>
-                            <p className="text-xs text-white/50 pl-1">Recommended: 1200x630px for social sharing</p>
-                          </div>
-
-                          {/* Meta Description */}
-                          <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
-                            <div className="flex items-center gap-2">
-                              <FileText className="size-4 text-white/80" />
-                              <h3 className="text-sm font-semibold text-white">Meta Description</h3>
-                            </div>
-                            <Textarea
-                              value={metaDescription}
-                              onChange={(e) => setMetaDescription(e.target.value)}
-                              placeholder="Unlock high-quality coding datasets in 5 steps to enhance AI performance..."
-                              className="min-h-[80px] rounded-lg bg-white/[0.03] border-white/[0.08] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] text-sm"
-                            />
-                            <div className="flex items-center justify-between text-xs text-white/50 pl-1">
-                              <span>{metaDescription.length}/160</span>
                             </div>
                           </div>
 

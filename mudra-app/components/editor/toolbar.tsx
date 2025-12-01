@@ -5,30 +5,42 @@ import {
   $getSelection,
   $isRangeSelection,
   FORMAT_TEXT_COMMAND,
-  FORMAT_ELEMENT_COMMAND,
   UNDO_COMMAND,
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
   COMMAND_PRIORITY_CRITICAL,
+  $createTextNode,
+  $getRoot,
+  $createParagraphNode,
+  $isParagraphNode,
 } from "lexical"
 import {
   $createHeadingNode,
   $createQuoteNode,
-  HeadingTagType,
   $isHeadingNode,
   $isQuoteNode,
 } from "@lexical/rich-text"
 import {
   INSERT_UNORDERED_LIST_COMMAND,
   INSERT_ORDERED_LIST_COMMAND,
-  REMOVE_LIST_COMMAND,
+  $isListNode,
+  ListNode,
 } from "@lexical/list"
-import { $createLinkNode, $isLinkNode } from "@lexical/link"
-import { $setBlocksType, $findMatchingParent } from "@lexical/selection"
-import { $getRoot, $createParagraphNode, $isParagraphNode } from "lexical"
+import { $isListItemNode } from "@lexical/list"
+import { $createLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link"
+import { $setBlocksType } from "@lexical/selection"
 import { useCallback, useState, useEffect } from "react"
 
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -42,14 +54,9 @@ import {
   Underline,
   Strikethrough,
   Code,
-  Heading1,
-  Heading2,
-  Heading3,
   List,
   ListOrdered,
-  Quote,
   Link as LinkIcon,
-  Image as ImageIcon,
   Undo2,
   Redo2,
 } from "lucide-react"
@@ -58,6 +65,14 @@ export function Toolbar() {
   const [editor] = useLexicalComposerContext()
   const [isLink, setIsLink] = useState(false)
   const [currentFormat, setCurrentFormat] = useState<string>("paragraph")
+  const [isBulletList, setIsBulletList] = useState(false)
+  const [isNumberList, setIsNumberList] = useState(false)
+  
+  // Dialog states
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false)
+  const [linkUrl, setLinkUrl] = useState("")
+  const [linkText, setLinkText] = useState("")
+  const [hasSelectedText, setHasSelectedText] = useState(false)
 
   // Update current format based on selection - defined first so it can be used by other functions
   const updateCurrentFormat = useCallback(() => {
@@ -67,6 +82,27 @@ export function Toolbar() {
         const anchorNode = selection.anchor.getNode()
         // Get the top-level element (block-level node)
         const element = anchorNode.getTopLevelElementOrThrow()
+
+        // Check for list - traverse up to find ListNode
+        let parent = anchorNode.getParent()
+        let foundBulletList = false
+        let foundNumberList = false
+        
+        while (parent !== null) {
+          if ($isListNode(parent)) {
+            const listType = parent.getListType()
+            if (listType === 'bullet') {
+              foundBulletList = true
+            } else if (listType === 'number') {
+              foundNumberList = true
+            }
+            break
+          }
+          parent = parent.getParent()
+        }
+        
+        setIsBulletList(foundBulletList)
+        setIsNumberList(foundNumberList)
 
         if ($isHeadingNode(element)) {
           const tag = element.getTag()
@@ -81,6 +117,8 @@ export function Toolbar() {
       } else {
         // No selection, default to paragraph
         setCurrentFormat("paragraph")
+        setIsBulletList(false)
+        setIsNumberList(false)
       }
     })
   }, [editor])
@@ -133,52 +171,57 @@ export function Toolbar() {
 
   const formatList = useCallback(
     (listType: "bullet" | "number") => {
-      editor.update(() => {
-        if (listType === "bullet") {
-          editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)
-        } else {
-          editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)
-        }
-      })
+      // Simply dispatch the list command - Lexical handles the conversion
+      if (listType === "bullet") {
+        editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)
+      } else {
+        editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)
+      }
+      setTimeout(() => updateCurrentFormat(), 20)
     },
-    [editor]
+    [editor, updateCurrentFormat]
   )
 
+  const openLinkDialog = useCallback(() => {
+    editor.getEditorState().read(() => {
+      const selection = $getSelection()
+      const hasSelection = $isRangeSelection(selection) && !selection.isCollapsed()
+      const selectedText = hasSelection ? selection.getTextContent() : ""
+      
+      setHasSelectedText(hasSelection && selectedText.length > 0)
+      setLinkText(selectedText || "")
+      setLinkUrl("https://")
+      setLinkDialogOpen(true)
+    })
+  }, [editor])
+
   const insertLink = useCallback(() => {
-    const url = prompt("Enter URL:")
-    const text = prompt("Enter link text (optional):") || url
-    if (url) {
+    if (!linkUrl || linkUrl === "https://") {
+      setLinkDialogOpen(false)
+      return
+    }
+    
+    if (hasSelectedText) {
+      // Text is selected - wrap it in a link using TOGGLE_LINK_COMMAND
+      editor.dispatchCommand(TOGGLE_LINK_COMMAND, linkUrl)
+    } else {
+      // No selection - insert link with text
+      const textToUse = linkText || linkUrl
       editor.update(() => {
         const selection = $getSelection()
         if ($isRangeSelection(selection)) {
-          if (selection.isCollapsed()) {
-            // Insert link at cursor
-            const linkNode = $createLinkNode(url)
-            linkNode.append($createParagraphNode().appendText(text))
-            selection.insertNodes([linkNode])
-          } else {
-            // Wrap selected text in link
-            const linkNode = $createLinkNode(url)
-            selection.insertNodes([linkNode])
-          }
+          const linkNode = $createLinkNode(linkUrl)
+          const textNode = $createTextNode(textToUse)
+          linkNode.append(textNode)
+          selection.insertNodes([linkNode])
         }
       })
     }
-  }, [editor])
-
-  const insertImage = useCallback(() => {
-    const url = prompt("Enter image URL:")
-    const alt = prompt("Enter alt text (optional):") || "Image"
-    if (url) {
-      editor.update(() => {
-        const root = $getRoot()
-        const paragraph = $createParagraphNode()
-        const textNode = paragraph.appendText(`![${alt}](${url})`)
-        root.append(paragraph)
-        textNode.select()
-      })
-    }
-  }, [editor])
+    
+    setLinkDialogOpen(false)
+    setLinkUrl("")
+    setLinkText("")
+  }, [editor, linkUrl, linkText, hasSelectedText])
 
   // Listen to selection changes
   useEffect(() => {
@@ -307,7 +350,7 @@ export function Toolbar() {
       <Button
         variant="ghost"
         size="sm"
-        className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
+        className={`h-8 w-8 p-0 border-white/[0.08] ${isBulletList ? 'bg-white/20 text-white' : 'bg-white/5 hover:bg-white/10 text-white/90'}`}
         onClick={() => formatList("bullet")}
         title="Bullet List"
       >
@@ -316,7 +359,7 @@ export function Toolbar() {
       <Button
         variant="ghost"
         size="sm"
-        className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
+        className={`h-8 w-8 p-0 border-white/[0.08] ${isNumberList ? 'bg-white/20 text-white' : 'bg-white/5 hover:bg-white/10 text-white/90'}`}
         onClick={() => formatList("number")}
         title="Numbered List"
       >
@@ -325,25 +368,69 @@ export function Toolbar() {
 
       <div className="h-4 w-px bg-white/20 mx-1" />
 
-      {/* Link & Image */}
+      {/* Link */}
       <Button
         variant="ghost"
         size="sm"
         className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
-        onClick={insertLink}
+        onClick={openLinkDialog}
         title="Insert Link"
       >
         <LinkIcon className="h-4 w-4" />
       </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
-        onClick={insertImage}
-        title="Insert Image"
-      >
-        <ImageIcon className="h-4 w-4" />
-      </Button>
+
+      {/* Link Dialog */}
+      <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+        <DialogContent className="bg-[#1a1a1a] border-white/[0.08] text-white sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-white">Insert Link</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="link-url" className="text-white/80">URL</Label>
+              <Input
+                id="link-url"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="https://example.com"
+                className="bg-white/5 border-white/[0.08] text-white placeholder:text-white/40"
+              />
+            </div>
+            {!hasSelectedText && (
+              <div className="grid gap-2">
+                <Label htmlFor="link-text" className="text-white/80">Link Text</Label>
+                <Input
+                  id="link-text"
+                  value={linkText}
+                  onChange={(e) => setLinkText(e.target.value)}
+                  placeholder="Click here"
+                  className="bg-white/5 border-white/[0.08] text-white placeholder:text-white/40"
+                />
+              </div>
+            )}
+            {hasSelectedText && (
+              <p className="text-sm text-white/60">
+                Selected text &quot;{linkText}&quot; will be linked
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setLinkDialogOpen(false)}
+              className="text-white/70 hover:text-white hover:bg-white/10"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={insertLink}
+              className="bg-primary hover:bg-primary/90"
+            >
+              Insert Link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

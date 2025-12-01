@@ -1,17 +1,19 @@
 "use client"
 
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { LexicalComposer } from "@lexical/react/LexicalComposer"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin"
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin"
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary"
+import { ListPlugin } from "@lexical/react/LexicalListPlugin"
+import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { EditorState } from "lexical"
+import { EditorState, $getSelection, $isRangeSelection } from "lexical"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { ListItemNode, ListNode } from "@lexical/list"
-import { LinkNode } from "@lexical/link"
+import { LinkNode, $isLinkNode } from "@lexical/link"
 import { CodeNode, CodeHighlightNode } from "@lexical/code"
 import { $getRoot } from "lexical"
 import { $convertFromMarkdownString, $convertToMarkdownString } from "@lexical/markdown"
@@ -42,6 +44,74 @@ interface CampaignEditorProps {
   onChange?: (value: string) => void
   placeholder?: string
   readOnly?: boolean
+  showToolbar?: boolean
+}
+
+// Floating link preview component
+function FloatingLinkPlugin() {
+  const [editor] = useLexicalComposerContext()
+  const [linkUrl, setLinkUrl] = useState<string | null>(null)
+  const [position, setPosition] = useState({ top: 0, left: 0 })
+  const [isVisible, setIsVisible] = useState(false)
+
+  useEffect(() => {
+    const handleMouseOver = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      const linkElement = target.closest('a')
+      
+      if (linkElement && linkElement.href) {
+        const rect = linkElement.getBoundingClientRect()
+        const editorElement = document.querySelector('[data-lexical-editor]')
+        const editorRect = editorElement?.getBoundingClientRect()
+        
+        if (editorRect) {
+          setLinkUrl(linkElement.href)
+          setPosition({
+            top: rect.bottom - editorRect.top + 4,
+            left: rect.left - editorRect.left,
+          })
+          setIsVisible(true)
+        }
+      }
+    }
+
+    const handleMouseOut = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      const relatedTarget = event.relatedTarget as HTMLElement
+      
+      // Check if we're leaving a link and not entering the tooltip
+      if (target.closest('a') && !relatedTarget?.closest('.link-preview-tooltip')) {
+        setIsVisible(false)
+      }
+    }
+
+    const editorElement = document.querySelector('[data-lexical-editor]')
+    if (editorElement) {
+      editorElement.addEventListener('mouseover', handleMouseOver as EventListener)
+      editorElement.addEventListener('mouseout', handleMouseOut as EventListener)
+    }
+
+    return () => {
+      if (editorElement) {
+        editorElement.removeEventListener('mouseover', handleMouseOver as EventListener)
+        editorElement.removeEventListener('mouseout', handleMouseOut as EventListener)
+      }
+    }
+  }, [editor])
+
+  if (!isVisible || !linkUrl) return null
+
+  return (
+    <div
+      className="link-preview-tooltip absolute z-50 px-3 py-1.5 rounded-md bg-[#1a1a1a] border border-white/[0.12] shadow-lg text-xs text-white/80 max-w-[300px] truncate"
+      style={{ top: position.top, left: position.left }}
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => setIsVisible(false)}
+    >
+      <span className="text-primary/80 mr-1">🔗</span>
+      {linkUrl}
+    </div>
+  )
 }
 
 // Component to initialize editor with markdown
@@ -128,6 +198,7 @@ export function CampaignEditor({
   onChange,
   placeholder = "Start typing...",
   readOnly = false,
+  showToolbar = false,
 }: CampaignEditorProps) {
   const isInitialized = useRef(false)
 
@@ -145,8 +216,8 @@ export function CampaignEditor({
     <div className="flex flex-col h-full w-full">
       <LexicalComposer initialConfig={initialConfig}>
         <div className="flex flex-col h-full w-full rounded-lg border border-white/[0.08] bg-white/[0.02] overflow-hidden">
-          {/* Toolbar - fixed at top */}
-          {!readOnly && (
+          {/* Toolbar - fixed at top, only shown when showToolbar is true and not readOnly */}
+          {!readOnly && showToolbar && (
             <div className="border-b border-white/[0.08] bg-white/[0.03] px-3 py-2.5 flex-shrink-0 z-10">
               <Toolbar />
             </div>
@@ -170,11 +241,14 @@ export function CampaignEditor({
               }
               ErrorBoundary={LexicalErrorBoundary}
             />
+            <FloatingLinkPlugin />
           </div>
         </div>
 
         <InitializePlugin value={value} isInitialized={isInitialized} />
         <HistoryPlugin />
+        <ListPlugin />
+        <LinkPlugin />
         <OnChangePlugin onChange={handleChange} ignoreSelectionChange />
       </LexicalComposer>
     </div>

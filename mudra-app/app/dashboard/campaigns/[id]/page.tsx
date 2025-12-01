@@ -14,7 +14,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Maximize2, Minimize2, Users, MessageSquareText, Link as LinkIcon, Search, Loader2, Trash2, FileText, Image as ImageIcon, Code2, FileCode, Edit, Send, X, Plus } from "lucide-react"
+import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Users, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, Code2, FileCode, Edit, Send, X, Plus } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
 // Helper function to accurately count words in markdown content
@@ -92,8 +92,8 @@ export default function CampaignCanvasPage({
   const [campaignPrompt, setCampaignPrompt] = React.useState("")
   const [slug, setSlug] = React.useState("")
   const [keyword, setKeyword] = React.useState("")
-  const [editorExpanded, setEditorExpanded] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
+  const [showCopyMenu, setShowCopyMenu] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(true)
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
@@ -121,6 +121,18 @@ export default function CampaignCanvasPage({
       keyword: keyword || 'empty'
     }, null, 2))
   }, [targetIcp, campaignPrompt, slug, keyword])
+
+  // Close copy menu when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (showCopyMenu && !target.closest('.copy-menu-container')) {
+        setShowCopyMenu(false)
+      }
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [showCopyMenu])
 
   const headings = React.useMemo(() => {
     return body.split("\n").filter((l) => l.startsWith("## ")).map((h) => h.replace(/^##\s+/, ""))
@@ -480,54 +492,90 @@ export default function CampaignCanvasPage({
                           <Button
                             variant="outline"
                             size="sm"
-                            className={`h-8 px-3 rounded-md text-xs font-medium gap-1.5 ${editMode ? "bg-white text-[#0a0a0a] hover:bg-white/90 border-white" : "bg-white/5 text-white hover:bg-white/10 border-white/[0.08]"}`}
+                            className={`h-8 px-3 rounded-md text-xs font-medium gap-1.5 ${editMode ? "bg-primary text-white hover:bg-primary/90 border-primary" : "bg-white/5 text-white hover:bg-white/10 border-white/[0.08]"}`}
                             onClick={() => setEditMode((v) => !v)}
                           >
-                            <Edit className="size-3.5" /> Edit
+                            <Edit className="size-3.5" /> {editMode ? "Editing" : "Edit"}
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium gap-1.5"
-                            onClick={async () => {
-                              try {
-                                await navigator.clipboard.writeText(`${title}\n\n${body}`)
-                                setCopied(true)
-                                setTimeout(() => setCopied(false), 1200)
-                              } catch (e) {
-                                // ignore copy errors
-                              }
-                            }}
-                          >
-                            <CopyIcon className="size-3.5" /> {copied ? "Copied" : "Copy"}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium gap-1.5"
-                            onClick={() => setEditorExpanded((v) => !v)}
-                          >
-                            {editorExpanded ? (<><Minimize2 className="size-3.5" /> Collapse</>) : (<><Maximize2 className="size-3.5" /> Expand</>)}
-                          </Button>
+                          <div className="relative copy-menu-container">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium gap-1.5"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setShowCopyMenu((v) => !v)
+                              }}
+                            >
+                              <CopyIcon className="size-3.5" /> {copied ? "Copied!" : "Copy"}
+                            </Button>
+                            {showCopyMenu && (
+                              <div className="absolute top-full right-0 mt-1 bg-[#1a1a1a] border border-white/[0.12] rounded-lg shadow-xl z-50 py-1 min-w-[160px]">
+                                <button
+                                  className="w-full px-3 py-2 text-left text-xs text-white/90 hover:bg-white/[0.08] flex items-center gap-2"
+                                  onClick={async () => {
+                                    try {
+                                      const markdownContent = `# ${title}\n\n${body}`
+                                      await navigator.clipboard.writeText(markdownContent)
+                                      setCopied(true)
+                                      setShowCopyMenu(false)
+                                      setTimeout(() => setCopied(false), 1200)
+                                    } catch (e) {}
+                                  }}
+                                >
+                                  <FileCode className="size-3.5 text-white/60" />
+                                  Copy as Markdown
+                                </button>
+                                <button
+                                  className="w-full px-3 py-2 text-left text-xs text-white/90 hover:bg-white/[0.08] flex items-center gap-2"
+                                  onClick={async () => {
+                                    try {
+                                      // Convert markdown to plain text
+                                      let plainText = body
+                                        .replace(/#{1,6}\s+/g, '') // Remove headers
+                                        .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove bold
+                                        .replace(/\*([^*]+)\*/g, '$1') // Remove italic
+                                        .replace(/__([^_]+)__/g, '$1')
+                                        .replace(/_([^_]+)_/g, '$1')
+                                        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Links to text
+                                        .replace(/!\[([^\]]*)\]\([^\)]+\)/g, '') // Remove images
+                                        .replace(/^[\s]*[-*+]\s+/gm, '• ') // Bullet points
+                                        .replace(/^[\s]*\d+\.\s+/gm, '') // Numbered lists
+                                        .replace(/^>\s+/gm, '') // Blockquotes
+                                        .replace(/`([^`]+)`/g, '$1') // Inline code
+                                        .replace(/```[\s\S]*?```/g, '') // Code blocks
+                                      await navigator.clipboard.writeText(`${title}\n\n${plainText}`)
+                                      setCopied(true)
+                                      setShowCopyMenu(false)
+                                      setTimeout(() => setCopied(false), 1200)
+                                    } catch (e) {}
+                                  }}
+                                >
+                                  <FileText className="size-3.5 text-white/60" />
+                                  Copy as Plain Text
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className={`px-5 pb-4 space-y-3 ${editorExpanded ? "pb-28" : ""}`}>
+                    <CardContent className="px-5 pb-4 space-y-3">
                         <Input 
                           value={title} 
                           onChange={(e) => setTitle(e.target.value)} 
-                          disabled={isLoading}
+                          disabled={isLoading || !editMode}
                           className="h-9 rounded-lg bg-white/[0.03] border-white/[0.08] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] disabled:opacity-50 text-sm" 
                           placeholder="Post title" 
                         />
-                      <div className={`${editorExpanded ? "h-[80vh]" : "h-[70vh]"}`}>
+                      <div className="h-[70vh]">
                         {!isLoading && contentLoaded && (
                           <CampaignEditor
                             key={`editor-${id}-${contentLoaded ? 'loaded' : 'empty'}`} // Force re-render when content is loaded
                             value={body}
                             onChange={(value) => setBody(value)}
                             placeholder="Start typing your content here..."
-                            readOnly={false}
+                            readOnly={!editMode}
                             showToolbar={editMode}
                           />
                         )}
@@ -923,7 +971,56 @@ export default function CampaignCanvasPage({
                               <CopyIcon className="size-3.5 mr-1.5" />
                               Copy
                             </Button>
-                  </div>
+                          </div>
+
+                          {/* Backlinks Section */}
+                          <div className="space-y-2.5 pt-4 border-t border-white/[0.06]">
+                            <div className="flex items-center gap-2">
+                              <LinkIcon className="size-4 text-white/80" />
+                              <h3 className="text-sm font-semibold text-white">Backlinks</h3>
+                            </div>
+                            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
+                              {(() => {
+                                // Extract links from body content
+                                const linkRegex = /\[([^\]]+)\]\(([^\)]+)\)/g
+                                const matches = [...(body || '').matchAll(linkRegex)]
+                                
+                                if (matches.length === 0) {
+                                  return (
+                                    <p className="text-xs text-white/50 text-center py-2">
+                                      No backlinks found in the content yet.
+                                      <br />
+                                      <span className="text-white/40">Links added to your article will appear here.</span>
+                                    </p>
+                                  )
+                                }
+                                
+                                return (
+                                  <div className="space-y-2">
+                                    {matches.map((match, index) => (
+                                      <div key={index} className="flex items-start gap-2 p-2 rounded-md bg-white/[0.03] border border-white/[0.06]">
+                                        <LinkIcon className="size-3.5 text-blue-400 mt-0.5 flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-xs font-medium text-white/90 truncate">{match[1]}</p>
+                                          <a 
+                                            href={match[2]} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-blue-400 hover:text-blue-300 truncate block"
+                                          >
+                                            {match[2]}
+                                          </a>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    <p className="text-xs text-white/40 pt-1">
+                                      {matches.length} backlink{matches.length !== 1 ? 's' : ''} found
+                                    </p>
+                                  </div>
+                                )
+                              })()}
+                            </div>
+                          </div>
                         </TabsContent>
                       </Tabs>
                     </CardContent>

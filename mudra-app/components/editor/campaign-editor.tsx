@@ -214,7 +214,7 @@ export function CampaignEditor({
 
   return (
     <div className="flex flex-col h-full w-full">
-      <LexicalComposer initialConfig={initialConfig}>
+      <LexicalComposer initialConfig={{ ...initialConfig, editable: !readOnly }}>
         <div className="flex flex-col h-full w-full rounded-lg border border-white/[0.08] bg-white/[0.02] overflow-hidden">
           {/* Toolbar - fixed at top, only shown when showToolbar is true and not readOnly */}
           {!readOnly && showToolbar && (
@@ -225,17 +225,119 @@ export function CampaignEditor({
 
           {/* Editor Content - scrollable area with fixed height */}
           <div className="relative flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+            <style jsx global>{`
+              /* Block type labels - positioned in left margin */
+              .editor-with-labels .editor-h1,
+              .editor-with-labels .editor-h2,
+              .editor-with-labels .editor-h3,
+              .editor-with-labels .editor-h4,
+              .editor-with-labels .editor-p {
+                position: relative;
+              }
+              .editor-with-labels .editor-h1::before,
+              .editor-with-labels .editor-h2::before,
+              .editor-with-labels .editor-h3::before,
+              .editor-with-labels .editor-h4::before,
+              .editor-with-labels .editor-p::before {
+                position: absolute;
+                left: -40px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 9px;
+                font-weight: 600;
+                padding: 2px 5px;
+                border-radius: 3px;
+                font-family: ui-monospace, monospace;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                white-space: nowrap;
+              }
+              .editor-with-labels .editor-h1::before {
+                content: 'H1';
+                color: rgba(255, 255, 255, 0.65);
+                background: rgba(255, 255, 255, 0.08);
+              }
+              .editor-with-labels .editor-h2::before {
+                content: 'H2';
+                color: rgba(255, 255, 255, 0.65);
+                background: rgba(255, 255, 255, 0.08);
+              }
+              .editor-with-labels .editor-h3::before {
+                content: 'H3';
+                color: rgba(255, 255, 255, 0.65);
+                background: rgba(255, 255, 255, 0.08);
+              }
+              .editor-with-labels .editor-h4::before {
+                content: 'H4';
+                color: rgba(255, 255, 255, 0.65);
+                background: rgba(255, 255, 255, 0.08);
+              }
+              .editor-with-labels .editor-p::before {
+                content: 'P';
+                color: rgba(255, 255, 255, 0.4);
+                background: rgba(255, 255, 255, 0.04);
+              }
+              /* Lists - label above the list */
+              .editor-with-labels .editor-ul,
+              .editor-with-labels .editor-ol {
+                position: relative;
+                margin-top: 1.5rem;
+              }
+              .editor-with-labels .editor-ul::before,
+              .editor-with-labels .editor-ol::before {
+                position: absolute;
+                top: -1.25rem;
+                left: 0;
+                font-size: 9px;
+                font-weight: 600;
+                padding: 2px 5px;
+                border-radius: 3px;
+                font-family: ui-monospace, monospace;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              .editor-with-labels .editor-ul::before {
+                content: 'BULLET LIST';
+                color: rgba(255, 255, 255, 0.6);
+                background: rgba(255, 255, 255, 0.06);
+              }
+              .editor-with-labels .editor-ol::before {
+                content: 'NUMBERED LIST';
+                color: rgba(255, 255, 255, 0.6);
+                background: rgba(255, 255, 255, 0.06);
+              }
+              /* Quote - label above */
+              .editor-with-labels .editor-quote {
+                position: relative;
+                margin-top: 1.5rem;
+              }
+              .editor-with-labels .editor-quote::before {
+                content: 'QUOTE';
+                position: absolute;
+                top: -1.25rem;
+                left: 0;
+                font-size: 9px;
+                font-weight: 600;
+                color: rgba(255, 255, 255, 0.6);
+                background: rgba(255, 255, 255, 0.06);
+                padding: 2px 5px;
+                border-radius: 3px;
+                font-family: ui-monospace, monospace;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+            `}</style>
             <RichTextPlugin
               contentEditable={
                 <ContentEditable
-                  className="min-h-full px-4 py-4 outline-none prose prose-invert max-w-none
+                  className="editor-with-labels min-h-full pl-12 pr-4 py-4 outline-none prose prose-invert max-w-none
                     prose-headings:text-white prose-p:text-white/90 prose-strong:text-white
                     prose-code:text-white/90 prose-pre:bg-white/[0.05] prose-blockquote:border-white/30
-                    prose-a:text-primary focus:outline-none"
+                    prose-a:text-blue-400 focus:outline-none"
                 />
               }
               placeholder={
-                <div className="absolute top-4 left-4 text-white/40 pointer-events-none text-sm">
+                <div className="absolute top-4 left-12 text-white/40 pointer-events-none text-sm">
                   {placeholder}
                 </div>
               }

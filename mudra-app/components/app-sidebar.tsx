@@ -4,7 +4,7 @@ import * as React from "react"
 import { forwardRef } from "react"
 import { useSession } from "next-auth/react"
 import { IconSearch, IconPhone, IconMessage } from "@tabler/icons-react"
-import { LayoutDashboard, MessageSquare, CheckSquare, FileText, User, Sparkles, Link as LinkIcon } from "lucide-react"
+import { LayoutDashboard, MessageSquare, CheckSquare, FileText, User, Sparkles, Link as LinkIcon, Bell, CreditCard, Settings } from "lucide-react"
 import type { LucideProps } from "lucide-react"
 
 // Custom Astromech Droid Icon Component - Fixed to match Lucide icon type
@@ -112,6 +112,26 @@ const data = {
           title: "Integrations",
           url: "/dashboard/integrations",
           icon: LinkIcon,
+        },
+      ]
+    },
+    {
+      title: "Settings",
+      items: [
+        {
+          title: "Account",
+          url: "/dashboard/account",
+          icon: Settings,
+        },
+        {
+          title: "Billing",
+          url: "/dashboard/billing",
+          icon: CreditCard,
+        },
+        {
+          title: "Notifications",
+          url: "/dashboard/notifications",
+          icon: Bell,
         },
       ]
     },

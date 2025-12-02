@@ -15,12 +15,19 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { ListItemNode, ListNode } from "@lexical/list"
 import { LinkNode, $isLinkNode } from "@lexical/link"
 import { CodeNode, CodeHighlightNode } from "@lexical/code"
-import { $getRoot } from "lexical"
+import { TableCellNode, TableNode, TableRowNode } from "@lexical/table"
+import { TablePlugin } from "@lexical/react/LexicalTablePlugin"
+import { $getRoot, $insertNodes } from "lexical"
 import { $convertFromMarkdownString, $convertToMarkdownString } from "@lexical/markdown"
 import { TRANSFORMERS } from "@lexical/markdown"
+import { $generateNodesFromDOM } from "@lexical/html"
+import { TABLE_TRANSFORMER, convertMarkdownTablesToHtml } from "./table-transformer"
 
 import { Toolbar } from "./toolbar"
 import { editorTheme } from "./editor-theme"
+
+// Extended transformers including table support
+const EXTENDED_TRANSFORMERS = [...TRANSFORMERS, TABLE_TRANSFORMER]
 
 const initialConfig = {
   namespace: "CampaignEditor",
@@ -33,6 +40,9 @@ const initialConfig = {
     CodeNode,
     CodeHighlightNode,
     LinkNode,
+    TableNode,
+    TableRowNode,
+    TableCellNode,
   ],
   onError: (error: Error) => {
     console.error("Lexical error:", error)
@@ -114,6 +124,57 @@ function FloatingLinkPlugin() {
   )
 }
 
+/**
+ * Checks if markdown content contains tables
+ */
+function hasMarkdownTable(markdown: string): boolean {
+  const lines = markdown.split('\n')
+  for (let i = 0; i < lines.length - 1; i++) {
+    const line = lines[i].trim()
+    const nextLine = lines[i + 1]?.trim() || ''
+    // Check for table pattern: row with pipes, followed by separator row
+    const pipeCount = (line.match(/\|/g) || []).length
+    const isSeparator = /^[\s|:\-]+$/.test(nextLine) && nextLine.includes('-') && nextLine.includes('|')
+    if (pipeCount >= 2 && isSeparator) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Converts markdown content to Lexical nodes.
+ * If content contains tables, uses HTML import via marked (which properly handles GFM tables).
+ * Otherwise uses standard markdown transformers.
+ */
+function convertMarkdownWithTables(editor: ReturnType<typeof useLexicalComposerContext>[0], markdown: string) {
+  const containsTable = hasMarkdownTable(markdown)
+  
+  if (!containsTable) {
+    // No tables - use standard markdown conversion (faster, preserves more formatting)
+    $convertFromMarkdownString(markdown, EXTENDED_TRANSFORMERS)
+    return
+  }
+  
+  // Content has tables - convert entire markdown to HTML, then import
+  // This ensures tables render properly as Lexical TableNodes
+  try {
+    const html = convertMarkdownTablesToHtml(markdown)
+    if (html) {
+      const parser = new DOMParser()
+      const dom = parser.parseFromString(html, 'text/html')
+      const nodes = $generateNodesFromDOM(editor, dom)
+      if (nodes.length > 0) {
+        $insertNodes(nodes)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to convert markdown with tables:', error)
+    // Fallback to standard markdown conversion
+    $convertFromMarkdownString(markdown, EXTENDED_TRANSFORMERS)
+  }
+}
+
 // Component to initialize editor with markdown
 function InitializePlugin({ value, isInitialized }: { value?: string; isInitialized: React.MutableRefObject<boolean> }) {
   const [editor] = useLexicalComposerContext()
@@ -138,7 +199,8 @@ function InitializePlugin({ value, isInitialized }: { value?: string; isInitiali
               const root = $getRoot()
               root.clear()
               try {
-                $convertFromMarkdownString(value, TRANSFORMERS)
+                // Use hybrid approach for content with tables
+                convertMarkdownWithTables(editor, value)
                 isInitialized.current = true
                 hasInitialized.current = true
                 initializedValue.current = value
@@ -165,7 +227,7 @@ function InitializePlugin({ value, isInitialized }: { value?: string; isInitiali
         if (isEmpty) {
           return '' // Editor is empty
         }
-        return $convertToMarkdownString(TRANSFORMERS)
+        return $convertToMarkdownString(EXTENDED_TRANSFORMERS)
       })
       
       // If editor is empty but we have a value, this is an external load
@@ -180,7 +242,8 @@ function InitializePlugin({ value, isInitialized }: { value?: string; isInitiali
           const root = $getRoot()
           root.clear()
           try {
-            $convertFromMarkdownString(value, TRANSFORMERS)
+            // Use hybrid approach for content with tables
+            convertMarkdownWithTables(editor, value)
             initializedValue.current = value
           } catch (error) {
             console.error('Failed to convert markdown:', error)
@@ -205,7 +268,7 @@ export function CampaignEditor({
   const handleChange = useCallback(
     (editorState: EditorState) => {
       editorState.read(() => {
-        const markdown = $convertToMarkdownString(TRANSFORMERS)
+        const markdown = $convertToMarkdownString(EXTENDED_TRANSFORMERS)
         onChange?.(markdown)
       })
     },
@@ -326,6 +389,67 @@ export function CampaignEditor({
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
               }
+              /* Table styles */
+              .editor-with-labels .editor-table {
+                position: relative;
+                margin-top: 1.5rem;
+                width: 100%;
+                border-collapse: collapse;
+                border-radius: 8px;
+                overflow: hidden;
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                font-size: 13px;
+              }
+              .editor-with-labels .editor-table::before {
+                content: 'TABLE';
+                position: absolute;
+                top: -1.25rem;
+                left: 0;
+                font-size: 9px;
+                font-weight: 600;
+                color: rgba(255, 255, 255, 0.6);
+                background: rgba(255, 255, 255, 0.06);
+                padding: 2px 5px;
+                border-radius: 3px;
+                font-family: ui-monospace, monospace;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              .editor-table-row {
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+              }
+              .editor-table-row:last-child {
+                border-bottom: none;
+              }
+              .editor-table-cell {
+                padding: 12px 16px;
+                text-align: left;
+                color: rgba(255, 255, 255, 0.9);
+                vertical-align: top;
+                border-right: 1px solid rgba(255, 255, 255, 0.06);
+              }
+              .editor-table-cell:last-child {
+                border-right: none;
+              }
+              .editor-table-cell-header {
+                padding: 12px 16px;
+                text-align: left;
+                font-weight: 600;
+                color: rgba(255, 255, 255, 1);
+                background: rgba(255, 255, 255, 0.06);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+                border-right: 1px solid rgba(255, 255, 255, 0.06);
+              }
+              .editor-table-cell-header:last-child {
+                border-right: none;
+              }
+              /* Alternative styling for rows */
+              .editor-table-row:nth-child(even) {
+                background: rgba(255, 255, 255, 0.02);
+              }
+              .editor-table-row:hover {
+                background: rgba(255, 255, 255, 0.04);
+              }
             `}</style>
             <RichTextPlugin
               contentEditable={
@@ -351,6 +475,7 @@ export function CampaignEditor({
         <HistoryPlugin />
         <ListPlugin />
         <LinkPlugin />
+        <TablePlugin />
         <OnChangePlugin onChange={handleChange} ignoreSelectionChange />
       </LexicalComposer>
     </div>

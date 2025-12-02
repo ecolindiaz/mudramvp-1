@@ -17,6 +17,9 @@ check-*.js
 debug-*.js
 quick-*.js
 
+# Mastra agents (not ready for production yet)
+mastra/
+
 # Scripts
 scripts/
 setup-*.js

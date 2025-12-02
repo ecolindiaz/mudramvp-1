@@ -35,13 +35,15 @@ interface UseAIContentGenerationReturn {
 const PROGRESS_STEPS = [
   "Starting AI content workflow...",
   "Validating sources",
-  "Scraping citation sources (Firecrawl v2)",
-  "Analyzing content gaps (GPT-5.1)",
-  "Conducting live web research",
-  "Generating AI-optimized content",
+  "Finding citations",
+  "Analyzing content gaps",
+  "Running live web research",
+  "Generating draft",
   "Finalizing article",
-  "Complete!",
+  "Ready in editor",
 ];
+
+const SIMULATED_STEP_DELAYS = [7000, 12000, 14000, 14000, 12000, 10000];
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 180; // 6 minutes max
@@ -54,6 +56,8 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
   const [error, setError] = useState<string | null>(null);
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const progressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const progressCleanupRef = useRef<(() => void) | null>(null);
   const pollCountRef = useRef(0);
 
   // Cleanup polling on unmount
@@ -61,6 +65,9 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
     return () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
+      }
+      if (progressTimeoutRef.current) {
+        clearTimeout(progressTimeoutRef.current);
       }
     };
   }, []);
@@ -72,27 +79,49 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
     setResult(null);
     setError(null);
     pollCountRef.current = 0;
+    if (progressCleanupRef.current) {
+      progressCleanupRef.current();
+      progressCleanupRef.current = null;
+    }
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
     }
+    if (progressTimeoutRef.current) {
+      clearTimeout(progressTimeoutRef.current);
+      progressTimeoutRef.current = null;
+    }
   }, []);
 
   const simulateProgress = useCallback(() => {
-    // Simulate progress through steps while waiting for actual completion
     let stepIndex = 0;
-    const interval = setInterval(() => {
-      if (stepIndex < PROGRESS_STEPS.length - 2) {
-        // Stop before "Complete!"
-        stepIndex++;
+
+    const scheduleNext = () => {
+      if (stepIndex >= PROGRESS_STEPS.length - 2) {
+        return;
+      }
+
+      const delay =
+        SIMULATED_STEP_DELAYS[
+          Math.min(stepIndex, SIMULATED_STEP_DELAYS.length - 1)
+        ] ?? 10000;
+
+      progressTimeoutRef.current = setTimeout(() => {
+        stepIndex += 1;
         setCurrentStep(stepIndex);
         setProgress((prev) => [...prev, PROGRESS_STEPS[stepIndex]]);
-      } else {
-        clearInterval(interval);
-      }
-    }, 8000); // Progress every 8 seconds
+        scheduleNext();
+      }, delay);
+    };
 
-    return interval;
+    scheduleNext();
+
+    return () => {
+      if (progressTimeoutRef.current) {
+        clearTimeout(progressTimeoutRef.current);
+        progressTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   const pollForStatus = useCallback(
@@ -109,11 +138,15 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
             clearInterval(pollIntervalRef.current);
             pollIntervalRef.current = null;
           }
+          if (progressCleanupRef.current) {
+            progressCleanupRef.current();
+            progressCleanupRef.current = null;
+          }
 
           setCurrentStep(PROGRESS_STEPS.length - 1);
           setProgress((prev) => [
             ...prev,
-            "Complete!",
+            "Ready in editor",
           ]);
           setResult(data.result);
           setIsGenerating(false);
@@ -123,6 +156,10 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
             pollIntervalRef.current = null;
+          }
+          if (progressCleanupRef.current) {
+            progressCleanupRef.current();
+            progressCleanupRef.current = null;
           }
 
           setError(data.error || "Content generation failed");
@@ -136,6 +173,10 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
             pollIntervalRef.current = null;
+          }
+          if (progressCleanupRef.current) {
+            progressCleanupRef.current();
+            progressCleanupRef.current = null;
           }
           setError("Content generation timed out. Please try again.");
           setIsGenerating(false);
@@ -183,17 +224,25 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
         const workflowRunId = data.workflowRunId;
 
         // Start progress simulation
-        const progressInterval = simulateProgress();
+        const stopSimulatedProgress = simulateProgress();
+        progressCleanupRef.current = stopSimulatedProgress;
 
         // Start polling for completion
         pollCountRef.current = 0;
         pollIntervalRef.current = setInterval(async () => {
           const isDone = await pollForStatus(workflowRunId);
           if (isDone) {
-            clearInterval(progressInterval);
+            if (progressCleanupRef.current) {
+              progressCleanupRef.current();
+              progressCleanupRef.current = null;
+            }
           }
         }, POLL_INTERVAL_MS);
       } catch (err: any) {
+        if (progressCleanupRef.current) {
+          progressCleanupRef.current();
+          progressCleanupRef.current = null;
+        }
         setError(err.message || "Failed to start content generation");
         setIsGenerating(false);
       }

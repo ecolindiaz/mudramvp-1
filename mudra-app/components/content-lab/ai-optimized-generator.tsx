@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,10 +20,12 @@ import {
   ChevronRight,
   ExternalLink,
   Globe,
-  Zap,
   FileText,
   Brain,
   Search,
+  Tag,
+  Target,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAIContentGeneration } from "@/hooks/use-ai-content-generation";
@@ -49,11 +51,53 @@ interface AIOptimizedGeneratorProps {
 
 const WORKFLOW_STEPS = [
   { id: "ingest", label: "Validating sources", icon: FileText },
-  { id: "scrape", label: "Scraping citations (Firecrawl v2)", icon: Globe },
+  { id: "scrape", label: "Finding citations", icon: Globe },
   { id: "analyze", label: "Analyzing content gaps", icon: Brain },
   { id: "research", label: "Live web research", icon: Search },
-  { id: "generate", label: "Generating AI-optimized content", icon: Sparkles },
-  { id: "complete", label: "Complete!", icon: CheckCircle2 },
+  { id: "generate", label: "Generating draft", icon: Sparkles },
+  { id: "finalize", label: "Finalizing article", icon: FileText },
+  { id: "complete", label: "Ready in editor", icon: CheckCircle2 },
+];
+
+// Content types
+type ContentType = "blog" | "listicle" | "guide" | "howto" | "comparison";
+
+const CONTENT_TYPES: Array<{
+  value: ContentType;
+  label: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  {
+    value: "blog",
+    label: "Blog Post",
+    description: "Long-form content optimized for AI visibility",
+    icon: FileText,
+  },
+  {
+    value: "listicle",
+    label: "Listicle",
+    description: "List-based content format (X Steps to...)",
+    icon: FileText,
+  },
+  {
+    value: "guide",
+    label: "Comprehensive Guide",
+    description: "In-depth comprehensive guides",
+    icon: FileText,
+  },
+  {
+    value: "howto",
+    label: "How To",
+    description: "Step-by-step instructional content",
+    icon: FileText,
+  },
+  {
+    value: "comparison",
+    label: "Comparison",
+    description: "Compare products, tools, or approaches",
+    icon: FileText,
+  },
 ];
 
 // Mock citation sources for demo - in production, these would come from the tracked prompt data
@@ -68,16 +112,33 @@ const getMockCitations = (promptId: string): CitationSource[] => [
   },
 ];
 
+const TOTAL_STEPS = 5;
+
+const STEP_COPY: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: "Choose a content type for your AI-optimized campaign.",
+  2: "Choose a tracked prompt to optimize with GEO-aligned onboarding.",
+  3: "Select your target audience for this content.",
+  4: "Review the prompt context and pick which citations power the generation.",
+  5: "Track the optimized pipeline while we scrape, research, and generate.",
+};
+
+const normalizeCategory = (category?: string) =>
+  category?.trim().toLowerCase().replace(/\s+/g, "-") || "general";
+
 export function AIOptimizedGenerator({
   trackedPrompts,
   onComplete,
 }: AIOptimizedGeneratorProps) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [step, setStep] = useState<1 | 2 | 3>(1); // 1=Select Prompt, 2=Select Sources, 3=Generating
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1); // 1=Content Type, 2=Select prompt, 3=ICP, 4=Select sources, 5=Generating
+  const [selectedContentType, setSelectedContentType] =
+    useState<ContentType | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<TrackedPrompt | null>(
     null
   );
+  const [selectedIcp, setSelectedIcp] = useState<string | null>(null);
   const [availableSources, setAvailableSources] = useState<CitationSource[]>(
     []
   );
@@ -85,15 +146,57 @@ export function AIOptimizedGenerator({
     new Set()
   );
 
+  // ICP suggestions - should match the normal campaign flow
+  const icpSuggestions = [
+    "Seed‑stage startup founders",
+    "GTM leads at SaaS startups",
+    "AI practitioners & researchers",
+    "Developers evaluating AI tools",
+  ];
+
   const {
     isGenerating,
-    progress,
     currentStep,
     result,
     error,
     startGeneration,
     reset,
   } = useAIContentGeneration();
+
+  const promptCategories = useMemo(() => {
+    const map = new Map<
+      string,
+      { key: string; label: string; count: number }
+    >();
+
+    trackedPrompts.forEach((prompt) => {
+      const label = prompt.category?.trim() || "General";
+      const key = normalizeCategory(prompt.category);
+      const existing = map.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        map.set(key, { key, label, count: 1 });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
+  }, [trackedPrompts]);
+
+  const promptsForSelectedCategory = useMemo(() => {
+    if (!selectedCategory) return [];
+
+    return trackedPrompts.filter(
+      (prompt) => normalizeCategory(prompt.category) === selectedCategory
+    );
+  }, [trackedPrompts, selectedCategory]);
+
+  const selectedCategoryLabel = selectedCategory
+    ? promptCategories.find((category) => category.key === selectedCategory)
+        ?.label ?? "General"
+    : null;
 
   // Load citations when prompt is selected
   useEffect(() => {
@@ -126,7 +229,10 @@ export function AIOptimizedGenerator({
     if (open) {
       // Reset state when opening
       setStep(1);
+      setSelectedContentType(null);
+      setSelectedCategory(null);
       setSelectedPrompt(null);
+      setSelectedIcp(null);
       setAvailableSources([]);
       setSelectedSources(new Set());
       reset();
@@ -135,7 +241,7 @@ export function AIOptimizedGenerator({
 
   const handlePromptSelect = (prompt: TrackedPrompt) => {
     setSelectedPrompt(prompt);
-    setStep(2);
+    setStep(3);
   };
 
   const toggleSource = (domain: string) => {
@@ -153,18 +259,32 @@ export function AIOptimizedGenerator({
   const handleStartGeneration = async () => {
     if (!selectedPrompt || selectedSources.size < 2) return;
 
-    setStep(3);
+    setStep(5);
 
-    const sources = availableSources.filter((s) =>
-      selectedSources.has(s.domain)
-    );
+    const sources = availableSources
+      .filter((s) => selectedSources.has(s.domain))
+      .map((source) => ({
+        ...source,
+        url: source.url ?? `https://${source.domain}`,
+      }));
     await startGeneration(selectedPrompt.text, sources);
   };
 
   const getStepStatus = (stepIndex: number) => {
     if (error) return "error";
-    if (currentStep > stepIndex) return "complete";
-    if (currentStep === stepIndex && isGenerating) return "active";
+
+    const normalizedStep = Math.min(
+      Math.max(currentStep - 1, 0),
+      WORKFLOW_STEPS.length - 1
+    );
+    const isLastStep = stepIndex === WORKFLOW_STEPS.length - 1;
+
+    if (!isGenerating && result && isLastStep) {
+      return "complete";
+    }
+
+    if (normalizedStep > stepIndex) return "complete";
+    if (normalizedStep === stepIndex && isGenerating) return "active";
     return "pending";
   };
 
@@ -173,9 +293,9 @@ export function AIOptimizedGenerator({
       <DialogTrigger asChild>
         <Button
           size="sm"
-          className="h-9 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 border-0 gap-2"
+          className="h-9 rounded-lg bg-white text-[#0a0a0a] hover:bg-white/90 shadow-sm hover:shadow-md border-0 gap-2"
         >
-          <Zap className="size-4" />
+          <Plus className="size-4" />
           AI-Optimized Content
         </Button>
       </DialogTrigger>
@@ -187,174 +307,431 @@ export function AIOptimizedGenerator({
         <div className="bg-dark-grey px-6 pt-6 pb-6">
           {/* Title and Description */}
           <div className="mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-violet-500/30">
-                <Sparkles className="size-4 text-violet-400" />
+            <div className="flex items-center justify-between gap-4 mb-2">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-white/40 font-semibold">
+                  Step {step} of {TOTAL_STEPS}
+                </p>
+                <h2 className="text-xl font-semibold text-white tracking-tight">
+                  AI-Optimized Content
+                </h2>
               </div>
-              <h2 className="text-xl font-semibold text-white tracking-tight">
-                AI-Optimized Content
-              </h2>
+              <Badge
+                variant="outline"
+                className="text-[10px] uppercase tracking-wide border-white/15 text-white/70"
+              >
+                Content Lab
+              </Badge>
             </div>
             <p className="text-sm text-white/60 leading-relaxed">
-              {step === 1
-                ? "Select a tracked prompt to optimize for"
-                : step === 2
-                  ? "Choose citation sources to analyze"
-                  : "Generating AI-optimized content..."}
+              {STEP_COPY[step]}
             </p>
+            {!isGenerating && (
+              <div className="mt-4">
+                <div className="relative h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "absolute left-0 top-0 h-1 bg-white/40 rounded-full transition-[width] duration-300 ease-out",
+                      step === 1
+                        ? "w-1/5"
+                        : step === 2
+                          ? "w-2/5"
+                          : step === 3
+                            ? "w-3/5"
+                            : step === 4
+                              ? "w-4/5"
+                              : "w-full"
+                    )}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Progress bar */}
-          {step > 1 && !isGenerating && !result && (
-            <div className="mb-6">
-              <div className="relative h-1 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className={cn(
-                    "absolute left-0 top-0 h-1 bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full transition-[width] duration-300 ease-out",
-                    step === 2 ? "w-1/2" : "w-full"
-                  )}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Step 1: Select Tracked Prompt */}
+          {/* Step 1: Select Content Type */}
           {step === 1 && (
             <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
-              <ScrollArea className="h-[400px]">
-                {trackedPrompts.length > 0 ? (
-                  trackedPrompts.map((prompt) => (
-                    <div
-                      key={prompt.id}
-                      onClick={() => handlePromptSelect(prompt)}
-                      className="px-6 py-4 flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-b-0 transition-all duration-200 cursor-pointer group hover:bg-white/[0.03]"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium leading-5 mb-1 text-white/90 group-hover:text-white transition-colors">
-                          {prompt.text}
-                        </p>
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] text-white/50 border-white/10"
-                        >
-                          {prompt.category}
-                        </Badge>
+              {CONTENT_TYPES.map((contentType) => {
+                const Icon = contentType.icon;
+                const isSelected = selectedContentType === contentType.value;
+                const isDisabled = contentType.value !== "blog"; // Only allow Blog Post for now
+                return (
+                  <div
+                    key={contentType.value}
+                    onClick={() => {
+                      if (!isDisabled) {
+                        setSelectedContentType(contentType.value);
+                        setTimeout(() => setStep(2), 200);
+                      }
+                    }}
+                    className={cn(
+                      "px-6 py-4 flex items-center justify-between gap-6 border-b border-white/[0.06] last:border-b-0 transition-all duration-200",
+                      isDisabled
+                        ? "opacity-50 cursor-not-allowed"
+                        : "cursor-pointer group",
+                      isSelected
+                        ? "bg-white/[0.05]"
+                        : !isDisabled && "hover:bg-white/[0.03]"
+                    )}
+                  >
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div
+                        className={cn(
+                          "flex items-center justify-center size-11 rounded-xl border transition-all duration-200 flex-shrink-0 shadow-sm",
+                          isDisabled
+                            ? "bg-white/[0.03] border-white/[0.06]"
+                            : isSelected
+                              ? "bg-white/[0.1] border-white/30 shadow-white/10"
+                              : "bg-white/[0.05] border-white/[0.08] group-hover:bg-white/[0.08] group-hover:border-white/[0.15] group-hover:shadow"
+                        )}
+                      >
+                        <Icon
+                          className={cn(
+                            "h-5 w-5 transition-colors",
+                            isDisabled
+                              ? "text-white/40"
+                              : isSelected
+                                ? "text-white"
+                                : "text-white/90 group-hover:text-white"
+                          )}
+                        />
                       </div>
-                      <ChevronRight className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={cn(
+                            "text-sm font-semibold leading-5 mb-1 transition-colors",
+                            isDisabled
+                              ? "text-white/50"
+                              : isSelected
+                                ? "text-white"
+                                : "text-white group-hover:text-white"
+                          )}
+                        >
+                          {contentType.label}
+                        </p>
+                        <p
+                          className={cn(
+                            "text-xs leading-relaxed",
+                            isDisabled ? "text-white/40" : "text-white/60"
+                          )}
+                        >
+                          {contentType.description}
+                        </p>
+                      </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="px-6 py-12 text-center text-sm text-white/50">
-                    No tracked prompts found. Add prompts first.
+                    {isSelected && !isDisabled && (
+                      <div className="flex-shrink-0">
+                        <div className="w-2 h-2 rounded-full bg-white"></div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </ScrollArea>
+                );
+              })}
             </div>
           )}
 
-          {/* Step 2: Select Citation Sources */}
-          {step === 2 && !isGenerating && (
+          {/* Step 2: Select Category & Prompt */}
+          {step === 2 && (
             <div className="space-y-4">
-              {/* Back button & selected prompt */}
-              <div className="flex items-center gap-3">
+              <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                {!selectedCategory ? (
+                  <div className="divide-y divide-white/[0.06]">
+                    {promptCategories.length > 0 ? (
+                      promptCategories.map((category) => (
+                        <div
+                          key={category.key}
+                          onClick={() => setSelectedCategory(category.key)}
+                          className="px-6 py-4 flex items-center justify-between gap-6 transition-all duration-200 cursor-pointer group hover:bg-white/[0.03]"
+                        >
+                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <div className="flex items-center justify-center size-11 rounded-xl border bg-white/[0.05] border-white/[0.08] group-hover:bg-white/[0.08] group-hover:border-white/[0.15] transition-all duration-200 flex-shrink-0 shadow-sm group-hover:shadow">
+                              <Tag className="h-5 w-5 text-white/90 group-hover:text-white transition-colors" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold leading-5 text-white group-hover:text-white transition-colors">
+                                {category.label}
+                              </p>
+                              <p className="text-xs text-white/60">
+                                {category.count} tracked{" "}
+                                {category.count === 1 ? "prompt" : "prompts"}
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors" />
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-6 py-12 text-center text-sm text-white/50">
+                        No tracked prompts found. Add prompts first.
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="px-6 py-4 flex items-center gap-3 border-b border-white/[0.06] bg-white/[0.02]">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedCategory(null);
+                          setSelectedPrompt(null);
+                        }}
+                        className="h-8 px-3 text-white/70 hover:text-white hover:bg-white/5"
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-1" />
+                        Back to Categories
+                      </Button>
+                      <div className="h-4 w-px bg-white/20" />
+                      <span className="text-sm font-medium text-white/80 truncate">
+                        {selectedCategoryLabel}
+                      </span>
+                    </div>
+                    <ScrollArea className="h-[360px]">
+                      {promptsForSelectedCategory.length > 0 ? (
+                        promptsForSelectedCategory.map((prompt) => {
+                          const isSelected = selectedPrompt?.id === prompt.id;
+                          return (
+                            <div
+                              key={prompt.id}
+                              onClick={() => handlePromptSelect(prompt)}
+                              className={cn(
+                                "px-6 py-4 flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-b-0 transition-all duration-200 cursor-pointer group",
+                                isSelected
+                                  ? "bg-white/[0.05]"
+                                  : "hover:bg-white/[0.03]"
+                              )}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p
+                                  className={cn(
+                                    "text-sm font-medium leading-5 mb-1 transition-colors",
+                                    isSelected
+                                      ? "text-white"
+                                      : "text-white/90 group-hover:text-white"
+                                  )}
+                                >
+                                  {prompt.text}
+                                </p>
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] text-white/50 border-white/10"
+                                >
+                                  {prompt.category}
+                                </Badge>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors flex-shrink-0" />
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="px-6 py-12 text-center text-sm text-white/50">
+                          No prompts found in this category.
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </>
+                )}
+              </div>
+
+              <div className="flex justify-between pt-2">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={() => {
                     setStep(1);
+                    setSelectedContentType(null);
+                    setSelectedCategory(null);
                     setSelectedPrompt(null);
                   }}
-                  className="h-8 px-3 text-white/70 hover:text-white hover:bg-white/5"
+                  className="h-9 px-4 rounded-lg border-white/[0.08] bg-transparent text-white/80 hover:bg-white/5 hover:text-white"
                 >
-                  <ChevronLeft className="w-4 h-4 mr-1" />
-                  Back
+                  <ChevronLeft className="size-4 mr-1" />
+                  Back to content types
                 </Button>
-                <div className="h-4 w-px bg-white/20" />
-                <p className="text-sm text-white/70 truncate flex-1">
-                  {selectedPrompt?.text}
-                </p>
               </div>
+            </div>
+          )}
 
-              {/* Info banner */}
-              <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-4">
-                <div className="flex gap-3">
-                  <Brain className="size-5 text-violet-400 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="text-white/90 font-medium mb-1">
-                      AI-Powered Content Pipeline
-                    </p>
-                    <p className="text-white/60 text-xs leading-relaxed">
-                      We&apos;ll scrape these sources, analyze content gaps,
-                      perform live web research, and generate a 1,200-1,600 word
-                      GEO-optimized article using GPT-5.1.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sources list */}
-              <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden">
-                <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-white/60 uppercase tracking-wider">
-                      Citation Sources
-                    </span>
-                    <span className="text-xs text-white/50">
-                      {selectedSources.size} selected (min 2)
-                    </span>
-                  </div>
-                </div>
-                <ScrollArea className="h-[240px]">
-                  {availableSources.map((source) => {
-                    const isSelected = selectedSources.has(source.domain);
-                    return (
-                      <div
-                        key={source.domain}
-                        onClick={() => toggleSource(source.domain)}
-                        className={cn(
-                          "px-4 py-3 flex items-center gap-3 border-b border-white/[0.06] last:border-b-0 transition-all duration-200 cursor-pointer",
-                          isSelected
-                            ? "bg-violet-500/5"
-                            : "hover:bg-white/[0.02]"
-                        )}
-                      >
-                        <Checkbox
-                          checked={isSelected}
-                          className="border-white/30 data-[state=checked]:bg-violet-500 data-[state=checked]:border-violet-500"
-                        />
-                        <Globe className="size-4 text-white/40 flex-shrink-0" />
+          {/* Step 3: Select ICP */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                {icpSuggestions.map((icp) => {
+                  const isSelected = selectedIcp === icp;
+                  return (
+                    <div
+                      key={icp}
+                      onClick={() => {
+                        setSelectedIcp(icp);
+                        setTimeout(() => setStep(4), 200);
+                      }}
+                      className={cn(
+                        "px-6 py-4 flex items-center justify-between gap-6 border-b border-white/[0.06] last:border-b-0 transition-all duration-200 cursor-pointer group",
+                        isSelected ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"
+                      )}
+                    >
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div
+                          className={cn(
+                            "flex items-center justify-center size-11 rounded-xl border transition-all duration-200 flex-shrink-0 shadow-sm",
+                            isSelected
+                              ? "bg-white/[0.1] border-white/30 shadow-white/10"
+                              : "bg-white/[0.05] border-white/[0.08] group-hover:bg-white/[0.08] group-hover:border-white/[0.15] group-hover:shadow"
+                          )}
+                        >
+                          <Target
+                            className={cn(
+                              "h-5 w-5 transition-colors",
+                              isSelected
+                                ? "text-white"
+                                : "text-white/90 group-hover:text-white"
+                            )}
+                          />
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white/90 truncate">
-                            {source.title || source.domain}
-                          </p>
-                          <p className="text-xs text-white/50 truncate">
-                            {source.url || `https://${source.domain}`}
+                          <p
+                            className={cn(
+                              "text-sm font-semibold leading-5 transition-colors",
+                              isSelected
+                                ? "text-white"
+                                : "text-white group-hover:text-white"
+                            )}
+                          >
+                            {icp}
                           </p>
                         </div>
-                        <a
-                          href={source.url || `https://${source.domain}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-1.5 rounded hover:bg-white/10 transition-colors"
-                        >
-                          <ExternalLink className="size-3.5 text-white/40 hover:text-white/70" />
-                        </a>
                       </div>
-                    );
-                  })}
-                </ScrollArea>
+                      {isSelected && (
+                        <div className="flex-shrink-0">
+                          <div className="w-2 h-2 rounded-full bg-white"></div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex justify-between pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStep(2)}
+                  className="h-9 px-4 rounded-lg border-white/[0.08] bg-transparent text-white/80 hover:bg-white/5 hover:text-white"
+                >
+                  <ChevronLeft className="size-4 mr-1" />
+                  Back to prompts
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Select Citation Sources */}
+          {step === 4 && !isGenerating && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/[0.06]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/40 font-semibold mb-1">
+                    {selectedCategoryLabel}
+                  </p>
+                  <p className="text-sm text-white/90 leading-relaxed">
+                    {selectedPrompt?.text}
+                  </p>
+                </div>
+                <div className="max-h-[280px] overflow-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-xs text-white/50 uppercase tracking-wider border-b border-white/[0.04]">
+                        <th className="px-5 py-3 w-12">Use</th>
+                        <th className="px-5 py-3">Source</th>
+                        <th className="px-5 py-3">URL</th>
+                        <th className="px-5 py-3 text-right">Open</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {availableSources.length > 0 ? (
+                        availableSources.map((source) => {
+                          const isSelected = selectedSources.has(source.domain);
+                          return (
+                            <tr
+                              key={source.domain}
+                              onClick={() => toggleSource(source.domain)}
+                              className={cn(
+                                "border-b border-white/[0.04] text-sm transition-colors cursor-pointer",
+                                isSelected ? "bg-white/[0.04]" : "hover:bg-white/[0.02]"
+                              )}
+                            >
+                              <td className="px-5 py-3 align-middle">
+                                <Checkbox
+                                  checked={isSelected}
+                                  onClick={(event) => event.stopPropagation()}
+                                  onCheckedChange={() =>
+                                    toggleSource(source.domain)
+                                  }
+                                  className="border-white/30 data-[state=checked]:bg-white data-[state=checked]:border-white"
+                                />
+                              </td>
+                              <td className="px-5 py-3 align-middle">
+                                <p className="text-sm font-medium text-white/90">
+                                  {source.title || source.domain}
+                                </p>
+                              </td>
+                              <td className="px-5 py-3 align-middle">
+                                <p className="text-xs text-white/60 truncate">
+                                  {source.url || `https://${source.domain}`}
+                                </p>
+                              </td>
+                              <td className="px-5 py-3 text-right align-middle">
+                                <a
+                                  href={source.url || `https://${source.domain}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center rounded px-2 py-1 text-xs text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                                >
+                                  <ExternalLink className="size-3.5 mr-1" />
+                                  Visit
+                                </a>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td
+                            colSpan={4}
+                            className="px-5 py-8 text-center text-sm text-white/50"
+                          >
+                            No citation sources available for this prompt.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Action buttons */}
               <div className="flex items-center justify-between pt-2">
-                <p className="text-xs text-white/50">
-                  Select at least 2 sources to proceed
-                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setStep(1);
+                    setSelectedContentType(null);
+                    setSelectedCategory(null);
+                    setSelectedPrompt(null);
+                    setSelectedIcp(null);
+                    setSelectedSources(new Set());
+                  }}
+                  className="h-9 px-4 rounded-lg border-white/[0.08] bg-transparent text-white/80 hover:bg-white/5 hover:text-white"
+                >
+                  <ChevronLeft className="size-4 mr-1" />
+                  Edit selections
+                </Button>
                 <Button
                   onClick={handleStartGeneration}
                   disabled={selectedSources.size < 2}
-                  className="h-9 px-5 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-500/25 border-0 disabled:opacity-50 disabled:cursor-not-allowed gap-2"
+                  className="h-9 px-5 rounded-lg bg-white text-[#0a0a0a] hover:bg-white/90 shadow-sm hover:shadow-md border-0 disabled:opacity-50 disabled:cursor-not-allowed gap-2"
                 >
                   <Sparkles className="size-4" />
                   Generate Content
@@ -363,8 +740,8 @@ export function AIOptimizedGenerator({
             </div>
           )}
 
-          {/* Step 3: Generation Progress */}
-          {step === 3 && (
+          {/* Step 5: Generation Progress */}
+          {step === 5 && (
             <div className="space-y-6">
               {/* Header */}
               <div className="flex flex-col items-center text-center">
@@ -373,10 +750,10 @@ export function AIOptimizedGenerator({
                     className={cn(
                       "flex items-center justify-center size-12 rounded-xl border transition-all duration-300",
                       result
-                        ? "bg-emerald-500/20 border-emerald-500/30"
+                        ? "bg-emerald-500/15 border-emerald-500/40"
                         : error
-                          ? "bg-red-500/20 border-red-500/30"
-                          : "bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border-violet-500/30"
+                          ? "bg-red-500/15 border-red-500/30"
+                          : "bg-white/[0.04] border-white/[0.12]"
                     )}
                   >
                     {result ? (
@@ -384,7 +761,7 @@ export function AIOptimizedGenerator({
                     ) : error ? (
                       <span className="text-red-400 text-xl">✕</span>
                     ) : (
-                      <Loader2 className="h-6 w-6 text-violet-400 animate-spin" />
+                      <Loader2 className="h-6 w-6 text-white animate-spin" />
                     )}
                   </div>
                 </div>
@@ -417,7 +794,7 @@ export function AIOptimizedGenerator({
                         status === "complete"
                           ? "border-emerald-500/30 bg-emerald-500/5"
                           : status === "active"
-                            ? "border-violet-500/30 bg-violet-500/5 ring-1 ring-violet-500/30"
+                            ? "border-white/20 bg-white/[0.05] ring-1 ring-white/10"
                             : status === "error"
                               ? "border-red-500/30 bg-red-500/5"
                               : "border-white/[0.06] bg-transparent"
@@ -427,7 +804,7 @@ export function AIOptimizedGenerator({
                         {status === "complete" ? (
                           <CheckCircle2 className="size-4 text-emerald-400" />
                         ) : status === "active" ? (
-                          <Loader2 className="size-4 text-violet-400 animate-spin" />
+                          <Loader2 className="size-4 text-white animate-spin" />
                         ) : (
                           <Icon
                             className={cn(

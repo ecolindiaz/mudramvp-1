@@ -83,7 +83,7 @@ export function BrowserWindowEmpty({
             className="relative h-8 px-4 rounded-md bg-white text-black hover:bg-white/90 text-xs font-medium shadow-sm hover:shadow transition-shadow gap-2"
           >
             <Bot className="h-3.5 w-3.5" />
-            Deploy Droid
+            Deploy Agent
           </Button>
         </div>
       </div>

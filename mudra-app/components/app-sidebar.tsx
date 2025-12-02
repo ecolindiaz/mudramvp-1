@@ -7,7 +7,7 @@ import { IconSearch, IconPhone, IconMessage } from "@tabler/icons-react"
 import { LayoutDashboard, MessageSquare, CheckSquare, FileText, User, Sparkles, Link as LinkIcon, Bell, CreditCard, Settings } from "lucide-react"
 import type { LucideProps } from "lucide-react"
 
-// Custom Astromech Droid Icon Component - Fixed to match Lucide icon type
+// Custom Astromech Agent Icon Component - Fixed to match Lucide icon type
 const AstromechIcon = forwardRef<SVGSVGElement, LucideProps>(
   ({ className, ...props }, ref) => (
     <svg 
@@ -94,7 +94,7 @@ const data = {
           icon: Sparkles,
         },
         {
-          title: "Droid Lab",
+          title: "Agent Lab",
           url: "/dashboard/agents-lab",
           icon: AstromechIcon,
         },

@@ -18,7 +18,7 @@ interface DeploymentItem {
   isActive: boolean
 }
 
-interface DeployDroidDialogProps {
+interface DeployAgentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onDeploy?: (deployment: DeploymentItem) => Promise<void>
@@ -269,21 +269,21 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
   )
 }
 
-export function DeployDroidDialog({ open, onOpenChange, onDeploy, deployedAgentIds = [] }: DeployDroidDialogProps) {
+export function DeployAgentDialog({ open, onOpenChange, onDeploy, deployedAgentIds = [] }: DeployAgentDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="!max-w-3xl sm:!max-w-3xl bg-dark-grey border-white/10 p-0 !rounded-[12px] overflow-hidden shadow-xl">
         <DialogHeader className="sr-only">
-          <DialogTitle>Deploy Droid</DialogTitle>
+          <DialogTitle>Deploy Agent</DialogTitle>
         </DialogHeader>
         <div className="bg-dark-grey px-6 pt-6 pb-6">
           {/* Title and Description */}
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-white mb-2 tracking-tight">
-              Choose a Droid
+              Choose an Agent
             </h2>
             <p className="text-sm text-white/60 leading-relaxed max-w-2xl">
-              Once deployed, droids will work autonomously to fix structured data and improve your AI Search.
+              Once deployed, agents will work autonomously to fix structured data and improve your AI Search.
             </p>
           </div>
 

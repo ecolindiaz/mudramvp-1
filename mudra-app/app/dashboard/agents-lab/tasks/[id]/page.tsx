@@ -423,7 +423,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                           : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                       )}
                     >
-                      Droid Logs
+                      Agent Logs
                     </Button>
                     <Button
                       variant="outline"
@@ -436,7 +436,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                           : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                       )}
                     >
-                      Droid Summary
+                      Agent Summary
                     </Button>
                   </div>
 
@@ -444,7 +444,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                   <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col h-[500px]">
                     <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.01] flex-shrink-0">
                       <h3 className="text-sm font-semibold text-white">
-                        {selectedTab === "logs" ? "Droid Logs" : "Droid Summary"}
+                        {selectedTab === "logs" ? "Agent Logs" : "Agent Summary"}
                       </h3>
                       <Button
                         variant="ghost"
@@ -817,7 +817,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
         >
           <SheetHeader className="px-6 pt-6 pb-4 border-b border-white/10">
             <SheetTitle className="text-xl font-semibold text-white tracking-tight">
-              {selectedTab === "logs" ? "Droid Logs" : "Droid Summary"}
+              {selectedTab === "logs" ? "Agent Logs" : "Agent Summary"}
             </SheetTitle>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto p-6">

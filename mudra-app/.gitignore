@@ -44,3 +44,7 @@ next-env.d.ts
 /lib/generated/prisma
 *.db
 *.db-journal
+
+# uploads
+/public/uploads/avatars/*
+!/public/uploads/avatars/.gitkeep

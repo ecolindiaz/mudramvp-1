@@ -19,7 +19,7 @@ import { BrowserWindowEmpty } from "@/components/empty-states/browser-window-emp
 import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
-import { DeployDroidDialog } from "@/components/dashboard/deploy-droid-dialog"
+import { DeployAgentDialog } from "@/components/dashboard/deploy-agent-dialog"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
@@ -30,7 +30,7 @@ function AgentsLabPageInner() {
   // State for Technical Structure score
   const [technicalScore, setTechnicalScore] = useState(0)
   
-  // State for Deploy Droid Dialog
+  // State for Deploy Agent Dialog
   const [isDeployDialogOpen, setIsDeployDialogOpen] = useState(false)
   
   // State for Active/Inactive view
@@ -534,17 +534,17 @@ function AgentsLabPageInner() {
           lastValue: 0,
           positive: true,
           accentColor: "rgba(52, 211, 153, 0.9)",
-          info: "What your droids have already fixed. Counts the total number of technical optimizations successfully deployed by your droids, including PRs merged or live site changes to LLMs files, schema, robots.txt, headings, and more.",
+          info: "What your agents have already fixed. Counts the total number of technical optimizations successfully deployed by your agents, including PRs merged or live site changes to LLMs files, schema, robots.txt, headings, and more.",
           icon: Rocket,
         },
         {
-          title: "Active Droids",
+          title: "Active Agents",
           value: deployedAgents.length,
           delta: 0,
           lastValue: 0,
           positive: true,
           accentColor: "rgba(255,255,255,0.9)",
-          info: "How many droids are working for you. Shows the number of droids currently deployed and allowed to run automations for this brand. Paused or inactive droids aren't included.",
+          info: "How many agents are working for you. Shows the number of agents currently deployed and allowed to run automations for this brand. Paused or inactive agents aren't included.",
           icon: Bot,
         },
         {
@@ -554,7 +554,7 @@ function AgentsLabPageInner() {
           lastValue: 0,
           positive: true,
           accentColor: "rgba(251, 191, 36, 0.9)",
-          info: "Live growth opportunities discovered by special droids. Tracks open opportunities found by your agents, including Outreach targets (sites and authors heavily cited by AI for features or backlinks) and Research leads (Reddit and LinkedIn threads your brand should join because those conversations are being cited by AI).",
+          info: "Live growth opportunities discovered by special agents. Tracks open opportunities found by your agents, including Outreach targets (sites and authors heavily cited by AI for features or backlinks) and Research leads (Reddit and LinkedIn threads your brand should join because those conversations are being cited by AI).",
           icon: Radio,
         },
       ]
@@ -587,13 +587,13 @@ function AgentsLabPageInner() {
                         className="h-9 px-4 text-sm font-medium transition-all duration-200 bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5 gap-2"
                       >
                         <ChevronLeft className="w-4 h-4" />
-                        Back to Droids
+                        Back to Agents
                       </Button>
                     </div>
                   ) : (
                     <div>
-                      <h1 className="text-2xl font-bold tracking-tight text-white">Droid Lab</h1>
-                      <p className="text-muted-foreground">Deploy and manage droids to boost your AI Visibility</p>
+                      <h1 className="text-2xl font-bold tracking-tight text-white">Agent Lab</h1>
+                      <p className="text-muted-foreground">Deploy and manage agents to boost your AI Visibility</p>
                     </div>
                   )}
                 </div>
@@ -640,7 +640,7 @@ function AgentsLabPageInner() {
                       onClick={() => setIsDeployDialogOpen(true)}
                     >
                       <Bot className="h-3.5 w-3.5" />
-                      Deploy Droid
+                      Deploy Agent
                     </Button>
                   )}
                 </div>
@@ -682,7 +682,7 @@ function AgentsLabPageInner() {
                       </span>
                       {getRunStatusChips(getRunStatusFromAgentStatus(selectedAgent.status))}
                     </div>
-                    <p className="text-xs text-white/60 mt-2">Observability status for this droid</p>
+                    <p className="text-xs text-white/60 mt-2">Observability status for this agent</p>
                   </CardContent>
                 </Card>
               )}
@@ -709,10 +709,10 @@ function AgentsLabPageInner() {
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                       <div className="space-y-1.5">
                         <h2 className="text-xl font-semibold tracking-tight text-white">
-                          {isDetailView ? "Tasks" : "Droids"}
+                          {isDetailView ? "Tasks" : "Agents"}
                         </h2>
                         <p className="text-sm text-white/60">
-                          {isDetailView ? "Tasks that droids are cooking" : "Active Deployed Droids"}
+                          {isDetailView ? "Tasks that agents are cooking" : "Active Deployed Agents"}
                         </p>
                       </div>
 
@@ -903,7 +903,7 @@ function AgentsLabPageInner() {
                               : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                           )}
                         >
-                          Active Droids
+                          Active Agents
                         </Button>
                         <Button
                           variant="outline"
@@ -916,7 +916,7 @@ function AgentsLabPageInner() {
                               : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                           )}
                         >
-                          Inactive Droids
+                          Inactive Agents
                         </Button>
                       </div>
                     )}
@@ -1168,7 +1168,7 @@ function AgentsLabPageInner() {
                                         size="icon"
                                         onClick={(e) => e.stopPropagation()}
                                         className="h-8 w-8 rounded hover:bg-white/[0.06] text-white/70 hover:text-white"
-                                        aria-label="Droid actions"
+                                        aria-label="Agent actions"
                                       >
                                         <MoreHorizontal className="w-4 h-4" />
                                       </Button>
@@ -1184,14 +1184,14 @@ function AgentsLabPageInner() {
                                           onClick={() => handleTogglePause(agent.id)}
                                           disabled={agent.status === "deploying"}
                                         >
-                                          Pause droid
+                                          Pause agent
                                         </DropdownMenuItem>
                                       ) : (
                                         <DropdownMenuItem
                                           className="text-sm text-white/90 focus:bg-white/10 cursor-pointer"
                                           onClick={() => handleTogglePause(agent.id)}
                                         >
-                                          Resume droid
+                                          Resume agent
                                         </DropdownMenuItem>
                                       )}
                                       {/* Run now removed */}
@@ -1212,12 +1212,12 @@ function AgentsLabPageInner() {
                           {/* Title Section */}
                           <div className="text-center mb-5">
                             <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
-                              {viewMode === "active" ? "No Active Droids" : "No Inactive Droids"}
+                              {viewMode === "active" ? "No Active Agents" : "No Inactive Agents"}
                             </h3>
                             <p className="text-sm text-white/60 leading-relaxed">
                               {viewMode === "active" 
-                                ? "You will see active deployed droids here"
-                                : "You will see inactive droids here"}
+                                ? "You will see active deployed agents here"
+                                : "You will see inactive agents here"}
                             </p>
                           </div>
                           
@@ -1266,7 +1266,7 @@ function AgentsLabPageInner() {
                               size="sm"
                               className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium gap-2 transition-all shadow-sm hover:shadow-md border-0"
                             >
-                              Deploy Droid
+                              Deploy Agent
                               <Bot className="h-4 w-4" />
                             </Button>
                           )}
@@ -1344,8 +1344,8 @@ function AgentsLabPageInner() {
         </SheetContent>
       </Sheet>
       
-      {/* Deploy Droid Dialog */}
-      <DeployDroidDialog 
+      {/* Deploy Agent Dialog */}
+      <DeployAgentDialog 
         open={isDeployDialogOpen} 
         onOpenChange={setIsDeployDialogOpen}
         onDeploy={handleDeployAgent}

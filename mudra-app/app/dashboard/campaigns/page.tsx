@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Plus, FileText, Newspaper, Briefcase, Target, Search, Sparkles, CheckCircle2, Loader2, X, Info, ChevronLeft, ChevronRight, Lightbulb, Tag, Clock, List, BookOpen, HelpCircle, GitCompare } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { AIOptimizedGenerator } from "@/components/content-lab/ai-optimized-generator"
  
 
 // Format types mapping
@@ -359,7 +360,16 @@ export default function CampaignsPage() {
                         Tailored brand content for visibility improvement across channels.
                       </p>
                   </div>
-                  <div className="flex items-center">
+                  <div className="flex items-center gap-3">
+                     {/* AI-Optimized Content Generator */}
+                     <AIOptimizedGenerator 
+                       trackedPrompts={promptSuggestions}
+                       onComplete={(campaignId) => {
+                         // Refresh campaigns list
+                         setStatusFilter("draft")
+                       }}
+                     />
+                     
                      <Dialog open={dialogOpen} onOpenChange={(open) => { 
                        setDialogOpen(open)
                        if (open) { 

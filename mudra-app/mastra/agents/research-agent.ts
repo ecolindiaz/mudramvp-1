@@ -29,7 +29,7 @@ Provide your findings as structured JSON including:
 export const researchAgent = new Agent({
   name: "research-agent",
   instructions: RESEARCH_INSTRUCTIONS,
-  model: "openai/gpt-4o", // Using gpt-4o for research
+  model: "openai/gpt-5.1", // GPT-5.1: 400K context, $1/1M input, $10/1M output
   tools: { firecrawlSearchTool },
 });
 

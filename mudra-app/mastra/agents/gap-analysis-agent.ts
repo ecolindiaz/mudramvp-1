@@ -34,7 +34,7 @@ Also suggest up to 5 specific search queries that would help fill the identified
 export const gapAnalysisAgent = new Agent({
   name: "gap-analysis-agent",
   instructions: GAP_ANALYSIS_INSTRUCTIONS,
-  model: "openai/gpt-4o", // Using gpt-4o for gap analysis
+  model: "openai/gpt-5.1", // GPT-5.1: 400K context, $1/1M input, $10/1M output
 });
 
 // Export for use in workflow

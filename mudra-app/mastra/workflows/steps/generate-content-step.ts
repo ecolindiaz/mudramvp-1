@@ -80,7 +80,17 @@ ${sourcesSummary}
 - Expert Quotes: ${research.expertQuotes.join("; ")}
 - Additional Sources: ${research.additionalSources.map((s) => s.title).join(", ")}
 
-Generate a complete, GEO-optimized article (1,200-1,600 words) following all quality and structure guidelines.`,
+## ⚠️ CRITICAL: WORD COUNT REQUIREMENTS ⚠️
+- MINIMUM: 1,200 words (MANDATORY - articles under this are rejected)
+- MAXIMUM: 1,600 words
+- Include 5-7 H2 sections (each 150-250 words)
+- Include Introduction (100-150 words)
+- Include TL;DR (50-75 words)
+- Include Comparison Table
+- Include Bottom Line (75-100 words)
+- Include FAQ with 5 Q&As (150-250 words total)
+
+Generate a complete, comprehensive, GEO-optimized article that meets the 1,200-1,600 word requirement.`,
       {
         output: contentOutputSchema,
       }

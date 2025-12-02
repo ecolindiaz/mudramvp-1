@@ -13,10 +13,22 @@ function serializeProfile(profile: any) {
 }
 
 function deserializeProfile(dbProfile: any) {
+  // Safely parse resources - it might be JSON or a plain string
+  let parsedResources = {};
+  if (dbProfile.resources) {
+    try {
+      // Try to parse as JSON first
+      parsedResources = JSON.parse(dbProfile.resources);
+    } catch {
+      // If it's not valid JSON, keep it as a string value
+      parsedResources = dbProfile.resources;
+    }
+  }
+
   return {
     ...dbProfile,
     competitors: dbProfile.competitors ? dbProfile.competitors.split(",") : [],
-    resources: dbProfile.resources ? JSON.parse(dbProfile.resources) : {}
+    resources: parsedResources
   };
 }
 

@@ -987,13 +987,13 @@ pnpm add @ai-sdk/openai
 11. [ ] Test error handling (< 2 sources scenario)
 
 ### Phase 3: Integration
-12. [ ] Update existing Content Lab API endpoint
-13. [ ] Add loading state to existing UI
-14. [ ] Implement background job status polling
-15. [ ] Wire up BrandProfile for author info
+12. [x] Create `/api/content-lab/generate-optimized` API endpoint
+13. [x] Add loading state to existing UI (AIOptimizedGenerator component)
+14. [x] Implement background job status polling (useAIContentGeneration hook)
+15. [x] Wire up BrandProfile for author info
 
 ### Phase 4: Main Branch Merge
-16. [ ] Merge main branch for citation inputs
+16. [ ] Merge main branch for citation inputs (currently using mock data)
 17. [ ] Connect tracked prompt sources to workflow input
 18. [ ] End-to-end testing with real data
 

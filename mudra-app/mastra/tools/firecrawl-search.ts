@@ -44,8 +44,10 @@ export const firecrawlSearchTool = createTool({
     try {
       const firecrawl = getFirecrawlClient();
 
+      // Reduced limit to 3 results to balance quality vs credit usage
+      // (~16 credits per search vs ~26 with 5 results)
       const searchResults = await firecrawl.search(query, {
-        limit,
+        limit: Math.min(limit, 3), // Cap at 3 to reduce costs while keeping content
         scrapeOptions: {
           formats: ["markdown"],
           onlyMainContent: true,

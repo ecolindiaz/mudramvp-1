@@ -1090,7 +1090,7 @@ export const mastra = new Mastra({
 
 ---
 
-## Appendix C: Firecrawl v2 Rate Limits
+## Appendix C: Firecrawl v2 Rate Limits & Credit Usage
 
 Reference: [docs.firecrawl.dev/rate-limits](https://docs.firecrawl.dev/rate-limits)
 
@@ -1102,6 +1102,24 @@ Reference: [docs.firecrawl.dev/rate-limits](https://docs.firecrawl.dev/rate-limi
 | Scale | 500 req/min | 500 req/min |
 
 **Our Strategy:** Max 2 concurrent scrapes to stay within all tier limits safely.
+
+### ⚠️ Credit Cost Awareness (Search with Scrape)
+
+When using `firecrawl.search()` with `scrapeOptions`, Firecrawl charges **per result scraped**, not just per search:
+
+| Configuration | Credits per Search | Credits per Generation (5 searches) |
+|--------------|-------------------|-------------------------------------|
+| 5 results + scrapeOptions | ~26 credits | ~130 credits |
+| **3 results + scrapeOptions (current)** | ~16 credits | ~80 credits |
+| No scrapeOptions (metadata only) | ~1 credit | ~5 credits |
+
+**Current Implementation:** We cap search results at **3 per query** to balance:
+- **Quality:** Research agent needs page content to extract statistics and expert quotes
+- **Cost:** Reduces credit usage by ~40% compared to 5 results
+
+**Trade-off:** With only metadata (no scrapeOptions), the research agent cannot extract meaningful statistics or expert quotes since it only has URL, title, and snippet description to work with. The quality of generated content would suffer significantly.
+
+**Location:** `mudra-app/mastra/tools/firecrawl-search.ts` - the `limit` is capped at 3 in the search call.
 
 ---
 

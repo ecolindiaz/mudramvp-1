@@ -1,7 +1,8 @@
 # AI-Optimized Content Generation Implementation Guide
 
-> **Version:** 1.0  
-> **Status:** Implementation Draft  
+> **Version:** 1.1  
+> **Status:** Implementation Ready  
+> **Last Updated:** December 2025
 
 ---
 
@@ -17,24 +18,39 @@
 8. [Agents](#agents)
 9. [Tools](#tools)
 10. [Workflow Implementation](#workflow-implementation)
-11. [Input/Output Specifications](#inputoutput-specifications)
-12. [Example: Scale AI Use Case](#example-scale-ai-use-case)
-13. [Environment Setup](#environment-setup)
-14. [Integration with Content Lab](#integration-with-content-lab)
-15. [Quality Checklist](#quality-checklist)
-16. [Next Steps](#next-steps)
+11. [Error Handling](#error-handling)
+12. [Input/Output Specifications](#inputoutput-specifications)
+13. [Example: Scale AI Use Case](#example-scale-ai-use-case)
+14. [Environment Setup](#environment-setup)
+15. [Integration with Content Lab](#integration-with-content-lab)
+16. [Quality Checklist](#quality-checklist)
+17. [Next Steps](#next-steps)
 
 ---
 
 ## Executive Summary
 
-This document outlines the implementation of an **AI-Optimized Content Generation** system for Mudra's Content Lab. The system leverages **Mastra** (AI workflow orchestration) and **Firecrawl** (web scraping) to generate GEO-optimized content that maximizes AI citability.
+This document outlines the implementation of an **AI-Optimized Content Generation** system for Mudra's Content Lab. The system leverages **Mastra** (AI workflow orchestration) and **Firecrawl v2** (web scraping + search) to generate GEO-optimized content that maximizes AI citability.
 
 ### Key Objectives
 
-- **Input:** Citations and sources from tracked prompt responses
+- **Input:** Citations and sources from tracked prompt responses (auto-loaded when user selects a tracked prompt)
 - **Output:** AI-optimized long-form content (1,200–1,600 words) following Mudra's GEO thesis
-- **Method:** 5-stage workflow pipeline with gap analysis and primary research enrichment
+- **Method:** 5-stage workflow pipeline with gap analysis and **live web search** enrichment
+
+### Confirmed Specifications
+
+| Decision | Choice |
+|----------|--------|
+| **LLM Model** | OpenAI GPT-5.1 |
+| **Firecrawl Version** | v2 (API v2) |
+| **Max Concurrent Scrapes** | 2 at a time |
+| **Min Successful Scrapes** | 2 required to proceed |
+| **Research Method** | Firecrawl Web Search (live data, not training data only) |
+| **Author Byline** | BrandProfile name + title only (no experience narrative) |
+| **UI Location** | Improve existing Content Lab (not a new page) |
+| **Execution Mode** | Async with loading state, users can navigate away |
+| **Database** | Use existing Content Lab saving logic |
 
 ---
 
@@ -42,26 +58,28 @@ This document outlines the implementation of an **AI-Optimized Content Generatio
 
 ### What We're Building
 
-An improved AI Content Generation system inside Content Lab that:
+An **improved** AI Content Generation system inside the existing Content Lab that:
 
 1. Takes a **tracked prompt** the user wants to optimize for
 2. Auto-ingests the **sources/citations** that AI models relied on when generating their answers
-3. **Scrapes** those sources using Firecrawl
+3. **Scrapes** those sources using Firecrawl v2 (max 2 concurrent)
 4. Performs **gap analysis** to identify content opportunities
-5. Conducts **primary research** to enrich with authoritative sources
+5. Conducts **live web research** using Firecrawl Search to enrich with authoritative sources
 6. Generates **AI-optimized content** following ContentQuality + ContentStructure prompts
 
 ### User Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        CONTENT LAB                               │
+│                   EXISTING CONTENT LAB                          │
 ├─────────────────────────────────────────────────────────────────┤
 │  1. User selects a Tracked Prompt to optimize                   │
 │  2. System auto-loads sources/citations from that prompt        │
 │  3. User clicks "Generate AI-Optimized Content"                 │
-│  4. Workflow executes (scrape → analyze → research → generate)  │
-│  5. User receives 1,200–1,600 word optimized article            │
+│  4. Loading state shown (user can navigate away)                │
+│  5. Workflow executes (scrape → analyze → research → generate)  │
+│  6. User receives 1,200–1,600 word optimized article            │
+│  7. Article saved using existing database logic                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -74,13 +92,15 @@ An improved AI Content Generation system inside Content Lab that:
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │  IngestSources  │───▶│  ScrapeSources  │───▶│  AnalyzeGaps    │
-│   (Validation)  │    │   (Firecrawl)   │    │  (GPT-5.1)      │
+│   (Validation)  │    │ (Firecrawl v2)  │    │  (GPT-5.1)      │
+│                 │    │  Max 2 at once  │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                                        │
                                                        ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │GenerateContent  │◀───│ EnrichResearch  │◀───│                 │
-│   (GPT-5.1)     │    │   (GPT-5.1)     │    │                 │
+│   (GPT-5.1)     │    │(Firecrawl Search│    │                 │
+│                 │    │   + GPT-5.1)    │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
         │
         ▼
@@ -89,6 +109,7 @@ An improved AI Content Generation system inside Content Lab that:
 │  - Follows ContentStructure thesis                               │
 │  - Applies ContentQuality pillars                                │
 │  - Brand positioned (if comparative intent)                      │
+│  - Author: [Name], [Title] from BrandProfile                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -98,18 +119,19 @@ An improved AI Content Generation system inside Content Lab that:
 Input                    Processing                      Output
 ─────                    ──────────                      ──────
 Tracked Prompt     ───▶  IngestSources     ───▶  Validated URLs
-Source URLs              (validate/dedupe)
+Source URLs              (validate/dedupe)       (max 10)
 
 Validated URLs     ───▶  ScrapeSources     ───▶  Markdown Content
-                         (Firecrawl API)         + Internal Links
+                         (Firecrawl v2)          + Metadata
+                         (2 at a time)           (min 2 success)
 
 Markdown Content   ───▶  AnalyzeGaps       ───▶  Gap Analysis
                          (Gap Analysis           (content/data/
                           Agent)                  format/depth)
 
 Gap Analysis       ───▶  EnrichResearch    ───▶  Enriched Data
-                         (Research Agent)        (sources/stats/
-                                                  quotes)
+                         (Firecrawl Search       (live sources/
+                          + Research Agent)       stats/quotes)
 
 All Context        ───▶  GenerateContent   ───▶  Final Article
                          (Content Generator      (1,200–1,600
@@ -125,7 +147,8 @@ All Context        ───▶  GenerateContent   ───▶  Final Article
 |-----------|------------|-----------------|
 | **Workflow Orchestration** | Mastra | `@mastra/core` |
 | **LLM Provider** | OpenAI GPT-5.1 | Via Mastra model router: `openai/gpt-5.1` |
-| **Web Scraping** | Firecrawl | API v1 |
+| **Web Scraping** | Firecrawl | **v2** ([docs.firecrawl.dev](https://docs.firecrawl.dev/introduction)) |
+| **Web Search** | Firecrawl Search | For live research enrichment |
 | **Schema Validation** | Zod | Type-safe I/O |
 | **Runtime** | Node.js / Next.js | Existing Mudra stack |
 
@@ -139,6 +162,30 @@ model: "openai/gpt-5.1"
 // - Context: 400K tokens
 // - Input: $1/1M tokens  
 // - Output: $10/1M tokens
+```
+
+### Firecrawl v2 Configuration
+
+```typescript
+// Using Firecrawl v2 SDK
+import { Firecrawl } from 'firecrawl';
+
+const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY });
+
+// Scrape endpoint
+const doc = await firecrawl.scrape(url, {
+  formats: ["markdown", "links"],
+  onlyMainContent: true
+});
+
+// Search endpoint (for research)
+const results = await firecrawl.search(query, {
+  limit: 5,
+  scrapeOptions: {
+    formats: ["markdown"],
+    onlyMainContent: true
+  }
+});
 ```
 
 ---
@@ -165,21 +212,39 @@ model: "openai/gpt-5.1"
 
 ### Stage 2: ScrapeSources
 
-**Purpose:** Scrape all source URLs using Firecrawl
+**Purpose:** Scrape all source URLs using Firecrawl v2
 
 | Property | Value |
 |----------|-------|
 | **Input** | Validated source URLs |
-| **Output** | Markdown content + internal links per source |
-| **API** | Firecrawl `/v1/scrape` |
-| **Parallel** | Yes, all sources scraped concurrently |
+| **Output** | Markdown content + metadata per source |
+| **API** | Firecrawl v2 `/scrape` |
+| **Concurrency** | **Max 2 at a time** (batched scraping) |
+| **Min Success** | **At least 2 sources must succeed** |
 
-**Firecrawl Request:**
-```json
-{
-  "url": "<source_url>",
-  "formats": ["markdown", "links"],
-  "onlyMainContent": true
+**Firecrawl v2 Request:**
+```typescript
+// Per-source scrape request
+const result = await firecrawl.scrape(url, {
+  formats: ["markdown", "links"],
+  onlyMainContent: true,
+  timeout: 30000
+});
+```
+
+**Batching Strategy:**
+```typescript
+// Process in batches of 2 to respect rate limits
+async function scrapeInBatches(urls: string[], batchSize = 2) {
+  const results = [];
+  for (let i = 0; i < urls.length; i += batchSize) {
+    const batch = urls.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(url => firecrawl.scrape(url, options))
+    );
+    results.push(...batchResults);
+  }
+  return results;
 }
 ```
 
@@ -187,8 +252,9 @@ model: "openai/gpt-5.1"
 - `url`: Original URL
 - `title`: Page title from metadata
 - `markdown`: Full content in markdown
-- `internalLinks`: Array of same-domain links
+- `links`: Array of links found on page
 - `success`: Boolean status
+- `statusCode`: HTTP status code
 
 ---
 
@@ -229,26 +295,49 @@ model: "openai/gpt-5.1"
 
 ### Stage 4: EnrichResearch
 
-**Purpose:** Perform primary research to fill gaps
+**Purpose:** Perform **live web research** to fill gaps using Firecrawl Search
 
 | Property | Value |
 |----------|-------|
-| **Input** | Gap analysis results |
+| **Input** | Gap analysis results + tracked prompt |
 | **Output** | Additional sources, statistics, expert quotes |
+| **Tools** | **Firecrawl Search API** (live web search) |
 | **Agent** | Research Agent (GPT-5.1) |
 
+**⚠️ IMPORTANT: Uses live web search, NOT just LLM training data**
+
+**Search Strategy: Option C (Dynamic with Cap)**
+- Agent decides dynamically which searches to run based on gaps identified
+- **Maximum 5 searches per workflow** to balance thoroughness with API costs
+- Searches are targeted based on gap categories (content, data, format, depth)
+
+**Firecrawl Search Request:**
+```typescript
+// Search for specific gap topics
+const searchResults = await firecrawl.search(
+  "RLHF data labeling requirements frontier AI 2024",
+  {
+    limit: 5,
+    scrapeOptions: {
+      formats: ["markdown"],
+      onlyMainContent: true
+    }
+  }
+);
+```
+
 **Research Focus:**
-1. Find original studies/reports that sources reference
+1. Use Firecrawl Search to find original studies/reports
 2. Go one level deeper — cite the SOURCE of their sources
 3. Look for: academic papers, industry reports, official docs
 4. Check publication dates — find the latest data
-5. Identify expert quotes and insights
+5. Extract expert quotes and insights from search results
 
 **Output Structure:**
 ```typescript
 {
   additionalSources: [
-    { title, url, relevance, keyInsight }
+    { title, url, relevance, keyInsight, datePublished }
   ],
   statistics: string[],
   expertQuotes: string[],
@@ -278,6 +367,13 @@ model: "openai/gpt-5.1"
 - Paragraphs: 2-4 sentences, 50-75 words each
 - Brand positioning (if comparative intent)
 
+**Author Byline Format:**
+```markdown
+**Author:** [userName], [userRole]
+**Last updated:** [YYYY-MM-DD]
+```
+> Uses `BrandProfile.userName` and `BrandProfile.userRole` — **no experience narrative, just name and title**
+
 ---
 
 ## File Structure
@@ -289,11 +385,12 @@ mudra-app/
 │   ├── agents/
 │   │   ├── example-agent.ts               # Existing
 │   │   ├── gap-analysis-agent.ts          # NEW: Gap analysis
-│   │   ├── research-agent.ts              # NEW: Primary research
+│   │   ├── research-agent.ts              # NEW: Primary research (uses Firecrawl Search)
 │   │   └── content-generator-agent.ts     # NEW: Content generation
 │   ├── tools/
 │   │   ├── example-tool.ts                # Existing
-│   │   └── firecrawl-scraper.ts           # NEW: Firecrawl integration
+│   │   ├── firecrawl-scraper.ts           # NEW: Firecrawl v2 scrape
+│   │   └── firecrawl-search.ts            # NEW: Firecrawl v2 search
 │   └── workflows/
 │       ├── example-workflow.ts            # Existing
 │       └── ai-content-workflow.ts         # NEW: Main workflow
@@ -318,7 +415,7 @@ mudra-app/
 **Key Rules:**
 - Clear, relevant title reflecting prompt/keywords
 - TL;DR immediately after title (2-3 sentences or bullet list)
-- E-E-A-T signals: Author credentials, first-hand experience, recent timestamps
+- E-E-A-T signals: Author name + title, recent timestamps
 - Balanced, factual tone (no hype)
 - Brand positioning for comparative/best-of intents
 
@@ -391,23 +488,24 @@ mudra-app/
 
 **File:** `mastra/agents/research-agent.ts`
 
-**Purpose:** Perform primary research to enrich content
+**Purpose:** Perform **live web research** to enrich content using Firecrawl Search
 
 **Configuration:**
 ```typescript
 {
   name: "research-agent",
   model: "openai/gpt-5.1",
-  description: "Performs primary research to fill content gaps"
+  description: "Performs live web research to fill content gaps",
+  tools: [firecrawlSearchTool]  // Uses Firecrawl Search for live data
 }
 ```
 
 **Instructions Summary:**
-- Find original studies, reports, datasets
+- Use Firecrawl Search to find original studies, reports, datasets
+- Search for the most recent data (live web search)
 - Go one level deeper — cite sources of sources
-- Find latest data (check publication dates)
-- Identify expert quotes and insights
-- Provide specific citations with URLs when possible
+- Extract expert quotes and insights from search results
+- Provide specific citations with URLs
 
 ---
 
@@ -432,12 +530,13 @@ mudra-app/
 - Enforce word count: 1,200–1,600 words
 - Generate content that AI models will cite
 - Apply brand positioning rules when applicable
+- Use author name + title from BrandProfile (no experience narrative)
 
 ---
 
 ## Tools
 
-### Firecrawl Scraper Tool
+### 1. Firecrawl Scraper Tool
 
 **File:** `mastra/tools/firecrawl-scraper.ts`
 
@@ -456,17 +555,66 @@ z.object({
   url: z.string(),
   title: z.string().optional(),
   markdown: z.string(),
-  internalLinks: z.array(z.string()),
+  links: z.array(z.string()),
   success: z.boolean(),
+  statusCode: z.number().optional(),
   error: z.string().optional()
 })
 ```
 
-**API Integration:**
-- Endpoint: `https://api.firecrawl.dev/v1/scrape`
-- Auth: Bearer token via `FIRECRAWL_API_KEY`
-- Formats: `["markdown", "links"]`
-- Option: `onlyMainContent: true`
+**Firecrawl v2 Integration:**
+```typescript
+import { Firecrawl } from 'firecrawl';
+
+const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY });
+
+const result = await firecrawl.scrape(url, {
+  formats: ["markdown", "links"],
+  onlyMainContent: true,
+  timeout: 30000
+});
+```
+
+---
+
+### 2. Firecrawl Search Tool
+
+**File:** `mastra/tools/firecrawl-search.ts`
+
+**Purpose:** Search the web for live data and research
+
+**Input Schema:**
+```typescript
+z.object({
+  query: z.string(),
+  limit: z.number().default(5)
+})
+```
+
+**Output Schema:**
+```typescript
+z.object({
+  success: z.boolean(),
+  results: z.array(z.object({
+    url: z.string(),
+    title: z.string(),
+    description: z.string(),
+    markdown: z.string().optional()
+  }))
+})
+```
+
+**Firecrawl v2 Search Integration:**
+```typescript
+// Reference: https://docs.firecrawl.dev/features/search
+const results = await firecrawl.search(query, {
+  limit: 5,
+  scrapeOptions: {
+    formats: ["markdown"],
+    onlyMainContent: true
+  }
+});
+```
 
 ---
 
@@ -480,9 +628,9 @@ z.object({
 
 **Steps:**
 1. `ingest-sources` → Validate and prepare sources
-2. `scrape-sources` → Firecrawl all URLs in parallel
+2. `scrape-sources` → Firecrawl v2 (max 2 concurrent, min 2 success)
 3. `analyze-gaps` → Gap Analysis Agent
-4. `enrich-research` → Research Agent
+4. `enrich-research` → Research Agent (with Firecrawl Search)
 5. `generate-content` → Content Generator Agent
 
 ### Workflow Schema
@@ -499,8 +647,11 @@ z.object({
     brandName: z.string(),
     brandDescription: z.string().optional(),
     targetICP: z.string().optional(),
-    uniqueValueProp: z.string().optional()
-  }).optional()
+    uniqueValueProp: z.string().optional(),
+    // Author info from BrandProfile
+    userName: z.string(),
+    userRole: z.string()
+  })
 })
 ```
 
@@ -512,10 +663,60 @@ z.object({
     title: z.string(),
     wordCount: z.number(),
     sections: z.array(z.string()),
-    trackedPrompt: z.string()
+    trackedPrompt: z.string(),
+    author: z.object({
+      name: z.string(),
+      title: z.string()
+    }),
+    sourcesScraped: z.number(),
+    researchQueriesRun: z.number()
   })
 })
 ```
+
+---
+
+## Error Handling
+
+### Scraping Error Strategy
+
+| Scenario | Action |
+|----------|--------|
+| URL fails to scrape | Log error, continue with remaining sources |
+| Less than 2 sources succeed | **Abort workflow** with error message |
+| 2+ sources succeed | Continue to gap analysis |
+| Firecrawl rate limit hit | Wait and retry with exponential backoff |
+
+**Implementation:**
+```typescript
+async function scrapeSourcesStep(sources: Source[]) {
+  const results = await scrapeInBatches(sources, 2);
+  
+  const successfulScrapes = results.filter(r => r.success);
+  
+  if (successfulScrapes.length < 2) {
+    throw new Error(
+      `Insufficient sources scraped. Need at least 2, got ${successfulScrapes.length}. ` +
+      `Failed URLs: ${results.filter(r => !r.success).map(r => r.url).join(', ')}`
+    );
+  }
+  
+  return {
+    scrapedContent: successfulScrapes,
+    failedUrls: results.filter(r => !r.success).map(r => r.url),
+    totalAttempted: sources.length,
+    totalSucceeded: successfulScrapes.length
+  };
+}
+```
+
+### Research Error Strategy
+
+| Scenario | Action |
+|----------|--------|
+| Firecrawl Search fails | Fall back to LLM knowledge only |
+| No relevant results | Log warning, continue with scraped data only |
+| Rate limit hit | Wait and retry |
 
 ---
 
@@ -536,7 +737,9 @@ z.object({
     brandName: "Scale AI",
     brandDescription: "The data foundation for AI, providing high-quality training data for frontier AI research labs",
     targetICP: "Frontier AI Research Labs, Enterprise ML Teams",
-    uniqueValueProp: "Trusted by leading frontier labs with proven track record on GPT-4, Llama, and Claude training data"
+    uniqueValueProp: "Trusted by leading frontier labs with proven track record on GPT-4, Llama, and Claude training data",
+    userName: "Alex Wang",
+    userRole: "CEO"
   }
 }
 ```
@@ -558,7 +761,13 @@ z.object({
       "Bottom Line",
       "FAQ"
     ],
-    trackedPrompt: "What are the best data labeling providers for frontier AI research labs?"
+    trackedPrompt: "What are the best data labeling providers for frontier AI research labs?",
+    author: {
+      name: "Alex Wang",
+      title: "CEO"
+    },
+    sourcesScraped: 4,
+    researchQueriesRun: 3
   }
 }
 ```
@@ -578,10 +787,12 @@ User is optimizing for Scale AI on the tracked prompt:
 - Validates 6 source URLs
 - Returns deduplicated list
 
-#### Stage 2: ScrapeSources
-- Scrapes all 6 URLs via Firecrawl
+#### Stage 2: ScrapeSources (Batched, max 2 concurrent)
+- Batch 1: Scrapes URLs 1-2 via Firecrawl v2
+- Batch 2: Scrapes URLs 3-4 via Firecrawl v2
+- Batch 3: Scrapes URLs 5-6 via Firecrawl v2
 - Returns markdown content (~3,000 chars each)
-- Extracts internal links per source
+- ✅ 5/6 successful (meets minimum threshold of 2)
 
 #### Stage 3: AnalyzeGaps
 ```json
@@ -608,14 +819,23 @@ User is optimizing for Scale AI on the tracked prompt:
 }
 ```
 
-#### Stage 4: EnrichResearch
+#### Stage 4: EnrichResearch (Using Firecrawl Search)
+```typescript
+// Searches performed by Research Agent:
+await firecrawl.search("RLHF data labeling frontier AI 2024", { limit: 5 });
+await firecrawl.search("Scale AI GPT-4 training data partnership", { limit: 5 });
+await firecrawl.search("data labeling security SOC 2 FedRAMP requirements", { limit: 5 });
+```
+
+Output:
 ```json
 {
   "additionalSources": [
     {
       "title": "GPT-4 Technical Report",
       "url": "https://openai.com/research/gpt-4",
-      "keyInsight": "Documents Scale AI partnership for RLHF training data"
+      "keyInsight": "Documents Scale AI partnership for RLHF training data",
+      "datePublished": "2023-03"
     }
   ],
   "statistics": [
@@ -637,7 +857,8 @@ Final article (~1,400 words) including:
 - Evaluation criteria with numbered steps
 - Bottom Line section
 - FAQ with 5 Q&As
-- Author byline and timestamp
+- **Author:** Alex Wang, CEO
+- **Last updated:** [current date]
 
 ---
 
@@ -651,14 +872,17 @@ Final article (~1,400 words) including:
 # OpenAI (via Mastra model router)
 OPENAI_API_KEY=your-openai-api-key
 
-# Firecrawl
+# Firecrawl v2
 FIRECRAWL_API_KEY=your-firecrawl-api-key
 ```
 
 ### Dependencies
 
 ```bash
-# Already in project (verify versions)
+# Install Firecrawl v2 SDK
+pnpm add firecrawl
+
+# Mastra (already in project)
 pnpm add @mastra/core@latest zod
 
 # If using AI SDK directly
@@ -669,35 +893,48 @@ pnpm add @ai-sdk/openai
 
 ## Integration with Content Lab
 
+### ⚠️ This is an IMPROVEMENT to the existing Content Lab, NOT a new page
+
 ### Frontend Integration Points
 
 1. **Tracked Prompt Selection**
    - User selects prompt from existing tracked prompts list
-   - System loads associated sources/citations
+   - System auto-loads associated sources/citations (from main branch merge)
 
 2. **Generate Button**
    - Triggers workflow execution
-   - Shows progress indicator
+   - Shows loading state (existing loading component)
+   - **User can navigate away** — workflow runs in background
 
 3. **Output Display**
    - Renders markdown content
-   - Shows metadata (word count, sections)
-   - Copy/export options
+   - Shows metadata (word count, sections, author)
+   - Uses existing save-to-database logic
 
-### API Endpoint (Suggested)
+### API Endpoint (Update Existing)
 
 ```typescript
-// POST /api/content-lab/generate
+// POST /api/content-lab/generate-optimized
 {
   trackedPromptId: string,
-  brandContext?: BrandContext
+  // brandContext auto-loaded from BrandProfile
 }
 
 // Response
 {
   content: string,
   metadata: ContentMetadata,
-  workflowRunId: string
+  workflowRunId: string,
+  status: "processing" | "completed" | "failed"
+}
+
+// Poll for status
+// GET /api/content-lab/generate-optimized/[workflowRunId]
+{
+  status: "processing" | "completed" | "failed",
+  content?: string,
+  metadata?: ContentMetadata,
+  error?: string
 }
 ```
 
@@ -708,15 +945,17 @@ pnpm add @ai-sdk/openai
 ### Before Implementation
 
 - [ ] Environment variables set (`OPENAI_API_KEY`, `FIRECRAWL_API_KEY`)
+- [ ] Firecrawl v2 SDK installed (`pnpm add firecrawl`)
 - [ ] Mastra dependencies installed
 - [ ] System prompts updated with word count requirements
+- [ ] BrandProfile has `userName` and `userRole` fields populated
 
 ### Per Generated Article
 
 - [ ] Word count: 1,200–1,600 words
 - [ ] One H1 title reflecting prompt
 - [ ] TL;DR immediately after title
-- [ ] Author byline + credentials present
+- [ ] Author: `[userName], [userRole]` from BrandProfile
 - [ ] "Last updated" timestamp visible
 - [ ] Every H2 has direct-answer paragraph
 - [ ] Paragraphs: 2-4 sentences, 50-75 words
@@ -725,35 +964,38 @@ pnpm add @ai-sdk/openai
 - [ ] Bottom Line section before FAQ
 - [ ] Brand positioned first (if comparative intent)
 - [ ] Tone: balanced, factual, non-promotional
+- [ ] At least 2 sources were successfully scraped
+- [ ] Live research via Firecrawl Search was performed
 
 ---
 
 ## Next Steps
 
 ### Phase 1: Core Implementation
-1. [ ] Implement `gap-analysis-agent.ts`
-2. [ ] Implement `research-agent.ts`
-3. [ ] Implement `content-generator-agent.ts`
-4. [ ] Implement `firecrawl-scraper.ts`
-5. [ ] Implement `ai-content-workflow.ts`
-6. [ ] Update `mastra/index.ts` with registrations
+1. [ ] Implement `firecrawl-scraper.ts` (Firecrawl v2 scrape)
+2. [ ] Implement `firecrawl-search.ts` (Firecrawl v2 search)
+3. [ ] Implement `gap-analysis-agent.ts`
+4. [ ] Implement `research-agent.ts` (with Firecrawl Search tool)
+5. [ ] Implement `content-generator-agent.ts`
+6. [ ] Implement `ai-content-workflow.ts`
+7. [ ] Update `mastra/index.ts` with registrations
 
 ### Phase 2: Testing
-7. [ ] Test workflow with Scale AI example
-8. [ ] Validate word count enforcement
-9. [ ] Verify all GEO optimizations applied
+8. [ ] Test workflow with Scale AI example using mock sources
+9. [ ] Validate word count enforcement
+10. [ ] Verify all GEO optimizations applied
+11. [ ] Test error handling (< 2 sources scenario)
 
 ### Phase 3: Integration
-10. [ ] Create API endpoint for Content Lab
-11. [ ] Build frontend UI components
-12. [ ] Add progress/status indicators
-13. [ ] Implement error handling
+12. [ ] Update existing Content Lab API endpoint
+13. [ ] Add loading state to existing UI
+14. [ ] Implement background job status polling
+15. [ ] Wire up BrandProfile for author info
 
-### Phase 4: Refinement
-14. [ ] Tune agent prompts based on output quality
-15. [ ] Add caching for scraped content
-16. [ ] Implement rate limiting for Firecrawl
-17. [ ] Add analytics/logging
+### Phase 4: Main Branch Merge
+16. [ ] Merge main branch for citation inputs
+17. [ ] Connect tracked prompt sources to workflow input
+18. [ ] End-to-end testing with real data
 
 ---
 
@@ -767,7 +1009,7 @@ pnpm add @ai-sdk/openai
 > - [Key point 2]
 > - [Key point 3]
 
-**Author:** [Name], [Credential/Role] — [1-2 sentence bio]  
+**Author:** [userName], [userRole]  
 **Last updated:** [YYYY-MM-DD]
 
 ## [H2: Question or Clear Point]
@@ -826,6 +1068,7 @@ import { researchAgent } from "./agents/research-agent";
 import { contentGeneratorAgent } from "./agents/content-generator-agent";
 
 import { firecrawlScraperTool } from "./tools/firecrawl-scraper";
+import { firecrawlSearchTool } from "./tools/firecrawl-search";
 
 import { aiContentWorkflow } from "./workflows/ai-content-workflow";
 
@@ -837,6 +1080,7 @@ export const mastra = new Mastra({
   },
   tools: {
     firecrawlScraperTool,
+    firecrawlSearchTool,
   },
   workflows: {
     aiContentWorkflow,
@@ -846,5 +1090,35 @@ export const mastra = new Mastra({
 
 ---
 
-*End of Implementation Guide*
+## Appendix C: Firecrawl v2 Rate Limits
 
+Reference: [docs.firecrawl.dev/rate-limits](https://docs.firecrawl.dev/rate-limits)
+
+| Plan | Scrape Limit | Search Limit |
+|------|--------------|--------------|
+| Free | 10 req/min | 10 req/min |
+| Hobby | 50 req/min | 50 req/min |
+| Standard | 200 req/min | 200 req/min |
+| Scale | 500 req/min | 500 req/min |
+
+**Our Strategy:** Max 2 concurrent scrapes to stay within all tier limits safely.
+
+---
+
+## Appendix D: Reference Documentation
+
+For detailed API references, code examples, and implementation patterns, see:
+
+📚 **[MASTRA_FIRECRAWL_REFERENCE.md](./MASTRA_FIRECRAWL_REFERENCE.md)**
+
+This reference includes:
+- Mastra core concepts (Agents, Tools, Workflows)
+- GPT-5.1 model router configuration
+- Firecrawl v2 Scrape API with caching
+- Firecrawl v2 Search API with time filters
+- Integration patterns and error handling
+- Complete code examples for all components
+
+---
+
+*End of Implementation Guide*

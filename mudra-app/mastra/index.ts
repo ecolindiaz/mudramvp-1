@@ -1,18 +1,28 @@
 import { Mastra } from "@mastra/core/mastra";
 
-// Import your agents here
-// import { yourAgent } from "./agents/your-agent";
+// Agents
+import { gapAnalysisAgent } from "./agents/gap-analysis-agent";
+import { researchAgent } from "./agents/research-agent";
+import { contentGeneratorAgent } from "./agents/content-generator-agent";
 
-// Import your workflows here  
-// import { yourWorkflow } from "./workflows/your-workflow";
+// Tools
+import { firecrawlScraperTool } from "./tools/firecrawl-scraper";
+import { firecrawlSearchTool } from "./tools/firecrawl-search";
+
+// Workflows
+import { aiContentWorkflow } from "./workflows/ai-content-workflow";
 
 export const mastra = new Mastra({
   agents: {
-    // Register your agents here
-    // yourAgent,
+    gapAnalysisAgent,
+    researchAgent,
+    contentGeneratorAgent,
   },
-  // workflows: {
-  //   yourWorkflow,
-  // },
+  tools: {
+    firecrawlScraperTool,
+    firecrawlSearchTool,
+  },
+  workflows: {
+    aiContentWorkflow,
+  },
 });
-

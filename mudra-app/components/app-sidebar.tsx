@@ -39,19 +39,13 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
+import { useBrandProfile } from "@/components/brand-profile-context"
 
 // Interface for company data
 interface CompanyData {
   name: string
   website?: string
   logo?: string
-}
-
-// Mock company data - this will be replaced with real data from onboarding
-const mockCompanyData: CompanyData = {
-  name: "Y Combinator",
-  website: "ycombinator.com",
-  logo: undefined // Will use first letter as fallback
 }
 
 // Utility function to get company initials
@@ -128,8 +122,27 @@ const data = {
 
 export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false)
-  const [companyData, setCompanyData] = React.useState<CompanyData>(mockCompanyData)
   const [searchOpen, setSearchOpen] = React.useState(false)
+  
+  // Get session data from NextAuth
+  const { data: session } = useSession()
+  
+  // Get brand profile data
+  const { profile } = useBrandProfile()
+  
+  // Use real company data from BrandProfile
+  const companyData: CompanyData = React.useMemo(() => ({
+    name: profile?.companyName || "Your Company",
+    website: profile?.companyWebsite || undefined,
+    logo: profile?.userAvatar || undefined
+  }), [profile])
+  
+  // Use real user data from session, fallback to mock data
+  const userData = session?.user ? {
+    name: session.user.name || "User",
+    email: session.user.email || "user@example.com",
+    avatar: session.user.image || "",
+  } : data.user
 
   // Handle company menu interaction
   const handleCompanyMenuClick = React.useCallback(() => {
@@ -252,7 +265,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
             </button>
           </div>
           
-          <NavUser user={data.user} />
+          <NavUser user={userData} />
         </SidebarFooter>
       </Sidebar>
     </>

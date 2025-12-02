@@ -38,7 +38,8 @@ const getModelIcon = (model: string): string | null => {
   return null
 }
 
-// Mock visibility data for chart (top-left card)
+// Placeholder visibility data for chart (top-left card)
+// TODO: Replace with real time-series data from API when available
 const visibilityTrendData = [
   { day: "Oct 20", you: 35, competitors: 60 },
   { day: "Oct 21", you: 62, competitors: 35 },
@@ -78,7 +79,8 @@ function LegendChip({ color, label }: { color: string; label: string }) {
 
 type CompetitorRow = { rank: number; company: string; visibility: number; position: number | null; sentiment: 'Positive' | 'Neutral' | 'Negative' }
 
-// Citations & Sources data model and mock entries
+// Citations & Sources data model
+// TODO: Populate from API citation tracking data
 type CitationSource = {
   domain: string
   frequency: number
@@ -115,7 +117,7 @@ type ChatHistoryEntry = {
   responseCitations?: { domain: string; type?: 'Example' | 'Listicle' | 'Blog Post' | 'Case Study' | 'Docs' | 'Other' }[]
 }
 
-// Mock fallback data (will be replaced with real data)
+// Fallback data for demo - actual data comes from API in useEffect
 const mockRecentChats: ChatHistoryEntry[] = [
   {
     id: 'h1',

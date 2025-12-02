@@ -252,7 +252,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
             </button>
           </div>
           
-          <NavUser user={userData} />
+          <NavUser user={data.user} />
         </SidebarFooter>
       </Sidebar>
     </>

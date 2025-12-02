@@ -1,6 +1,18 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy-load Resend client to avoid build-time errors when RESEND_API_KEY is missing
+let resend: Resend | null = null;
+
+function getResendClient() {
+  if (!resend) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error('RESEND_API_KEY environment variable is not set');
+    }
+    resend = new Resend(apiKey);
+  }
+  return resend;
+}
 
 const FROM_EMAIL = process.env.EMAIL_FROM || 'Mudra <noreply@mudra.ai>';
 const APP_URL = process.env.NEXTAUTH_URL || 'http://localhost:3000';
@@ -9,7 +21,8 @@ export async function sendVerificationEmail(email: string, token: string) {
   const verificationUrl = `${APP_URL}/verify-email?token=${token}`;
 
   try {
-    await resend.emails.send({
+    const client = getResendClient();
+    await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: 'Verify your email address',
@@ -72,7 +85,8 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   const resetUrl = `${APP_URL}/reset-password?token=${token}`;
 
   try {
-    await resend.emails.send({
+    const client = getResendClient();
+    await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: 'Reset your password',
@@ -136,7 +150,8 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 
 export async function sendWelcomeEmail(email: string, name: string) {
   try {
-    await resend.emails.send({
+    const client = getResendClient();
+    await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: 'Welcome to Mudra!',

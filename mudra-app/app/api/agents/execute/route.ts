@@ -174,24 +174,24 @@ async function analyzeCodebase(agent: any) {
       }]
     };
 
-    // Store placeholder optimization
-    await prisma.agentOptimization.create({
-      data: {
-            deployedAgentId: agent.id,
-            optimizationType: rec.category || 'general',
-            description: rec.recommendation || rec.title || 'Optimization needed',
-            impact: rec.priority?.toLowerCase() || 'medium',
-            status: 'pending',
-          },
-        });
-      }
+    // Store placeholder optimization for each recommendation
+    for (const rec of analysisData.recommendations) {
+      await prisma.agentOptimization.create({
+        data: {
+          deployedAgentId: agent.id,
+          optimizationType: rec.category || 'general',
+          description: rec.recommendation || rec.title || 'Optimization needed',
+          impact: rec.priority?.toLowerCase() || 'medium',
+          status: 'pending',
+        },
+      });
     }
 
     return {
       score: analysisData.score || 50,
       recommendations: analysisData.recommendations || [],
       analyzedAt: new Date().toISOString(),
-      websiteUrl,
+      websiteUrl: 'pending',
     };
   } catch (error: any) {
     console.error('[Agent] Analysis error:', error);
@@ -233,7 +233,6 @@ async function optimizeCodebase(agent: any, task: any) {
         success: false,
         error: 'Mastra agents disabled in production',
       });
-      }
     }
 
     return {

@@ -79,10 +79,13 @@ export async function GET(request: NextRequest) {
       const analyses = Array.isArray(result.analyses) ? result.analyses : []
       
       for (const analysis of analyses) {
-        const promptTests = analysis.promptTests || []
+        if (!analysis || typeof analysis !== 'object') continue;
+        
+        const analysisObj = analysis as any;
+        const promptTests = Array.isArray(analysisObj.promptTests) ? analysisObj.promptTests : []
         
         for (const test of promptTests) {
-          const citations = test.citations || []
+          const citations = Array.isArray(test.citations) ? test.citations : []
           
           for (const citation of citations) {
             // Extract domain from URL

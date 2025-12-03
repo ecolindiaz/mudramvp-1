@@ -458,10 +458,26 @@ Return ONLY a valid JSON object with these exact keys:
     } catch (parseError) {
       console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
       
-      // Fallback: manual regex extraction
+      // Fallback: manual regex extraction with smart filtering
       const brandNameLower = config.brandName.toLowerCase();
       const textLower = text.toLowerCase();
-      const brandMentioned = textLower.includes(brandNameLower);
+      
+      // Remove common false positive contexts before checking
+      const cleanedTextForBrand = textLower
+        // Remove URLs (http://... or https://... or www...)
+        .replace(/https?:\/\/[^\s]+/g, '')
+        .replace(/www\.[^\s]+/g, '')
+        // Remove email addresses
+        .replace(/[\w.-]+@[\w.-]+\.\w+/g, '')
+        // Remove code blocks (markdown ``` or backticks)
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/`[^`]+`/g, '')
+        // Remove file paths (contains slashes)
+        .replace(/[a-z0-9_-]+\/[a-z0-9_\/-]+/gi, '');
+      
+      // Use word boundary regex to avoid matching partial words
+      const wordBoundaryRegex = new RegExp(`\\b${brandNameLower}\\b`, 'i');
+      const brandMentioned = wordBoundaryRegex.test(cleanedTextForBrand);
       
       // Try to extract position with regex
       let brandPosition = null;
@@ -763,10 +779,26 @@ Return ONLY a valid JSON object with these exact keys:
     } catch (parseError) {
       console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
       
-      // Fallback: manual regex extraction
+      // Fallback: manual regex extraction with smart filtering
       const brandNameLower = config.brandName.toLowerCase();
       const textLower = text.toLowerCase();
-      const brandMentioned = textLower.includes(brandNameLower);
+      
+      // Remove common false positive contexts before checking
+      const cleanedText = textLower
+        // Remove URLs (http://... or https://... or www...)
+        .replace(/https?:\/\/[^\s]+/g, '')
+        .replace(/www\.[^\s]+/g, '')
+        // Remove email addresses
+        .replace(/[\w.-]+@[\w.-]+\.\w+/g, '')
+        // Remove code blocks (markdown ``` or backticks)
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/`[^`]+`/g, '')
+        // Remove file paths (contains slashes)
+        .replace(/[a-z0-9_-]+\/[a-z0-9_\/-]+/gi, '');
+      
+      // Use word boundary regex to avoid matching partial words
+      const wordBoundaryRegex = new RegExp(`\\b${brandNameLower}\\b`, 'i');
+      const brandMentioned = wordBoundaryRegex.test(cleanedText);
       
       let brandPosition = null;
       const positionPatterns = [

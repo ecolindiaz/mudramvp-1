@@ -157,52 +157,26 @@ async function executeAgentTask(taskId: number, agent: any) {
 
 async function analyzeCodebase(agent: any) {
   try {
-    // Import the Mastra agent
-    const { aeoGeoOptimizerAgent } = await import('@/mastra/agents/aeo-geo-optimizer');
+    // TODO: Mastra agents are not deployed yet (excluded in .vercelignore)
+    // Uncomment when ready for production:
+    // const { aeoGeoOptimizerAgent } = await import('@/mastra/agents/aeo-geo-optimizer');
     
-    // Get the website URL from brand profile
-    const websiteUrl = agent.brandProfile.companyWebsite;
+    console.log('[Agent] Codebase analysis not yet implemented in production');
+    
+    // Return placeholder results for now
+    const analysisData = {
+      score: 0,
+      recommendations: [{
+        category: 'general',
+        title: 'Agent analysis pending',
+        recommendation: 'Mastra agents are currently disabled in production. Enable by removing mastra/ from .vercelignore.',
+        priority: 'low'
+      }]
+    };
 
-    if (!websiteUrl) {
-      throw new Error('No website URL found in brand profile');
-    }
-
-    console.log(`[Agent] Analyzing website: ${websiteUrl}`);
-
-    // Use the agent to analyze
-    const response = await aeoGeoOptimizerAgent.generate(
-      `Analyze the website ${websiteUrl} for AEO/GEO optimization opportunities. Use the analyzeCodebase tool to scan for schema markup, FAQ sections, header structure, and other optimization opportunities. Return the analysis results as JSON.`,
-      {
-        onStepFinish: (step: any) => {
-          console.log(`[Agent] Step: ${step.text}`);
-        },
-      }
-    );
-
-    console.log('[Agent] Analysis complete:', response.text);
-
-    // Try to parse as JSON, fallback to text
-    let analysisData;
-    try {
-      analysisData = JSON.parse(response.text);
-    } catch {
-      // If not JSON, create structured data from text
-      analysisData = {
-        score: 50,
-        recommendations: [{
-          category: 'general',
-          title: 'Website analysis completed',
-          recommendation: response.text,
-          priority: 'medium'
-        }]
-      };
-    }
-
-    // Store analysis results as optimizations
-    if (analysisData.recommendations && Array.isArray(analysisData.recommendations)) {
-      for (const rec of analysisData.recommendations) {
-        await prisma.agentOptimization.create({
-          data: {
+    // Store placeholder optimization
+    await prisma.agentOptimization.create({
+      data: {
             deployedAgentId: agent.id,
             optimizationType: rec.category || 'general',
             description: rec.recommendation || rec.title || 'Optimization needed',
@@ -227,8 +201,11 @@ async function analyzeCodebase(agent: any) {
 
 async function optimizeCodebase(agent: any, task: any) {
   try {
-    // Import the Mastra agent
-    const { aeoGeoOptimizerAgent } = await import('@/mastra/agents/aeo-geo-optimizer');
+    // TODO: Mastra agents are not deployed yet (excluded in .vercelignore)
+    // Uncomment when ready for production:
+    // const { aeoGeoOptimizerAgent } = await import('@/mastra/agents/aeo-geo-optimizer');
+    
+    console.log('[Agent] Code optimization not yet implemented in production');
     
     // Get pending optimizations
     const optimizations = await prisma.agentOptimization.findMany({
@@ -243,61 +220,19 @@ async function optimizeCodebase(agent: any, task: any) {
       return { message: 'No pending optimizations found' };
     }
 
-    console.log(`[Agent] Processing ${optimizations.length} optimizations`);
+    console.log(`[Agent] Found ${optimizations.length} optimizations (Mastra agent disabled)`);
 
     const results = [];
 
     for (const optimization of optimizations) {
-      try {
-        console.log(`[Agent] Generating code for: ${optimization.optimizationType}`);
+      console.log(`[Agent] Skipping optimization: ${optimization.optimizationType} (Mastra disabled)`);
         
-        // Use agent to generate optimization code
-        const response = await aeoGeoOptimizerAgent.generate(
-          `Generate ${optimization.optimizationType} optimization code for: ${optimization.description}. Use the appropriate tool (generateSchemaMarkup for schema, or provide code directly). Return the code as JSON with a 'code' or 'schema' field.`,
-          {
-            onStepFinish: (step: any) => {
-              console.log(`[Agent] Generated: ${step.text?.substring(0, 100)}...`);
-            },
-          }
-        );
-
-        // Parse the response
-        let codeChanges;
-        try {
-          codeChanges = JSON.parse(response.text);
-        } catch {
-          // If not JSON, treat as raw code
-          codeChanges = { code: response.text };
-        }
-
-        const afterCode = codeChanges.schema 
-          ? `<script type="application/ld+json">\n${JSON.stringify(codeChanges.schema, null, 2)}\n</script>`
-          : codeChanges.code || response.text;
-
-        // Update optimization with code changes
-        await prisma.agentOptimization.update({
-          where: { id: optimization.id },
-          data: {
-            beforeCode: `<!-- Before: ${optimization.description} -->`,
-            afterCode: afterCode,
-            filePath: 'index.html',
-            status: 'applied',
-            appliedAt: new Date(),
-          },
-        });
-
-        results.push({
-          optimizationId: optimization.id,
-          success: true,
-          type: optimization.optimizationType,
-        });
-      } catch (error: any) {
-        console.error(`[Agent] Error optimizing ${optimization.id}:`, error);
-        results.push({
-          optimizationId: optimization.id,
-          success: false,
-          error: error.message,
-        });
+      // Mark as pending until Mastra is enabled
+      results.push({
+        optimizationId: optimization.id,
+        success: false,
+        error: 'Mastra agents disabled in production',
+      });
       }
     }
 

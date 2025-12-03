@@ -203,22 +203,68 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   }
 
   const summary = buildDigestibleSummary()
-  const citations: Array<{ domain: string; used: number }> = [
-    { domain: "aimultiple.com", used: 20 },
-    { domain: "medium.com", used: 20 },
-    { domain: "appen.com", used: 18 },
-    { domain: "geeksforgeeks.org", used: 18 },
-    { domain: "scale.com", used: 16 },
-  ]
   
-  // Competitor rankings data (will be connected to backend)
-  const competitorRankings: Array<{ name: string; visibility: number; isUser: boolean }> = [
-    { name: "Scale AI", visibility: 72, isUser: true },
-    { name: "Appen", visibility: 68, isUser: false },
-    { name: "Labelbox", visibility: 65, isUser: false },
-    { name: "Snorkel AI", visibility: 58, isUser: false },
-    { name: "Datasaur", visibility: 52, isUser: false },
-  ]
+  // Fetch brand profile ID from localStorage
+  const brandProfileId = typeof window !== 'undefined' ? localStorage.getItem('mudra:brandProfileId') : null
+
+  // Fetch real citation data from aggregated prompt results
+  const { data: citationsData } = useSWR(
+    brandProfileId ? `/api/analytics/citations?brandProfileId=${brandProfileId}&limit=5&days=30` : null,
+    async (url: string) => {
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const json = await res.json()
+      return json.data
+    }
+  )
+
+  // Transform citation data for display
+  const citations: Array<{ domain: string; used: number }> = React.useMemo(() => {
+    if (!citationsData?.citations) return []
+    return citationsData.citations.map((c: any) => ({
+      domain: c.domain,
+      used: c.percentage
+    }))
+  }, [citationsData])
+
+  // Fetch competitor rankings from latest GEO analysis
+  const { data: geoAnalysis } = useSWR(
+    brandProfileId ? `/api/analysis/latest?brandProfileId=${brandProfileId}` : null,
+    async (url: string) => {
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const json = await res.json()
+      return json.analysis
+    }
+  )
+
+  // Extract competitor rankings from GEO analysis
+  const competitorRankings: Array<{ name: string; visibility: number; isUser: boolean }> = React.useMemo(() => {
+    if (!geoAnalysis?.summary?.competitorData) return []
+    
+    const competitors = geoAnalysis.summary.competitorData as any
+    const brandName = geoAnalysis.brandName || companyData?.data?.companyName
+    
+    // Handle different competitor data structures
+    let competitorArray: any[] = []
+    
+    if (Array.isArray(competitors)) {
+      competitorArray = competitors
+    } else if (typeof competitors === 'object') {
+      // Try to find competitors in nested structure
+      competitorArray = competitors.competitors || []
+    }
+    
+    return competitorArray
+      .map((comp: any) => ({
+        name: comp.name || comp.competitor || '',
+        visibility: Math.round((comp.visibilityScore || comp.visibility || comp.shareOfVoice || 0) * 10) / 10,
+        isUser: comp.isOwn || comp.name === brandName || false
+      }))
+      .filter((comp: any) => comp.name) // Filter out empty names
+      .sort((a, b) => b.visibility - a.visibility) // Sort by visibility descending
+      .slice(0, 5) // Top 5 competitors
+  }, [geoAnalysis, companyData])
 
   // Recent chats data (will be connected to backend)
   const recentChats: Array<{ id: string; promptId: string; question: string; timestamp: string; model: string }> = [
@@ -362,40 +408,42 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
               </div>
             </div>
 
-            {/* Citations list */}
-            <div className="mt-5 rounded-lg border border-white/[0.08] bg-transparent overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
-                <div>
-                  <div className="text-sm font-medium text-white/90">Citations</div>
-                  <div className="text-xs text-white/60">Sources across active models</div>
-                </div>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <IconInfoCircle className="size-4 text-white/60" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent sideOffset={8}>Top sources AI cites from your industry.</TooltipContent>
-                </Tooltip>
-              </div>
-              <div className="divide-y divide-white/[0.06]">
-                <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2 text-xs text-white/60">
-                  <span>Source</span>
-                  <span>Rate of mention</span>
-                </div>
-                {citations.map((c, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_auto] items-center px-4 py-3 hover:bg-white/[0.02] transition-colors">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/[0.08] text-[10px] text-white/80">
-                        {c.domain[0].toUpperCase()}
-                      </span>
-                      <span className="truncate text-sm text-white/85">{c.domain}</span>
-                    </div>
-                    <div className="text-sm tabular-nums text-white/80">{c.used}%</div>
+            {/* Citations list - Only show when we have real data */}
+            {citations.length > 0 && (
+              <div className="mt-5 rounded-lg border border-white/[0.08] bg-transparent overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
+                  <div>
+                    <div className="text-sm font-medium text-white/90">Citations</div>
+                    <div className="text-xs text-white/60">Sources across active models</div>
                   </div>
-                ))}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <IconInfoCircle className="size-4 text-white/60" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent sideOffset={8}>Top sources AI cites from your industry.</TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="divide-y divide-white/[0.06]">
+                  <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2 text-xs text-white/60">
+                    <span>Source</span>
+                    <span>Rate of mention</span>
+                  </div>
+                  {citations.map((c, idx) => (
+                    <div key={idx} className="grid grid-cols-[1fr_auto] items-center px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/[0.08] text-[10px] text-white/80">
+                          {c.domain[0].toUpperCase()}
+                        </span>
+                        <span className="truncate text-sm text-white/85">{c.domain}</span>
+                      </div>
+                      <div className="text-sm tabular-nums text-white/80">{c.used}%</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
           
           <div className="flex flex-col gap-5">
@@ -418,27 +466,34 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                   <span>Company</span>
                   <span>Visibility</span>
                 </div>
-                {competitorRankings.map((competitor, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-colors ${
-                      competitor.isUser ? 'bg-white/[0.03]' : 'hover:bg-white/[0.02]'
-                    }`}
-                  >
-                    <div className="w-6 text-sm text-white/60 tabular-nums">{idx + 1}</div>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className={`text-sm truncate ${competitor.isUser ? 'text-white font-medium' : 'text-white/85'}`}>
-                        {competitor.name}
-                        {competitor.isUser && (
-                          <span className="ml-2 text-[10px] text-white/60">(You)</span>
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-sm font-medium tabular-nums text-white/90">{competitor.visibility}%</div>
-                    </div>
+                {competitorRankings.length === 0 ? (
+                  <div className="px-4 py-8 text-center">
+                    <p className="text-sm text-white/60">No competitor data available yet.</p>
+                    <p className="text-xs text-white/40 mt-1">Run an analysis to see competitor rankings.</p>
                   </div>
-                ))}
+                ) : (
+                  competitorRankings.map((competitor, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-colors ${
+                        competitor.isUser ? 'bg-white/[0.03]' : 'hover:bg-white/[0.02]'
+                      }`}
+                    >
+                      <div className="w-6 text-sm text-white/60 tabular-nums">{idx + 1}</div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`text-sm truncate ${competitor.isUser ? 'text-white font-medium' : 'text-white/85'}`}>
+                          {competitor.name}
+                          {competitor.isUser && (
+                            <Badge variant="outline" className="ml-2 border-white/10 bg-white/[0.03] text-white/70 text-[10px] px-1.5 py-0">
+                              You
+                            </Badge>
+                          )}
+                        </span>
+                      </div>
+                      <div className="text-sm tabular-nums text-white/80">{competitor.visibility}%</div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
             

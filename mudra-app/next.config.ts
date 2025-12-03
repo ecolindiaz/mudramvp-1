@@ -28,6 +28,44 @@ const nextConfig: NextConfig = {
       // Turbopack optimization rules can be added here if needed
     },
   },
+  // Webpack configuration for file watching
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // FORCE polling mode to avoid ENOMEM errors in Docker
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: [
+          '**/node_modules/**',
+          '**/.next/**',
+          '**/.git/**',
+          '**/docs/**',
+          '**/scripts/**',
+          '**/llm/**',
+          '**/*.md',
+          '**/*.log',
+          '**/coverage/**',
+          '**/dist/**',
+          '**/build/**',
+          '**/.prisma/**',
+          '**/prisma/migrations/**',
+          '**/*.js.map',
+          '**/check-*.js',
+          '**/test-*.js',
+          '**/debug-*.js',
+        ],
+        aggregateTimeout: 2000,
+        poll: 3000, // Poll every 3 seconds
+        followSymlinks: false,
+      };
+      // Disable native file watching completely
+      config.snapshot = {
+        ...config.snapshot,
+        managedPaths: [],
+        immutablePaths: [],
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

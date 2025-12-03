@@ -1,0 +1,560 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
+import crypto from 'crypto';
+
+// Encryption helpers
+const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+const ALGORITHM = 'aes-256-gcm';
+
+function decrypt(encryptedText: string): string {
+  const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+const executeAgentSchema = z.object({
+  deployedAgentId: z.number(),
+  action: z.enum(['analyze', 'optimize', 'create_pr']),
+  targetFiles: z.array(z.string()).optional(),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: { message: 'Unauthorized' } },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json();
+    const validationResult = executeAgentSchema.safeParse(body);
+
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: { message: validationResult.error.errors[0].message } },
+        { status: 400 }
+      );
+    }
+
+    const { deployedAgentId, action, targetFiles } = validationResult.data;
+
+    // Verify agent belongs to user
+    const agent = await prisma.deployedAgent.findFirst({
+      where: {
+        id: deployedAgentId,
+        brandProfile: {
+          user: {
+            email: session.user.email,
+          },
+        },
+      },
+      include: {
+        brandProfile: true,
+      },
+    });
+
+    if (!agent) {
+      return NextResponse.json(
+        { error: { message: 'Agent not found' } },
+        { status: 404 }
+      );
+    }
+
+    // Create task
+    const task = await prisma.agentTask.create({
+      data: {
+        deployedAgentId: agent.id,
+        taskType: action,
+        taskName: `${action.charAt(0).toUpperCase() + action.slice(1)} - ${agent.agentName}`,
+        status: 'running',
+        input: { targetFiles },
+        startedAt: new Date(),
+      },
+    });
+
+    // Execute agent asynchronously
+    executeAgentTask(task.id, agent).catch((error) =>
+      console.error('Error executing agent task:', error)
+    );
+
+    return NextResponse.json({
+      success: true,
+      task,
+    });
+  } catch (error) {
+    console.error('[API] Error executing agent:', error);
+    return NextResponse.json(
+      { error: { message: 'Failed to execute agent' } },
+      { status: 500 }
+    );
+  }
+}
+
+async function executeAgentTask(taskId: number, agent: any) {
+  try {
+    const task = await prisma.agentTask.findUnique({
+      where: { id: taskId },
+    });
+
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    let result;
+
+    switch (task.taskType) {
+      case 'analyze':
+        result = await analyzeCodebase(agent);
+        break;
+      case 'optimize':
+        result = await optimizeCodebase(agent, task);
+        break;
+      case 'create_pr':
+        result = await createPullRequest(agent, task);
+        break;
+      default:
+        throw new Error(`Unknown task type: ${task.taskType}`);
+    }
+
+    // Update task with results
+    await prisma.agentTask.update({
+      where: { id: taskId },
+      data: {
+        status: 'completed',
+        output: result,
+        completedAt: new Date(),
+      },
+    });
+
+    // Update agent last executed timestamp
+    await prisma.deployedAgent.update({
+      where: { id: agent.id },
+      data: { lastExecutedAt: new Date() },
+    });
+  } catch (error: any) {
+    console.error('Error in executeAgentTask:', error);
+    await prisma.agentTask.update({
+      where: { id: taskId },
+      data: {
+        status: 'failed',
+        errorMessage: error.message,
+        completedAt: new Date(),
+      },
+    });
+  }
+}
+
+async function analyzeCodebase(agent: any) {
+  try {
+    // Import the Mastra agent
+    const { aeoGeoOptimizerAgent } = await import('@/mastra/agents/aeo-geo-optimizer');
+    
+    // Get the website URL from brand profile
+    const websiteUrl = agent.brandProfile.companyWebsite;
+
+    if (!websiteUrl) {
+      throw new Error('No website URL found in brand profile');
+    }
+
+    console.log(`[Agent] Analyzing website: ${websiteUrl}`);
+
+    // Use the agent to analyze
+    const response = await aeoGeoOptimizerAgent.generate(
+      `Analyze the website ${websiteUrl} for AEO/GEO optimization opportunities. Use the analyzeCodebase tool to scan for schema markup, FAQ sections, header structure, and other optimization opportunities. Return the analysis results as JSON.`,
+      {
+        onStepFinish: (step: any) => {
+          console.log(`[Agent] Step: ${step.text}`);
+        },
+      }
+    );
+
+    console.log('[Agent] Analysis complete:', response.text);
+
+    // Try to parse as JSON, fallback to text
+    let analysisData;
+    try {
+      analysisData = JSON.parse(response.text);
+    } catch {
+      // If not JSON, create structured data from text
+      analysisData = {
+        score: 50,
+        recommendations: [{
+          category: 'general',
+          title: 'Website analysis completed',
+          recommendation: response.text,
+          priority: 'medium'
+        }]
+      };
+    }
+
+    // Store analysis results as optimizations
+    if (analysisData.recommendations && Array.isArray(analysisData.recommendations)) {
+      for (const rec of analysisData.recommendations) {
+        await prisma.agentOptimization.create({
+          data: {
+            deployedAgentId: agent.id,
+            optimizationType: rec.category || 'general',
+            description: rec.recommendation || rec.title || 'Optimization needed',
+            impact: rec.priority?.toLowerCase() || 'medium',
+            status: 'pending',
+          },
+        });
+      }
+    }
+
+    return {
+      score: analysisData.score || 50,
+      recommendations: analysisData.recommendations || [],
+      analyzedAt: new Date().toISOString(),
+      websiteUrl,
+    };
+  } catch (error: any) {
+    console.error('[Agent] Analysis error:', error);
+    throw new Error(`Analysis failed: ${error.message}`);
+  }
+}
+
+async function optimizeCodebase(agent: any, task: any) {
+  try {
+    // Import the Mastra agent
+    const { aeoGeoOptimizerAgent } = await import('@/mastra/agents/aeo-geo-optimizer');
+    
+    // Get pending optimizations
+    const optimizations = await prisma.agentOptimization.findMany({
+      where: {
+        deployedAgentId: agent.id,
+        status: 'pending',
+      },
+      take: 5, // Process 5 at a time
+    });
+
+    if (optimizations.length === 0) {
+      return { message: 'No pending optimizations found' };
+    }
+
+    console.log(`[Agent] Processing ${optimizations.length} optimizations`);
+
+    const results = [];
+
+    for (const optimization of optimizations) {
+      try {
+        console.log(`[Agent] Generating code for: ${optimization.optimizationType}`);
+        
+        // Use agent to generate optimization code
+        const response = await aeoGeoOptimizerAgent.generate(
+          `Generate ${optimization.optimizationType} optimization code for: ${optimization.description}. Use the appropriate tool (generateSchemaMarkup for schema, or provide code directly). Return the code as JSON with a 'code' or 'schema' field.`,
+          {
+            onStepFinish: (step: any) => {
+              console.log(`[Agent] Generated: ${step.text?.substring(0, 100)}...`);
+            },
+          }
+        );
+
+        // Parse the response
+        let codeChanges;
+        try {
+          codeChanges = JSON.parse(response.text);
+        } catch {
+          // If not JSON, treat as raw code
+          codeChanges = { code: response.text };
+        }
+
+        const afterCode = codeChanges.schema 
+          ? `<script type="application/ld+json">\n${JSON.stringify(codeChanges.schema, null, 2)}\n</script>`
+          : codeChanges.code || response.text;
+
+        // Update optimization with code changes
+        await prisma.agentOptimization.update({
+          where: { id: optimization.id },
+          data: {
+            beforeCode: `<!-- Before: ${optimization.description} -->`,
+            afterCode: afterCode,
+            filePath: 'index.html',
+            status: 'applied',
+            appliedAt: new Date(),
+          },
+        });
+
+        results.push({
+          optimizationId: optimization.id,
+          success: true,
+          type: optimization.optimizationType,
+        });
+      } catch (error: any) {
+        console.error(`[Agent] Error optimizing ${optimization.id}:`, error);
+        results.push({
+          optimizationId: optimization.id,
+          success: false,
+          error: error.message,
+        });
+      }
+    }
+
+    return {
+      optimizationsProcessed: results.length,
+      successful: results.filter(r => r.success).length,
+      results,
+    };
+  } catch (error: any) {
+    console.error('[Agent] Optimization error:', error);
+    throw new Error(`Optimization failed: ${error.message}`);
+  }
+}
+
+async function createPullRequest(agent: any, task: any) {
+  // Get all applied optimizations that haven't been submitted as PRs
+  const optimizations = await prisma.agentOptimization.findMany({
+    where: {
+      deployedAgentId: agent.id,
+      status: 'applied',
+      pullRequestUrl: null,
+    },
+  });
+
+  if (optimizations.length === 0) {
+    return { message: 'No optimizations to submit' };
+  }
+
+  // Check if GitHub is connected
+  const user = await prisma.user.findUnique({
+    where: { id: agent.brandProfile.userId! },
+    include: { githubIntegration: true },
+  });
+
+  if (!user?.githubIntegration) {
+    throw new Error('GitHub not connected. Please connect GitHub first.');
+  }
+
+  // Create PR using GitHub API
+  const prUrl = await createGitHubPR(
+    user.githubIntegration,
+    agent.githubRepoName,
+    agent.githubBranch,
+    optimizations
+  );
+
+  // Update optimizations with PR URL
+  await prisma.agentOptimization.updateMany({
+    where: {
+      id: { in: optimizations.map((o: any) => o.id) },
+    },
+    data: {
+      status: 'pr_created',
+      pullRequestUrl: prUrl,
+    },
+  });
+
+  return {
+    pullRequestUrl: prUrl,
+    optimizationsIncluded: optimizations.length,
+  };
+}
+
+async function createGitHubPR(
+  githubIntegration: any,
+  repoName: string | null,
+  baseBranch: string,
+  optimizations: any[]
+) {
+  try {
+    if (!repoName) {
+      throw new Error('Repository name not configured');
+    }
+
+    console.log(`[Agent] Creating PR for ${repoName}`);
+
+    // Decrypt GitHub token
+    const accessToken = decrypt(githubIntegration.accessToken);
+
+    const [owner, repo] = repoName.split('/');
+    const branchName = `aeo-geo-optimization-${Date.now()}`;
+
+    // 1. Get default branch and SHA
+    const repoResponse = await fetch(`https://api.github.com/repos/${repoName}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!repoResponse.ok) {
+      throw new Error(`Failed to get repository: ${repoResponse.statusText}`);
+    }
+
+    const repoData = await repoResponse.json();
+    const defaultBranch = repoData.default_branch;
+
+    // Get SHA of the base branch
+    const refResponse = await fetch(
+      `https://api.github.com/repos/${repoName}/git/ref/heads/${defaultBranch}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      }
+    );
+
+    if (!refResponse.ok) {
+      throw new Error(`Failed to get branch ref: ${refResponse.statusText}`);
+    }
+
+    const refData = await refResponse.json();
+    const baseSha = refData.object.sha;
+
+    // 2. Create new branch
+    const createBranchResponse = await fetch(
+      `https://api.github.com/repos/${repoName}/git/refs`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/vnd.github.v3+json',
+        },
+        body: JSON.stringify({
+          ref: `refs/heads/${branchName}`,
+          sha: baseSha,
+        }),
+      }
+    );
+
+    if (!createBranchResponse.ok) {
+      const errorText = await createBranchResponse.text();
+      throw new Error(`Failed to create branch: ${errorText}`);
+    }
+
+    console.log(`[Agent] Created branch: ${branchName}`);
+
+    // 3. Group optimizations by file
+    const fileChanges = new Map<string, typeof optimizations>();
+    for (const optimization of optimizations) {
+      const filePath = optimization.filePath || 'index.html';
+      if (!fileChanges.has(filePath)) {
+        fileChanges.set(filePath, []);
+      }
+      fileChanges.get(filePath)!.push(optimization);
+    }
+
+    // 4. Commit changes for each file
+    for (const [filePath, fileOptimizations] of fileChanges.entries()) {
+      // Get current file content
+      let currentContent = '';
+      let fileSha: string | undefined;
+
+      try {
+        const fileResponse = await fetch(
+          `https://api.github.com/repos/${repoName}/contents/${filePath}?ref=${defaultBranch}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          }
+        );
+
+        if (fileResponse.ok) {
+          const fileData = await fileResponse.json();
+          currentContent = Buffer.from(fileData.content, 'base64').toString('utf-8');
+          fileSha = fileData.sha;
+        }
+      } catch (error) {
+        console.log(`[Agent] File ${filePath} doesn't exist, will create new`);
+      }
+
+      // Apply optimizations
+      let updatedContent = currentContent || '<!DOCTYPE html>\n<html>\n<head>\n</head>\n<body>\n</body>\n</html>';
+
+      for (const optimization of fileOptimizations) {
+        if (optimization.afterCode) {
+          // Insert schema markup before </head>
+          if (optimization.optimizationType === 'schema' || optimization.optimizationType === 'schema_markup') {
+            updatedContent = updatedContent.replace('</head>', `${optimization.afterCode}\n</head>`);
+          } else {
+            // Append other optimizations before </body>
+            updatedContent = updatedContent.replace('</body>', `${optimization.afterCode}\n</body>`);
+          }
+        }
+      }
+
+      // Update file in GitHub
+      const content = Buffer.from(updatedContent).toString('base64');
+
+      const updateFileResponse = await fetch(
+        `https://api.github.com/repos/${repoName}/contents/${filePath}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/vnd.github.v3+json',
+          },
+          body: JSON.stringify({
+            message: `Apply AEO/GEO optimizations to ${filePath}`,
+            content,
+            branch: branchName,
+            ...(fileSha && { sha: fileSha }),
+          }),
+        }
+      );
+
+      if (!updateFileResponse.ok) {
+        const errorText = await updateFileResponse.text();
+        console.error(`[Agent] Failed to update ${filePath}:`, errorText);
+      } else {
+        console.log(`[Agent] Updated file: ${filePath}`);
+      }
+    }
+
+    // 5. Create pull request
+    const prTitle = `🤖 AEO/GEO Optimizations (${optimizations.length} changes)`;
+    const prBody = `## AEO/GEO Optimization by Mudra Agent
+
+This PR applies ${optimizations.length} optimization(s) to improve your website's visibility in AI-generated responses.
+
+### Optimizations Applied:
+${optimizations.map((opt, idx) => `${idx + 1}. **${opt.optimizationType}** (Impact: ${opt.impact}): ${opt.description}`).join('\n')}
+
+---
+Generated by [Mudra](https://mudra.ai) AEO/GEO Optimizer Agent`;
+
+    const prResponse = await fetch(`https://api.github.com/repos/${repoName}/pulls`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/vnd.github.v3+json',
+      },
+      body: JSON.stringify({
+        title: prTitle,
+        body: prBody,
+        head: branchName,
+        base: defaultBranch,
+      }),
+    });
+
+    if (!prResponse.ok) {
+      const errorText = await prResponse.text();
+      throw new Error(`Failed to create PR: ${errorText}`);
+    }
+
+    const prData = await prResponse.json();
+    console.log(`[Agent] Created PR: ${prData.html_url}`);
+
+    return prData.html_url;
+  } catch (error: any) {
+    console.error('[Agent] GitHub PR creation error:', error);
+    throw new Error(`PR creation failed: ${error.message}`);
+  }
+}

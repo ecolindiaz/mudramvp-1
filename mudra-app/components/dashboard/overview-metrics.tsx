@@ -296,10 +296,18 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
   // Fetch AI Referral Traffic data from analytics API
   const fetchAiReferralTraffic = async () => {
-    if (!profile.id) return
+    if (!profile.id) {
+      console.log('📊 Skipping AI referral fetch - no profile ID')
+      return
+    }
 
     try {
       const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&days=7`)
+      
+      if (!response.ok) {
+        throw new Error(`API responded with status ${response.status}`)
+      }
+      
       const result = await response.json()
       
       if (result.success && result.data) {
@@ -318,9 +326,16 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
           growth: result.data.growth,
           connected: result.data.connected
         })
+      } else {
+        console.warn('📊 AI Referral API returned unsuccessful response:', result)
       }
     } catch (error) {
-      console.error('Error fetching AI referral traffic:', error)
+      console.error('📊 Error fetching AI referral traffic:', error)
+      // Set default values on error to prevent UI from breaking
+      setAiReferralTraffic(0)
+      setAiReferralPrevious(0)
+      setHasAiTrafficHistory(false)
+      setIsTrackingConnected(false)
     }
   }
 

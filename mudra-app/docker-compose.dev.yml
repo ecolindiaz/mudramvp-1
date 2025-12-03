@@ -17,10 +17,15 @@ services:
       - .env.docker
     
     environment:
-      - WATCHPACK_POLLING=false
-      - CHOKIDAR_USEPOLLING=false
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=3000
       - NEXT_TELEMETRY_DISABLED=1
+      - NEXT_PRIVATE_DEBUG_CACHE=false
       - NODE_OPTIONS=--max-old-space-size=7168
+      - FORCE_COLOR=1
+      - DISABLE_FILE_WATCHING=false
+      - WATCHPACK_WATCHER_LIMIT=20
     
     ports:
       - "3000:3000"
@@ -41,10 +46,10 @@ services:
       resources:
         limits:
           cpus: '4'
-          memory: 10G
+          memory: 12G
         reservations:
           cpus: '2'
-          memory: 4G
+          memory: 6G
     
     # FIXED: Use wget instead of curl (wget is pre-installed in Alpine)
     healthcheck:

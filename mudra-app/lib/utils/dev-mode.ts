@@ -3,7 +3,7 @@
  */
 
 export const isDevelopment = () => {
-  return process.env.NODE_ENV === 'development'
+  return process.env.NODE_ENV === 'development' || process.env.DEVELOPMENT_MODE === 'true'
 }
 
 export const isDevelopmentClient = () => {
@@ -14,15 +14,21 @@ export const isDevelopmentClient = () => {
 }
 
 export const isProductionReady = () => {
-  return process.env.NODE_ENV === 'production' && !isDevelopmentClient()
+  return process.env.NODE_ENV === 'production' && 
+         process.env.DEVELOPMENT_MODE !== 'true' && 
+         !isDevelopmentClient()
 }
 
 /**
  * Check if analysis restrictions should be enforced
- * In development, we allow unlimited analysis
+ * In development mode (NODE_ENV=development OR DEVELOPMENT_MODE=true), we allow unlimited analysis
  * In production, we enforce timer restrictions
  */
 export const shouldEnforceAnalysisRestrictions = () => {
+  // If DEVELOPMENT_MODE is explicitly set to true, never enforce restrictions
+  if (process.env.DEVELOPMENT_MODE === 'true') {
+    return false
+  }
   return isProductionReady()
 }
 
@@ -34,5 +40,6 @@ export const getDevModeStatus = () => {
     isDev: isDevelopment() || isDevelopmentClient(),
     isProduction: isProductionReady(),
     shouldEnforceRestrictions: shouldEnforceAnalysisRestrictions(),
+    devModeEnabled: process.env.DEVELOPMENT_MODE === 'true',
   }
 }

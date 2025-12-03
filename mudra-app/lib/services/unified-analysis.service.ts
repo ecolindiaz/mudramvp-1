@@ -107,15 +107,17 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
     const { generateAndSaveInitialPrompts, getActivePrompts } = await import('./prompt-storage.service');
     const { canRunAnalysis, updateLastAnalysisTime, createAnalysisRun, updateAnalysisRun } = await import('./analysis-run.service');
     
-    // Check cooldown (unless skipCooldown is true, e.g., for dashboard)
-    if (!config.skipCooldown) {
-      const isDev = process.env.NODE_ENV === 'development';
-      if (!isDev) {
-        const eligibility = await canRunAnalysis(config.brandProfileId);
-        if (!eligibility.allowed) {
-          throw new Error(`Analysis cooldown active. Next available in ${Math.ceil(eligibility.timeUntilNext! / 1000 / 60)} minutes`);
-        }
+    // Check cooldown (unless skipCooldown is true OR DEVELOPMENT_MODE is true)
+    const isDevelopmentMode = process.env.DEVELOPMENT_MODE === 'true';
+    const shouldSkipCooldown = config.skipCooldown || isDevelopmentMode;
+    
+    if (!shouldSkipCooldown) {
+      const eligibility = await canRunAnalysis(config.brandProfileId);
+      if (!eligibility.allowed) {
+        throw new Error(`Analysis cooldown active. Next available in ${Math.ceil(eligibility.timeUntilNext! / 1000 / 60)} minutes`);
       }
+    } else if (isDevelopmentMode) {
+      console.log('[GEO Core] ⚡ Development mode enabled - skipping cooldown');
     }
     
     // Get or generate prompts

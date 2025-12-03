@@ -49,6 +49,7 @@ model BrandProfile {
   naturalLanguageReports     NaturalLanguageReport[]
   aiReferralVisits           AIReferralVisit[]
   aiReferralAnalytics        AIReferralAnalytics[]
+  deployedAgents             DeployedAgent[]
   
   @@index([userId])
 }
@@ -407,6 +408,7 @@ model User {
   brandProfiles       BrandProfile[]
   accounts            Account[]
   sessions            Session[]
+  githubIntegration   GitHubIntegration?
   
   @@map("users")
 }
@@ -737,4 +739,93 @@ model AIReferralAnalytics {
   
   @@index([brandProfileId])
   @@index([brandProfileId, periodStart])
+}
+
+// Agent Deployment and Execution Models
+model DeployedAgent {
+  id                Int      @id @default(autoincrement())
+  brandProfileId    Int
+  agentType         String   // "aeo-geo-optimizer", "growth-scout", etc.
+  agentName         String
+  agentDescription  String?
+  status            String   @default("deploying") // deploying, active, paused, failed
+  githubRepoId      String?  // Connected GitHub repository ID
+  githubRepoName    String?  // e.g., "EmiCorleone/mudramvp"
+  githubBranch      String   @default("main")
+  lastExecutedAt    DateTime?
+  deployedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  tasks             AgentTask[]
+  optimizations     AgentOptimization[]
+  
+  @@index([brandProfileId])
+  @@index([brandProfileId, status])
+  @@index([status])
+}
+
+model AgentTask {
+  id                Int      @id @default(autoincrement())
+  deployedAgentId   Int
+  taskType          String   // "analyze", "optimize", "generate_schema", "create_pr"
+  taskName          String
+  status            String   @default("pending") // pending, running, completed, failed
+  input             Json     // Task input parameters
+  output            Json?    // Task results
+  errorMessage      String?  @db.Text
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+  
+  // Relations
+  deployedAgent     DeployedAgent @relation(fields: [deployedAgentId], references: [id], onDelete: Cascade)
+  
+  @@index([deployedAgentId])
+  @@index([deployedAgentId, status])
+  @@index([status])
+}
+
+model AgentOptimization {
+  id                Int      @id @default(autoincrement())
+  deployedAgentId   Int
+  optimizationType  String   // "schema_markup", "faq_section", "headers", "meta", etc.
+  filePath          String?  // File that was modified
+  description       String   @db.Text
+  beforeCode        String?  @db.Text
+  afterCode         String?  @db.Text
+  impact            String   // "high", "medium", "low"
+  status            String   @default("pending") // pending, applied, pr_created, merged, failed
+  pullRequestUrl    String?
+  appliedAt         DateTime?
+  createdAt         DateTime @default(now())
+  
+  // Relations
+  deployedAgent     DeployedAgent @relation(fields: [deployedAgentId], references: [id], onDelete: Cascade)
+  
+  @@index([deployedAgentId])
+  @@index([deployedAgentId, status])
+}
+
+model GitHubIntegration {
+  id                Int      @id @default(autoincrement())
+  userId            String
+  accessToken       String   @db.Text // Encrypted GitHub PAT
+  refreshToken      String?  @db.Text
+  tokenExpiresAt    DateTime?
+  githubUserId      String
+  githubUsername    String
+  avatarUrl         String?
+  scope             String?  // OAuth scopes granted
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId])
+  @@index([userId])
+  @@index([githubUserId])
 }

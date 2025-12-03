@@ -34,6 +34,8 @@ const defaultProfile = {
   resources: { teamSize: 0, budget: 0 }
 };
 
+const STORAGE_KEY = "mudra_brand_profile";
+
 const BrandProfileContext = createContext({
   brandProfile: defaultProfile,
   profile: defaultProfile,
@@ -46,19 +48,59 @@ export function useBrandProfile() {
 }
 
 export function BrandProfileProvider({ children }: { children: React.ReactNode }) {
-  const [profile, setProfileState] = useState(defaultProfile);
+  // Initialize from localStorage immediately (prevents flicker)
+  const [profile, setProfileState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(STORAGE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          console.log("💾 [BrandProfileContext] Loaded from cache:", parsed.companyName);
+          return parsed;
+        }
+      } catch (error) {
+        console.error("🔴 [BrandProfileContext] Error loading from cache:", error);
+      }
+    }
+    return defaultProfile;
+  });
+
+  const [isLoading, setIsLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+
+  // Save to localStorage whenever profile changes
+  useEffect(() => {
+    if (profile.id > 0) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+        console.log("💾 [BrandProfileContext] Saved to cache:", profile.companyName);
+      } catch (error) {
+        console.error("🔴 [BrandProfileContext] Error saving to cache:", error);
+      }
+    }
+  }, [profile]);
 
   // Load profile from API with timeout and retry
   const refreshBrandProfile = async () => {
+    // Don't refetch if already loading
+    if (isLoading) {
+      console.log("⏭️ [BrandProfileContext] Skipping refresh - already loading");
+      return;
+    }
+
     try {
+      setIsLoading(true);
       console.log("🔄 [BrandProfileContext] Refreshing brand profile...")
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout (increased for slow DB queries)
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
       const response = await fetch("/api/brand-profile", {
-        signal: controller.signal
+        signal: controller.signal,
+        // Add cache headers for browser caching
+        headers: {
+          'Cache-Control': 'max-age=30' // Cache for 30 seconds
+        }
       });
       
       clearTimeout(timeoutId);
@@ -66,8 +108,13 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
       if (response.ok) {
         const data = await response.json();
         if (data && typeof data === "object") {
-          console.log("✅ [BrandProfileContext] Profile refreshed:", data);
-          setProfileState(data);
+          // Only update state if data actually changed
+          if (JSON.stringify(data) !== JSON.stringify(profile)) {
+            console.log("✅ [BrandProfileContext] Profile updated:", data.companyName);
+            setProfileState(data);
+          } else {
+            console.log("✨ [BrandProfileContext] Profile unchanged");
+          }
           setRetryCount(0); // Reset retry count on success
         }
       } else {
@@ -76,7 +123,6 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.error("🔴 [BrandProfileContext] Request timed out after 10s");
-        // Don't retry on timeout - the backend already has its own timeout handling
       } else {
         console.error("🔴 [BrandProfileContext] Error refreshing profile:", error);
         
@@ -89,18 +135,23 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
           }, delay);
         }
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Load profile from API on mount with initial delay
+  // Load profile from API on mount - NO DELAY, uses cache first
   useEffect(() => {
-    // Wait 2 seconds after mount to let Next.js fully initialize
-    const initialDelay = setTimeout(() => {
-      console.log("🔄 [BrandProfileContext] Starting initial profile fetch...");
+    // Only fetch if we don't have cached data
+    if (profile.id === 0) {
+      console.log("🔄 [BrandProfileContext] No cache found, fetching profile...");
       refreshBrandProfile();
-    }, 2000);
-
-    return () => clearTimeout(initialDelay);
+    } else {
+      console.log("✨ [BrandProfileContext] Using cached profile, will revalidate in background");
+      // Revalidate in background after 1 second
+      const bgRefresh = setTimeout(() => refreshBrandProfile(), 1000);
+      return () => clearTimeout(bgRefresh);
+    }
   }, []);
 
   // Retry effect
@@ -113,6 +164,8 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
   // Save profile to API and update state
   const setProfile = async (newProfile: typeof defaultProfile) => {
     console.log("🟡 [BrandProfileContext] setProfile called with:", newProfile)
+    
+    // Update state immediately for optimistic UI
     setProfileState(newProfile);
     
     try {

@@ -621,7 +621,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
                       size="sm"
                       onClick={() => {
                         // TODO: Open agent deployment dialog
-                        toast.info("Auto-install coming soon! Use manual install below for now.");
+                        toast("Auto-install coming soon! Use manual install below for now.", { icon: "ℹ️" });
                       }}
                       className="h-8 px-4 text-xs bg-purple-600 hover:bg-purple-700 text-white border-0 rounded-md"
                     >

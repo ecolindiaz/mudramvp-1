@@ -9,9 +9,10 @@ import { useBrandProfile } from "@/components/brand-profile-context"
 import { Card, CardContent, CardHeader, CardTitle, CardAction } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Info, Link, Copy, Check, ExternalLink, X, ArrowUp, Settings } from "lucide-react"
+import { Info, Link, Copy, Check, ExternalLink, X, ArrowUp, Settings, Zap } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { toast } from "react-hot-toast"
 
 interface OverviewMetricsProps {
   showAll?: boolean
@@ -593,11 +594,54 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
               <p className="text-sm text-white/60 leading-relaxed max-w-2xl">
                 {isTrackingConnected 
                   ? "View your tracking script and setup instructions." 
-                  : "Track traffic from AI search engines by adding our tracking script."}
+                  : "Track traffic from AI search engines - install automatically or manually."}
               </p>
             </div>
 
             <div className="space-y-5">
+            
+            {/* Auto-Install Option */}
+            {!isTrackingConnected && (
+              <div className="rounded-lg border border-white/[0.08] bg-black/20 p-5">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <div className="size-10 rounded-full bg-purple-500/20 flex items-center justify-center">
+                      <Zap className="size-5 text-purple-400" />
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-white mb-1.5">
+                      Recommended: Auto-Install via GitHub
+                    </h3>
+                    <p className="text-xs text-white/60 leading-relaxed mb-3">
+                      Let our agent automatically detect your framework, inject the tracking code, and create a pull request. 
+                      Works with Next.js, React, Vue, and more.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        // TODO: Open agent deployment dialog
+                        toast.info("Auto-install coming soon! Use manual install below for now.");
+                      }}
+                      className="h-8 px-4 text-xs bg-purple-600 hover:bg-purple-700 text-white border-0 rounded-md"
+                    >
+                      <Zap className="size-3.5 mr-1.5" /> Auto-Install with Agent
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Manual Install Section */}
+            <div className={!isTrackingConnected ? "opacity-60" : ""}>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-xs font-medium text-white/40 uppercase tracking-wider">
+                  {isTrackingConnected ? "Your Tracking Script" : "Or Install Manually"}
+                </span>
+                <div className="flex-1 h-px bg-white/[0.08]"></div>
+              </div>
+            </div>
+            
             {/* Step 1: Copy Script */}
             <div className="space-y-2.5">
               <div className="flex items-center gap-2.5">

@@ -36,6 +36,10 @@ model BrandProfile {
   stage             String?  
   resources         String?  // Store as JSON string if needed
   lastAnalysisRunAt DateTime?  // Track when analysis was last run
+  trackingSiteId    String?  // Generated siteId for AI referral tracking
+  trackingStatus    String   @default("not_connected") // not_connected, pending, connected, error
+  trackingInstalledAt DateTime? // When tracking was successfully installed
+  trackingError     String?  // Error message if installation failed
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   

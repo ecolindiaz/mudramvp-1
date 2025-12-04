@@ -389,67 +389,91 @@ export function CampaignEditor({
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
               }
-              /* Table styles */
-              .editor-with-labels .editor-table {
-                position: relative;
-                margin-top: 1.5rem;
-                width: 100%;
-                border-collapse: collapse;
-                border-radius: 8px;
-                overflow: hidden;
-                border: 1px solid rgba(255, 255, 255, 0.12);
-                font-size: 13px;
-              }
-              .editor-with-labels .editor-table::before {
-                content: 'TABLE';
-                position: absolute;
-                top: -1.25rem;
-                left: 0;
-                font-size: 9px;
-                font-weight: 600;
-                color: rgba(255, 255, 255, 0.6);
-                background: rgba(255, 255, 255, 0.06);
-                padding: 2px 5px;
-                border-radius: 3px;
-                font-family: ui-monospace, monospace;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-              }
-              .editor-table-row {
-                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-              }
-              .editor-table-row:last-child {
-                border-bottom: none;
-              }
-              .editor-table-cell {
-                padding: 12px 16px;
-                text-align: left;
-                color: rgba(255, 255, 255, 0.9);
-                vertical-align: top;
-                border-right: 1px solid rgba(255, 255, 255, 0.06);
-              }
-              .editor-table-cell:last-child {
-                border-right: none;
-              }
-              .editor-table-cell-header {
-                padding: 12px 16px;
-                text-align: left;
-                font-weight: 600;
-                color: rgba(255, 255, 255, 1);
-                background: rgba(255, 255, 255, 0.06);
-                border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-                border-right: 1px solid rgba(255, 255, 255, 0.06);
-              }
-              .editor-table-cell-header:last-child {
-                border-right: none;
-              }
-              /* Alternative styling for rows */
-              .editor-table-row:nth-child(even) {
-                background: rgba(255, 255, 255, 0.02);
-              }
-              .editor-table-row:hover {
-                background: rgba(255, 255, 255, 0.04);
-              }
+              /* Table styles - responsive with smaller text */
+                              .editor-with-labels .editor-table {
+                                position: relative;
+                                margin-top: 1.5rem;
+                                width: 100%;
+                                border-collapse: collapse;
+                                border-radius: 8px;
+                                overflow: hidden;
+                                border: 1px solid rgba(255, 255, 255, 0.12);
+                                font-size: 12px;
+                                table-layout: fixed;
+                              }
+                              .editor-with-labels .editor-table::before {
+                                content: 'TABLE';
+                                position: absolute;
+                                top: -1.25rem;
+                                left: 0;
+                                font-size: 9px;
+                                font-weight: 600;
+                                color: rgba(255, 255, 255, 0.6);
+                                background: rgba(255, 255, 255, 0.06);
+                                padding: 2px 5px;
+                                border-radius: 3px;
+                                font-family: ui-monospace, monospace;
+                                text-transform: uppercase;
+                                letter-spacing: 0.5px;
+                              }
+                              .editor-table-row {
+                                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                              }
+                              .editor-table-row:last-child {
+                                border-bottom: none;
+                              }
+                              .editor-table-cell {
+                                padding: 8px 10px;
+                                text-align: left;
+                                color: rgba(255, 255, 255, 0.9);
+                                vertical-align: top;
+                                border-right: 1px solid rgba(255, 255, 255, 0.06);
+                                word-wrap: break-word;
+                                overflow-wrap: break-word;
+                                hyphens: auto;
+                                line-height: 1.4;
+                              }
+                              .editor-table-cell:last-child {
+                                border-right: none;
+                              }
+                              .editor-table-cell-header {
+                                padding: 8px 10px;
+                                text-align: left;
+                                font-weight: 600;
+                                font-size: 11px;
+                                color: rgba(255, 255, 255, 1);
+                                background: rgba(255, 255, 255, 0.06);
+                                border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+                                border-right: 1px solid rgba(255, 255, 255, 0.06);
+                                word-wrap: break-word;
+                                overflow-wrap: break-word;
+                                text-transform: uppercase;
+                                letter-spacing: 0.3px;
+                              }
+                              .editor-table-cell-header:last-child {
+                                border-right: none;
+                              }
+                              /* Alternative styling for rows */
+                              .editor-table-row:nth-child(even) {
+                                background: rgba(255, 255, 255, 0.02);
+                              }
+                              .editor-table-row:hover {
+                                background: rgba(255, 255, 255, 0.04);
+                              }
+                              /* Link styles inside editor */
+                              .editor-with-labels a,
+                              .editor-with-labels .editor-link {
+                                color: #60a5fa !important;
+                                text-decoration: underline;
+                                text-decoration-color: rgba(96, 165, 250, 0.4);
+                                text-underline-offset: 2px;
+                                transition: all 0.15s ease;
+                              }
+                              .editor-with-labels a:hover,
+                              .editor-with-labels .editor-link:hover {
+                                color: #93c5fd !important;
+                                text-decoration-color: rgba(96, 165, 250, 0.8);
+                              }
             `}</style>
             <RichTextPlugin
               contentEditable={

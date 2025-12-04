@@ -20,10 +20,10 @@ export const editorTheme = {
   },
   quote: "editor-quote border-l-4 border-white/30 pl-6 italic text-white/80 my-4",
   code: "bg-white/10 px-2 py-1 rounded text-sm text-white/90 font-mono",
-  link: "text-blue-400 hover:text-blue-300 hover:underline cursor-pointer",
-  table: "editor-table w-full border-collapse my-6 text-sm rounded-lg overflow-hidden border border-white/[0.12]",
+  link: "editor-link text-blue-400 underline underline-offset-2 decoration-blue-400/40 hover:text-blue-300 hover:decoration-blue-400/80 cursor-pointer transition-colors",
+  table: "editor-table w-full border-collapse my-6 text-xs rounded-lg overflow-hidden border border-white/[0.12]",
   tableRow: "editor-table-row border-b border-white/[0.08] last:border-b-0",
-  tableCell: "editor-table-cell px-4 py-3 text-left text-white/90 align-top",
-  tableCellHeader: "editor-table-cell-header px-4 py-3 text-left font-semibold text-white bg-white/[0.06] border-b border-white/[0.12]",
+  tableCell: "editor-table-cell px-2.5 py-2 text-left text-white/90 align-top break-words",
+  tableCellHeader: "editor-table-cell-header px-2.5 py-2 text-left font-semibold text-white bg-white/[0.06] border-b border-white/[0.12] text-[11px] uppercase tracking-wide break-words",
 }
 

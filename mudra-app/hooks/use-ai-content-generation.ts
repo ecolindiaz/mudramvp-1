@@ -6,6 +6,12 @@ interface Source {
   domain?: string;
 }
 
+interface SourceReference {
+  title: string;
+  url: string;
+  type: "primary" | "research";
+}
+
 interface GenerationResult {
   campaignId: string;
   content: string;
@@ -19,6 +25,7 @@ interface GenerationResult {
     };
     sourcesScraped: number;
     researchQueriesRun: number;
+    sources: SourceReference[];
   };
 }
 

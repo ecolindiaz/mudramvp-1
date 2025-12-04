@@ -23,6 +23,13 @@ export const workflowInputSchema = z.object({
   brandContext: brandContextSchema,
 });
 
+// Source reference schema for output metadata
+const sourceReferenceSchema = z.object({
+  title: z.string(),
+  url: z.string(),
+  type: z.enum(["primary", "research"]).describe("primary = scraped citation, research = live web search"),
+});
+
 // Workflow output schema
 export const workflowOutputSchema = z.object({
   content: z.string(),
@@ -37,6 +44,7 @@ export const workflowOutputSchema = z.object({
     }),
     sourcesScraped: z.number(),
     researchQueriesRun: z.number(),
+    sources: z.array(sourceReferenceSchema).describe("All sources cited in the article"),
   }),
 });
 

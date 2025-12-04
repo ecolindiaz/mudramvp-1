@@ -13,6 +13,7 @@ export const contentMetadataSchema = z.object({
     name: z.string(),
     title: z.string(),
   }),
+  lastUpdated: z.string().optional().describe("Publication/last updated date in YYYY-MM-DD format"),
   sources: z.array(sourceReferenceSchema).optional().describe("Sources cited in the article"),
 });
 

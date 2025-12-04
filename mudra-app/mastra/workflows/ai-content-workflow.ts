@@ -67,6 +67,28 @@ export const aiContentWorkflow = createWorkflow({
     const scrapeResult = getStepResult(scrapeSourcesStep);
     const researchResult = getStepResult(enrichResearchStep);
 
+    // Combine all sources into a clean array for metadata
+    const allSources = [
+      // Primary sources (scraped)
+      ...scrapeResult!.scrapedSources.map((s) => ({
+        title: s.title || new URL(s.url).hostname,
+        url: s.url,
+        type: "primary" as const,
+      })),
+      // Research sources (from live web search)
+      ...researchResult!.additionalSources.map((s) => ({
+        title: s.title,
+        url: s.url,
+        type: "research" as const,
+      })),
+    ];
+
+    // Deduplicate by URL
+    const uniqueSources = allSources.filter(
+      (source, index, self) =>
+        index === self.findIndex((s) => s.url === source.url)
+    );
+
     return {
       content: inputData.content,
       metadata: {
@@ -74,6 +96,7 @@ export const aiContentWorkflow = createWorkflow({
         trackedPrompt: initData.trackedPrompt,
         sourcesScraped: scrapeResult!.totalScraped,
         researchQueriesRun: researchResult!.searchQueriesRun,
+        sources: uniqueSources,
       },
     };
   })

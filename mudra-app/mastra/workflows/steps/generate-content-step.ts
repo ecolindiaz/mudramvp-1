@@ -74,6 +74,9 @@ export const generateContentStep = createStep({
       })
       .join("\n");
 
+    // Generate today's date for freshness signal
+    const today = new Date().toISOString().split("T")[0]; // Format: YYYY-MM-DD
+
     console.log(`[GenerateContent] Generating article for: "${trackedPrompt}"`);
 
     const response = await contentGeneratorAgent.generate(
@@ -88,6 +91,7 @@ export const generateContentStep = createStep({
 - Target ICP: ${brandContext.targetICP || "N/A"}
 - Unique Value: ${brandContext.uniqueValueProp || "N/A"}
 - Author: ${brandContext.userName}, ${brandContext.userRole}
+- Publication Date: ${today}
 
 ## Source Content Summary
 ${sourcesSummary}
@@ -124,12 +128,20 @@ ${research.additionalSources.map((s) => `- ${s.keyInsight} — [${s.title}](${s.
 - Include Bottom Line (75-100 words)
 - Include FAQ with 5 Q&As (150-250 words total)
 
-## ⚠️ CRITICAL: SOURCE CITATIONS ⚠️
-- Include a "Sources" or "References" section at the end of the article
-- Use inline citations where appropriate (e.g., "According to [Source Name]...")
-- All statistics MUST be cited inline with the source: "According to [Source](URL), statistic here."
-- All expert quotes MUST include the speaker's name and title
-- Include hyperlinks to sources in markdown format: [Source Name](URL)
+## ⚠️ CRITICAL: SOURCE CITATIONS & MARKDOWN LINKS ⚠️
+- Include a "## Sources" or "## References" section at the end of the article
+- Use PROPER MARKDOWN LINK SYNTAX for ALL citations:
+  ✅ CORRECT: "According to [Gartner](https://gartner.com/report), 80% of enterprises..."
+  ✅ CORRECT: "[Scale AI](https://scale.com) offers enterprise-grade labeling"
+  ❌ WRONG: "According to Gartner (https://gartner.com), 80%..." — URL not rendered as link!
+  ❌ WRONG: "According to https://scale.com..." — raw URL, not clickable!
+- All statistics MUST use markdown link format: "80% ([Source](URL))"
+- All expert quotes MUST use: "quote" — Speaker, [Company](URL)
+- In References section, format each source as: - [Source Name](https://url.com) - brief description
+
+## ⚠️ CRITICAL: FRESHNESS SIGNAL ⚠️
+- Include "Last updated: ${today}" right after the author byline
+- This signals to AI models that the content is current and trustworthy
 
 Generate a complete, comprehensive, GEO-optimized article that meets the 1,200-1,600 word requirement AND includes proper source citations.`,
       {

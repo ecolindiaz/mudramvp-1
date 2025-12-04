@@ -191,21 +191,67 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // First check in-memory store
   const runState = activeRuns.get(workflowRunId);
 
-  if (!runState) {
-    return NextResponse.json(
-      { success: false, error: "Workflow run not found or expired" },
-      { status: 404 }
-    );
+  if (runState) {
+    return NextResponse.json({
+      success: true,
+      workflowRunId,
+      status: runState.status,
+      result: runState.result,
+      error: runState.error,
+    });
   }
 
-  return NextResponse.json({
-    success: true,
-    workflowRunId,
-    status: runState.status,
-    result: runState.result,
-    error: runState.error,
-  });
+  // If not in memory (e.g., server recompiled), check database for completed campaign
+  // This handles the case where the workflow completed but the server restarted
+  try {
+    const campaign = await prisma.campaign.findFirst({
+      where: {
+        metadata: {
+          contains: workflowRunId,
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    if (campaign) {
+      // Found a completed campaign for this workflow!
+      const metadata = campaign.metadata ? JSON.parse(campaign.metadata) : {};
+      
+      return NextResponse.json({
+        success: true,
+        workflowRunId,
+        status: "completed",
+        result: {
+          campaignId: campaign.id,
+          content: campaign.body,
+          metadata: {
+            title: campaign.title,
+            wordCount: metadata.wordCount,
+            sections: metadata.sections,
+            author: metadata.author,
+            sourcesScraped: metadata.sourcesScraped,
+            researchQueriesRun: metadata.researchQueriesRun,
+          },
+        },
+      });
+    }
+  } catch (dbError) {
+    console.error(`[API GET] Database lookup failed for ${workflowRunId}:`, dbError);
+  }
+
+  // Not found anywhere - could still be processing or truly expired
+  return NextResponse.json(
+    { 
+      success: false, 
+      status: "unknown",
+      error: "Workflow run not found. It may still be processing or has expired." 
+    },
+    { status: 404 }
+  );
 }
 

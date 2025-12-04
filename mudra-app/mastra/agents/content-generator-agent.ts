@@ -65,8 +65,14 @@ ${STRUCTURE_PROMPT || "[Content Structure guidelines will be loaded at runtime]"
   - [Scale AI](https://scale.com) - AI data platform
   - [Labelbox](https://labelbox.com) - Enterprise labeling
 
+## Meta Description
+- Generate a compelling SEO meta description (150-160 characters)
+- Should summarize the article and include the primary topic/keyword
+- Should be action-oriented and encourage clicks
+- Example: "Discover the top 5 data labeling providers for AI research labs. Compare Scale AI, Labelbox, and more with expert insights and pricing."
+
 ## Output Format
-Return the full markdown article along with metadata including title, actual word count, sections, and author info.`;
+Return the full markdown article along with metadata including title, metaDescription (150-160 chars), actual word count, sections, and author info.`;
 
 export const contentGeneratorAgent = new Agent({
   name: "content-generator-agent",

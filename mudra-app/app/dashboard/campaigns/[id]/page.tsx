@@ -6,7 +6,6 @@ import { CampaignEditor } from "@/components/editor/campaign-editor"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -14,7 +13,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Users, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, Code2, FileCode, Edit, Send, X, Plus } from "lucide-react"
+import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, FileCode, Edit } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
 // Helper function to accurately count words in markdown content
@@ -99,11 +98,8 @@ export default function CampaignCanvasPage({
   const [deleting, setDeleting] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState("copy")
   const [metaDescription, setMetaDescription] = React.useState("")
+  const [tags, setTags] = React.useState<string[]>([])
   const [editMode, setEditMode] = React.useState(false)
-  const [chatMessages, setChatMessages] = React.useState<Array<{ id: string; role: 'user' | 'assistant'; content: string }>>([])
-  const [chatInput, setChatInput] = React.useState("")
-  const [isChatLoading, setIsChatLoading] = React.useState(false)
-  const chatScrollRef = React.useRef<HTMLDivElement>(null)
 
   const [title, setTitle] = React.useState("")
   const [body, setBody] = React.useState("")
@@ -212,6 +208,16 @@ export default function CampaignCanvasPage({
             setCampaignPrompt(campaign.prompt || "")
             setTargetIcp(campaign.icp || "")
             setKeyword(campaign.keyword || "")
+            
+            // Load metaDescription and tags from metadata
+            try {
+              const metadata = campaign.metadata ? JSON.parse(campaign.metadata) : {}
+              setMetaDescription(metadata.metaDescription || "")
+              setTags(metadata.tags || [])
+            } catch (e) {
+              console.warn('Failed to parse campaign metadata:', e)
+            }
+            
             setContentLoaded(true)
             setIsLoading(false)
             
@@ -314,75 +320,6 @@ export default function CampaignCanvasPage({
     
     loadContent()
   }, [id, prompt, icp, kwParam])
-
-  // Auto-scroll chat to bottom
-  React.useEffect(() => {
-    if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
-    }
-  }, [chatMessages, isChatLoading])
-
-  // Handle chat submission
-  const handleChatSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault()
-    if (!chatInput.trim() || isChatLoading) return
-
-    const userMessage = {
-      id: Date.now().toString(),
-      role: 'user' as const,
-      content: chatInput.trim()
-    }
-
-    setChatMessages(prev => [...prev, userMessage])
-    setChatInput('')
-    setIsChatLoading(true)
-
-    try {
-      const siteId = typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''
-      const response = await fetch('/api/ai-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...chatMessages, userMessage].map(m => ({ role: m.role, content: m.content })),
-          siteId: siteId,
-          deepThink: false,
-          context: {
-            campaignId: id,
-            currentTitle: title,
-            currentBody: body,
-            task: 'edit_content'
-          }
-        })
-      })
-
-      const data = await response.json()
-      
-      if (data.content) {
-        const assistantMessage = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant' as const,
-          content: data.content
-        }
-        setChatMessages(prev => [...prev, assistantMessage])
-        
-        // If the response contains updated content, apply it
-        if (data.updatedTitle) setTitle(data.updatedTitle)
-        if (data.updatedBody) setBody(data.updatedBody)
-      } else {
-        throw new Error(data.error || 'Failed to get response')
-      }
-    } catch (error) {
-      console.error('Chat error:', error)
-      const errorMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant' as const,
-        content: 'Sorry, I encountered an error. Please try again.'
-      }
-      setChatMessages(prev => [...prev, errorMessage])
-    } finally {
-      setIsChatLoading(false)
-    }
-  }
 
   return (
     <SidebarProvider
@@ -595,165 +532,31 @@ export default function CampaignCanvasPage({
                   )}
                 </div>
 
-                {/* Right Side: Chat (Edit Mode) or Tabs (Normal Mode) */}
+                {/* Right Side: Coming Soon (Edit Mode) or Tabs (Normal Mode) */}
                 <div className="order-2 lg:order-2 flex flex-col h-full self-start">
                   {editMode ? (
-                    /* Chat Sidebar */
-                    <Card className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col w-full flex-1 min-h-0">
-                      {/* Chat Header */}
-                      <div className="px-5 pt-4 pb-3 border-b border-white/[0.08] flex-shrink-0">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <img 
-                              src="/images/mudra-logo.png" 
-                              alt="Mudra" 
-                              className="w-5 h-5 opacity-90"
-                            />
-                            <div className="flex flex-col">
-                              <h3 className="text-sm font-semibold tracking-tight leading-none text-white">Edit Content</h3>
-                              <span className="text-[10px] text-white/60 mt-0.5">Tell AI what you want changed</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setChatMessages([])}
-                              className="h-7 w-7 rounded-md text-white/70 hover:text-white bg-transparent hover:bg-white/5 border-0 transition-all"
-                              title="New chat"
-                            >
-                              <Plus className="size-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setEditMode(false)}
-                              className="h-7 w-7 rounded-md text-white/70 hover:text-white bg-transparent hover:bg-white/5 border-0 transition-all"
-                              title="Close"
-                            >
-                              <X className="size-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Messages Area */}
-                      <div 
-                        ref={chatScrollRef}
-                        className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0"
-                      >
-                        {chatMessages.length === 0 ? (
-                          <div className="text-center py-8">
-                            <div className="w-16 h-16 mx-auto mb-5 opacity-90">
-                              <img 
-                                src="/images/mudra-logo.png" 
-                                alt="Mudra Logo" 
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                            <h3 className="text-base font-semibold mb-2 text-white">Edit your content with AI</h3>
-                            <p className="text-white/60 mb-5 text-sm max-w-xs mx-auto">
-                              Ask AI to rewrite, improve, or modify your campaign content
-                            </p>
-                            <div className="flex flex-wrap gap-2 justify-center max-w-sm mx-auto">
-                              {[
-                                "Make the introduction more engaging",
-                                "Add a conclusion section",
-                                "Improve the tone to be more professional",
-                                "Shorten the content by 20%"
-                              ].map((prompt, index) => (
-                                <Button
-                                  key={index}
-                                  variant="outline"
-                                  className="h-8 px-4 text-sm rounded-md border-white/[0.08] bg-transparent hover:bg-white/[0.05] text-white/80 hover:text-white"
-                                  onClick={() => setChatInput(prompt)}
-                                >
-                                  {prompt}
-                                </Button>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          chatMessages.map((message) => (
-                            <div
-                              key={message.id}
-                              className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                            >
-                              {message.role === 'assistant' && (
-                                <div className="flex-shrink-0 w-6 h-6 rounded-md bg-white/5 border border-white/[0.08] flex items-center justify-center">
-                                  <img 
-                                    src="/images/mudra-logo.png" 
-                                    alt="Mudra" 
-                                    className="w-4 h-4 opacity-90"
-                                  />
-                                </div>
-                              )}
-                              <div
-                                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                                  message.role === 'user'
-                                    ? 'bg-white text-[#0a0a0a]'
-                                    : 'bg-white/[0.05] text-white/90 border border-white/[0.08]'
-                                }`}
-                              >
-                                <div className="whitespace-pre-wrap break-words">
-                                  {message.content}
-                                </div>
-                              </div>
-                              {message.role === 'user' && (
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-white/10 border border-white/[0.08] flex items-center justify-center">
-                                  <Users className="size-3.5 text-white/70" />
-                                </div>
-                              )}
-                            </div>
-                          ))
-                        )}
-                        {isChatLoading && (
-                          <div className="flex gap-3 justify-start">
-                            <div className="flex-shrink-0 w-6 h-6 rounded-md bg-white/5 border border-white/[0.08] flex items-center justify-center">
-                              <img 
-                                src="/images/mudra-logo.png" 
-                                alt="Mudra" 
-                                className="w-4 h-4 opacity-90"
-                              />
-                            </div>
-                            <div className="bg-white/[0.05] text-white/90 border border-white/[0.08] rounded-lg px-3 py-2">
-                              <Loader2 className="size-4 animate-spin text-white/60" />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Input Area */}
-                      <div className="px-4 pb-4 pt-3 border-t border-white/[0.08] flex-shrink-0">
-                        <form onSubmit={handleChatSubmit} className="flex gap-2 items-center">
-                          <Textarea
-                            value={chatInput}
-                            onChange={(e) => setChatInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault()
-                                handleChatSubmit()
-                              }
-                            }}
-                            placeholder="Ask a question..."
-                            disabled={isChatLoading}
-                            className="flex-1 min-h-[40px] max-h-[120px] rounded-lg bg-white/[0.03] border-white/[0.08] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] disabled:opacity-50 text-sm resize-none"
-                            rows={1}
+                    /* AI Edit - Coming Soon */
+                    <div className="rounded-xl bg-[#1a1a1a] overflow-hidden flex flex-col w-full">
+                      <div className="p-6 flex flex-col items-center text-center">
+                        <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center">
+                          <img 
+                            src="/images/mudra-logo.png" 
+                            alt="Mudra" 
+                            className="w-7 h-7 object-contain opacity-90"
                           />
-                          <Button
-                            type="submit"
-                            disabled={!chatInput.trim() || isChatLoading}
-                            className="h-[40px] w-[40px] rounded-lg bg-white text-[#0a0a0a] hover:bg-white/90 border-0 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex-shrink-0"
-                          >
-                            {isChatLoading ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Send className="size-4" />
-                            )}
-                          </Button>
-                        </form>
+                        </div>
+                        <Badge className="mb-3 bg-primary/10 text-primary border-0 text-xs px-3 py-1">
+                          Coming Soon
+                        </Badge>
+                        <h3 className="text-base font-semibold mb-2 text-white">AI-Powered Editing</h3>
+                        <p className="text-white/60 text-sm max-w-xs mx-auto leading-relaxed">
+                          Soon you'll be able to edit your content with natural language commands
+                        </p>
+                        <p className="text-xs text-white/40 mt-4">
+                          For now, edit directly in the editor
+                        </p>
                       </div>
-                    </Card>
+                    </div>
                   ) : (
                     /* Normal Tabs */
                     <Card className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col w-full flex-1 min-h-0">
@@ -929,48 +732,27 @@ export default function CampaignCanvasPage({
                                 </div>
                                 <p className="text-sm text-white/90 leading-relaxed break-words font-mono">{slug || "Not set"}</p>
                               </div>
-                            </div>
-                          </div>
 
-                          {/* Schema Markup */}
-                          <div className="space-y-2.5">
-                            <div className="flex items-center gap-2">
-                              <Code2 className="size-4 text-white/80" />
-                              <h3 className="text-sm font-semibold text-white">Schema Markup</h3>
+                              {/* Tags */}
+                              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+                                <span className="text-xs font-medium text-white/70 uppercase tracking-wide">Tags</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {tags.length > 0 ? (
+                                    tags.map((tag, index) => (
+                                      <Badge 
+                                        key={index} 
+                                        variant="outline" 
+                                        className="bg-primary/10 border-primary/20 text-primary text-xs px-2 py-0.5"
+                                      >
+                                        {tag}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <span className="text-sm text-white/50">No tags</span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
-                              <pre className="text-xs text-white/70 font-mono overflow-x-auto whitespace-pre-wrap break-words">
-{`{
-  "@context": "https://schema.org",
-  "@type": "BlogPosting",
-  "headline": "${title || "Your article title"}",
-  "author": {
-    "@type": "Person",
-    "name": "Editorial Team"
-  }
-}`}
-                              </pre>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full h-8 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium border-0"
-                              onClick={() => {
-                                const schema = JSON.stringify({
-                                  "@context": "https://schema.org",
-                                  "@type": "BlogPosting",
-                                  "headline": title || "Your article title",
-                                  "author": {
-                                    "@type": "Person",
-                                    "name": "Editorial Team"
-                                  }
-                                }, null, 2)
-                                navigator.clipboard.writeText(schema)
-                              }}
-                            >
-                              <CopyIcon className="size-3.5 mr-1.5" />
-                              Copy
-                            </Button>
                           </div>
 
                           {/* Backlinks Section */}

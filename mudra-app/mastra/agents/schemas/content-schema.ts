@@ -7,6 +7,7 @@ export const sourceReferenceSchema = z.object({
 
 export const contentMetadataSchema = z.object({
   title: z.string(),
+  metaDescription: z.string().describe("SEO meta description, 150-160 characters, summarizing the article"),
   wordCount: z.number(),
   sections: z.array(z.string()),
   author: z.object({

@@ -175,6 +175,17 @@ function convertMarkdownWithTables(editor: ReturnType<typeof useLexicalComposerC
   }
 }
 
+// Plugin to update editable state when readOnly prop changes
+function EditablePlugin({ readOnly }: { readOnly: boolean }) {
+  const [editor] = useLexicalComposerContext()
+  
+  useEffect(() => {
+    editor.setEditable(!readOnly)
+  }, [editor, readOnly])
+  
+  return null
+}
+
 // Component to initialize editor with markdown
 function InitializePlugin({ value, isInitialized }: { value?: string; isInitialized: React.MutableRefObject<boolean> }) {
   const [editor] = useLexicalComposerContext()
@@ -496,6 +507,7 @@ export function CampaignEditor({
         </div>
 
         <InitializePlugin value={value} isInitialized={isInitialized} />
+        <EditablePlugin readOnly={readOnly} />
         <HistoryPlugin />
         <ListPlugin />
         <LinkPlugin />

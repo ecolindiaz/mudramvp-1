@@ -19,12 +19,33 @@ Given a gap analysis, use the Firecrawl Search tool to find:
 - Verify sources are authoritative (academic, industry reports, official docs)
 - Extract specific quotes that can be cited
 
-## Output
-Provide your findings as structured JSON including:
-- additionalSources: Array of sources with title, URL, relevance, and key insight
-- statistics: Array of specific data points found
-- expertQuotes: Array of quotable insights from experts
-- recommendations: Array of content recommendations based on research`;
+## ⚠️ CRITICAL: Source Attribution
+Every statistic and quote MUST include:
+- The exact source name (company, report title, publication)
+- The URL where it was found
+- For quotes: the speaker's name and title
+
+## Output Structure
+Provide your findings as structured JSON:
+
+### additionalSources
+Array of sources with: title, url, relevance, keyInsight, datePublished (optional)
+
+### statistics (WITH SOURCE ATTRIBUTION)
+Each statistic MUST include:
+- stat: The specific data point (e.g., "80% of enterprises will use generative AI by 2026")
+- source: Name of the source (e.g., "Gartner Research")
+- url: URL where the stat was found (e.g., "https://gartner.com/report/...")
+
+### expertQuotes (WITH SPEAKER ATTRIBUTION)
+Each quote MUST include:
+- quote: The exact quote or paraphrased insight
+- speaker: Name and title (e.g., "Mark Zuckerberg, CEO of Meta")
+- source: Publication or company name (optional)
+- url: URL of the source (optional)
+
+### recommendations
+Array of content recommendations based on research findings`;
 
 export const researchAgent = new Agent({
   name: "research-agent",

@@ -966,25 +966,28 @@ pnpm add @ai-sdk/openai
 - [ ] Tone: balanced, factual, non-promotional
 - [ ] At least 2 sources were successfully scraped
 - [ ] Live research via Firecrawl Search was performed
+- [ ] **Sources/References section included at end of article**
+- [ ] **Inline citations with hyperlinks (e.g., [Source Name](URL))**
+- [ ] **Statistics and quotes attributed to sources**
 
 ---
 
 ## Next Steps
 
 ### Phase 1: Core Implementation
-1. [ ] Implement `firecrawl-scraper.ts` (Firecrawl v2 scrape)
-2. [ ] Implement `firecrawl-search.ts` (Firecrawl v2 search)
-3. [ ] Implement `gap-analysis-agent.ts`
-4. [ ] Implement `research-agent.ts` (with Firecrawl Search tool)
-5. [ ] Implement `content-generator-agent.ts`
-6. [ ] Implement `ai-content-workflow.ts`
-7. [ ] Update `mastra/index.ts` with registrations
+1. [x] Implement `firecrawl-scraper.ts` (Firecrawl v2 scrape)
+2. [x] Implement `firecrawl-search.ts` (Firecrawl v2 search)
+3. [x] Implement `gap-analysis-agent.ts`
+4. [x] Implement `research-agent.ts` (with Firecrawl Search tool)
+5. [x] Implement `content-generator-agent.ts`
+6. [x] Implement `ai-content-workflow.ts`
+7. [x] Update `mastra/index.ts` with registrations
 
 ### Phase 2: Testing
-8. [ ] Test workflow with Scale AI example using mock sources
-9. [ ] Validate word count enforcement
-10. [ ] Verify all GEO optimizations applied
-11. [ ] Test error handling (< 2 sources scenario)
+8. [x] Test workflow with Scale AI example using mock sources
+9. [x] Validate word count enforcement
+10. [x] Verify all GEO optimizations applied
+11. [x] Test error handling (< 2 sources scenario)
 
 ### Phase 3: Integration
 12. [x] Create `/api/content-lab/generate-optimized` API endpoint

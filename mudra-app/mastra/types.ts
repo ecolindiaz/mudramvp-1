@@ -6,7 +6,11 @@ export type {
   SearchOutput,
 } from "./tools/firecrawl-search";
 export type { GapAnalysisOutput } from "./agents/schemas/gap-analysis-schema";
-export type { ResearchOutput } from "./agents/schemas/research-schema";
+export type {
+  ResearchOutput,
+  Statistic,
+  ExpertQuote,
+} from "./agents/schemas/research-schema";
 export type { ContentOutput } from "./agents/schemas/content-schema";
 export type {
   WorkflowInput,

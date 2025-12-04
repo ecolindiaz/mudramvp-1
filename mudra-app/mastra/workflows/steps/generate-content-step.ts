@@ -51,6 +51,29 @@ export const generateContentStep = createStep({
       )
       .join("\n\n");
 
+    // Prepare source URLs for citation
+    const scrapedSourcesList = scrapedSources
+      .map((s) => `- [${s.title || s.url}](${s.url})`)
+      .join("\n");
+
+    // Prepare research sources with URLs
+    const researchSourcesList = research.additionalSources
+      .map((s) => `- [${s.title}](${s.url}) - ${s.keyInsight}`)
+      .join("\n");
+
+    // Format statistics with source attribution for inline citation
+    const statisticsWithSources = research.statistics
+      .map((s) => `- "${s.stat}" — Source: [${s.source}](${s.url})`)
+      .join("\n");
+
+    // Format expert quotes with speaker attribution
+    const quotesWithSpeakers = research.expertQuotes
+      .map((q) => {
+        const sourceInfo = q.url ? ` — [${q.source || "Source"}](${q.url})` : q.source ? ` — ${q.source}` : "";
+        return `- "${q.quote}" — ${q.speaker}${sourceInfo}`;
+      })
+      .join("\n");
+
     console.log(`[GenerateContent] Generating article for: "${trackedPrompt}"`);
 
     const response = await contentGeneratorAgent.generate(
@@ -69,16 +92,27 @@ export const generateContentStep = createStep({
 ## Source Content Summary
 ${sourcesSummary}
 
+## Sources to Cite (MUST include these as inline citations or in a Sources section)
+### Primary Sources (Scraped Citations):
+${scrapedSourcesList}
+
+### Research Sources (Live Web Research):
+${researchSourcesList}
+
 ## Gap Analysis
 - Content Gaps: ${gapAnalysis.contentGaps.join("; ")}
 - Data Gaps: ${gapAnalysis.dataGaps.join("; ")}
 - Format Gaps: ${gapAnalysis.formatGaps.join("; ")}
 - Depth Gaps: ${gapAnalysis.depthGaps.join("; ")}
 
-## Research Findings
-- Statistics: ${research.statistics.join("; ")}
-- Expert Quotes: ${research.expertQuotes.join("; ")}
-- Additional Sources: ${research.additionalSources.map((s) => s.title).join(", ")}
+## Statistics to Include (WITH SOURCE ATTRIBUTION)
+${statisticsWithSources || "No statistics gathered"}
+
+## Expert Quotes to Include (WITH SPEAKER ATTRIBUTION)
+${quotesWithSpeakers || "No expert quotes gathered"}
+
+## Key Insights from Research
+${research.additionalSources.map((s) => `- ${s.keyInsight} — [${s.title}](${s.url})`).join("\n")}
 
 ## ⚠️ CRITICAL: WORD COUNT REQUIREMENTS ⚠️
 - MINIMUM: 1,200 words (MANDATORY - articles under this are rejected)
@@ -90,7 +124,14 @@ ${sourcesSummary}
 - Include Bottom Line (75-100 words)
 - Include FAQ with 5 Q&As (150-250 words total)
 
-Generate a complete, comprehensive, GEO-optimized article that meets the 1,200-1,600 word requirement.`,
+## ⚠️ CRITICAL: SOURCE CITATIONS ⚠️
+- Include a "Sources" or "References" section at the end of the article
+- Use inline citations where appropriate (e.g., "According to [Source Name]...")
+- All statistics MUST be cited inline with the source: "According to [Source](URL), statistic here."
+- All expert quotes MUST include the speaker's name and title
+- Include hyperlinks to sources in markdown format: [Source Name](URL)
+
+Generate a complete, comprehensive, GEO-optimized article that meets the 1,200-1,600 word requirement AND includes proper source citations.`,
       {
         output: contentOutputSchema,
       }

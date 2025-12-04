@@ -44,10 +44,19 @@ ${STRUCTURE_PROMPT || "[Content Structure guidelines will be loaded at runtime]"
 5. **Main H2 Sections (5-7 sections)** - Each 150-250 words with:
    - Direct answer paragraph (2-3 sentences)
    - Supporting details and examples
-   - Relevant data points or quotes
+   - Relevant data points or quotes WITH SOURCE ATTRIBUTION
 6. **Comparison Table** - If comparing options (counts toward word total)
 7. **Bottom Line** - Key takeaway and recommended action (75-100 words)
 8. **FAQ Section** - 5 Q&As, each answer 30-50 words (150-250 words total)
+9. **Sources/References Section** - List all sources with hyperlinks
+
+## ⚠️ CRITICAL: SOURCE CITATIONS ⚠️
+- **ALWAYS** include a "## Sources" or "## References" section at the end
+- Use inline citations: "According to [Source Name](URL)..." or "Research from [Source](URL) shows..."
+- All statistics MUST be attributed to their source
+- All expert quotes MUST include attribution
+- Format source links as: [Source Title](https://url.com)
+- Include BOTH scraped sources AND research sources in the References section
 
 ## Output Format
 Return the full markdown article along with metadata including title, actual word count, sections, and author info.`;

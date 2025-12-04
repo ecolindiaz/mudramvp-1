@@ -353,7 +353,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       
       // Add timeout to prevent hanging requests
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
+      const timeoutId = setTimeout(() => controller.abort('Request timeout'), 10000) // 10s timeout
       
       const response = await fetch(
         `/api/analysis/technical-history?brandProfileId=${profile.id}&limit=2`,
@@ -403,7 +403,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       setLoadingTraffic(true)
       
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000)
+      const timeoutId = setTimeout(() => controller.abort('Request timeout'), 10000)
       
       const response = await fetch(
         `/api/analysis/results?brandProfileId=${profile.id}`,

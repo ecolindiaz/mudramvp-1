@@ -240,7 +240,7 @@ export function BrandProfileForm() {
           <div className="flex items-center gap-6">
             <div className="flex flex-col items-center gap-2">
               <Avatar className="h-20 w-20">
-                <AvatarImage src={formData.userAvatar} />
+                <AvatarImage src={formData.userAvatar || undefined} />
                 <AvatarFallback className="text-lg">
                   {formData.userName.split(' ').map(n => n[0]).join('')}
                 </AvatarFallback>

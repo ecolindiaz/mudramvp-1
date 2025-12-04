@@ -54,6 +54,9 @@ model BrandProfile {
   aiReferralVisits           AIReferralVisit[]
   aiReferralAnalytics        AIReferralAnalytics[]
   deployedAgents             DeployedAgent[]
+  agentExecutions            AgentExecution[]
+  agentSchedules             AgentSchedule[]
+  contentOptimizations       ContentOptimization[]
   
   @@index([userId])
 }
@@ -832,4 +835,102 @@ model GitHubIntegration {
   @@unique([userId])
   @@index([userId])
   @@index([githubUserId])
+}
+
+// ============================
+// Autonomous Agent Infrastructure
+// ============================
+
+model AgentExecution {
+  id                Int      @id @default(autoincrement())
+  brandProfileId    Int
+  agentType         String   // "content_optimizer", "competitive_intel", "reddit_scout", "technical_validator"
+  executionId       String   @unique @default(cuid())
+  status            String   @default("pending") // pending, running, completed, failed
+  input             Json     // Execution input parameters
+  output            Json?    // Execution results
+  metrics           Json?    // Performance metrics (API costs, tokens used, time taken)
+  errorMessage      String?  @db.Text
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  memoryEntries     AgentMemory[]
+  contentOptimizations ContentOptimization[]
+  
+  @@index([brandProfileId])
+  @@index([brandProfileId, agentType])
+  @@index([brandProfileId, status])
+  @@index([agentType, status])
+  @@index([createdAt])
+  @@map("agent_executions")
+}
+
+model AgentMemory {
+  id                Int      @id @default(autoincrement())
+  executionId       Int
+  agentType         String
+  memoryKey         String   // "last_analyzed_pages", "competitor_baselines", "reddit_threads_processed"
+  memoryValue       Json     // Stored data (array of pages, competitor data, etc.)
+  expiresAt         DateTime? // Optional TTL for memory entries
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  
+  @@unique([executionId, memoryKey])
+  @@index([executionId])
+  @@index([agentType, memoryKey])
+  @@index([expiresAt])
+  @@map("agent_memory")
+}
+
+model AgentSchedule {
+  id                Int      @id @default(autoincrement())
+  brandProfileId    Int
+  agentType         String
+  isEnabled         Boolean  @default(true)
+  cronExpression    String   // "0 9 * * *" for daily 9am, "0 9 * * 1" for weekly Monday 9am
+  lastRunAt         DateTime?
+  nextRunAt         DateTime?
+  config            Json     // Agent-specific configuration
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@unique([brandProfileId, agentType])
+  @@index([brandProfileId])
+  @@index([agentType])
+  @@index([isEnabled, nextRunAt])
+  @@map("agent_schedules")
+}
+
+model ContentOptimization {
+  id                Int      @id @default(autoincrement())
+  brandProfileId    Int
+  executionId       Int
+  pageUrl           String
+  originalScore     Float    // GEO score before optimization
+  optimizedScore    Float?   // GEO score after optimization (null if not re-tested)
+  improvements      Json     // Array of applied improvements
+  prUrl             String?  // GitHub PR URL
+  status            String   @default("pending") // pending, pr_created, merged, deployed, verified
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  
+  @@index([brandProfileId])
+  @@index([executionId])
+  @@index([brandProfileId, status])
+  @@index([pageUrl])
+  @@map("content_optimizations")
 }

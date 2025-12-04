@@ -1,13 +1,10 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "@prisma/client";
-
-// Initialize Prisma Client directly in this file for NextAuth adapter
-const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-});
+import { prisma } from '@/lib/prisma';
+import type { Adapter } from "next-auth/adapters";
 
 declare module "next-auth" {
   interface Session {
@@ -33,7 +30,7 @@ declare module "next-auth/jwt" {
 }
 
 export const authOptions: NextAuthOptions = {
-  // NOTE: Not using adapter with JWT strategy - we handle user creation manually in callbacks
+  adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -93,62 +90,7 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  cookies: {
-    sessionToken: {
-      name: `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production', // false for local dev
-      }
-    }
-  },
   callbacks: {
-    async signIn({ user, account, profile }) {
-      // Handle OAuth sign-in (Google)
-      if (account?.provider === "google" && profile?.email) {
-        try {
-          // Check if user exists
-          let dbUser = await prisma.user.findUnique({
-            where: { email: profile.email.toLowerCase() }
-          });
-
-          if (!dbUser) {
-            // Create new user
-            dbUser = await prisma.user.create({
-              data: {
-                email: profile.email.toLowerCase(),
-                name: profile.name || null,
-                image: (profile as any).picture || null,
-                emailVerified: new Date(),
-              }
-            });
-            console.log("✅ New Google user created:", dbUser.email);
-          } else {
-            // Update existing user with Google profile data
-            dbUser = await prisma.user.update({
-              where: { id: dbUser.id },
-              data: {
-                name: profile.name || dbUser.name,
-                image: (profile as any).picture || dbUser.image,
-                emailVerified: dbUser.emailVerified || new Date(),
-              }
-            });
-            console.log("✅ Existing user updated:", dbUser.email);
-          }
-
-          // Store the database user ID for JWT
-          user.id = dbUser.id;
-          user.emailVerified = dbUser.emailVerified;
-        } catch (error) {
-          console.error("❌ Error creating/updating user:", error);
-          return false;
-        }
-      }
-      
-      return true;
-    },
     async jwt({ token, user, account, trigger }) {
       // Initial sign in
       if (user) {
@@ -197,4 +139,6 @@ export const authOptions: NextAuthOptions = {
   debug: process.env.NODE_ENV === 'development',
 };
 
-export default NextAuth(authOptions);
+const handler = NextAuth(authOptions);
+
+export { handler as GET, handler as POST };

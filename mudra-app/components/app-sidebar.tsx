@@ -143,6 +143,7 @@ const data = {
 export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false)
   const [searchOpen, setSearchOpen] = React.useState(false)
+  const [isMounted, setIsMounted] = React.useState(false)
   
   // Get session data from NextAuth
   const { data: session } = useSession()
@@ -150,12 +151,17 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
   // Get brand profile data
   const { profile } = useBrandProfile()
   
-  // Use real company data from BrandProfile
+  // Prevent hydration mismatch by only using profile data after mount
+  React.useEffect(() => {
+    setIsMounted(true)
+  }, [])
+  
+  // Use real company data from BrandProfile, but only after mounting
   const companyData: CompanyData = React.useMemo(() => ({
-    name: profile?.companyName || "Your Company",
-    website: profile?.companyWebsite || undefined,
-    logo: profile?.userAvatar || undefined
-  }), [profile])
+    name: isMounted && profile?.companyName ? profile.companyName : "Your Company",
+    website: isMounted && profile?.companyWebsite ? profile.companyWebsite : undefined,
+    logo: isMounted && profile?.userAvatar ? profile.userAvatar : undefined
+  }), [profile, isMounted])
   
   // Use real user data from session, fallback to mock data
   const userData = session?.user ? {

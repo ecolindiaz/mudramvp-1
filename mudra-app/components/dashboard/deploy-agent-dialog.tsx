@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Loader2, FileCode, Shield, Layers, Route, HelpCircle, Radio, Link2 } from "lucide-react"
+import { Loader2, FileCode, Shield, Layers, Route, HelpCircle, Radio, Link2, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 
@@ -26,6 +26,16 @@ interface DeployAgentDialogProps {
 }
 
 const mockDeployments: DeploymentItem[] = [
+  {
+    id: "content-optimizer",
+    agentName: "Content Optimizer",
+    agentDescription: "Identifies low-scoring pages and creates optimization PRs with schema markup, FAQs, and headers.",
+    status: "Ready",
+    duration: "~5m per 10 pages",
+    icon: Sparkles,
+    impact: "High",
+    isActive: true,
+  },
   {
     id: "1",
     agentName: "LLMs.txt Indexer",

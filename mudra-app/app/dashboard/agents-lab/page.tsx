@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Bot, Loader2, GitBranch, ChevronDown, GitPullRequest, Search, Check, Clock, Layers, Rocket, Radio, ChevronRight, ChevronLeft, ListChecks, BookOpen, XCircle, MoreHorizontal } from "lucide-react"
+import { Bot, Loader2, GitBranch, ChevronDown, GitPullRequest, Search, Check, Clock, Layers, Rocket, Radio, ChevronRight, ChevronLeft, ListChecks, BookOpen, XCircle, MoreHorizontal, Sparkles } from "lucide-react"
 import { BrowserWindowEmpty } from "@/components/empty-states/browser-window-empty"
 import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -80,6 +80,16 @@ function AgentsLabPageInner() {
   // Mount state to prevent hydration mismatch
   const [isMounted, setIsMounted] = useState(false)
   
+  // Content Optimizer state
+  const [isOptimizerRunning, setIsOptimizerRunning] = useState(false)
+  const [optimizerResults, setOptimizerResults] = useState<Array<{
+    url: string
+    originalScore: number
+    improvements: Array<{ type: string; description: string; impact: string }>
+    prUrl?: string
+    error?: string
+  }>>([])
+  
   useEffect(() => {
     setIsMounted(true)
   }, [])
@@ -97,6 +107,7 @@ function AgentsLabPageInner() {
   }>>([])
 
   const agentMetricsMap: Record<string, { optimizations: number; activeTasks: number; totalTasks: number }> = {
+    "Content Optimizer": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
     "LLMs.txt Indexer": { optimizations: 24, activeTasks: 3, totalTasks: 5 },
     "Robots Gatekeeper": { optimizations: 18, activeTasks: 2, totalTasks: 4 },
     "Schema Architect": { optimizations: 31, activeTasks: 4, totalTasks: 6 },
@@ -319,6 +330,46 @@ function AgentsLabPageInner() {
     }
   }
 
+  // Run Content Optimizer
+  const runContentOptimizer = async (maxPages: number = 10) => {
+    if (!profile.id) return
+
+    setIsOptimizerRunning(true)
+    setOptimizerResults([])
+
+    try {
+      const response = await fetch('/api/agents/content-optimizer/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandProfileId: profile.id,
+          input: { maxPages },
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.error || 'Optimization failed')
+      }
+
+      const optimizedPages = data.data?.optimizedPages || []
+      setOptimizerResults(optimizedPages)
+
+      // Update agent metrics
+      const successCount = optimizedPages.filter((p: any) => p.prUrl).length
+      agentMetricsMap["Content Optimizer"] = {
+        optimizations: successCount,
+        activeTasks: 0,
+        totalTasks: optimizedPages.length,
+      }
+    } catch (error) {
+      console.error('Content Optimizer error:', error)
+    } finally {
+      setIsOptimizerRunning(false)
+    }
+  }
+
   // Pause/Resume and Run Now handlers
   const handleTogglePause = (agentId: string) => {
     setDeployedAgents(prev =>
@@ -426,6 +477,11 @@ function AgentsLabPageInner() {
   }
 
   const buildTaskRows = (agent: (typeof deployedAgents)[number]): TaskRow[] => {
+    // Special handling for Content Optimizer agent
+    if (agent.agentName === "Content Optimizer") {
+      return [] // Content Optimizer shows optimization results, not tasks
+    }
+
     const now = new Date()
     const subtractMinutes = (minutes: number) => new Date(now.getTime() - minutes * 60 * 1000)
 
@@ -925,6 +981,115 @@ function AgentsLabPageInner() {
                   {/* Main Content */}
                   {isDetailView && selectedAgent ? (
                     <div className="space-y-4">
+                      {/* Content Optimizer Special UI */}
+                      {selectedAgent.agentName === "Content Optimizer" ? (
+                        <div className="space-y-4">
+                          {/* Run Optimizer Buttons */}
+                          <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] p-6 shadow-sm">
+                            <div className="flex items-center justify-between mb-4">
+                              <div>
+                                <h3 className="text-lg font-semibold text-white mb-1">Run Optimization</h3>
+                                <p className="text-sm text-white/60">Identify low-scoring pages and create optimization PRs</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-3">
+                              <Button
+                                onClick={() => runContentOptimizer(10)}
+                                disabled={isOptimizerRunning}
+                                size="lg"
+                                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white border-0"
+                              >
+                                {isOptimizerRunning ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Optimizing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Bot className="mr-2 h-4 w-4" />
+                                    Optimize Top 10 Pages
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                onClick={() => runContentOptimizer(50)}
+                                disabled={isOptimizerRunning}
+                                size="lg"
+                                variant="outline"
+                                className="flex-1"
+                              >
+                                Optimize Top 50 Pages
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Optimization Results */}
+                          {optimizerResults.length > 0 && (
+                            <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                              <div className="px-6 py-4 border-b border-white/[0.06]">
+                                <h3 className="text-sm font-semibold text-white">
+                                  Optimization Results ({optimizerResults.filter(r => r.prUrl).length} of {optimizerResults.length} successful)
+                                </h3>
+                              </div>
+                              <div className="divide-y divide-white/[0.06]">
+                                {optimizerResults.map((result, idx) => (
+                                  <div key={idx} className="px-6 py-5">
+                                    <div className="flex items-start justify-between mb-3">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          {result.prUrl ? (
+                                            <Check className="h-4 w-4 text-green-500 shrink-0" />
+                                          ) : (
+                                            <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+                                          )}
+                                          <p className="text-sm font-medium text-white truncate">{result.url}</p>
+                                        </div>
+                                        <p className="text-xs text-white/60">Original GEO Score: {result.originalScore}%</p>
+                                      </div>
+                                      {result.prUrl && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          asChild
+                                          className="shrink-0 ml-4"
+                                        >
+                                          <a href={result.prUrl} target="_blank" rel="noopener noreferrer">
+                                            <GitPullRequest className="mr-2 h-3 w-3" />
+                                            View PR
+                                          </a>
+                                        </Button>
+                                      )}
+                                    </div>
+                                    {result.error && (
+                                      <p className="text-xs text-red-400 mb-2">{result.error}</p>
+                                    )}
+                                    {result.improvements.length > 0 && (
+                                      <div className="flex flex-wrap gap-2 mt-3">
+                                        {result.improvements.map((imp, impIdx) => (
+                                          <span
+                                            key={impIdx}
+                                            className={cn(
+                                              "inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium",
+                                              imp.impact === "high"
+                                                ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                                                : imp.impact === "medium"
+                                                ? "bg-orange-500/10 text-orange-400 border border-orange-500/20"
+                                                : "bg-white/5 text-white/60 border border-white/10"
+                                            )}
+                                          >
+                                            {imp.description}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* Regular Task View for Other Agents */
                       <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
                         {filteredTasks.length > 0 ? (
                           filteredTasks.map((task, index) => {
@@ -1075,6 +1240,7 @@ function AgentsLabPageInner() {
                           </div>
                         )}
                       </div>
+                      )}
                     </div>
                   ) : filteredDeployedAgents.length > 0 ? (
                     <div className="space-y-2">

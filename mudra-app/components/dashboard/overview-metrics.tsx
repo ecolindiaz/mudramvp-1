@@ -163,6 +163,88 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   const [aiReferralPrevious, setAiReferralPrevious] = useState<number | null>(null)
   const [hasAiTrafficHistory, setHasAiTrafficHistory] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(new Date())
+  const [isInstallingTracking, setIsInstallingTracking] = useState(false)
+
+  // Handle auto-install tracking script via GitHub agent
+  const handleAutoInstall = async () => {
+    if (!profile.id) {
+      toast.error("Brand profile not found");
+      return;
+    }
+
+    try {
+      setIsInstallingTracking(true);
+      toast("Checking GitHub connection...", { icon: "🔍" });
+
+      // Check if GitHub is connected (will need to create this endpoint)
+      // For now, proceed directly to deployment
+      toast("Deploying tracking installation agent...", { icon: "🤖" });
+
+      // Deploy tracking installer agent
+      const deployResponse = await fetch('/api/agents/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentType: 'tracking-installer',
+          agentName: 'AI Referral Tracking Installer',
+          agentDescription: 'Automatically installs Mudra tracking script in your codebase',
+          githubRepoName: profile.companyWebsite || 'your-repo',
+          githubBranch: 'main'
+        })
+      });
+
+      const deployResult = await deployResponse.json();
+
+      if (!deployResponse.ok) {
+        throw new Error(deployResult.error?.message || 'Failed to deploy agent');
+      }
+
+      toast.success("Agent deployed! Starting installation...", { icon: "✅" });
+
+      // Execute install_tracking action
+      const executeResponse = await fetch('/api/agents/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deployedAgentId: deployResult.data.id,
+          action: 'install_tracking'
+        })
+      });
+
+      const executeResult = await executeResponse.json();
+
+      if (!executeResponse.ok) {
+        throw new Error(executeResult.error?.message || 'Failed to execute agent');
+      }
+
+      // Show success with PR link
+      if (executeResult.data?.prUrl) {
+        toast.success(
+          <div>
+            <p className="font-semibold">Installation PR created! 🎉</p>
+            <a href={executeResult.data.prUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-400 hover:underline">
+              View PR on GitHub →
+            </a>
+          </div>,
+          { duration: 8000 }
+        );
+      } else {
+        toast.success("Tracking script installed successfully!");
+      }
+
+      // Refresh tracking status
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await fetchAiReferralTraffic();
+
+    } catch (error) {
+      console.error('Auto-install error:', error);
+      toast.error(
+        error instanceof Error ? error.message : "Installation failed. Please try manual install."
+      );
+    } finally {
+      setIsInstallingTracking(false);
+    }
+  };
 
   // Fetch latest score and historical data from database
   const fetchLatestScore = async () => {
@@ -196,8 +278,21 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
     try {
       setLoadingAIVisibility(true)
-      // Fetch current aggregate score (Firegeo methodology)
-      const currentResponse = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
+      
+      // Fetch current aggregate score (Firegeo methodology) with timeout
+      const controller1 = new AbortController()
+      const timeoutId1 = setTimeout(() => controller1.abort(), 10000)
+      
+      const currentResponse = await fetch(
+        `/api/prompts/with-results?brandProfileId=${profile.id}`,
+        { signal: controller1.signal }
+      )
+      clearTimeout(timeoutId1)
+      
+      if (!currentResponse.ok) {
+        throw new Error(`HTTP ${currentResponse.status}: ${currentResponse.statusText}`)
+      }
+      
       const currentResult = await currentResponse.json()
       
       if (currentResult.success && currentResult.aggregate) {
@@ -212,8 +307,20 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         })
       }
 
-      // Fetch historical data for comparison
-      const historyResponse = await fetch(`/api/analysis/geo-history?brandProfileId=${profile.id}&limit=2`)
+      // Fetch historical data for comparison with timeout
+      const controller2 = new AbortController()
+      const timeoutId2 = setTimeout(() => controller2.abort(), 10000)
+      
+      const historyResponse = await fetch(
+        `/api/analysis/geo-history?brandProfileId=${profile.id}&limit=2`,
+        { signal: controller2.signal }
+      )
+      clearTimeout(timeoutId2)
+      
+      if (!historyResponse.ok) {
+        throw new Error(`HTTP ${historyResponse.status}: ${historyResponse.statusText}`)
+      }
+      
       const historyResult = await historyResponse.json()
       
       if (historyResult.success && historyResult.data && historyResult.data.length > 1) {
@@ -228,6 +335,10 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       }
     } catch (error) {
       console.error('Error fetching AI visibility history:', error)
+      // Set safe defaults on error
+      setHasAiHistory(false)
+      setAiVisibilityPrevious(null)
+      setAiVisibilityScore(0)
     } finally {
       setLoadingAIVisibility(false)
     }
@@ -239,7 +350,21 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
     try {
       setLoadingTechnical(true)
-      const response = await fetch(`/api/analysis/technical-history?brandProfileId=${profile.id}&limit=2`)
+      
+      // Add timeout to prevent hanging requests
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
+      
+      const response = await fetch(
+        `/api/analysis/technical-history?brandProfileId=${profile.id}&limit=2`,
+        { signal: controller.signal }
+      )
+      clearTimeout(timeoutId)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
       const result = await response.json()
       
       if (result.success && result.data && result.data.length > 0) {
@@ -261,6 +386,10 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       }
     } catch (error) {
       console.error('Error fetching technical history:', error)
+      // Set safe defaults on error
+      setHasHistoricalData(false)
+      setPreviousScore(null)
+      setTechnicalScore(0)
     } finally {
       setLoadingTechnical(false)
     }
@@ -272,7 +401,20 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
     try {
       setLoadingTraffic(true)
-      const response = await fetch(`/api/analysis/results?brandProfileId=${profile.id}`)
+      
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
+      
+      const response = await fetch(
+        `/api/analysis/results?brandProfileId=${profile.id}`,
+        { signal: controller.signal }
+      )
+      clearTimeout(timeoutId)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
       const result = await response.json()
       
       if (result.success && result.trafficMetrics) {
@@ -619,13 +761,23 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
                     </p>
                     <Button
                       size="sm"
-                      onClick={() => {
-                        // TODO: Open agent deployment dialog
-                        toast("Auto-install coming soon! Use manual install below for now.", { icon: "ℹ️" });
-                      }}
-                      className="h-8 px-4 text-xs bg-purple-600 hover:bg-purple-700 text-white border-0 rounded-md"
+                      onClick={handleAutoInstall}
+                      disabled={isInstallingTracking}
+                      className="h-8 px-4 text-xs bg-purple-600 hover:bg-purple-700 text-white border-0 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Zap className="size-3.5 mr-1.5" /> Auto-Install with Agent
+                      {isInstallingTracking ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-2 h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Installing...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="size-3.5 mr-1.5" /> Auto-Install with Agent
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>

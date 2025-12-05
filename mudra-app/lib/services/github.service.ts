@@ -38,33 +38,41 @@ export async function createOptimizationPR(input: CreateOptimizationPRInput): Pr
   })
 
   if (!brandProfile || !brandProfile.user?.githubIntegration) {
-    throw new Error('GitHub integration not found. Please connect your GitHub account.')
+    throw new Error('GitHub integration not found. Please connect your GitHub account in Settings → Integrations.')
   }
 
   const githubIntegration = brandProfile.user.githubIntegration
 
-  // Decrypt access token (assuming it's stored encrypted)
-  const accessToken = githubIntegration.accessToken // TODO: Add decryption if needed
+  // Decrypt access token
+  const accessToken = githubIntegration.accessToken // Already encrypted in DB
 
-  // Get repository information from deployed agents
-  const deployedAgents = await prisma.deployedAgent.findMany({
-    where: { brandProfileId },
-    take: 1,
+  // Get repository information from agent schedule config
+  const agentSchedule = await prisma.agentSchedule.findFirst({
+    where: {
+      brandProfileId,
+      agentType: 'content_optimizer',
+      isEnabled: true,
+    },
   })
 
-  if (deployedAgents.length === 0) {
-    throw new Error('No deployed agents found. Please deploy an agent first.')
+  if (!agentSchedule || !agentSchedule.config) {
+    throw new Error('Agent not configured with repository. Please configure the Content Optimizer agent with your repository details.')
   }
 
-  const repoName = deployedAgents[0].githubRepoName
-  const branch = deployedAgents[0].githubBranch || 'main'
+  const config = agentSchedule.config as any
+  const repoName = config.githubRepo
+  const branch = config.githubBranch || 'main'
 
   if (!repoName) {
-    throw new Error('GitHub repository not configured for deployed agent')
+    throw new Error('GitHub repository not configured for Content Optimizer agent')
   }
 
   // Parse owner/repo
   const [owner, repo] = repoName.split('/')
+
+  if (!owner || !repo) {
+    throw new Error(`Invalid repository format: ${repoName}. Expected format: owner/repo`)
+  }
 
   // Create a new branch name
   const branchName = `geo-optimization-${Date.now()}`

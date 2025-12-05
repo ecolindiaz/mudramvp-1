@@ -8,8 +8,102 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import Image from "next/image"
+import { useState, useEffect } from "react"
+import { Check } from "lucide-react"
 
 export default function IntegrationsPage() {
+  const [githubConnected, setGithubConnected] = useState(false)
+  const [githubUsername, setGithubUsername] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+  // Check GitHub connection status on load
+  useEffect(() => {
+    checkGitHubStatus()
+  }, [])
+
+  const checkGitHubStatus = async () => {
+    try {
+      const response = await fetch('/api/integrations/github')
+      const data = await response.json()
+      
+      if (data.success && data.connected) {
+        setGithubConnected(true)
+        setGithubUsername(data.integration?.githubUsername || null)
+      }
+    } catch (error) {
+      console.error('Failed to check GitHub status:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGitHubConnect = () => {
+    // Start GitHub App installation flow (allows repository selection)
+    const appName = process.env.NEXT_PUBLIC_GITHUB_APP_NAME || 'mudra-content-optimizer'
+    
+    // GitHub will redirect to the Setup URL configured in the GitHub App settings
+    // That should be: http://localhost:3000/api/auth/github/installation/callback
+    // or: https://yourdomain.com/api/auth/github/installation/callback
+    const githubAuthUrl = `https://github.com/apps/${appName}/installations/new`
+    
+    // Store a flag to show we're expecting a callback
+    sessionStorage.setItem('github_app_connecting', 'true')
+    
+    window.location.href = githubAuthUrl
+  }
+
+  const handleGitHubDisconnect = async () => {
+    try {
+      const response = await fetch('/api/integrations/github', {
+        method: 'DELETE',
+      })
+      
+      if (response.ok) {
+        setGithubConnected(false)
+        setGithubUsername(null)
+      }
+    } catch (error) {
+      console.error('Failed to disconnect GitHub:', error)
+    }
+  }
+
+  const handleGitHubSync = async () => {
+    setSyncing(true)
+    setSyncMessage(null)
+    
+    try {
+      const response = await fetch('/api/integrations/github/sync', {
+        method: 'POST',
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setSyncMessage({ 
+          type: 'success', 
+          text: `✓ Synced successfully! Found ${data.data.repositories} repositories.` 
+        })
+        // Refresh the connection status
+        await checkGitHubStatus()
+      } else {
+        setSyncMessage({ 
+          type: 'error', 
+          text: data.error || 'Failed to sync GitHub installations' 
+        })
+      }
+    } catch (error) {
+      console.error('Failed to sync GitHub:', error)
+      setSyncMessage({ 
+        type: 'error', 
+        text: 'Failed to sync GitHub installations' 
+      })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
     <SidebarProvider
       className="bg-dark-grey"
@@ -45,7 +139,7 @@ export default function IntegrationsPage() {
                     All
                   </Button>
                   <Button variant="ghost" size="sm" className="h-8 rounded-full border border-white/10 bg-white/5 text-white/80 hover:text-white px-3 text-xs font-medium">
-                    Installed 0
+                    Installed {githubConnected ? 1 : 0}
                   </Button>
                 </div>
                 
@@ -72,11 +166,62 @@ export default function IntegrationsPage() {
                     <p className="text-[15px] text-white/80 leading-relaxed">
                       Connect your repositories so Mudra can open Pull Requests for issues that it finds
                     </p>
-                    <div>
-                      <Button className="w-full h-10 rounded-lg bg-white/15 hover:bg-white/20 text-white text-sm font-medium">
-                        Install
-                      </Button>
-                    </div>
+                    {githubConnected ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                          <Check className="h-4 w-4 text-green-500" />
+                          <span className="text-sm text-white/90">Connected as @{githubUsername}</span>
+                        </div>
+                        <Button 
+                          onClick={handleGitHubDisconnect}
+                          className="w-full h-10 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium"
+                        >
+                          Disconnect
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Button 
+                          onClick={handleGitHubConnect}
+                          disabled={loading}
+                          className="w-full h-10 rounded-lg bg-white/15 hover:bg-white/20 text-white text-sm font-medium"
+                        >
+                          {loading ? 'Checking...' : 'Install'}
+                        </Button>
+                        
+                        {/* Manual Sync Button */}
+                        <div className="relative">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-px bg-white/10"></div>
+                            <span className="text-xs text-white/40">OR</span>
+                            <div className="flex-1 h-px bg-white/10"></div>
+                          </div>
+                          <Button 
+                            onClick={handleGitHubSync}
+                            disabled={syncing}
+                            variant="outline"
+                            className="w-full h-9 mt-2 rounded-lg border-white/10 bg-white/5 hover:bg-white/10 text-white/80 text-xs font-medium"
+                          >
+                            {syncing ? 'Syncing...' : 'Sync Existing Installation'}
+                          </Button>
+                          
+                          {/* Sync Message */}
+                          {syncMessage && (
+                            <div className={`mt-2 p-2 rounded-lg text-xs ${
+                              syncMessage.type === 'success' 
+                                ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+                                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                            }`}>
+                              {syncMessage.text}
+                            </div>
+                          )}
+                          
+                          <p className="text-xs text-white/40 mt-2">
+                            Already installed the GitHub App? Click sync to connect it.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 

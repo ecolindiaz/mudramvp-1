@@ -1,4 +1,4 @@
-import { createAgent } from '@mastra/core';
+import { Agent } from '@mastra/core';
 import { openai } from '@ai-sdk/openai';
 import { analyzeCodebaseTool } from '../tools/codebase-analyzer';
 import { generateSchemaMarkupTool } from '../tools/schema-generator';
@@ -24,7 +24,7 @@ import { calculateAeoScoreTool } from '../tools/aeo-score-calculator';
  * - Google AI Overviews
  * - Bing Chat
  */
-export const aeoGeoOptimizerAgent = createAgent({
+export const aeoGeoOptimizerAgent = new Agent({
   name: 'AEO/GEO Optimizer',
   instructions: `
 You are an expert Answer Engine Optimization (AEO) and Generative Engine Optimization (GEO) consultant.
@@ -212,11 +212,7 @@ Prove value with before/after scores and citation probability increases.
 
 Now help the user optimize their content for maximum AI visibility! 🚀
   `,
-  model: {
-    provider: 'openai',
-    name: 'gpt-4o',
-    toolChoice: 'auto',
-  },
+  model: openai('gpt-4o'),
   tools: {
     analyzeCodebase: analyzeCodebaseTool,
     generateSchemaMarkup: generateSchemaMarkupTool,

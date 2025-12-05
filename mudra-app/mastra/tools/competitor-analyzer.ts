@@ -1,5 +1,5 @@
 import { createTool } from '@mastra/core';
-import { CodeInterpreter } from '@e2b/code-interpreter';
+import CodeInterpreter from '@e2b/code-interpreter';
 import { z } from 'zod';
 
 /**
@@ -70,13 +70,14 @@ export const analyzeCompetitorCitationsTool = createTool({
       timeToImplement: z.string(),
     })),
   }),
-  execute: async ({ context, input }) => {
+  execute: async ({ context }, input) => {
     const sandbox = await CodeInterpreter.create();
     
     try {
-      await sandbox.notebook.execCell(`
+      await sandbox.runCode(`
         import sys
-        !{sys.executable} -m pip install beautifulsoup4 requests -q
+        import subprocess
+        subprocess.run([sys.executable, '-m', 'pip', 'install', 'beautifulsoup4', 'requests', '-q'])
       `);
 
       const competitorAnalysisScript = `
@@ -312,10 +313,10 @@ result = analyze_competitor_citations(competitor_urls, topic, include_content_ga
 print(result)
 `;
 
-      const execution = await sandbox.notebook.execCell(competitorAnalysisScript);
+      const execution = await sandbox.runCode(competitorAnalysisScript);
       
       if (execution.error) {
-        throw new Error(`Competitor analysis failed: ${execution.error.value}`);
+        throw new Error(`Competitor analysis failed: ${execution.error}`);
       }
 
       const output = execution.logs.stdout.join('\n');
@@ -326,7 +327,7 @@ print(result)
       console.error('Competitor analysis error:', error);
       throw error;
     } finally {
-      await sandbox.close();
+      await sandbox.kill();
     }
   },
 });

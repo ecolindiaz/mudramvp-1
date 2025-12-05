@@ -57,8 +57,8 @@ export const calculateAeoScoreTool = createTool({
       percentile: z.number(),
     }),
   }),
-  execute: async ({ context, input }) => {
-    const { analysisData } = input;
+  execute: async ({ context }) => {
+    const { analysisData } = context;
     
     // Calculate total score
     const totalScore = 

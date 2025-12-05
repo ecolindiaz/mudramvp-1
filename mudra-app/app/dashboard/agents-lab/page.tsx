@@ -136,10 +136,40 @@ function AgentsLabPageInner() {
     }
   }
 
+  // Fetch deployed agents from database
+  const fetchDeployedAgents = async () => {
+    if (!profile.id) return
+
+    try {
+      const response = await fetch(`/api/agents/deployed?brandProfileId=${profile.id}`)
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        // Map database records to UI state
+        const agents = result.data.map((agent: any) => ({
+          id: `${agent.agentType}-${agent.id}`,
+          agentName: agent.agentType.split('_').map((w: string) => 
+            w.charAt(0).toUpperCase() + w.slice(1)
+          ).join(' '),
+          agentDescription: 'Deployed agent',
+          icon: Sparkles,
+          impact: 'High' as const,
+          deployedAt: new Date(agent.createdAt),
+          lastActivity: new Date(agent.updatedAt),
+          status: 'active' as const,
+        }))
+        setDeployedAgents(agents)
+      }
+    } catch (error) {
+      console.error('Error fetching deployed agents:', error)
+    }
+  }
+
   // Initial data fetch
   useEffect(() => {
     if (profile.id) {
       fetchTechnicalHistory()
+      fetchDeployedAgents()
     }
   }, [profile.id])
 
@@ -161,6 +191,7 @@ function AgentsLabPageInner() {
     agentDescription: string
     icon: React.ComponentType<{ className?: string }>
     impact: "High" | "Medium" | "Low"
+    repoConfig?: { repo: string; branch: string }
   }) => {
     // Generate unique ID for this deployment instance
     const uniqueId = `${deployment.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -176,8 +207,11 @@ function AgentsLabPageInner() {
     // This ensures it shows in the main view with "Deploying..." status
     const now = new Date()
     const newAgent = {
-      ...deployment,
       id: uniqueId,
+      agentName: deployment.agentName,
+      agentDescription: deployment.agentDescription,
+      icon: deployment.icon,
+      impact: deployment.impact,
       deployedAt: now,
       lastActivity: now,
       status: "deploying" as const
@@ -186,6 +220,31 @@ function AgentsLabPageInner() {
     // Wait a tiny bit after dialog closes before adding to list (better UX)
     await new Promise(resolve => setTimeout(resolve, 100))
     setDeployedAgents(prev => [...prev, newAgent])
+    
+    // Persist to database with repo config
+    try {
+      const agentType = deployment.agentName.toLowerCase().replace(/\s+/g, '_')
+      const config: any = {}
+      
+      // Add GitHub repo config for Content Optimizer
+      if (deployment.repoConfig) {
+        config.githubRepo = deployment.repoConfig.repo
+        config.githubBranch = deployment.repoConfig.branch
+      }
+      
+      await fetch('/api/agents/deployed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandProfileId: profile.id,
+          agentType,
+          cronExpression: '0 9 * * *', // Daily at 9am
+          config,
+        }),
+      })
+    } catch (error) {
+      console.error('Failed to persist agent deployment:', error)
+    }
     
     // Simulate deployment delay - this will be replaced with actual backend call
     // The agent will show "Deploying..." status while waiting for backend confirmation

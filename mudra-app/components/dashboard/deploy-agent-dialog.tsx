@@ -3,9 +3,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Loader2, FileCode, Shield, Layers, Route, HelpCircle, Radio, Link2, Sparkles } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2, FileCode, Shield, Layers, Route, HelpCircle, Radio, Link2, Sparkles, Github, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 interface DeploymentItem {
   id: string
@@ -21,8 +22,17 @@ interface DeploymentItem {
 interface DeployAgentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onDeploy?: (deployment: DeploymentItem) => Promise<void>
+  onDeploy?: (deployment: DeploymentItem & { repoConfig?: { repo: string; branch: string } }) => Promise<void>
   deployedAgentIds?: string[]
+}
+
+interface GitHubRepo {
+  id: number
+  name: string
+  fullName: string
+  defaultBranch: string
+  private: boolean
+  description?: string
 }
 
 const mockDeployments: DeploymentItem[] = [
@@ -108,8 +118,38 @@ const mockDeployments: DeploymentItem[] = [
   },
 ]
 
-function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deployment: DeploymentItem) => Promise<void>, deployedAgentIds?: string[] }) {
+function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deployment: DeploymentItem & { repoConfig?: { repo: string; branch: string } }) => Promise<void>, deployedAgentIds?: string[] }) {
   const [loadingDeploymentId, setLoadingDeploymentId] = useState<string | null>(null)
+  const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([])
+  const [isLoadingRepos, setIsLoadingRepos] = useState(false)
+  const [githubConnected, setGithubConnected] = useState(false)
+  const [selectedRepos, setSelectedRepos] = useState<Record<string, string>>({})
+  const [selectedBranches, setSelectedBranches] = useState<Record<string, string>>({})
+
+  // Fetch GitHub repos on mount
+  useEffect(() => {
+    const fetchRepos = async () => {
+      setIsLoadingRepos(true)
+      try {
+        const response = await fetch('/api/github/repos')
+        const result = await response.json()
+        
+        if (result.success && result.data?.repos) {
+          setGithubRepos(result.data.repos)
+          setGithubConnected(true)
+        } else {
+          setGithubConnected(false)
+        }
+      } catch (error) {
+        console.error('Error fetching GitHub repos:', error)
+        setGithubConnected(false)
+      } finally {
+        setIsLoadingRepos(false)
+      }
+    }
+
+    fetchRepos()
+  }, [])
   
   const sortedDeployments = [...mockDeployments].sort((a, b) => {
     const impactOrder = { High: 0, Medium: 1, Low: 2 }
@@ -152,14 +192,36 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
   const handleDeploy = async (deployment: DeploymentItem) => {
     if (!deployment.isActive || loadingDeploymentId) return
     
+    // For Content Optimizer, require repo selection
+    if (deployment.id === 'content-optimizer') {
+      const selectedRepo = selectedRepos[deployment.id]
+      const selectedBranch = selectedBranches[deployment.id]
+      
+      if (!selectedRepo || !selectedBranch) {
+        alert('Please select a GitHub repository and branch for the Content Optimizer')
+        return
+      }
+    }
+    
     // Set loading state immediately
     setLoadingDeploymentId(deployment.id)
     
     try {
       if (onDeploy) {
+        // Prepare deployment with repo config if Content Optimizer
+        const deploymentData = deployment.id === 'content-optimizer' 
+          ? {
+              ...deployment,
+              repoConfig: {
+                repo: selectedRepos[deployment.id],
+                branch: selectedBranches[deployment.id],
+              }
+            }
+          : deployment
+        
         // Wait for the deployment handler to complete
         // This ensures the loading state is visible in the popup
-        await onDeploy(deployment)
+        await onDeploy(deploymentData)
         // Keep loading state visible briefly so user sees it
         await new Promise(resolve => setTimeout(resolve, 800))
         setLoadingDeploymentId(null)
@@ -214,6 +276,69 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
                   )}>
                     {deployment.agentDescription}
                   </p>
+                  
+                  {/* GitHub repo selector for Content Optimizer */}
+                  {deployment.id === 'content-optimizer' && !isDisabled && (
+                    <div className="mt-3 space-y-2">
+                      {!githubConnected ? (
+                        <div className="flex items-start gap-2 p-2.5 rounded-md bg-orange-500/10 border border-orange-500/20">
+                          <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-xs text-orange-500 font-medium">GitHub not connected</p>
+                            <p className="text-xs text-orange-500/80 mt-0.5">Connect GitHub in Settings → Integrations to deploy this agent</p>
+                          </div>
+                        </div>
+                      ) : isLoadingRepos ? (
+                        <div className="flex items-center gap-2 text-xs text-white/50">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Loading repositories...
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-xs text-white/50 mb-1 block">Repository</label>
+                            <Select
+                              value={selectedRepos[deployment.id] || ''}
+                              onValueChange={(value) => setSelectedRepos(prev => ({ ...prev, [deployment.id]: value }))}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10">
+                                <SelectValue placeholder="Select repo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {githubRepos.map((repo) => (
+                                  <SelectItem key={repo.id} value={repo.fullName} className="text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <Github className="h-3 w-3" />
+                                      {repo.fullName}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-white/50 mb-1 block">Branch</label>
+                            <Select
+                              value={selectedBranches[deployment.id] || ''}
+                              onValueChange={(value) => setSelectedBranches(prev => ({ ...prev, [deployment.id]: value }))}
+                              disabled={!selectedRepos[deployment.id]}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10">
+                                <SelectValue placeholder="Select branch" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {selectedRepos[deployment.id] && (
+                                  <SelectItem value={githubRepos.find(r => r.fullName === selectedRepos[deployment.id])?.defaultBranch || 'main'} className="text-xs">
+                                    {githubRepos.find(r => r.fullName === selectedRepos[deployment.id])?.defaultBranch || 'main'}
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

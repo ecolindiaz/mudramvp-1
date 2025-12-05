@@ -176,8 +176,27 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       setIsInstallingTracking(true);
       toast("Checking GitHub connection...", { icon: "🔍" });
 
-      // Check if GitHub is connected (will need to create this endpoint)
-      // For now, proceed directly to deployment
+      // Check if GitHub is connected
+      const githubCheckResponse = await fetch('/api/integrations/github');
+      const githubCheck = await githubCheckResponse.json();
+
+      if (!githubCheck.success || !githubCheck.connected) {
+        toast.error("GitHub not connected. Please connect GitHub first in Integrations page.");
+        return;
+      }
+
+      // Fetch available repositories
+      const reposResponse = await fetch('/api/github/repos');
+      const reposResult = await reposResponse.json();
+
+      if (!reposResult.success || !reposResult.data?.repos || reposResult.data.repos.length === 0) {
+        toast.error("No accessible repositories found. Please connect a GitHub repository first.");
+        return;
+      }
+
+      // For now, use the first repository (in future, show selection dialog)
+      const selectedRepo = reposResult.data.repos[0];
+      
       toast("Deploying tracking installation agent...", { icon: "🤖" });
 
       // Deploy tracking installer agent
@@ -188,8 +207,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
           agentType: 'tracking-installer',
           agentName: 'AI Referral Tracking Installer',
           agentDescription: 'Automatically installs Mudra tracking script in your codebase',
-          githubRepoName: profile.companyWebsite || 'your-repo',
-          githubBranch: 'main'
+          githubRepoName: selectedRepo.fullName, // e.g., "username/repo-name"
+          githubBranch: selectedRepo.defaultBranch || 'main'
         })
       });
 

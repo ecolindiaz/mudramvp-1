@@ -169,6 +169,7 @@ describe('ContentOptimizerAgent', () => {
         headings: {
           h1Count: 0,
           h2Count: 1,
+          h3Count: 0,
         },
       }
 
@@ -184,7 +185,7 @@ describe('ContentOptimizerAgent', () => {
         score: 35,
         missingSchemas: ['Organization'],
         hasFAQ: false,
-        headings: { h1Count: 0 },
+        headings: { h1Count: 0, h2Count: 0, h3Count: 0 },
       }
 
       const improvements = await agent['generateImprovements'](pageData)
@@ -204,10 +205,10 @@ describe('ContentOptimizerAgent', () => {
 
       const improvements = [
         {
-          type: 'schema_markup',
+          type: 'schema_markup' as const,
           description: 'Add Organization schema',
           code: '<script type="application/ld+json">...</script>',
-          impact: 'high',
+          impact: 'high' as const,
         },
       ]
 
@@ -228,7 +229,7 @@ describe('ContentOptimizerAgent', () => {
       
       vi.mocked(createOptimizationPR).mockRejectedValue(new Error('GitHub API error'))
 
-      const improvements = [{ type: 'schema_markup', description: 'Test', code: 'test', impact: 'high' }]
+      const improvements = [{ type: 'schema_markup' as const, description: 'Test', code: 'test', impact: 'high' as const }]
 
       await expect(agent['createPR']('https://example.com/page1', improvements))
         .rejects

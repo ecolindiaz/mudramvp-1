@@ -32,12 +32,23 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Generate unique siteId if not exists
+    // Get or generate unique siteId
     // Format: site_{brandProfileId}_{random}
-    let siteId = `site_${profileId}_${crypto.randomBytes(8).toString('hex')}`
+    let siteId = profile.trackingSiteId
     
-    // TODO: Store siteId in BrandProfile or separate SiteTracking table
-    // For now, we'll return it and let frontend store it
+    if (!siteId) {
+      // Generate new siteId
+      siteId = `site_${profileId}_${crypto.randomBytes(8).toString('hex')}`
+      
+      // Save to database
+      await prisma.brandProfile.update({
+        where: { id: profileId },
+        data: {
+          trackingSiteId: siteId,
+          trackingStatus: 'pending' // Will be updated to 'connected' when first visit is tracked
+        }
+      })
+    }
 
     const scriptUrl = `${request.nextUrl.origin}/tracker.js`
     

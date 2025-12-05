@@ -143,11 +143,9 @@ export function useAgentOperations() {
 
   // Connect GitHub
   const connectGitHub = useCallback(() => {
-    const githubClientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID;
-    const redirectUri = `${window.location.origin}/api/auth/github/callback`;
-    const scope = 'repo,read:user';
-    
-    window.location.href = `https://github.com/login/oauth/authorize?client_id=${githubClientId}&redirect_uri=${redirectUri}&scope=${scope}`;
+    // Use GitHub App installation flow for repository selection
+    const appName = process.env.NEXT_PUBLIC_GITHUB_APP_NAME || 'mudra-content-optimizer';
+    window.location.href = `https://github.com/apps/${appName}/installations/new`;
   }, []);
 
   // Disconnect GitHub

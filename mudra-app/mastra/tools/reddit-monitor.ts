@@ -1,5 +1,5 @@
 import { createTool } from '@mastra/core';
-import { CodeInterpreter } from '@e2b/code-interpreter';
+import CodeInterpreter from '@e2b/code-interpreter';
 import { z } from 'zod';
 
 /**
@@ -62,13 +62,15 @@ export const monitorRedditThreadsTool = createTool({
     })),
     bestPractices: z.array(z.string()),
   }),
-  execute: async ({ context, input }) => {
+  execute: async ({ context }) => {
+    const { keywords, subreddits, minUpvotes, timeRange, limit } = context;
     const sandbox = await CodeInterpreter.create();
     
     try {
-      await sandbox.notebook.execCell(`
+      await sandbox.runCode(`
         import sys
-        !{sys.executable} -m pip install praw -q
+        import subprocess
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "praw", "-q"])
       `);
 
       const redditMonitorScript = `
@@ -226,20 +228,20 @@ def simulate_reddit_monitoring(keywords, subreddits, min_upvotes, time_range, li
     return json.dumps(result, indent=2)
 
 # Execute simulation
-keywords = ${JSON.stringify(input.keywords)}
-subreddits = ${JSON.stringify(input.subreddits || [])}
-min_upvotes = ${input.minUpvotes}
-time_range = "${input.timeRange}"
-limit = ${input.limit}
+keywords = ${JSON.stringify(keywords)}
+subreddits = ${JSON.stringify(subreddits || [])}
+min_upvotes = ${minUpvotes}
+time_range = "${timeRange}"
+limit = ${limit}
 
 result = simulate_reddit_monitoring(keywords, subreddits, min_upvotes, time_range, limit)
 print(result)
 `;
 
-      const execution = await sandbox.notebook.execCell(redditMonitorScript);
+      const execution = await sandbox.runCode(redditMonitorScript);
       
       if (execution.error) {
-        throw new Error(`Reddit monitoring failed: ${execution.error.value}`);
+        throw new Error(`Reddit monitoring failed: ${execution.error}`);
       }
 
       const output = execution.logs.stdout.join('\n');
@@ -250,7 +252,7 @@ print(result)
       console.error('Reddit monitoring error:', error);
       throw error;
     } finally {
-      await sandbox.close();
+      await sandbox.kill();
     }
-  },
+  }
 });

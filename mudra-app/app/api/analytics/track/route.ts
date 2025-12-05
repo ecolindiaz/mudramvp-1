@@ -73,6 +73,22 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Update tracking status to 'connected' on first visit
+    const brandProfile = await prisma.brandProfile.findUnique({
+      where: { id: brandProfileId },
+      select: { trackingStatus: true }
+    })
+
+    if (brandProfile && brandProfile.trackingStatus !== 'connected') {
+      await prisma.brandProfile.update({
+        where: { id: brandProfileId },
+        data: {
+          trackingStatus: 'connected',
+          trackingInstalledAt: new Date()
+        }
+      })
+    }
+
     // Update analytics aggregates (async, don't wait)
     updateAnalytics(brandProfileId, aiProvider).catch(err => {
       console.error('Failed to update analytics:', err)
@@ -81,13 +97,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true,
       message: 'Visit tracked'
+    }, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      }
     })
 
   } catch (error) {
     console.error('Error tracking visit:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        }
+      }
     )
   }
 }

@@ -819,13 +819,15 @@ model AgentOptimization {
 model GitHubIntegration {
   id                Int      @id @default(autoincrement())
   userId            String
-  accessToken       String   @db.Text // Encrypted GitHub PAT
+  accessToken       String   @db.Text // Encrypted GitHub token (OAuth or Installation)
   refreshToken      String?  @db.Text
   tokenExpiresAt    DateTime?
+  installationId    Int?     // GitHub App installation ID (null for OAuth)
+  integrationType   String   @default("oauth") // "oauth" or "installation"
   githubUserId      String
   githubUsername    String
   avatarUrl         String?
-  scope             String?  // OAuth scopes granted
+  scope             String?  // OAuth scopes or "installation"
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   
@@ -835,6 +837,7 @@ model GitHubIntegration {
   @@unique([userId])
   @@index([userId])
   @@index([githubUserId])
+  @@index([installationId])
 }
 
 // ============================

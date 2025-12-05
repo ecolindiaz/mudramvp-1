@@ -1,5 +1,5 @@
 import { createTool } from '@mastra/core';
-import { CodeInterpreter } from '@e2b/code-interpreter';
+import CodeInterpreter from '@e2b/code-interpreter';
 import { z } from 'zod';
 
 /**
@@ -63,7 +63,8 @@ export const searchAiCitationsTool = createTool({
     }),
     recommendations: z.array(z.string()),
   }),
-  execute: async ({ context, input }) => {
+  execute: async ({ context }) => {
+    const { topic, aiSystems, limit, includeMetrics } = context;
     const sandbox = await CodeInterpreter.create();
     
     try {
@@ -226,20 +227,20 @@ def simulate_citation_search(topic, ai_systems, limit, include_metrics):
     return json.dumps(result, indent=2)
 
 # Execute simulation
-topic = """${input.topic}"""
-ai_systems = ${JSON.stringify(input.aiSystems)}
-limit = ${input.limit}
-include_metrics = ${input.includeMetrics}
+topic = """${topic}"""
+ai_systems = ${JSON.stringify(aiSystems)}
+limit = ${limit}
+include_metrics = ${includeMetrics}
 
 result = simulate_citation_search(topic, ai_systems, limit, include_metrics)
 print(result)
 `;
 
       // Execute citation search in sandbox
-      const execution = await sandbox.notebook.execCell(citationSearchScript);
+      const execution = await sandbox.runCode(citationSearchScript);
       
       if (execution.error) {
-        throw new Error(`Citation search failed: ${execution.error.value}`);
+        throw new Error(`Citation search failed: ${execution.error}`);
       }
 
       // Parse results
@@ -251,7 +252,7 @@ print(result)
       console.error('Citation search error:', error);
       throw error;
     } finally {
-      await sandbox.close();
+      await sandbox.kill();
     }
   },
 });

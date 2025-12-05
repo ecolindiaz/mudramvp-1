@@ -1,5 +1,5 @@
 import { createTool } from '@mastra/core';
-import { CodeInterpreter } from '@e2b/code-interpreter';
+import CodeInterpreter from '@e2b/code-interpreter';
 import { z } from 'zod';
 
 /**
@@ -82,14 +82,16 @@ export const analyzeCodebaseTool = createTool({
       score: z.number().min(0).max(10),
     }),
   }),
-  execute: async ({ context, input }) => {
+  execute: async ({ context }) => {
+    const { url, htmlContent, fileType } = context;
     const sandbox = await CodeInterpreter.create();
     
     try {
       // Install required Python packages in E2B sandbox
-      await sandbox.notebook.execCell(`
+      await sandbox.runCode(`
         import sys
-        !{sys.executable} -m pip install beautifulsoup4 lxml requests -q
+        import subprocess
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "beautifulsoup4", "lxml", "requests", "-q"])
       `);
 
       // Python analysis script
@@ -385,8 +387,8 @@ def analyze_aeo_geo(html_content, file_type='html'):
     return json.dumps(result, indent=2)
 
 # Fetch content if URL provided
-html_content = """${input.htmlContent || ''}"""
-url = """${input.url || ''}"""
+html_content = """${htmlContent || ''}"""
+url = """${url || ''}"""
 
 if url and not html_content:
     import requests
@@ -394,15 +396,15 @@ if url and not html_content:
     html_content = response.text
 
 # Run analysis
-result = analyze_aeo_geo(html_content, '${input.fileType}')
+result = analyze_aeo_geo(html_content, '${fileType}')
 print(result)
 `;
 
       // Execute analysis in sandbox
-      const execution = await sandbox.notebook.execCell(analysisScript);
+      const execution = await sandbox.runCode(analysisScript);
       
       if (execution.error) {
-        throw new Error(`Analysis failed: ${execution.error.value}`);
+        throw new Error(`Analysis failed: ${execution.error}`);
       }
 
       // Parse results
@@ -414,7 +416,7 @@ print(result)
       console.error('Codebase analysis error:', error);
       throw error;
     } finally {
-      await sandbox.close();
+      await sandbox.kill();
     }
   },
 });

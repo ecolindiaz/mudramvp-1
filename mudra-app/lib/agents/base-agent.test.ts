@@ -157,8 +157,9 @@ describe('MudraBaseAgent', () => {
       await agent.run({ test: 'data' })
 
       const updateCall = vi.mocked(prisma.agentExecution.update).mock.calls[0][0]
-      expect(updateCall.data.metrics).toHaveProperty('executionTime')
-      expect(typeof updateCall.data.metrics.executionTime).toBe('number')
+      expect(updateCall.data.metrics).toBeDefined()
+      expect((updateCall.data.metrics as any).executionTime).toBeDefined()
+      expect(typeof (updateCall.data.metrics as any).executionTime).toBe('number')
     })
   })
 

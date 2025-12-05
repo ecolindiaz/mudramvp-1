@@ -18,10 +18,21 @@
     return;
   }
   
-  // API endpoint - will be your actual domain
-  var API_ENDPOINT = window.location.hostname === 'localhost' 
-    ? 'http://localhost:3000/api/analytics/track'
-    : 'https://mudra.vercel.app/api/analytics/track';
+  // API endpoint - detect from script source or use defaults
+  var scriptSrc = script ? script.src : '';
+  var scriptOrigin = '';
+  
+  try {
+    var url = new URL(scriptSrc);
+    scriptOrigin = url.origin;
+  } catch (e) {
+    // Fallback to defaults
+    scriptOrigin = window.location.hostname === 'localhost' 
+      ? 'http://localhost:3000'
+      : 'https://mudramvp.vercel.app';
+  }
+  
+  var API_ENDPOINT = scriptOrigin + '/api/analytics/track';
   
   // AI referrer domains to track
   var AI_REFERRERS = {

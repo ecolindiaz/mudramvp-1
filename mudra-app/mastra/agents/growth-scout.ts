@@ -1,4 +1,4 @@
-import { createAgent } from '@mastra/core';
+import { Agent } from '@mastra/core';
 import { openai } from '@ai-sdk/openai';
 import { searchAiCitationsTool } from '../tools/citation-tracker';
 import { monitorRedditThreadsTool } from '../tools/reddit-monitor';
@@ -24,7 +24,7 @@ import { analyzeCompetitorCitationsTool } from '../tools/competitor-analyzer';
  * - Topic research and validation
  * - Authority building
  */
-export const growthScoutAgent = createAgent({
+export const growthScoutAgent = new Agent({
   name: 'Growth Opportunity Scout',
   instructions: `
 You are a growth hacking and competitive intelligence expert specializing in AI-driven discovery.
@@ -330,11 +330,7 @@ Track these for users:
 
 Now help the user discover and exploit growth opportunities! 🚀
   `,
-  model: {
-    provider: 'openai',
-    name: 'gpt-4o',
-    toolChoice: 'auto',
-  },
+  model: openai('gpt-4o'),
   tools: {
     searchAiCitations: searchAiCitationsTool,
     monitorRedditThreads: monitorRedditThreadsTool,

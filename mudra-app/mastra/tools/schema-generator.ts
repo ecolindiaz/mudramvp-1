@@ -1,5 +1,5 @@
 import { createTool } from '@mastra/core';
-import { CodeInterpreter } from '@e2b/code-interpreter';
+import CodeInterpreter from '@e2b/code-interpreter';
 import { z } from 'zod';
 
 /**
@@ -70,7 +70,8 @@ export const generateSchemaMarkupTool = createTool({
     }),
     recommendations: z.array(z.string()).describe('Best practices for this schema type'),
   }),
-  execute: async ({ context, input }) => {
+  execute: async ({ context }) => {
+    const input = context;
     const sandbox = await CodeInterpreter.create();
     
     try {
@@ -290,10 +291,10 @@ print(json.dumps(result, indent=2))
 `;
 
       // Execute schema generation in sandbox
-      const execution = await sandbox.notebook.execCell(schemaGenerationScript);
+      const execution = await sandbox.runCode(schemaGenerationScript);
       
       if (execution.error) {
-        throw new Error(`Schema generation failed: ${execution.error.value}`);
+        throw new Error(`Schema generation failed: ${execution.error}`);
       }
 
       // Parse results
@@ -305,7 +306,7 @@ print(json.dumps(result, indent=2))
       console.error('Schema generation error:', error);
       throw error;
     } finally {
-      await sandbox.close();
+      await sandbox.kill();
     }
   },
 });

@@ -387,25 +387,30 @@ export default function CampaignCanvasPage({
 
           <div className="px-4 lg:px-6 pb-4 md:pb-6 pt-4">
               {isLoading ? (
-                /* Loading State */
+                /* Droid-lab style loading card */
                 <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                  <Card className="w-full max-w-md rounded-xl border border-white/[0.08] bg-[#1a1a1a] shadow-sm">
-                    <CardContent className="pt-6 pb-6 px-6">
-                      <div className="flex flex-col items-center gap-4 text-center">
-                        <div className="relative">
-                          <Loader2 className="size-16 text-primary animate-spin" />
-                          <div className="absolute inset-0 blur-xl bg-primary/20 animate-pulse" />
+                  <Card className="w-full max-w-md rounded-xl border border-white/[0.08] bg-[#121212] shadow-md">
+                    <CardContent className="pt-6 pb-6 px-6 relative overflow-hidden">
+                      <div className="pointer-events-none absolute inset-0">
+                        <div className="absolute -bottom-20 -left-12 w-48 h-48 bg-primary/10 blur-3xl rounded-full" />
+                      </div>
+                      <div className="flex flex-col items-center gap-4 text-center relative">
+                        <div className="relative flex items-center justify-center">
+                          <div className="absolute inset-[-12px] rounded-full border border-white/[0.08] animate-[spin_6s_linear_infinite]" />
+                          <div className="absolute inset-[-20px] rounded-full border border-dashed border-white/[0.06] animate-[spin_10s_linear_infinite]" />
+                          <div className="flex items-center justify-center w-12 h-12 rounded-lg border border-white/[0.12] bg-white/[0.04]">
+                            <Loader2 className="size-6 text-white/90 animate-spin" />
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <h3 className="text-xl font-semibold text-white">Loading Campaign Canvas</h3>
-                          <p className="text-sm text-muted-foreground">
+                        <div className="space-y-1">
+                          <h3 className="text-lg font-semibold text-white">Loading Campaign Canvas</h3>
+                          <p className="text-sm text-white/60">
                             Preparing your AI-generated content...
                           </p>
                         </div>
                         <div className="w-full max-w-xs">
-                          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-primary to-white/90 rounded-full animate-[shimmer_2s_ease-in-out_infinite]" 
-                                 style={{ width: '70%' }} />
+                          <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                            <div className="h-full w-2/5 bg-white/50 animate-[shimmer_1.4s_ease-in-out_infinite] rounded-full" />
                           </div>
                         </div>
                       </div>

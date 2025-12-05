@@ -2,6 +2,25 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { getFirecrawlClient } from "./firecrawl-client";
 
+/**
+ * Calculate date N months ago for Firecrawl tbs filter
+ * Returns format: "cdr:1,cd_min:MM/DD/YYYY,cd_max:MM/DD/YYYY"
+ */
+function getDateRangeFilter(monthsBack: number): string {
+  const now = new Date();
+  const minDate = new Date(now);
+  minDate.setMonth(minDate.getMonth() - monthsBack);
+  
+  // Format: MM/DD/YYYY
+  const formatDate = (d: Date) => 
+    `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+  
+  return `cdr:1,cd_min:${formatDate(minDate)},cd_max:${formatDate(now)}`;
+}
+
+// Default: Filter out sources older than 10 months
+const DEFAULT_MAX_AGE_MONTHS = 10;
+
 // Input schema
 const inputSchema = z.object({
   query: z.string().describe("The search query"),
@@ -11,6 +30,12 @@ const inputSchema = z.object({
     .max(10)
     .optional()
     .describe("Number of results to return (default: 5)"),
+  maxAgeMonths: z
+    .number()
+    .min(1)
+    .max(24)
+    .optional()
+    .describe("Filter out sources older than this many months (default: 10)"),
 });
 
 // Search result schema
@@ -39,15 +64,19 @@ export const firecrawlSearchTool = createTool({
   inputSchema,
   outputSchema,
   execute: async ({ context }): Promise<SearchOutput> => {
-    const { query, limit = 5 } = context;
+    const { query, limit = 5, maxAgeMonths = DEFAULT_MAX_AGE_MONTHS } = context;
 
     try {
       const firecrawl = getFirecrawlClient();
+
+      // Calculate date range filter (default: 10 months)
+      const tbs = getDateRangeFilter(maxAgeMonths);
 
       // Reduced limit to 3 results to balance quality vs credit usage
       // (~16 credits per search vs ~26 with 5 results)
       const searchResults = await firecrawl.search(query, {
         limit: Math.min(limit, 3), // Cap at 3 to reduce costs while keeping content
+        tbs, // Filter out sources older than maxAgeMonths
         scrapeOptions: {
           formats: ["markdown"],
           onlyMainContent: true,

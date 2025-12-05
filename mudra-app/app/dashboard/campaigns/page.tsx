@@ -266,12 +266,25 @@ export default function CampaignsPage() {
           localStorage.setItem(`mudra_campaign_${id}`, JSON.stringify(campaignData));
           
           // Generate slug from title
-          const slug = data.title
+          const rawSlug = data.title
             .toLowerCase()
             .replace(/[^a-z0-9\s-]/g, '')
             .replace(/\s+/g, '-')
             .replace(/-+/g, '-')
             .trim('-');
+
+          // Enforce descriptive slug criteria: 2–5 words, ~20–60 chars
+          const segments = rawSlug.split('-').filter(Boolean);
+          const trimmedSegments =
+            segments.length > 5 ? segments.slice(0, 5) : segments;
+          let slug = trimmedSegments.join('-');
+
+          // Clamp length to ~20–60 characters
+          if (slug.length > 60) slug = slug.slice(0, 60).replace(/-+$/g, '');
+          if (slug.length < 20 && trimmedSegments.length >= 2) {
+            // if too short, keep as-is (assumed already concise)
+            slug = slug;
+          }
 
           // Save to database
           fetch("/api/campaigns/save", {
@@ -354,10 +367,10 @@ export default function CampaignsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h1 className="text-2xl font-bold tracking-tight text-white">
-                      {"Campaigns"}
+                      {"Content Lab"}
                     </h1>
                       <p className="text-muted-foreground">
-                        Tailored brand content for visibility improvement across channels.
+                        Multi‑agent Orchestrated Content for AI Search Ranking
                       </p>
                   </div>
                   <div className="flex items-center gap-3">

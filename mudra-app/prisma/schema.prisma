@@ -828,6 +828,8 @@ model GitHubIntegration {
   githubUsername    String
   avatarUrl         String?
   scope             String?  // OAuth scopes or "installation"
+  repositories      String[] // List of repository full names (e.g., ["owner/repo1", "owner/repo2"])
+  expiresAt         DateTime? // Installation token expiration (tokens expire after 1 hour)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   

@@ -11,6 +11,9 @@ const connectGitHubSchema = z.object({
   githubUsername: z.string(),
   avatarUrl: z.string().optional(),
   scope: z.string().optional(),
+  installationId: z.number().optional(),
+  repositories: z.array(z.string()).optional(),
+  expiresAt: z.date().optional(),
 });
 
 // Encryption helpers
@@ -84,6 +87,9 @@ export async function POST(req: NextRequest) {
         githubUsername: data.githubUsername,
         avatarUrl: data.avatarUrl,
         scope: data.scope,
+        installationId: data.installationId,
+        repositories: data.repositories,
+        expiresAt: data.expiresAt,
       },
       update: {
         accessToken: encryptedToken,
@@ -91,6 +97,9 @@ export async function POST(req: NextRequest) {
         githubUsername: data.githubUsername,
         avatarUrl: data.avatarUrl,
         scope: data.scope,
+        installationId: data.installationId,
+        repositories: data.repositories,
+        expiresAt: data.expiresAt,
         updatedAt: new Date(),
       },
     });

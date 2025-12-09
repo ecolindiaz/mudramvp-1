@@ -225,7 +225,7 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img 
-              src="/images/mudra-logo.png" 
+              src="/images/MudraMainLogo.png"
               alt="Mudra" 
               className="w-5 h-5 opacity-90"
             />
@@ -274,7 +274,7 @@ export function AIChatInterface({ open, onOpenChange, siteId, taskContext }: AIC
               {/* Mudra Logo */}
               <div className="w-16 h-16 mx-auto mb-6 opacity-90">
                 <img 
-                  src="/images/mudra-logo.png" 
+                  src="/images/MudraMainLogo.png"
                   alt="Mudra Logo" 
                   className="w-full h-full object-contain"
                 />

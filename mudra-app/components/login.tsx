@@ -77,7 +77,7 @@ export default function LoginPage() {
                     <div className="flex flex-col items-center space-y-2 text-center">
                         <div className="mb-4">
                             <Image
-                                src="/images/mudra-logo.png"
+                                src="/images/MudraMainLogo.png"
                                 alt="Mudra"
                                 width={80}
                                 height={80}

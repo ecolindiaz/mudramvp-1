@@ -11,6 +11,11 @@
  * Run: npx tsx scripts/test-conversation-radar-phase1.ts
  */
 
+// Load environment variables from .env.local
+import * as dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env' });
+
 import { PrismaClient } from '@prisma/client';
 
 // Colors for console output
@@ -138,12 +143,12 @@ async function testRedditSearch() {
   try {
     const { searchReddit } = await import('../lib/apify/reddit-scraper');
     
-    log('Searching Reddit for "best CRM for startups"...', 'info');
+    log('Searching Reddit for "AI visibility SEO tools"...', 'info');
     
     const result = await searchReddit({
-      queries: ['best CRM for startups'],
-      sort: 'relevance',
-      timeframe: 'month',
+      queries: ['AI visibility SEO tools'],
+      sort: 'hot',
+      timeframe: 'week',
       maxPosts: 10, // Minimum required by Apify actor
     });
     
@@ -177,8 +182,8 @@ async function testRedditUrlScrape() {
   try {
     const { scrapeRedditUrls } = await import('../lib/apify/reddit-scraper');
     
-    // Use a real Reddit URL that's likely to exist
-    const testUrl = 'https://www.reddit.com/r/startups/';
+    // Use a relevant subreddit for GEO/SEO
+    const testUrl = 'https://www.reddit.com/r/SEO/';
     
     log(`Scraping Reddit URL: ${testUrl}`, 'info');
     
@@ -212,13 +217,13 @@ async function testLinkedInSearch() {
   try {
     const { searchLinkedIn } = await import('../lib/apify/linkedin-scraper');
     
-    log('Searching LinkedIn for "AI marketing"...', 'info');
+    log('Searching LinkedIn for "GEO optimization AI search"...', 'info');
     log('Note: LinkedIn only supports keyword search, not URL scraping', 'warn');
     
     const result = await searchLinkedIn({
-      keyword: 'AI marketing',
-      sortBy: 'relevance',
-      limit: 3, // Small limit for testing
+      keyword: 'GEO optimization AI search',
+      sortBy: 'date_posted',
+      limit: 5,
     });
     
     if (result.success) {

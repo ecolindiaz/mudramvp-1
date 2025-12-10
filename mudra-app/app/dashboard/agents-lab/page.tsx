@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Bot, Loader2, GitBranch, ChevronDown, GitPullRequest, Search, Check, Clock, Layers, Rocket, Radio, ChevronRight, ChevronLeft, ListChecks, BookOpen, XCircle, MoreHorizontal, Sparkles, Linkedin, type LucideProps } from "lucide-react"
+import { Bot, Loader2, GitBranch, ChevronDown, GitPullRequest, Search, Check, Clock, Layers, Rocket, Radio, ChevronRight, ChevronLeft, ListChecks, BookOpen, XCircle, MoreHorizontal, Sparkles, type LucideProps } from "lucide-react"
 import { BrowserWindowEmpty } from "@/components/empty-states/browser-window-empty"
 import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -110,6 +110,11 @@ function AgentsLabPageInner() {
     error?: string
   }>>([])
   
+  // Conversation Radar state
+  const [radarOpportunities, setRadarOpportunities] = useState<any[]>([])
+  const [isLoadingRadar, setIsLoadingRadar] = useState(false)
+  const [radarStats, setRadarStats] = useState<{ total: number; new: number } | null>(null)
+  
   useEffect(() => {
     setIsMounted(true)
   }, [])
@@ -133,7 +138,12 @@ function AgentsLabPageInner() {
     "Schema Architect": { optimizations: 31, activeTasks: 4, totalTasks: 6 },
     "Content Router": { optimizations: 12, activeTasks: 1, totalTasks: 3 },
     "FAQ Author": { optimizations: 9, activeTasks: 1, totalTasks: 2 },
-    "Conversation Radar": { optimizations: 7, activeTasks: 2, totalTasks: 3 },
+    // Use real data for Conversation Radar
+    "Conversation Radar": { 
+      optimizations: radarStats?.new || radarOpportunities.filter((o: any) => o.status === 'queued').length || 0, 
+      activeTasks: radarOpportunities.filter((o: any) => o.status === 'queued' || o.status === 'running').length, 
+      totalTasks: radarStats?.total || radarOpportunities.length 
+    },
     "Citations Outreach": { optimizations: 11, activeTasks: 2, totalTasks: 3 },
   }
 
@@ -153,6 +163,37 @@ function AgentsLabPageInner() {
       }
     } catch (error) {
       console.error('Error fetching technical history:', error)
+    }
+  }
+
+  // Fetch Conversation Radar opportunities
+  const fetchRadarOpportunities = async () => {
+    if (!profile.id) return
+    
+    setIsLoadingRadar(true)
+    try {
+      // Fetch opportunities
+      const response = await fetch(`/api/conversation-radar/opportunities?brandProfileId=${profile.id}&status=all&limit=50`)
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        setRadarOpportunities(result.data)
+      }
+      
+      // Fetch stats
+      const statsResponse = await fetch(`/api/conversation-radar/run?brandProfileId=${profile.id}`)
+      const statsResult = await statsResponse.json()
+      
+      if (statsResult.success && statsResult.data) {
+        setRadarStats({
+          total: statsResult.data.counts.total,
+          new: statsResult.data.counts.new,
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching radar opportunities:', error)
+    } finally {
+      setIsLoadingRadar(false)
     }
   }
 
@@ -190,6 +231,7 @@ function AgentsLabPageInner() {
     if (profile.id) {
       fetchTechnicalHistory()
       fetchDeployedAgents()
+      fetchRadarOpportunities()
     }
   }, [profile.id])
 
@@ -563,7 +605,7 @@ function AgentsLabPageInner() {
     lastActivity: Date
     icon: React.ComponentType<{ className?: string }>
     url?: string
-    platform?: "Reddit" | "LinkedIn"
+    platform?: "Reddit"
     postedAt?: Date
     engagement?: string
     promptOrigin?: "search" | "tracked"
@@ -572,25 +614,30 @@ function AgentsLabPageInner() {
 
   const buildTaskRows = (agent: (typeof deployedAgents)[number]): TaskRow[] => {
     if (agent.agentName === "Conversation Radar") {
+      // Use real data from API
+      if (radarOpportunities.length > 0) {
+        return radarOpportunities.map((opp: any) => ({
+          id: opp.id,
+          title: opp.title,
+          description: opp.description || 'Conversation opportunity',
+          impact: opp.impact || 'Medium',
+          status: opp.status === 'queued' ? 'queued' : opp.status === 'completed' ? 'completed' : opp.status === 'failed' ? 'failed' : 'running',
+          lastActivity: new Date(opp.lastActivity),
+          icon: RedditIcon,
+          url: opp.url,
+          platform: 'Reddit' as const,
+          postedAt: opp.postedAt ? new Date(opp.postedAt) : undefined,
+          engagement: opp.engagement,
+          promptOrigin: opp.promptOrigin as "search" | "tracked",
+          trackedPrompt: opp.trackedPrompt,
+        }))
+      }
+      
+      // Fallback to mock data if no real data
       const now = new Date()
       const subtractMinutes = (minutes: number) => new Date(now.getTime() - minutes * 60 * 1000)
 
       return [
-        {
-          id: `${agent.id}-li-thread`,
-          title: "LinkedIn: Product-led growth prompts",
-          description: "Join the LinkedIn thread where PMs are sharing GEO-friendly prompt templates.",
-          impact: "Medium",
-          status: "running",
-          lastActivity: subtractMinutes(3),
-          icon: Linkedin,
-          url: "https://www.linkedin.com/feed/",
-          platform: "LinkedIn",
-          postedAt: subtractMinutes(180), // 3 hours ago
-          engagement: "120 reactions · 23 comments",
-          promptOrigin: "tracked",
-          trackedPrompt: "how to improve AI visibility for PLG",
-        },
         {
           id: `${agent.id}-reddit-opportunity`,
           title: "Reddit: r/startups on AI visibility",
@@ -610,14 +657,28 @@ function AgentsLabPageInner() {
           id: `${agent.id}-reddit-citation`,
           title: "Reddit: r/SEO AI citations thread",
           description: "Thread cited in AI responses; add brand POV and link to GEO guide.",
+          impact: "Medium",
+          status: "running",
+          lastActivity: subtractMinutes(5),
+          icon: RedditIcon,
+          url: "https://www.reddit.com/r/SEO/",
+          platform: "Reddit",
+          postedAt: subtractMinutes(60 * 24 * 2), // 2 days ago
+          engagement: "88 upvotes · 19 comments",
+          promptOrigin: "search",
+        },
+        {
+          id: `${agent.id}-reddit-saas`,
+          title: "Reddit: r/SaaS best tools discussion",
+          description: "Users discussing best tools for AI content optimization — opportunity to share expertise.",
           impact: "Low",
           status: "completed",
           lastActivity: subtractMinutes(36),
           icon: RedditIcon,
-          url: "https://www.reddit.com/r/SEO/",
+          url: "https://www.reddit.com/r/SaaS/",
           platform: "Reddit",
           postedAt: subtractMinutes(60 * 24 * 5), // 5 days ago
-          engagement: "88 upvotes · 19 comments",
+          engagement: "156 upvotes · 34 comments",
           promptOrigin: "search",
         },
       ]

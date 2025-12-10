@@ -10,8 +10,9 @@
 
 import { getApifyClient } from './client';
 
-// Actor ID for Reddit Scraper Pro
-const REDDIT_ACTOR_ID = 'TwqHBuZZPHJxiQrTU';
+// Actor ID for Reddit Scraper Search Fast
+// Can use either the short ID or the full name format: username~actor-name
+const REDDIT_ACTOR_ID = 'fatihtahta~reddit-scraper-search-fast';
 
 // ========================================
 // Types

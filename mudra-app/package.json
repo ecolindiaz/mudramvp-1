@@ -66,6 +66,7 @@
     "@types/cheerio": "^0.22.35",
     "@types/pg": "^8.15.5",
     "ai": "^4.3.16",
+    "apify-client": "^2.20.0",
     "axios": "^1.9.0",
     "bcryptjs": "^3.0.2",
     "bullmq": "^5.53.1",

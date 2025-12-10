@@ -57,6 +57,7 @@ model BrandProfile {
   agentExecutions            AgentExecution[]
   agentSchedules             AgentSchedule[]
   contentOptimizations       ContentOptimization[]
+  conversationOpportunities  ConversationOpportunity[]
   
   @@index([userId])
 }
@@ -938,4 +939,63 @@ model ContentOptimization {
   @@index([brandProfileId, status])
   @@index([pageUrl])
   @@map("content_optimizations")
+}
+
+// ============================
+// Conversation Radar
+// ============================
+
+model ConversationOpportunity {
+  id                Int      @id @default(autoincrement())
+  brandProfileId    Int
+  
+  // Post identification
+  postUrl           String   // Unique Reddit/LinkedIn URL
+  postId            String?  // Platform-specific ID (Reddit: "1oiwt3p", LinkedIn: URN)
+  platform          String   // "reddit" | "linkedin"
+  
+  // Post metadata (from Apify)
+  postTitle         String?
+  postBody          String?  @db.Text
+  postAuthor        String?
+  subreddit         String?  // Reddit only
+  
+  // Engagement metrics
+  score             Int?     // Reddit upvotes or LinkedIn likes
+  numComments       Int?
+  upvoteRatio       Float?   // Reddit only (0.0 - 1.0)
+  engagementString  String?  // Pre-formatted: "312 upvotes · 47 comments"
+  
+  // Discovery context
+  mode              String   // "cited" | "proactive"
+  discoveredVia     Json     // Array: [{ promptId, promptText, provider }]
+  searchQuery       String?  // Mode 2: the query that found this
+  
+  // AI-generated insights
+  conversationSnapshot String? @db.Text  // Summary of conversation
+  whyThisMatters    Json?    // Array of strings
+  suggestedAngle    String?  @db.Text    // Response angle
+  relevanceScore    Float?   // 0-100 score
+  
+  // Status tracking
+  status            String   @default("new") // new, reviewed, engaged, dismissed
+  engagedAt         DateTime?
+  dismissedAt       DateTime?
+  dismissReason     String?
+  
+  // Timestamps
+  postCreatedAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@unique([brandProfileId, postUrl])
+  @@index([brandProfileId])
+  @@index([brandProfileId, status])
+  @@index([brandProfileId, platform])
+  @@index([brandProfileId, mode])
+  @@index([postCreatedAt])
+  @@map("conversation_opportunities")
 }

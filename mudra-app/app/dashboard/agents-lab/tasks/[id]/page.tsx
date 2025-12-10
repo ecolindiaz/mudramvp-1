@@ -303,28 +303,28 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
   const propertyGroups: PropertyGroup[] = isOpportunity
     ? [
         {
-          label: "Properties",
+          label: "Platform",
           items: [
             { text: platform || "Unknown", icon: platform === "Reddit" ? RedditIcon : Linkedin },
           ],
         },
         {
-          label: "Repository",
+          label: "Age",
           items: [
             { text: getAgeString(postedAt), icon: Calendar },
           ],
         },
         {
-          label: "Agent",
+          label: "Engagement",
           items: [
             { text: engagement || "No engagement data", icon: MessageSquare },
           ],
         },
         {
-          label: "Origin",
+          label: "Prompt",
           items: [
             { 
-              text: promptOrigin === "tracked" ? `Prompt: ${trackedPrompt || "Tracked"}` : "Prompt: Search", 
+              text: promptOrigin === "tracked" ? trackedPrompt || "Tracked" : "Search", 
               icon: Sparkles 
             },
           ],
@@ -395,7 +395,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  {isOpportunity && (
+                  {isOpportunity ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -404,11 +404,12 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                       <CheckCircle className="w-4 h-4" />
                       Mark as Done
                     </Button>
+                  ) : (
+                    <div className="text-right">
+                      <p className="text-xs text-white/50">Task ID</p>
+                      <p className="text-sm text-white/80">{params?.id}</p>
+                    </div>
                   )}
-                  <div className="text-right">
-                    <p className="text-xs text-white/50">{isOpportunity ? "Opportunity ID" : "Task ID"}</p>
-                    <p className="text-sm text-white/80">{params?.id}</p>
-                  </div>
                 </div>
               </div>
             </div>
@@ -432,9 +433,11 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                 <div className="px-4 lg:px-6 py-6 space-y-6">
                   {/* Task Title and Description */}
                   <div className="space-y-1.5">
-                    <h2 className="text-xl font-semibold tracking-tight text-white">
-                      {taskTitle}
-                    </h2>
+                    <div className="flex flex-col gap-3">
+                      <h2 className="text-xl font-semibold tracking-tight text-white">
+                        {taskTitle}
+                      </h2>
+                    </div>
                     <div>
                       <p
                         className={cn(
@@ -457,78 +460,114 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                     </div>
                   </div>
 
-                  {/* Properties Section */}
-                  <div className="space-y-3.5">
-                    {propertyGroups.map((group) => (
-                      <div key={group.label} className="flex items-center gap-3">
-                        <span className="text-xs text-white/50 min-w-[90px] font-medium uppercase tracking-wide">{group.label}</span>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {group.items.map((item, idx) => {
-                            const Icon = item.icon
-                            const isRepo = group.label === "Repository" && item.text === "mudramvp"
-                            const isBranch = group.label === "Repository" && item.text === "main"
-                            const isClaude = group.label === "Agent" && item.text.includes("Claude")
-                            
-                            // Special widget for Repository
-                            if (isRepo) {
-                              return (
-                                <div key={`${group.label}-${idx}`} className="flex items-center gap-2">
-                                  <div className="h-8 px-3 rounded-md bg-white/5 text-white border-0 text-xs font-medium gap-1.5 flex items-center">
-                                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                      <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
-                                    </svg>
+                  {/* Properties Section - hide for opportunities to avoid duplication */}
+                  {!isOpportunity && (
+                    <div className="space-y-3.5">
+                      {propertyGroups.map((group) => (
+                        <div key={group.label} className="flex items-center gap-3">
+                          <span className="text-xs text-white/50 min-w-[90px] font-medium uppercase tracking-wide">{group.label}</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {group.items.map((item, idx) => {
+                              const Icon = item.icon
+                              const isRepo = group.label === "Repository" && item.text === "mudramvp"
+                              const isBranch = group.label === "Repository" && item.text === "main"
+                              const isClaude = group.label === "Agent" && item.text.includes("Claude")
+                              
+                              // Special widget for Repository
+                              if (isRepo) {
+                                return (
+                                  <div key={`${group.label}-${idx}`} className="flex items-center gap-2">
+                                    <div className="h-8 px-3 rounded-md bg-white/5 text-white border-0 text-xs font-medium gap-1.5 flex items-center">
+                                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+                                      </svg>
+                                      <span>{item.text}</span>
+                                    </div>
+                                    {group.items[idx + 1]?.text === "main" && (
+                                      <span className="text-white/20">/</span>
+                                    )}
+                                  </div>
+                                )
+                              }
+                              
+                              // Special widget for Branch
+                              if (isBranch) {
+                                return (
+                                  <div
+                                    key={`${group.label}-${idx}`}
+                                    className="h-8 px-3 gap-2 rounded-md bg-white/5 text-white border border-white/[0.08] text-xs font-medium flex items-center"
+                                  >
+                                    <GitBranch className="w-3.5 h-3.5 text-white/60 shrink-0" />
                                     <span>{item.text}</span>
                                   </div>
-                                  {group.items[idx + 1]?.text === "main" && (
-                                    <span className="text-white/20">/</span>
-                                  )}
-                                </div>
-                              )
-                            }
-                            
-                            // Special widget for Branch
-                            if (isBranch) {
+                                )
+                              }
+                              
+                              // Default widget with special handling for Claude
                               return (
                                 <div
                                   key={`${group.label}-${idx}`}
-                                  className="h-8 px-3 gap-2 rounded-md bg-white/5 text-white border border-white/[0.08] text-xs font-medium flex items-center"
+                                  className={cn(
+                                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                                    item.variant === "destructive"
+                                      ? "bg-red-500/10 border border-red-500/20 text-red-300"
+                                      : "bg-white/[0.02] border border-white/[0.05] text-white/70 hover:bg-white/[0.03] hover:border-white/[0.08]"
+                                  )}
                                 >
-                                  <GitBranch className="w-3.5 h-3.5 text-white/60 shrink-0" />
+                                  {isClaude ? (
+                                    <Image 
+                                      src="/claude-ai-icon.svg" 
+                                      alt="Claude" 
+                                      width={14} 
+                                      height={14} 
+                                      className="w-3.5 h-3.5"
+                                    />
+                                  ) : Icon ? (
+                                    <Icon className="w-3.5 h-3.5" />
+                                  ) : null}
                                   <span>{item.text}</span>
                                 </div>
                               )
-                            }
-                            
-                            // Default widget with special handling for Claude
-                            return (
-                              <div
-                                key={`${group.label}-${idx}`}
-                                className={cn(
-                                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
-                                  item.variant === "destructive"
-                                    ? "bg-red-500/10 border border-red-500/20 text-red-300"
-                                    : "bg-white/[0.02] border border-white/[0.05] text-white/70 hover:bg-white/[0.03] hover:border-white/[0.08]"
-                                )}
-                              >
-                                {isClaude ? (
-                                  <Image 
-                                    src="/claude-ai-icon.svg" 
-                                    alt="Claude" 
-                                    width={14} 
-                                    height={14} 
-                                    className="w-3.5 h-3.5"
-                                  />
-                                ) : Icon ? (
-                                  <Icon className="w-3.5 h-3.5" />
-                                ) : null}
-                                <span>{item.text}</span>
-                              </div>
-                            )
-                          })}
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Opportunity meta titles where the old ones were */}
+                  {isOpportunity && (
+                    <div className="space-y-3.5">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-white/50 min-w-[90px] font-medium uppercase tracking-wide">Platform</span>
+                        <div className="inline-flex items-center gap-1.5 rounded-md bg-white/[0.05] border border-white/[0.08] px-3 py-1.5 text-xs text-white/85">
+                          {platform === "Reddit" ? <RedditIcon className="w-3.5 h-3.5 text-orange-400" /> : <Linkedin className="w-3.5 h-3.5 text-sky-400" />}
+                          <span>{platform}</span>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-white/50 min-w-[90px] font-medium uppercase tracking-wide">Age</span>
+                        <div className="inline-flex items-center gap-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 text-xs text-white/80">
+                          <Calendar className="w-3.5 h-3.5 text-white/50" />
+                          <span>{getAgeString(postedAt)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-white/50 min-w-[90px] font-medium uppercase tracking-wide">Engagement</span>
+                        <div className="inline-flex items-center gap-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 text-xs text-white/80">
+                          <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{engagement || "No engagement data"}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-white/50 min-w-[90px] font-medium uppercase tracking-wide">Prompt</span>
+                        <div className="inline-flex items-center gap-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 text-xs text-white/80">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                          <span>{promptOrigin === "tracked" ? (trackedPrompt || "Tracked prompt") : "Search"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Content separator */}
                   <div className="h-[1px] bg-white/10"></div>
@@ -569,9 +608,20 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                   {isOpportunity && opportunityContent ? (
                     <div className="space-y-6">
                       {/* Conversation Snapshot */}
-                      <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.01]">
+                      <div className="rounded-xl border border-white/[0.08] bg-gradient-to-br from-white/[0.02] via-[#121212] to-[#0d0d0d] overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.02] flex items-center justify-between">
                           <h3 className="text-sm font-semibold text-white">Conversation Snapshot</h3>
+                          {url ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-3 rounded-md border-white/[0.08] bg-white/5 text-white hover:bg-white/10 hover:border-white/20 text-xs font-medium gap-1.5"
+                              onClick={() => window.open(url, "_blank", "noopener")}
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              Open Post
+                            </Button>
+                          ) : null}
                         </div>
                         <div className="p-6">
                           <p className="text-sm text-white/70 leading-relaxed">
@@ -581,16 +631,16 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                       </div>
 
                       {/* Why This Matters */}
-                      <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.01]">
+                      <div className="rounded-xl border border-white/[0.08] bg-[#111] overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.02]">
                           <h3 className="text-sm font-semibold text-white">Why This Matters for Your Brand</h3>
                         </div>
                         <div className="p-6">
                           <ul className="space-y-3">
                             {opportunityContent.whyThisMatters.map((item, idx) => (
-                              <li key={idx} className="flex items-start gap-3 text-sm text-white/70 leading-relaxed">
-                                <span className="text-orange-500 mt-1.5">•</span>
-                                <span>{item}</span>
+                              <li key={idx} className="flex items-start gap-2.5 text-sm text-white/80 leading-relaxed">
+                                <span className="mt-2 inline-flex h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.08)]" />
+                                <span className="flex-1">{item}</span>
                               </li>
                             ))}
                           </ul>
@@ -598,8 +648,8 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                       </div>
 
                       {/* Suggested Response Angle */}
-                      <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.01]">
+                      <div className="rounded-xl border border-white/[0.08] bg-[#0f0f0f] overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.02]">
                           <h3 className="text-sm font-semibold text-white">Response Angle</h3>
                         </div>
                         <div className="p-6">
@@ -612,20 +662,20 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                       {/* Action Buttons */}
                       <div className="flex items-center gap-3">
                         <Button
+                          variant="outline"
+                          size="lg"
+                          className="border-white/[0.08] bg-white/5 text-white hover:bg-white/10 hover:text-white/90 hover:border-white/[0.12] font-medium gap-2"
+                        >
+                          <ThumbsDown className="w-4 h-4" />
+                          Not Relevant
+                        </Button>
+                        <Button
                           size="lg"
                           className="flex-1 bg-white text-black hover:bg-white/90 font-medium gap-2"
                           onClick={() => url && window.open(url, "_blank", "noopener")}
                         >
                           <ExternalLink className="w-4 h-4" />
                           Open Post
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="lg"
-                          className="border-white/[0.08] bg-transparent text-white/70 hover:bg-white/5 hover:text-white/90 hover:border-white/[0.12] font-medium gap-2"
-                        >
-                          <ThumbsDown className="w-4 h-4" />
-                          Not Relevant
                         </Button>
                       </div>
                     </div>

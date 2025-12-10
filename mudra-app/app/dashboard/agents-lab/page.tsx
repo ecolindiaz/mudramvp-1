@@ -332,6 +332,15 @@ function AgentsLabPageInner() {
     return renderChipRow(activeColor, activeIndex)
   }
 
+  const renderOpportunityImpactChips = (task: TaskRow) => {
+    // For Conversation Radar opportunities:
+    // - tracked prompt (AI cited source) => red
+    // - proactive search => orange
+    if (!task.platform) return getImpactChips(task.impact)
+    const color = task.promptOrigin === "tracked" ? "bg-red-500" : "bg-orange-400"
+    return renderChipRow(color, 0)
+  }
+
   type RunStatusKey = "operational" | "down" | "not-deployed"
 
   const RUN_STATUS_DETAILS: Record<
@@ -669,7 +678,7 @@ function AgentsLabPageInner() {
   
   const taskRows = selectedAgent && !isAnalyzing ? buildTaskRows(selectedAgent) : []
   const normalizedTaskQuery = taskSearchQuery.trim().toLowerCase()
-  const filteredTasks = (taskFilter === "active" ? taskRows.filter((task) => task.status === "running") : taskRows).filter((task) => {
+  const filteredTasks = (taskFilter === "active" ? taskRows.filter((task) => task.status === "running" || task.status === "queued") : taskRows).filter((task) => {
     if (!normalizedTaskQuery) return true
     return (
       task.title.toLowerCase().includes(normalizedTaskQuery) ||
@@ -1299,42 +1308,39 @@ function AgentsLabPageInner() {
                                   </div>
                                 </div>
 
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[100px] px-3 py-1.5 rounded-md hover:bg-white/[0.03] transition-colors cursor-help">
-                                      <Clock className="w-3.5 h-3.5 text-white/50 shrink-0" />
-                                      <span className="text-xs text-white/70 font-medium whitespace-nowrap">
-                                        {formatTimeAgo(task.lastActivity)}
-                                      </span>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-xs">
-                                    <p>Last activity for this task.</p>
-                                  </TooltipContent>
-                                </Tooltip>
+                                {!isConversationRadar || !task.platform ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[100px] px-3 py-1.5 rounded-md hover:bg-white/[0.03] transition-colors cursor-help">
+                                        <Clock className="w-3.5 h-3.5 text-white/50 shrink-0" />
+                                        <span className="text-xs text-white/70 font-medium whitespace-nowrap">
+                                          {formatTimeAgo(task.lastActivity)}
+                                        </span>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs"></TooltipContent>
+                                  </Tooltip>
+                                ) : null}
 
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[95px] cursor-help px-3 py-1.5 rounded-md hover:bg-white/[0.03] transition-colors">
                                       <span className="text-xs text-white/50 font-medium uppercase tracking-wide">Impact</span>
-                                      {getImpactChips(task.impact)}
+                                      {isConversationRadar && task.platform
+                                        ? renderOpportunityImpactChips(task)
+                                        : getImpactChips(task.impact)}
                                     </div>
                                   </TooltipTrigger>
                                   <TooltipContent side="top" className="max-w-xs">
-                                    <p>Relative importance of this task within the workflow.</p>
+                                    <p>How important it is for your brand to join this conversation.</p>
                                   </TooltipContent>
                                 </Tooltip>
 
                                 <div className="flex items-center gap-2.5 flex-shrink-0 px-3 py-1.5 rounded-md bg-white/[0.02] border border-white/[0.05]">
-                                  {task.status === "running" ? (
+                                  {task.status === "running" || task.status === "queued" ? (
                                     <>
-                                      <Loader2 className="w-3.5 h-3.5 text-orange-500 animate-spin" />
-                                      <span className="text-xs text-orange-400 font-medium">In progress</span>
-                                    </>
-                                  ) : task.status === "queued" ? (
-                                    <>
-                                      <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                                      <span className="text-xs text-white/65 font-medium">Queued</span>
+                                      <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                                      <span className="text-xs text-orange-400 font-medium">Active Opportunity</span>
                                     </>
                                   ) : task.status === "failed" ? (
                                     <>

@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Bot, Loader2, GitBranch, ChevronDown, GitPullRequest, Search, Check, Clock, Layers, Rocket, Radio, ChevronRight, ChevronLeft, ListChecks, BookOpen, XCircle, MoreHorizontal, Sparkles } from "lucide-react"
+import { Bot, Loader2, GitBranch, ChevronDown, GitPullRequest, Search, Check, Clock, Layers, Rocket, Radio, ChevronRight, ChevronLeft, ListChecks, BookOpen, XCircle, MoreHorizontal, Sparkles, Linkedin, type LucideProps } from "lucide-react"
 import { BrowserWindowEmpty } from "@/components/empty-states/browser-window-empty"
 import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -23,6 +23,26 @@ import { DeployAgentDialog } from "@/components/dashboard/deploy-agent-dialog"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
+
+const RedditIcon = (props: LucideProps) => (
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="9" cy="12" r="1" />
+    <circle cx="15" cy="12" r="1" />
+    <path d="M7.5 13.5c.8 1 2.3 1.7 4.5 1.7s3.7-.7 4.5-1.7" />
+    <path d="M14.5 7.5 15 4.5l2.5.6" />
+  </svg>
+)
 
 function AgentsLabPageInner() {
   const { profile } = useBrandProfile()
@@ -533,9 +553,67 @@ function AgentsLabPageInner() {
     status: TaskStatus
     lastActivity: Date
     icon: React.ComponentType<{ className?: string }>
+    url?: string
+    platform?: "Reddit" | "LinkedIn"
+    postedAt?: Date
+    engagement?: string
+    promptOrigin?: "search" | "tracked"
+    trackedPrompt?: string
   }
 
   const buildTaskRows = (agent: (typeof deployedAgents)[number]): TaskRow[] => {
+    if (agent.agentName === "Conversation Radar") {
+      const now = new Date()
+      const subtractMinutes = (minutes: number) => new Date(now.getTime() - minutes * 60 * 1000)
+
+      return [
+        {
+          id: `${agent.id}-li-thread`,
+          title: "LinkedIn: Product-led growth prompts",
+          description: "Join the LinkedIn thread where PMs are sharing GEO-friendly prompt templates.",
+          impact: "Medium",
+          status: "running",
+          lastActivity: subtractMinutes(3),
+          icon: Linkedin,
+          url: "https://www.linkedin.com/feed/",
+          platform: "LinkedIn",
+          postedAt: subtractMinutes(180), // 3 hours ago
+          engagement: "120 reactions · 23 comments",
+          promptOrigin: "tracked",
+          trackedPrompt: "how to improve AI visibility for PLG",
+        },
+        {
+          id: `${agent.id}-reddit-opportunity`,
+          title: "Reddit: r/startups on AI visibility",
+          description: "Founder AMA asking how to get cited by ChatGPT/Claude — add Mudra playbook advice.",
+          impact: "High",
+          status: "queued",
+          lastActivity: subtractMinutes(12),
+          icon: RedditIcon,
+          url: "https://www.reddit.com/r/startups/",
+          platform: "Reddit",
+          postedAt: subtractMinutes(60 * 30), // ~30 hours ago
+          engagement: "312 upvotes · 47 comments",
+          promptOrigin: "tracked",
+          trackedPrompt: "how to get cited by ChatGPT",
+        },
+        {
+          id: `${agent.id}-reddit-citation`,
+          title: "Reddit: r/SEO AI citations thread",
+          description: "Thread cited in AI responses; add brand POV and link to GEO guide.",
+          impact: "Low",
+          status: "completed",
+          lastActivity: subtractMinutes(36),
+          icon: RedditIcon,
+          url: "https://www.reddit.com/r/SEO/",
+          platform: "Reddit",
+          postedAt: subtractMinutes(60 * 24 * 5), // 5 days ago
+          engagement: "88 upvotes · 19 comments",
+          promptOrigin: "search",
+        },
+      ]
+    }
+
     // Special handling for Content Optimizer agent
     if (agent.agentName === "Content Optimizer") {
       return [] // Content Optimizer shows optimization results, not tasks
@@ -599,37 +677,56 @@ function AgentsLabPageInner() {
     )
   })
 
+  const isConversationRadar = selectedAgent?.agentName === "Conversation Radar"
+
   const metricGridClass = cn(
     "grid grid-cols-1 gap-4 md:gap-5 px-4 lg:px-6",
     isDetailView
-      ? "md:grid-cols-3 @xl/main:grid-cols-3 @3xl/main:grid-cols-3"
+      ? isConversationRadar
+        ? "md:grid-cols-2 @xl/main:grid-cols-2 @3xl/main:grid-cols-2"
+        : "md:grid-cols-3 @xl/main:grid-cols-3 @3xl/main:grid-cols-3"
       : "@xl/main:grid-cols-2 @3xl/main:grid-cols-4"
   )
 
   const metricCards: MetricCardConfig[] = isDetailView && selectedAgentMetrics
-    ? [
-        {
-          title: "Optimizations Shipped",
-          value: selectedAgentMetrics.optimizations,
-          delta: 0,
-          lastValue: 0,
-          positive: true,
-          accentColor: "rgba(52, 211, 153, 0.9)",
-          info: `Automations deployed by ${selectedAgent?.agentName}`,
-          icon: Rocket,
-        },
-        {
-          title: "Active Tasks",
-          value: selectedAgentMetrics.activeTasks,
-          delta: 0,
-          lastValue: selectedAgentMetrics.totalTasks,
-          positive: true,
-          format: (val: number) => `${val} of ${selectedAgentMetrics.totalTasks}`,
-          accentColor: "rgba(167, 139, 250, 0.9)",
-          info: "Tasks this agent is currently processing",
-          icon: ListChecks,
-        },
-      ]
+    ? (
+        isConversationRadar
+          ? [
+              {
+                title: "Active Opportunities",
+                value: selectedAgentMetrics.optimizations,
+                delta: 0,
+                lastValue: 0,
+                positive: true,
+                accentColor: "rgba(251, 191, 36, 0.9)",
+                info: "How many conversations you can act on right now. Counts all open Reddit and LinkedIn threads where the agent believes your brand should join the discussion.",
+                icon: Radio,
+              },
+            ]
+          : [
+              {
+                title: "Optimizations Shipped",
+                value: selectedAgentMetrics.optimizations,
+                delta: 0,
+                lastValue: 0,
+                positive: true,
+                accentColor: "rgba(52, 211, 153, 0.9)",
+                info: `Automations deployed by ${selectedAgent?.agentName}`,
+                icon: Rocket,
+              },
+              {
+                title: "Active Tasks",
+                value: selectedAgentMetrics.activeTasks,
+                delta: 0,
+                lastValue: selectedAgentMetrics.totalTasks,
+                positive: true,
+                format: (val: number) => `${val} of ${selectedAgentMetrics.totalTasks}`,
+                accentColor: "rgba(167, 139, 250, 0.9)",
+                info: "Tasks this agent is currently processing",
+                icon: ListChecks,
+              },
+            ]
+      )
     : [
         {
           title: "Technical Structure Score",
@@ -721,7 +818,7 @@ function AgentsLabPageInner() {
                         <Input
                           value={taskSearchQuery}
                           onChange={(e) => setTaskSearchQuery(e.target.value)}
-                          placeholder="Search Task"
+                          placeholder={isConversationRadar ? "Search Opportunity" : "Search Task"}
                           className="h-9 rounded-full !bg-[#1a1a1a] border border-white/[0.08] text-xs text-white/80 placeholder:text-white/50 pl-8 pr-3 focus-visible:ring-0 focus-visible:border-white/20 focus-visible:!bg-[#1a1a1a]"
                         />
                       </div>
@@ -730,7 +827,7 @@ function AgentsLabPageInner() {
                 
                 {/* Right side - buttons */}
                 <div className="flex items-center gap-2">
-                  {isDetailView && (
+                  {isDetailView && !isConversationRadar && (
                     <Button
                       size="sm"
                       onClick={() => setIsPrSheetOpen(true)}
@@ -824,10 +921,14 @@ function AgentsLabPageInner() {
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                       <div className="space-y-1.5">
                         <h2 className="text-xl font-semibold tracking-tight text-white">
-                          {isDetailView ? "Tasks" : "Agents"}
+                          {isDetailView ? (isConversationRadar ? "Opportunities" : "Tasks") : "Agents"}
                         </h2>
                         <p className="text-sm text-white/60">
-                          {isDetailView ? "Tasks that agents are cooking" : "Active Deployed Agents"}
+                          {isDetailView
+                            ? isConversationRadar
+                              ? "Opportunities the agent surfaced for you to join"
+                              : "Tasks that agents are cooking"
+                            : "Active Deployed Agents"}
                         </p>
                       </div>
 
@@ -989,7 +1090,7 @@ function AgentsLabPageInner() {
                               : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                           )}
                         >
-                          Active Tasks
+                          {isConversationRadar ? "Active Opportunities" : "Active Tasks"}
                         </Button>
                         <Button
                           variant="outline"
@@ -1002,7 +1103,7 @@ function AgentsLabPageInner() {
                               : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                           )}
                         >
-                          All Tasks
+                          {isConversationRadar ? "All Opportunities" : "All Tasks"}
                         </Button>
                       </div>
                     ) : (
@@ -1161,10 +1262,24 @@ function AgentsLabPageInner() {
                               "failed": "failed"
                             }
                             const taskStatus = statusMap[task.status] || "queued"
+                            
+                            // Build query params - include opportunity-specific params if present
+                            const queryParams = new URLSearchParams({
+                              title: task.title,
+                              desc: task.description,
+                              status: taskStatus,
+                            })
+                            if (task.platform) queryParams.set("platform", task.platform)
+                            if (task.url) queryParams.set("url", task.url)
+                            if (task.engagement) queryParams.set("engagement", task.engagement)
+                            if (task.postedAt) queryParams.set("postedAt", task.postedAt.toISOString())
+                            if (task.promptOrigin) queryParams.set("promptOrigin", task.promptOrigin)
+                            if (task.trackedPrompt) queryParams.set("trackedPrompt", task.trackedPrompt)
+
                             return (
                               <Link
                                 key={task.id}
-                                href={`/dashboard/agents-lab/tasks/${encodeURIComponent(task.id)}?title=${encodeURIComponent(task.title)}&desc=${encodeURIComponent(task.description)}&status=${taskStatus}`}
+                                href={`/dashboard/agents-lab/tasks/${encodeURIComponent(task.id)}?${queryParams.toString()}`}
                                 className="block"
                               >
                                 <div
@@ -1249,10 +1364,12 @@ function AgentsLabPageInner() {
                                   </div>
                                 </div>
                                 <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
-                                  Analyzing & Generating Tasks
+                                  {isConversationRadar ? "Analyzing & Generating Opportunities" : "Analyzing & Generating Tasks"}
                                 </h3>
                                 <p className="text-sm text-white/60 leading-relaxed">
-                                  {selectedAgent?.agentName} is analyzing your repository and defining the tasks it needs to accomplish.
+                                  {isConversationRadar
+                                    ? `${selectedAgent?.agentName} is analyzing your sources and surfacing live conversations to join.`
+                                    : `${selectedAgent?.agentName} is analyzing your repository and defining the tasks it needs to accomplish.`}
                                 </p>
                               </div>
                               

@@ -23,10 +23,40 @@ import {
   FileText,
   Loader2,
   XCircle,
+  Linkedin,
+  Calendar,
+  MessageSquare,
+  Sparkles,
+  ExternalLink,
+  ThumbsDown,
+  CheckCircle,
+  type LucideProps,
 } from "lucide-react"
 import Image from "next/image"
 import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { cn } from "@/lib/utils"
+
+// Custom Reddit icon (not available in Lucide)
+const RedditIcon = (props: LucideProps) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <circle cx="12" cy="12" r="10" />
+    <path d="M14.5 17c-1.5 1-3.5 1-5 0" />
+    <circle cx="8.5" cy="12" r="1.5" fill="currentColor" />
+    <circle cx="15.5" cy="12" r="1.5" fill="currentColor" />
+    <path d="M18 8.5c0-.8-.7-1.5-1.5-1.5s-1.5.7-1.5 1.5c0 .4.2.8.5 1" />
+    <path d="M6 8.5c0-.8.7-1.5 1.5-1.5s1.5.7 1.5 1.5c0 .4-.2.8-.5 1" />
+    <path d="M12 7V3l3 2" />
+  </svg>
+)
 
 type PropertyGroup = {
   label: string
@@ -46,6 +76,36 @@ export default function TaskDeepViewPage() {
   const [showFullDescription, setShowFullDescription] = useState(false)
   const [selectedTab, setSelectedTab] = useState<"logs" | "summary">("logs")
   const [isViewAllOpen, setIsViewAllOpen] = useState(false)
+  
+  // Conversation Radar opportunity params
+  const platform = searchParams?.get("platform") as "Reddit" | "LinkedIn" | null
+  const url = searchParams?.get("url") || ""
+  const engagement = searchParams?.get("engagement") || ""
+  const postedAt = searchParams?.get("postedAt") || ""
+  const promptOrigin = searchParams?.get("promptOrigin") as "search" | "tracked" | null
+  const trackedPrompt = searchParams?.get("trackedPrompt") || ""
+  
+  // Detect if this is a Conversation Radar opportunity
+  const isOpportunity = Boolean(platform)
+  
+  // Calculate age string from postedAt
+  const getAgeString = (isoDate: string) => {
+    if (!isoDate) return "Unknown"
+    const posted = new Date(isoDate)
+    const now = new Date()
+    const diffMs = now.getTime() - posted.getTime()
+    const diffMins = Math.floor(diffMs / (1000 * 60))
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    const diffWeeks = Math.floor(diffDays / 7)
+    const diffMonths = Math.floor(diffDays / 30)
+    
+    if (diffMins < 60) return `Posted ${diffMins}m ago`
+    if (diffHours < 24) return `Posted ${diffHours}h ago`
+    if (diffDays < 7) return `Posted ${diffDays} day${diffDays > 1 ? "s" : ""} ago`
+    if (diffWeeks < 4) return `Posted ${diffWeeks} week${diffWeeks > 1 ? "s" : ""} ago`
+    return `Posted ${diffMonths} month${diffMonths > 1 ? "s" : ""} ago`
+  }
   
   // Task status - will be connected to backend
   // Possible values: "queued" | "in_progress" | "completed" | "failed"
@@ -100,6 +160,26 @@ Successfully generated LLMs.txt index file for repository mudramvp on branch mai
 ### Next Steps
 
 The LLMs.txt index file is now available and ready for AI crawlers to discover and process. The file includes all necessary metadata and instructions for proper AI interaction with the repository.`
+  } : null
+
+  // Mock opportunity content - will be replaced with backend/AI data
+  const opportunityContent = isOpportunity ? {
+    conversationSnapshot: platform === "Reddit" 
+      ? "A startup founder is asking for recommendations on how to improve their AI visibility and get cited by ChatGPT. Several responses are suggesting various SEO strategies, but no one has mentioned GEO-specific tools yet. The thread has high engagement from startup founders and growth marketers."
+      : "Product managers are sharing templates for crafting AI-friendly prompts that improve brand visibility. The discussion is focused on practical strategies for PLG companies to get mentioned by AI assistants.",
+    whyThisMatters: [
+      trackedPrompt 
+        ? `AI cited this thread in responses to: "${trackedPrompt}"`
+        : "This thread is being referenced in AI search results for relevant queries.",
+      "People are asking how to improve AI visibility—exactly what your product solves.",
+      platform === "Reddit" 
+        ? "High engagement in your ICP: startup founders, growth teams, devtools." 
+        : "High engagement from product managers and growth specialists.",
+      "No competitor has entered this conversation yet.",
+    ],
+    suggestedResponseAngle: platform === "Reddit"
+      ? "Enter the conversation by sharing a genuine insight about GEO fundamentals—what it is, why it matters for AI-era discovery. You can mention your experience building tools in this space without hard-selling. Focus on being helpful first; the thread is asking for real advice, not product pitches."
+      : "Contribute by sharing a specific template or framework that has worked for improving AI citations. Position yourself as a practitioner who has solved this problem. The audience appreciates actionable, experience-based insights over generic advice.",
   } : null
 
   // Function to render markdown-like content with support for titles, bullets, numbers, and bold text
@@ -219,35 +299,66 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
     }
   }
 
-  const propertyGroups: PropertyGroup[] = [
-    {
-      label: "Properties",
-      items: [
-        ...(taskStatus === "failed" 
-          ? [{ text: "Failed", icon: AlertCircle, variant: "destructive" as const }]
-          : taskStatus === "completed"
-          ? [{ text: "Completed", icon: Bot, variant: "default" as const }]
-          : []
-        ),
-        { text: "Emiliano Rivero", icon: User },
-      ],
-    },
-    {
-      label: "Repository",
-      items: [
-        { text: "mudramvp", icon: Github },
-        { text: "main", icon: GitBranch },
-      ],
-    },
-    {
-      label: "Agent",
-      items: [{ text: "Claude Code: Sonnet 4.5", icon: Bot }],
-    },
-    {
-      label: "Origin",
-      items: [{ text: "Dashboard", icon: Home }],
-    },
-  ]
+  // Property groups - different for opportunities vs regular tasks
+  const propertyGroups: PropertyGroup[] = isOpportunity
+    ? [
+        {
+          label: "Properties",
+          items: [
+            { text: platform || "Unknown", icon: platform === "Reddit" ? RedditIcon : Linkedin },
+          ],
+        },
+        {
+          label: "Repository",
+          items: [
+            { text: getAgeString(postedAt), icon: Calendar },
+          ],
+        },
+        {
+          label: "Agent",
+          items: [
+            { text: engagement || "No engagement data", icon: MessageSquare },
+          ],
+        },
+        {
+          label: "Origin",
+          items: [
+            { 
+              text: promptOrigin === "tracked" ? `Prompt: ${trackedPrompt || "Tracked"}` : "Prompt: Search", 
+              icon: Sparkles 
+            },
+          ],
+        },
+      ]
+    : [
+        {
+          label: "Properties",
+          items: [
+            ...(taskStatus === "failed" 
+              ? [{ text: "Failed", icon: AlertCircle, variant: "destructive" as const }]
+              : taskStatus === "completed"
+              ? [{ text: "Completed", icon: Bot, variant: "default" as const }]
+              : []
+            ),
+            { text: "Emiliano Rivero", icon: User },
+          ],
+        },
+        {
+          label: "Repository",
+          items: [
+            { text: "mudramvp", icon: Github },
+            { text: "main", icon: GitBranch },
+          ],
+        },
+        {
+          label: "Agent",
+          items: [{ text: "Claude Code: Sonnet 4.5", icon: Bot }],
+        },
+        {
+          label: "Origin",
+          items: [{ text: "Dashboard", icon: Home }],
+        },
+      ]
 
   const canExpandDescription = taskDescription.length > 140
 
@@ -283,9 +394,21 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                     </Button>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-white/50">Task ID</p>
-                  <p className="text-sm text-white/80">{params?.id}</p>
+                <div className="flex items-center gap-4">
+                  {isOpportunity && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 px-4 text-sm font-medium transition-all duration-200 bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 hover:border-green-500/40 gap-2"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Mark as Done
+                    </Button>
+                  )}
+                  <div className="text-right">
+                    <p className="text-xs text-white/50">{isOpportunity ? "Opportunity ID" : "Task ID"}</p>
+                    <p className="text-sm text-white/80">{params?.id}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -410,37 +533,103 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                   {/* Content separator */}
                   <div className="h-[1px] bg-white/10"></div>
 
-                  {/* Tab Selector */}
-                  <div className="flex items-center gap-2.5">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedTab("logs")}
-                      className={cn(
-                        "h-9 px-5 text-sm font-medium transition-all duration-200",
-                        selectedTab === "logs"
-                          ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
-                          : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
-                      )}
-                    >
-                      Agent Logs
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedTab("summary")}
-                      className={cn(
-                        "h-9 px-5 text-sm font-medium transition-all duration-200",
-                        selectedTab === "summary"
-                          ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
-                          : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
-                      )}
-                    >
-                      Agent Summary
-                    </Button>
-                  </div>
+                  {/* Tab Selector - Only for regular tasks */}
+                  {!isOpportunity && (
+                    <div className="flex items-center gap-2.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedTab("logs")}
+                        className={cn(
+                          "h-9 px-5 text-sm font-medium transition-all duration-200",
+                          selectedTab === "logs"
+                            ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
+                            : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
+                        )}
+                      >
+                        Agent Logs
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedTab("summary")}
+                        className={cn(
+                          "h-9 px-5 text-sm font-medium transition-all duration-200",
+                          selectedTab === "summary"
+                            ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
+                            : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
+                        )}
+                      >
+                        Agent Summary
+                      </Button>
+                    </div>
+                  )}
 
-                  {/* Content Container - Fixed height with scrollable content */}
+                  {/* Content Container - Different for opportunities vs tasks */}
+                  {isOpportunity && opportunityContent ? (
+                    <div className="space-y-6">
+                      {/* Conversation Snapshot */}
+                      <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.01]">
+                          <h3 className="text-sm font-semibold text-white">Conversation Snapshot</h3>
+                        </div>
+                        <div className="p-6">
+                          <p className="text-sm text-white/70 leading-relaxed">
+                            {opportunityContent.conversationSnapshot}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Why This Matters */}
+                      <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.01]">
+                          <h3 className="text-sm font-semibold text-white">Why This Matters for Your Brand</h3>
+                        </div>
+                        <div className="p-6">
+                          <ul className="space-y-3">
+                            {opportunityContent.whyThisMatters.map((item, idx) => (
+                              <li key={idx} className="flex items-start gap-3 text-sm text-white/70 leading-relaxed">
+                                <span className="text-orange-500 mt-1.5">•</span>
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+
+                      {/* Suggested Response Angle */}
+                      <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.01]">
+                          <h3 className="text-sm font-semibold text-white">Response Angle</h3>
+                        </div>
+                        <div className="p-6">
+                          <p className="text-sm text-white/70 leading-relaxed">
+                            {opportunityContent.suggestedResponseAngle}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-3">
+                        <Button
+                          size="lg"
+                          className="flex-1 bg-white text-black hover:bg-white/90 font-medium gap-2"
+                          onClick={() => url && window.open(url, "_blank", "noopener")}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Open Post
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="border-white/[0.08] bg-transparent text-white/70 hover:bg-white/5 hover:text-white/90 hover:border-white/[0.12] font-medium gap-2"
+                        >
+                          <ThumbsDown className="w-4 h-4" />
+                          Not Relevant
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
                   <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col h-[500px]">
                     <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.01] flex-shrink-0">
                       <h3 className="text-sm font-semibold text-white">
@@ -789,6 +978,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                       )}
                     </div>
                   </div>
+                  )}
                 </div>
               </div>
 

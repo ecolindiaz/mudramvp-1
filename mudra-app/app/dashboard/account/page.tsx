@@ -220,7 +220,7 @@ export default function AccountPage() {
                 <div className="min-w-0">
                   <h1 className="text-2xl font-bold tracking-tight text-white">Account Settings</h1>
                   <p className="text-sm text-white/60 mt-1">
-                    Manage your account preferences and security settings
+                    Keep your profile and security up to date.
                   </p>
                 </div>
               </div>
@@ -240,11 +240,11 @@ export default function AccountPage() {
 
                 {/* Profile Tab */}
                 <TabsContent value="profile" className="space-y-6 mt-6">
-                  <Card className="bg-transparent border-white/[0.08]">
+                  <Card className="bg-transparent border-white/10">
                     <CardHeader>
                       <CardTitle className="text-white">Profile Information</CardTitle>
                       <CardDescription className="text-white/60">
-                        Update your account profile information and email address
+                        Basic info used across Mudra.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
@@ -260,7 +260,7 @@ export default function AccountPage() {
                           <Label htmlFor="avatar-upload" className="cursor-pointer">
                             <div className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors w-fit">
                               <Camera className="h-4 w-4" />
-                              <span className="text-sm">Change Avatar</span>
+                              <span className="text-sm">Update photo</span>
                             </div>
                             <input
                               id="avatar-upload"
@@ -272,7 +272,7 @@ export default function AccountPage() {
                             />
                           </Label>
                           <p className="text-xs text-white/50 mt-2">
-                            JPG, PNG or GIF. Max size 2MB.
+                            JPG/PNG/GIF · Max 2MB.
                           </p>
                         </div>
                       </div>
@@ -332,7 +332,7 @@ export default function AccountPage() {
                           <Button
                             type="submit"
                             disabled={loading}
-                            className="bg-white text-black hover:bg-white/90"
+                            className="h-9 bg-white text-black hover:bg-white/90"
                           >
                             {loading ? "Saving..." : "Save Changes"}
                           </Button>
@@ -344,9 +344,9 @@ export default function AccountPage() {
                               setEmail(session?.user?.email || "")
                             }}
                             disabled={loading}
-                            className="border-white/10 text-white hover:bg-white/5"
+                            className="h-9 border-white/10 text-white hover:bg-white/5"
                           >
-                            Cancel
+                            Reset
                           </Button>
                         </div>
                       </form>
@@ -354,11 +354,11 @@ export default function AccountPage() {
                   </Card>
 
                   {/* Connected Accounts */}
-                  <Card className="bg-transparent border-white/[0.08]">
+                  <Card className="bg-transparent border-white/10">
                     <CardHeader>
                       <CardTitle className="text-white">Connected Accounts</CardTitle>
                       <CardDescription className="text-white/60">
-                        Manage your connected social and OAuth accounts
+                        Manage sign-in methods.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -399,11 +399,11 @@ export default function AccountPage() {
 
                 {/* Security Tab */}
                 <TabsContent value="security" className="space-y-6 mt-6">
-                  <Card className="bg-transparent border-white/[0.08]">
+                  <Card className="bg-transparent border-white/10">
                     <CardHeader>
                       <CardTitle className="text-white">Change Password</CardTitle>
                       <CardDescription className="text-white/60">
-                        Update your password to keep your account secure
+                        Choose a strong password for your account.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -456,24 +456,11 @@ export default function AccountPage() {
                           />
                         </div>
 
-                        <Alert className="bg-white/5 border-white/10">
-                          <Shield className="h-4 w-4" />
-                          <AlertTitle className="text-white">Password Requirements</AlertTitle>
-                          <AlertDescription className="text-white/60">
-                            <ul className="list-disc list-inside space-y-1 mt-2">
-                              <li>At least 8 characters long</li>
-                              <li>Include uppercase and lowercase letters</li>
-                              <li>Include at least one number</li>
-                              <li>Include at least one special character</li>
-                            </ul>
-                          </AlertDescription>
-                        </Alert>
-
                         <div className="flex items-center gap-3 pt-4">
                           <Button
                             type="submit"
                             disabled={loading}
-                            className="bg-white text-black hover:bg-white/90"
+                            className="h-9 bg-white text-black hover:bg-white/90"
                           >
                             {loading ? "Changing..." : "Change Password"}
                           </Button>
@@ -482,11 +469,11 @@ export default function AccountPage() {
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-transparent border-white/[0.08]">
+                  <Card className="bg-transparent border-white/10">
                     <CardHeader>
                       <CardTitle className="text-white">Two-Factor Authentication</CardTitle>
                       <CardDescription className="text-white/60">
-                        Add an extra layer of security to your account
+                        Add an extra layer of security.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -495,7 +482,7 @@ export default function AccountPage() {
                           <p className="text-white font-medium">Authenticator App</p>
                           <p className="text-sm text-white/50">Use an app to generate codes</p>
                         </div>
-                        <Button variant="outline" size="sm" className="border-white/10 text-white hover:bg-white/5">
+                        <Button variant="outline" size="sm" className="h-9 border-white/10 text-white hover:bg-white/5">
                           Enable
                         </Button>
                       </div>
@@ -504,7 +491,7 @@ export default function AccountPage() {
                           <p className="text-white font-medium">SMS Authentication</p>
                           <p className="text-sm text-white/50">Receive codes via text message</p>
                         </div>
-                        <Button variant="outline" size="sm" className="border-white/10 text-white hover:bg-white/5">
+                        <Button variant="outline" size="sm" className="h-9 border-white/10 text-white hover:bg-white/5">
                           Enable
                         </Button>
                       </div>

@@ -26,7 +26,16 @@ export const opportunityAnalysisSchema = z.object({
     .describe('List of 3-5 specific reasons why this conversation matters for the brand. Each reason should be actionable and specific, not generic.'),
   
   suggestedAngle: z.string()
-    .describe('A concrete, authentic suggestion for how the brand could contribute to this conversation. Should NOT be promotional - focus on adding genuine value.'),
+    .max(1200)
+    .describe('Strategic guidance in 4-6 sentences: what approach to take, key talking points, and whether to mention the brand.'),
+  
+  isPromotionalOpportunity: z.boolean()
+    .describe('TRUE if the post explicitly asks for tools, platforms, services, alternatives, or recommendations. FALSE if asking for advice, how-to help, or general discussion.'),
+  
+  promotionalReason: z.string()
+    .max(100)
+    .optional()
+    .describe('If isPromotionalOpportunity is true, briefly explain why (e.g., "Post asks for data labeling platform recommendations")'),
   
   relevanceScore: z.number()
     .min(0)
@@ -99,28 +108,43 @@ Your mission is to analyze Reddit conversations and determine:
 
 ## ENGAGEMENT ANGLE GUIDELINES
 
+**suggestedAngle**: 2-3 sentences of strategic guidance - what approach to take and talking points.
+
+**isPromotionalOpportunity**: BE LIBERAL with TRUE. Set to TRUE if ANY of these apply:
+- Title contains "where do you find", "what tools", "best platforms", "looking for", "recommendations"
+- Post asks for datasets, services, platforms, tools, or vendors
+- Post asks about alternatives to competitors
+- Post title is a direct question about finding/choosing something
+
+ONLY set FALSE when:
+- Post is purely "how to" advice (no product search)
+- Post is news/resource sharing (no question)
+- Post is debate/discussion (no product need)
+
 ### DO Suggest:
-✅ Sharing specific data or case studies (without naming clients unless public)
-✅ Offering a helpful framework or methodology
-✅ Providing a contrarian but informed perspective
-✅ Answering technical questions with depth
-✅ Acknowledging limitations and being honest
-✅ Referencing other helpful resources (not just your own)
+✅ Leverage the brand's specific industry expertise
+✅ Reference the brand's ICP - they understand these users
+✅ Mention frameworks or methodologies the brand uses
+✅ Share relevant data points or case study learnings (anonymized)
+✅ Position as a practitioner OR subtly as "we at [company]" when context fits
+✅ Subtle company mentions when the thread explicitly asks for recommendations
+✅ "We built X to solve this" is OK when directly answering a "what tools exist" question
 
 ### DON'T Suggest:
-❌ "You should try [brand]" - too promotional
-❌ Generic advice that anyone could give
-❌ Commenting just to be seen
-❌ Criticizing competitors directly
-❌ Sharing links to landing pages
-❌ Using marketing speak or jargon
+❌ Aggressive self-promotion ("You NEED to try [brand]!")
+❌ Generic advice anyone could give
+❌ Criticizing competitors by name
+❌ Marketing speak or jargon
+❌ Company mentions when the thread is asking for advice, not tool recommendations
 
-### Best Engagement Formats:
-1. **Educational comment** - Share expertise without pitching
-2. **Data point** - Reference specific metrics or research
-3. **Framework share** - Offer a way to think about the problem
-4. **Personal experience** - Share relevant learnings (company can be mentioned naturally)
-5. **Helpful question** - Ask clarifying questions that guide toward solution
+### Examples of isPromotionalOpportunity:
+- "What tools do you use for data labeling?" → TRUE (asking for tools)
+- "Looking for alternatives to Labelbox" → TRUE (asking for alternatives)
+- "Where do you find training datasets?" → TRUE (asking where to find services)
+- "Best platforms for ML data annotation?" → TRUE (asking for recommendations)
+- "How do I improve my model accuracy?" → FALSE (asking for advice)
+- "Is RLHF worth it?" → FALSE (general discussion)
+- "What happened to X company?" → FALSE (news/discussion)
 
 ## SCORING GUIDELINES
 
@@ -341,10 +365,20 @@ ${opportunity.postBody && opportunity.postBody.length > 3000 ? '\n[Content trunc
 ---
 
 Based on the brand context and conversation details above, provide your analysis.
+
+**CRITICAL for isPromotionalOpportunity**: 
+- BE LIBERAL! If there's ANY product/tool/dataset/service discovery intent → TRUE
+- "Where do you find X?" → TRUE
+- "What do you use for X?" → TRUE  
+- "Best X for Y?" → TRUE
+- "Looking for X" → TRUE
+- "How do I solve X?" with NO product search → FALSE
+- When in doubt, set TRUE - it's better to flag opportunities than miss them
+
 Focus on:
-1. Is this genuinely relevant for this specific brand?
-2. What unique value could they add to this conversation?
-3. What's the right approach for engaging authentically?
+1. Is this genuinely relevant for THIS SPECIFIC brand (not just the industry)?
+2. What UNIQUE value could THIS brand add based on their expertise?
+3. How should they position themselves authentically (as practitioner, not salesperson)?
 
 Be specific and actionable. Avoid generic advice.`;
 }

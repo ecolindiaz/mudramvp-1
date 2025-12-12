@@ -114,7 +114,7 @@ async function testApifyClient() {
     if (!apiKey) {
       log('APIFY_API_KEY is NOT set in environment', 'error');
       log('Please add APIFY_API_KEY to your .env.local file:', 'warn');
-      log('  APIFY_API_KEY=apify_api_ka4tN5kNDbSvr2lrPNwZk6jRCCYb5m0hgkkw', 'info');
+      log('  APIFY_API_KEY=apify_api_YOUR_KEY_HERE', 'info');
       return false;
     }
     

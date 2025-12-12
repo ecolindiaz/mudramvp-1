@@ -16,14 +16,20 @@ import {
  * 
  * Body:
  * - brandProfileId: number (required)
- * - mode: 'cited' | 'proactive' | 'both' (default: 'both')
+ * - mode: 'cited' | 'proactive' | 'both' (default: 'proactive' for deploy, 'both' for cron)
  * - analyze: boolean (default: true) - Whether to run LLM analysis on new opportunities
  * - analyzeLimit: number (default: 10) - Max opportunities to analyze
+ * - maxCitations: number (default: 2) - Max cited opportunities to process per run
+ * 
+ * Per scheduled run targets: 1 proactive opportunity + 2 cited opportunities
  */
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    
+    // Allow dev mode bypass for testing
+    const isDev = process.env.NODE_ENV === 'development';
+    if (!isDev && !session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
     
@@ -33,6 +39,7 @@ export async function POST(request: NextRequest) {
       mode = 'both',
       analyze = true,
       analyzeLimit = 10,
+      maxCitations = 2, // Limit citations to spread over time
     } = body;
     
     if (!brandProfileId) {
@@ -42,12 +49,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Validate brand profile exists and belongs to user
+    // Validate brand profile exists (in dev mode, skip user ownership check)
     const brandProfile = await prisma.brandProfile.findFirst({
-      where: {
-        id: brandProfileId,
-        userId: session.user.id,
-      },
+      where: isDev 
+        ? { id: brandProfileId }
+        : { id: brandProfileId, userId: session?.user?.id },
     });
     
     if (!brandProfile) {
@@ -59,7 +65,7 @@ export async function POST(request: NextRequest) {
     
     const results: {
       cited?: { created: number; skipped: number; errors: number };
-      proactive?: { reddit: number; linkedin: number; total: number; queries: string[] };
+      proactive?: { reddit: number; total: number; queries: string[] };
       analysis?: { analyzed: number; errors: number };
     } = {};
     
@@ -78,8 +84,8 @@ export async function POST(request: NextRequest) {
         // For 'both' mode, just skip cited radar
         console.log('[Conversation Radar] No analysis run found, skipping cited radar');
       } else {
-        console.log(`[Conversation Radar] Running cited radar with analysis ${latestAnalysis.id}`);
-        results.cited = await processCitedOpportunities(brandProfileId, latestAnalysis.id);
+        console.log(`[Conversation Radar] Running cited radar with analysis ${latestAnalysis.id} (max: ${maxCitations})`);
+        results.cited = await processCitedOpportunities(brandProfileId, latestAnalysis.id, { maxCitations });
       }
     }
     
@@ -120,7 +126,7 @@ function buildResultMessage(results: any): string {
   }
   
   if (results.proactive) {
-    parts.push(`Proactive: ${results.proactive.reddit} Reddit, ${results.proactive.linkedin} LinkedIn`);
+    parts.push(`Proactive: ${results.proactive.reddit} Reddit opportunities`);
   }
   
   if (results.analysis) {
@@ -139,7 +145,10 @@ function buildResultMessage(results: any): string {
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    
+    // Allow dev mode bypass for testing
+    const isDev = process.env.NODE_ENV === 'development';
+    if (!isDev && !session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
     

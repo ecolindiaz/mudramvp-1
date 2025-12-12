@@ -22,23 +22,21 @@ const CRON_SECRET = process.env.CRON_SECRET;
  * Scheduled endpoint for cron jobs
  * 
  * Query params:
- * - mode: 'cited' | 'proactive' (required)
+ * - mode: 'combined' | 'cited' | 'proactive' (default: 'combined')
  * - brandId: number (optional - if not provided, runs for all brands)
  * 
  * Headers:
  * - Authorization: Bearer <CRON_SECRET>
+ * 
+ * Each 'combined' run produces: 1 proactive opportunity + 2 cited opportunities
  * 
  * Recommended Cron Schedule (Vercel):
  * vercel.json:
  * {
  *   "crons": [
  *     {
- *       "path": "/api/conversation-radar/cron?mode=cited",
+ *       "path": "/api/conversation-radar/cron",
  *       "schedule": "0 9 * * 1,3,5"  // Mon, Wed, Fri at 9am UTC
- *     },
- *     {
- *       "path": "/api/conversation-radar/cron?mode=proactive",
- *       "schedule": "0 9 * * 2,4,6"  // Tue, Thu, Sat at 9am UTC
  *     }
  *   ]
  * }
@@ -52,17 +50,20 @@ export async function POST(request: NextRequest) {
     }
     
     const { searchParams } = new URL(request.url);
-    const mode = searchParams.get('mode') as 'cited' | 'proactive';
+    const mode = searchParams.get('mode') as 'combined' | 'cited' | 'proactive' | null;
     const brandId = searchParams.get('brandId');
     
-    if (!mode || !['cited', 'proactive'].includes(mode)) {
+    // Default to 'combined' mode (1 proactive + 2 cited per run)
+    const effectiveMode = mode || 'combined';
+    
+    if (!['combined', 'cited', 'proactive'].includes(effectiveMode)) {
       return NextResponse.json(
-        { success: false, error: 'mode must be "cited" or "proactive"' },
+        { success: false, error: 'mode must be "combined", "cited", or "proactive"' },
         { status: 400 }
       );
     }
     
-    console.log(`[Cron] Starting ${mode} radar run at ${new Date().toISOString()}`);
+    console.log(`[Cron] Starting ${effectiveMode} radar run at ${new Date().toISOString()}`);
     
     // Get brands to process
     let brands: { id: number; companyName: string | null; promptCount: number }[];
@@ -98,8 +99,19 @@ export async function POST(request: NextRequest) {
     
     for (const brand of brands) {
       try {
-        if (mode === 'cited') {
-          // Run citation mode
+        if (effectiveMode === 'combined') {
+          // Run BOTH: 1 proactive + 2 cited (the default scheduled behavior)
+          const result = await runCombinedMode(brand.id);
+          results.push({
+            brandId: brand.id,
+            brandName: brand.companyName,
+            mode: 'combined',
+            success: true,
+            opportunities: result.proactiveCreated + result.citedCreated,
+            analyzed: result.analyzed,
+          });
+        } else if (effectiveMode === 'cited') {
+          // Run citation mode only
           const result = await runCitedMode(brand.id);
           results.push({
             brandId: brand.id,
@@ -110,7 +122,7 @@ export async function POST(request: NextRequest) {
             analyzed: result.analyzed,
           });
         } else {
-          // Run proactive mode with prompt rotation
+          // Run proactive mode only with prompt rotation
           const result = await runProactiveMode(brand.id);
           results.push({
             brandId: brand.id,
@@ -126,7 +138,7 @@ export async function POST(request: NextRequest) {
         results.push({
           brandId: brand.id,
           brandName: brand.companyName,
-          mode,
+          mode: effectiveMode,
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
@@ -137,7 +149,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      mode,
+      mode: effectiveMode,
       timestamp: new Date().toISOString(),
       results,
     });
@@ -148,6 +160,48 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Run combined mode for a brand (1 proactive + 2 cited)
+ * This is the default scheduled behavior
+ */
+async function runCombinedMode(brandProfileId: number): Promise<{
+  proactiveCreated: number;
+  citedCreated: number;
+  analyzed: number;
+}> {
+  let proactiveCreated = 0;
+  let citedCreated = 0;
+  
+  // 1. Run proactive search (1 prompt per run)
+  console.log(`[Cron] Running proactive search for brand ${brandProfileId}`);
+  const proactiveResult = await runProactiveSearch(brandProfileId);
+  proactiveCreated = proactiveResult.reddit;
+  
+  // 2. Run cited search (max 2 citations per run)
+  const latestAnalysis = await getLatestAnalysisRun(brandProfileId);
+  if (latestAnalysis) {
+    console.log(`[Cron] Running cited search for brand ${brandProfileId} (max: 2)`);
+    const citedResult = await processCitedOpportunities(brandProfileId, latestAnalysis.id, { maxCitations: 2 });
+    citedCreated = citedResult.created;
+  } else {
+    console.log(`[Cron] No analysis run found for brand ${brandProfileId}, skipping cited`);
+  }
+  
+  // 3. Analyze new opportunities (analyze all new ones from this run)
+  const analysisResult = await analyzeNewOpportunities(brandProfileId, {
+    limit: 5, // Analyze up to 5 (1 proactive + 2 cited + buffer)
+    minRelevanceScore: 30,
+  });
+  
+  console.log(`[Cron] Combined results: ${proactiveCreated} proactive, ${citedCreated} cited, ${analysisResult.analyzed} analyzed`);
+  
+  return {
+    proactiveCreated,
+    citedCreated,
+    analyzed: analysisResult.analyzed,
+  };
 }
 
 /**
@@ -165,8 +219,8 @@ async function runCitedMode(brandProfileId: number): Promise<{
     return { created: 0, analyzed: 0 };
   }
   
-  // Process citations
-  const citedResult = await processCitedOpportunities(brandProfileId, latestAnalysis.id);
+  // Process citations (with default limit of 2)
+  const citedResult = await processCitedOpportunities(brandProfileId, latestAnalysis.id, { maxCitations: 2 });
   
   // Analyze new opportunities
   const analysisResult = await analyzeNewOpportunities(brandProfileId, {
@@ -232,16 +286,19 @@ export async function GET(request: NextRequest) {
       config: SCHEDULER_CONFIG,
       activeBrands: brands.length,
       schedule: {
-        cited: {
+        combined: {
           frequency: '3x per week (Mon, Wed, Fri)',
           cron: '0 9 * * 1,3,5',
-          description: 'Processes Reddit URLs cited by AI models',
+          description: 'Each run: 1 proactive opportunity + 2 cited opportunities',
+          output: '~3 opportunities per run, ~9 opportunities per week',
+        },
+        // Legacy modes still available if needed
+        cited: {
+          description: 'Processes up to 2 Reddit URLs cited by AI models',
         },
         proactive: {
-          frequency: '3x per week (Tue, Thu, Sat)',
-          cron: '0 9 * * 2,4,6',
-          description: 'Searches Reddit for relevant conversations using tracked prompts',
-          promptRotation: `${SCHEDULER_CONFIG.proactive.promptsPerRun} prompts per run`,
+          description: 'Searches Reddit using 1 tracked prompt',
+          promptRotation: 'Rotates through prompts each run',
         },
       },
     });

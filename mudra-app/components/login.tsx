@@ -69,10 +69,10 @@ export default function LoginPage() {
     }
 
     return (
-        <section className="flex min-h-screen bg-black px-4 py-16 md:py-32">
+        <section className="flex min-h-screen bg-black px-6 py-10 md:py-16">
             <form
                 onSubmit={handleSubmit(onSubmit)}
-                className="bg-black m-auto h-fit w-full max-w-sm rounded-lg border border-[#222222] p-6">
+                className="bg-black m-auto h-fit w-full max-w-lg rounded-lg border border-[#222222] p-8 md:p-10">
                 <div className="space-y-8">
                     <div className="flex flex-col items-center space-y-2 text-center">
                         <div className="mb-4">

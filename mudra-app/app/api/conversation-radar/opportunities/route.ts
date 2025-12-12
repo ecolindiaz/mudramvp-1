@@ -3,36 +3,64 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { 
   getOpportunitiesForFrontend, 
+  getOpportunityForFrontend,
   updateOpportunityStatus 
 } from '@/lib/services/conversation-radar.service';
 
 /**
  * GET /api/conversation-radar/opportunities
  * 
- * Returns conversation opportunities for a brand
+ * Returns conversation opportunities for a brand or a single opportunity
  * 
- * Query params:
- * - brandProfileId: required
+ * Query params (for listing):
+ * - brandProfileId: required (unless opportunityId is provided)
  * - status: 'new' | 'reviewed' | 'engaged' | 'dismissed' | 'all' (default: 'new')
  * - mode: 'cited' | 'proactive' (optional)
- * - platform: 'reddit' | 'linkedin' (optional)
+ * - platform: 'reddit' (optional)
  * - limit: number (default: 50)
  * - offset: number (default: 0)
+ * 
+ * Query params (for single opportunity):
+ * - opportunityId: number (returns single opportunity with full details)
  */
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    
+    // Allow dev mode bypass for testing
+    const isDev = process.env.NODE_ENV === 'development';
+    if (!isDev && !session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
     
     const { searchParams } = new URL(request.url);
+    const opportunityId = searchParams.get('opportunityId');
+    
+    // Single opportunity fetch
+    if (opportunityId) {
+      const opportunity = await getOpportunityForFrontend(parseInt(opportunityId));
+      
+      if (!opportunity) {
+        return NextResponse.json(
+          { success: false, error: 'Opportunity not found' },
+          { status: 404 }
+        );
+      }
+      
+      return NextResponse.json({
+        success: true,
+        data: opportunity,
+      });
+    }
+    
+    // List opportunities
     const brandProfileId = searchParams.get('brandProfileId');
     const status = searchParams.get('status') || 'new';
     const mode = searchParams.get('mode') as 'cited' | 'proactive' | null;
-    const platform = searchParams.get('platform') as 'reddit' | 'linkedin' | null;
+    const platform = searchParams.get('platform') as 'reddit' | null;
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
+    const includeAll = searchParams.get('includeAll') === 'true'; // For "All opportunities" view
     
     if (!brandProfileId) {
       return NextResponse.json(
@@ -47,6 +75,7 @@ export async function GET(request: NextRequest) {
       platform: platform || undefined,
       limit,
       offset,
+      includeAll, // If true, shows all relevance scores (for "All opportunities" view)
     });
     
     return NextResponse.json({
@@ -80,7 +109,10 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    
+    // Allow dev mode bypass for testing
+    const isDev = process.env.NODE_ENV === 'development';
+    if (!isDev && !session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
     

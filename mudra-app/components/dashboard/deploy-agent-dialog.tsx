@@ -59,11 +59,11 @@ const mockDeployments: DeploymentItem[] = [
   {
     id: "6",
     agentName: "Conversation Radar",
-    agentDescription: "Scans Reddit & LinkedIn for brand-relevant threads.",
+    agentDescription: "Scans Reddit for brand-relevant threads.",
     status: "Ready",
     duration: "~4m initial scan",
     icon: Radio,
-    impact: "Medium",
+    impact: "High",
     isActive: true,
   },
   {
@@ -251,7 +251,8 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
       {sortedDeployments.map((deployment, index) => {
         const Icon = deployment.icon
         const isDisabled = !deployment.isActive
-        const isDeployed = deployedAgentIds.includes(deployment.id)
+        // Support either static deployment IDs OR agent names (Agent Lab uses runtime IDs for deployed agents)
+        const isDeployed = deployedAgentIds.includes(deployment.id) || deployedAgentIds.includes(deployment.agentName)
         
         return (
           <div

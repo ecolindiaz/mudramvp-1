@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { StarBorder } from "@/components/ui/star-border"
 import { ArrowRight, Copy, CheckCircle2, Eye, EyeOff } from "lucide-react"
 import { useOnboarding } from "./onboarding-context"
 import { signIn } from "next-auth/react"
@@ -181,16 +180,14 @@ export function AccountForm() {
               )}
             </div>
 
-            <StarBorder as="div">
               <Button
                 onClick={handleCreateAccount}
                 disabled={isLoading || !username.trim() || !email.trim()}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+              className="w-full h-9 bg-white text-black border border-white hover:bg-white/90 shadow-none disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
               >
                 {isLoading ? "Creating Account..." : "Create Account"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-            </StarBorder>
 
             <div className="bg-white/5 rounded-lg p-4 border border-white/10">
               <div className="flex items-start space-x-2">
@@ -268,15 +265,13 @@ export function AccountForm() {
               </Alert>
             </div>
 
-            <StarBorder as="div">
               <Button
                 onClick={handleNext}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+              className="w-full h-9 bg-white text-black border border-white hover:bg-white/90 shadow-none disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
               >
                 Continue to Brand Setup
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-            </StarBorder>
           </>
         )}
       </CardContent>

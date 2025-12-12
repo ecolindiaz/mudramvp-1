@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { StarBorder } from "@/components/ui/star-border"
+import { Button } from "@/components/ui/button"
 import { ArrowRight, Sparkles, CheckCircle, Target, BarChart3, Activity, Code } from "lucide-react"
 import { useAnalysisPipeline } from "@/hooks/use-analysis-pipeline"
 import { useBrandProfile } from "@/components/brand-profile-context"
@@ -217,16 +217,16 @@ export function PromptsForm() {
         </div>
 
         {(isAnalysisComplete || hasError) && (
-          <StarBorder
+          <Button
+            type="button"
             onClick={handleFinish}
-            className="w-full cursor-pointer"
-            color="white"
+            className="w-full h-9 bg-white text-black border border-white hover:bg-white/90 shadow-none disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
           >
-            <div className="flex items-center justify-center gap-2 text-white">
+            <div className="flex items-center justify-center gap-2">
               {isAnalysisComplete ? "View Dashboard" : "Continue to Dashboard"}
               <ArrowRight className="w-4 h-4" />
             </div>
-          </StarBorder>
+          </Button>
         )}
       </CardContent>
     </Card>

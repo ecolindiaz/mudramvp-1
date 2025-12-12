@@ -72,11 +72,13 @@ interface DiscoveredViaItem {
  */
 export async function processCitedOpportunities(
   brandProfileId: number,
-  analysisRunId: number
+  analysisRunId: number,
+  options: { maxCitations?: number } = {}
 ): Promise<ProcessingStats> {
+  const { maxCitations = 2 } = options; // Default: 2 citations per run
   const stats: ProcessingStats = { created: 0, skipped: 0, errors: 0 };
   
-  console.log(`[Cited Radar] Processing analysis run ${analysisRunId} for brand ${brandProfileId}`);
+  console.log(`[Cited Radar] Processing analysis run ${analysisRunId} for brand ${brandProfileId} (max: ${maxCitations})`);
   
   // 1. Get the analysis run
   const analysisRun = await prisma.analysisRun.findUnique({
@@ -96,16 +98,35 @@ export async function processCitedOpportunities(
   }
   
   // 3. Get unique Reddit URLs
-  const redditUrls = [...new Set(citations.map(c => c.url))];
-  console.log(`[Cited Radar] Scraping ${redditUrls.length} Reddit URLs...`);
+  let redditUrls = [...new Set(citations.map(c => c.url))];
   
-  // 4. Scrape Reddit URLs via Apify
+  // 4. Filter out URLs that already have opportunities (to avoid re-processing)
+  const existingOpportunities = await prisma.conversationOpportunity.findMany({
+    where: {
+      brandProfileId,
+      postUrl: { in: redditUrls },
+    },
+    select: { postUrl: true },
+  });
+  const existingUrls = new Set(existingOpportunities.map(o => o.postUrl));
+  redditUrls = redditUrls.filter(url => !existingUrls.has(url));
+  
+  if (redditUrls.length === 0) {
+    console.log('[Cited Radar] All citations already processed');
+    return stats;
+  }
+  
+  // 5. Limit to maxCitations to spread opportunities over time
+  const urlsToProcess = redditUrls.slice(0, maxCitations);
+  console.log(`[Cited Radar] Processing ${urlsToProcess.length}/${redditUrls.length} unprocessed Reddit URLs...`);
+  
+  // 6. Scrape Reddit URLs via Apify
   try {
-    const scraped = await scrapeRedditUrls(redditUrls, false);
+    const scraped = await scrapeRedditUrls(urlsToProcess, false);
     
     if (!scraped.success) {
       console.error('[Cited Radar] Apify scrape failed:', scraped.error);
-      stats.errors = redditUrls.length;
+      stats.errors = urlsToProcess.length;
       return stats;
     }
     
@@ -148,7 +169,7 @@ export async function processCitedOpportunities(
     }
   } catch (scrapeError: any) {
     console.error('[Cited Radar] Apify scrape failed:', scrapeError.message);
-    stats.errors += redditUrls.length;
+    stats.errors += urlsToProcess.length;
   }
   
   console.log(`[Cited Radar] Complete: ${stats.created} created, ${stats.skipped} skipped, ${stats.errors} errors`);
@@ -211,12 +232,12 @@ export async function runProactiveSearch(
   const queries = generateSearchQueries(brandContext);
   console.log(`[Proactive Radar] Generated ${queries.trackedPromptQueries.length} tracked prompt queries`);
   
-  // ⚡ CREDIT OPTIMIZATION: Limit queries per run to save Apify credits
-  // Each query = 1 Apify actor call, so we limit to 5 per run
-  // Users can run the radar multiple times to cover all prompts
-  const MAX_QUERIES_PER_RUN = 5;
+  // ⚡ CREDIT OPTIMIZATION: Process only 1 tracked prompt per run
+  // This prevents burning through all prompts at once
+  // The scheduler/cron will rotate through prompts over time
+  const MAX_QUERIES_PER_RUN = 1;
   const limitedPromptQueries = queries.trackedPromptQueries.slice(0, MAX_QUERIES_PER_RUN);
-  const limitedCompetitorQueries = queries.competitorQueries.slice(0, 1); // Only 1 competitor query
+  const limitedCompetitorQueries: string[] = []; // Skip competitor queries to save credits
   
   console.log(`[Proactive Radar] ⚡ Processing ${limitedPromptQueries.length}/${queries.trackedPromptQueries.length} queries (credit limit)`);
   
@@ -560,9 +581,11 @@ export async function getOpportunities(
     platform?: 'reddit';
     limit?: number;
     offset?: number;
+    minRelevanceScore?: number; // Filter to only show high-relevance opportunities
+    includeAll?: boolean; // For "All opportunities" view - includes all scores
   } = {}
 ) {
-  const { status = 'new', mode, platform, limit = 50, offset = 0 } = options;
+  const { status = 'new', mode, platform, limit = 50, offset = 0, minRelevanceScore = 70, includeAll = false } = options;
   
   const where: any = { brandProfileId };
   
@@ -577,6 +600,12 @@ export async function getOpportunities(
   if (platform) {
     where.platform = platform;
   }
+
+  // Only show high-relevance opportunities by default (70%+)
+  // Unless includeAll is true (for "All opportunities" view)
+  if (!includeAll && minRelevanceScore > 0) {
+    where.relevanceScore = { gte: minRelevanceScore };
+  }
   
   return prisma.conversationOpportunity.findMany({
     where,
@@ -587,6 +616,56 @@ export async function getOpportunities(
     take: limit,
     skip: offset,
   });
+}
+
+/**
+ * Get a single opportunity by ID
+ */
+export async function getOpportunityById(opportunityId: number) {
+  return prisma.conversationOpportunity.findUnique({
+    where: { id: opportunityId },
+  });
+}
+
+/**
+ * Get a single opportunity formatted for the frontend
+ */
+export async function getOpportunityForFrontend(opportunityId: number) {
+  const opp = await getOpportunityById(opportunityId);
+  if (!opp) return null;
+  
+  return {
+    id: `opp-${opp.id}`,
+    dbId: opp.id,
+    title: buildOpportunityTitle(opp),
+    description: opp.conversationSnapshot || (opp.postBody?.slice(0, 150) + '...' || 'No description'),
+    impact: calculateImpact(opp.relevanceScore),
+    status: mapStatus(opp.status),
+    lastActivity: opp.updatedAt,
+    url: opp.postUrl,
+    platform: 'Reddit',
+    postedAt: opp.postCreatedAt,
+    engagement: opp.engagementString,
+    promptOrigin: opp.mode === 'cited' ? 'tracked' : 'search',
+    trackedPrompt: opp.mode === 'cited' 
+      ? (opp.discoveredVia as any)?.[0]?.promptText 
+      : undefined,
+    searchQuery: opp.mode === 'proactive' ? opp.searchQuery : undefined,
+    relevanceScore: opp.relevanceScore,
+    // LLM-generated insights
+    conversationSnapshot: opp.conversationSnapshot,
+    whyThisMatters: opp.whyThisMatters as string[] | null,
+    suggestedAngle: opp.suggestedAngle,
+    isPromotionalOpportunity: opp.isPromotionalOpportunity,
+    promotionalReason: opp.promotionalReason,
+    // Additional metadata
+    subreddit: opp.subreddit,
+    mode: opp.mode,
+    postTitle: opp.postTitle,
+    postBody: opp.postBody,
+    score: opp.score,
+    numComments: opp.numComments,
+  };
 }
 
 /**
@@ -679,6 +758,8 @@ export async function analyzeOpportunity(opportunityId: number): Promise<Opportu
       conversationSnapshot: analysis.conversationSnapshot,
       whyThisMatters: analysis.whyThisMatters,
       suggestedAngle: analysis.suggestedAngle,
+      isPromotionalOpportunity: analysis.isPromotionalOpportunity,
+      promotionalReason: analysis.promotionalReason,
       relevanceScore: analysis.relevanceScore,
     },
   });
@@ -768,6 +849,8 @@ export async function analyzeNewOpportunities(
           conversationSnapshot: analysis.conversationSnapshot,
           whyThisMatters: analysis.whyThisMatters,
           suggestedAngle: analysis.suggestedAngle,
+          isPromotionalOpportunity: analysis.isPromotionalOpportunity,
+          promotionalReason: analysis.promotionalReason,
           relevanceScore: analysis.relevanceScore,
         },
       });
@@ -794,6 +877,8 @@ export async function getOpportunitiesForFrontend(
     platform?: 'reddit';
     limit?: number;
     offset?: number;
+    minRelevanceScore?: number;
+    includeAll?: boolean;
   } = {}
 ) {
   const opportunities = await getOpportunities(brandProfileId, options);
@@ -818,6 +903,8 @@ export async function getOpportunitiesForFrontend(
     relevanceScore: opp.relevanceScore,
     whyThisMatters: opp.whyThisMatters as string[] | null,
     suggestedAngle: opp.suggestedAngle,
+    isPromotionalOpportunity: opp.isPromotionalOpportunity,
+    promotionalReason: opp.promotionalReason,
     subreddit: opp.subreddit,
     mode: opp.mode,
   }));
@@ -830,10 +917,8 @@ function buildOpportunityTitle(opp: any): string {
   const subredditPart = opp.subreddit ? `r/${opp.subreddit}` : '';
   
   if (opp.postTitle) {
-    const truncated = opp.postTitle.length > 60 
-      ? opp.postTitle.slice(0, 57) + '...' 
-      : opp.postTitle;
-    return `Reddit: ${truncated}`;
+    // Don't truncate titles at the source; let the UI wrap/tooltip as needed.
+    return `Reddit: ${opp.postTitle}`;
   }
   
   if (subredditPart) {

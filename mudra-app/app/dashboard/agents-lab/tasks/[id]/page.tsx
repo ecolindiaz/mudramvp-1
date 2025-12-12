@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -78,6 +78,7 @@ export default function TaskDeepViewPage() {
   const [isViewAllOpen, setIsViewAllOpen] = useState(false)
   
   // Conversation Radar opportunity params
+  const dbId = searchParams?.get("dbId")
   const platform = searchParams?.get("platform") as "Reddit" | "LinkedIn" | null
   const url = searchParams?.get("url") || ""
   const engagement = searchParams?.get("engagement") || ""
@@ -87,6 +88,95 @@ export default function TaskDeepViewPage() {
   
   // Detect if this is a Conversation Radar opportunity
   const isOpportunity = Boolean(platform)
+  
+  // State for fetched opportunity data
+  const [opportunityData, setOpportunityData] = useState<{
+    conversationSnapshot?: string | null
+    whyThisMatters?: string[] | null
+    suggestedAngle?: string | null
+    relevanceScore?: number | null
+    isPromotionalOpportunity?: boolean | null
+    promotionalReason?: string | null
+  } | null>(null)
+  const [isLoadingOpportunity, setIsLoadingOpportunity] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [opportunityStatus, setOpportunityStatus] = useState<'new' | 'engaged' | 'dismissed'>('new')
+  
+  // Handler for marking opportunity as done (engaged)
+  const handleMarkAsDone = async () => {
+    if (!dbId) return
+    setIsUpdatingStatus(true)
+    try {
+      const response = await fetch('/api/conversation-radar/opportunities', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opportunityId: parseInt(dbId), status: 'engaged' }),
+      })
+      const result = await response.json()
+      if (result.success) {
+        setOpportunityStatus('engaged')
+        // Navigate back after a short delay
+        setTimeout(() => handleBack(), 500)
+      }
+    } catch (error) {
+      console.error('Failed to mark as done:', error)
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
+  
+  // Handler for marking opportunity as not relevant (dismissed)
+  const handleNotRelevant = async () => {
+    if (!dbId) return
+    setIsUpdatingStatus(true)
+    try {
+      const response = await fetch('/api/conversation-radar/opportunities', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opportunityId: parseInt(dbId), status: 'dismissed' }),
+      })
+      const result = await response.json()
+      if (result.success) {
+        setOpportunityStatus('dismissed')
+        // Navigate back after a short delay
+        setTimeout(() => handleBack(), 500)
+      }
+    } catch (error) {
+      console.error('Failed to mark as not relevant:', error)
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
+  
+  // Fetch full opportunity data from API
+  useEffect(() => {
+    const fetchOpportunityData = async () => {
+      if (!isOpportunity || !dbId) return
+      
+      setIsLoadingOpportunity(true)
+      try {
+        const response = await fetch(`/api/conversation-radar/opportunities?opportunityId=${dbId}`)
+        const result = await response.json()
+        
+        if (result.success && result.data) {
+          setOpportunityData({
+            conversationSnapshot: result.data.conversationSnapshot,
+            whyThisMatters: result.data.whyThisMatters,
+            suggestedAngle: result.data.suggestedAngle,
+            relevanceScore: result.data.relevanceScore,
+            isPromotionalOpportunity: result.data.isPromotionalOpportunity,
+            promotionalReason: result.data.promotionalReason,
+          })
+        }
+      } catch (error) {
+        console.error('Failed to fetch opportunity data:', error)
+      } finally {
+        setIsLoadingOpportunity(false)
+      }
+    }
+    
+    fetchOpportunityData()
+  }, [isOpportunity, dbId])
   
   // Calculate age string from postedAt
   const getAgeString = (isoDate: string) => {
@@ -162,24 +252,26 @@ Successfully generated LLMs.txt index file for repository mudramvp on branch mai
 The LLMs.txt index file is now available and ready for AI crawlers to discover and process. The file includes all necessary metadata and instructions for proper AI interaction with the repository.`
   } : null
 
-  // Mock opportunity content - will be replaced with backend/AI data
+  // Opportunity content - use fetched data or fallback to reasonable defaults
   const opportunityContent = isOpportunity ? {
-    conversationSnapshot: platform === "Reddit" 
-      ? "A startup founder is asking for recommendations on how to improve their AI visibility and get cited by ChatGPT. Several responses are suggesting various SEO strategies, but no one has mentioned GEO-specific tools yet. The thread has high engagement from startup founders and growth marketers."
-      : "Product managers are sharing templates for crafting AI-friendly prompts that improve brand visibility. The discussion is focused on practical strategies for PLG companies to get mentioned by AI assistants.",
-    whyThisMatters: [
+    conversationSnapshot: opportunityData?.conversationSnapshot || 
+      (isLoadingOpportunity 
+        ? "Loading conversation analysis..." 
+        : taskDescription),
+    whyThisMatters: opportunityData?.whyThisMatters || 
+      (isLoadingOpportunity 
+        ? ["Loading insights..."] 
+        : [
       trackedPrompt 
-        ? `AI cited this thread in responses to: "${trackedPrompt}"`
-        : "This thread is being referenced in AI search results for relevant queries.",
-      "People are asking how to improve AI visibility—exactly what your product solves.",
-      platform === "Reddit" 
-        ? "High engagement in your ICP: startup founders, growth teams, devtools." 
-        : "High engagement from product managers and growth specialists.",
-      "No competitor has entered this conversation yet.",
-    ],
-    suggestedResponseAngle: platform === "Reddit"
-      ? "Enter the conversation by sharing a genuine insight about GEO fundamentals—what it is, why it matters for AI-era discovery. You can mention your experience building tools in this space without hard-selling. Focus on being helpful first; the thread is asking for real advice, not product pitches."
-      : "Contribute by sharing a specific template or framework that has worked for improving AI citations. Position yourself as a practitioner who has solved this problem. The audience appreciates actionable, experience-based insights over generic advice.",
+              ? `This conversation relates to: "${trackedPrompt}"`
+              : "This conversation is relevant to your brand.",
+            "Run LLM analysis to get detailed insights.",
+          ]),
+    suggestedResponseAngle: opportunityData?.suggestedAngle || 
+      (isLoadingOpportunity 
+        ? "Analyzing conversation for response angle..." 
+        : "Run LLM analysis to get a suggested response angle."),
+    relevanceScore: opportunityData?.relevanceScore,
   } : null
 
   // Function to render markdown-like content with support for titles, bullets, numbers, and bold text
@@ -291,10 +383,15 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
     return <div className="space-y-2">{elements}</div>
   }
 
+  // Get return agent ID for back navigation
+  const returnAgentId = searchParams?.get("returnAgentId")
+
   const handleBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back()
+    // Navigate back to the agent detail view
+    if (returnAgentId) {
+      router.push(`/dashboard/agents-lab?agent=${encodeURIComponent(returnAgentId)}`)
     } else {
+      // Fallback: go to agents-lab main page
       router.push("/dashboard/agents-lab")
     }
   }
@@ -399,10 +496,18 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-9 px-4 text-sm font-medium transition-all duration-200 bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 hover:border-green-500/40 gap-2"
+                      onClick={handleMarkAsDone}
+                      disabled={isUpdatingStatus || opportunityStatus !== 'new'}
+                      className="h-9 px-4 text-sm font-medium transition-all duration-200 bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 hover:border-green-500/40 gap-2 disabled:opacity-50"
                     >
+                      {isUpdatingStatus ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : opportunityStatus === 'engaged' ? (
                       <CheckCircle className="w-4 h-4" />
-                      Mark as Done
+                      ) : (
+                        <CheckCircle className="w-4 h-4" />
+                      )}
+                      {opportunityStatus === 'engaged' ? 'Done!' : 'Mark as Done'}
                     </Button>
                   ) : (
                     <div className="text-right">
@@ -458,6 +563,46 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                         </Button>
                       )}
                     </div>
+                    {isOpportunity && (
+                      <div className="flex flex-col gap-3 pt-3">
+                        {platform && (
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-white/50 min-w-[96px] font-medium uppercase tracking-wide">Platform</span>
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-white/5 border border-white/10 px-3 py-1.5 text-xs text-white">
+                              <span className="size-2 rounded-full bg-orange-400" />
+                              {platform}
+                            </span>
+                          </div>
+                        )}
+                        {postedAt && (
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-white/50 min-w-[96px] font-medium uppercase tracking-wide">Age</span>
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-white/5 border border-white/10 px-3 py-1.5 text-xs text-white/80">
+                              <Calendar className="w-3.5 h-3.5" />
+                              {getAgeString(postedAt)}
+                            </span>
+                          </div>
+                        )}
+                        {engagement && (
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-white/50 min-w-[96px] font-medium uppercase tracking-wide">Engagement</span>
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-white/5 border border-white/10 px-3 py-1.5 text-xs text-white/80">
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              {engagement}
+                            </span>
+                          </div>
+                        )}
+                        {promptOrigin && (
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-white/50 min-w-[96px] font-medium uppercase tracking-wide">Prompt</span>
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-white/5 border border-white/10 px-3 py-1.5 text-xs text-white/80">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                              {promptOrigin === "tracked" ? (trackedPrompt || "Tracked prompt") : "Search"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Properties Section - hide for opportunities to avoid duplication */}
@@ -535,40 +680,6 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                     </div>
                   )}
 
-                  {/* Opportunity meta titles where the old ones were */}
-                  {isOpportunity && (
-                    <div className="space-y-3.5">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-white/50 min-w-[90px] font-medium uppercase tracking-wide">Platform</span>
-                        <div className="inline-flex items-center gap-1.5 rounded-md bg-white/[0.05] border border-white/[0.08] px-3 py-1.5 text-xs text-white/85">
-                          {platform === "Reddit" ? <RedditIcon className="w-3.5 h-3.5 text-orange-400" /> : <Linkedin className="w-3.5 h-3.5 text-sky-400" />}
-                          <span>{platform}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-white/50 min-w-[90px] font-medium uppercase tracking-wide">Age</span>
-                        <div className="inline-flex items-center gap-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 text-xs text-white/80">
-                          <Calendar className="w-3.5 h-3.5 text-white/50" />
-                          <span>{getAgeString(postedAt)}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-white/50 min-w-[90px] font-medium uppercase tracking-wide">Engagement</span>
-                        <div className="inline-flex items-center gap-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 text-xs text-white/80">
-                          <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>{engagement || "No engagement data"}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-white/50 min-w-[90px] font-medium uppercase tracking-wide">Prompt</span>
-                        <div className="inline-flex items-center gap-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 text-xs text-white/80">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                          <span>{promptOrigin === "tracked" ? (trackedPrompt || "Tracked prompt") : "Search"}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Content separator */}
                   <div className="h-[1px] bg-white/10"></div>
 
@@ -606,24 +717,66 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
 
                   {/* Content Container - Different for opportunities vs tasks */}
                   {isOpportunity && opportunityContent ? (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
+                      {/* Relevance Score Badge + Promotional Indicator */}
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {opportunityContent.relevanceScore && (
+                          <div className={cn(
+                            "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium",
+                            opportunityContent.relevanceScore >= 70 
+                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                              : opportunityContent.relevanceScore >= 40
+                              ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                              : "bg-white/5 border-white/10 text-white/60"
+                          )}>
+                            <Sparkles className="w-3.5 h-3.5" />
+                            Relevance: {Math.round(opportunityContent.relevanceScore)}/100
+                          </div>
+                        )}
+                        {/* Promotional Opportunity Badge */}
+                        {opportunityData?.isPromotionalOpportunity && (
+                          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium bg-orange-500/10 border-orange-500/30 text-orange-400"
+                            title={opportunityData.promotionalReason || "Good opportunity to mention your brand"}
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                            </svg>
+                            Promotional Opportunity
+                          </div>
+                        )}
+                        {isLoadingOpportunity && (
+                          <div className="flex items-center gap-2 text-xs text-white/50">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Loading analysis...
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Loading State when no data yet */}
+                      {isLoadingOpportunity && !opportunityContent.relevanceScore && (
+                        <div className="flex items-center gap-2 text-sm text-white/50">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading AI analysis...
+                        </div>
+                      )}
+                      
                       {/* Conversation Snapshot */}
-                      <div className="rounded-xl border border-white/[0.08] bg-gradient-to-br from-white/[0.02] via-[#121212] to-[#0d0d0d] overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.02] flex items-center justify-between">
+                      <div className="rounded-xl border border-white/10 bg-black/30 overflow-hidden">
+                        <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between gap-3">
                           <h3 className="text-sm font-semibold text-white">Conversation Snapshot</h3>
                           {url ? (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-8 px-3 rounded-md border-white/[0.08] bg-white/5 text-white hover:bg-white/10 hover:border-white/20 text-xs font-medium gap-1.5"
+                              className="h-8 px-3 border-white/15 text-white hover:bg-white/10"
                               onClick={() => window.open(url, "_blank", "noopener")}
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
-                              Open Post
+                              Open
                             </Button>
                           ) : null}
                         </div>
-                        <div className="p-6">
+                        <div className="p-5">
                           <p className="text-sm text-white/70 leading-relaxed">
                             {opportunityContent.conversationSnapshot}
                           </p>
@@ -631,15 +784,15 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                       </div>
 
                       {/* Why This Matters */}
-                      <div className="rounded-xl border border-white/[0.08] bg-[#111] overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.02]">
-                          <h3 className="text-sm font-semibold text-white">Why This Matters for Your Brand</h3>
+                      <div className="rounded-xl border border-white/10 bg-black/30 overflow-hidden">
+                        <div className="px-5 py-3 border-b border-white/10">
+                          <h3 className="text-sm font-semibold text-white">Why this matters</h3>
                         </div>
-                        <div className="p-6">
-                          <ul className="space-y-3">
+                        <div className="p-5">
+                          <ul className="space-y-2.5">
                             {opportunityContent.whyThisMatters.map((item, idx) => (
                               <li key={idx} className="flex items-start gap-2.5 text-sm text-white/80 leading-relaxed">
-                                <span className="mt-2 inline-flex h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.08)]" />
+                                <span className="mt-2 inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
                                 <span className="flex-1">{item}</span>
                               </li>
                             ))}
@@ -647,12 +800,32 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                         </div>
                       </div>
 
-                      {/* Suggested Response Angle */}
-                      <div className="rounded-xl border border-white/[0.08] bg-[#0f0f0f] overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.02]">
-                          <h3 className="text-sm font-semibold text-white">Response Angle</h3>
+                      {/* Response Angle */}
+                      <div className="rounded-xl border border-white/10 bg-black/30 overflow-hidden">
+                        <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between">
+                          <h3 className="text-sm font-semibold text-white">Response angle</h3>
+                          {opportunityData?.isPromotionalOpportunity && (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-orange-500/10 border border-orange-500/20 text-xs text-orange-400">
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                              </svg>
+                              Brand mention recommended
+                            </span>
+                          )}
                         </div>
-                        <div className="p-6">
+                        <div className="p-5 space-y-3">
+                          {opportunityData?.isPromotionalOpportunity && opportunityData?.promotionalReason && (
+                            <div className="flex items-start gap-2 p-3 rounded-lg bg-orange-500/5 border border-orange-500/20">
+                              <svg className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 16v-4"/>
+                                <path d="M12 8h.01"/>
+                              </svg>
+                              <p className="text-xs text-orange-300/80 leading-relaxed">
+                                <span className="font-medium text-orange-300">Why promote here:</span> {opportunityData.promotionalReason}
+                              </p>
+                            </div>
+                          )}
                           <p className="text-sm text-white/70 leading-relaxed">
                             {opportunityContent.suggestedResponseAngle}
                           </p>
@@ -663,15 +836,21 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                       <div className="flex items-center gap-3">
                         <Button
                           variant="outline"
-                          size="lg"
-                          className="border-white/[0.08] bg-white/5 text-white hover:bg-white/10 hover:text-white/90 hover:border-white/[0.12] font-medium gap-2"
+                          size="sm"
+                          onClick={handleNotRelevant}
+                          disabled={isUpdatingStatus || opportunityStatus !== 'new'}
+                          className="h-9 px-4 border-white/15 text-white hover:bg-white/10 disabled:opacity-50"
                         >
+                          {isUpdatingStatus ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
                           <ThumbsDown className="w-4 h-4" />
-                          Not Relevant
+                          )}
+                          {opportunityStatus === 'dismissed' ? 'Dismissed' : 'Not Relevant'}
                         </Button>
                         <Button
-                          size="lg"
-                          className="flex-1 bg-white text-black hover:bg-white/90 font-medium gap-2"
+                          size="sm"
+                          className="h-9 flex-1 bg-white text-black hover:bg-white/90"
                           onClick={() => url && window.open(url, "_blank", "noopener")}
                         >
                           <ExternalLink className="w-4 h-4" />

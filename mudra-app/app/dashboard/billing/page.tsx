@@ -44,18 +44,11 @@ const plans = [
     price: { monthly: 0, yearly: 0 },
     description: "Perfect for trying out Mudra",
     features: [
-      "100 AI visibility tests per month",
+      "100 AI visibility tests",
       "Basic technical analysis",
       "1 brand profile",
-      "Email support",
-      "7-day data retention"
+      "Email support"
     ],
-    limitations: [
-      "Limited integrations",
-      "No custom prompts",
-      "Basic reporting"
-    ],
-    current: true
   },
   {
     name: "Starter",
@@ -258,6 +251,7 @@ export default function BillingPage() {
 
   const currentPlanDetails = plans.find(p => p.id === billingInfo.plan)
   const yearlyDiscount = 20 // 20% discount for yearly
+  const simpleFeatures = (list: string[]) => list.slice(0, 4)
 
   return (
     <SidebarProvider
@@ -281,7 +275,7 @@ export default function BillingPage() {
                 <div className="min-w-0">
                   <h1 className="text-2xl font-bold tracking-tight text-white">Billing & Plans</h1>
                   <p className="text-sm text-white/60 mt-1">
-                    Manage your subscription and billing information
+                    Keep your subscription simple and up to date.
                   </p>
                 </div>
               </div>
@@ -293,80 +287,60 @@ export default function BillingPage() {
             {/* Content */}
             <div className="flex-1 px-4 lg:px-6 py-6 space-y-6">
               {/* Current Plan */}
-              <Card className="bg-transparent border-white/[0.08]">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
+              <Card className="bg-transparent border-white/10">
+                <CardHeader className="flex flex-col gap-2">
                       <CardTitle className="text-white">Current Plan</CardTitle>
-                      <CardDescription className="text-white/60 mt-1">
-                        You are currently on the {currentPlanDetails?.name} plan
+                  <CardDescription className="text-white/60">
+                    You’re on the {currentPlanDetails?.name} plan.
                       </CardDescription>
-                    </div>
-                    <Badge className="bg-white/10 text-white border-white/20">
-                      {billingInfo.plan.toUpperCase()}
-                    </Badge>
-                  </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
-                      <p className="text-sm text-white/60 mb-1">Billing Cycle</p>
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-white/10 p-3">
+                    <p className="text-xs text-white/50">Billing cycle</p>
                       <p className="text-lg font-semibold text-white capitalize">{billingInfo.billingCycle}</p>
                     </div>
-                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
-                      <p className="text-sm text-white/60 mb-1">Next Billing Date</p>
+                  <div className="rounded-lg border border-white/10 p-3">
+                    <p className="text-xs text-white/50">Next billing</p>
                       <p className="text-lg font-semibold text-white">
                         {format(billingInfo.currentPeriodEnd, "MMM d, yyyy")}
                       </p>
                     </div>
-                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
-                      <p className="text-sm text-white/60 mb-1">Amount</p>
+                  <div className="rounded-lg border border-white/10 p-3">
+                    <p className="text-xs text-white/50">Amount</p>
                       <p className="text-lg font-semibold text-white">
                         ${currentPlanDetails?.price[billingInfo.billingCycle] || 0}/{billingInfo.billingCycle === "monthly" ? "mo" : "yr"}
                       </p>
-                    </div>
                   </div>
-
-                  {billingInfo.cancelAtPeriodEnd && (
-                    <Alert className="bg-amber-500/10 border-amber-500/20">
-                      <AlertCircle className="h-4 w-4 text-amber-400" />
-                      <AlertTitle className="text-amber-400">Subscription Ending</AlertTitle>
-                      <AlertDescription className="text-white/60">
-                        Your subscription will end on {format(billingInfo.currentPeriodEnd, "MMMM d, yyyy")}.
-                        You can reactivate it anytime before then.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {billingInfo.plan !== "free" && !billingInfo.cancelAtPeriodEnd && (
-                    <div className="flex items-center gap-3 pt-2">
+                  <div className="col-span-1 md:col-span-3 flex flex-wrap gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={handleUpdatePaymentMethod}
+                      disabled={loading}
+                      className="h-9 border-white/20 text-white hover:bg-white/10"
+                    >
+                      Update payment method
+                    </Button>
+                    {billingInfo.plan !== "free" && (
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         onClick={handleCancelSubscription}
                         disabled={loading}
-                        className="border-white/10 text-white hover:bg-white/5"
+                        className="h-9 text-white/70 hover:text-white hover:bg-white/10"
                       >
-                        Cancel Subscription
+                        Cancel subscription
                       </Button>
+                    )}
                     </div>
-                  )}
                 </CardContent>
               </Card>
 
               {/* Payment Method */}
               {billingInfo.paymentMethod && (
-                <Card className="bg-transparent border-white/[0.08]">
-                  <CardHeader>
-                    <CardTitle className="text-white">Payment Method</CardTitle>
-                    <CardDescription className="text-white/60">
-                      Manage your payment information
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10">
-                      <div className="flex items-center gap-4">
-                        <div className="h-12 w-16 bg-white rounded-lg flex items-center justify-center">
-                          <CreditCard className="h-6 w-6 text-black" />
+                <Card className="bg-transparent border-white/10">
+                  <CardContent className="flex items-center justify-between gap-4 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-14 bg-white rounded-md flex items-center justify-center">
+                        <CreditCard className="h-5 w-5 text-black" />
                         </div>
                         <div>
                           <p className="text-white font-medium capitalize">{billingInfo.paymentMethod.brand}</p>
@@ -378,44 +352,33 @@ export default function BillingPage() {
                         size="sm"
                         onClick={handleUpdatePaymentMethod}
                         disabled={loading}
-                        className="border-white/10 text-white hover:bg-white/5"
+                      className="h-9 border-white/20 text-white hover:bg-white/10"
                       >
                         Update
                       </Button>
-                    </div>
                   </CardContent>
                 </Card>
               )}
 
               {/* Billing Cycle Toggle */}
-              <div className="flex items-center justify-center gap-4 py-4">
+              <div className="flex items-center justify-center gap-2 py-2">
+                {(["monthly", "yearly"] as const).map((cycle) => (
                 <button
-                  onClick={() => setBillingCycle("monthly")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    billingCycle === "monthly"
+                    key={cycle}
+                    onClick={() => setBillingCycle(cycle)}
+                    className={`px-4 h-9 rounded-lg text-sm font-medium transition-colors ${
+                      billingCycle === cycle
                       ? "bg-white text-black"
                       : "bg-white/5 text-white/60 hover:bg-white/10"
                   }`}
                 >
-                  Monthly
+                    {cycle === "yearly" ? `Yearly · Save ${yearlyDiscount}%` : "Monthly"}
                 </button>
-                <button
-                  onClick={() => setBillingCycle("yearly")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                    billingCycle === "yearly"
-                      ? "bg-white text-black"
-                      : "bg-white/5 text-white/60 hover:bg-white/10"
-                  }`}
-                >
-                  Yearly
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                    Save {yearlyDiscount}%
-                  </Badge>
-                </button>
+                ))}
               </div>
 
               {/* Available Plans */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {plans.map((plan) => {
                   const price = plan.price[billingCycle]
                   const isCurrentPlan = plan.id === billingInfo.plan
@@ -423,28 +386,8 @@ export default function BillingPage() {
                   return (
                     <Card
                       key={plan.id}
-                      className={`bg-transparent relative ${
-                        plan.popular
-                          ? "border-white/20 shadow-lg shadow-white/10"
-                          : "border-white/[0.08]"
-                      } ${isCurrentPlan ? "ring-2 ring-white/20" : ""}`}
+                      className={`bg-transparent border-white/10 ${isCurrentPlan ? "ring-1 ring-white/30" : ""}`}
                     >
-                      {plan.popular && (
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                          <Badge className="bg-white text-black">
-                            <Sparkles className="h-3 w-3 mr-1" />
-                            Most Popular
-                          </Badge>
-                        </div>
-                      )}
-                      {isCurrentPlan && (
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                            <Check className="h-3 w-3 mr-1" />
-                            Current Plan
-                          </Badge>
-                        </div>
-                      )}
                       <CardHeader>
                         <CardTitle className="text-white text-xl">{plan.name}</CardTitle>
                         <CardDescription className="text-white/60">
@@ -462,11 +405,11 @@ export default function BillingPage() {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <ul className="space-y-2">
-                          {plan.features.map((feature, idx) => (
-                            <li key={idx} className="flex items-start gap-2 text-sm">
+                        <ul className="space-y-1">
+                          {simpleFeatures(plan.features).map((feature, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-sm text-white/80">
                               <Check className="h-4 w-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                              <span className="text-white/80">{feature}</span>
+                              <span>{feature}</span>
                             </li>
                           ))}
                         </ul>
@@ -474,14 +417,19 @@ export default function BillingPage() {
                           <Button
                             onClick={() => plan.id === "enterprise" ? window.location.href = "mailto:sales@mudra.ai" : handleUpgrade(plan.id)}
                             disabled={loading || isCurrentPlan}
-                            className={`w-full ${
-                              plan.popular
-                                ? "bg-white text-black hover:bg-white/90"
-                                : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
-                            }`}
+                            className="w-full h-9 bg-white text-black border border-white hover:bg-white/90 shadow-none"
                           >
                             {plan.cta || "Upgrade"}
                             {plan.id !== "enterprise" && <Zap className="h-4 w-4 ml-2" />}
+                          </Button>
+                        )}
+                        {isCurrentPlan && (
+                          <Button
+                            variant="outline"
+                            disabled
+                            className="w-full h-9 border-white/20 text-white/70"
+                          >
+                            Current plan
                           </Button>
                         )}
                       </CardContent>
@@ -491,11 +439,11 @@ export default function BillingPage() {
               </div>
 
               {/* Invoices */}
-              <Card className="bg-transparent border-white/[0.08]">
+              <Card className="bg-transparent border-white/10">
                 <CardHeader>
                   <CardTitle className="text-white">Billing History</CardTitle>
                   <CardDescription className="text-white/60">
-                    Download your past invoices and receipts
+                    Past invoices and receipts
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -504,20 +452,15 @@ export default function BillingPage() {
                       {invoices.map((invoice) => (
                         <div
                           key={invoice.id}
-                          className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10"
+                          className="flex items-center justify-between p-3 rounded-lg border border-white/10"
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 bg-white/10 rounded-lg flex items-center justify-center">
-                              <CreditCard className="h-5 w-5 text-white" />
-                            </div>
                             <div>
                               <p className="text-white font-medium">
-                                {format(invoice.date, "MMMM d, yyyy")}
+                              {format(invoice.date, "MMM d, yyyy")}
                               </p>
                               <p className="text-sm text-white/50">${invoice.amount.toFixed(2)}</p>
-                            </div>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
                             <Badge
                               variant="outline"
                               className={
@@ -531,10 +474,10 @@ export default function BillingPage() {
                               {invoice.status}
                             </Badge>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => window.open(invoice.invoiceUrl, "_blank")}
-                              className="text-white hover:bg-white/5"
+                              className="h-9 border-white/20 text-white hover:bg-white/10"
                             >
                               <Download className="h-4 w-4" />
                             </Button>
@@ -543,8 +486,7 @@ export default function BillingPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-white/50">
-                      <CreditCard className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <div className="text-center py-6 text-white/50">
                       <p>No billing history yet</p>
                     </div>
                   )}

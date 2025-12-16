@@ -3,6 +3,21 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
+
+const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+const ALGORITHM = 'aes-256-gcm';
+
+function decrypt(encryptedText: string): string {
+  const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
 
 export async function GET() {
   try {
@@ -99,10 +114,19 @@ export async function GET() {
     } else {
       console.log('[GitHub Repos] Using OAuth flow')
       
+      // Decrypt the access token
+      let accessToken = integration.accessToken
+      try {
+        accessToken = decrypt(integration.accessToken)
+      } catch (decryptError) {
+        console.error('[GitHub Repos] Decryption error:', decryptError)
+        throw new Error('Failed to decrypt access token')
+      }
+      
       // Fetch repositories from GitHub API using OAuth token
       const response = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
         headers: {
-          Authorization: `Bearer ${integration.accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           Accept: 'application/vnd.github.v3+json',
         },
       })

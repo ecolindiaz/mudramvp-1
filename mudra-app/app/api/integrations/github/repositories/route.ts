@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
+
+const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+const ALGORITHM = 'aes-256-gcm';
+
+function decrypt(encryptedText: string): string {
+  const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,8 +41,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Decrypt access token (implement decrypt function similar to encrypt in github route)
-    const accessToken = user.githubIntegration.accessToken; // TODO: decrypt
+    // Decrypt access token
+    let accessToken = user.githubIntegration.accessToken;
+    try {
+      accessToken = decrypt(user.githubIntegration.accessToken);
+    } catch (decryptError) {
+      console.error('[GitHub Repositories] Decryption error:', decryptError);
+      return NextResponse.json(
+        { error: { message: 'Failed to decrypt access token' } },
+        { status: 500 }
+      );
+    }
 
     // Fetch repositories from GitHub
     const response = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {

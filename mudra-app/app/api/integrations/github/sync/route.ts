@@ -58,9 +58,18 @@ export async function POST() {
       iss: appId,
     }
 
-    const appJwt = jwt.sign(payload, privateKey.replace(/\\n/g, '\n'), {
-      algorithm: 'RS256',
-    })
+    let appJwt: string
+    try {
+      appJwt = jwt.sign(payload, privateKey.replace(/\\n/g, '\n'), {
+        algorithm: 'RS256',
+      })
+    } catch (jwtError) {
+      console.error('[GitHub Sync] Failed to generate JWT:', jwtError)
+      return NextResponse.json(
+        { success: false, error: `Failed to generate GitHub App JWT: ${jwtError instanceof Error ? jwtError.message : 'Unknown error'}` },
+        { status: 500 }
+      )
+    }
 
     console.log('[GitHub Sync] Generated App JWT')
 
@@ -77,9 +86,10 @@ export async function POST() {
 
     if (!installationsResponse.ok) {
       const error = await installationsResponse.text()
-      console.error('[GitHub Sync] Failed to fetch installations:', error)
+      console.error('[GitHub Sync] Failed to fetch installations. Status:', installationsResponse.status)
+      console.error('[GitHub Sync] Error response:', error)
       return NextResponse.json(
-        { success: false, error: 'Failed to fetch GitHub installations' },
+        { success: false, error: `Failed to fetch GitHub installations: ${installationsResponse.status} ${error}` },
         { status: 500 }
       )
     }

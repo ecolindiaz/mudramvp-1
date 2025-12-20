@@ -70,7 +70,12 @@ export async function GET() {
         iss: appId,
       }
 
-      const appJwt = jwt.sign(payload, privateKey.replace(/\\n/g, '\n'), {
+      // Handle both escaped newlines (\n) and actual newlines
+      const formattedKey = privateKey
+        .replace(/\\n/g, '\n')  // Replace escaped newlines with actual newlines
+        .trim()
+
+      const appJwt = jwt.sign(payload, formattedKey, {
         algorithm: 'RS256',
       })
 

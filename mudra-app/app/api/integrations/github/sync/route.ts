@@ -50,6 +50,10 @@ export async function POST() {
       )
     }
 
+    console.log('[GitHub Sync] Using App ID:', appId)
+    console.log('[GitHub Sync] Private key length:', privateKey.length)
+    console.log('[GitHub Sync] Private key starts with:', privateKey.substring(0, 50))
+
     // Generate GitHub App JWT
     const now = Math.floor(Date.now() / 1000)
     const payload = {
@@ -60,9 +64,18 @@ export async function POST() {
 
     let appJwt: string
     try {
-      appJwt = jwt.sign(payload, privateKey.replace(/\\n/g, '\n'), {
+      // Handle both escaped newlines (\n) and actual newlines
+      const formattedKey = privateKey
+        .replace(/\\n/g, '\n')  // Replace escaped newlines with actual newlines
+        .trim()
+      
+      console.log('[GitHub Sync] Private key length:', formattedKey.length)
+      console.log('[GitHub Sync] Starts with:', formattedKey.substring(0, 50))
+      
+      appJwt = jwt.sign(payload, formattedKey, {
         algorithm: 'RS256',
       })
+      console.log('[GitHub Sync] Successfully generated App JWT, length:', appJwt.length)
     } catch (jwtError) {
       console.error('[GitHub Sync] Failed to generate JWT:', jwtError)
       return NextResponse.json(

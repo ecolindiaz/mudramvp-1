@@ -54,6 +54,7 @@ interface DashboardStatCardProps {
   lastUpdated?: Date
   showLastPeriod?: boolean // If true, shows "Vs Last Period", if false shows "Last Updated"
   icon?: LucideIcon
+  emptyValue?: string // Display value when value is 0 or null (e.g., "—", "N/A")
 }
 
 function defaultFormat(n: number) {
@@ -83,12 +84,14 @@ export function DashboardStatCard({
   showLastPeriod = true,
   icon: Icon,
   loading = false,
+  emptyValue,
 }: DashboardStatCardProps) {
   const formatValue = format ?? defaultFormat
   const formatLast = lastFormat ?? format ?? defaultFormat
   const accent = accentColor || (positive ? "rgba(16,185,129,0.9)" : "rgba(248,113,113,0.9)")
   const cardStyle = { ["--accent-color" as any]: accent } as React.CSSProperties
   const displayTime = lastUpdated || new Date()
+  const showEmpty = emptyValue && value === 0
 
   return (
     <Card style={cardStyle} className={cn("group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] hover:border-white/[0.12] transition-all duration-200 gap-3", className)}>
@@ -171,9 +174,9 @@ export function DashboardStatCard({
           ) : (
             <>
               <span className="text-2xl font-medium text-foreground tracking-tight">
-                {format ? format(value) : `${prefix}${formatValue(value)}${suffix}`}
+                {showEmpty ? emptyValue : (format ? format(value) : `${prefix}${formatValue(value)}${suffix}`)}
               </span>
-              {(lastValue !== 0 || delta !== 0) && (
+              {(lastValue !== 0 || delta !== 0) && !showEmpty && (
                 <Badge
                   variant={positive ? "success" : "destructive"}
                   className={cn("appearance-light", positive ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "")}

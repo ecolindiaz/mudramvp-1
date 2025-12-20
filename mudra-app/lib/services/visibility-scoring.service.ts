@@ -80,7 +80,7 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
   );
   
   const averagePosition = rankedTests.length > 0
-    ? rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length
+    ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length) * 10) / 10
     : 0;
 
   // Calculate visibility score using Firegeo formula

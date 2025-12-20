@@ -148,6 +148,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   // Additional Firegeo aggregate metrics
   const [mentionRate, setMentionRate] = useState(0) // Percentage
   const [averagePosition, setAveragePosition] = useState(0) // Average ranking
+  const [averagePositionPrevious, setAveragePositionPrevious] = useState<number | null>(null) // Previous run's average position
+  const [hasPositionHistory, setHasPositionHistory] = useState(false)
   const [totalTests, setTotalTests] = useState(0)
 
   // State for Organic Traffic
@@ -348,6 +350,26 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         setAiVisibilityPrevious(previous.overallScore || 0)
         setHasAiHistory(true)
         console.log('📊 AI Visibility previous score:', previous.overallScore)
+        
+        // Fetch previous run's average position
+        const prevController = new AbortController()
+        const prevTimeoutId = setTimeout(() => prevController.abort(), 10000)
+        
+        const prevPromptResponse = await fetch(
+          `/api/prompts/with-results?brandProfileId=${profile.id}&runId=${previous.id}`,
+          { signal: prevController.signal }
+        )
+        clearTimeout(prevTimeoutId)
+        
+        if (prevPromptResponse.ok) {
+          const prevPromptResult = await prevPromptResponse.json()
+          if (prevPromptResult.success && prevPromptResult.aggregate) {
+            const prevAvgPos = prevPromptResult.aggregate.averagePosition
+            setAveragePositionPrevious(prevAvgPos)
+            setHasPositionHistory(prevAvgPos > 0)
+            console.log('📊 Average Position previous value:', prevAvgPos)
+          }
+        }
       } else {
         setHasAiHistory(false)
         setAiVisibilityPrevious(null)
@@ -559,16 +581,19 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
       <DashboardStatCard
         title="Average Position"
-        value={averagePosition > 0 ? Math.round(averagePosition * 10) / 10 : 0}
+        value={averagePosition}
         suffix=""
-        delta={0}
-        lastValue={0}
-        positive={true}
+        delta={hasPositionHistory && averagePositionPrevious !== null && averagePosition > 0 && averagePositionPrevious > 0 
+          ? Math.round(((averagePositionPrevious - averagePosition) / averagePositionPrevious) * 100) 
+          : 0}
+        lastValue={hasPositionHistory && averagePositionPrevious !== null ? averagePositionPrevious : 0}
+        positive={hasPositionHistory && averagePositionPrevious !== null && averagePosition > 0 ? averagePosition < averagePositionPrevious : true}
         sparkline={averagePosition > 0 ? [10, Math.min(8, averagePosition * 1.2), averagePosition, Math.max(1, averagePosition * 0.8)] : [0]}
         accentColor="rgba(167, 139, 250, 0.9)"
         info={averagePosition > 0 ? `Average ranking position across all mentions. Position #1 is best. Lower numbers indicate better visibility.` : "No position data available yet."}
         showLastPeriod={true}
         loading={loadingAIVisibility}
+        emptyValue="—"
       />
 
       <DashboardStatCard

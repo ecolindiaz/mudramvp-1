@@ -149,16 +149,20 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
     }
   }
 
-  log.deltas = deltas;
+    log.deltas = deltas;
 
-  const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(2);
-  console.log(`✅ [CRON] Weekly analysis completed in ${duration} minutes`);
-  console.log(`📊 [CRON] Results: ${log.successful} successful, ${log.failed} failed`);
-  
-  // Log delta summary
-  const improved = deltas.filter(d => d.improvement).length;
-  const declined = deltas.filter(d => d.degradation).length;
-  console.log(`📈 [CRON] Deltas: ${improved} improved, ${declined} declined`);
+    const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(2);
+    console.log(`✅ [CRON] Weekly analysis completed in ${duration} minutes`);
+    console.log(`📊 [CRON] Results: ${log.successful} successful, ${log.failed} failed`);
+    
+    // Log delta summary
+    const improved = deltas.filter(d => d.improvement).length;
+    const declined = deltas.filter(d => d.degradation).length;
+    console.log(`📈 [CRON] Deltas: ${improved} improved, ${declined} declined`);
+  } catch (error) {
+    console.error('❌ [CRON] Fatal error during weekly analysis:', error);
+    log.errors.push(`Fatal: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 
   // Store execution log in database for audit trail
   try {

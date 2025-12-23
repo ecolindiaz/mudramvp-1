@@ -83,7 +83,7 @@ async function extractSnapshot(
   timestamp: Date
 ): Promise<AnalysisSnapshot | null> {
   // Get GEO analysis results
-  const geoResults = await prisma.geoAnalysisResult.findMany({
+  const geoResult = await prisma.geoAnalysisResult.findFirst({
     where: {
       brandProfileId,
       createdAt: {
@@ -106,11 +106,11 @@ async function extractSnapshot(
     orderBy: { createdAt: 'desc' },
   });
 
-  if (geoResults.length === 0 && !techAnalysis) {
+  if (!geoResult && !techAnalysis) {
     return null;
   }
 
-  // Calculate visibility scores by provider
+  // Parse analyses from JSON and calculate visibility scores by provider
   const visibilityByProvider = {
     chatgpt: 0,
     claude: 0,
@@ -118,12 +118,16 @@ async function extractSnapshot(
     gemini: 0,
   };
 
-  geoResults.forEach(result => {
-    const provider = result.aiModel.toLowerCase();
-    if (provider in visibilityByProvider) {
-      visibilityByProvider[provider as keyof typeof visibilityByProvider] = result.visibilityScore;
-    }
-  });
+  if (geoResult && Array.isArray(geoResult.analyses)) {
+    (geoResult.analyses as any[]).forEach((analysis: any) => {
+      if (analysis.provider) {
+        const provider = analysis.provider.toLowerCase();
+        if (provider in visibilityByProvider) {
+          visibilityByProvider[provider as keyof typeof visibilityByProvider] = analysis.brandVisibilityScore || 0;
+        }
+      }
+    });
+  }
 
   const visibilityScores = Object.values(visibilityByProvider);
   const avgVisibility = visibilityScores.length > 0
@@ -132,18 +136,18 @@ async function extractSnapshot(
 
   return {
     timestamp,
-    geoScore: avgVisibility,
+    geoScore: geoResult?.overallScore || avgVisibility,
     technicalScore: techAnalysis?.overallScore || 0,
     visibility: {
       ...visibilityByProvider,
       average: avgVisibility,
     },
     technical: {
-      metadata: techAnalysis?.metadataScore || 0,
-      headings: techAnalysis?.headingsScore || 0,
-      semantic: techAnalysis?.semanticScore || 0,
-      schema: techAnalysis?.schemaScore || 0,
-      faq: techAnalysis?.faqScore || 0,
+      metadata: 0,
+      headings: 0,
+      semantic: 0,
+      schema: 0,
+      faq: 0,
     },
   };
 }

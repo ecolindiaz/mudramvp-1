@@ -159,8 +159,6 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
   const improved = deltas.filter(d => d.improvement).length;
   const declined = deltas.filter(d => d.degradation).length;
   console.log(`📈 [CRON] Deltas: ${improved} improved, ${declined} declined`);
-    log.errors.push(`Fatal: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
 
   // Store execution log in database for audit trail
   try {

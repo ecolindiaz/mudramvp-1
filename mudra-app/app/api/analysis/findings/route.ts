@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const technicalAnalyses = await prisma.technicalStructureAnalysis.findMany({
       where: { brandProfileId },
       orderBy: { createdAt: 'desc' },
-      take: 10, // Get up to 10 most recent pages
+      take: 1, // Get most recent analysis
     });
 
     if (technicalAnalyses.length === 0) {
@@ -57,105 +57,24 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform database records into PageFindings format
-    const findings = technicalAnalyses.map(analysis => {
-      // Parse findings JSON if available
-      const findingsData = analysis.findings ? 
-        (typeof analysis.findings === 'string' ? JSON.parse(analysis.findings) : analysis.findings) : 
-        {};
+    const analysis = technicalAnalyses[0];
+    const insights = Array.isArray(analysis.insights) ? analysis.insights : [];
+    const metadata = typeof analysis.metadata === 'object' && analysis.metadata !== null 
+      ? analysis.metadata as Record<string, any>
+      : {};
 
-      return {
-        url: analysis.pageUrl || 'Unknown URL',
-        score: analysis.overallScore,
-        metadata: {
-          score: analysis.metadataScore,
-          total: 25,
-          checks: {
-            title: { 
-              passed: findingsData.metadata?.title?.passed ?? false, 
-              value: findingsData.metadata?.title?.value 
-            },
-            description: { 
-              passed: findingsData.metadata?.description?.passed ?? false, 
-              value: findingsData.metadata?.description?.value 
-            },
-            ogTags: { 
-              passed: findingsData.metadata?.ogTags?.passed ?? false, 
-              missing: findingsData.metadata?.ogTags?.missing 
-            },
-            twitterCard: { 
-              passed: findingsData.metadata?.twitterCard?.passed ?? false, 
-              missing: findingsData.metadata?.twitterCard?.missing 
-            },
-            canonical: { 
-              passed: findingsData.metadata?.canonical?.passed ?? false, 
-              value: findingsData.metadata?.canonical?.value 
-            },
-          },
-        },
-        headings: {
-          score: analysis.headingsScore,
-          total: 20,
-          checks: {
-            h1Present: { 
-              passed: findingsData.headings?.h1Present?.passed ?? false, 
-              count: findingsData.headings?.h1Present?.count ?? 0 
-            },
-            hierarchy: { 
-              passed: findingsData.headings?.hierarchy?.passed ?? false, 
-              issues: findingsData.headings?.hierarchy?.issues 
-            },
-            descriptive: { 
-              passed: findingsData.headings?.descriptive?.passed ?? false, 
-              h2Count: findingsData.headings?.descriptive?.h2Count ?? 0, 
-              h3Count: findingsData.headings?.descriptive?.h3Count ?? 0 
-            },
-          },
-        },
-        semantic: {
-          score: analysis.semanticScore,
-          total: 15,
-          checks: {
-            semanticTags: { 
-              passed: findingsData.semantic?.semanticTags?.passed ?? false, 
-              found: findingsData.semantic?.semanticTags?.found ?? [] 
-            },
-            imageAlt: { 
-              passed: findingsData.semantic?.imageAlt?.passed ?? false, 
-              total: findingsData.semantic?.imageAlt?.total ?? 0, 
-              withAlt: findingsData.semantic?.imageAlt?.withAlt ?? 0 
-            },
-            ariaLabels: { 
-              passed: findingsData.semantic?.ariaLabels?.passed ?? false, 
-              count: findingsData.semantic?.ariaLabels?.count ?? 0 
-            },
-          },
-        },
-        schema: {
-          score: analysis.schemaScore,
-          total: 25,
-          checks: {
-            jsonLdPresent: { 
-              passed: findingsData.schema?.jsonLdPresent?.passed ?? false, 
-              count: findingsData.schema?.jsonLdPresent?.count ?? 0 
-            },
-            orgWebsiteSchema: { 
-              passed: findingsData.schema?.orgWebsiteSchema?.passed ?? false, 
-              types: findingsData.schema?.orgWebsiteSchema?.types ?? [] 
-            },
-            faqSchema: { 
-              passed: findingsData.schema?.faqSchema?.passed ?? false, 
-              count: findingsData.schema?.faqSchema?.count ?? 0 
-            },
-          },
-        },
-        faq: {
-          score: analysis.faqScore,
-          total: 15,
-          count: findingsData.faq?.count ?? 0,
-          items: findingsData.faq?.items ?? [],
-        },
-      };
-    });
+    // Create a single finding object from the analysis
+    const findings = [{
+      url: analysis.websiteUrl,
+      score: analysis.overallScore,
+      seoScore: analysis.seoScore ?? 0,
+      performanceScore: analysis.performanceScore ?? 0,
+      accessibilityScore: analysis.accessibilityScore ?? 0,
+      securityScore: analysis.securityScore ?? 0,
+      structureScore: analysis.structureScore ?? 0,
+      insights: insights,
+      metadata: metadata,
+    }];
 
     return NextResponse.json({
       success: true,

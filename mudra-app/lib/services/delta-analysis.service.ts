@@ -64,14 +64,14 @@ export async function getLatestAnalysisRuns(
 ): Promise<{ current: Date | null; previous: Date | null }> {
   const runs = await prisma.analysisRun.findMany({
     where: { brandProfileId },
-    orderBy: { startedAt: 'desc' },
+    orderBy: { ranAt: 'desc' },
     take: 2,
-    select: { startedAt: true },
+    select: { ranAt: true },
   });
 
   return {
-    current: runs[0]?.startedAt || null,
-    previous: runs[1]?.startedAt || null,
+    current: runs[0]?.ranAt || null,
+    previous: runs[1]?.ranAt || null,
   };
 }
 

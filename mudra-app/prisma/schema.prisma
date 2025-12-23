@@ -939,3 +939,18 @@ model ContentOptimization {
   @@index([pageUrl])
   @@map("content_optimizations")
 }
+
+model CronExecutionLog {
+  id                  Int      @id @default(autoincrement())
+  jobType             String   // "weekly_analysis", "cleanup", etc.
+  executedAt          DateTime @default(now())
+  profilesProcessed   Int      @default(0)
+  successful          Int      @default(0)
+  failed              Int      @default(0)
+  errors              String[] // Array of error messages
+  duration            Int      // Execution time in seconds
+  
+  @@index([jobType, executedAt])
+  @@index([executedAt])
+  @@map("cron_execution_logs")
+}

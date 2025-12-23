@@ -4,10 +4,18 @@
  * Implements two scoring methodologies:
  * 1. Aggregate Score (Firegeo-style): Overall brand visibility across all prompts
  * 2. Per-Prompt Score (Mudra-style): Individual prompt performance
+ * 3. Weighted Score: Intent-based scoring with category weights
+ * 
+ * Intent Weights (as per spec):
+ * - Organic: 50%
+ * - Competitor: 20%
+ * - How-to: 20%
+ * - Brand-Specific: 10%
  */
 
 export interface PromptTestResult {
   prompt: string;
+  promptCategory?: string; // Category for weighted scoring
   brandMentioned: boolean;
   brandPosition?: number | null;
   sentiment?: 'positive' | 'neutral' | 'negative' | null;
@@ -18,6 +26,7 @@ export interface PromptTestResult {
 
 export interface AggregateVisibilityScore {
   overallScore: number;           // 0-100 (Firegeo formula)
+  weightedScore: number;          // 0-100 (Intent-weighted score)
   mentionRate: number;            // 0-1 (percentage of prompts where brand mentioned)
   averagePosition: number;        // Average ranking across all mentions
   totalPrompts: number;
@@ -27,6 +36,12 @@ export interface AggregateVisibilityScore {
     neutral: number;
     negative: number;
     dominant: 'positive' | 'neutral' | 'negative';
+  };
+  categoryBreakdown?: {
+    organic: { score: number; mentions: number; total: number };
+    competitor: { score: number; mentions: number; total: number };
+    howTo: { score: number; mentions: number; total: number };
+    brandSpecific: { score: number; mentions: number; total: number };
   };
 }
 
@@ -42,8 +57,99 @@ export interface PerPromptScore {
 }
 
 /**
+ * Intent category weights based on specification
+ */
+const INTENT_WEIGHTS = {
+  'Organic': 0.50,           // 50%
+  'Competitor': 0.20,        // 20%
+  'How-to Guides': 0.20,     // 20%
+  'Brand-Specific': 0.10,    // 10%
+} as const;
+
+/**
+ * Calculate weighted score by intent category
+ */
+function calculateWeightedScore(tests: PromptTestResult[]): {
+  weightedScore: number;
+  categoryBreakdown: {
+    organic: { score: number; mentions: number; total: number };
+    competitor: { score: number; mentions: number; total: number };
+    howTo: { score: number; mentions: number; total: number };
+    brandSpecific: { score: number; mentions: number; total: number };
+  };
+} {
+  // Group tests by category
+  const categories = {
+    organic: tests.filter(t => t.promptCategory === 'Organic'),
+    competitor: tests.filter(t => t.promptCategory === 'Competitor'),
+    howTo: tests.filter(t => t.promptCategory === 'How-to Guides'),
+    brandSpecific: tests.filter(t => t.promptCategory === 'Brand-Specific'),
+  };
+
+  // Calculate score for each category
+  const categoryScores = {
+    organic: calculateCategoryScore(categories.organic),
+    competitor: calculateCategoryScore(categories.competitor),
+    howTo: calculateCategoryScore(categories.howTo),
+    brandSpecific: calculateCategoryScore(categories.brandSpecific),
+  };
+
+  // Apply weights and calculate overall weighted score
+  const weightedScore = 
+    categoryScores.organic.score * INTENT_WEIGHTS['Organic'] +
+    categoryScores.competitor.score * INTENT_WEIGHTS['Competitor'] +
+    categoryScores.howTo.score * INTENT_WEIGHTS['How-to Guides'] +
+    categoryScores.brandSpecific.score * INTENT_WEIGHTS['Brand-Specific'];
+
+  return {
+    weightedScore: Math.round(weightedScore),
+    categoryBreakdown: categoryScores,
+  };
+}
+
+/**
+ * Calculate score for a specific category
+ */
+function calculateCategoryScore(categoryTests: PromptTestResult[]): {
+  score: number;
+  mentions: number;
+  total: number;
+} {
+  if (categoryTests.length === 0) {
+    return { score: 0, mentions: 0, total: 0 };
+  }
+
+  const mentions = categoryTests.filter(t => t.brandMentioned).length;
+  const mentionRate = mentions / categoryTests.length;
+
+  // Position-based scoring for this category
+  const rankedTests = categoryTests.filter(t => 
+    t.brandMentioned && 
+    t.brandPosition !== undefined && 
+    t.brandPosition !== null && 
+    t.brandPosition > 0
+  );
+
+  let positionBonus = 0;
+  if (rankedTests.length > 0) {
+    const avgPosition = rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length;
+    positionBonus = Math.max(0, (10 - avgPosition) / 10) * 50;
+  }
+
+  const score = mentionRate * 50 + positionBonus;
+
+  return {
+    score: Math.round(score),
+    mentions,
+    total: categoryTests.length,
+  };
+}
+
+/**
  * Calculate aggregate visibility score using Firegeo methodology
  * Formula: mentionRate * 50 + positionBonus * 50
+ * 
+ * Also calculates weighted score using intent category weights
  * 
  * @param tests - Array of prompt test results
  * @returns Aggregate visibility metrics
@@ -54,6 +160,7 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
   if (totalPrompts === 0) {
     return {
       overallScore: 0,
+      weightedScore: 0,
       mentionRate: 0,
       averagePosition: 0,
       totalPrompts: 0,
@@ -93,6 +200,9 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
     overallScore += positionBonus;
   }
 
+  // Calculate weighted score by intent category
+  const { weightedScore, categoryBreakdown } = calculateWeightedScore(tests);
+
   // Calculate sentiment distribution
   const sentimentCounts = {
     positive: tests.filter(t => t.sentiment === 'positive').length,
@@ -105,6 +215,7 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
 
   return {
     overallScore: Math.round(overallScore),
+    weightedScore,
     mentionRate,
     averagePosition: Math.round(averagePosition * 10) / 10, // Round to 1 decimal
     totalPrompts,
@@ -113,6 +224,7 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
       ...sentimentCounts,
       dominant: dominantSentiment,
     },
+    categoryBreakdown,
   };
 }
 

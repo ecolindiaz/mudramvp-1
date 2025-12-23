@@ -16,7 +16,7 @@ export interface DirectGEOConfig {
   competitors?: string[];
   targetAudience?: string;
   keyProducts?: string[];
-  customPrompts?: string[]; // Allow passing pre-generated prompts from database
+  customPrompts?: Array<string | { text: string; category?: string }>; // Support both string[] and objects with categories
   apiKeys: {
     openai?: string;
     anthropic?: string;
@@ -45,6 +45,7 @@ export interface ProviderAnalysis {
 
 export interface PromptTest {
   prompt: string;
+  promptCategory?: string; // Category for intent weighting
   response: string;
   brandMentioned: boolean;
   brandPosition?: number;
@@ -66,12 +67,17 @@ export interface CompetitorAnalysis {
 
 /**
  * Generate contextual prompts for GEO testing using sophisticated prompt generation
+ * Returns array of objects with text and category for intent weighting
  */
-async function generateGEOPrompts(config: DirectGEOConfig): Promise<string[]> {
+async function generateGEOPrompts(config: DirectGEOConfig): Promise<Array<{ text: string; category?: string }>> {
   // If custom prompts are provided (from database), use them directly
   if (config.customPrompts && config.customPrompts.length > 0) {
     console.log(`✅ Using ${config.customPrompts.length} custom prompts from database`);
-    return config.customPrompts;
+    
+    // Normalize prompts to objects with text and category
+    return config.customPrompts.map(p => 
+      typeof p === 'string' ? { text: p } : p
+    );
   }
   
   try {
@@ -88,15 +94,15 @@ async function generateGEOPrompts(config: DirectGEOConfig): Promise<string[]> {
     // Generate sophisticated prompts using the Mudra system
     const generatedPrompts = await generateSophisticatedPrompts(brandInfo);
     
-    // Combine all prompt categories - USE ALL 50 PROMPTS from PromptGeneration.txt
+    // Combine all prompt categories with their categories for intent weighting
     const allPrompts = [
-      ...generatedPrompts.organic,        // All 30 organic queries
-      ...generatedPrompts.competitor,     // All 8 competitor queries  
-      ...generatedPrompts.howToGuides,    // All 7 how-to queries
-      ...generatedPrompts.brandSpecific,  // All 5 brand-specific queries
+      ...generatedPrompts.organic.map(text => ({ text, category: 'Organic' })),
+      ...generatedPrompts.competitor.map(text => ({ text, category: 'Competitor' })),
+      ...generatedPrompts.howToGuides.map(text => ({ text, category: 'How-to Guides' })),
+      ...generatedPrompts.brandSpecific.map(text => ({ text, category: 'Brand-Specific' })),
     ];
 
-    console.log(`✅ Generated ${allPrompts.length} sophisticated prompts using Mudra PromptGeneration.txt specification`);
+    console.log(`✅ Generated ${allPrompts.length} sophisticated prompts with categories`);
     console.log(`   - Organic: ${generatedPrompts.organic.length}`);
     console.log(`   - Competitor: ${generatedPrompts.competitor.length}`);
     console.log(`   - How-to Guides: ${generatedPrompts.howToGuides.length}`);
@@ -107,8 +113,8 @@ async function generateGEOPrompts(config: DirectGEOConfig): Promise<string[]> {
   } catch (error) {
     console.error('Failed to generate sophisticated prompts, falling back to basic prompts:', error);
     
-    // Fallback to basic prompts
-    return generateBasicPrompts(config);
+    // Fallback to basic prompts without categories
+    return generateBasicPrompts(config).map(text => ({ text }));
   }
 }
 
@@ -1046,13 +1052,18 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     console.log(`\n🔍 Analyzing with ${provider}: testing ${providerPrompts.length} prompts (${startIdx + 1}-${endIdx})...`);
     
     // Test ALL prompts for this provider IN PARALLEL using Promise.all
-    const promptTestPromises = providerPrompts.map(async (prompt) => {
+    const promptTestPromises = providerPrompts.map(async (promptObj) => {
+      const promptText = typeof promptObj === 'string' ? promptObj : promptObj.text;
+      const promptCategory = typeof promptObj === 'object' ? promptObj.category : undefined;
+      
       try {
-        const test = await analyzePromptWithProvider(prompt, provider, config);
-        console.log(`  ✓ [${provider}] "${prompt.substring(0, 50)}..." - Brand mentioned: ${test.brandMentioned}`);
-        return test;
+        const test = await analyzePromptWithProvider(promptText, provider, config);
+        // Add category to test result for intent weighting
+        const testWithCategory = { ...test, promptCategory };
+        console.log(`  ✓ [${provider}] "${promptText.substring(0, 50)}..." - Brand mentioned: ${test.brandMentioned}`);
+        return testWithCategory;
       } catch (error) {
-        console.error(`  ✗ [${provider}] Failed prompt: ${prompt.substring(0, 50)}...`, error);
+        console.error(`  ✗ [${provider}] Failed prompt: ${promptText.substring(0, 50)}...`, error);
         return null;
       }
     });

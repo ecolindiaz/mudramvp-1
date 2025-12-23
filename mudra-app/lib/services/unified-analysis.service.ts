@@ -136,7 +136,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       status: 'running'
     });
     
-    // Call DirectGEO API
+    // Call DirectGEO API with prompt categories for weighted scoring
     const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/geo/direct-analysis`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -146,7 +146,10 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
         industry: config.industry || '',
         description: config.description || '',
         competitors: config.competitors || [],
-        customPrompts: prompts.map(p => p.text),
+        customPrompts: prompts.map(p => ({
+          text: p.text,
+          category: p.category, // Pass category for intent weighting
+        })),
       }),
     });
 

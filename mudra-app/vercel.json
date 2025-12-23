@@ -6,9 +6,18 @@
   "env": {
     "NEXT_TELEMETRY_DISABLED": "1"
   },
+  "crons": [
+    {
+      "path": "/api/cron/weekly-analysis",
+      "schedule": "0 2 * * 0"
+    }
+  ],
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/**/*.ts": {
+      "maxDuration": 300
     }
   },
   "headers": [

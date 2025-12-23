@@ -307,6 +307,9 @@ export async function getWeeklyDeltaSummary(): Promise<{
       analysisRuns: {
         some: {},
       },
+      companyName: {
+        not: null,
+      },
     },
     select: {
       id: true,
@@ -320,7 +323,7 @@ export async function getWeeklyDeltaSummary(): Promise<{
         const delta = await getDeltaAnalysis(profile.id);
         return {
           brandProfileId: profile.id,
-          companyName: profile.companyName,
+          companyName: profile.companyName as string, // Safe because we filtered null above
           delta,
         };
       } catch (error) {

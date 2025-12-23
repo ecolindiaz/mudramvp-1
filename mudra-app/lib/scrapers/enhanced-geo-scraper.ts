@@ -1096,6 +1096,13 @@ export async function scrapeCompanyPage(url: string, opts: ScrapeOpts = {}): Pro
 
 // Batch scrape using Firecrawl batch APIs
 export async function batchScrape(urls: string[], opts: ScrapeOpts = {}): Promise<ScrapeResult[]> {
+  // ✅ RATE LIMIT: Maximum 10 pages per user
+  const MAX_PAGES_PER_USER = 10;
+  if (urls.length > MAX_PAGES_PER_USER) {
+    console.warn(`⚠️ [Scraper] Rate limit: ${urls.length} URLs requested, limiting to ${MAX_PAGES_PER_USER} important pages`);
+    urls = urls.slice(0, MAX_PAGES_PER_USER);
+  }
+
   const app = createFirecrawlApp();
   const { fresh, locale, userHeaders, useLlmJsonMode, llmSchema, llmPrompt } = opts;
   const scrapeParams: any = {

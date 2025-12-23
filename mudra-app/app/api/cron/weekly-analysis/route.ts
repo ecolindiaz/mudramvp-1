@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
         successful: result.successful,
         failed: result.failed,
         errors: result.errors,
+        deltas: result.deltas, // ✅ NEW: Include delta analysis
       },
     });
 
@@ -94,6 +95,7 @@ export async function GET(request: NextRequest) {
         successful: result.successful,
         failed: result.failed,
         errors: result.errors,
+        deltas: result.deltas, // ✅ NEW: Include delta analysis
       },
     });
 

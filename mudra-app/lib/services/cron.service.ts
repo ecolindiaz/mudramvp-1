@@ -8,6 +8,7 @@
 import cron from 'node-cron';
 import { prisma } from '@/lib/prisma';
 import { runUnifiedAnalysis } from './unified-analysis.service';
+import { getDeltaAnalysis } from './delta-analysis.service';
 
 let isInitialized = false;
 let cronJob: cron.ScheduledTask | null = null;
@@ -18,6 +19,13 @@ interface CronExecutionLog {
   successful: number;
   failed: number;
   errors: string[];
+  deltas?: Array<{
+    brandProfileId: number;
+    companyName: string;
+    improvement: boolean;
+    degradation: boolean;
+    changes: string[];
+  }>;
 }
 
 /**
@@ -48,6 +56,10 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
       select: {
         id: true,
         companyName: true,
+        companyWebsite: true,
+        companyDescription: true,
+        companyIndustry: true,
+        competitors: true,
         userId: true,
         createdAt: true,
       },
@@ -59,47 +71,94 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
     log.brandProfilesProcessed = brandProfiles.length;
     console.log(`📊 [CRON] Found ${brandProfiles.length} brand profiles to process`);
 
-    // Process each brand profile sequentially to avoid API rate limits
-    for (const profile of brandProfiles) {
-      try {
-        console.log(`🔍 [CRON] Processing brand: ${profile.companyName} (ID: ${profile.id})`);
+  const deltas: Array<{
+    brandProfileId: number;
+    companyName: string;
+    improvement: boolean;
+    degradation: boolean;
+    changes: string[];
+  }> = [];
 
-        // Run unified analysis with cooldown bypass (cron jobs override cooldown)
-        const result = await runUnifiedAnalysis({
-          brandProfileId: profile.id,
-          skipCooldown: true,      // Cron jobs bypass 5-min cooldown
-          generateReport: false,   // Don't generate NLR for automated runs
-        });
+  // Process each brand profile sequentially to avoid API rate limits
+  for (const profile of brandProfiles) {
+    try {
+      console.log(`🔍 [CRON] Processing brand: ${profile.companyName} (ID: ${profile.id})`);
 
-        if (result.success) {
-          log.successful++;
-          console.log(`✅ [CRON] Successfully analyzed ${profile.companyName}`);
-        } else {
-          log.failed++;
-          log.errors.push(`${profile.companyName}: ${result.error || 'Unknown error'}`);
-          console.error(`❌ [CRON] Failed to analyze ${profile.companyName}:`, result.error);
-        }
-
-        // Add delay between profiles to prevent API throttling (30 seconds)
-        if (brandProfiles.indexOf(profile) < brandProfiles.length - 1) {
-          console.log('⏳ [CRON] Waiting 30s before next profile...');
-          await new Promise(resolve => setTimeout(resolve, 30000));
-        }
-
-      } catch (error) {
+      // Skip if missing required data
+      if (!profile.companyName || !profile.companyWebsite) {
+        console.log(`⚠️ [CRON] Skipping ${profile.companyName || 'Unknown'} - missing required data`);
         log.failed++;
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        log.errors.push(`${profile.companyName}: ${errorMsg}`);
-        console.error(`❌ [CRON] Exception processing ${profile.companyName}:`, error);
+        continue;
       }
+
+      // Run unified analysis with cooldown bypass (cron jobs override cooldown)
+      const result = await runUnifiedAnalysis({
+        brandProfileId: profile.id,
+        brandName: profile.companyName,
+        website: profile.companyWebsite,
+        description: profile.companyDescription || undefined,
+        industry: profile.companyIndustry || undefined,
+        competitors: profile.competitors ? profile.competitors.split(',').map(c => c.trim()) : undefined,
+        skipCooldown: true,      // Cron jobs bypass 5-min cooldown
+        generateReport: false,   // Don't generate NLR for automated runs
+      });
+
+      if (result.success) {
+        log.successful++;
+        console.log(`✅ [CRON] Successfully analyzed ${profile.companyName}`);
+
+        // ✅ NEW: Calculate delta vs previous run
+        try {
+          const deltaResult = await getDeltaAnalysis(profile.id);
+          deltas.push({
+            brandProfileId: profile.id,
+            companyName: profile.companyName,
+            improvement: deltaResult.hasImprovement,
+            degradation: deltaResult.hasDegradation,
+            changes: deltaResult.delta?.significantChanges || [],
+          });
+
+          if (deltaResult.delta) {
+            console.log(`📊 [CRON] Delta for ${profile.companyName}:`, {
+              geoChange: deltaResult.delta.geoScoreChange.toFixed(1),
+              techChange: deltaResult.delta.technicalScoreChange.toFixed(1),
+              changes: deltaResult.delta.significantChanges.length,
+            });
+          }
+        } catch (deltaError) {
+          console.warn(`⚠️ [CRON] Could not calculate delta for ${profile.companyName}:`, deltaError);
+        }
+
+      } else {
+        log.failed++;
+        log.errors.push(`${profile.companyName}: ${result.error || 'Unknown error'}`);
+        console.error(`❌ [CRON] Failed to analyze ${profile.companyName}:`, result.error);
+      }
+
+      // Add delay between profiles to prevent API throttling (30 seconds)
+      if (brandProfiles.indexOf(profile) < brandProfiles.length - 1) {
+        console.log('⏳ [CRON] Waiting 30s before next profile...');
+        await new Promise(resolve => setTimeout(resolve, 30000));
+      }
+
+    } catch (error) {
+      log.failed++;
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      log.errors.push(`${profile.companyName}: ${errorMsg}`);
+      console.error(`❌ [CRON] Exception processing ${profile.companyName}:`, error);
     }
+  }
 
-    const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(2);
-    console.log(`✅ [CRON] Weekly analysis completed in ${duration} minutes`);
-    console.log(`📊 [CRON] Results: ${log.successful} successful, ${log.failed} failed`);
+  log.deltas = deltas;
 
-  } catch (error) {
-    console.error('❌ [CRON] Fatal error in weekly analysis:', error);
+  const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(2);
+  console.log(`✅ [CRON] Weekly analysis completed in ${duration} minutes`);
+  console.log(`📊 [CRON] Results: ${log.successful} successful, ${log.failed} failed`);
+  
+  // Log delta summary
+  const improved = deltas.filter(d => d.improvement).length;
+  const declined = deltas.filter(d => d.degradation).length;
+  console.log(`📈 [CRON] Deltas: ${improved} improved, ${declined} declined`);
     log.errors.push(`Fatal: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 

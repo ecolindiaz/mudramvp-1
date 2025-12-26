@@ -1072,7 +1072,7 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     const promptTestResults = await Promise.all(promptTestPromises);
     
     // Filter out failed tests (null values)
-    const promptTests = promptTestResults.filter((test): test is PromptTest => test !== null);
+    const promptTests = promptTestResults.filter((test): test is NonNullable<typeof test> => test !== null);
     
     // Calculate metrics for this provider
     const metrics = calculateBrandMetrics(promptTests);

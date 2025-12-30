@@ -57,6 +57,16 @@ const mockDeployments: DeploymentItem[] = [
     isActive: true,
   },
   {
+    id: "6",
+    agentName: "Conversation Radar",
+    agentDescription: "Scans Reddit for brand-relevant threads.",
+    status: "Ready",
+    duration: "~4m initial scan",
+    icon: Radio,
+    impact: "High",
+    isActive: true,
+  },
+  {
     id: "2",
     agentName: "Robots Gatekeeper",
     agentDescription: "Manages crawler access rules (robots.txt).",
@@ -94,16 +104,6 @@ const mockDeployments: DeploymentItem[] = [
     duration: "Coming soon",
     icon: HelpCircle,
     impact: "High",
-    isActive: false,
-  },
-  {
-    id: "6",
-    agentName: "Conversation Radar",
-    agentDescription: "Scans Reddit & LinkedIn for brand-relevant threads.",
-    status: "Queued",
-    duration: "Coming soon",
-    icon: Radio,
-    impact: "Medium",
     isActive: false,
   },
   {
@@ -151,10 +151,24 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
     fetchRepos()
   }, [])
   
-  const sortedDeployments = [...mockDeployments].sort((a, b) => {
-    const impactOrder = { High: 0, Medium: 1, Low: 2 }
-    return impactOrder[a.impact] - impactOrder[b.impact]
-  })
+  const sortedDeployments = [...mockDeployments]
+    .map((deployment, index) => ({ deployment, index }))
+    .sort((a, b) => {
+      const impactOrder = { High: 0, Medium: 1, Low: 2 }
+
+      // Active agents should always appear before inactive ones
+      if (a.deployment.isActive !== b.deployment.isActive) {
+        return a.deployment.isActive ? -1 : 1
+      }
+
+      // Then sort by impact level
+      const impactDiff = impactOrder[a.deployment.impact] - impactOrder[b.deployment.impact]
+      if (impactDiff !== 0) return impactDiff
+
+      // Preserve original order as a final tiebreaker
+      return a.index - b.index
+    })
+    .map(({ deployment }) => deployment)
 
   const getImpactChipColor = (impact: DeploymentItem["impact"]) => {
     switch (impact) {
@@ -237,7 +251,8 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
       {sortedDeployments.map((deployment, index) => {
         const Icon = deployment.icon
         const isDisabled = !deployment.isActive
-        const isDeployed = deployedAgentIds.includes(deployment.id)
+        // Support either static deployment IDs OR agent names (Agent Lab uses runtime IDs for deployed agents)
+        const isDeployed = deployedAgentIds.includes(deployment.id) || deployedAgentIds.includes(deployment.agentName)
         
         return (
           <div

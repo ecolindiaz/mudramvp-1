@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { StarBorder } from "@/components/ui/star-border"
 import { ArrowRight, Upload } from "lucide-react"
 import { useOnboarding } from "./onboarding-context"
 
@@ -70,17 +69,17 @@ export function VisibilityForm() {
           </div>
         </div>
 
-        <StarBorder
+        <Button
+          type="button"
           onClick={handleNext}
           disabled={!isFormValid}
-          className={`w-full ${!isFormValid ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-          color="white"
+          className="w-full h-9 bg-white text-black border border-white hover:bg-white/90 shadow-none disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
         >
-          <div className="flex items-center justify-center gap-2 text-white">
+          <div className="flex items-center justify-center gap-2">
             Next
             <ArrowRight className="w-4 h-4" />
           </div>
-        </StarBorder>
+        </Button>
       </CardContent>
     </Card>
   )

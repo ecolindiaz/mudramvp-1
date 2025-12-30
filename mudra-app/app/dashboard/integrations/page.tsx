@@ -17,6 +17,7 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [slackLoading, setSlackLoading] = useState(false)
 
   // Check GitHub connection status on load
   useEffect(() => {
@@ -101,6 +102,23 @@ export default function IntegrationsPage() {
       })
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const handleSlackConnect = async () => {
+    setSlackLoading(true)
+    try {
+      const response = await fetch("/api/integrations/slack/connect", {
+        method: "POST",
+      })
+      const result = await response.json()
+      if (response.ok && result.authUrl) {
+        window.location.href = result.authUrl
+      }
+    } catch (error) {
+      console.error("Failed to start Slack connect:", error)
+    } finally {
+      setSlackLoading(false)
     }
   }
 
@@ -260,16 +278,20 @@ export default function IntegrationsPage() {
                         </div>
                         <CardTitle className="text-white text-base font-semibold">Slack</CardTitle>
                       </div>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md border border-white/10 bg-white/5 text-white/60">Soon</span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-md border border-white/10 bg-white/5 text-white/60">Notifications</span>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <p className="text-[15px] text-white/80 leading-relaxed">
-                      Assign tasks to Tembo directly from Slack
+                      Connect Slack to receive Mudra notifications in your workspace.
                     </p>
                     <div>
-                      <Button disabled className="w-full h-10 rounded-lg bg-white/10 text-white/60 text-sm font-medium">
-                        Install
+                      <Button
+                        onClick={handleSlackConnect}
+                        disabled={slackLoading}
+                        className="w-full h-10 rounded-lg bg-white text-black text-sm font-medium hover:bg-white/90"
+                      >
+                        Connect to Slack
                       </Button>
                     </div>
                   </CardContent>

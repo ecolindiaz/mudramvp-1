@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useSearchParams, useRouter } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -14,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Bot, Loader2, GitBranch, ChevronDown, GitPullRequest, Search, Check, Clock, Layers, Rocket, Radio, ChevronRight, ChevronLeft, ListChecks, BookOpen, XCircle, MoreHorizontal, Sparkles } from "lucide-react"
+import { Bot, Loader2, GitBranch, ChevronDown, GitPullRequest, Search, Check, Clock, Layers, Rocket, Radio, ChevronRight, ChevronLeft, ListChecks, BookOpen, XCircle, MoreHorizontal, Sparkles, type LucideProps } from "lucide-react"
 import { BrowserWindowEmpty } from "@/components/empty-states/browser-window-empty"
 import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -24,8 +25,30 @@ import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 
+const RedditIcon = (props: LucideProps) => (
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="9" cy="12" r="1" />
+    <circle cx="15" cy="12" r="1" />
+    <path d="M7.5 13.5c.8 1 2.3 1.7 4.5 1.7s3.7-.7 4.5-1.7" />
+    <path d="M14.5 7.5 15 4.5l2.5.6" />
+  </svg>
+)
+
 function AgentsLabPageInner() {
   const { profile } = useBrandProfile()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   
   // State for Technical Structure score
   const [technicalScore, setTechnicalScore] = useState(0)
@@ -90,6 +113,18 @@ function AgentsLabPageInner() {
     error?: string
   }>>([])
   
+  // Conversation Radar state
+  const [radarOpportunities, setRadarOpportunities] = useState<any[]>([])
+  const [isLoadingRadar, setIsLoadingRadar] = useState(false)
+  const [radarStats, setRadarStats] = useState<{ total: number; new: number } | null>(null)
+
+  const activeRadarOpportunitiesCount = radarOpportunities.filter((o: any) => {
+    // API already maps DB "new" -> "queued" for the frontend.
+    const isActive = o.status === "queued" || o.status === "running"
+    const scoreOk = typeof o.relevanceScore === "number" && o.relevanceScore >= 70
+    return isActive && scoreOk
+  }).length
+  
   useEffect(() => {
     setIsMounted(true)
   }, [])
@@ -106,6 +141,25 @@ function AgentsLabPageInner() {
     status: "deploying" | "active" | "inactive"
   }>>([])
 
+  // Handle agent selection from URL params (for back navigation from opportunity detail)
+  useEffect(() => {
+    const agentIdFromUrl = searchParams?.get("agent")
+    // URL is the source of truth:
+    // - If URL has an agent param, select that agent
+    // - If URL has NO agent param, clear selection (go back to main Agent Lab)
+    if (!agentIdFromUrl) {
+      if (selectedAgentId !== null) setSelectedAgentId(null)
+      return
+    }
+
+    if (deployedAgents.length > 0) {
+      const agentExists = deployedAgents.some((agent) => agent.id === agentIdFromUrl)
+      if (agentExists && selectedAgentId !== agentIdFromUrl) {
+        setSelectedAgentId(agentIdFromUrl)
+      }
+    }
+  }, [searchParams, deployedAgents, selectedAgentId])
+
   const agentMetricsMap: Record<string, { optimizations: number; activeTasks: number; totalTasks: number }> = {
     "Content Optimizer": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
     "LLMs.txt Indexer": { optimizations: 24, activeTasks: 3, totalTasks: 5 },
@@ -113,7 +167,20 @@ function AgentsLabPageInner() {
     "Schema Architect": { optimizations: 31, activeTasks: 4, totalTasks: 6 },
     "Content Router": { optimizations: 12, activeTasks: 1, totalTasks: 3 },
     "FAQ Author": { optimizations: 9, activeTasks: 1, totalTasks: 2 },
-    "Conversation Radar": { optimizations: 7, activeTasks: 2, totalTasks: 3 },
+    // Use real data for Conversation Radar - only count 70%+ relevance opportunities as "active"
+    "Conversation Radar": { 
+      optimizations: radarOpportunities.filter((o: any) =>
+        (o.status === 'queued' || o.status === 'running') &&
+        typeof o.relevanceScore === 'number' &&
+        o.relevanceScore >= 70
+      ).length || 0,
+      activeTasks: radarOpportunities.filter((o: any) =>
+        (o.status === 'queued' || o.status === 'running') &&
+        typeof o.relevanceScore === 'number' &&
+        o.relevanceScore >= 70
+      ).length,
+      totalTasks: radarOpportunities.length
+    },
     "Citations Outreach": { optimizations: 11, activeTasks: 2, totalTasks: 3 },
   }
 
@@ -133,6 +200,37 @@ function AgentsLabPageInner() {
       }
     } catch (error) {
       console.error('Error fetching technical history:', error)
+    }
+  }
+
+  // Fetch Conversation Radar opportunities
+  const fetchRadarOpportunities = async () => {
+    if (!profile.id) return
+    
+    setIsLoadingRadar(true)
+    try {
+      // Fetch opportunities
+      const response = await fetch(`/api/conversation-radar/opportunities?brandProfileId=${profile.id}&status=all&limit=50`)
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        setRadarOpportunities(result.data)
+      }
+      
+      // Fetch stats
+      const statsResponse = await fetch(`/api/conversation-radar/run?brandProfileId=${profile.id}`)
+      const statsResult = await statsResponse.json()
+      
+      if (statsResult.success && statsResult.data) {
+        setRadarStats({
+          total: statsResult.data.counts.total,
+          new: statsResult.data.counts.new,
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching radar opportunities:', error)
+    } finally {
+      setIsLoadingRadar(false)
     }
   }
 
@@ -170,6 +268,7 @@ function AgentsLabPageInner() {
     if (profile.id) {
       fetchTechnicalHistory()
       fetchDeployedAgents()
+      fetchRadarOpportunities()
     }
   }, [profile.id])
 
@@ -211,7 +310,7 @@ function AgentsLabPageInner() {
       agentName: deployment.agentName,
       agentDescription: deployment.agentDescription,
       icon: deployment.icon,
-      impact: deployment.impact,
+      impact: deployment.agentName === "Conversation Radar" ? ("High" as const) : deployment.impact,
       deployedAt: now,
       lastActivity: now,
       status: "deploying" as const
@@ -246,17 +345,70 @@ function AgentsLabPageInner() {
       console.error('Failed to persist agent deployment:', error)
     }
     
+    // Special handling for Conversation Radar - actually run the search
+    if (deployment.agentName === "Conversation Radar") {
+      try {
+        console.log('🔍 Starting Conversation Radar search...')
+        setIsLoadingRadar(true)
+        
+        // Run the actual conversation radar search (proactive mode)
+        // This calls the same backend that the terminal tests use
+        const runResponse = await fetch('/api/conversation-radar/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            brandProfileId: profile.id,
+            mode: 'proactive', // Use proactive to search Reddit based on tracked prompts
+            analyze: true,     // Run LLM analysis on found opportunities
+            analyzeLimit: 15,  // Analyze up to 15 opportunities
+          }),
+        })
+        
+        const runResult = await runResponse.json()
+        console.log('📊 Conversation Radar run result:', runResult)
+        
+        if (runResult.success) {
+          // Fetch the new opportunities
+          await fetchRadarOpportunities()
+          
+          // Update agent status to active
+          setDeployedAgents(prev => prev.map(agent => 
+            agent.id === uniqueId 
+              ? { ...agent, status: "active" as const, lastActivity: new Date() }
+              : agent
+          ))
+          
+          console.log('✅ Conversation Radar deployed and running:', runResult.message)
+        } else {
+          console.error('❌ Conversation Radar run failed:', runResult.error)
+          // Still mark as active - agent is deployed even if first run had issues
+          setDeployedAgents(prev => prev.map(agent => 
+            agent.id === uniqueId 
+              ? { ...agent, status: "active" as const, lastActivity: new Date() }
+              : agent
+          ))
+        }
+      } catch (error) {
+        console.error('❌ Error running Conversation Radar:', error)
+        // Mark as inactive on error
+        setDeployedAgents(prev => prev.map(agent => 
+          agent.id === uniqueId 
+            ? { ...agent, status: "inactive" as const }
+            : agent
+        ))
+      } finally {
+        setIsLoadingRadar(false)
+      }
+      return
+    }
+    
+    // Default behavior for other agents
     // Simulate deployment delay - this will be replaced with actual backend call
-    // The agent will show "Deploying..." status while waiting for backend confirmation
-    // After popup closes, deployment continues for 5 seconds (total 6.5 seconds from click: 1.5s in popup + 5s after)
-    // TODO: Replace with actual backend API call
     try {
       // Wait 5 seconds after popup closes for deployment to complete
-      // The "Deploying..." state will be visible in the main view during this time
       await new Promise(resolve => setTimeout(resolve, 5000))
       
       // Update agent status to "active" after successful deployment
-      // In the future, this will be handled by backend response
       setDeployedAgents(prev => prev.map(agent => 
         agent.id === uniqueId 
           ? { ...agent, status: "active" as const, lastActivity: new Date() }
@@ -266,7 +418,6 @@ function AgentsLabPageInner() {
       console.log('✅ Agent deployed successfully:', deployment.agentName)
     } catch (error) {
       // Handle deployment error
-      // Update agent status to "inactive" on error
       setDeployedAgents(prev => prev.map(agent => 
         agent.id === uniqueId 
           ? { ...agent, status: "inactive" as const }
@@ -310,6 +461,16 @@ function AgentsLabPageInner() {
     const impactOrder: Record<"High" | "Medium" | "Low", number> = { High: 0, Medium: 1, Low: 2 }
     const activeIndex = impactOrder[impact]
     return renderChipRow(activeColor, activeIndex)
+  }
+
+  // Render opportunity-specific impact chips based on mode (proactive vs cited)
+  const renderOpportunityImpactChips = (task: TaskRow) => {
+    // For Conversation Radar opportunities:
+    // - cited/tracked (AI cited source) => red (High priority - already in AI training data)
+    // - proactive search => orange (Medium priority - potential opportunity)
+    if (!task.platform) return getImpactChips(task.impact)
+    const color = task.promptOrigin === "tracked" ? "bg-red-500" : "bg-orange-400"
+    return renderChipRow(color, 0) // Always show first chip lit for opportunities
   }
 
   type RunStatusKey = "operational" | "down" | "not-deployed"
@@ -527,15 +688,46 @@ function AgentsLabPageInner() {
 
   interface TaskRow {
     id: string
+    dbId?: number // Database ID for fetching full details
     title: string
     description: string
     impact: "High" | "Medium" | "Low"
     status: TaskStatus
     lastActivity: Date
     icon: React.ComponentType<{ className?: string }>
+    url?: string
+    platform?: "Reddit"
+    postedAt?: Date
+    engagement?: string
+    promptOrigin?: "search" | "tracked"
+    trackedPrompt?: string
+    relevanceScore?: number // For filtering active opportunities
   }
 
   const buildTaskRows = (agent: (typeof deployedAgents)[number]): TaskRow[] => {
+    if (agent.agentName === "Conversation Radar") {
+      // Use real data from API
+      // Return real opportunities from API - no more mock data
+        return radarOpportunities.map((opp: any) => ({
+          id: opp.id,
+        dbId: opp.dbId, // Database ID for fetching full details
+          title: opp.title,
+          description: opp.description || 'Conversation opportunity',
+          impact: opp.impact || 'Medium',
+          // Status is already mapped for frontend by the API (queued/running/completed/failed)
+          status: opp.status,
+          lastActivity: new Date(opp.lastActivity),
+        icon: RedditIcon,
+          url: opp.url,
+        platform: 'Reddit' as const,
+          postedAt: opp.postedAt ? new Date(opp.postedAt) : undefined,
+          engagement: opp.engagement,
+          promptOrigin: opp.promptOrigin as "search" | "tracked",
+          trackedPrompt: opp.trackedPrompt,
+          relevanceScore: opp.relevanceScore,
+        }))
+    }
+
     // Special handling for Content Optimizer agent
     if (agent.agentName === "Content Optimizer") {
       return [] // Content Optimizer shows optimization results, not tasks
@@ -585,13 +777,28 @@ function AgentsLabPageInner() {
   }
 
   // Check if agent is newly deployed and analyzing (active but no tasks generated yet)
-  // For newly deployed agents, we'll simulate that tasks haven't been generated yet
-  // In production, this would be based on actual backend data
-  const isAnalyzing = selectedAgent ? analyzingAgents.has(selectedAgent.id) : false
+  // For Conversation Radar, use isLoadingRadar to show loading state while searching
+  // For other agents, use the analyzingAgents set
+  const isConversationRadarAgent = selectedAgent?.agentName === "Conversation Radar"
+  const isAnalyzing = selectedAgent 
+    ? (isConversationRadarAgent ? isLoadingRadar : analyzingAgents.has(selectedAgent.id))
+    : false
   
   const taskRows = selectedAgent && !isAnalyzing ? buildTaskRows(selectedAgent) : []
   const normalizedTaskQuery = taskSearchQuery.trim().toLowerCase()
-  const filteredTasks = (taskFilter === "active" ? taskRows.filter((task) => task.status === "running") : taskRows).filter((task) => {
+  // For Conversation Radar: "active" means new opportunities with 70%+ relevance
+  // For other agents: "active" means running or queued status
+  const filteredTasks = (taskFilter === "active" 
+    ? taskRows.filter((task) => {
+        const isActive = task.status === "running" || task.status === "queued"
+        // Conversation Radar active view: ONLY show 70%+ scored opportunities
+        if (task.platform === "Reddit") {
+          return isActive && typeof task.relevanceScore === "number" && task.relevanceScore >= 70
+        }
+        return isActive
+      }) 
+    : taskRows
+  ).filter((task) => {
     if (!normalizedTaskQuery) return true
     return (
       task.title.toLowerCase().includes(normalizedTaskQuery) ||
@@ -599,37 +806,56 @@ function AgentsLabPageInner() {
     )
   })
 
+  const isConversationRadar = selectedAgent?.agentName === "Conversation Radar"
+
   const metricGridClass = cn(
     "grid grid-cols-1 gap-4 md:gap-5 px-4 lg:px-6",
     isDetailView
-      ? "md:grid-cols-3 @xl/main:grid-cols-3 @3xl/main:grid-cols-3"
+      ? isConversationRadar
+        ? "md:grid-cols-2 @xl/main:grid-cols-2 @3xl/main:grid-cols-2"
+        : "md:grid-cols-3 @xl/main:grid-cols-3 @3xl/main:grid-cols-3"
       : "@xl/main:grid-cols-2 @3xl/main:grid-cols-4"
   )
 
   const metricCards: MetricCardConfig[] = isDetailView && selectedAgentMetrics
-    ? [
-        {
-          title: "Optimizations Shipped",
-          value: selectedAgentMetrics.optimizations,
-          delta: 0,
-          lastValue: 0,
-          positive: true,
-          accentColor: "rgba(52, 211, 153, 0.9)",
-          info: `Automations deployed by ${selectedAgent?.agentName}`,
-          icon: Rocket,
-        },
-        {
-          title: "Active Tasks",
-          value: selectedAgentMetrics.activeTasks,
-          delta: 0,
-          lastValue: selectedAgentMetrics.totalTasks,
-          positive: true,
-          format: (val: number) => `${val} of ${selectedAgentMetrics.totalTasks}`,
-          accentColor: "rgba(167, 139, 250, 0.9)",
-          info: "Tasks this agent is currently processing",
-          icon: ListChecks,
-        },
-      ]
+    ? (
+        isConversationRadar
+          ? [
+              {
+                title: "Active Opportunities",
+                value: selectedAgentMetrics.optimizations,
+                delta: 0,
+                lastValue: 0,
+                positive: true,
+                accentColor: "rgba(251, 191, 36, 0.9)",
+                info: "How many conversations you can act on right now. Counts open Reddit opportunities with 70%+ relevance.",
+                icon: Radio,
+              },
+            ]
+          : [
+              {
+                title: "Optimizations Shipped",
+                value: selectedAgentMetrics.optimizations,
+                delta: 0,
+                lastValue: 0,
+                positive: true,
+                accentColor: "rgba(52, 211, 153, 0.9)",
+                info: `Automations deployed by ${selectedAgent?.agentName}`,
+                icon: Rocket,
+              },
+              {
+                title: "Active Tasks",
+                value: selectedAgentMetrics.activeTasks,
+                delta: 0,
+                lastValue: selectedAgentMetrics.totalTasks,
+                positive: true,
+                format: (val: number) => `${val} of ${selectedAgentMetrics.totalTasks}`,
+                accentColor: "rgba(167, 139, 250, 0.9)",
+                info: "Tasks this agent is currently processing",
+                icon: ListChecks,
+              },
+            ]
+      )
     : [
         {
           title: "Technical Structure Score",
@@ -664,12 +890,12 @@ function AgentsLabPageInner() {
         },
         {
           title: "Opportunity Radar",
-          value: 7,
+          value: activeRadarOpportunitiesCount,
           delta: 0,
           lastValue: 0,
           positive: true,
           accentColor: "rgba(251, 191, 36, 0.9)",
-          info: "Live growth opportunities discovered by special agents. Tracks open opportunities found by your agents, including Outreach targets (sites and authors heavily cited by AI for features or backlinks) and Research leads (Reddit and LinkedIn threads your brand should join because those conversations are being cited by AI).",
+          info: "Live opportunities discovered by your agents. For Conversation Radar, this counts open Reddit opportunities (70%+ relevance) you can act on right now.",
           icon: Radio,
         },
       ]
@@ -698,7 +924,11 @@ function AgentsLabPageInner() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setSelectedAgentId(null)}
+                        onClick={() => {
+                          setTaskFilter("active") // Reset filter when going back
+                          // Clear URL params
+                          router.push("/dashboard/agents-lab")
+                        }}
                         className="h-9 px-4 text-sm font-medium transition-all duration-200 bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5 gap-2"
                       >
                         <ChevronLeft className="w-4 h-4" />
@@ -721,7 +951,7 @@ function AgentsLabPageInner() {
                         <Input
                           value={taskSearchQuery}
                           onChange={(e) => setTaskSearchQuery(e.target.value)}
-                          placeholder="Search Task"
+                          placeholder={isConversationRadar ? "Search Opportunity" : "Search Task"}
                           className="h-9 rounded-full !bg-[#1a1a1a] border border-white/[0.08] text-xs text-white/80 placeholder:text-white/50 pl-8 pr-3 focus-visible:ring-0 focus-visible:border-white/20 focus-visible:!bg-[#1a1a1a]"
                         />
                       </div>
@@ -730,7 +960,50 @@ function AgentsLabPageInner() {
                 
                 {/* Right side - buttons */}
                 <div className="flex items-center gap-2">
-                  {isDetailView && (
+                  {isDetailView && isConversationRadar && (
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        if (isLoadingRadar) return
+                        setIsLoadingRadar(true)
+                        try {
+                          console.log('🔄 Running Conversation Radar search...')
+                          const response = await fetch('/api/conversation-radar/run', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              brandProfileId: profile.id,
+                              mode: 'proactive',
+                              analyze: true,
+                              analyzeLimit: 15,
+                            }),
+                          })
+                          const result = await response.json()
+                          console.log('📊 Radar run result:', result)
+                          await fetchRadarOpportunities()
+                        } catch (error) {
+                          console.error('❌ Error running radar:', error)
+                        } finally {
+                          setIsLoadingRadar(false)
+                        }
+                      }}
+                      disabled={isLoadingRadar}
+                      className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5 disabled:opacity-50"
+                    >
+                      {isLoadingRadar ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-3.5 h-3.5" />
+                          Run Radar
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {isDetailView && !isConversationRadar && (
                     <Button
                       size="sm"
                       onClick={() => setIsPrSheetOpen(true)}
@@ -742,7 +1015,12 @@ function AgentsLabPageInner() {
                   )}
                   <Button
                     size="sm"
-                    onClick={() => window.open("https://docs.mudra.ai", "_blank", "noopener")}
+                    onClick={() => {
+                      const docsUrl = isConversationRadar 
+                        ? "https://docs.trymudra.com/agentic-features/agent-lab/conversation-ragar-agent"
+                        : "https://docs.trymudra.com/agentic-features/agent-lab/llms-txt-indexer-agent"
+                      window.open(docsUrl, "_blank", "noopener")
+                    }}
                     className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5"
                   >
                     <BookOpen className="w-3.5 h-3.5" />
@@ -824,10 +1102,14 @@ function AgentsLabPageInner() {
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                       <div className="space-y-1.5">
                         <h2 className="text-xl font-semibold tracking-tight text-white">
-                          {isDetailView ? "Tasks" : "Agents"}
+                          {isDetailView ? (isConversationRadar ? "Opportunities" : "Tasks") : "Agents"}
                         </h2>
                         <p className="text-sm text-white/60">
-                          {isDetailView ? "Tasks that agents are cooking" : "Active Deployed Agents"}
+                          {isDetailView
+                            ? isConversationRadar
+                              ? "Opportunities the agent surfaced for you to join"
+                              : "Tasks that agents are cooking"
+                            : "Active Deployed Agents"}
                         </p>
                       </div>
 
@@ -989,7 +1271,7 @@ function AgentsLabPageInner() {
                               : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                           )}
                         >
-                          Active Tasks
+                          {isConversationRadar ? "Active Opportunities" : "Active Tasks"}
                         </Button>
                         <Button
                           variant="outline"
@@ -1002,7 +1284,7 @@ function AgentsLabPageInner() {
                               : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                           )}
                         >
-                          All Tasks
+                          {isConversationRadar ? "All Opportunities" : "All Tasks"}
                         </Button>
                       </div>
                     ) : (
@@ -1161,10 +1443,29 @@ function AgentsLabPageInner() {
                               "failed": "failed"
                             }
                             const taskStatus = statusMap[task.status] || "queued"
+                            
+                            // Build query params - include opportunity-specific params if present
+                            const queryParams = new URLSearchParams({
+                              title: task.title,
+                              desc: task.description,
+                              status: taskStatus,
+                            })
+                            if (task.dbId) queryParams.set("dbId", task.dbId.toString())
+                            if (task.platform) queryParams.set("platform", task.platform)
+                            if (task.url) queryParams.set("url", task.url)
+                            if (task.engagement) queryParams.set("engagement", task.engagement)
+                            if (task.postedAt) queryParams.set("postedAt", task.postedAt.toISOString())
+                            if (task.promptOrigin) queryParams.set("promptOrigin", task.promptOrigin)
+                            if (task.trackedPrompt) queryParams.set("trackedPrompt", task.trackedPrompt)
+                            // Store agent ID for back navigation (simpler than full URL)
+                            if (selectedAgent) {
+                              queryParams.set("returnAgentId", selectedAgent.id)
+                            }
+
                             return (
                               <Link
                                 key={task.id}
-                                href={`/dashboard/agents-lab/tasks/${encodeURIComponent(task.id)}?title=${encodeURIComponent(task.title)}&desc=${encodeURIComponent(task.description)}&status=${taskStatus}`}
+                                href={`/dashboard/agents-lab/tasks/${encodeURIComponent(task.id)}?${queryParams.toString()}`}
                                 className="block"
                               >
                                 <div
@@ -1175,7 +1476,11 @@ function AgentsLabPageInner() {
                                     <Icon className="h-5 w-5 text-white/85" />
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-white mb-1.5 truncate">
+                                    <p className={cn(
+                                      "text-sm font-semibold text-white mb-1.5",
+                                      // Allow full titles for Conversation Radar opportunities
+                                      isConversationRadar ? "whitespace-normal break-words" : "truncate"
+                                    )}>
                                       {task.title}
                                     </p>
                                     <p className="text-xs text-white/60 line-clamp-2">
@@ -1184,42 +1489,43 @@ function AgentsLabPageInner() {
                                   </div>
                                 </div>
 
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[100px] px-3 py-1.5 rounded-md hover:bg-white/[0.03] transition-colors cursor-help">
-                                      <Clock className="w-3.5 h-3.5 text-white/50 shrink-0" />
-                                      <span className="text-xs text-white/70 font-medium whitespace-nowrap">
-                                        {formatTimeAgo(task.lastActivity)}
-                                      </span>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-xs">
-                                    <p>Last activity for this task.</p>
-                                  </TooltipContent>
-                                </Tooltip>
+                                {!isConversationRadar || !task.platform ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[100px] px-3 py-1.5 rounded-md hover:bg-white/[0.03] transition-colors cursor-help">
+                                        <Clock className="w-3.5 h-3.5 text-white/50 shrink-0" />
+                                        <span className="text-xs text-white/70 font-medium whitespace-nowrap">
+                                          {formatTimeAgo(task.lastActivity)}
+                                        </span>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs"></TooltipContent>
+                                  </Tooltip>
+                                ) : null}
 
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[95px] cursor-help px-3 py-1.5 rounded-md hover:bg-white/[0.03] transition-colors">
                                       <span className="text-xs text-white/50 font-medium uppercase tracking-wide">Impact</span>
-                                      {getImpactChips(task.impact)}
+                                      {isConversationRadar && task.platform
+                                        ? renderOpportunityImpactChips(task)
+                                        : getImpactChips(task.impact)}
                                     </div>
                                   </TooltipTrigger>
                                   <TooltipContent side="top" className="max-w-xs">
-                                    <p>Relative importance of this task within the workflow.</p>
+                                    <p>{isConversationRadar && task.platform
+                                      ? (task.promptOrigin === "tracked" 
+                                        ? "Cited opportunity - This Reddit post was cited in AI model responses (High priority)" 
+                                        : "Proactive opportunity - Found via search based on your tracked prompts")
+                                      : "How important it is for your brand to join this conversation."}</p>
                                   </TooltipContent>
                                 </Tooltip>
 
                                 <div className="flex items-center gap-2.5 flex-shrink-0 px-3 py-1.5 rounded-md bg-white/[0.02] border border-white/[0.05]">
-                                  {task.status === "running" ? (
+                                  {task.status === "running" || task.status === "queued" ? (
                                     <>
-                                      <Loader2 className="w-3.5 h-3.5 text-orange-500 animate-spin" />
-                                      <span className="text-xs text-orange-400 font-medium">In progress</span>
-                                    </>
-                                  ) : task.status === "queued" ? (
-                                    <>
-                                      <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                                      <span className="text-xs text-white/65 font-medium">Queued</span>
+                                      <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                                      <span className="text-xs text-orange-400 font-medium">Active Opportunity</span>
                                     </>
                                   ) : task.status === "failed" ? (
                                     <>
@@ -1249,10 +1555,12 @@ function AgentsLabPageInner() {
                                   </div>
                                 </div>
                                 <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
-                                  Analyzing & Generating Tasks
+                                  {isConversationRadar ? "Searching Reddit for Opportunities" : "Analyzing & Generating Tasks"}
                                 </h3>
                                 <p className="text-sm text-white/60 leading-relaxed">
-                                  {selectedAgent?.agentName} is analyzing your repository and defining the tasks it needs to accomplish.
+                                  {isConversationRadar
+                                    ? `Searching relevant subreddits based on your tracked prompts and running AI analysis to find the best conversations to join. This may take 1-2 minutes...`
+                                    : `${selectedAgent?.agentName} is analyzing your repository and defining the tasks it needs to accomplish.`}
                                 </p>
                               </div>
                               
@@ -1294,8 +1602,19 @@ function AgentsLabPageInner() {
                             </div>
                           </div>
                         ) : (
-                          <div className="px-6 py-10 text-center text-sm text-white/60">
-                            No tasks found for this filter.
+                          <div className="px-6 py-10 text-center">
+                            <div className="space-y-2">
+                              <p className="text-sm text-white/60">
+                                {isConversationRadar 
+                                  ? "No opportunities found yet." 
+                                  : "No tasks found for this filter."}
+                              </p>
+                              {isConversationRadar && (
+                                <p className="text-xs text-white/40">
+                                  Make sure you have tracked prompts configured in your brand profile.
+                                </p>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1316,7 +1635,8 @@ function AgentsLabPageInner() {
                               )}
                               onClick={() => {
                                 if (isLocked) return
-                                setSelectedAgentId(agent.id)
+                                // URL-driven selection (prevents needing 2 clicks / prevents auto-clear)
+                                router.push(`/dashboard/agents-lab?agent=${agent.id}`)
                               }}
                               aria-disabled={isLocked}
                             >
@@ -1576,11 +1896,7 @@ function AgentsLabPageInner() {
         onDeploy={handleDeployAgent}
         deployedAgentIds={deployedAgents
           .filter(agent => agent.status === "active" || agent.status === "deploying")
-          .map(agent => {
-            // Extract original agent ID from unique ID (format: {originalId}-{timestamp}-{random})
-            const originalId = agent.id.split('-')[0]
-            return originalId
-          })}
+          .map(agent => agent.agentName)}
       />
     </SidebarProvider>
   )

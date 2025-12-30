@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { StarBorder } from "@/components/ui/star-border"
+import { Button } from "@/components/ui/button"
 import { ArrowRight, Loader2 } from "lucide-react"
 import { useOnboarding } from "./onboarding-context"
 
@@ -112,15 +112,13 @@ export function WelcomeForm() {
           />
         </div>
 
-        <StarBorder
-          as="button"
+        <Button
           type="button"
           onClick={handleNext}
           disabled={!isFormValid || isLoading}
-          className={`w-full ${(!isFormValid || isLoading) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-90'}`}
-          color="white"
+          className="w-full h-9 bg-white text-black border border-white hover:bg-white/90 shadow-none disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
         >
-          <div className="flex items-center justify-center gap-2 text-white">
+          <div className="flex items-center justify-center gap-2">
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -133,7 +131,7 @@ export function WelcomeForm() {
               </>
             )}
           </div>
-        </StarBorder>
+        </Button>
       </CardContent>
     </Card>
   )

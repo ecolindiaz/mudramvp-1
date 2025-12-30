@@ -7,13 +7,11 @@
 generator client {
   provider = "prisma-client-js"
   binaryTargets = ["native", "linux-musl", "linux-musl-arm64-openssl-3.0.x"]
-  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model BrandProfile {
@@ -59,6 +57,7 @@ model BrandProfile {
   contentOptimizations       ContentOptimization[]
   trackingCode               TrackingCode?
   aiReferralMetrics          AIReferralMetrics[]
+  conversationOpportunities  ConversationOpportunity[]
   
   @@index([userId])
 }
@@ -67,7 +66,7 @@ model BrandProfile {
 model Prompt {
   id              Int      @id @default(autoincrement())
   brandProfileId  Int
-  text            String   @db.Text
+  text            String   
   category        String?  // e.g., "product", "service", "comparison"
   isCustom        Boolean  @default(false)
   isActive        Boolean  @default(true)
@@ -429,12 +428,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String? 
+  access_token      String? 
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String? 
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -640,9 +639,9 @@ model TechnicalStructureAnalysis {
   accessibilityScore Float?
   securityScore     Float?
   structureScore    Float?
-  insights          Json     @default("[]")
-  recommendations   Json     @default("[]")
-  metadata          Json     @default("{}")
+  insights          Json     
+  recommendations   Json     
+  metadata          Json     
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   
@@ -657,8 +656,8 @@ model GeoAnalysisResult {
   id              Int      @id @default(autoincrement())
   brandProfileId  Int
   overallScore    Float    @default(0)
-  analyses        Json     @default("[]")
-  summary         Json     @default("{}")
+  analyses        Json     
+  summary         Json     
   timestamp       DateTime @default(now())
   createdAt       DateTime @default(now())
   
@@ -674,9 +673,9 @@ model OrganicTrafficMetrics {
   brandProfileId        Int
   monthlyVisitors       Int      @default(0)
   monthOverMonthGrowth  Float    @default(0)
-  topPages              Json     @default("[]")
-  topKeywords           Json     @default("[]")
-  metadata              Json     @default("{}")
+  topPages              Json     
+  topKeywords           Json     
+  metadata              Json     
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   
@@ -689,10 +688,10 @@ model OrganicTrafficMetrics {
 model NaturalLanguageReport {
   id              Int      @id @default(autoincrement())
   brandProfileId  Int
-  reportText      String   @db.Text
-  insights        Json     @default("[]")
-  recommendations Json     @default("[]")
-  metadata        Json     @default("{}")
+  reportText      String   
+  insights        Json     
+  recommendations Json     
+  metadata        Json     
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
@@ -714,7 +713,7 @@ model AIReferralVisit {
   userAgent       String?  // Browser user agent
   ipAddress       String?  // IP address (hashed for privacy)
   sessionId       String?  // Session identifier
-  metadata        Json     @default("{}") // Additional tracking data
+  metadata        Json      // Additional tracking data
   timestamp       DateTime @default(now())
   createdAt       DateTime @default(now())
   
@@ -736,10 +735,10 @@ model AIReferralAnalytics {
   perplexityVisits      Int      @default(0)
   claudeVisits          Int      @default(0)
   geminiVisits          Int      @default(0)
-  topPages              Json     @default("[]") // [{path: string, visits: number}]
+  topPages              Json      // [{path: string, visits: number}]
   periodStart           DateTime
   periodEnd             DateTime
-  metadata              Json     @default("{}")
+  metadata              Json     
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   
@@ -784,7 +783,7 @@ model AgentTask {
   status            String   @default("pending") // pending, running, completed, failed
   input             Json     // Task input parameters
   output            Json?    // Task results
-  errorMessage      String?  @db.Text
+  errorMessage      String?  
   startedAt         DateTime?
   completedAt       DateTime?
   createdAt         DateTime @default(now())
@@ -802,9 +801,9 @@ model AgentOptimization {
   deployedAgentId   Int
   optimizationType  String   // "schema_markup", "faq_section", "headers", "meta", etc.
   filePath          String?  // File that was modified
-  description       String   @db.Text
-  beforeCode        String?  @db.Text
-  afterCode         String?  @db.Text
+  description       String   
+  beforeCode        String?  
+  afterCode         String?  
   impact            String   // "high", "medium", "low"
   status            String   @default("pending") // pending, applied, pr_created, merged, failed
   pullRequestUrl    String?
@@ -821,8 +820,8 @@ model AgentOptimization {
 model GitHubIntegration {
   id                Int      @id @default(autoincrement())
   userId            String
-  accessToken       String   @db.Text // Encrypted GitHub token (OAuth or Installation)
-  refreshToken      String?  @db.Text
+  accessToken       String    // Encrypted GitHub token (OAuth or Installation)
+  refreshToken      String?  
   tokenExpiresAt    DateTime?
   installationId    Int?     // GitHub App installation ID (null for OAuth)
   integrationType   String   @default("oauth") // "oauth" or "installation"
@@ -830,7 +829,7 @@ model GitHubIntegration {
   githubUsername    String
   avatarUrl         String?
   scope             String?  // OAuth scopes or "installation"
-  repositories      String[] // List of repository full names (e.g., ["owner/repo1", "owner/repo2"])
+  repositories      String    // JSON array of repository full names (e.g., ["owner/repo1", "owner/repo2"])
   expiresAt         DateTime? // Installation token expiration (tokens expire after 1 hour)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -857,7 +856,7 @@ model AgentExecution {
   input             Json     // Execution input parameters
   output            Json?    // Execution results
   metrics           Json?    // Performance metrics (API costs, tokens used, time taken)
-  errorMessage      String?  @db.Text
+  errorMessage      String?  
   startedAt         DateTime?
   completedAt       DateTime?
   createdAt         DateTime @default(now())
@@ -1038,4 +1037,65 @@ model AIReferralMetrics {
   @@index([brandProfileId, month])
   @@index([month])
   @@map("ai_referral_metrics")
+}
+
+// ============================
+// Conversation Radar
+// ============================
+
+model ConversationOpportunity {
+  id                Int      @id @default(autoincrement())
+  brandProfileId    Int
+  
+  // Post identification
+  postUrl           String   // Unique Reddit/LinkedIn URL
+  postId            String?  // Platform-specific ID (Reddit: "1oiwt3p", LinkedIn: URN)
+  platform          String   // "reddit" | "linkedin"
+  
+  // Post metadata (from Apify)
+  postTitle         String?
+  postBody          String?  
+  postAuthor        String?
+  subreddit         String?  // Reddit only
+  
+  // Engagement metrics
+  score             Int?     // Reddit upvotes or LinkedIn likes
+  numComments       Int?
+  upvoteRatio       Float?   // Reddit only (0.0 - 1.0)
+  engagementString  String?  // Pre-formatted: "312 upvotes · 47 comments"
+  
+  // Discovery context
+  mode              String   // "cited" | "proactive"
+  discoveredVia     Json     // Array: [{ promptId, promptText, provider }]
+  searchQuery       String?  // Mode 2: the query that found this
+  
+  // AI-generated insights
+  conversationSnapshot String?   // Summary of conversation
+  whyThisMatters    Json?    // Array of strings
+  suggestedAngle    String?      // Response angle
+  isPromotionalOpportunity Boolean? // TRUE if post asks for tools/recommendations
+  promotionalReason String?      // Why it's promotional (if applicable)
+  relevanceScore    Float?   // 0-100 score
+  
+  // Status tracking
+  status            String   @default("new") // new, reviewed, engaged, dismissed
+  engagedAt         DateTime?
+  dismissedAt       DateTime?
+  dismissReason     String?
+  
+  // Timestamps
+  postCreatedAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@unique([brandProfileId, postUrl])
+  @@index([brandProfileId])
+  @@index([brandProfileId, status])
+  @@index([brandProfileId, platform])
+  @@index([brandProfileId, mode])
+  @@index([postCreatedAt])
+  @@map("conversation_opportunities")
 }

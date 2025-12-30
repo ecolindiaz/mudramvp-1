@@ -6,7 +6,10 @@ import { prisma } from '@/lib/prisma'
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    
+    // Allow dev mode bypass for testing
+    const isDev = process.env.NODE_ENV === 'development'
+    if (!isDev && !session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -49,7 +52,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    
+    // Allow dev mode bypass for testing
+    const isDev = process.env.NODE_ENV === 'development'
+    if (!isDev && !session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -98,7 +104,10 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    
+    // Allow dev mode bypass for testing
+    const isDev = process.env.NODE_ENV === 'development'
+    if (!isDev && !session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 

@@ -150,15 +150,10 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
         </div>
       </form>
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-[#222222]" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-black px-6 text-gray-400 text-base">
-            OR CONTINUE WITH
-          </span>
-        </div>
+      <div className="flex justify-center text-xs uppercase">
+        <span className="bg-black px-6 text-gray-400 text-base">
+          OR CONTINUE WITH
+        </span>
       </div>
 
       <Button 
@@ -202,12 +197,12 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
 export default function SignUpPage() {
   return (
     <div className="container relative h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0 bg-black">
-      <div className="relative hidden h-full flex-col bg-black text-white lg:flex dark:border-r overflow-hidden">
+      <div className="relative hidden h-full flex-col bg-black text-white lg:flex overflow-hidden">
         <Image
-          src="/images/hero.png"
-          alt="Mudra Hero"
+          src="/images/SignUp.png"
+          alt="Mudra signup illustration"
           fill
-          className="object-cover object-center"
+          className="object-cover object-center scale-105"
           priority
           quality={100}
         />
@@ -218,7 +213,7 @@ export default function SignUpPage() {
           <div className="flex flex-col space-y-2 text-center">
             <div className="mb-6">
               <Image
-                src="/images/mudra-logo.png"
+                src="/images/MudraMainLogo.png"
                 alt="Mudra"
                 width={80}
                 height={80}

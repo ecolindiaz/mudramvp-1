@@ -58,7 +58,7 @@ export default function ForgotPasswordPage() {
                     <div className="space-y-6 text-center">
                         <div className="mb-4">
                             <Image
-                                src="/images/mudra-logo.png"
+                                src="/images/MudraMainLogo.png"
                                 alt="Mudra"
                                 width={80}
                                 height={80}
@@ -92,7 +92,7 @@ export default function ForgotPasswordPage() {
                     <div className="flex flex-col items-center space-y-2 text-center">
                         <div className="mb-4">
                             <Image
-                                src="/images/mudra-logo.png"
+                                src="/images/MudraMainLogo.png"
                                 alt="Mudra"
                                 width={80}
                                 height={80}

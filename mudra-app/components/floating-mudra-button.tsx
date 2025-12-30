@@ -26,7 +26,7 @@ interface FloatingMudraButtonProps {
 
 export function FloatingMudraButton({
   onClick,
-  imageSrc = "/images/mudra-logo.png",
+  imageSrc = "/images/MudraMainLogo.png",
   altText = "Mudra AI Assistant",
   ariaLabel = "Open Mudra AI Chat Assistant",
   taskContext,

@@ -57,6 +57,8 @@ model BrandProfile {
   agentExecutions            AgentExecution[]
   agentSchedules             AgentSchedule[]
   contentOptimizations       ContentOptimization[]
+  trackingCode               TrackingCode?
+  aiReferralMetrics          AIReferralMetrics[]
   
   @@index([userId])
 }
@@ -953,4 +955,87 @@ model CronExecutionLog {
   @@index([jobType, executedAt])
   @@index([executedAt])
   @@map("cron_execution_logs")
+}
+
+// ============================
+// AI Referral Tracking System
+// ============================
+
+model TrackingCode {
+  id                Int      @id @default(autoincrement())
+  brandProfileId    Int      @unique
+  trackingId        String   @unique @default(cuid()) // Unique tracking identifier
+  scriptVersion     String   @default("1.0.0")
+  isActive          Boolean  @default(true)
+  totalEvents       Int      @default(0) // Cached count of all events
+  totalAIReferrals  Int      @default(0) // Cached count of AI referrals
+  lastEventAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  events            AnalyticsEvent[]
+  
+  @@index([trackingId])
+  @@index([brandProfileId])
+  @@map("tracking_codes")
+}
+
+model AnalyticsEvent {
+  id                Int      @id @default(autoincrement())
+  trackingCodeId    Int
+  trackingId        String   // Denormalized for fast lookups
+  brandProfileId    Int      // Denormalized for fast lookups
+  eventType         String   @default("page_view") // page_view, click, conversion
+  pageUrl           String   @db.Text
+  pageTitle         String?  @db.Text
+  referrer          String?  @db.Text
+  isAIReferral      Boolean  @default(false)
+  aiPlatform        String?  // chatgpt, perplexity, gemini, claude
+  userAgent         String?  @db.Text
+  ipAddress         String?
+  sessionId         String?  // For grouping events by session
+  metadata          Json?    // Additional event data
+  createdAt         DateTime @default(now())
+  
+  // Relations
+  trackingCode      TrackingCode @relation(fields: [trackingCodeId], references: [id], onDelete: Cascade)
+  
+  @@index([trackingCodeId])
+  @@index([trackingId])
+  @@index([brandProfileId])
+  @@index([brandProfileId, isAIReferral])
+  @@index([brandProfileId, aiPlatform])
+  @@index([brandProfileId, createdAt])
+  @@index([isAIReferral, aiPlatform, createdAt])
+  @@index([createdAt])
+  @@map("analytics_events")
+}
+
+model AIReferralMetrics {
+  id                Int      @id @default(autoincrement())
+  brandProfileId    Int
+  month             DateTime // First day of the month
+  totalVisits       Int      @default(0)
+  chatgptVisits     Int      @default(0)
+  perplexityVisits  Int      @default(0)
+  geminiVisits      Int      @default(0)
+  claudeVisits      Int      @default(0)
+  otherAIVisits     Int      @default(0) // For future AI platforms
+  uniqueVisitors    Int      @default(0)
+  totalPageViews    Int      @default(0)
+  averageTimeOnSite Float?   // Seconds
+  bounceRate        Float?   // Percentage
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  @@unique([brandProfileId, month])
+  @@index([brandProfileId])
+  @@index([brandProfileId, month])
+  @@index([month])
+  @@map("ai_referral_metrics")
 }

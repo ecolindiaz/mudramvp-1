@@ -149,8 +149,6 @@ export async function getActivePrompts(brandProfileId: number): Promise<SavedPro
     
     console.error('Failed to get active prompts:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -170,8 +168,6 @@ export async function getPromptsByCategory(brandProfileId: number, category: str
   } catch (error) {
     console.error('Failed to get prompts by category:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -196,8 +192,6 @@ export async function createCustomPrompt(
   } catch (error) {
     console.error('Failed to create custom prompt:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -216,8 +210,6 @@ export async function updatePrompt(
   } catch (error) {
     console.error('Failed to update prompt:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -233,8 +225,6 @@ export async function deletePrompt(promptId: number): Promise<SavedPrompt> {
   } catch (error) {
     console.error('Failed to delete prompt:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -249,8 +239,6 @@ export async function hardDeletePrompt(promptId: number): Promise<void> {
   } catch (error) {
     console.error('Failed to hard delete prompt:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -288,7 +276,5 @@ export async function getPromptStats(brandProfileId: number) {
   } catch (error) {
     console.error('Failed to get prompt stats:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
 }

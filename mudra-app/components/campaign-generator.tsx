@@ -60,22 +60,44 @@ export function CampaignGenerator() {
     setError(null);
     setResult(null);
     try {
+      // Validate that profile has minimum required data
+      if (!profile.companyName && !profile.companyDescription) {
+        throw new Error("Please complete your brand profile first with at least company name and description.");
+      }
+
       const res = await fetch("/api/llm/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brandProfile: profile, campaignObjective })
       });
-      if (!res.ok) throw new Error("Failed to generate campaigns");
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to generate campaigns");
+      }
+      
       const json = await res.json();
+      
+      // Log case studies usage for debugging
+      if (json.caseStudiesUsed !== undefined) {
+        console.log(`Generated campaigns using ${json.caseStudiesUsed} case studies`);
+      }
+      
       let campaigns: Campaign[] = [];
       if (typeof json.result === "string") {
         campaigns = parseCampaignsFromString(json.result);
       } else if (Array.isArray(json.result)) {
         campaigns = json.result;
       }
+      
+      if (campaigns.length === 0) {
+        throw new Error("No campaigns were generated. Please try again or check your profile.");
+      }
+      
       setResult(campaigns);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(campaigns));
     } catch (e: any) {
+      console.error('Campaign generation error:', e);
       setError(e.message || "Unknown error");
     } finally {
       setLoading(false);

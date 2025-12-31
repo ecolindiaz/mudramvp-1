@@ -12,59 +12,203 @@ import {
  * Includes both aggregate metrics (Firegeo-style) and per-prompt scores (Mudra-style)
  */
 export async function GET(request: NextRequest) {
+  let profileId: number | null = null
+  
   try {
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
 
     if (!brandProfileId) {
       return NextResponse.json(
-        { error: 'brandProfileId is required' },
+        { 
+          success: false,
+          error: 'brandProfileId is required',
+          prompts: [],
+          count: 0
+        },
         { status: 400 }
       )
     }
 
-    const profileId = parseInt(brandProfileId)
+    profileId = parseInt(brandProfileId)
+    
+    if (isNaN(profileId)) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Invalid brandProfileId',
+          prompts: [],
+          count: 0
+        },
+        { status: 400 }
+      )
+    }
 
     // Step 1: Get the latest COMPLETED analysis run for this brand profile
-    const latestAnalysisRun = await prisma.analysisRun.findFirst({
-      where: {
-        brandProfileId: profileId,
-        status: 'completed'
-      },
-      orderBy: {
-        ranAt: 'desc'
+    // Handle case where analysis_runs table might not exist
+    let latestAnalysisRun = null
+    try {
+      latestAnalysisRun = await prisma.analysisRun.findFirst({
+        where: {
+          brandProfileId: profileId,
+          status: 'completed'
+        },
+        orderBy: {
+          ranAt: 'desc'
+        }
+      })
+    } catch (error: any) {
+      // If table doesn't exist, just continue without analysis run
+      if (error.code === 'P2021' || error.message?.includes('does not exist')) {
+        console.log(`⚠️ Analysis runs table not found, skipping analysis run query`)
+        latestAnalysisRun = null
+      } else {
+        throw error
       }
-    })
+    }
 
+    // Helper function to get and return prompts without results
+    const getPromptsWithoutResults = async () => {
+      let allPrompts = []
+      try {
+        // Try direct SQL query if Prisma client doesn't recognize the table
+        try {
+          allPrompts = await prisma.prompt.findMany({
+            where: {
+              brandProfileId: profileId,
+              isActive: true
+            },
+            orderBy: [
+              { category: 'asc' },
+              { createdAt: 'asc' }
+            ]
+          })
+        } catch (prismaError: any) {
+          // If Prisma client doesn't recognize the table, use raw SQL
+          if (prismaError.code === 'P2021' || prismaError.message?.includes('does not exist')) {
+            console.log('⚠️ Prisma client doesn\'t recognize prompts table, using raw SQL...')
+            const rawPrompts = await prisma.$queryRawUnsafe<Array<{
+              id: number
+              text: string
+              category: string | null
+              isCustom: number
+              isActive: number
+              createdAt: Date
+              updatedAt: Date
+            }>>(
+              `SELECT id, text, category, "isCustom", "isActive", "createdAt", "updatedAt"
+               FROM prompts
+               WHERE "brandProfileId" = ? AND "isActive" = 1
+               ORDER BY category ASC, "createdAt" ASC`,
+              profileId
+            )
+            allPrompts = rawPrompts.map(p => ({
+              id: p.id,
+              text: p.text,
+              category: p.category,
+              isCustom: Boolean(p.isCustom),
+              isActive: Boolean(p.isActive),
+              createdAt: new Date(p.createdAt),
+              updatedAt: new Date(p.updatedAt),
+              brandProfileId: profileId
+            }))
+            console.log(`✅ Retrieved ${allPrompts.length} prompts using raw SQL`)
+          } else {
+            throw prismaError
+          }
+        }
+      } catch (error: any) {
+        console.error('⚠️ Error fetching prompts:', error.message)
+        return null
+      }
+      
+      // Return prompts without analysis results
+      const promptsWithoutResults = allPrompts.map((prompt: any) => ({
+        id: prompt.id,
+        text: prompt.text,
+        category: prompt.category,
+        isCustom: prompt.isCustom,
+        visibility: 0,
+        position: null,
+        model: null,
+        sentiment: null,
+        results: [],
+        promptAggregate: null,
+        createdAt: prompt.createdAt,
+        updatedAt: prompt.updatedAt
+      }))
+      
+      return promptsWithoutResults
+    }
+
+    // If no analysis run, still try to return prompts without results
     if (!latestAnalysisRun) {
-      console.log(`No completed analysis runs found for brand profile ${profileId}`)
+      console.log(`No completed analysis runs found for brand profile ${profileId}, returning prompts without results`)
+      
+      const promptsWithoutResults = await getPromptsWithoutResults()
+      
+      if (promptsWithoutResults === null) {
+        return NextResponse.json({ 
+          success: true, 
+          prompts: [],
+          count: 0,
+          hasAnalysis: false,
+          message: 'Prompt table not available. Please restart the server.'
+        })
+      }
+      
       return NextResponse.json({ 
         success: true, 
-        prompts: [],
-        count: 0,
+        prompts: promptsWithoutResults,
+        count: promptsWithoutResults.length,
         hasAnalysis: false,
-        message: 'No completed analysis found'
+        message: 'Prompts found but no analysis results yet'
       })
     }
 
     // Step 2: Get the GEO analysis result which contains the actual tested prompts
-    const latestAnalysis = await prisma.geoAnalysisResult.findFirst({
-      where: {
-        brandProfileId: profileId
-      },
-      orderBy: {
-        createdAt: 'desc'
+    let latestAnalysis = null
+    try {
+      latestAnalysis = await prisma.geoAnalysisResult.findFirst({
+        where: {
+          brandProfileId: profileId
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      })
+    } catch (error: any) {
+      // If table doesn't exist, just continue without analysis
+      if (error.code === 'P2021' || error.message?.includes('does not exist')) {
+        console.log(`⚠️ GEO analysis results table not found, skipping analysis query`)
+        latestAnalysis = null
+      } else {
+        throw error
       }
-    })
+    }
 
+    // If no GEO analysis, return prompts without results
     if (!latestAnalysis || !latestAnalysis.analyses) {
-      console.log(`No GEO analysis results found for brand profile ${profileId}`)
+      console.log(`No GEO analysis results found for brand profile ${profileId}, returning prompts without results`)
+      
+      const promptsWithoutResults = await getPromptsWithoutResults()
+      
+      if (promptsWithoutResults === null) {
+        return NextResponse.json({ 
+          success: true, 
+          prompts: [],
+          count: 0,
+          hasAnalysis: false,
+          message: 'Prompt table not available. Please restart the server.'
+        })
+      }
+      
       return NextResponse.json({ 
         success: true, 
-        prompts: [],
-        count: 0,
+        prompts: promptsWithoutResults,
+        count: promptsWithoutResults.length,
         hasAnalysis: false,
-        message: 'No analysis results found'
+        message: 'Prompts found but no analysis results yet'
       })
     }
 
@@ -104,14 +248,29 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 4: Get ACTIVE prompts from Prompts table for this brand to match with texts
-    const allPrompts = await prisma.prompt.findMany({
-      where: {
-        brandProfileId: profileId,
-        isActive: true // Only show active prompts
+    let allPrompts = []
+    try {
+      allPrompts = await prisma.prompt.findMany({
+        where: {
+          brandProfileId: profileId,
+          isActive: true // Only show active prompts
+        }
+      })
+      console.log(`📝 Retrieved ${allPrompts.length} active prompts from database`)
+    } catch (error: any) {
+      // If table doesn't exist or Prisma client not regenerated, return empty
+      if (error.code === 'P2021' || error.message?.includes('does not exist')) {
+        console.warn('⚠️ Prompt table not accessible, returning empty prompts array')
+        return NextResponse.json({ 
+          success: true, 
+          prompts: [],
+          count: 0,
+          hasAnalysis: true,
+          message: 'Prompt table not available. Please restart the server.'
+        })
       }
-    })
-
-    console.log(`📝 Retrieved ${allPrompts.length} active prompts from database`)
+      throw error
+    }
 
     // Step 5: Match prompt texts from analysis with Prompt records using normalized text
     const normalizeText = (text: string): string => {
@@ -308,8 +467,59 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('❌ Error fetching prompts with results:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('   Error details:', errorMessage)
+    
+    // Try to return prompts even on error (only if profileId is valid)
+    if (profileId && !isNaN(profileId)) {
+      try {
+        const fallbackPrompts = await prisma.prompt.findMany({
+          where: {
+            brandProfileId: profileId,
+            isActive: true
+          },
+          orderBy: [
+            { category: 'asc' },
+            { createdAt: 'asc' }
+          ]
+        })
+        
+        const promptsWithoutResults = fallbackPrompts.map((prompt: any) => ({
+          id: prompt.id,
+          text: prompt.text,
+          category: prompt.category,
+          isCustom: prompt.isCustom,
+          visibility: 0,
+          position: null,
+          model: null,
+          sentiment: null,
+          results: [],
+          promptAggregate: null,
+          createdAt: prompt.createdAt,
+          updatedAt: prompt.updatedAt
+        }))
+        
+        return NextResponse.json({ 
+          success: true, 
+          prompts: promptsWithoutResults,
+          count: promptsWithoutResults.length,
+          hasAnalysis: false,
+          message: 'Error loading analysis, showing prompts without results',
+          error: errorMessage
+        })
+      } catch (fallbackError) {
+        console.error('❌ Fallback also failed:', fallbackError)
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to fetch prompts with results' },
+      { 
+        success: false,
+        error: 'Failed to fetch prompts with results',
+        message: errorMessage,
+        prompts: [],
+        count: 0
+      },
       { status: 500 }
     )
   }

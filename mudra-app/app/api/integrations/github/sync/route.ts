@@ -199,6 +199,7 @@ export async function POST() {
       avatarUrl: githubUser.avatar_url,
       installationId: installationId,
       integrationType: 'installation' as const,
+      repositories: JSON.stringify(repositories),
     }
 
     let integration

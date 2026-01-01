@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
         avatarUrl: data.avatarUrl,
         scope: data.scope,
         installationId: data.installationId,
-        repositories: data.repositories,
+        repositories: JSON.stringify(data.repositories || []),
         expiresAt: data.expiresAt,
       },
       update: {
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
         avatarUrl: data.avatarUrl,
         scope: data.scope,
         installationId: data.installationId,
-        repositories: data.repositories,
+        repositories: JSON.stringify(data.repositories || []),
         expiresAt: data.expiresAt,
         updatedAt: new Date(),
       },

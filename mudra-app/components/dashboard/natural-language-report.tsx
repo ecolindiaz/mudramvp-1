@@ -227,44 +227,49 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     }))
   }, [citationsData])
 
-  // Fetch competitor rankings from latest GEO analysis
-  const { data: geoAnalysis } = useSWR(
-    brandProfileId ? `/api/analysis/latest?brandProfileId=${brandProfileId}` : null,
+  // Fetch aggregated competitor rankings with proper SOV calculation
+  // Uses the new /api/analysis/competitors endpoint that:
+  // - Aggregates across ALL analysis runs (all tracked prompts)
+  // - SOV % = (competitor mentions ÷ total competitor mentions) × 100
+  // - Excludes the user's brand from competitors
+  // - Ranks by SOV (highest first)
+  // - Returns Top 5 competitors
+  const { data: competitorsData, mutate: refreshCompetitors } = useSWR(
+    brandProfileId ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&limit=5` : null,
     async (url: string) => {
       const res = await fetch(url)
       if (!res.ok) return null
       const json = await res.json()
-      return json.analysis
+      return json.data
     }
   )
 
-  // Extract competitor rankings from GEO analysis
-  const competitorRankings: Array<{ name: string; visibility: number; isUser: boolean }> = React.useMemo(() => {
-    if (!geoAnalysis?.summary?.competitorData) return []
+  // Transform competitor data for display
+  // Note: User's brand is already excluded by the API
+  // Data is already sorted by SOV (highest first) by the API
+  const competitorRankings: Array<{ name: string; sov: number }> = React.useMemo(() => {
+    if (!competitorsData?.competitors) return []
     
-    const competitors = geoAnalysis.summary.competitorData as any
-    const brandName = geoAnalysis.brandName || companyData?.data?.companyName
-    
-    // Handle different competitor data structures
-    let competitorArray: any[] = []
-    
-    if (Array.isArray(competitors)) {
-      competitorArray = competitors
-    } else if (typeof competitors === 'object') {
-      // Try to find competitors in nested structure
-      competitorArray = competitors.competitors || []
+    return competitorsData.competitors.map((comp: any) => ({
+      name: comp.name || '',
+      sov: comp.shareOfVoice || 0 // SOV % already calculated by API
+    }))
+  }, [competitorsData])
+
+  // Listen for analysis completion to refresh competitor data
+  React.useEffect(() => {
+    const handleAnalysisComplete = () => {
+      refreshCompetitors()
     }
     
-    return competitorArray
-      .map((comp: any) => ({
-        name: comp.name || comp.competitor || '',
-        visibility: Math.round((comp.visibilityScore || comp.visibility || comp.shareOfVoice || 0) * 10) / 10,
-        isUser: comp.isOwn || comp.name === brandName || false
-      }))
-      .filter((comp: any) => comp.name) // Filter out empty names
-      .sort((a, b) => b.visibility - a.visibility) // Sort by visibility descending
-      .slice(0, 5) // Top 5 competitors
-  }, [geoAnalysis, companyData])
+    window.addEventListener('mudra:website-analyzed', handleAnalysisComplete)
+    window.addEventListener('mudra:analysis-complete', handleAnalysisComplete)
+    
+    return () => {
+      window.removeEventListener('mudra:website-analyzed', handleAnalysisComplete)
+      window.removeEventListener('mudra:analysis-complete', handleAnalysisComplete)
+    }
+  }, [refreshCompetitors])
 
   // Recent chats data (will be connected to backend)
   const recentChats: Array<{ id: string; promptId: string; question: string; timestamp: string; model: string }> = [
@@ -447,7 +452,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
           </div>
           
           <div className="flex flex-col gap-5">
-            {/* Competitor Rankings Table */}
+            {/* Competitor Rankings Table - Share of Voice */}
             <div className="rounded-lg border border-white/[0.08] bg-transparent overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
                 <div className="text-sm font-medium text-white/90">Competitor Rankings</div>
@@ -457,14 +462,14 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                       <IconInfoCircle className="size-4 text-white/60" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent sideOffset={8}>Compare your AI visibility against competitors.</TooltipContent>
+                  <TooltipContent sideOffset={8}>Share of Voice: How often competitors are mentioned across all AI responses.</TooltipContent>
                 </Tooltip>
               </div>
               <div className="divide-y divide-white/[0.06]">
                 <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 text-xs text-white/60">
                   <span className="w-6">#</span>
                   <span>Company</span>
-                  <span>Visibility</span>
+                  <span>SOV %</span>
                 </div>
                 {competitorRankings.length === 0 ? (
                   <div className="px-4 py-8 text-center">
@@ -475,22 +480,15 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                   competitorRankings.map((competitor, idx) => (
                     <div 
                       key={idx} 
-                      className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-colors ${
-                        competitor.isUser ? 'bg-white/[0.03]' : 'hover:bg-white/[0.02]'
-                      }`}
+                      className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.02]"
                     >
                       <div className="w-6 text-sm text-white/60 tabular-nums">{idx + 1}</div>
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className={`text-sm truncate ${competitor.isUser ? 'text-white font-medium' : 'text-white/85'}`}>
+                        <span className="text-sm truncate text-white/85">
                           {competitor.name}
-                          {competitor.isUser && (
-                            <Badge variant="outline" className="ml-2 border-white/10 bg-white/[0.03] text-white/70 text-[10px] px-1.5 py-0">
-                              You
-                            </Badge>
-                          )}
                         </span>
                       </div>
-                      <div className="text-sm tabular-nums text-white/80">{competitor.visibility}%</div>
+                      <div className="text-sm tabular-nums text-white/80">{competitor.sov}%</div>
                     </div>
                   ))
                 )}

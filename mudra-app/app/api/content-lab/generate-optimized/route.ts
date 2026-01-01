@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
                   sourcesScraped: result.result.metadata.sourcesScraped,
                   researchQueriesRun: result.result.metadata.researchQueriesRun,
                   author: result.result.metadata.author,
-                  metaDescription: result.result.metadata.metaDescription || "",
+                  metaDescription: (result.result.metadata as any).metaDescription || "",
                   tags: ["AEO"],
                   sources: result.result.metadata.sources || [],
                   generatedAt: new Date().toISOString(),

@@ -118,8 +118,13 @@ async function extractSnapshot(
     gemini: 0,
   };
 
-  if (geoResult && Array.isArray(geoResult.analyses)) {
-    (geoResult.analyses as any[]).forEach((analysis: any) => {
+  if (geoResult) {
+    const analysesRaw = geoResult.analyses;
+    const analyses: any[] = typeof analysesRaw === 'string' 
+      ? JSON.parse(analysesRaw) 
+      : (Array.isArray(analysesRaw) ? analysesRaw : []);
+    
+    analyses.forEach((analysis: any) => {
       if (analysis.provider) {
         const provider = analysis.provider.toLowerCase();
         if (provider in visibilityByProvider) {

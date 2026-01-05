@@ -76,7 +76,10 @@ export async function GET(request: NextRequest) {
     let totalCitationCount = 0
 
     for (const result of geoResults) {
-      const analyses = Array.isArray(result.analyses) ? result.analyses : []
+      const analysesRaw = result.analyses;
+      const analyses: any[] = typeof analysesRaw === 'string' 
+        ? JSON.parse(analysesRaw) 
+        : (Array.isArray(analysesRaw) ? analysesRaw : []);
       
       for (const analysis of analyses) {
         if (!analysis || typeof analysis !== 'object') continue;

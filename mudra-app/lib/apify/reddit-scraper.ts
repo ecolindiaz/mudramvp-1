@@ -145,10 +145,10 @@ export async function searchReddit(options: RedditSearchOptions): Promise<Reddit
     // Separate posts and comments
     const posts = items.filter((item) => 
       (item as RedditItem).kind === 'post'
-    ) as RedditPost[];
+    ) as unknown as RedditPost[];
     const comments = items.filter((item) => 
       (item as RedditItem).kind === 'comment'
-    ) as RedditComment[];
+    ) as unknown as RedditComment[];
     
     console.log(`[Reddit Scraper] Complete: ${posts.length} posts, ${comments.length} comments`);
     

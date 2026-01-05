@@ -56,8 +56,16 @@ export async function getNextPromptsForProactive(
     return { prompts: [], offset: 0 };
   }
 
-  // Get last processed offset from metadata or start at 0
-  const metadata = (brand.metadata as any) || {};
+  // Get last processed offset from aiRecommendations (used as metadata storage) or start at 0
+  // Note: BrandProfile doesn't have a metadata field, using aiRecommendations as JSON storage
+  let metadata: any = {};
+  try {
+    if ((brand as any).aiRecommendations) {
+      metadata = JSON.parse((brand as any).aiRecommendations);
+    }
+  } catch {
+    metadata = {};
+  }
   const lastOffset = metadata.proactivePromptOffset || 0;
   
   // Calculate next offset (rotate through prompts)
@@ -89,19 +97,27 @@ export async function updateProactiveOffset(
 ): Promise<void> {
   const brand = await prisma.brandProfile.findUnique({
     where: { id: brandProfileId },
-    select: { metadata: true },
+    select: { aiRecommendations: true },
   });
   
-  const metadata = (brand?.metadata as any) || {};
+  // Use aiRecommendations as JSON storage for scheduler metadata
+  let metadata: any = {};
+  try {
+    if (brand?.aiRecommendations) {
+      metadata = JSON.parse(brand.aiRecommendations);
+    }
+  } catch {
+    metadata = {};
+  }
   
   await prisma.brandProfile.update({
     where: { id: brandProfileId },
     data: {
-      metadata: {
+      aiRecommendations: JSON.stringify({
         ...metadata,
         proactivePromptOffset: newOffset,
         lastProactiveRun: new Date().toISOString(),
-      },
+      }),
     },
   });
 }
@@ -211,7 +227,15 @@ export async function getSchedulerStatus(brandProfileId: number): Promise<{
     throw new Error('Brand profile not found');
   }
   
-  const metadata = (brand.metadata as any) || {};
+  // Use aiRecommendations as JSON storage for scheduler metadata
+  let metadata: any = {};
+  try {
+    if ((brand as any).aiRecommendations) {
+      metadata = JSON.parse((brand as any).aiRecommendations);
+    }
+  } catch {
+    metadata = {};
+  }
   const totalPrompts = brand._count.prompts;
   
   return {

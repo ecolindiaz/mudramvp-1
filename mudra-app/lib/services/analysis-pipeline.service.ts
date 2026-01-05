@@ -192,13 +192,13 @@ async function runGeoAnalysis(config: AnalysisPipelineConfig) {
       data: {
         brandProfileId: config.brandProfileId,
         overallScore: data.overallScore || 0,
-        analyses: data.analyses || [],
-        summary: {
+        analyses: JSON.stringify(data.analyses || []),
+        summary: JSON.stringify({
           brandName: config.brandName,
           competitorData: data.competitorComparison || {},
           recommendations: data.recommendations || [],
           status: 'completed',
-        },
+        }),
       },
     });
     
@@ -214,12 +214,12 @@ async function runGeoAnalysis(config: AnalysisPipelineConfig) {
         data: {
           brandProfileId: config.brandProfileId,
           overallScore: 0,
-          analyses: [],
-          summary: {
+          analyses: JSON.stringify([]),
+          summary: JSON.stringify({
             brandName: config.brandName,
             status: 'failed',
             errorMessage: error instanceof Error ? error.message : 'Unknown error',
-          },
+          }),
         },
       });
     } catch (dbError) {
@@ -314,13 +314,13 @@ async function runTechnicalAnalysis(config: AnalysisPipelineConfig) {
         seoScore: seoScore,
         performanceScore: 0, // Not yet implemented
         accessibilityScore: 0, // Not yet implemented
-        insights: scoreResult.findings.map(f => ({
+        insights: JSON.stringify(scoreResult.findings.map(f => ({
           type: f.severity,
           message: f.message,
           category: f.category
-        })),
-        recommendations: recommendations,
-        metadata: JSON.parse(JSON.stringify({
+        }))),
+        recommendations: JSON.stringify(recommendations),
+        metadata: JSON.stringify({
           components: scoreResult.components,
           structuredData: {
             hasJsonLd: snapshot.schema?.summary?.jsonLdCount ?? 0 > 0,
@@ -346,7 +346,7 @@ async function runTechnicalAnalysis(config: AnalysisPipelineConfig) {
           criticalIssues: scoreResult.findings.filter(f => f.severity === 'high').map(f => f.message),
           warnings: scoreResult.findings.filter(f => f.severity === 'medium').map(f => f.message),
           suggestions: scoreResult.findings.filter(f => f.severity === 'low').map(f => f.message),
-        })),
+        }),
       },
     });
 
@@ -366,16 +366,16 @@ async function runTechnicalAnalysis(config: AnalysisPipelineConfig) {
           seoScore: 0,
           performanceScore: 0,
           accessibilityScore: 0,
-          insights: [{
+          insights: JSON.stringify([{
             type: 'error',
             message: error instanceof Error ? error.message : 'Unknown error occurred',
             category: 'System'
-          }],
-          recommendations: [],
-          metadata: {
+          }]),
+          recommendations: JSON.stringify([]),
+          metadata: JSON.stringify({
             error: error instanceof Error ? error.message : 'Unknown error',
             timestamp: new Date().toISOString()
-          },
+          }),
         },
       });
       console.log('[Technical Analysis] Failed analysis record saved');

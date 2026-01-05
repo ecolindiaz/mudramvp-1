@@ -86,7 +86,7 @@ export async function upsertWeeklyReport(
         status: input.status,
         model: input.model,
         summaryMarkdown: input.summaryMarkdown,
-        summaryJson: input.summaryJson !== undefined ? input.summaryJson : null,
+        summaryJson: input.summaryJson !== undefined ? JSON.stringify(input.summaryJson) : null,
         tokensIn: input.tokensIn ?? undefined,
         tokensOut: input.tokensOut ?? undefined,
         costCents: input.costCents ?? undefined,
@@ -97,7 +97,7 @@ export async function upsertWeeklyReport(
         status: input.status ?? "queued",
         model: input.model ?? null,
         summaryMarkdown: input.summaryMarkdown ?? null,
-        summaryJson: input.summaryJson !== undefined ? input.summaryJson : null,
+        summaryJson: input.summaryJson !== undefined ? JSON.stringify(input.summaryJson) : null,
         tokensIn: input.tokensIn ?? undefined,
         tokensOut: input.tokensOut ?? undefined,
         costCents: input.costCents ?? undefined,
@@ -120,7 +120,7 @@ export async function upsertWeeklyReport(
             title: section.title ?? null,
             order: section.order ?? index,
             bodyMarkdown: section.bodyMarkdown ?? null,
-            bodyJson: section.bodyJson ?? undefined,
+            bodyJson: section.bodyJson !== undefined ? JSON.stringify(section.bodyJson) : null,
             sources: section.sources && section.sources.length > 0
               ? {
                   create: section.sources.map((s) => ({

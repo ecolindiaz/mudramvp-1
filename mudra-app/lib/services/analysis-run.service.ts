@@ -30,8 +30,8 @@ export async function createAnalysisRun(data: AnalysisRunData) {
     const analysisRun = await prisma.analysisRun.create({
       data: {
         brandProfileId: data.brandProfileId,
-        promptsUsed: data.promptsUsed || [],
-        results: data.results || {},
+        promptsUsed: JSON.stringify(data.promptsUsed || []),
+        results: JSON.stringify(data.results || {}),
         overallScore: data.overallScore || 0,
         status: data.status || 'running',
         ranAt: new Date()

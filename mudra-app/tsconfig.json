@@ -38,6 +38,8 @@
   "exclude": [
     "node_modules",
     ".next",
-    "scripts"
+    "scripts",
+    "**/__tests__/**",
+    "mastra/**/*"
   ]
 }

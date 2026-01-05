@@ -191,13 +191,13 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       data: {
         brandProfileId: config.brandProfileId,
         overallScore: data.overallScore || 0,
-        analyses: data.analyses || [],
-        summary: {
+        analyses: JSON.stringify(data.analyses || []),
+        summary: JSON.stringify({
           brandName: config.brandName,
           competitorData: data.competitorComparison || {},
           recommendations: data.recommendations || [],
           status: 'completed',
-        },
+        }),
       },
     });
 
@@ -279,13 +279,13 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
         seoScore: seoScore,
         performanceScore: 0,
         accessibilityScore: 0,
-        insights: scoreResult.findings.map(f => ({
+        insights: JSON.stringify(scoreResult.findings.map(f => ({
           type: f.severity,
           message: f.message,
           category: f.category
-        })),
-        recommendations: recommendations,
-        metadata: {
+        }))),
+        recommendations: JSON.stringify(recommendations),
+        metadata: JSON.stringify({
           components: scoreResult.components,
           structuredData: {
             hasJsonLd: snapshot.schema?.summary?.jsonLdCount ?? 0 > 0,
@@ -311,7 +311,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
           criticalIssues: scoreResult.findings.filter(f => f.severity === 'high').map(f => f.message),
           warnings: scoreResult.findings.filter(f => f.severity === 'medium').map(f => f.message),
           suggestions: scoreResult.findings.filter(f => f.severity === 'low').map(f => f.message),
-        } as any,
+        }),
       },
     });
 
@@ -359,15 +359,15 @@ async function generateReport(data: {
       data: {
         brandProfileId: data.brandProfileId,
         reportText: report.fullReport || report.summary || 'Analysis report generated',
-        insights: report.insights || [],
-        recommendations: report.recommendations || [],
-        metadata: {
+        insights: JSON.stringify(report.insights || []),
+        recommendations: JSON.stringify(report.recommendations || []),
+        metadata: JSON.stringify({
           reportType: 'analysis',
           title: 'Brand Analysis Report',
           summary: report.summary,
           sections: report.sections,
           model: 'gpt-4',
-        },
+        }),
       },
     });
 

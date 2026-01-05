@@ -211,7 +211,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 3: Extract unique prompt texts from the analyses JSON
-    const analyses = latestAnalysis.analyses as any[]
+    const analysesRaw = latestAnalysis.analyses
+    const analyses: any[] = typeof analysesRaw === 'string' 
+      ? JSON.parse(analysesRaw) 
+      : (Array.isArray(analysesRaw) ? analysesRaw : [])
     const uniquePromptTexts = new Set<string>()
     
     // Handle both structures: 

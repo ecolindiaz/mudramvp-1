@@ -164,7 +164,10 @@ export class ContentOptimizerAgent extends MudraBaseAgent {
     // Extract pages from analyses
     const allPages: PageToOptimize[] = []
     for (const result of geoResults) {
-      const analyses = result.analyses as any[]
+      const analysesRaw = result.analyses
+      const analyses: any[] = typeof analysesRaw === 'string' 
+        ? JSON.parse(analysesRaw) 
+        : (Array.isArray(analysesRaw) ? analysesRaw : [])
       
       for (const analysis of analyses) {
         if (analysis.url && analysis.score !== undefined) {

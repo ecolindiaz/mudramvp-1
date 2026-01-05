@@ -143,12 +143,12 @@ export async function searchReddit(options: RedditSearchOptions): Promise<Reddit
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
     
     // Separate posts and comments
-    const posts = items.filter((item): item is RedditPost => 
+    const posts = items.filter((item) => 
       (item as RedditItem).kind === 'post'
-    );
-    const comments = items.filter((item): item is RedditComment => 
+    ) as RedditPost[];
+    const comments = items.filter((item) => 
       (item as RedditItem).kind === 'comment'
-    );
+    ) as RedditComment[];
     
     console.log(`[Reddit Scraper] Complete: ${posts.length} posts, ${comments.length} comments`);
     

@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -1905,7 +1906,9 @@ function AgentsLabPageInner() {
 export default function AgentsLabPage() {
   return (
     <BrandProfileProvider>
-      <AgentsLabPageInner />
+      <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+        <AgentsLabPageInner />
+      </Suspense>
     </BrandProfileProvider>
   )
 }

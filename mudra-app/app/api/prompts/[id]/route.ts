@@ -83,7 +83,10 @@ export async function GET(
     }
 
     // Step 3: Extract analysis results for this specific prompt
-    const analyses = latestAnalysis.analyses as any[]
+    const analysesRaw = latestAnalysis.analyses
+    const analyses: any[] = typeof analysesRaw === 'string' 
+      ? JSON.parse(analysesRaw) 
+      : (Array.isArray(analysesRaw) ? analysesRaw : [])
     const normalizeText = (text: string): string => {
       return text
         .toLowerCase()

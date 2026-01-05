@@ -12,8 +12,6 @@ import {
  * Includes both aggregate metrics (Firegeo-style) and per-prompt scores (Mudra-style)
  */
 export async function GET(request: NextRequest) {
-  let profileId: number | null = null
-  
   try {
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
@@ -30,7 +28,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    profileId = parseInt(brandProfileId)
+    const profileId = parseInt(brandProfileId)
     
     if (isNaN(profileId)) {
       return NextResponse.json(

@@ -1,0 +1,441 @@
+/**
+ * Citation Extraction Service
+ * 
+ * Extracts and aggregates citation data from AI model responses.
+ * Provides citation frequency, domain tracking, and source categorization.
+ */
+
+import { prisma } from '@/lib/prisma'
+
+export interface ExtractedCitation {
+  url: string
+  domain: string
+  title?: string
+  citationType: 'Blog Post' | 'Listicle' | 'Docs' | 'Case Study' | 'Academic' | 'News' | 'Other'
+  provider: string
+  promptId?: number
+  responseId?: string
+  timestamp: Date
+}
+
+export interface CitationSource {
+  domain: string
+  frequency: number
+  citationFrequencyPercent: number
+  citationType: 'Blog Post' | 'Listicle' | 'Docs' | 'Case Study' | 'Academic' | 'News' | 'Other'
+  urls: Array<{
+    url: string
+    title?: string
+    citationType: string
+    brandMentioned: boolean
+  }>
+  chatsWithCitation: number
+}
+
+export interface CitationAnalysis {
+  totalResponses: number
+  totalCitations: number
+  sources: CitationSource[]
+  topDomains: string[]
+}
+
+/**
+ * Extract domain from a URL
+ */
+export function extractDomain(url: string): string {
+  try {
+    const urlObj = new URL(url)
+    return urlObj.hostname.replace('www.', '')
+  } catch {
+    // If URL parsing fails, try to extract domain with regex
+    const match = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/]+)/)
+    return match ? match[1] : url
+  }
+}
+
+/**
+ * Categorize citation type based on URL and title patterns
+ */
+export function categorizeCitation(url: string, title?: string): ExtractedCitation['citationType'] {
+  const urlLower = url.toLowerCase()
+  const titleLower = (title || '').toLowerCase()
+  const combined = `${urlLower} ${titleLower}`
+  
+  // Academic sources
+  if (
+    urlLower.includes('.edu') ||
+    urlLower.includes('arxiv.org') ||
+    urlLower.includes('scholar.google') ||
+    urlLower.includes('researchgate') ||
+    urlLower.includes('ncbi.nlm.nih.gov') ||
+    combined.includes('research') ||
+    combined.includes('paper') ||
+    combined.includes('study')
+  ) {
+    return 'Academic'
+  }
+  
+  // Documentation
+  if (
+    urlLower.includes('/docs') ||
+    urlLower.includes('/documentation') ||
+    urlLower.includes('/api') ||
+    urlLower.includes('/reference') ||
+    combined.includes('documentation') ||
+    combined.includes('api reference')
+  ) {
+    return 'Docs'
+  }
+  
+  // News
+  if (
+    urlLower.includes('news') ||
+    urlLower.includes('techcrunch') ||
+    urlLower.includes('theverge') ||
+    urlLower.includes('wired.com') ||
+    urlLower.includes('arstechnica') ||
+    urlLower.includes('reuters') ||
+    urlLower.includes('bloomberg')
+  ) {
+    return 'News'
+  }
+  
+  // Case Study
+  if (
+    combined.includes('case study') ||
+    combined.includes('success story') ||
+    combined.includes('customer story')
+  ) {
+    return 'Case Study'
+  }
+  
+  // Listicle
+  if (
+    combined.includes('top ') ||
+    combined.includes('best ') ||
+    combined.includes(' list') ||
+    combined.includes('comparison') ||
+    combined.includes('alternatives') ||
+    /\d+\s*(best|top|ways|tips|tools)/.test(combined)
+  ) {
+    return 'Listicle'
+  }
+  
+  // Blog Post
+  if (
+    urlLower.includes('/blog') ||
+    urlLower.includes('/article') ||
+    urlLower.includes('/post') ||
+    urlLower.includes('medium.com') ||
+    urlLower.includes('substack')
+  ) {
+    return 'Blog Post'
+  }
+  
+  return 'Other'
+}
+
+/**
+ * Extract citations from a single AI response
+ */
+export function extractCitationsFromResponse(
+  response: string,
+  citations: any[] = [],
+  provider: string,
+  timestamp: Date = new Date()
+): ExtractedCitation[] {
+  const extractedCitations: ExtractedCitation[] = []
+  
+  // Process explicit citations from API
+  if (citations && Array.isArray(citations)) {
+    for (const citation of citations) {
+      const url = citation.url || citation.link || ''
+      if (!url) continue
+      
+      extractedCitations.push({
+        url,
+        domain: extractDomain(url),
+        title: citation.title || citation.name,
+        citationType: categorizeCitation(url, citation.title),
+        provider,
+        timestamp
+      })
+    }
+  }
+  
+  // Also extract URLs from response text (for providers that embed citations)
+  const urlPattern = /https?:\/\/[^\s\)\]\}\,<>"']+/g
+  const urlsInResponse = response.match(urlPattern) || []
+  
+  for (const url of urlsInResponse) {
+    // Clean up URL (remove trailing punctuation)
+    const cleanUrl = url.replace(/[.,;:!?]+$/, '')
+    
+    // Skip if already extracted from explicit citations
+    if (extractedCitations.some(c => c.url === cleanUrl)) continue
+    
+    extractedCitations.push({
+      url: cleanUrl,
+      domain: extractDomain(cleanUrl),
+      citationType: categorizeCitation(cleanUrl),
+      provider,
+      timestamp
+    })
+  }
+  
+  return extractedCitations
+}
+
+/**
+ * Aggregate citations for a specific prompt across all test results
+ */
+export function aggregateCitationsForPrompt(
+  testResults: any[],
+  totalResponses: number,
+  brandName?: string
+): CitationAnalysis {
+  const domainMap = new Map<string, {
+    citations: ExtractedCitation[]
+    urls: Set<string>
+    urlDetails: Map<string, { title?: string; citationType: string; brandMentioned: boolean }>
+    chatsWithCitation: number
+    dominantType: Map<string, number>
+  }>()
+  
+  let totalCitations = 0
+  
+  for (const result of testResults) {
+    const citations = extractCitationsFromResponse(
+      result.response || '',
+      result.citations || [],
+      result.provider || result.model || 'Unknown',
+      result.timestamp ? new Date(result.timestamp) : new Date()
+    )
+    
+    totalCitations += citations.length
+    
+    // Track which domains appear in this response (for frequency calculation)
+    const domainsInThisResponse = new Set<string>()
+    
+    for (const citation of citations) {
+      domainsInThisResponse.add(citation.domain)
+      
+      if (!domainMap.has(citation.domain)) {
+        domainMap.set(citation.domain, {
+          citations: [],
+          urls: new Set(),
+          urlDetails: new Map(),
+          chatsWithCitation: 0,
+          dominantType: new Map()
+        })
+      }
+      
+      const domainData = domainMap.get(citation.domain)!
+      domainData.citations.push(citation)
+      domainData.urls.add(citation.url)
+      
+      // Track URL details
+      if (!domainData.urlDetails.has(citation.url)) {
+        // Check if brand is mentioned in the response for this URL
+        const brandMentioned = brandName 
+          ? (result.response || '').toLowerCase().includes(brandName.toLowerCase())
+          : result.brandMentioned || false
+        
+        domainData.urlDetails.set(citation.url, {
+          title: citation.title,
+          citationType: citation.citationType,
+          brandMentioned
+        })
+      }
+      
+      // Track citation types for determining dominant type
+      const currentTypeCount = domainData.dominantType.get(citation.citationType) || 0
+      domainData.dominantType.set(citation.citationType, currentTypeCount + 1)
+    }
+    
+    // Increment chat count for each domain that appeared in this response
+    for (const domain of domainsInThisResponse) {
+      const domainData = domainMap.get(domain)!
+      domainData.chatsWithCitation += 1
+    }
+  }
+  
+  // Convert to CitationSource array
+  const sources: CitationSource[] = []
+  
+  for (const [domain, data] of domainMap) {
+    // Determine dominant citation type
+    let dominantType: ExtractedCitation['citationType'] = 'Other'
+    let maxCount = 0
+    for (const [type, count] of data.dominantType) {
+      if (count > maxCount) {
+        maxCount = count
+        dominantType = type as ExtractedCitation['citationType']
+      }
+    }
+    
+    // Calculate citation frequency percentage
+    const citationFrequencyPercent = totalResponses > 0
+      ? Math.round((data.chatsWithCitation / totalResponses) * 100)
+      : 0
+    
+    // Build URL details array
+    const urls = Array.from(data.urlDetails.entries()).map(([url, details]) => ({
+      url,
+      title: details.title,
+      citationType: details.citationType,
+      brandMentioned: details.brandMentioned
+    }))
+    
+    sources.push({
+      domain,
+      frequency: data.chatsWithCitation,
+      citationFrequencyPercent,
+      citationType: dominantType,
+      urls,
+      chatsWithCitation: data.chatsWithCitation
+    })
+  }
+  
+  // Sort by frequency (descending)
+  sources.sort((a, b) => b.frequency - a.frequency)
+  
+  return {
+    totalResponses,
+    totalCitations,
+    sources,
+    topDomains: sources.slice(0, 10).map(s => s.domain)
+  }
+}
+
+/**
+ * Get citation analysis for a prompt from stored analysis results
+ */
+export async function getCitationAnalysisForPrompt(
+  brandProfileId: number,
+  promptId: number,
+  dateRange?: '7d' | '14d' | '30d',
+  platform?: string
+): Promise<CitationAnalysis> {
+  // Calculate date filter
+  const now = new Date()
+  let startDate: Date | undefined
+  
+  if (dateRange) {
+    const days = dateRange === '7d' ? 7 : dateRange === '14d' ? 14 : 30
+    startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+  }
+  
+  // Get the prompt text
+  const prompt = await prisma.prompt.findUnique({
+    where: { id: promptId }
+  })
+  
+  if (!prompt) {
+    return { totalResponses: 0, totalCitations: 0, sources: [], topDomains: [] }
+  }
+  
+  // Get brand profile for brand name
+  const brandProfile = await prisma.brandProfile.findUnique({
+    where: { id: brandProfileId }
+  })
+  
+  // Get analysis results with date filter
+  const analysisResults = await prisma.geoAnalysisResult.findMany({
+    where: {
+      brandProfileId,
+      ...(startDate && { createdAt: { gte: startDate } })
+    },
+    orderBy: { createdAt: 'desc' }
+  })
+  
+  // Extract test results for this specific prompt
+  const allTestResults: any[] = []
+  
+  for (const analysis of analysisResults) {
+    const analyses = typeof analysis.analyses === 'string'
+      ? JSON.parse(analysis.analyses)
+      : (Array.isArray(analysis.analyses) ? analysis.analyses : [])
+    
+    for (const item of analyses) {
+      // Handle both analysis structures
+      if (item.prompt && normalizeText(item.prompt) === normalizeText(prompt.text)) {
+        // Apply platform filter if specified
+        if (platform && platform !== 'all') {
+          const providerMatch = matchesPlatform(item.provider || item.model, platform)
+          if (!providerMatch) continue
+        }
+        
+        allTestResults.push({
+          ...item,
+          timestamp: item.timestamp || analysis.createdAt
+        })
+      } else if (item.promptTests) {
+        const matchingTest = item.promptTests.find((test: any) =>
+          normalizeText(test.prompt || '') === normalizeText(prompt.text)
+        )
+        if (matchingTest) {
+          // Apply platform filter
+          if (platform && platform !== 'all') {
+            const providerMatch = matchesPlatform(item.provider, platform)
+            if (!providerMatch) continue
+          }
+          
+          allTestResults.push({
+            ...matchingTest,
+            provider: item.provider,
+            timestamp: matchingTest.timestamp || analysis.createdAt
+          })
+        }
+      }
+    }
+  }
+  
+  return aggregateCitationsForPrompt(
+    allTestResults,
+    allTestResults.length,
+    brandProfile?.companyName || undefined
+  )
+}
+
+/**
+ * Normalize text for comparison
+ */
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+/**
+ * Check if a provider matches the selected platform filter
+ */
+function matchesPlatform(provider: string, platform: string): boolean {
+  const providerLower = (provider || '').toLowerCase()
+  const platformLower = platform.toLowerCase()
+  
+  switch (platformLower) {
+    case 'chatgpt':
+      return providerLower.includes('openai') || providerLower.includes('chatgpt') || providerLower.includes('gpt')
+    case 'claude':
+      return providerLower.includes('anthropic') || providerLower.includes('claude')
+    case 'perplexity':
+      return providerLower.includes('perplexity')
+    case 'gemini':
+      return providerLower.includes('gemini')
+    case 'ai overviews':
+      return providerLower.includes('google') || providerLower.includes('aio') || providerLower.includes('overviews')
+    default:
+      return true
+  }
+}
+
+export default {
+  extractDomain,
+  categorizeCitation,
+  extractCitationsFromResponse,
+  aggregateCitationsForPrompt,
+  getCitationAnalysisForPrompt
+}

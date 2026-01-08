@@ -171,8 +171,47 @@ export async function getPromptsByCategory(brandProfileId: number, category: str
   }
 }
 
+// Prompt limits
+export const PROMPT_LIMITS = {
+  MAX_CUSTOM_PROMPTS: 25,
+  MAX_TOTAL_PROMPTS: 75
+}
+
 /**
- * Create a custom prompt
+ * Check if a brand profile can add more custom prompts
+ */
+export async function canAddCustomPrompt(brandProfileId: number): Promise<{
+  canAdd: boolean
+  currentCustom: number
+  currentTotal: number
+  maxCustom: number
+  maxTotal: number
+}> {
+  try {
+    const [customCount, totalCount] = await Promise.all([
+      prisma.prompt.count({
+        where: { brandProfileId, isCustom: true, isActive: true }
+      }),
+      prisma.prompt.count({
+        where: { brandProfileId, isActive: true }
+      })
+    ])
+
+    return {
+      canAdd: customCount < PROMPT_LIMITS.MAX_CUSTOM_PROMPTS && totalCount < PROMPT_LIMITS.MAX_TOTAL_PROMPTS,
+      currentCustom: customCount,
+      currentTotal: totalCount,
+      maxCustom: PROMPT_LIMITS.MAX_CUSTOM_PROMPTS,
+      maxTotal: PROMPT_LIMITS.MAX_TOTAL_PROMPTS
+    }
+  } catch (error) {
+    console.error('Failed to check prompt limits:', error)
+    throw error
+  }
+}
+
+/**
+ * Create a custom prompt with limit validation
  */
 export async function createCustomPrompt(
   brandProfileId: number,
@@ -180,6 +219,18 @@ export async function createCustomPrompt(
   category: string
 ): Promise<SavedPrompt> {
   try {
+    // Check limits before creating
+    const limits = await canAddCustomPrompt(brandProfileId)
+    
+    if (!limits.canAdd) {
+      if (limits.currentCustom >= PROMPT_LIMITS.MAX_CUSTOM_PROMPTS) {
+        throw new Error(`Custom prompt limit reached (${PROMPT_LIMITS.MAX_CUSTOM_PROMPTS} max). Please delete an existing custom prompt to add a new one.`)
+      }
+      if (limits.currentTotal >= PROMPT_LIMITS.MAX_TOTAL_PROMPTS) {
+        throw new Error(`Total prompt limit reached (${PROMPT_LIMITS.MAX_TOTAL_PROMPTS} max). Please delete an existing prompt to add a new one.`)
+      }
+    }
+    
     return await prisma.prompt.create({
       data: {
         brandProfileId,

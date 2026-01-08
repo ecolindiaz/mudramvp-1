@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getPromptVisibilityHistory } from '@/lib/services/prompt-visibility-history.service'
+import { getCitationAnalysisForPrompt } from '@/lib/services/citation-extraction.service'
 
 /**
- * GET /api/prompts/[id]?brandProfileId={id}
- * Get detailed prompt information including analysis results, competitive landscape, and AI responses
+ * GET /api/prompts/[id]?brandProfileId={id}&dateRange={7d|14d|30d}&platform={all|ChatGPT|Claude|...}
+ * Get detailed prompt information including analysis results, competitive landscape, AI responses,
+ * visibility history, and citation data
  */
 export async function GET(
   request: NextRequest,
@@ -14,6 +17,8 @@ export async function GET(
     const promptId = parseInt(id)
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
+    const dateRange = (searchParams.get('dateRange') as '7d' | '14d' | '30d') || '7d'
+    const platform = searchParams.get('platform') || 'all'
 
     if (!brandProfileId) {
       return NextResponse.json(
@@ -270,8 +275,12 @@ export async function GET(
       totalCompetitors: competitorsList.length
     }
 
-    // Step 7: Format responses by provider
-    const responsesByProvider = promptTestResults.map((result, index) => ({
+    // Step 7: Format responses by provider (applying platform filter)
+    const filteredTestResults = platform && platform !== 'all'
+      ? promptTestResults.filter(result => matchesPlatform(result.provider || result.model, platform))
+      : promptTestResults
+    
+    const responsesByProvider = filteredTestResults.map((result, index) => ({
       id: `response_${index}`,
       provider: result.provider,
       model: result.model,
@@ -286,7 +295,40 @@ export async function GET(
       citations: result.citations || [] // Include citations from live search APIs
     }))
 
-    // Step 8: Return comprehensive prompt details
+    // Step 8: Get visibility history time-series data
+    const visibilityHistory = await getPromptVisibilityHistory(
+      profileId,
+      prompt.text,
+      dateRange,
+      platform
+    )
+
+    // Step 9: Get citation analysis
+    const citationAnalysis = await getCitationAnalysisForPrompt(
+      profileId,
+      promptId,
+      dateRange,
+      platform
+    )
+
+    // Step 10: Build competitors with "You" row included
+    const brandName = prompt.brandProfile?.companyName || 'Your Brand'
+    const competitorsWithYou = [
+      {
+        name: brandName,
+        visibility: visibilityPercentage,
+        mentions: mentionedCount,
+        position: averagePosition ? Math.round(averagePosition * 10) / 10 : null,
+        sentiment: dominantSentiment,
+        isYou: true
+      },
+      ...competitorsWithMetrics.map(c => ({
+        ...c,
+        isYou: false
+      }))
+    ]
+
+    // Step 11: Return comprehensive prompt details
     return NextResponse.json({
       success: true,
       prompt: {
@@ -303,17 +345,37 @@ export async function GET(
         visibility: visibilityPercentage,
         averagePosition: averagePosition ? Math.round(averagePosition * 10) / 10 : null,
         sentiment: dominantSentiment,
-        totalTests,
-        mentionedIn: mentionedCount,
+        totalTests: filteredTestResults.length,
+        mentionedIn: filteredTestResults.filter(r => r.brandMentioned).length,
         
         // Sentiment breakdown
         sentimentBreakdown: sentimentCounts,
         
-        // Competitive landscape
-        competitiveLandscape,
+        // Competitive landscape (with "You" row)
+        competitiveLandscape: {
+          ...competitiveLandscape,
+          competitorsWithYou
+        },
         
         // Individual test results by provider
         testResults: responsesByProvider,
+        
+        // Visibility time-series data
+        visibilityHistory: visibilityHistory.timeSeries,
+        
+        // Citation analysis
+        citationAnalysis: {
+          totalResponses: citationAnalysis.totalResponses,
+          totalCitations: citationAnalysis.totalCitations,
+          sources: citationAnalysis.sources,
+          topDomains: citationAnalysis.topDomains
+        },
+        
+        // Filter metadata
+        filters: {
+          dateRange,
+          platform
+        },
         
         // Analysis metadata
         analysisDate: latestAnalysis.createdAt,
@@ -327,5 +389,27 @@ export async function GET(
       { error: 'Failed to fetch prompt details' },
       { status: 500 }
     )
+  }
+}
+/**
+ * Check if a provider matches the selected platform filter
+ */
+function matchesPlatform(provider: string, platform: string): boolean {
+  const providerLower = (provider || '').toLowerCase()
+  const platformLower = platform.toLowerCase()
+  
+  switch (platformLower) {
+    case 'chatgpt':
+      return providerLower.includes('openai') || providerLower.includes('chatgpt') || providerLower.includes('gpt')
+    case 'claude':
+      return providerLower.includes('anthropic') || providerLower.includes('claude')
+    case 'perplexity':
+      return providerLower.includes('perplexity')
+    case 'gemini':
+      return providerLower.includes('gemini')
+    case 'ai overviews':
+      return providerLower.includes('google') || providerLower.includes('aio') || providerLower.includes('overviews')
+    default:
+      return true
   }
 }

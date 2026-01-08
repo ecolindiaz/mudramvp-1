@@ -5,7 +5,9 @@ import {
   updatePrompt, 
   deletePrompt,
   getPromptStats,
-  getPromptsByCategory
+  getPromptsByCategory,
+  canAddCustomPrompt,
+  PROMPT_LIMITS
 } from '@/lib/services/prompt-storage.service'
 
 /**
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/prompts
- * Create a new custom prompt
+ * Create a new custom prompt (with limit validation)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -69,15 +71,45 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const profileId = parseInt(brandProfileId)
+
+    // Check prompt limits before creating
+    const limits = await canAddCustomPrompt(profileId)
+    
+    if (!limits.canAdd) {
+      const errorMessage = limits.currentCustom >= PROMPT_LIMITS.MAX_CUSTOM_PROMPTS
+        ? `Custom prompt limit reached (${PROMPT_LIMITS.MAX_CUSTOM_PROMPTS} max). Please delete an existing custom prompt to add a new one.`
+        : `Total prompt limit reached (${PROMPT_LIMITS.MAX_TOTAL_PROMPTS} max). Please delete an existing prompt to add a new one.`
+      
+      return NextResponse.json(
+        { 
+          error: errorMessage,
+          limits: {
+            currentCustom: limits.currentCustom,
+            currentTotal: limits.currentTotal,
+            maxCustom: PROMPT_LIMITS.MAX_CUSTOM_PROMPTS,
+            maxTotal: PROMPT_LIMITS.MAX_TOTAL_PROMPTS
+          }
+        },
+        { status: 400 }
+      )
+    }
+
     const prompt = await createCustomPrompt(
-      parseInt(brandProfileId),
+      profileId,
       text,
       category
     )
 
     return NextResponse.json({ 
       success: true, 
-      prompt 
+      prompt,
+      limits: {
+        currentCustom: limits.currentCustom + 1,
+        currentTotal: limits.currentTotal + 1,
+        maxCustom: PROMPT_LIMITS.MAX_CUSTOM_PROMPTS,
+        maxTotal: PROMPT_LIMITS.MAX_TOTAL_PROMPTS
+      }
     }, { status: 201 })
   } catch (error) {
     console.error('Error creating prompt:', error)

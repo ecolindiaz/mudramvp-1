@@ -38,19 +38,9 @@ const getModelIcon = (model: string): string | null => {
   return null
 }
 
-// Placeholder visibility data for chart (top-left card)
-// TODO: Replace with real time-series data from API when available
-const visibilityTrendData = [
-  { day: "Oct 20", you: 35, competitors: 60 },
-  { day: "Oct 21", you: 62, competitors: 35 },
-  { day: "Oct 22", you: 65, competitors: 60 },
-  { day: "Oct 23", you: 100, competitors: 70 },
-  { day: "Oct 24", you: 70, competitors: 65 },
-  { day: "Oct 25", you: 35, competitors: 30 },
-  { day: "Oct 26", you: 65, competitors: 65 },
-]
-
 // Palette for dynamic competitor lines (high-contrast, dark-theme friendly)
+// Green color for "You" (user's brand)
+const YOU_COLOR = "#22c55e" // emerald-500
 const COMPETITOR_COLORS = [
   "#4e79a7", // tableau blue
   "#f28e2b", // tableau orange
@@ -77,27 +67,29 @@ function LegendChip({ color, label }: { color: string; label: string }) {
   )
 }
 
-type CompetitorRow = { rank: number; company: string; visibility: number; position: number | null; sentiment: 'Positive' | 'Neutral' | 'Negative' }
+type CompetitorRow = { 
+  rank: number
+  company: string
+  visibility: number
+  position: number | null
+  sentiment: 'Positive' | 'Neutral' | 'Negative'
+  isYou?: boolean
+}
 
-// Citations & Sources data model
-// TODO: Populate from API citation tracking data
+// Citation source type from API
 type CitationSource = {
   domain: string
   frequency: number
-  citationType: 'Example' | 'Listicle' | 'Blog Post' | 'Case Study' | 'Docs' | 'Other'
+  citationFrequencyPercent: number
+  citationType: 'Blog Post' | 'Listicle' | 'Docs' | 'Case Study' | 'Academic' | 'News' | 'Other'
+  urls?: Array<{
+    url: string
+    title?: string
+    citationType: string
+    brandMentioned: boolean
+  }>
+  chatsWithCitation?: number
 }
-
-const citationSources: CitationSource[] = [
-  { domain: 'example.com', frequency: 7, citationType: 'Example' },
-  { domain: 'medium.com', frequency: 5, citationType: 'Blog Post' },
-  { domain: 'top-10-ai-tools.com', frequency: 4, citationType: 'Listicle' },
-  { domain: 'docs.provider.ai', frequency: 3, citationType: 'Docs' },
-  { domain: 'casestudies.io', frequency: 2, citationType: 'Case Study' },
-  { domain: 'randomsite.dev', frequency: 1, citationType: 'Other' },
-]
-
-const totalCitationFrequency = citationSources.reduce((sum, c) => sum + c.frequency, 0)
-const sortedCitationSources = [...citationSources].sort((a, b) => b.frequency - a.frequency)
 
 
 
@@ -405,7 +397,10 @@ function TrackedPromptDeepViewInner() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
-  // Fetch prompt details from API
+  // Platform and date range filters (lifted up for propagation across all components)
+  const [selectedPlatform, setSelectedPlatform] = useState<string>("all")
+  
+  // Fetch prompt details from API with filters
   useEffect(() => {
     if (!profile?.id || !promptId) {
       return
@@ -416,7 +411,9 @@ function TrackedPromptDeepViewInner() {
       setError(null)
       
       try {
-        const response = await fetch(`/api/prompts/${promptId}?brandProfileId=${profile.id}`)
+        // Include date range and platform in API request
+        const url = `/api/prompts/${promptId}?brandProfileId=${profile.id}&dateRange=${dateRange}&platform=${selectedPlatform}`
+        const response = await fetch(url)
         const result = await response.json()
         
         if (response.ok && result.success) {
@@ -433,20 +430,43 @@ function TrackedPromptDeepViewInner() {
     }
 
     fetchPromptDetails()
-  }, [profile?.id, promptId])
+  }, [profile?.id, promptId, dateRange, selectedPlatform])  // Re-fetch when filters change
   
   const promptLabel = promptData?.text || (promptId ? `Prompt ${promptId}` : 'Current Prompt')
   const promptIntentRaw = promptData?.category
   const promptIntentLabel = promptIntentRaw
     ? (promptIntentRaw === 'How-to' ? 'Guide' : promptIntentRaw.replace('-', ' '))
     : null
-  // Expand to show more rows (placeholder; will be wired to backend pagination)
+  // Expand to show more rows
   const INITIAL_VISIBLE = 10
   const [sourceVisibleCount, setSourceVisibleCount] = useState(INITIAL_VISIBLE)
-  const visibleSources = sortedCitationSources.slice(0, sourceVisibleCount)
   const [sourcesRange, setSourcesRange] = useState<'7d' | '14d' | '30d'>('7d')
-  // platform filter for recent chats (same style as tracked prompts page)
-  const [selectedPlatform, setSelectedPlatform] = useState<string>("all")
+  
+  // Citation sources from API
+  const citationSources: CitationSource[] = useMemo(() => {
+    if (!promptData?.citationAnalysis?.sources) {
+      return []
+    }
+    return promptData.citationAnalysis.sources.map((source: any) => ({
+      domain: source.domain,
+      frequency: source.frequency,
+      citationFrequencyPercent: source.citationFrequencyPercent,
+      citationType: source.citationType || 'Other',
+      urls: source.urls || [],
+      chatsWithCitation: source.chatsWithCitation
+    }))
+  }, [promptData])
+  
+  const sortedCitationSources = useMemo(() => 
+    [...citationSources].sort((a, b) => b.frequency - a.frequency), 
+    [citationSources]
+  )
+  const totalCitationFrequency = useMemo(() => 
+    citationSources.reduce((sum, c) => sum + c.frequency, 0),
+    [citationSources]
+  )
+  const visibleSources = sortedCitationSources.slice(0, sourceVisibleCount)
+  
   function providerKey(p: ChatHistoryEntry['provider']): 'ChatGPT' | 'Claude' | 'Perplexity' | 'AI Overviews' | 'Gemini' {
     switch (p) {
       case 'OpenAI':
@@ -535,22 +555,51 @@ function TrackedPromptDeepViewInner() {
         company,
         visibility: 0,
         position: null,
-        sentiment: 'Neutral' as const
+        sentiment: 'Neutral' as const,
+        isYou: false
       }))
     }
     
     return []
   }, [promptData])
 
-  // Dynamic competitor series config
+  // Compute competitors data WITH "You" row from API response
+  const competitorsDataWithYou: CompetitorRow[] = useMemo(() => {
+    // Use competitorsWithYou from API if available (includes "You" row)
+    if (promptData?.competitiveLandscape?.competitorsWithYou) {
+      return promptData.competitiveLandscape.competitorsWithYou.map((competitor: any, index: number) => ({
+        rank: competitor.isYou ? 0 : index, // "You" gets rank 0 to stay at top
+        company: competitor.name,
+        visibility: competitor.visibility,
+        position: competitor.position,
+        sentiment: (competitor.sentiment as 'Positive' | 'Neutral' | 'Negative') || 'Neutral',
+        isYou: competitor.isYou || false
+      }))
+    }
+    
+    // Fallback: construct "You" row from brand metrics + competitors
+    const youRow: CompetitorRow = {
+      rank: 0,
+      company: promptData?.brandProfile?.companyName || profile?.companyName || 'Your Brand',
+      visibility: promptData?.visibility || 0,
+      position: promptData?.averagePosition || null,
+      sentiment: (promptData?.sentiment as 'Positive' | 'Neutral' | 'Negative') || 'Neutral',
+      isYou: true
+    }
+    
+    return [youRow, ...competitorsData.map(c => ({ ...c, isYou: false }))]
+  }, [promptData, competitorsData, profile?.companyName])
+
+  // Dynamic competitor series config (including "You" with special color)
   const competitorSeries = useMemo(() => {
-    return competitorsData.map((c, idx) => ({
+    return competitorsDataWithYou.map((c, idx) => ({
       key: toSeriesKey(c.company),
       label: c.company,
-      color: COMPETITOR_COLORS[idx % COMPETITOR_COLORS.length],
+      color: c.isYou ? YOU_COLOR : COMPETITOR_COLORS[(idx - 1) % COMPETITOR_COLORS.length],
       visibility: c.visibility,
+      isYou: c.isYou
     }))
-  }, [competitorsData])
+  }, [competitorsDataWithYou])
 
   const computedChartConfig = useMemo(() => {
     const cfg: ChartConfig = {}
@@ -560,34 +609,75 @@ function TrackedPromptDeepViewInner() {
     return cfg
   }, [competitorSeries])
 
-  // Build chart data with one line per competitor (placeholder: flat values until backend provides real series)
+  // Build chart data from API visibility history time-series
   const chartData = useMemo(() => {
-    return visibilityTrendData.map((p) => {
-      const row: any = { day: p.day }
+    // Use real visibility history from API if available
+    if (promptData?.visibilityHistory && promptData.visibilityHistory.length > 0) {
+      return promptData.visibilityHistory.map((point: any) => {
+        const row: any = { day: point.displayDate }
+        
+        // Add "you" visibility
+        row['you'] = point.you || 0
+        
+        // Add each competitor's visibility for this day
+        if (point.competitors) {
+          Object.keys(point.competitors).forEach(compName => {
+            row[toSeriesKey(compName)] = point.competitors[compName]
+          })
+        }
+        
+        // Also add any competitors that might not have data for this day
+        competitorSeries.forEach((s) => {
+          if (!(s.key in row)) {
+            row[s.key] = 0
+          }
+        })
+        
+        return row
+      })
+    }
+    
+    // Fallback: create flat chart data from current visibility values
+    // Generate placeholder days based on date range
+    const days = dateRange === '7d' ? 7 : dateRange === '14d' ? 14 : 30
+    const now = new Date()
+    const dataPoints = []
+    
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
+      const displayDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      
+      const row: any = { day: displayDate }
       competitorSeries.forEach((s) => {
         row[s.key] = s.visibility
       })
-      return row
-    })
-  }, [competitorSeries])
+      dataPoints.push(row)
+    }
+    
+    return dataPoints
+  }, [promptData?.visibilityHistory, competitorSeries, dateRange])
 
-  // Derived metrics for bottom stats (computed after competitorsData is available)
+  // Derived metrics for bottom stats
   const avgYouVisibility = useMemo(() => {
-    return Math.round(
-      visibilityTrendData.reduce((sum, p) => sum + p.you, 0) / visibilityTrendData.length
-    )
-  }, [])
+    const youData = competitorsDataWithYou.find(c => c.isYou)
+    return youData?.visibility || 0
+  }, [competitorsDataWithYou])
 
   const bestPosition = useMemo(() => {
-    const bestPositionValue = Math.min(
-      ...competitorsData.map((c) => (c.position === null ? Number.POSITIVE_INFINITY : c.position))
-    )
-    return Number.isFinite(bestPositionValue) ? bestPositionValue.toFixed(1) : "—"
-  }, [competitorsData])
+    const allPositions = competitorsDataWithYou
+      .filter(c => c.position !== null)
+      .map(c => c.position!)
+    const bestPositionValue = allPositions.length > 0 ? Math.min(...allPositions) : null
+    return bestPositionValue !== null ? bestPositionValue.toFixed(1) : "—"
+  }, [competitorsDataWithYou])
 
   const topCompetitor = useMemo(() => {
-    return competitorsData.find((c) => c.rank === 1)?.company || "—"
-  }, [competitorsData])
+    // Find the competitor with highest visibility (excluding "You")
+    const competitors = competitorsDataWithYou.filter(c => !c.isYou)
+    if (competitors.length === 0) return "—"
+    const sorted = [...competitors].sort((a, b) => b.visibility - a.visibility)
+    return sorted[0]?.company || "—"
+  }, [competitorsDataWithYou])
 
   const rowHeightClass = 'h-12'
   
@@ -895,7 +985,7 @@ function TrackedPromptDeepViewInner() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                            {competitorsData.length === 0 ? (
+                            {competitorsDataWithYou.length === 0 ? (
                               <TableRow className="hover:bg-transparent">
                                 <TableCell colSpan={6} className="h-32 text-center">
                                   <div className="flex flex-col items-center justify-center gap-2 text-white/60">
@@ -908,8 +998,14 @@ function TrackedPromptDeepViewInner() {
                                 </TableCell>
                               </TableRow>
                             ) : (
-                              competitorsData.map((row) => (
-                                <TableRow key={row.rank} className="hover:bg-white/10 h-12 md:h-14 border-b border-white/10 last:border-b-0">
+                              competitorsDataWithYou.map((row, index) => (
+                                <TableRow 
+                                  key={row.isYou ? 'you-row' : row.rank} 
+                                  className={cn(
+                                    "hover:bg-white/10 h-12 md:h-14 border-b border-white/10 last:border-b-0",
+                                    row.isYou && "bg-emerald-500/10 border-l-2 border-l-emerald-500"
+                                  )}
+                                >
                                   <TableCell className="px-4 align-middle">
                                     <Checkbox
                                       className="scale-105"
@@ -918,12 +1014,23 @@ function TrackedPromptDeepViewInner() {
                                       aria-label={`Select ${row.company}`}
                                     />
                                   </TableCell>
-                                  <TableCell className="text-white/90 px-2">{row.rank}</TableCell>
+                                  <TableCell className="text-white/90 px-2">
+                                    {row.isYou ? (
+                                      <span className="text-emerald-400 font-medium">★</span>
+                                    ) : (
+                                      index
+                                    )}
+                                  </TableCell>
                                   <TableCell className="text-white/90 truncate px-4">
-                                    <span className="truncate">{row.company}</span>
+                                    <span className={cn("truncate", row.isYou && "text-emerald-400 font-medium")}>
+                                      {row.isYou ? `${row.company} (You)` : row.company}
+                                    </span>
                                   </TableCell>
                                 <TableCell className="text-right px-4">
-                                    <Badge variant="outline" className={`rounded-md px-2 py-0.5 text-[13px] border ${getVisibilityClass(row.visibility)}`}>
+                                    <Badge variant="outline" className={cn(
+                                      "rounded-md px-2 py-0.5 text-[13px] border",
+                                      row.isYou ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : getVisibilityClass(row.visibility)
+                                    )}>
                                     {row.visibility}%
                                   </Badge>
                                 </TableCell>
@@ -1013,7 +1120,19 @@ function TrackedPromptDeepViewInner() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {visibleSources.map((row, idx) => (
+                            {visibleSources.length === 0 ? (
+                              <TableRow className="hover:bg-transparent">
+                                <TableCell colSpan={4} className="h-32 text-center">
+                                  <div className="flex flex-col items-center justify-center gap-2 text-white/60">
+                                    <Globe className="h-8 w-8 opacity-40" />
+                                    <div className="text-sm">No citation sources found</div>
+                                    <div className="text-xs text-white/40">
+                                      Sources will appear here after they are cited in AI responses
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ) : visibleSources.map((row, idx) => (
                               <Dialog key={`${row.domain}-${row.citationType}-${idx}`}>
                                 <DialogTrigger asChild>
                               <TableRow className={`hover:bg-white/10 even:bg-white/[0.03] border-b border-white/10 last:border-b-0 ${rowHeightClass} cursor-pointer`}>
@@ -1026,7 +1145,7 @@ function TrackedPromptDeepViewInner() {
                                     <TableCell className="text-center px-2">
                                       <div className="flex items-center justify-center">
                                         <Badge variant="outline" className="inline-flex items-center justify-center h-6 min-w-[56px] px-2 text-[13px] rounded-md border border-white/10 bg-white/5 text-white/90">
-                                          {Math.round((row.frequency / Math.max(1, totalCitationFrequency)) * 100)}%
+                                          {row.citationFrequencyPercent || Math.round((row.frequency / Math.max(1, totalCitationFrequency)) * 100)}%
                                         </Badge>
                                       </div>
                                     </TableCell>
@@ -1235,13 +1354,9 @@ function TrackedPromptDeepViewInner() {
                                             </TableRow>
                                           </TableHeader>
                                           <TableBody>
-                                            {(
-                                              [
-                                                { url: `https://${row.domain}/articles/overview`, type: mapContentType(row.citationType), mentioned: true },
-                                                { url: `https://${row.domain}/guides/getting-started`, type: mapContentType('guide'), mentioned: false },
-                                                { url: `https://${row.domain}/blog/ai-infrastructure`, type: mapContentType('blog'), mentioned: true },
-                                              ]
-                                            ).map((item, idx) => (
+                                            {/* Use real URLs from API if available, otherwise show empty state */}
+                                            {(row.urls && row.urls.length > 0) ? (
+                                              row.urls.map((item: { url: string; title?: string; citationType: string; brandMentioned: boolean }, idx: number) => (
                                               <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/10 h-12 border-b border-white/10 last:border-b-0">
                                                 <TableCell className="px-5">
                                                   <a href={item.url} target="_blank" rel="noreferrer" className="text-white/90 hover:underline truncate inline-block max-w-full align-middle">
@@ -1249,17 +1364,27 @@ function TrackedPromptDeepViewInner() {
                                                   </a>
                                                 </TableCell>
                                                 <TableCell className="text-center">
-                                                  <Badge className="h-6 px-2 text-[12px] rounded border border-white/15 bg-white/10 text-white/80 inline-flex items-center gap-1"><ContentTypeIcon type={item.type} />{item.type}</Badge>
+                                                  <Badge className="h-6 px-2 text-[12px] rounded border border-white/15 bg-white/10 text-white/80 inline-flex items-center gap-1">
+                                                    <ContentTypeIcon type={mapContentType(item.citationType)} />
+                                                    {mapContentType(item.citationType)}
+                                                  </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-center">
-                                                  {item.mentioned ? (
+                                                  {item.brandMentioned ? (
                                                     <Badge className="h-6 px-2 text-[12px] rounded border-0 bg-emerald-500/20 text-emerald-300 inline-flex items-center gap-1"><CheckCircle className="h-3.5 w-3.5" />Yes</Badge>
                                                   ) : (
                                                     <Badge className="h-6 px-2 text-[12px] rounded border-0 bg-red-500/20 text-red-300 inline-flex items-center gap-1"><XCircle className="h-3.5 w-3.5" />No</Badge>
                                                   )}
                                                 </TableCell>
                                               </TableRow>
-                                            ))}
+                                              ))
+                                            ) : (
+                                              <TableRow>
+                                                <TableCell colSpan={3} className="text-center text-white/60 h-16">
+                                                  No individual URLs tracked for this domain yet.
+                                                </TableCell>
+                                              </TableRow>
+                                            )}
                                           </TableBody>
                                         </Table>
                                       </div>
@@ -1280,6 +1405,7 @@ function TrackedPromptDeepViewInner() {
                               className="h-8 px-3 rounded-md border-white/10 bg-white/5 text-white/80 hover:text-white"
                               onClick={() => setSourceVisibleCount(Math.min(sourceVisibleCount + INITIAL_VISIBLE, sortedCitationSources.length))}
                               aria-label="Expand sources"
+                              disabled={remainingSources <= 0}
                             >
                               Expand
                             </Button>
@@ -1289,7 +1415,12 @@ function TrackedPromptDeepViewInner() {
                                 <span className="text-xs text-white/40">All items shown</span>
                               )}
                           </div>
-                          <span className="text-xs text-white/60">Showing 1 – {visibleSources.length} of {sortedCitationSources.length} items</span>
+                          <span className="text-xs text-white/60">
+                            {sortedCitationSources.length > 0 
+                              ? `Showing 1 – ${visibleSources.length} of ${sortedCitationSources.length} items`
+                              : 'No sources available'
+                            }
+                          </span>
                         </div>
                       </div>
                     ) : (
@@ -1340,7 +1471,22 @@ function TrackedPromptDeepViewInner() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {visibleChats.map((chat) => (
+                            {visibleChats.length === 0 ? (
+                              <TableRow className="hover:bg-transparent">
+                                <TableCell colSpan={5} className="h-32 text-center">
+                                  <div className="flex flex-col items-center justify-center gap-2 text-white/60">
+                                    <MessageSquare className="h-8 w-8 opacity-40" />
+                                    <div className="text-sm">No chat responses found</div>
+                                    <div className="text-xs text-white/40">
+                                      {selectedPlatform !== 'all' 
+                                        ? `No responses from ${selectedPlatform} for the selected time range`
+                                        : 'Responses will appear here after analysis runs'
+                                      }
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ) : visibleChats.map((chat) => (
                               <Dialog key={chat.id}>
                                 <DialogTrigger asChild>
                                   <TableRow className={`group hover:bg-white/10 even:bg-white/[0.03] border-b border-white/10 last:border-b-0 ${rowHeightClass} cursor-pointer`}>
@@ -1632,11 +1778,23 @@ function TrackedPromptDeepViewInner() {
                                                           </TableRow>
                                                         </TableHeader>
                                                         <TableBody>
-                                                          {([
-                                                            { url: `https://${(c as any).domain}/articles/overview`, type: mapContentType((c as any).citationType), mentioned: true },
-                                                            { url: `https://${(c as any).domain}/guides/getting-started`, type: mapContentType('guide'), mentioned: false },
-                                                            { url: `https://${(c as any).domain}/blog/ai-infrastructure`, type: mapContentType('blog'), mentioned: true },
-                                                          ]).map((item, idx) => (
+                                                          {/* Use real URL data from citation sources if available */}
+                                                          {(() => {
+                                                            const domain = (c as any).domain
+                                                            const sourceData = sortedCitationSources.find(s => s.domain === domain)
+                                                            const urls = sourceData?.urls || []
+                                                            
+                                                            if (urls.length === 0) {
+                                                              return (
+                                                                <TableRow>
+                                                                  <TableCell colSpan={3} className="text-center text-white/60 h-16">
+                                                                    No individual URLs tracked for this domain yet.
+                                                                  </TableCell>
+                                                                </TableRow>
+                                                              )
+                                                            }
+                                                            
+                                                            return urls.map((item: { url: string; title?: string; citationType: string; brandMentioned: boolean }, idx: number) => (
                                                             <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/10 h-12 border-b border-white/10 last:border-b-0">
                                                               <TableCell className="px-5">
                                                                 <a href={item.url} target="_blank" rel="noreferrer" className="text-white/90 hover:underline truncate inline-block max-w-full align-middle">
@@ -1644,17 +1802,21 @@ function TrackedPromptDeepViewInner() {
                                                                 </a>
                                                               </TableCell>
                                                               <TableCell className="text-center">
-                                                                <Badge className="h-6 px-2 text-[12px] rounded border border-white/15 bg-white/10 text-white/80 inline-flex items-center gap-1"><ContentTypeIcon type={item.type} />{item.type}</Badge>
+                                                                <Badge className="h-6 px-2 text-[12px] rounded border border-white/15 bg-white/10 text-white/80 inline-flex items-center gap-1">
+                                                                  <ContentTypeIcon type={mapContentType(item.citationType)} />
+                                                                  {mapContentType(item.citationType)}
+                                                                </Badge>
                                                               </TableCell>
                                                               <TableCell className="text-center">
-                                                                {item.mentioned ? (
+                                                                {item.brandMentioned ? (
                                                                   <Badge className="h-6 px-2 text-[12px] rounded border-0 bg-emerald-500/20 text-emerald-300 inline-flex items-center gap-1"><CheckCircle className="h-3.5 w-3.5" />Yes</Badge>
                                                                 ) : (
                                                                   <Badge className="h-6 px-2 text-[12px] rounded border-0 bg-red-500/20 text-red-300 inline-flex items-center gap-1"><XCircle className="h-3.5 w-3.5" />No</Badge>
                                                                 )}
                                                               </TableCell>
                                                             </TableRow>
-                                                          ))}
+                                                            ))
+                                                          })()}
                                                         </TableBody>
                                                       </Table>
                                                     </div>
@@ -1680,6 +1842,7 @@ function TrackedPromptDeepViewInner() {
                               className="h-8 px-3 rounded-md border-white/10 bg-white/5 text-white/80 hover:text-white"
                               onClick={() => setChatVisibleCount(Math.min(chatVisibleCount + INITIAL_VISIBLE, filteredChats.length))}
                               aria-label="Expand recent chats"
+                              disabled={remainingChats <= 0}
                             >
                               Expand
                             </Button>

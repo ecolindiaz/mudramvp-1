@@ -27,6 +27,28 @@ export interface AIModelConfig {
 }
 
 export const AI_MODELS: Record<string, AIModelConfig> = {
+  'gemini-3-pro': {
+    id: 'gemini-3-pro',
+    name: 'Gemini 3 Pro',
+    provider: 'google',
+    model: 'gemini-2.0-flash', // Using latest available Gemini model
+    description: 'Google\'s most capable model for natural language reports and summaries',
+    capabilities: {
+      reasoning: 'highest',
+      speed: 'fast',
+      contextWindow: 1000000,
+      maxOutputTokens: 8192
+    },
+    pricing: {
+      inputCostPer1M: 0.075, // $0.075 per 1M input tokens
+      outputCostPer1M: 0.30  // $0.30 per 1M output tokens
+    },
+    settings: {
+      defaultTemperature: 0.3,
+      defaultMaxTokens: 4000
+    },
+    bestFor: ['natural language reports', 'weekly summaries', 'long-context analysis', 'structured output']
+  },
   'gpt-4': {
     id: 'gpt-4',
     name: 'GPT-4',

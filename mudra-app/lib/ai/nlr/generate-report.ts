@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
 import { getModelConfig, estimateCost } from '@/lib/config/ai-models'
 import { logNlrJob } from '@/lib/services/observability.service'
@@ -70,37 +71,53 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
   const _ = rankChanges(nlrInput) // ranked already used inside prompt builder
   const { system, user } = buildNlrPrompt(nlrInput)
 
-  // 3) Call GPT-5 (fallback to gpt-4 if needed)
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  const gpt5 = getModelConfig('gpt-5')
+  // 3) Call Gemini 3 Pro (fallback to GPT-4 if needed)
+  const gemini3Pro = getModelConfig('gemini-3-pro')
   const gpt4 = getModelConfig('gpt-4')
-  const messages = [
-    { role: 'system' as const, content: system },
-    { role: 'user' as const, content: user },
-  ]
 
   let content = ''
-  let usedModelId: string = gpt5?.id || 'gpt-5'
+  let usedModelId: string = gemini3Pro?.id || 'gemini-3-pro'
   let tokensIn = 0
   let tokensOut = 0
+
   try {
-    // GPT-5: use Chat Completions with max_completion_tokens (no temperature)
-    const r = await openai.chat.completions.create({
-      model: gpt5?.model || 'gpt-5',
-      messages,
-      max_completion_tokens: 8000, // Increased for reasoning + content
+    // Primary: Gemini 3 Pro
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '')
+    const model = genAI.getGenerativeModel({ 
+      model: gemini3Pro?.model || 'gemini-2.0-flash',
+      generationConfig: {
+        temperature: gemini3Pro?.settings.defaultTemperature || 0.3,
+        maxOutputTokens: gemini3Pro?.settings.defaultMaxTokens || 4000,
+      },
     })
-    content = r.choices?.[0]?.message?.content || ''
-    usedModelId = gpt5?.id || 'gpt-5'
-    const usage: any = r.usage || {}
-    tokensIn = usage.prompt_tokens ?? usage.input_tokens ?? 0
-    tokensOut = usage.completion_tokens ?? usage.output_tokens ?? 0
+
+    const prompt = `${system}\n\n${user}`
+    const result = await model.generateContent(prompt)
+    const response = result.response
+    content = response.text() || ''
+    usedModelId = gemini3Pro?.id || 'gemini-3-pro'
+
+    // Extract token usage if available
+    const usageMetadata = response.usageMetadata
+    if (usageMetadata) {
+      tokensIn = usageMetadata.promptTokenCount || 0
+      tokensOut = usageMetadata.candidatesTokenCount || 0
+    }
+
     if (!content || content.length < 20) {
-      throw new Error(`Empty content from GPT-5: length=${content.length}`)
+      throw new Error(`Empty content from Gemini 3 Pro: length=${content.length}`)
     }
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error('NLR: gpt-5 failed, fallback to gpt-4:', err)
+    console.error('NLR: Gemini 3 Pro failed, fallback to GPT-4:', err)
+    
+    // Fallback to GPT-4
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    const messages = [
+      { role: 'system' as const, content: system },
+      { role: 'user' as const, content: user },
+    ]
+    
     const r = await openai.chat.completions.create({
       model: gpt4?.model || 'gpt-4',
       messages,

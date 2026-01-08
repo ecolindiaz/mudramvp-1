@@ -94,28 +94,67 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   const whatsChanged = summaryJson?.sections?.whats_changed ?? []
   const highlights = summaryJson?.sections?.highlights ?? []
 
+  // Helper to format score delta in "previous → current (+X% ↑)" format
+  function formatScoreDelta(change: { previous?: number | null; current?: number | null; relative?: number | null; direction?: string | null; formatted?: string } | null | undefined): string {
+    if (!change) return "N/A"
+    // Use pre-formatted string if available
+    if (change.formatted) return change.formatted
+    // Otherwise build it
+    const prev = change.previous ?? 0
+    const curr = change.current ?? 0
+    const pct = change.relative != null ? Math.round(change.relative * 100) : Math.round(((curr - prev) / (prev || 1)) * 100)
+    const arrow = change.direction === "up" ? "↑" : change.direction === "down" ? "↓" : ""
+    const sign = pct >= 0 ? "+" : ""
+    return `${prev} → ${curr} (${sign}${pct}% ${arrow})`
+  }
+
   function buildDigestibleSummary(): string {
     if (!summaryJson) return summaryFromModel || generateSummary()
     const parts: string[] = []
 
-    // Use highlights or whats_changed to make it conversational
-    const bullets = (highlights?.length ? highlights : whatsChanged.map(w => w.label)).slice(0, 4)
-    if (bullets.length > 0) {
-      parts.push(bullets.join(' '))
+    // Agent Lab section
+    const agentLab = summaryJson.sections?.agent_lab
+    if (agentLab?.deployments && agentLab.deployments.length > 0) {
+      const deploymentStr = agentLab.deployments.map(d => `${d.agent_name} ${d.what_changed}`).join('. ')
+      parts.push(`**Agent Lab:** ${deploymentStr}.`)
     }
 
-    const tech = summaryJson.sections.technical_structure?.overall_change
-    if (tech && tech.direction) {
-      if (tech.direction === 'up') parts.push(`Technical health improved ${Math.round(((tech.relative || 0) * 100))}%`)
-      if (tech.direction === 'down') parts.push(`Technical health dipped ${Math.round(((tech.relative || 0) * 100))}%`)
-      if (tech.direction === 'flat') parts.push('Technical health stayed about the same')
+    // Opportunities section
+    const opportunities = summaryJson.sections?.opportunities
+    if (opportunities?.count && opportunities.count > 0) {
+      parts.push(`**Opportunities:** ${opportunities.summary || `Conversation Radar agent identified ${opportunities.count} high-value opportunities your brand should participate on.`}`)
     }
 
-    const tasks = summaryJson.sections.tasks
-    if (tasks) {
-      if (tasks.opened_this_week != null || tasks.completed_this_week != null) {
-        parts.push(`This week you opened ${tasks.opened_this_week ?? 0} tasks and completed ${tasks.completed_this_week ?? 0}.`)
+    // Score Changes with new format: "58 → 71 (+22% ↑)"
+    const scoreChangeParts: string[] = []
+    const aiVis = summaryJson.sections?.ai_visibility?.score_change
+    if (aiVis && (aiVis.current != null || aiVis.formatted)) {
+      scoreChangeParts.push(`AI Visibility: ${formatScoreDelta(aiVis)}`)
+    }
+    const tech = summaryJson.sections?.technical_structure?.overall_change
+    if (tech && (tech.current != null || tech.formatted)) {
+      scoreChangeParts.push(`Technical Structure: ${formatScoreDelta(tech)}`)
+    }
+    if (scoreChangeParts.length > 0) {
+      parts.push(`**Score Changes:** ${scoreChangeParts.join('. ')}.`)
+    }
+
+    // AI Traffic section
+    const aiTraffic = summaryJson.sections?.ai_traffic
+    if (aiTraffic && aiTraffic.total_visits > 0) {
+      if (aiTraffic.formatted) {
+        parts.push(`**AI Traffic:** ${aiTraffic.formatted}`)
+      } else {
+        const providerStr = aiTraffic.by_provider?.map(p => `${p.provider} (${p.visits})`).join(' · ') || ''
+        const boostSign = aiTraffic.weekly_boost >= 0 ? '+' : ''
+        parts.push(`**AI Traffic:** ${aiTraffic.total_visits} visits from AI sources (${boostSign}${aiTraffic.weekly_boost} vs. last week)${providerStr ? ` — ${providerStr}` : ''}.`)
       }
+    }
+
+    // Use highlights for additional context
+    const bullets = (highlights?.length ? highlights : whatsChanged.map(w => w.label)).slice(0, 2)
+    if (bullets.length > 0 && parts.length < 3) {
+      parts.push(bullets.join(' '))
     }
 
     // Technical Snapshot Narrative (70–120 words)

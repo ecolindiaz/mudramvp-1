@@ -66,6 +66,25 @@ export interface ExternalFootprintSummary {
   }>;
 }
 
+export interface AIReferralTrafficSummary {
+  totalVisits: Delta<number>;
+  byProvider: Array<{
+    provider: string; // ChatGPT, Perplexity, Claude, Gemini
+    visits: number;
+  }>;
+  weeklyBoost: number; // absolute change vs last week
+}
+
+export interface AgentDeploymentsSummary {
+  deployments: Array<{
+    agentName: string;
+    whatChanged: string;
+    executionCount: number;
+    evidence?: EvidenceRef[];
+  }>;
+  totalExecutions: number;
+}
+
 export interface NlrInput {
   companyId: string;
   weekStartUtc: string; // ISO string for stability in prompts
@@ -74,9 +93,12 @@ export interface NlrInput {
   technical: TechnicalStructureSummary | null;
   tasks: TasksSummary | null;
   external: ExternalFootprintSummary | null;
+  // New sections for full implementation
+  aiReferralTraffic: AIReferralTrafficSummary | null;
+  agentDeployments: AgentDeploymentsSummary | null;
   // Ranked or pre-filtered developments across sections for fast prompting
   whatsChanged?: Array<{
-    section: "visibility" | "technical" | "tasks" | "external";
+    section: "visibility" | "technical" | "tasks" | "external" | "traffic" | "agents";
     label: string; // e.g., "AI Visibility score +8%"
     importance?: "high" | "medium" | "low";
     evidence?: EvidenceRef[];

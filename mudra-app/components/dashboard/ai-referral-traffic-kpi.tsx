@@ -76,7 +76,7 @@ export default function AIReferralTrafficKPI() {
 
   if (loading) {
     return (
-      <Card className="border-0">
+      <Card className="border border-white/[0.08]">
         <CardHeader>
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-4 w-64 mt-2" />
@@ -96,7 +96,7 @@ export default function AIReferralTrafficKPI() {
 
   if (error || !data) {
     return (
-      <Card className="border-0">
+      <Card className="border border-white/[0.08]">
         <CardHeader>
           <CardTitle>AI Referred Traffic</CardTitle>
           <CardDescription>Traffic from AI platforms</CardDescription>
@@ -115,7 +115,7 @@ export default function AIReferralTrafficKPI() {
   const delta = monthly.delta;
 
   return (
-    <Card className="border-0">
+    <Card className="border border-white/[0.08]">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -158,7 +158,7 @@ export default function AIReferralTrafficKPI() {
             return (
               <div
                 key={key}
-                className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                className="p-4 rounded-lg border border-white/[0.08] bg-card hover:bg-accent/50 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-2">
                   <Icon className={`h-4 w-4 ${platform.color}`} />

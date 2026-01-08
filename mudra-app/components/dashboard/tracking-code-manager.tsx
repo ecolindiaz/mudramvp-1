@@ -130,7 +130,7 @@ export default function TrackingCodeManager() {
 
   if (loading) {
     return (
-      <Card className="border-0">
+      <Card className="border border-white/[0.08]">
         <CardHeader>
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-4 w-64 mt-2" />
@@ -144,7 +144,7 @@ export default function TrackingCodeManager() {
 
   if (!data) {
     return (
-      <Card className="border-0">
+      <Card className="border border-white/[0.08]">
         <CardHeader>
           <CardTitle>Tracking Code</CardTitle>
           <CardDescription>Failed to load tracking code</CardDescription>
@@ -154,7 +154,7 @@ export default function TrackingCodeManager() {
   }
 
   return (
-    <Card className="border-0">
+    <Card className="border border-white/[0.08]">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -173,7 +173,7 @@ export default function TrackingCodeManager() {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+        <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg border border-white/[0.08]">
           <div>
             <div className="text-2xl font-bold">{data.totalEvents.toLocaleString()}</div>
             <div className="text-xs text-muted-foreground">Total Events</div>

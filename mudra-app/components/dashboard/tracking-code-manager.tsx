@@ -200,7 +200,7 @@ export default function TrackingCodeManager() {
           {/* Agent Installation Tab */}
           <TabsContent value="agent" className="space-y-4 mt-4">
             {!installStatus?.githubConnected ? (
-              <Alert>
+              <Alert className="border-white/[0.08]">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   Connect your GitHub account to auto-install tracking code.{' '}
@@ -210,7 +210,7 @@ export default function TrackingCodeManager() {
                 </AlertDescription>
               </Alert>
             ) : installSuccess ? (
-              <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
+              <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
                 <Check className="h-4 w-4 text-green-600" />
                 <AlertDescription className="text-green-700 dark:text-green-300">
                   Pull request created successfully!{' '}
@@ -305,7 +305,7 @@ export default function TrackingCodeManager() {
 
           {/* Manual Installation Tab */}
           <TabsContent value="manual" className="space-y-4 mt-4">
-            <Alert>
+            <Alert className="border-white/[0.08]">
               <Activity className="h-4 w-4" />
               <AlertDescription>
                 Copy this code and paste it before the closing <code>&lt;/body&gt;</code> tag on all pages of your website.
@@ -340,7 +340,7 @@ export default function TrackingCodeManager() {
         </Tabs>
 
         {/* Tracking ID */}
-        <div className="text-xs text-muted-foreground pt-2 border-t">
+        <div className="text-xs text-muted-foreground pt-2 border-t border-white/[0.08]">
           Tracking ID: <code className="px-2 py-1 bg-muted rounded">{data.trackingId}</code>
         </div>
 

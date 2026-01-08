@@ -174,7 +174,7 @@ export default function AIReferralTrafficKPI() {
         </div>
 
         {/* Previous Month Comparison */}
-        <div className="pt-4 border-t">
+        <div className="pt-4 border-t border-white/[0.08]">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Previous month</span>
             <span className="font-medium">{monthly.previous.totalVisits.toLocaleString()} visits</span>

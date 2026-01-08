@@ -130,7 +130,7 @@ export default function TrackingCodeManager() {
 
   if (loading) {
     return (
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-4 w-64 mt-2" />
@@ -144,7 +144,7 @@ export default function TrackingCodeManager() {
 
   if (!data) {
     return (
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           <CardTitle>Tracking Code</CardTitle>
           <CardDescription>Failed to load tracking code</CardDescription>
@@ -154,7 +154,7 @@ export default function TrackingCodeManager() {
   }
 
   return (
-    <Card>
+    <Card className="border-0">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>

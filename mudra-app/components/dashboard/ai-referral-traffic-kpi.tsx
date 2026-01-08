@@ -76,7 +76,7 @@ export default function AIReferralTrafficKPI() {
 
   if (loading) {
     return (
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-4 w-64 mt-2" />
@@ -96,7 +96,7 @@ export default function AIReferralTrafficKPI() {
 
   if (error || !data) {
     return (
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           <CardTitle>AI Referred Traffic</CardTitle>
           <CardDescription>Traffic from AI platforms</CardDescription>
@@ -115,7 +115,7 @@ export default function AIReferralTrafficKPI() {
   const delta = monthly.delta;
 
   return (
-    <Card>
+    <Card className="border-0">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>

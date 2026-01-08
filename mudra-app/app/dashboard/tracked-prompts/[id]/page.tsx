@@ -109,7 +109,8 @@ type ChatHistoryEntry = {
   responseCitations?: { domain: string; type?: 'Example' | 'Listicle' | 'Blog Post' | 'Case Study' | 'Docs' | 'Other' }[]
 }
 
-// Fallback data for demo - actual data comes from API in useEffect
+// @deprecated - This mock data is no longer used. All data now comes from the API.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const mockRecentChats: ChatHistoryEntry[] = [
   {
     id: 'h1',
@@ -483,8 +484,8 @@ function TrackedPromptDeepViewInner() {
   }
   // Compute recent chats from API response
   const recentChats: ChatHistoryEntry[] = useMemo(() => {
-    if (!promptData?.testResults) {
-      return mockRecentChats
+    if (!promptData?.testResults || promptData.testResults.length === 0) {
+      return [] // Return empty array - empty states will be shown by the UI
     }
     
     return promptData.testResults.map((result: any, index: number) => {

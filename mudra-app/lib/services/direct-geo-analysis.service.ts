@@ -1,5 +1,7 @@
 import { generateSophisticatedPrompts, profileToBrandInfo, type GeneratedPrompts } from './prompt-generation.service';
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Types for direct GEO analysis
 export interface Citation {
@@ -186,13 +188,9 @@ async function analyzePromptWithProvider(
     case 'perplexity':
       return await analyzeWithPerplexity(prompt, config);
     case 'anthropic':
-      // For now, fallback to OpenAI for Anthropic
-      console.warn('Anthropic not yet implemented, using OpenAI as fallback');
-      return await analyzeWithOpenAI(prompt, config);
+      return await analyzeWithAnthropic(prompt, config);
     case 'google':
-      // For now, fallback to OpenAI for Google
-      console.warn('Google not yet implemented, using OpenAI as fallback');
-      return await analyzeWithOpenAI(prompt, config);
+      return await analyzeWithGoogle(prompt, config);
     default:
       throw new Error(`Unknown provider: ${provider}`);
   }
@@ -918,6 +916,351 @@ Return ONLY a valid JSON object with these exact keys:
     }
     throw error;
   }
+}
+
+/**
+ * Analyze with Anthropic (Claude)
+ * Uses Claude with web search tool for grounded responses
+ */
+async function analyzeWithAnthropic(
+  prompt: string,
+  config: DirectGEOConfig
+): Promise<PromptTest> {
+  if (!config.apiKeys.anthropic) {
+    throw new Error('Anthropic API key required for analysis');
+  }
+
+  const apiKey = config.apiKeys.anthropic;
+  console.log('[Anthropic] API Key configured:', apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4));
+
+  const anthropic = new Anthropic({
+    apiKey: apiKey.trim(),
+  });
+
+  try {
+    console.log('[Anthropic] Testing prompt:', prompt.substring(0, 60) + '...');
+    
+    // Use Claude with web search tool for grounded responses
+    // Note: As of 2025, Claude supports web search via tool use
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514', // Latest Claude model with tool support
+      max_tokens: 1500,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      // Enable web search tool for grounded responses
+      tools: [
+        {
+          type: 'web_search' as any,
+          name: 'web_search',
+          // Web search is a built-in tool that Claude can use automatically
+        }
+      ],
+    });
+
+    // Extract text from response
+    let text = '';
+    const citations: Citation[] = [];
+    
+    for (const block of response.content) {
+      if (block.type === 'text') {
+        text += block.text;
+      }
+      // Extract citations from tool use results if available
+      if (block.type === 'tool_use' && block.name === 'web_search') {
+        // Web search results contain citations
+        const input = block.input as any;
+        if (input?.results) {
+          input.results.forEach((result: any, idx: number) => {
+            citations.push({
+              url: result.url || '',
+              title: result.title,
+              snippet: result.snippet,
+              position: idx + 1,
+            });
+          });
+        }
+      }
+    }
+    
+    console.log('[Anthropic] Response received:', text.substring(0, 100) + '...');
+    if (citations.length > 0) {
+      console.log(`[Anthropic] Extracted ${citations.length} citations`);
+    }
+
+    // Analyze the response using OpenAI for consistency
+    if (!config.apiKeys.openai) {
+      throw new Error('OpenAI API key required for analyzing Anthropic responses');
+    }
+
+    const openai = new OpenAI({
+      apiKey: config.apiKeys.openai.trim(),
+    });
+
+    // Use the same analysis prompt as other providers
+    const analysisPrompt = createAnalysisPrompt(text, config.brandName, config.competitors);
+
+    const analysisResponse = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully for both the brand and competitors. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
+        },
+        {
+          role: 'user',
+          content: analysisPrompt,
+        },
+      ],
+      temperature: 0.1,
+      max_tokens: 500,
+      response_format: { type: "json_object" },
+    });
+
+    const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
+    let analysis;
+    try {
+      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+      analysis = JSON.parse(cleanedText);
+    } catch (parseError) {
+      console.warn('[Anthropic] Failed to parse analysis, using fallback');
+      analysis = createFallbackAnalysis(text, config.brandName);
+    }
+
+    // Extract positions with regex for better accuracy
+    const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
+    const mergedPositions = mergePositions(analysis.competitorPositions || {}, regexPositions, analysis.competitorsMentioned || []);
+
+    return {
+      prompt,
+      response: text,
+      brandMentioned: analysis.brandMentioned || false,
+      brandPosition: analysis.brandPosition,
+      competitors: analysis.competitorsMentioned || [],
+      competitorPositions: mergedPositions,
+      competitorSentiments: analysis.competitorSentiments || {},
+      sentiment: analysis.sentiment || 'neutral',
+      confidence: analysis.confidence || 0.5,
+      citations: citations.length > 0 ? citations : undefined,
+    };
+  } catch (error: any) {
+    console.error(`❌ Error analyzing with Anthropic:`, error.message || error);
+    throw error;
+  }
+}
+
+/**
+ * Analyze with Google (Gemini)
+ * Uses Gemini with grounding/search for real-time information
+ */
+async function analyzeWithGoogle(
+  prompt: string,
+  config: DirectGEOConfig
+): Promise<PromptTest> {
+  if (!config.apiKeys.google) {
+    throw new Error('Google API key required for analysis');
+  }
+
+  const apiKey = config.apiKeys.google;
+  console.log('[Google] API Key configured:', apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4));
+
+  const genAI = new GoogleGenerativeAI(apiKey.trim());
+  
+  try {
+    console.log('[Google] Testing prompt:', prompt.substring(0, 60) + '...');
+    
+    // Use Gemini with Google Search grounding
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash', // Latest Gemini model
+      // Enable Google Search grounding for real-time information
+      tools: [
+        {
+          googleSearch: {},
+        } as any,
+      ],
+    });
+
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const text = response.text();
+    
+    console.log('[Google] Response received:', text.substring(0, 100) + '...');
+    
+    // Extract citations from grounding metadata
+    const citations: Citation[] = [];
+    const groundingMetadata = (response as any).candidates?.[0]?.groundingMetadata;
+    
+    if (groundingMetadata?.groundingChunks) {
+      groundingMetadata.groundingChunks.forEach((chunk: any, idx: number) => {
+        if (chunk.web) {
+          citations.push({
+            url: chunk.web.uri || '',
+            title: chunk.web.title,
+            position: idx + 1,
+          });
+        }
+      });
+      console.log(`[Google] Extracted ${citations.length} citations from grounding`);
+    }
+
+    // Also check for search queries used
+    const searchQueries: string[] = [];
+    if (groundingMetadata?.webSearchQueries) {
+      searchQueries.push(...groundingMetadata.webSearchQueries);
+      console.log(`[Google] Used search queries:`, searchQueries);
+    }
+
+    // Analyze the response using OpenAI for consistency
+    if (!config.apiKeys.openai) {
+      throw new Error('OpenAI API key required for analyzing Google responses');
+    }
+
+    const openai = new OpenAI({
+      apiKey: config.apiKeys.openai.trim(),
+    });
+
+    const analysisPrompt = createAnalysisPrompt(text, config.brandName, config.competitors);
+
+    const analysisResponse = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully for both the brand and competitors. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
+        },
+        {
+          role: 'user',
+          content: analysisPrompt,
+        },
+      ],
+      temperature: 0.1,
+      max_tokens: 500,
+      response_format: { type: "json_object" },
+    });
+
+    const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
+    let analysis;
+    try {
+      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+      analysis = JSON.parse(cleanedText);
+    } catch (parseError) {
+      console.warn('[Google] Failed to parse analysis, using fallback');
+      analysis = createFallbackAnalysis(text, config.brandName);
+    }
+
+    // Extract positions with regex for better accuracy
+    const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
+    const mergedPositions = mergePositions(analysis.competitorPositions || {}, regexPositions, analysis.competitorsMentioned || []);
+
+    return {
+      prompt,
+      response: text,
+      brandMentioned: analysis.brandMentioned || false,
+      brandPosition: analysis.brandPosition,
+      competitors: analysis.competitorsMentioned || [],
+      competitorPositions: mergedPositions,
+      competitorSentiments: analysis.competitorSentiments || {},
+      sentiment: analysis.sentiment || 'neutral',
+      confidence: analysis.confidence || 0.5,
+      citations: citations.length > 0 ? citations : undefined,
+      searchQueries: searchQueries.length > 0 ? searchQueries : undefined,
+    };
+  } catch (error: any) {
+    console.error(`❌ Error analyzing with Google:`, error.message || error);
+    throw error;
+  }
+}
+
+/**
+ * Create analysis prompt for brand visibility extraction (shared across providers)
+ */
+function createAnalysisPrompt(text: string, brandName: string, competitors?: string[]): string {
+  return `Analyze this AI-generated response to determine brand visibility:
+
+BRAND NAME: ${brandName}
+COMPETITORS: ${competitors?.join(', ') || 'None specified'}
+
+RESPONSE TEXT:
+"${text}"
+
+Extract the following information:
+
+1. **brandMentioned**: Is "${brandName}" mentioned anywhere in the response? (true/false)
+2. **brandPosition**: What numerical ranking/position is "${brandName}" given? (number or null)
+3. **competitorsMentioned**: Array of OTHER company/brand names mentioned (EXCLUDING "${brandName}")
+4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
+5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
+6. **sentiment**: Overall sentiment toward "${brandName}" ("positive" | "neutral" | "negative")
+7. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
+
+Return ONLY a valid JSON object with these exact keys:
+{
+  "brandMentioned": boolean,
+  "brandPosition": number or null,
+  "competitorsMentioned": string[],
+  "competitorPositions": { [key: string]: number },
+  "competitorSentiments": { [key: string]: "positive" | "neutral" | "negative" },
+  "sentiment": "positive" | "neutral" | "negative",
+  "confidence": number
+}`;
+}
+
+/**
+ * Create fallback analysis when LLM parsing fails
+ */
+function createFallbackAnalysis(text: string, brandName: string): any {
+  const brandNameLower = brandName.toLowerCase();
+  const textLower = text.toLowerCase();
+  const brandMentioned = textLower.includes(brandNameLower);
+  
+  return {
+    brandMentioned,
+    brandPosition: null,
+    competitorsMentioned: [],
+    competitorPositions: {},
+    competitorSentiments: {},
+    sentiment: 'neutral',
+    confidence: 0.5,
+  };
+}
+
+/**
+ * Merge LLM-extracted positions with regex-extracted positions
+ */
+function mergePositions(
+  llmPositions: Record<string, number>,
+  regexPositions: Record<string, number>,
+  competitors: string[]
+): Record<string, number> {
+  const merged = { ...llmPositions };
+  
+  competitors.forEach((competitor) => {
+    const regexMatch = Object.keys(regexPositions).find(
+      regexComp => regexComp.toLowerCase() === competitor.toLowerCase() ||
+                   regexComp.includes(competitor) ||
+                   competitor.includes(regexComp)
+    );
+    
+    if (regexMatch && !merged[competitor]) {
+      merged[competitor] = regexPositions[regexMatch];
+    }
+  });
+  
+  // Add regex-found competitors that LLM missed
+  Object.entries(regexPositions).forEach(([company, position]) => {
+    const alreadyMentioned = competitors.some(
+      (comp) => comp.toLowerCase() === company.toLowerCase()
+    );
+    
+    if (!alreadyMentioned && !merged[company]) {
+      merged[company] = position;
+    }
+  });
+  
+  return merged;
 }
 
 /**

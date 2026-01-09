@@ -123,16 +123,18 @@ const data = {
           url: "/dashboard/account",
           icon: Settings,
         },
-        {
+        // Billing - hidden in production
+        ...(process.env.NODE_ENV !== 'production' ? [{
           title: "Billing",
           url: "/dashboard/billing",
           icon: CreditCard,
-        },
-        {
+        }] : []),
+        // Notifications - hidden in production
+        ...(process.env.NODE_ENV !== 'production' ? [{
           title: "Notifications",
           url: "/dashboard/notifications",
           icon: Bell,
-        },
+        }] : []),
       ]
     },
     
@@ -260,10 +262,13 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
         <SidebarFooter className="bg-dark-grey space-y-3 pb-4">
           {/* Support & Feedback - Simplified */}
           <div className="px-3 space-y-1">
-            <button className="w-full h-8 px-3 text-xs text-white/60 hover:text-white/90 hover:bg-white/[0.03] transition-all duration-200 flex items-center gap-2 rounded-md group">
-              <IconPhone className="w-3.5 h-3.5 text-white/40 group-hover:text-white/70 transition-colors" />
-              <span className="font-medium">Live Support</span>
-            </button>
+            {/* Live Support - hidden in production */}
+            {process.env.NODE_ENV !== 'production' && (
+              <button className="w-full h-8 px-3 text-xs text-white/60 hover:text-white/90 hover:bg-white/[0.03] transition-all duration-200 flex items-center gap-2 rounded-md group">
+                <IconPhone className="w-3.5 h-3.5 text-white/40 group-hover:text-white/70 transition-colors" />
+                <span className="font-medium">Live Support</span>
+              </button>
+            )}
             <button className="w-full h-8 px-3 text-xs text-white/60 hover:text-white/90 hover:bg-white/[0.03] transition-all duration-200 flex items-center gap-2 rounded-md group">
               <IconMessage className="w-3.5 h-3.5 text-white/40 group-hover:text-white/70 transition-colors" />
               <span className="font-medium">Feedback</span>

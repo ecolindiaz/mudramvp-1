@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { getOpenTasks, markTaskDone, getLatestSnapshot } from "@/lib/analysis/technical/repo";
 import type { NextRequest } from "next/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 
 export async function GET(req: NextRequest) {
   try {
+    // Require authentication
+    const authResult = await requireAuth();
+    if (!authResult.success) {
+      return authResult.response;
+    }
+
     const { searchParams } = new URL(req.url);
     const siteId = searchParams.get("siteId") || "";
     const status = searchParams.get("status") || "open"; // open, done, all
@@ -51,6 +58,12 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    // Require authentication
+    const authResult = await requireAuth();
+    if (!authResult.success) {
+      return authResult.response;
+    }
+
     const body = await req.json().catch(() => ({}));
     const { taskId, status } = body;
     

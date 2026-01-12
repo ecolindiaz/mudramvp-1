@@ -3,12 +3,21 @@
  * 
  * POST /api/track
  * Receives tracking events from embedded tracking scripts
+ * 
+ * NOTE: This endpoint is intentionally PUBLIC (no auth) because it receives
+ * events from client-side JavaScript on external websites. Rate limiting
+ * is applied to prevent abuse.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { trackEvent } from '@/lib/services/analytics-event.service';
+import { applyRateLimit } from '@/lib/auth/rate-limiter';
 
 export async function POST(request: NextRequest) {
+  // Apply rate limiting (high volume but still needs protection)
+  const rateLimited = applyRateLimit(request, 'track');
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json();
 

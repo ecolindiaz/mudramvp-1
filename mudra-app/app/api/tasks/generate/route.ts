@@ -4,14 +4,17 @@ import { computeTechnicalScore } from "@/lib/analysis/technical/score";
 import { generateTasksFromSnapshot } from "@/lib/analysis/technical/task-generator";
 import { saveSnapshot, saveScore, saveTasks, ensureCompanyAndSiteForUrl, ensureSiteByUrl } from "@/lib/analysis/technical/repo";
 import type { ScrapeSnapshot } from "@/lib/analysis/technical/types";
-// import { authRateLimiter } from "@/lib/auth/rate-limiter";
+import { requireAuth } from "@/lib/auth/require-auth";
 import type { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
-    // Rate limiting temporarily disabled for testing
-    // const limited = await authRateLimiter(req);
-    // if (limited) return limited;
+    // Require authentication
+    const authResult = await requireAuth();
+    if (!authResult.success) {
+      return authResult.response;
+    }
+
     const body = await req.json().catch(() => ({}));
     const candidate: unknown = body?.snapshot ?? body;
     let siteId: string | undefined = body?.siteId;

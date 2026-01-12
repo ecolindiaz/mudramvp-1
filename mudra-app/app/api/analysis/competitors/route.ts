@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 
 interface CompetitorMention {
   name: string
@@ -33,14 +34,13 @@ export async function GET(request: NextRequest) {
     const brandProfileId = searchParams.get('brandProfileId')
     const limit = parseInt(searchParams.get('limit') || '5')
 
-    if (!brandProfileId) {
-      return NextResponse.json(
-        { success: false, error: 'brandProfileId is required' },
-        { status: 400 }
-      )
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId)
+    if (!authResult.success) {
+      return authResult.response
     }
 
-    const profileId = parseInt(brandProfileId)
+    const profileId = authResult.brandProfileId!
 
     // Get the brand profile to know the user's brand name (to exclude from competitors)
     const brandProfile = await prisma.brandProfile.findUnique({

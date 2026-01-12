@@ -32,6 +32,68 @@ function deserializeProfile(dbProfile: any) {
   };
 }
 
+/**
+ * Get brand profile for a specific user (authenticated)
+ */
+export async function getBrandProfileByUserId(userId: string) {
+  const dbProfile = await prisma.brandProfile.findFirst({ 
+    where: {
+      userId: userId,
+      id: {
+        not: 0
+      }
+    },
+    orderBy: { updatedAt: "desc" } 
+  });
+  return dbProfile ? deserializeProfile(dbProfile) : null;
+}
+
+/**
+ * Save/update brand profile for a specific user (authenticated)
+ */
+export async function saveBrandProfileForUser(userId: string, profile: any) {
+  const data = serializeProfile(profile);
+  
+  // Remove id: 0 from data to prevent invalid updates
+  if (data.id === 0) {
+    delete data.id;
+  }
+  
+  // Find existing profile for this user
+  const existing = await prisma.brandProfile.findFirst({
+    where: {
+      userId: userId,
+      id: {
+        not: 0
+      }
+    },
+    orderBy: {
+      updatedAt: 'desc'
+    }
+  });
+  
+  if (existing && existing.id > 0) {
+    // Update existing profile
+    console.log("🟢 [saveBrandProfileForUser] Updating profile ID:", existing.id, "for user:", userId);
+    const updated = await prisma.brandProfile.update({ 
+      where: { id: existing.id }, 
+      data: { ...data, userId } 
+    });
+    return deserializeProfile(updated);
+  } else {
+    // Create new profile for this user
+    console.log("🟢 [saveBrandProfileForUser] Creating new profile for user:", userId);
+    const created = await prisma.brandProfile.create({ 
+      data: {
+        ...data,
+        userId,
+      }
+    });
+    return deserializeProfile(created);
+  }
+}
+
+// Legacy function - kept for backward compatibility during migration
 export async function getBrandProfile() {
   const dbProfile = await prisma.brandProfile.findFirst({ 
     where: {

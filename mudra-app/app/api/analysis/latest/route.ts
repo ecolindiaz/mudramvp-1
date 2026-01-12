@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 
 /**
  * GET /api/analysis/latest?brandProfileId={id}
@@ -10,14 +11,13 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
 
-    if (!brandProfileId) {
-      return NextResponse.json(
-        { error: 'brandProfileId is required' },
-        { status: 400 }
-      )
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId)
+    if (!authResult.success) {
+      return authResult.response
     }
 
-    const profileId = parseInt(brandProfileId)
+    const profileId = authResult.brandProfileId!
 
     // Get the latest analysis result
     const analysis = await prisma.geoAnalysisResult.findFirst({

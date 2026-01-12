@@ -1,0 +1,225 @@
+/**
+ * Authentication utilities for API routes
+ * Provides helper functions to require and validate user sessions
+ */
+
+import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  name?: string | null;
+  brandProfileId?: number | null;
+}
+
+export type AuthResult = {
+  success: true;
+  user: AuthenticatedUser;
+} | {
+  success: false;
+  response: NextResponse;
+}
+
+/**
+ * Require authentication for an API route
+ * Returns the authenticated user or an error response
+ */
+export async function requireAuth(): Promise<AuthResult> {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    return {
+      success: false,
+      response: NextResponse.json(
+        { success: false, error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } },
+        { status: 401 }
+      ),
+    };
+  }
+
+  // Get user with their brand profile (using first profile for single-profile users)
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      brandProfiles: {
+        select: { id: true },
+        take: 1,
+        orderBy: { updatedAt: 'desc' }
+      }
+    }
+  });
+
+  if (!user) {
+    return {
+      success: false,
+      response: NextResponse.json(
+        { success: false, error: { message: 'User not found', code: 'USER_NOT_FOUND' } },
+        { status: 401 }
+      ),
+    };
+  }
+
+  return {
+    success: true,
+    user: {
+      id: user.id,
+      email: user.email!,
+      name: user.name,
+      brandProfileId: user.brandProfiles[0]?.id ?? null,
+    },
+  };
+}
+
+/**
+ * Verify that the user has access to the specified brandProfileId
+ * Use this to prevent cross-user data access
+ */
+export async function verifyBrandProfileAccess(
+  user: AuthenticatedUser,
+  requestedBrandProfileId: number
+): Promise<{ allowed: boolean; response?: NextResponse }> {
+  // If user's brandProfileId matches the requested one, allow access
+  if (user.brandProfileId === requestedBrandProfileId) {
+    return { allowed: true };
+  }
+
+  // Check if the brandProfile belongs to this user (additional safety check)
+  const brandProfile = await prisma.brandProfile.findUnique({
+    where: { id: requestedBrandProfileId },
+    select: { userId: true }
+  });
+
+  if (!brandProfile) {
+    return {
+      allowed: false,
+      response: NextResponse.json(
+        { success: false, error: { message: 'Brand profile not found', code: 'NOT_FOUND' } },
+        { status: 404 }
+      ),
+    };
+  }
+
+  if (brandProfile.userId !== user.id) {
+    return {
+      allowed: false,
+      response: NextResponse.json(
+        { success: false, error: { message: 'Access denied', code: 'FORBIDDEN' } },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Combined helper: require auth and verify brand profile access
+ */
+export async function requireAuthWithBrandAccess(
+  brandProfileId: number | string | null | undefined
+): Promise<AuthResult & { brandProfileId?: number }> {
+  const authResult = await requireAuth();
+  
+  if (!authResult.success) {
+    return authResult;
+  }
+
+  // If no brandProfileId provided, use the user's default
+  if (brandProfileId === null || brandProfileId === undefined) {
+    if (!authResult.user.brandProfileId) {
+      return {
+        success: false,
+        response: NextResponse.json(
+          { success: false, error: { message: 'No brand profile found', code: 'NO_BRAND_PROFILE' } },
+          { status: 400 }
+        ),
+      };
+    }
+    return {
+      ...authResult,
+      brandProfileId: authResult.user.brandProfileId,
+    };
+  }
+
+  // Parse brandProfileId if it's a string
+  const parsedId = typeof brandProfileId === 'string' 
+    ? parseInt(brandProfileId, 10) 
+    : brandProfileId;
+
+  if (isNaN(parsedId)) {
+    return {
+      success: false,
+      response: NextResponse.json(
+        { success: false, error: { message: 'Invalid brandProfileId', code: 'INVALID_ID' } },
+        { status: 400 }
+      ),
+    };
+  }
+
+  // Verify access
+  const accessResult = await verifyBrandProfileAccess(authResult.user, parsedId);
+  
+  if (!accessResult.allowed) {
+    return {
+      success: false,
+      response: accessResult.response!,
+    };
+  }
+
+  return {
+    ...authResult,
+    brandProfileId: parsedId,
+  };
+}
+
+/**
+ * Validate a cron job secret
+ * Used for scheduled tasks that need to bypass user authentication
+ */
+export function validateCronSecret(authHeader: string | null): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+  
+  if (!cronSecret) {
+    console.error('[Auth] CRON_SECRET not configured');
+    return false;
+  }
+
+  if (!authHeader) {
+    return false;
+  }
+
+  // Support both "Bearer {secret}" and raw secret
+  const providedSecret = authHeader.startsWith('Bearer ') 
+    ? authHeader.slice(7) 
+    : authHeader;
+
+  return providedSecret === cronSecret;
+}
+
+/**
+ * Validate internal API secret for service-to-service calls
+ */
+export function validateInternalApiSecret(authHeader: string | null): boolean {
+  const apiSecret = process.env.INTERNAL_API_SECRET;
+  
+  if (!apiSecret) {
+    console.error('[Auth] INTERNAL_API_SECRET not configured');
+    return false;
+  }
+
+  if (!authHeader) {
+    return false;
+  }
+
+  const providedSecret = authHeader.startsWith('Bearer ') 
+    ? authHeader.slice(7) 
+    : authHeader;
+
+  return providedSecret === apiSecret;
+}

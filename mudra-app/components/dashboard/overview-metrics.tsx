@@ -1,7 +1,6 @@
 "use client"
 
 import { DashboardStatCard } from "./dashboard-stat-card"
-import { mockOverviewMetrics, mockDashboardMetrics } from "@/lib/mock/data"
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 import { useState, useEffect } from "react"
@@ -21,14 +20,6 @@ interface OverviewMetricsProps {
 }
 
 export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: OverviewMetricsProps) {
-  const { 
-    humansReferredFromLLMs, 
-    weeklyTasksCompleted,
-    thisWeekGoals,
-    aiVisibilityRank,
-    contentQualityScore 
-  } = mockOverviewMetrics
-
   // Suppress unused variable warnings for future use
   void timeRange
   void selectedModel

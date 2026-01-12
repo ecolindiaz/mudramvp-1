@@ -1,19 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateSophisticatedPrompts } from '@/lib/services/prompt-generation.service'
 import { createCustomPrompt } from '@/lib/services/prompt-storage.service'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 /**
  * POST /api/prompts/generate
  * AI-powered prompt generation based on user request
  */
 export async function POST(request: NextRequest) {
+  // Apply rate limiting (AI generation is expensive)
+  const rateLimited = applyRateLimit(request, 'aiGeneration');
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json()
     const { brandProfileId, userRequest, brandInfo } = body
 
-    if (!brandProfileId || !brandInfo) {
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId)
+    if (!authResult.success) {
+      return authResult.response
+    }
+
+    if (!brandInfo) {
       return NextResponse.json(
-        { error: 'brandProfileId and brandInfo are required' },
+        { error: 'brandInfo is required' },
         { status: 400 }
       )
     }
@@ -28,13 +40,13 @@ export async function POST(request: NextRequest) {
       // For custom requests, save all generated prompts as custom prompts
       const savedPrompts = await Promise.all([
         ...generatedPrompts.organic.slice(0, 5).map(text => 
-          createCustomPrompt(brandProfileId, text, 'Organic')
+          createCustomPrompt(authResult.brandProfileId!, text, 'Organic')
         ),
         ...generatedPrompts.competitor.slice(0, 3).map(text =>
-          createCustomPrompt(brandProfileId, text, 'Competitor')
+          createCustomPrompt(authResult.brandProfileId!, text, 'Competitor')
         ),
         ...generatedPrompts.howToGuides.slice(0, 2).map(text =>
-          createCustomPrompt(brandProfileId, text, 'How-to Guides')
+          createCustomPrompt(authResult.brandProfileId!, text, 'How-to Guides')
         )
       ])
 

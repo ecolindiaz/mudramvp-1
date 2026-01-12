@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { canRunAnalysis } from '@/lib/services/analysis-run.service'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 
 /**
  * GET /api/analysis/cooldown?brandProfileId={id}
@@ -10,14 +11,13 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
 
-    if (!brandProfileId) {
-      return NextResponse.json(
-        { error: 'brandProfileId is required' },
-        { status: 400 }
-      )
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId)
+    if (!authResult.success) {
+      return authResult.response
     }
 
-    const result = await canRunAnalysis(parseInt(brandProfileId))
+    const result = await canRunAnalysis(authResult.brandProfileId!)
 
     return NextResponse.json({
       success: true,

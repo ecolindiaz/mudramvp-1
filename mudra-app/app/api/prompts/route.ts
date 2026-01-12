@@ -9,26 +9,32 @@ import {
   canAddCustomPrompt,
   PROMPT_LIMITS
 } from '@/lib/services/prompt-storage.service'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { prisma } from '@/lib/prisma'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 /**
  * GET /api/prompts?brandProfileId={id}&category={category}
  * Get prompts for a brand profile, optionally filtered by category
  */
 export async function GET(request: NextRequest) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
     const category = searchParams.get('category')
     const statsOnly = searchParams.get('stats') === 'true'
 
-    if (!brandProfileId) {
-      return NextResponse.json(
-        { error: 'brandProfileId is required' },
-        { status: 400 }
-      )
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId)
+    if (!authResult.success) {
+      return authResult.response
     }
 
-    const profileId = parseInt(brandProfileId)
+    const profileId = authResult.brandProfileId!
 
     // Return stats only if requested
     if (statsOnly) {
@@ -60,18 +66,28 @@ export async function GET(request: NextRequest) {
  * Create a new custom prompt (with limit validation)
  */
 export async function POST(request: NextRequest) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json()
     const { brandProfileId, text, category } = body
 
-    if (!brandProfileId || !text || !category) {
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId)
+    if (!authResult.success) {
+      return authResult.response
+    }
+
+    if (!text || !category) {
       return NextResponse.json(
-        { error: 'brandProfileId, text, and category are required' },
+        { error: 'text and category are required' },
         { status: 400 }
       )
     }
 
-    const profileId = parseInt(brandProfileId)
+    const profileId = authResult.brandProfileId!
 
     // Check prompt limits before creating
     const limits = await canAddCustomPrompt(profileId)
@@ -125,7 +141,17 @@ export async function POST(request: NextRequest) {
  * Update an existing prompt
  */
 export async function PATCH(request: NextRequest) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
+    // Require authentication
+    const authResult = await requireAuthWithBrandAccess(null)
+    if (!authResult.success) {
+      return authResult.response
+    }
+
     const body = await request.json()
     const { promptId, text, category, isActive } = body
 
@@ -133,6 +159,26 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json(
         { error: 'promptId is required' },
         { status: 400 }
+      )
+    }
+
+    // Verify the prompt belongs to the user's brand profile
+    const existingPrompt = await prisma.prompt.findUnique({
+      where: { id: parseInt(promptId) },
+      select: { brandProfileId: true }
+    })
+
+    if (!existingPrompt) {
+      return NextResponse.json(
+        { error: 'Prompt not found' },
+        { status: 404 }
+      )
+    }
+
+    if (existingPrompt.brandProfileId !== authResult.brandProfileId) {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
       )
     }
 
@@ -161,7 +207,17 @@ export async function PATCH(request: NextRequest) {
  * Soft delete a prompt (sets isActive to false)
  */
 export async function DELETE(request: NextRequest) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
+    // Require authentication
+    const authResult = await requireAuthWithBrandAccess(null)
+    if (!authResult.success) {
+      return authResult.response
+    }
+
     const searchParams = request.nextUrl.searchParams
     const promptId = searchParams.get('promptId')
 
@@ -169,6 +225,26 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { error: 'promptId is required' },
         { status: 400 }
+      )
+    }
+
+    // Verify the prompt belongs to the user's brand profile
+    const existingPrompt = await prisma.prompt.findUnique({
+      where: { id: parseInt(promptId) },
+      select: { brandProfileId: true }
+    })
+
+    if (!existingPrompt) {
+      return NextResponse.json(
+        { error: 'Prompt not found' },
+        { status: 404 }
+      )
+    }
+
+    if (existingPrompt.brandProfileId !== authResult.brandProfileId) {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
       )
     }
 

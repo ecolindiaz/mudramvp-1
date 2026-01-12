@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // Simple in-memory rate limiter for development
-// TODO: Replace with Redis-based rate limiter in production
+// In production, consider using Redis via @upstash/ratelimit for distributed systems
 
 interface RateLimitEntry {
     count: number;
@@ -30,33 +30,129 @@ function getFailedAuthStore(): Map<string, RateLimitEntry> {
     return g.__mudraFailedAuth;
 }
 
-function checkRateLimit(store: Map<string, RateLimitEntry>, key: string, maxPoints: number, durationSeconds: number): boolean {
+// Cleanup old entries periodically to prevent memory leaks
+function cleanupStore(store: Map<string, RateLimitEntry>) {
+    const now = Date.now();
+    for (const [key, entry] of store.entries()) {
+        if (now > entry.resetTime) {
+            store.delete(key);
+        }
+    }
+}
+
+// Run cleanup every 5 minutes
+setInterval(() => {
+    cleanupStore(getRateLimitStore());
+    cleanupStore(getFailedAuthStore());
+}, 5 * 60 * 1000);
+
+function checkRateLimit(store: Map<string, RateLimitEntry>, key: string, maxPoints: number, durationSeconds: number): { allowed: boolean; remaining: number; resetIn: number } {
     const now = Date.now();
     const entry = store.get(key);
     
     if (!entry || now > entry.resetTime) {
         // Reset or create new entry
         store.set(key, { count: 1, resetTime: now + (durationSeconds * 1000) });
-        return true; // Allow
+        return { allowed: true, remaining: maxPoints - 1, resetIn: durationSeconds };
     }
     
     if (entry.count >= maxPoints) {
-        return false; // Rate limited
+        return { allowed: false, remaining: 0, resetIn: Math.ceil((entry.resetTime - now) / 1000) };
     }
     
     entry.count++;
-    return true; // Allow
+    return { allowed: true, remaining: maxPoints - entry.count, resetIn: Math.ceil((entry.resetTime - now) / 1000) };
 }
 
+/**
+ * Get IP address from request
+ */
+export function getClientIp(req: NextRequest): string {
+    return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+           req.headers.get('x-real-ip') || 
+           '127.0.0.1';
+}
+
+/**
+ * Rate limit configurations for different endpoint types
+ */
+export const RATE_LIMITS = {
+    // Auth endpoints: strict limits to prevent brute force
+    auth: { points: 5, duration: 15 * 60 },           // 5 requests per 15 minutes
+    
+    // Analysis endpoints: expensive API calls
+    analysis: { points: 10, duration: 60 },           // 10 requests per minute
+    
+    // AI/Generation endpoints: very expensive
+    aiGeneration: { points: 5, duration: 60 },        // 5 requests per minute
+    
+    // Scrape endpoints: expensive external API
+    scrape: { points: 5, duration: 60 },              // 5 requests per minute
+    
+    // Standard API: normal CRUD operations
+    standard: { points: 60, duration: 60 },           // 60 requests per minute
+    
+    // Track endpoint: high volume from analytics
+    track: { points: 100, duration: 60 },             // 100 requests per minute per IP
+    
+    // Webhook endpoints: moderate limits
+    webhook: { points: 30, duration: 60 },            // 30 requests per minute
+} as const;
+
+/**
+ * Apply rate limiting to a request
+ * Returns a 429 response if rate limited, null otherwise
+ */
+export function applyRateLimit(
+    req: NextRequest, 
+    limitType: keyof typeof RATE_LIMITS,
+    customKey?: string
+): NextResponse | null {
+    try {
+        const ip = getClientIp(req);
+        const limit = RATE_LIMITS[limitType];
+        const key = customKey || `${limitType}_${ip}`;
+        
+        const result = checkRateLimit(getRateLimitStore(), key, limit.points, limit.duration);
+        
+        if (!result.allowed) {
+            return NextResponse.json(
+                { 
+                    success: false, 
+                    error: { 
+                        message: 'Too many requests. Please try again later.',
+                        code: 'RATE_LIMITED',
+                        retryAfter: result.resetIn
+                    } 
+                },
+                { 
+                    status: 429,
+                    headers: {
+                        'Retry-After': result.resetIn.toString(),
+                        'X-RateLimit-Limit': limit.points.toString(),
+                        'X-RateLimit-Remaining': '0',
+                        'X-RateLimit-Reset': result.resetIn.toString()
+                    }
+                }
+            );
+        }
+        
+        return null; // Allowed
+    } catch (error) {
+        console.error('Rate limiter error:', error);
+        return null; // Allow on error (fail open)
+    }
+}
+
+/**
+ * Legacy auth rate limiter - kept for backward compatibility
+ */
 export async function authRateLimiter(req: NextRequest) {
     try {
-        const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || 
-                  req.headers.get('x-real-ip') || 
-                  '127.0.0.1'
+        const ip = getClientIp(req);
+        const result = checkRateLimit(getRateLimitStore(), `auth_${ip}`, 5, 60 * 15);
         
-        const allowed = checkRateLimit(getRateLimitStore(), `auth_${ip}`, 5, 60 * 15); // 5 requests per 15 minutes
-        
-        if (!allowed) {
+        if (!result.allowed) {
             return NextResponse.json(
                 { error: 'Too many requests. Please try again later.' },
                 { status: 429 }
@@ -72,8 +168,8 @@ export async function authRateLimiter(req: NextRequest) {
 
 export async function handleFailedAuth(ip: string): Promise<boolean> {
     try {
-        const allowed = checkRateLimit(getFailedAuthStore(), `failed_${ip}`, 3, 60 * 60); // 3 attempts per hour
-        return !allowed; // Return true if blocked
+        const result = checkRateLimit(getFailedAuthStore(), `failed_${ip}`, 3, 60 * 60); // 3 attempts per hour
+        return !result.allowed; // Return true if blocked
     } catch (error) {
         console.error('Failed auth limiter error:', error);
         return false; // Allow on error
@@ -95,7 +191,8 @@ export async function resetFailedAuth(ip: string): Promise<void> {
 export function rateLimitByKey(key: string, maxPoints: number, durationSeconds: number): boolean {
     try {
         const store = getRateLimitStore();
-        return checkRateLimit(store, key, maxPoints, durationSeconds);
+        const result = checkRateLimit(store, key, maxPoints, durationSeconds);
+        return result.allowed;
     } catch (error) {
         console.error('rateLimitByKey error:', error);
         // Fail open on limiter error

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { applyRateLimit } from '@/lib/auth/rate-limiter';
 
 interface FiregeoWebhookEvent {
   id: string;
@@ -9,29 +10,48 @@ interface FiregeoWebhookEvent {
 }
 
 export async function POST(request: NextRequest) {
+  // Apply rate limiting to webhooks
+  const rateLimited = applyRateLimit(request, 'webhook');
+  if (rateLimited) return rateLimited;
+
   try {
     const signature = request.headers.get('x-fire-signature-256');
     const payload = await request.text();
     
-    // Verify webhook signature if secret is configured
+    // SECURITY: Require webhook secret in production
     const webhookSecret = process.env.FIREGEO_WEBHOOK_SECRET;
-    if (webhookSecret && signature) {
-      const expectedSignature = crypto
-        .createHmac('sha256', webhookSecret)
-        .update(payload)
-        .digest('hex');
+    if (!webhookSecret) {
+      console.error('[Webhook] FIREGEO_WEBHOOK_SECRET not configured');
+      return NextResponse.json(
+        { error: 'Webhook not configured' },
+        { status: 500 }
+      );
+    }
 
-      if (signature !== `sha256=${expectedSignature}`) {
-        console.error('Invalid webhook signature');
-        return NextResponse.json(
-          { error: 'Invalid signature' },
-          { status: 401 }
-        );
-      }
+    // SECURITY: Require valid signature
+    if (!signature) {
+      console.error('[Webhook] Missing signature header');
+      return NextResponse.json(
+        { error: 'Missing signature' },
+        { status: 401 }
+      );
+    }
+
+    const expectedSignature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(payload)
+      .digest('hex');
+
+    if (signature !== `sha256=${expectedSignature}`) {
+      console.error('[Webhook] Invalid signature');
+      return NextResponse.json(
+        { error: 'Invalid signature' },
+        { status: 401 }
+      );
     }
 
     const event: FiregeoWebhookEvent = JSON.parse(payload);
-    console.log('Received Firegeo webhook:', event);
+    console.log('Received Firegeo webhook:', event.event);
 
     // Handle different event types
     switch (event.event) {

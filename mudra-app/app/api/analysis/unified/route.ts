@@ -5,10 +5,22 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { runUnifiedAnalysis } from '@/lib/services/unified-analysis.service';
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
+import { applyRateLimit } from '@/lib/auth/rate-limiter';
 
 export async function POST(request: NextRequest) {
+  // Apply rate limiting (analysis is expensive)
+  const rateLimited = applyRateLimit(request, 'analysis');
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json();
+    
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(body.brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
     const {
       brandProfileId,
       brandName,

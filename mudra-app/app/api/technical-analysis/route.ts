@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createWebsiteIfNotExists, saveAnalysisResults } from '@/lib/services/technical-analysis.service'
 import { extractEnhancedGEOData } from '@/lib/scrapers/enhanced-geo-scraper'
+import { requireAuth } from '@/lib/auth/require-auth'
 
 const TriggerAnalysisSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
@@ -10,12 +11,23 @@ const TriggerAnalysisSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Require authentication
+    const authResult = await requireAuth();
+    if (!authResult.success) {
+      return authResult.response;
+    }
+
     const body = await request.json()
     
-    const validatedData = TriggerAnalysisSchema.parse(body)
+    // Override userId with authenticated user to prevent impersonation
+    const validatedData = TriggerAnalysisSchema.parse({
+      ...body,
+      userId: authResult.user.id
+    })
     const { userId, websiteUrl } = validatedData
 
-    console.log(`= Starting technical analysis for ${websiteUrl}`)
+    console.log(`=
+ Starting technical analysis for ${websiteUrl}`)
 
     const website = await createWebsiteIfNotExists(userId, websiteUrl)
     

@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OpenAI } from "openai";
 import { getCombinedSystemPrompt } from "@/lib/prompts/load-system-prompts";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { applyRateLimit } from "@/lib/auth/rate-limiter";
 
 export async function POST(req: NextRequest) {
+  // Apply rate limiting (AI generation is expensive)
+  const rateLimited = applyRateLimit(req, 'aiGeneration');
+  if (rateLimited) return rateLimited;
+
   try {
+    // Require authentication
+    const authResult = await requireAuth();
+    if (!authResult.success) {
+      return authResult.response;
+    }
+
     const { type, mode, prompt, icp, keyword, title } = await req.json();
 
     // Validate OpenAI API key

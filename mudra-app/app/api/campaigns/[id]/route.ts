@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { applyRateLimit } from "@/lib/auth/rate-limiter";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(req, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
+    // Require authentication
+    const authResult = await requireAuth();
+    if (!authResult.success) {
+      return authResult.response;
+    }
+
     const { id } = await params;
 
     const campaign = await prisma.campaign.findUnique({
@@ -33,7 +45,17 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(req, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
+    // Require authentication
+    const authResult = await requireAuth();
+    if (!authResult.success) {
+      return authResult.response;
+    }
+
     const { id } = await params;
     const updates = await req.json();
 
@@ -73,7 +95,17 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(req, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
+    // Require authentication
+    const authResult = await requireAuth();
+    if (!authResult.success) {
+      return authResult.response;
+    }
+
     const { id } = await params;
 
     await prisma.campaign.delete({

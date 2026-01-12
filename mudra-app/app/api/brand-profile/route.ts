@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
-import { getBrandProfile, saveBrandProfile } from "@/lib/prisma-brand-profile";
+import { NextRequest, NextResponse } from "next/server";
+import { getBrandProfileByUserId, saveBrandProfileForUser } from "@/lib/prisma-brand-profile";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { applyRateLimit } from "@/lib/auth/rate-limiter";
 
 const REQUEST_TIMEOUT_MS = Number.parseInt(
   (
@@ -29,10 +31,20 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutLabel: st
   });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
+    // Require authentication
+    const authResult = await requireAuth();
+    if (!authResult.success) {
+      return authResult.response;
+    }
+
     const profile = await withTimeout(
-      getBrandProfile(),
+      getBrandProfileByUserId(authResult.user.id),
       REQUEST_TIMEOUT_MS,
       "getBrandProfile",
     );
@@ -59,13 +71,23 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(req, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
+    // Require authentication
+    const authResult = await requireAuth();
+    if (!authResult.success) {
+      return authResult.response;
+    }
+
     const data = await req.json();
-    console.log("🟡 [API /brand-profile POST] Received data:", data);
+    console.log("🟡 [API /brand-profile POST] Received data for user:", authResult.user.id);
     
     const saved = await withTimeout(
-      saveBrandProfile(data),
+      saveBrandProfileForUser(authResult.user.id, data),
       REQUEST_TIMEOUT_MS,
       "saveBrandProfile",
     );

@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Loader2, Play, CheckCircle, XCircle, Clock, MessageSquare, Bot } from "lucide-react"
 import { toast } from "sonner"
 import { AIVisibilityProvider, useAIVisibility } from "@/contexts/ai-visibility-context"
+import { BrandProfileProvider } from "@/components/brand-profile-context"
 import React from "react"
 
 interface AIVisibilityResult {
@@ -367,8 +368,10 @@ function AIVisibilityPageContent() {
 
 export default function AIVisibilityPage() {
   return (
-    <AIVisibilityProvider>
-      <AIVisibilityPageContent />
-    </AIVisibilityProvider>
+    <BrandProfileProvider>
+      <AIVisibilityProvider>
+        <AIVisibilityPageContent />
+      </AIVisibilityProvider>
+    </BrandProfileProvider>
   )
 }

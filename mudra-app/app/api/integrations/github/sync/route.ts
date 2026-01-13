@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 /**
  * Manual GitHub App Installation Sync Endpoint
@@ -13,7 +14,11 @@ import jwt from 'jsonwebtoken'
  * It fetches all installations accessible to the authenticated user and
  * creates/updates the GitHubIntegration record in the database.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const session = await getServerSession(authOptions)
 

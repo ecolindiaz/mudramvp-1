@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { mastra } from "@/mastra";
-import { getBrandProfile } from "@/lib/prisma-brand-profile";
+import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from '@/lib/auth/require-auth';
+import { applyRateLimit } from '@/lib/auth/rate-limiter';
 
 // Store active workflow runs for status polling
 const activeRuns = new Map<string, {
@@ -22,6 +24,16 @@ function cleanupOldRuns() {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit first - expensive AI operations
+  const rateLimited = applyRateLimit(req, 'aiGeneration');
+  if (rateLimited) return rateLimited;
+
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   try {
     const body = await req.json();
     const { trackedPromptId, trackedPrompt, sources } = body;
@@ -41,8 +53,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get brand profile for context
-    const brandProfile = await getBrandProfile();
+    // Get brand profile for the authenticated user
+    const brandProfile = await getBrandProfileByUserId(authResult.user.id);
     if (!brandProfile) {
       return NextResponse.json(
         { success: false, error: "Brand profile not found. Please complete onboarding first." },

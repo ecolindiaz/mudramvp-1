@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 interface CitationData {
   domain: string
@@ -20,6 +22,10 @@ interface CitationData {
  * - days: Number of days to look back (default: 30)
  */
 export async function GET(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const searchParams = request.nextUrl.searchParams
     const brandProfileIdParam = searchParams.get('brandProfileId')
@@ -34,6 +40,12 @@ export async function GET(request: NextRequest) {
     }
 
     const brandProfileId = parseInt(brandProfileIdParam, 10)
+
+    // Verify user has access to this brand profile
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
     const limit = limitParam ? parseInt(limitParam, 10) : 10
     const days = daysParam ? parseInt(daysParam, 10) : 30
 

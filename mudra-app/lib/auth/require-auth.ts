@@ -181,6 +181,7 @@ export async function requireAuthWithBrandAccess(
 /**
  * Validate a cron job secret
  * Used for scheduled tasks that need to bypass user authentication
+ * Returns boolean - for simple use cases
  */
 export function validateCronSecret(authHeader: string | null): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -200,6 +201,35 @@ export function validateCronSecret(authHeader: string | null): boolean {
     : authHeader;
 
   return providedSecret === cronSecret;
+}
+
+/**
+ * Validate cron secret from request - returns full result with status
+ * Used when you need to return proper HTTP responses
+ */
+export function validateCronSecretFromRequest(request: Request): 
+  { success: true } | { success: false; error: string; status: number } {
+  const cronSecret = process.env.CRON_SECRET;
+  
+  if (!cronSecret) {
+    return { success: false, error: 'CRON_SECRET not configured', status: 500 };
+  }
+
+  const authHeader = request.headers.get('authorization');
+  
+  if (!authHeader) {
+    return { success: false, error: 'Authorization header required', status: 401 };
+  }
+
+  const providedSecret = authHeader.startsWith('Bearer ') 
+    ? authHeader.slice(7) 
+    : authHeader;
+
+  if (providedSecret !== cronSecret) {
+    return { success: false, error: 'Invalid CRON_SECRET', status: 401 };
+  }
+
+  return { success: true };
 }
 
 /**

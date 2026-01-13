@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import { BrandProfileProvider } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -64,7 +65,7 @@ interface Notification {
   actionUrl?: string
 }
 
-export default function NotificationsPage() {
+function NotificationsPageInner() {
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("notifications")
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -667,5 +668,13 @@ export default function NotificationsPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+  )
+}
+
+export default function NotificationsPage() {
+  return (
+    <BrandProfileProvider>
+      <NotificationsPageInner />
+    </BrandProfileProvider>
   )
 }

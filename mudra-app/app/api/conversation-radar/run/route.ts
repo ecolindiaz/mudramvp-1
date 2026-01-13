@@ -27,9 +27,8 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Allow dev mode bypass for testing
-    const isDev = process.env.NODE_ENV === 'development';
-    if (!isDev && !session?.user?.id) {
+    // Always require authentication - no dev mode bypass
+    if (!session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
     
@@ -49,11 +48,9 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Validate brand profile exists (in dev mode, skip user ownership check)
+    // Always verify user owns the brand profile
     const brandProfile = await prisma.brandProfile.findFirst({
-      where: isDev 
-        ? { id: brandProfileId }
-        : { id: brandProfileId, userId: session?.user?.id },
+      where: { id: brandProfileId, userId: session.user.id },
     });
     
     if (!brandProfile) {

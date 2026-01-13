@@ -1,8 +1,20 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/analysis/technical/repo";
 import type { NextRequest } from "next/server";
+import { requireAuth } from '@/lib/auth/require-auth';
+import { applyRateLimit } from '@/lib/auth/rate-limiter';
 
 export async function GET(req: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(req, 'standard');
+  if (rateLimited) return rateLimited;
+
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const siteId = searchParams.get("siteId") || "";

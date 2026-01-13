@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 /**
  * GET /api/analytics/ai-referral?brandProfileId={id}&days={days}
  * Returns AI referral traffic analytics
  */
 export async function GET(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
@@ -19,6 +25,12 @@ export async function GET(request: NextRequest) {
     }
 
     const profileId = parseInt(brandProfileId)
+
+    // Verify user has access to this brand profile
+    const authResult = await requireAuthWithBrandAccess(profileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
 
     // Calculate date range
     const endDate = new Date()

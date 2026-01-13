@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/analysis/technical/repo";
 import { scrapeCompanyPage } from "@/lib/scrapers/enhanced-geo-scraper";
 import { toScrapeSnapshot } from "@/lib/analysis/technical/adapter";
@@ -7,8 +7,18 @@ import { computeTechnicalScore } from "@/lib/analysis/technical/score";
 import { generateTasksFromSnapshot } from "@/lib/analysis/technical/task-generator";
 import { saveSnapshot, saveScore, saveTasks, getOpenTasks, recordVerification } from "@/lib/analysis/technical/repo";
 import { queueNlrJob } from "@/lib/jobs/nlr";
+import { validateCronSecretFromRequest } from '@/lib/auth/require-auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Verify CRON_SECRET for security
+  const cronAuth = validateCronSecretFromRequest(request);
+  if (!cronAuth.success) {
+    return NextResponse.json(
+      { success: false, error: { message: cronAuth.error } },
+      { status: cronAuth.status }
+    );
+  }
+
   const summary: { siteId: string; url: string; createdTasks: number; verifiedTasks: number; score?: number }[] = [];
   try {
     const sites = await prisma.site.findMany();

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { BrandProfileProvider } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -77,7 +78,7 @@ const CONTENT_TYPES: Array<{ value: ContentType; label: string; description: str
 // Intent categories
 const INTENT_CATEGORIES = ["Organic", "Competitor", "How-to", "Brand-Specific"]
 
-export default function CampaignsPage() {
+function CampaignsPageInner() {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1) // 1=Content Type, 2=Intent & Prompt, 3=ICP, 4=Review & Generate
   const [selectedContentType, setSelectedContentType] = useState<ContentType | null>(null)
   const [selectedIntent, setSelectedIntent] = useState<string | null>(null)
@@ -578,6 +579,14 @@ export default function CampaignsPage() {
       
       <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
+  )
+}
+
+export default function CampaignsPage() {
+  return (
+    <BrandProfileProvider>
+      <CampaignsPageInner />
+    </BrandProfileProvider>
   )
 }
 

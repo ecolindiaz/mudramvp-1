@@ -2,6 +2,7 @@
 import React from "react"
 import Link from "next/link"
 import ReactMarkdown from "react-markdown"
+import { BrandProfileProvider } from "@/components/brand-profile-context"
 import { CampaignEditor } from "@/components/editor/campaign-editor"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -74,7 +75,7 @@ function countWordsInMarkdown(content: string): number {
   return words.length
 }
 
-export default function CampaignCanvasPage({
+function CampaignCanvasPageInner({
   params,
   searchParams,
 }: {
@@ -861,6 +862,20 @@ export default function CampaignCanvasPage({
         </div>
       )}
     </SidebarProvider>
+  )
+}
+
+export default function CampaignCanvasPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ type?: string; mode?: string; prompt?: string; icp?: string; keyword?: string }>
+}) {
+  return (
+    <BrandProfileProvider>
+      <CampaignCanvasPageInner params={params} searchParams={searchParams} />
+    </BrandProfileProvider>
   )
 }
 

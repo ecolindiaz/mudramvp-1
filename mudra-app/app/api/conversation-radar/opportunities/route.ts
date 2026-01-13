@@ -27,9 +27,8 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Allow dev mode bypass for testing
-    const isDev = process.env.NODE_ENV === 'development';
-    if (!isDev && !session?.user?.id) {
+    // Always require authentication - no dev mode bypass
+    if (!session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
     

@@ -5,13 +5,24 @@
  * Receives tracking events from embedded tracking scripts
  * 
  * NOTE: This endpoint is intentionally PUBLIC (no auth) because it receives
- * events from client-side JavaScript on external websites. Rate limiting
- * is applied to prevent abuse.
+ * events from client-side JavaScript on external websites. 
+ * 
+ * Security measures applied:
+ * - Rate limiting per IP
+ * - Origin validation (checks against registered brand website)
+ * - Suspicious activity detection (bot detection, request patterns)
+ * - Optional request signature verification
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { trackEvent } from '@/lib/services/analytics-event.service';
-import { applyRateLimit } from '@/lib/auth/rate-limiter';
+import { applyRateLimit, getClientIp } from '@/lib/auth/rate-limiter';
+import { 
+  validateTrackingOrigin, 
+  detectSuspiciousActivity,
+  verifyTrackingSignature 
+} from '@/lib/auth/track-security';
+import { logAuditEvent } from '@/lib/services/audit-log.service';
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting (high volume but still needs protection)
@@ -28,7 +39,10 @@ export async function POST(request: NextRequest) {
       pageTitle,
       referrer,
       userAgent,
-      metadata
+      metadata,
+      // Optional signature fields for enhanced security
+      timestamp,
+      signature
     } = body;
 
     // Validate required fields
@@ -40,9 +54,64 @@ export async function POST(request: NextRequest) {
     }
 
     // Get IP address from request
-    const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0] || 
-                     request.headers.get('x-real-ip') || 
-                     'unknown';
+    const ipAddress = getClientIp(request);
+    const ua = userAgent || request.headers.get('user-agent') || 'unknown';
+
+    // Detect suspicious activity
+    const suspiciousCheck = detectSuspiciousActivity({
+      ip: ipAddress,
+      userAgent: ua,
+      trackingId,
+      pageUrl
+    });
+
+    if (suspiciousCheck.suspicious) {
+      console.warn(`[Track API] Suspicious activity detected: ${suspiciousCheck.reason}`, {
+        ip: ipAddress,
+        trackingId,
+        score: suspiciousCheck.score
+      });
+      
+      // Log but don't block (reduces false positives)
+      await logAuditEvent({
+        action: 'SUSPICIOUS_TRACKING',
+        resourceType: 'tracking',
+        resourceId: trackingId,
+        metadata: {
+          ip: ipAddress,
+          reason: suspiciousCheck.reason,
+          score: suspiciousCheck.score
+        }
+      });
+    }
+
+    // Validate origin (optional - logs mismatches but doesn't block)
+    const originCheck = await validateTrackingOrigin(request, trackingId);
+    if (!originCheck.valid) {
+      console.warn(`[Track API] Origin validation failed: ${originCheck.reason}`, {
+        trackingId,
+        origin: request.headers.get('origin')
+      });
+      // Don't block - just log for monitoring
+    }
+
+    // Optional: Verify signature if provided (for high-security deployments)
+    const trackingSecret = process.env.TRACKING_SIGNATURE_SECRET;
+    if (trackingSecret && signature && timestamp) {
+      const sigCheck = verifyTrackingSignature(
+        trackingId,
+        timestamp,
+        signature,
+        trackingSecret
+      );
+      
+      if (!sigCheck.valid) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Invalid request signature' } },
+          { status: 401 }
+        );
+      }
+    }
 
     // Track the event
     await trackEvent({
@@ -51,9 +120,13 @@ export async function POST(request: NextRequest) {
       pageUrl,
       pageTitle,
       referrer,
-      userAgent: userAgent || request.headers.get('user-agent') || undefined,
+      userAgent: ua,
       ipAddress,
-      metadata
+      metadata: {
+        ...metadata,
+        suspiciousScore: suspiciousCheck.score,
+        originValid: originCheck.valid
+      }
     });
 
     return NextResponse.json(

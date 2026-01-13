@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth/require-auth'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 // AI Visibility calculation prompts
 const AI_VISIBILITY_PROMPTS = [
@@ -125,6 +127,16 @@ function calculateWeight(position: number | null): number {
 }
 
 export async function POST(request: NextRequest) {
+  // Rate limit first - expensive AI operations
+  const rateLimited = applyRateLimit(request, 'aiGeneration')
+  if (rateLimited) return rateLimited
+
+  // Require authentication
+  const authResult = await requireAuth()
+  if (!authResult.success) {
+    return authResult.response
+  }
+
   try {
     const { companyName } = await request.json()
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBrandProfileByUserId, saveBrandProfileForUser } from "@/lib/prisma-brand-profile";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { applyRateLimit } from "@/lib/auth/rate-limiter";
+import { logBrandProfileChange } from "@/lib/services/audit-log.service";
 
 const REQUEST_TIMEOUT_MS = Number.parseInt(
   (
@@ -92,6 +93,14 @@ export async function POST(req: NextRequest) {
       "saveBrandProfile",
     );
     console.log("🟢 [API /brand-profile POST] Successfully saved profile:", saved.id);
+    
+    // Audit log: Brand profile updated
+    await logBrandProfileChange(
+      'BRAND_PROFILE_UPDATED',
+      authResult.user.id,
+      saved.id,
+      { fields: Object.keys(data) }
+    );
     
     return NextResponse.json({ success: true, profile: saved });
   } catch (error: any) {

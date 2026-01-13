@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { BrandProfileProvider } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -21,7 +22,7 @@ import { AlertCircle, Camera, Check, Key, Mail, Shield, Trash2, User as UserIcon
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { toast } from "sonner"
 
-export default function AccountPage() {
+function AccountPageInner() {
   const { data: session, update } = useSession()
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("profile")
@@ -583,5 +584,13 @@ export default function AccountPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+  )
+}
+
+export default function AccountPage() {
+  return (
+    <BrandProfileProvider>
+      <AccountPageInner />
+    </BrandProfileProvider>
   )
 }

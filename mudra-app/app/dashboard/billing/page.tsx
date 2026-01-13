@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import { BrandProfileProvider } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -106,7 +107,7 @@ const plans = [
   }
 ]
 
-export default function BillingPage() {
+function BillingPageInner() {
   const [loading, setLoading] = useState(false)
   const [billingInfo, setBillingInfo] = useState<BillingInfo>({
     plan: "free",
@@ -541,5 +542,13 @@ export default function BillingPage() {
         </DialogContent>
       </Dialog>
     </SidebarProvider>
+  )
+}
+
+export default function BillingPage() {
+  return (
+    <BrandProfileProvider>
+      <BillingPageInner />
+    </BrandProfileProvider>
   )
 }

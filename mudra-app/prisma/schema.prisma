@@ -418,6 +418,7 @@ model User {
   accounts            Account[]
   sessions            Session[]
   githubIntegration   GitHubIntegration?
+  auditLogs           AuditLog[]
   
   @@map("users")
 }
@@ -1127,4 +1128,28 @@ model Campaign {
   @@index([userId])
   @@index([status])
   @@index([createdAt])
+}
+
+// Audit Log for security tracking
+model AuditLog {
+  id            String   @id @default(cuid())
+  action        String   // e.g., USER_LOGIN, BRAND_PROFILE_UPDATED
+  userId        String?  // User who performed the action (null for system/anonymous)
+  resourceType  String   // e.g., user, brand_profile, campaign
+  resourceId    String?  // ID of the affected resource
+  metadata      String?  // JSON string with additional context
+  ipAddress     String?
+  userAgent     String?
+  success       Boolean  @default(true)
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([resourceType])
+  @@index([createdAt])
+  @@index([success])
 }

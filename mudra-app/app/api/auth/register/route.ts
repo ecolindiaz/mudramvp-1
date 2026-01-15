@@ -57,7 +57,6 @@ export async function POST(request: NextRequest) {
       { error: error.message || "Failed to create account" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }

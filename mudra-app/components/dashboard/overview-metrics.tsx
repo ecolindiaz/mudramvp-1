@@ -521,6 +521,13 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       fetchTechnicalHistory()
       fetchTrafficMetrics()
       fetchAiReferralTraffic()
+    } else if (profile.id === 0) {
+      // Profile explicitly has id=0, meaning no profile exists yet
+      // Reset loading states immediately to show empty state
+      console.log('📊 No profile ID (id=0), resetting loading states')
+      setLoadingAIVisibility(false)
+      setLoadingTechnical(false)
+      setLoadingTraffic(false)
     }
   }, [profile.id])
 

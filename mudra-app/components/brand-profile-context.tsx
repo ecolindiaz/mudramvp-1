@@ -107,15 +107,21 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
       
       if (response.ok) {
         const data = await response.json();
-        if (data && typeof data === "object") {
-          // Only update state if data actually changed
+        if (data && typeof data === "object" && data.id) {
+          // Only update state if data actually changed and has a valid ID
           if (JSON.stringify(data) !== JSON.stringify(profile)) {
-            console.log("✅ [BrandProfileContext] Profile updated:", data.companyName);
+            console.log("✅ [BrandProfileContext] Profile updated:", data.companyName, "id:", data.id);
             setProfileState(data);
           } else {
             console.log("✨ [BrandProfileContext] Profile unchanged");
           }
           setRetryCount(0); // Reset retry count on success
+        } else if (data === null) {
+          // User is authenticated but has no brand profile yet (needs onboarding)
+          console.log("⚠️ [BrandProfileContext] No brand profile found for user (needs onboarding)");
+          setRetryCount(0);
+        } else {
+          console.warn("⚠️ [BrandProfileContext] API returned invalid data:", data);
         }
       } else {
         console.warn("⚠️ [BrandProfileContext] API returned non-OK status:", response.status);

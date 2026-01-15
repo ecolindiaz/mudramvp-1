@@ -53,9 +53,8 @@ export async function createAnalysisRun(data: AnalysisRunData) {
     }
     console.error('Failed to create analysis run:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }
 
 /**
@@ -108,9 +107,8 @@ export async function updateAnalysisRun(
   } catch (error) {
     console.error('Failed to update analysis run:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }
 
 /**
@@ -128,9 +126,8 @@ export async function getAnalysisRuns(brandProfileId: number, limit: number = 10
   } catch (error) {
     console.error('Failed to get analysis runs:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }
 
 /**
@@ -150,9 +147,8 @@ export async function getLatestAnalysisRun(brandProfileId: number) {
   } catch (error) {
     console.error('Failed to get latest analysis run:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }
 
 /**
@@ -199,9 +195,8 @@ export async function canRunAnalysis(brandProfileId: number): Promise<{
   } catch (error) {
     console.error('Failed to check analysis eligibility:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }
 
 /**
@@ -222,9 +217,8 @@ export async function updateLastAnalysisTime(brandProfileId: number) {
     }
     console.error('Failed to update last analysis time:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }
 
 /**
@@ -271,7 +265,6 @@ export async function getAnalysisStats(brandProfileId: number) {
   } catch (error) {
     console.error('Failed to get analysis stats:', error)
     throw error
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }

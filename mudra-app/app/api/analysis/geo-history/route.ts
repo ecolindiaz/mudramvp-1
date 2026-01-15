@@ -49,7 +49,6 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
+  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }

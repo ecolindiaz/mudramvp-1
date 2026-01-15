@@ -34,9 +34,12 @@ function deserializeProfile(dbProfile: any) {
 
 /**
  * Get brand profile for a specific user (authenticated)
+ * Also handles migration: if user has no profile but an orphaned profile exists,
+ * it will link and return it.
  */
 export async function getBrandProfileByUserId(userId: string) {
-  const dbProfile = await prisma.brandProfile.findFirst({ 
+  // First, try to find a profile already linked to this user
+  let dbProfile = await prisma.brandProfile.findFirst({ 
     where: {
       userId: userId,
       id: {
@@ -45,6 +48,33 @@ export async function getBrandProfileByUserId(userId: string) {
     },
     orderBy: { updatedAt: "desc" } 
   });
+  
+  // If no profile found, check if there's an orphaned profile we can link
+  // This handles migration from pre-auth profiles
+  if (!dbProfile) {
+    console.log("🔍 [getBrandProfileByUserId] No profile found for user, checking for orphaned profiles...");
+    
+    // Find profile without userId (orphaned) - prioritize most recently updated
+    const orphanedProfile = await prisma.brandProfile.findFirst({
+      where: {
+        userId: null,
+        id: {
+          not: 0
+        }
+      },
+      orderBy: { updatedAt: "desc" }
+    });
+    
+    if (orphanedProfile) {
+      console.log("🔗 [getBrandProfileByUserId] Found orphaned profile ID:", orphanedProfile.id, "- linking to user:", userId);
+      // Link the orphaned profile to this user
+      dbProfile = await prisma.brandProfile.update({
+        where: { id: orphanedProfile.id },
+        data: { userId: userId }
+      });
+    }
+  }
+  
   return dbProfile ? deserializeProfile(dbProfile) : null;
 }
 

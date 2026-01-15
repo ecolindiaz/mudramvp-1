@@ -153,14 +153,28 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
   // Get brand profile data
   const { profile } = useBrandProfile()
   
+  // Debug logging for profile loading
+  React.useEffect(() => {
+    if (isMounted) {
+      console.log('🏢 [AppSidebar] Profile state:', { 
+        id: profile?.id, 
+        companyName: profile?.companyName,
+        hasProfile: !!profile?.id 
+      })
+    }
+  }, [profile, isMounted])
+  
   // Prevent hydration mismatch by only using profile data after mount
   React.useEffect(() => {
     setIsMounted(true)
   }, [])
   
   // Use real company data from BrandProfile, but only after mounting
+  // Shows "Loading..." while profile is being fetched
   const companyData: CompanyData = React.useMemo(() => ({
-    name: isMounted && profile?.companyName ? profile.companyName : "Your Company",
+    name: isMounted 
+      ? (profile?.companyName || (profile?.id ? "Unnamed Company" : "Loading..."))
+      : "Your Company",
     website: isMounted && profile?.companyWebsite ? profile.companyWebsite : undefined,
     logo: isMounted && profile?.userAvatar ? profile.userAvatar : undefined
   }), [profile, isMounted])

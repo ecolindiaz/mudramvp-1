@@ -37,6 +37,11 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
   async function onSubmit(data: SignupFormData) {
     setIsLoading(true)
 
+    // Clear any cached brand profile from previous user session
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('mudra_brand_profile')
+    }
+
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
@@ -80,6 +85,12 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
   const handleGoogleSignUp = async () => {
     try {
       setIsGoogleLoading(true)
+
+      // Clear any cached brand profile from previous user session
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('mudra_brand_profile')
+      }
+
       await signIn('google', { callbackUrl: '/welcome' })
     } catch (error) {
       toast.error('Failed to sign up with Google')

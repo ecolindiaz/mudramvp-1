@@ -3,26 +3,29 @@
  * Returns the most recent records for historical comparison
  */
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const brandProfileId = searchParams.get('brandProfileId');
+    const brandProfileIdStr = searchParams.get('brandProfileId');
     const limit = parseInt(searchParams.get('limit') || '2');
 
-    if (!brandProfileId) {
-      return NextResponse.json(
-        { success: false, error: 'brandProfileId is required' },
-        { status: 400 }
-      );
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileIdStr);
+    if (!authResult.success) {
+      return authResult.response;
     }
+
+    const brandProfileId = authResult.brandProfileId!;
 
     // Fetch most recent Technical Structure analysis results
     const results = await prisma.technicalStructureAnalysis.findMany({
       where: {
-        brandProfileId: parseInt(brandProfileId)
+        brandProfileId: brandProfileId
       },
       orderBy: {
         createdAt: 'desc'

@@ -6,6 +6,97 @@
 
 import { prisma } from '@/lib/prisma';
 import { getOrCreateTrackingCode, generateTrackingScript } from './tracking-code.service';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+
+// Encryption helpers for token decryption
+const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
+const ALGORITHM = 'aes-256-gcm';
+
+function decrypt(encryptedText: string): string {
+  if (!ENCRYPTION_KEY) {
+    throw new Error('GITHUB_TOKEN_ENCRYPTION_KEY environment variable is required');
+  }
+  const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+/**
+ * Get a valid GitHub token for API calls
+ * Handles both OAuth tokens (decrypt) and Installation tokens (refresh if needed)
+ */
+async function getValidGitHubToken(integration: any): Promise<string> {
+  // For Installation type, check if token needs refresh
+  if (integration.integrationType === 'installation' && integration.installationId) {
+    // Installation tokens expire after 1 hour, check if expired
+    const tokenExpiresAt = integration.tokenExpiresAt;
+    const now = new Date();
+    
+    // If token expires within 5 minutes, refresh it
+    if (tokenExpiresAt && new Date(tokenExpiresAt).getTime() - now.getTime() < 5 * 60 * 1000) {
+      console.log('[Tracking Agent] Refreshing expired installation token');
+      return await refreshInstallationToken(integration.installationId);
+    }
+    
+    // Token still valid, decrypt and return
+    try {
+      return decrypt(integration.accessToken);
+    } catch {
+      // If decryption fails, token might be stored unencrypted (legacy)
+      // or it's an installation token that needs refresh
+      return await refreshInstallationToken(integration.installationId);
+    }
+  }
+  
+  // OAuth token - just decrypt
+  return decrypt(integration.accessToken);
+}
+
+/**
+ * Refresh GitHub App installation token
+ */
+async function refreshInstallationToken(installationId: number): Promise<string> {
+  const appId = process.env.GITHUB_APP_ID;
+  const privateKey = process.env.GITHUB_PRIVATE_KEY;
+  
+  if (!appId || !privateKey) {
+    throw new Error('GitHub App credentials not configured');
+  }
+  
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iat: now - 60,
+    exp: now + 600,
+    iss: appId,
+  };
+  
+  const formattedKey = privateKey.replace(/\\n/g, '\n').trim();
+  const appJwt = jwt.sign(payload, formattedKey, { algorithm: 'RS256' });
+  
+  const response = await fetch(
+    `https://api.github.com/app/installations/${installationId}/access_tokens`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${appJwt}`,
+        Accept: 'application/vnd.github+json',
+      },
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error('Failed to refresh installation token');
+  }
+  
+  const data = await response.json();
+  return data.token;
+}
 
 interface InstallTrackingResult {
   success: boolean;
@@ -358,7 +449,8 @@ export async function installTrackingViaAgent(
       };
     }
 
-    const accessToken = brandProfile.user.githubIntegration.accessToken;
+    // Get valid (decrypted and refreshed if needed) access token
+    const accessToken = await getValidGitHubToken(brandProfile.user.githubIntegration);
     const [owner, repo] = repoFullName.split('/');
 
     if (!owner || !repo) {

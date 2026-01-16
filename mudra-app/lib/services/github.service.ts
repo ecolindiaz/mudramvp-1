@@ -1,4 +1,86 @@
 import { prisma } from '@/lib/prisma'
+import crypto from 'crypto'
+import jwt from 'jsonwebtoken'
+
+// Encryption helpers
+const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
+const ALGORITHM = 'aes-256-gcm';
+
+function decrypt(encryptedText: string): string {
+  if (!ENCRYPTION_KEY) {
+    throw new Error('GITHUB_TOKEN_ENCRYPTION_KEY environment variable is required');
+  }
+  const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+/**
+ * Refresh GitHub App installation token
+ */
+async function refreshInstallationToken(installationId: number): Promise<string> {
+  const appId = process.env.GITHUB_APP_ID;
+  const privateKey = process.env.GITHUB_PRIVATE_KEY;
+  
+  if (!appId || !privateKey) {
+    throw new Error('GitHub App credentials not configured');
+  }
+  
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iat: now - 60,
+    exp: now + 600,
+    iss: appId,
+  };
+  
+  const formattedKey = privateKey.replace(/\\n/g, '\n').trim();
+  const appJwt = jwt.sign(payload, formattedKey, { algorithm: 'RS256' });
+  
+  const response = await fetch(
+    `https://api.github.com/app/installations/${installationId}/access_tokens`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${appJwt}`,
+        Accept: 'application/vnd.github+json',
+      },
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error('Failed to refresh installation token');
+  }
+  
+  const data = await response.json();
+  return data.token;
+}
+
+/**
+ * Get a valid GitHub token for API calls
+ */
+async function getValidGitHubToken(integration: any): Promise<string> {
+  if (integration.integrationType === 'installation' && integration.installationId) {
+    const tokenExpiresAt = integration.tokenExpiresAt;
+    const now = new Date();
+    
+    if (tokenExpiresAt && new Date(tokenExpiresAt).getTime() - now.getTime() < 5 * 60 * 1000) {
+      return await refreshInstallationToken(integration.installationId);
+    }
+    
+    try {
+      return decrypt(integration.accessToken);
+    } catch {
+      return await refreshInstallationToken(integration.installationId);
+    }
+  }
+  
+  return decrypt(integration.accessToken);
+}
 
 interface CreateOptimizationPRInput {
   brandProfileId: number
@@ -43,8 +125,8 @@ export async function createOptimizationPR(input: CreateOptimizationPRInput): Pr
 
   const githubIntegration = brandProfile.user.githubIntegration
 
-  // Decrypt access token
-  const accessToken = githubIntegration.accessToken // Already encrypted in DB
+  // Get valid (decrypted and refreshed if needed) access token
+  const accessToken = await getValidGitHubToken(githubIntegration)
 
   // Get repository information from agent schedule config
   const agentSchedule = await prisma.agentSchedule.findFirst({

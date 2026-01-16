@@ -99,8 +99,9 @@ export async function POST(req: NextRequest) {
         avatarUrl: data.avatarUrl,
         scope: data.scope,
         installationId: data.installationId,
+        integrationType: data.installationId ? 'installation' : 'oauth',
         repositories: JSON.stringify(data.repositories || []),
-        expiresAt: data.expiresAt,
+        tokenExpiresAt: data.expiresAt,
       },
       update: {
         accessToken: encryptedToken,
@@ -109,8 +110,9 @@ export async function POST(req: NextRequest) {
         avatarUrl: data.avatarUrl,
         scope: data.scope,
         installationId: data.installationId,
+        integrationType: data.installationId ? 'installation' : 'oauth',
         repositories: JSON.stringify(data.repositories || []),
-        expiresAt: data.expiresAt,
+        tokenExpiresAt: data.expiresAt,
         updatedAt: new Date(),
       },
     });

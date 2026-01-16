@@ -3,7 +3,24 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import { applyRateLimit } from '@/lib/auth/rate-limiter'
+
+// Encryption helpers
+const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
+const ALGORITHM = 'aes-256-gcm';
+
+function encrypt(text: string): string {
+  if (!ENCRYPTION_KEY) {
+    throw new Error('GITHUB_TOKEN_ENCRYPTION_KEY environment variable is required');
+  }
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag();
+  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+}
 
 /**
  * Manual GitHub App Installation Sync Endpoint
@@ -91,9 +108,9 @@ export async function POST(request: NextRequest) {
 
     console.log('[GitHub Sync] Generated App JWT')
 
-    // Fetch user's GitHub installations
-    const installationsResponse = await fetch(
-      'https://api.github.com/user/installations',
+    // Fetch ALL installations of the GitHub App
+    const allInstallationsResponse = await fetch(
+      'https://api.github.com/app/installations',
       {
         headers: {
           Authorization: `Bearer ${appJwt}`,
@@ -102,76 +119,86 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    if (!installationsResponse.ok) {
-      const error = await installationsResponse.text()
-      console.error('[GitHub Sync] Failed to fetch installations. Status:', installationsResponse.status)
+    if (!allInstallationsResponse.ok) {
+      const error = await allInstallationsResponse.text()
+      console.error('[GitHub Sync] Failed to fetch installations. Status:', allInstallationsResponse.status)
       console.error('[GitHub Sync] Error response:', error)
       return NextResponse.json(
-        { success: false, error: `Failed to fetch GitHub installations: ${installationsResponse.status} ${error}` },
+        { success: false, error: `Failed to fetch GitHub installations: ${allInstallationsResponse.status} ${error}` },
         { status: 500 }
       )
     }
 
-    const installationsData = await installationsResponse.json()
-    const installations = installationsData.installations || []
+    const allInstallations = await allInstallationsResponse.json()
+    console.log('[GitHub Sync] Found', allInstallations.length, 'total installation(s)')
 
-    console.log('[GitHub Sync] Found', installations.length, 'installation(s)')
+    // For each installation, check if it matches the current user
+    let userInstallation = null
+    for (const installation of allInstallations) {
+      try {
+        // Get installation access token
+        const tokenResponse = await fetch(
+          `https://api.github.com/app/installations/${installation.id}/access_tokens`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${appJwt}`,
+              Accept: 'application/vnd.github+json',
+            },
+          }
+        )
 
-    if (installations.length === 0) {
+        if (!tokenResponse.ok) continue
+
+        const tokenData = await tokenResponse.json()
+
+        // Get GitHub user info for this installation
+        const userResponse = await fetch('https://api.github.com/user', {
+          headers: {
+            Authorization: `Bearer ${tokenData.token}`,
+            Accept: 'application/vnd.github+json',
+          },
+        })
+
+        if (!userResponse.ok) continue
+
+        const githubUser = await userResponse.json()
+        
+        // Check if this installation belongs to current user
+        // Match by email or GitHub username if we have previous integration
+        const isMatch = 
+          githubUser.email?.toLowerCase() === user.email?.toLowerCase() ||
+          (user.githubIntegration && githubUser.login === user.githubIntegration.githubUsername)
+
+        if (isMatch) {
+          userInstallation = {
+            installation,
+            token: tokenData.token,
+            expiresAt: tokenData.expires_at,
+            githubUser,
+          }
+          console.log('[GitHub Sync] Found matching installation for user:', githubUser.login)
+          break
+        }
+      } catch (err) {
+        console.error('[GitHub Sync] Error checking installation:', installation.id, err)
+        continue
+      }
+    }
+
+    if (!userInstallation) {
       return NextResponse.json({
         success: false,
-        error: 'No GitHub App installations found. Please install the app first at: https://github.com/apps/' + process.env.NEXT_PUBLIC_GITHUB_APP_NAME,
+        error: 'No GitHub App installation found for your account. Please install the app first at: https://github.com/apps/' + process.env.NEXT_PUBLIC_GITHUB_APP_NAME,
       })
     }
 
-    // Use the first installation (most users will only have one)
-    // In the future, could support multiple installations
-    const installation = installations[0]
-    const installationId = installation.id
+    const installationId = userInstallation.installation.id
+    const token = userInstallation.token
+    const expiresAt = userInstallation.expiresAt
+    const githubUser = userInstallation.githubUser
 
     console.log('[GitHub Sync] Using installation ID:', installationId)
-
-    // Get installation access token
-    const tokenResponse = await fetch(
-      `https://api.github.com/app/installations/${installationId}/access_tokens`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${appJwt}`,
-          Accept: 'application/vnd.github+json',
-        },
-      }
-    )
-
-    if (!tokenResponse.ok) {
-      const error = await tokenResponse.text()
-      console.error('[GitHub Sync] Failed to get installation token:', error)
-      return NextResponse.json(
-        { success: false, error: 'Failed to get installation access token' },
-        { status: 500 }
-      )
-    }
-
-    const { token, expires_at } = await tokenResponse.json()
-    console.log('[GitHub Sync] Got installation token')
-
-    // Get GitHub user info
-    const userResponse = await fetch('https://api.github.com/user', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-      },
-    })
-
-    if (!userResponse.ok) {
-      console.error('[GitHub Sync] Failed to fetch GitHub user data')
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch GitHub user data' },
-        { status: 500 }
-      )
-    }
-
-    const githubUser = await userResponse.json()
     console.log('[GitHub Sync] GitHub user:', githubUser.login)
 
     // Fetch repositories for this installation
@@ -193,10 +220,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Create or update GitHub integration
+    // IMPORTANT: Encrypt the access token before storing
+    const encryptedToken = encrypt(token);
+    
     const integrationData = {
-      accessToken: token,
+      accessToken: encryptedToken,
       refreshToken: null,
-      expiresAt: expires_at ? new Date(expires_at) : null,
+      tokenExpiresAt: expiresAt ? new Date(expiresAt) : null,
       scope: repositories.join(','),
       githubUserId: githubUser.id.toString(),
       githubUsername: githubUser.login,

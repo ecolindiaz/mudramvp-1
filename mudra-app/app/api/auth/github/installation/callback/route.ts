@@ -84,16 +84,38 @@ export async function GET(req: NextRequest) {
   // User updated repository selection
   if (setupAction === 'update' && installationId) {
     try {
+      const session = await getServerSession(authOptions);
+      
+      if (!session?.user?.email) {
+        return NextResponse.redirect(
+          new URL('/dashboard/integrations?error=unauthorized', req.url)
+        );
+      }
+      
       // Refresh token and repository list
-      const { token, repositories } = await getInstallationToken(installationId);
+      const { token, repositories, expiresAt } = await getInstallationToken(installationId);
 
-      // Update in database
-      await prisma.gitHubIntegration.updateMany({
-        where: { installationId: parseInt(installationId) },
-        data: {
-          accessToken: token, // Will be re-encrypted by Prisma middleware if set up
+      // Update via the main API to ensure proper encryption
+      const updateResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/integrations/github`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: req.headers.get('cookie') || '',
         },
+        body: JSON.stringify({
+          accessToken: token,
+          installationId: parseInt(installationId),
+          githubUserId: '', // Will be fetched
+          githubUsername: '', // Will be fetched
+          scope: 'installation',
+          repositories: repositories.map((r: any) => r.full_name),
+          expiresAt,
+        }),
       });
+      
+      if (!updateResponse.ok) {
+        throw new Error('Failed to update GitHub integration');
+      }
 
       return NextResponse.redirect(
         new URL('/dashboard/integrations?github=updated', req.url)

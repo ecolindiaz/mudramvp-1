@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
             await prisma.campaign.create({
               data: {
                 id: campaignId,
+                brandProfileId: brandProfile.id,
                 title: result.result.metadata.title,
                 body: result.result.content,
                 type: "Blog Post",

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { applyRateLimit } from "@/lib/auth/rate-limiter";
 
@@ -49,7 +50,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Use Prisma upsert instead of raw SQL
+    // Get brand profile for ownership validation
+    const brandProfile = await getBrandProfileByUserId(authResult.user.id);
+    if (!brandProfile) {
+      return NextResponse.json(
+        { error: "Brand profile not found. Please complete onboarding first." },
+        { status: 400 }
+      );
+    }
+
+    // Check if campaign exists and belongs to this user (for updates)
+    const existingCampaign = await prisma.campaign.findUnique({
+      where: { id },
+      select: { brandProfileId: true }
+    });
+
+    if (existingCampaign && existingCampaign.brandProfileId !== brandProfile.id) {
+      console.log('❌ Unauthorized: Campaign belongs to different user');
+      return NextResponse.json(
+        { error: "Unauthorized: You don't have permission to modify this campaign" },
+        { status: 403 }
+      );
+    }
+
+    // Use Prisma upsert with brandProfileId for ownership
     const campaign = await prisma.campaign.upsert({
       where: { id },
       update: {
@@ -68,6 +92,7 @@ export async function POST(req: NextRequest) {
       },
       create: {
         id,
+        brandProfileId: brandProfile.id,
         title,
         body,
         type: type || "blog",
@@ -116,8 +141,21 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status") || "draft";
 
+    // Get brand profile for ownership filtering
+    const brandProfile = await getBrandProfileByUserId(authResult.user.id);
+    if (!brandProfile) {
+      return NextResponse.json(
+        { error: "Brand profile not found. Please complete onboarding first." },
+        { status: 400 }
+      );
+    }
+
+    // Only return campaigns belonging to this user's brand profile
     const campaigns = await prisma.campaign.findMany({
-      where: { status },
+      where: { 
+        status,
+        brandProfileId: brandProfile.id
+      },
       orderBy: { updatedAt: 'desc' }
     });
 

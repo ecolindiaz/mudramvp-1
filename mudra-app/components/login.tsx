@@ -33,6 +33,11 @@ export default function LoginPage() {
         try {
             setIsLoading(true)
             
+            // Clear any cached brand profile from previous user session
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem('mudra_brand_profile')
+            }
+            
             const result = await signIn('credentials', {
                 email: data.email,
                 password: data.password,
@@ -60,6 +65,12 @@ export default function LoginPage() {
     const handleGoogleSignIn = async () => {
         try {
             setIsGoogleLoading(true)
+            
+            // Clear any cached brand profile from previous user session
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem('mudra_brand_profile')
+            }
+            
             await signIn('google', { callbackUrl: '/dashboard' })
         } catch (error) {
             toast.error('Failed to sign in with Google')

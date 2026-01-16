@@ -27,7 +27,12 @@ export async function middleware(request: NextRequest) {
     const response = NextResponse.next()
 
     // Check if route is public
-    const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route))
+    // Use exact match for '/' to prevent all routes from being treated as public
+    const isPublicRoute = PUBLIC_ROUTES.some(route => 
+        route === '/' 
+            ? pathname === '/' 
+            : pathname.startsWith(route)
+    )
     
     // Get session token
     const token = await getToken({ 

@@ -69,16 +69,25 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: result.error || 'Analysis failed',
+          details: {
+            geoAnalysisId: result.geoAnalysisId,
+            technicalAnalysisId: result.technicalAnalysisId,
+            scores: result.scores,
+          }
         },
         { status: 500 }
       );
     }
   } catch (error) {
     console.error('[Unified Analysis API] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('[Unified Analysis API] Stack:', errorStack);
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: errorMessage,
+        stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
       },
       { status: 500 }
     );

@@ -209,6 +209,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
 
   } catch (error) {
     console.error('[GEO Core] Error:', error);
+    console.error('[GEO Core] Error stack:', error instanceof Error ? error.stack : 'No stack');
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error' 

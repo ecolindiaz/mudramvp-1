@@ -146,18 +146,17 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     }
   };
 
-  // Load profile from API on mount - NO DELAY, uses cache first
+  // Load profile from API on mount - ALWAYS fetch immediately for security
+  // Cache is used for initial render (prevents flicker) but server is source of truth
   useEffect(() => {
-    // Only fetch if we don't have cached data
     if (profile.id === 0) {
       console.log("🔄 [BrandProfileContext] No cache found, fetching profile...");
-      refreshBrandProfile();
     } else {
-      console.log("✨ [BrandProfileContext] Using cached profile, will revalidate in background");
-      // Revalidate in background after 1 second
-      const bgRefresh = setTimeout(() => refreshBrandProfile(), 1000);
-      return () => clearTimeout(bgRefresh);
+      console.log("🔄 [BrandProfileContext] Cache exists, validating with server immediately...");
     }
+    // Always fetch from server immediately to validate cached data
+    // This prevents using stale/incorrect brandProfileId from a different user
+    refreshBrandProfile();
   }, []);
 
   // Retry effect

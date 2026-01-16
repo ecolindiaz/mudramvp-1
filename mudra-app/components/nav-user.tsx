@@ -49,6 +49,14 @@ export function NavUser({
     
     console.log('Signing out...')
     
+    // Clear localStorage cache first to prevent data leakage between users
+    try {
+      localStorage.removeItem('mudra_brand_profile')
+      console.log('Cleared mudra_brand_profile from localStorage')
+    } catch (storageError) {
+      console.warn('Failed to clear localStorage:', storageError)
+    }
+    
     try {
       // Get CSRF token first
       const csrfResponse = await fetch('/api/auth/csrf')

@@ -28,32 +28,31 @@ export async function mapTasks(
   const start = new Date(weekStartUtc);
   const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const [openedThisWeek, completedThisWeek, verifiedThisWeek, recentOpen] = await Promise.all([
+  const [openedThisWeek, completedThisWeek, recentOpen] = await Promise.all([
     prisma.task.count({ where: { siteId: { in: siteIds }, createdAt: { gte: start, lt: end } } }),
     prisma.task.count({ where: { siteId: { in: siteIds }, status: "done", updatedAt: { gte: start, lt: end } } }),
-    prisma.taskVerification.count({ where: { task: { siteId: { in: siteIds } }, createdAt: { gte: start, lt: end }, passed: true } }),
     prisma.task.findMany({ where: { siteId: { in: siteIds }, status: "open" }, orderBy: { createdAt: "desc" }, take: 5 }),
   ]);
 
   // Previous week window
   const prevEnd = start;
   const prevStart = new Date(prevEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const [prevOpened, prevCompleted, prevVerified] = await Promise.all([
+  const [prevOpened, prevCompleted] = await Promise.all([
     prisma.task.count({ where: { siteId: { in: siteIds }, createdAt: { gte: prevStart, lt: prevEnd } } }),
     prisma.task.count({ where: { siteId: { in: siteIds }, status: "done", updatedAt: { gte: prevStart, lt: prevEnd } } }),
-    prisma.taskVerification.count({ where: { task: { siteId: { in: siteIds } }, createdAt: { gte: prevStart, lt: prevEnd }, passed: true } }),
   ]);
 
   const denomCurrent = openedThisWeek + completedThisWeek;
   const denomPrev = prevOpened + prevCompleted;
-  const currentRate = denomCurrent > 0 ? verifiedThisWeek / denomCurrent : 0;
-  const previousRate = denomPrev > 0 ? prevVerified / denomPrev : 0;
+  // Calculate completion rate instead of verification rate since verifications are removed
+  const currentRate = denomCurrent > 0 ? completedThisWeek / denomCurrent : 0;
+  const previousRate = denomPrev > 0 ? prevCompleted / denomPrev : 0;
 
   const summary: TasksSummary = {
     openedThisWeek,
     completedThisWeek,
     verificationPassRate: ratioDelta(currentRate, previousRate),
-    topImpactTasks: recentOpen.map((t) => ({ id: t.id, title: t.title, status: t.status as any })),
+    topImpactTasks: recentOpen.map((t) => ({ id: t.id, title: t.title, status: t.status as "open" | "done" | "verified" | "dismissed" })),
   };
 
   return summary;

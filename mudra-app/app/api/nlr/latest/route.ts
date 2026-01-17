@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     const latest = await prisma.weeklyReport.findFirst({
       where: { companyId, status: 'ready' },
       orderBy: { weekStartUtc: 'desc' },
-      include: { sections: { include: { sources: true }, orderBy: { order: 'asc' } } },
+      include: { sections: { orderBy: { order: 'asc' } } },
     })
 
     return NextResponse.json({ success: true, data: latest ? { report: latest, sections: (latest as any).sections } : { report: null, sections: [] } })

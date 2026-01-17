@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma, WeeklyReport, WeeklyReportSection, WeeklyReportSourceRef } from "@prisma/client";
+import { PrismaClient, Prisma, WeeklyReport, WeeklyReportSection } from "@prisma/client";
 
 // Local singleton Prisma client (mirrors pattern used elsewhere)
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
@@ -7,7 +7,7 @@ export const prisma: PrismaClient =
 if (!globalForPrisma.prisma) globalForPrisma.prisma = prisma;
 
 export type WeeklyReportWithRelations = WeeklyReport & {
-  sections: (WeeklyReportSection & { sources: WeeklyReportSourceRef[] })[];
+  sections: WeeklyReportSection[];
 };
 
 function toDate(value: Date | string): Date {
@@ -15,7 +15,7 @@ function toDate(value: Date | string): Date {
 }
 
 /**
- * Fetch a weekly report for a company and week (UTC), including sections and sources.
+ * Fetch a weekly report for a company and week (UTC), including sections.
  */
 export async function getWeeklyReportByWeek(
   companyId: string,
@@ -29,7 +29,6 @@ export async function getWeeklyReportByWeek(
     },
     include: {
       sections: {
-        include: { sources: true },
         orderBy: { order: "asc" },
       },
     },
@@ -42,14 +41,6 @@ export interface UpsertWeeklyReportSectionInput {
   order?: number;
   bodyMarkdown?: string | null;
   bodyJson?: Prisma.InputJsonValue | null;
-  sources?: Array<{
-    sourceType: string;
-    refTable?: string | null;
-    refId?: string | null;
-    url?: string | null;
-    label?: string | null;
-    metadata?: Prisma.InputJsonValue | null;
-  }>;
 }
 
 export interface UpsertWeeklyReportInput {
@@ -111,7 +102,7 @@ export async function upsertWeeklyReport(
         where: { reportId: report.id },
       });
 
-      // Recreate sections with nested sources
+      // Recreate sections
       for (const [index, section] of input.sections.entries()) {
         await tx.weeklyReportSection.create({
           data: {
@@ -121,18 +112,6 @@ export async function upsertWeeklyReport(
             order: section.order ?? index,
             bodyMarkdown: section.bodyMarkdown ?? null,
             bodyJson: section.bodyJson !== undefined ? JSON.stringify(section.bodyJson) : null,
-            sources: section.sources && section.sources.length > 0
-              ? {
-                  create: section.sources.map((s) => ({
-                    sourceType: s.sourceType,
-                    refTable: s.refTable ?? null,
-                    refId: s.refId ?? null,
-                    url: s.url ?? null,
-                    label: s.label ?? null,
-                    metadata: s.metadata ?? undefined,
-                  })),
-                }
-              : undefined,
           },
         });
       }
@@ -142,7 +121,7 @@ export async function upsertWeeklyReport(
     const full = await tx.weeklyReport.findUnique({
       where: { id: report.id },
       include: {
-        sections: { include: { sources: true }, orderBy: { order: "asc" } },
+        sections: { orderBy: { order: "asc" } },
       },
     });
     if (!full) throw new Error("Failed to read back weekly report after upsert");

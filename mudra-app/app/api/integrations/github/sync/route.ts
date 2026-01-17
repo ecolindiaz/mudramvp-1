@@ -166,6 +166,7 @@ export async function POST(request: NextRequest) {
         // 1. Email match (case-insensitive)
         // 2. Username match from previous integration
         // 3. Installation account login match (for personal accounts where the installer is the user)
+        // 4. FIRST-TIME USER: If only one personal installation exists, assume it's theirs
         const emailMatches = githubUser.email?.toLowerCase() === user.email?.toLowerCase();
         const usernameMatches = user.githubIntegration && githubUser.login === user.githubIntegration.githubUsername;
         
@@ -183,7 +184,23 @@ export async function POST(request: NextRequest) {
           accountLoginMatches = accountLoginMatches || (githubUser.login === installation.account.login);
         }
 
-        const isMatch = emailMatches || usernameMatches || accountLoginMatches;
+        // FIRST-TIME USER FIX: For new users with no prior integration, if this is a personal
+        // installation and only ONE exists, it's very likely theirs (they just installed it)
+        let firstTimeUserMatch = false;
+        if (!user.githubIntegration && installation.account?.type === 'User') {
+          // Count personal installations (not org installations)
+          const personalInstallations = allInstallations.filter(
+            (i: any) => i.account?.type === 'User'
+          );
+          // If there's only one personal installation and the user has no prior integration,
+          // this is almost certainly the one they just created
+          if (personalInstallations.length === 1) {
+            firstTimeUserMatch = true;
+            console.log('[GitHub Sync] First-time user match: single personal installation found');
+          }
+        }
+
+        const isMatch = emailMatches || usernameMatches || accountLoginMatches || firstTimeUserMatch;
 
         if (isMatch) {
           userInstallation = {
@@ -196,6 +213,7 @@ export async function POST(request: NextRequest) {
             emailMatches,
             usernameMatches,
             accountLoginMatches,
+            firstTimeUserMatch,
           })
           break
         }

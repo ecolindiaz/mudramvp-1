@@ -133,6 +133,8 @@ export async function POST(request: NextRequest) {
     let userInstallation = null
     for (const installation of allInstallations) {
       try {
+        console.log('[GitHub Sync] Checking installation:', installation.id, 'account:', installation.account?.login)
+        
         // Get installation access token
         const tokenResponse = await fetch(
           `https://api.github.com/app/installations/${installation.id}/access_tokens`,
@@ -145,11 +147,16 @@ export async function POST(request: NextRequest) {
           }
         )
 
-        if (!tokenResponse.ok) continue
+        if (!tokenResponse.ok) {
+          console.log('[GitHub Sync] Failed to get token for installation:', installation.id)
+          continue
+        }
 
         const tokenData = await tokenResponse.json()
 
-        // Get GitHub user info for this installation
+        // Try to get GitHub user info for this installation
+        // NOTE: This may fail for some installation types - that's OK, we have fallbacks
+        let githubUser: any = null
         const userResponse = await fetch('https://api.github.com/user', {
           headers: {
             Authorization: `Bearer ${tokenData.token}`,
@@ -157,64 +164,72 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        if (!userResponse.ok) continue
-
-        const githubUser = await userResponse.json()
+        if (userResponse.ok) {
+          githubUser = await userResponse.json()
+          console.log('[GitHub Sync] Got user info:', githubUser.login, githubUser.email)
+        } else {
+          console.log('[GitHub Sync] Could not fetch /user (this is normal for some installations)')
+        }
         
         // Check if this installation belongs to current user
-        // Multiple matching strategies to handle private emails:
-        // 1. Email match (case-insensitive)
-        // 2. Username match from previous integration
-        // 3. Installation account login match (for personal accounts where the installer is the user)
-        // 4. FIRST-TIME USER: If only one personal installation exists, assume it's theirs
-        const emailMatches = githubUser.email?.toLowerCase() === user.email?.toLowerCase();
-        const usernameMatches = user.githubIntegration && githubUser.login === user.githubIntegration.githubUsername;
+        // Multiple matching strategies - some don't require /user endpoint
         
-        // Fallback: For personal account installations, check if the installation account matches
-        // This helps users with private GitHub emails who just installed the app
+        // Strategy 1: Email match (requires /user response)
+        const emailMatches = githubUser?.email?.toLowerCase() === user.email?.toLowerCase();
+        
+        // Strategy 2: Username match from previous integration (requires /user response)
+        const usernameMatches = githubUser && user.githubIntegration && 
+          githubUser.login === user.githubIntegration.githubUsername;
+        
+        // Strategy 3: Installation account matches stored username (doesn't require /user)
         let accountLoginMatches = false;
         if (installation.account?.type === 'User') {
-          // For personal accounts, the account login is the GitHub username
-          // If user has previous integration, check against stored username
           if (user.githubIntegration?.githubUsername) {
             accountLoginMatches = installation.account.login === user.githubIntegration.githubUsername;
           }
-          // Additional: If the installation was just created and the authenticated user matches
-          // the installation owner, they're likely the same person
-          accountLoginMatches = accountLoginMatches || (githubUser.login === installation.account.login);
+          // If we got user info, also check if authenticated user matches installation owner
+          if (githubUser) {
+            accountLoginMatches = accountLoginMatches || (githubUser.login === installation.account.login);
+          }
         }
 
-        // FIRST-TIME USER FIX: For new users with no prior integration, if this is a personal
-        // installation and only ONE exists, it's very likely theirs (they just installed it)
+        // Strategy 4: FIRST-TIME USER - if only one personal installation exists, use it
+        // This is the KEY fix - doesn't require /user endpoint at all
         let firstTimeUserMatch = false;
         if (!user.githubIntegration && installation.account?.type === 'User') {
-          // Count personal installations (not org installations)
           const personalInstallations = allInstallations.filter(
             (i: any) => i.account?.type === 'User'
           );
-          // If there's only one personal installation and the user has no prior integration,
-          // this is almost certainly the one they just created
           if (personalInstallations.length === 1) {
             firstTimeUserMatch = true;
-            console.log('[GitHub Sync] First-time user match: single personal installation found');
+            console.log('[GitHub Sync] First-time user match: single personal installation found for', installation.account.login);
           }
         }
 
         const isMatch = emailMatches || usernameMatches || accountLoginMatches || firstTimeUserMatch;
+
+        console.log('[GitHub Sync] Match check for installation', installation.id, {
+          emailMatches,
+          usernameMatches,
+          accountLoginMatches,
+          firstTimeUserMatch,
+          isMatch,
+        })
 
         if (isMatch) {
           userInstallation = {
             installation,
             token: tokenData.token,
             expiresAt: tokenData.expires_at,
-            githubUser,
+            // Use installation account info if /user failed
+            githubUser: githubUser || {
+              login: installation.account.login,
+              id: installation.account.id,
+              avatar_url: installation.account.avatar_url,
+              email: null,
+            },
           }
-          console.log('[GitHub Sync] Found matching installation for user:', githubUser.login, {
-            emailMatches,
-            usernameMatches,
-            accountLoginMatches,
-            firstTimeUserMatch,
-          })
+          console.log('[GitHub Sync] ✓ Found matching installation:', installation.id)
           break
         }
       } catch (err) {

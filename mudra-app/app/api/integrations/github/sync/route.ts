@@ -282,7 +282,6 @@ export async function POST(request: NextRequest) {
       scope: repositories.join(','),
       githubUserId: githubUser.id.toString(),
       githubUsername: githubUser.login,
-      email: githubUser.email,
       avatarUrl: githubUser.avatar_url,
       installationId: installationId,
       integrationType: 'installation' as const,

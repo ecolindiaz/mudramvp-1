@@ -8,7 +8,6 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { GeoResultsDisplay } from "@/components/dashboard/geo-results-display"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -492,8 +491,6 @@ function ReportContent() {
           </div>
         </div>
       </SidebarInset>
-      
-      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
 }

@@ -9,7 +9,6 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics"
 import { NaturalLanguageReport } from "@/components/dashboard/natural-language-report"
 import AIReferralTrafficKPI from "@/components/dashboard/ai-referral-traffic-kpi"
@@ -153,8 +152,6 @@ function DashboardPageInner() {
           </div>
         </div>
       </SidebarInset>
-      
-      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
 }

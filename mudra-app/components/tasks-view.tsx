@@ -51,7 +51,6 @@ import {
 import { useEffect, useState } from "react"
 import type { ScrapeSnapshot } from "@/lib/analysis/technical/types"
 import { toast } from "sonner"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
 
 // AI Task Generator removed
 
@@ -650,22 +649,6 @@ export function TasksView() {
           </Card>
         </div>
       </div>
-      
-      {/* Context-aware AI Chat */}
-      <FloatingMudraButton 
-        siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''}
-        taskContext={tasks.map(task => ({
-          id: task.id,
-          header: task.header,
-          type: task.type,
-          status: task.status,
-          description: task.description,
-          detailedSteps: task.detailedSteps,
-          resources: task.resources,
-          estimatedTime: task.estimatedTime,
-          difficulty: task.difficulty
-        }))}
-      />
     </div>
   )
 } 

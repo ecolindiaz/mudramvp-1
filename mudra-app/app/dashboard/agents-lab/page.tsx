@@ -22,7 +22,6 @@ import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { DeployAgentDialog } from "@/components/dashboard/deploy-agent-dialog"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 
@@ -1836,9 +1835,6 @@ function AgentsLabPageInner() {
           </div>
         </div>
       </SidebarInset>
-      
-      {/* Mudra Chat */}
-      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
       
       {/* Active PRs Sheet */}
       <Sheet open={isPrSheetOpen} onOpenChange={setIsPrSheetOpen}>

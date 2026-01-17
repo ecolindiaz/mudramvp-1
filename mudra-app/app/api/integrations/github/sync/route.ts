@@ -63,18 +63,23 @@ export async function POST(request: NextRequest) {
 
     // Get GitHub App credentials
     const appId = process.env.GITHUB_APP_ID
-    const privateKey = process.env.GITHUB_PRIVATE_KEY
+    const privateKeyRaw = process.env.GITHUB_PRIVATE_KEY
 
-    if (!appId || !privateKey) {
+    if (!appId || !privateKeyRaw) {
       return NextResponse.json(
         { success: false, error: 'GitHub App not configured. Please set GITHUB_APP_ID and GITHUB_PRIVATE_KEY.' },
         { status: 500 }
       )
     }
 
+    // Format the private key - handle both escaped newlines and actual newlines
+    const privateKey = privateKeyRaw.replace(/\\n/g, '\n').trim()
+
     console.log('[GitHub Sync] Using App ID:', appId)
     console.log('[GitHub Sync] Private key length:', privateKey.length)
     console.log('[GitHub Sync] Private key starts with:', privateKey.substring(0, 50))
+    console.log('[GitHub Sync] Has BEGIN marker:', privateKey.includes('BEGIN'))
+    console.log('[GitHub Sync] Has END marker:', privateKey.includes('END'))
 
     // Generate GitHub App JWT
     const now = Math.floor(Date.now() / 1000)
@@ -86,15 +91,7 @@ export async function POST(request: NextRequest) {
 
     let appJwt: string
     try {
-      // Handle both escaped newlines (\n) and actual newlines
-      const formattedKey = privateKey
-        .replace(/\\n/g, '\n')  // Replace escaped newlines with actual newlines
-        .trim()
-      
-      console.log('[GitHub Sync] Private key length:', formattedKey.length)
-      console.log('[GitHub Sync] Starts with:', formattedKey.substring(0, 50))
-      
-      appJwt = jwt.sign(payload, formattedKey, {
+      appJwt = jwt.sign(payload, privateKey, {
         algorithm: 'RS256',
       })
       console.log('[GitHub Sync] Successfully generated App JWT, length:', appJwt.length)
@@ -165,10 +162,28 @@ export async function POST(request: NextRequest) {
         const githubUser = await userResponse.json()
         
         // Check if this installation belongs to current user
-        // Match by email or GitHub username if we have previous integration
-        const isMatch = 
-          githubUser.email?.toLowerCase() === user.email?.toLowerCase() ||
-          (user.githubIntegration && githubUser.login === user.githubIntegration.githubUsername)
+        // Multiple matching strategies to handle private emails:
+        // 1. Email match (case-insensitive)
+        // 2. Username match from previous integration
+        // 3. Installation account login match (for personal accounts where the installer is the user)
+        const emailMatches = githubUser.email?.toLowerCase() === user.email?.toLowerCase();
+        const usernameMatches = user.githubIntegration && githubUser.login === user.githubIntegration.githubUsername;
+        
+        // Fallback: For personal account installations, check if the installation account matches
+        // This helps users with private GitHub emails who just installed the app
+        let accountLoginMatches = false;
+        if (installation.account?.type === 'User') {
+          // For personal accounts, the account login is the GitHub username
+          // If user has previous integration, check against stored username
+          if (user.githubIntegration?.githubUsername) {
+            accountLoginMatches = installation.account.login === user.githubIntegration.githubUsername;
+          }
+          // Additional: If the installation was just created and the authenticated user matches
+          // the installation owner, they're likely the same person
+          accountLoginMatches = accountLoginMatches || (githubUser.login === installation.account.login);
+        }
+
+        const isMatch = emailMatches || usernameMatches || accountLoginMatches;
 
         if (isMatch) {
           userInstallation = {
@@ -177,7 +192,11 @@ export async function POST(request: NextRequest) {
             expiresAt: tokenData.expires_at,
             githubUser,
           }
-          console.log('[GitHub Sync] Found matching installation for user:', githubUser.login)
+          console.log('[GitHub Sync] Found matching installation for user:', githubUser.login, {
+            emailMatches,
+            usernameMatches,
+            accountLoginMatches,
+          })
           break
         }
       } catch (err) {

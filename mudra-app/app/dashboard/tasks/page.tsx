@@ -8,7 +8,6 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { Button } from "@/components/ui/button"
 import { DirectGeoResults } from "@/components/direct-geo-results"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
@@ -162,8 +161,6 @@ function TasksPageInner() {
           </div>
         </div>
       </SidebarInset>
-      
-      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
 }

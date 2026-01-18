@@ -1,145 +1,132 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl", "linux-musl-arm64-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model BrandProfile {
-  id                Int      @id @default(autoincrement())
-  userId            String?  // Link to User model
-  companyName       String?  
-  companyWebsite    String?  
-  companyLinkedIn   String?  
-  companyTwitter    String?  
-  userName          String?  
-  userRole          String?
-  userAvatar        String?
-  companyDescription String? 
-  companyIndustry   String?  
-  companyServices   String?  
-  companyICP        String?  
-  competitors       String?  // Store as comma-separated string or use a relation for advanced use
-  monthlySearchVolume String?
-  aiRecommendations String?  
-  stage             String?  
-  resources         String?  // Store as String string if needed
-  lastAnalysisRunAt DateTime?  // Track when analysis was last run
-  trackingSiteId    String?  // Generated siteId for AI referral tracking
-  trackingStatus    String   @default("not_connected") // not_connected, pending, connected, error
-  trackingInstalledAt DateTime? // When tracking was successfully installed
-  trackingError     String?  // Error message if installation failed
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  user              User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  prompts           Prompt[]
-  analysisRuns      AnalysisRun[]
-  technicalStructureAnalyses TechnicalStructureAnalysis[]
-  geoAnalysisResults         GeoAnalysisResult[]
-  organicTrafficMetrics      OrganicTrafficMetrics[]
-  naturalLanguageReports     NaturalLanguageReport[]
-  aiReferralVisits           AIReferralVisit[]
+  id                         Int                          @id @default(autoincrement())
+  userId                     String?
+  companyName                String?
+  companyWebsite             String?
+  companyLinkedIn            String?
+  companyTwitter             String?
+  userName                   String?
+  userRole                   String?
+  userAvatar                 String?
+  companyDescription         String?
+  companyIndustry            String?
+  companyServices            String?
+  companyICP                 String?
+  competitors                String?
+  monthlySearchVolume        String?
+  aiRecommendations          String?
+  stage                      String?
+  resources                  String?
+  lastAnalysisRunAt          DateTime?
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  trackingError              String?
+  trackingInstalledAt        DateTime?
+  trackingSiteId             String?
+  trackingStatus             String                       @default("not_connected")
   aiReferralAnalytics        AIReferralAnalytics[]
+  aiReferralVisits           AIReferralVisit[]
+  user                       User?                        @relation(fields: [userId], references: [id])
   deployedAgents             DeployedAgent[]
+  geoAnalysisResults         GeoAnalysisResult[]
+  naturalLanguageReports     NaturalLanguageReport[]
+  organicTrafficMetrics      OrganicTrafficMetrics[]
+  technicalStructureAnalyses TechnicalStructureAnalysis[]
   agentExecutions            AgentExecution[]
   agentSchedules             AgentSchedule[]
-  contentOptimizations       ContentOptimization[]
-  trackingCode               TrackingCode?
   aiReferralMetrics          AIReferralMetrics[]
-  conversationOpportunities  ConversationOpportunity[]
-  campaigns                  Campaign[]
-  
+  analysisRuns               AnalysisRun[]
+  contentOptimizations       ContentOptimization[]
+  page_scores                PageScore[]
+  page_snapshots             PageSnapshot[]
+  policy_files               PolicyFile[]
+  prompts                    Prompt[]
+  scrape_jobs                ScrapeJob[]
+  site_structure_scores      SiteStructureScore[]
+  sitemap_pages              SitemapPage[]
+  trackingCode               TrackingCode?
+
   @@index([userId])
 }
 
-// Prompt Management Models
 model Prompt {
-  id              Int      @id @default(autoincrement())
-  brandProfileId  Int
-  text            String
-  category        String?  // e.g., "product", "service", "comparison"
-  isCustom        Boolean  @default(false)
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  // Relations
-  brandProfile    BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
-  @@map("prompts")
+  id             Int          @id @default(autoincrement())
+  brandProfileId Int
+  text           String
+  category       String?
+  isCustom       Boolean      @default(false)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
   @@index([brandProfileId])
   @@index([brandProfileId, isActive])
+  @@map("prompts")
 }
 
 model AnalysisRun {
-  id              Int      @id @default(autoincrement())
-  brandProfileId  Int
-  promptsUsed     String   // Array of prompt IDs used (JSON string for SQLite)
-  results         String   // Store the full analysis results (JSON string for SQLite)
-  overallScore    Float    @default(0)
-  status          String   @default("pending") // pending, running, completed, failed
-  ranAt           DateTime @default(now())
-  completedAt     DateTime?
-  
-  // Relations
-  brandProfile    BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
-  @@map("analysis_runs")
+  id             Int          @id @default(autoincrement())
+  brandProfileId Int
+  promptsUsed    Json
+  results        Json
+  overallScore   Float        @default(0)
+  status         String       @default("pending")
+  ranAt          DateTime     @default(now())
+  completedAt    DateTime?
+  brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
   @@index([brandProfileId])
   @@index([brandProfileId, ranAt])
   @@index([status])
+  @@map("analysis_runs")
 }
 
-// User model
 model User {
-  id                  String    @id @default(cuid())
-  email               String    @unique
-  name                String?
-  password            String?   // For credentials login
-  emailVerified       DateTime? // Email verification timestamp
-  image               String?   // Profile image (for OAuth)
-  verificationToken   String?   // For email verification
-  resetToken          String?   // For password reset
-  resetTokenExpiry    DateTime? // Password reset token expiration
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  
-  // Relations
-  brandProfiles       BrandProfile[]
-  accounts            Account[]
-  sessions            Session[]
-  githubIntegration   GitHubIntegration?
-  
+  id                String             @id @default(cuid())
+  email             String             @unique
+  name              String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  password          String?
+  emailVerified     DateTime?
+  image             String?
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  verificationToken String?
+  brandProfiles     BrandProfile[]
+  githubIntegration GitHubIntegration?
+  accounts          Account[]
+  sessions          Session[]
+
   @@map("users")
 }
 
-// NextAuth adapter tables
 model Account {
   id                String  @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? 
-  access_token      String? 
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? 
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@index([userId])
@@ -166,60 +153,52 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
-// ============================
-// Task Feature: Persistence v1
-// ============================
-
 model Company {
-  id        String  @id @default(cuid())
-  domain    String  @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  sites     Site[]
+  id            String         @id @default(cuid())
+  domain        String         @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sites         Site[]
   weeklyReports WeeklyReport[]
 
   @@map("companies")
 }
 
 model Site {
-  id          String   @id @default(cuid())
-  companyId   String
-  url         String
-  domain      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String          @id @default(cuid())
+  companyId String
+  url       String
+  domain    String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  snapshots CrawlSnapshot[]
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tasks     Task[]
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  snapshots   CrawlSnapshot[]
-  tasks       Task[]
-
-  @@map("sites")
   @@index([companyId])
   @@index([domain])
+  @@map("sites")
 }
 
 model CrawlSnapshot {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   siteId    String
-  crawledAt DateTime @default(now())
+  crawledAt DateTime        @default(now())
   data      Json
-
-  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  site      Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
   score     TechnicalScore?
 
-  @@map("crawl_snapshots")
   @@index([siteId, crawledAt])
+  @@map("crawl_snapshots")
 }
 
 model TechnicalScore {
-  id          String        @id @default(cuid())
-  snapshotId  String        @unique
-  total       Int
-  components  Json
-  createdAt   DateTime      @default(now())
-
-  snapshot    CrawlSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  id         String        @id @default(cuid())
+  snapshotId String        @unique
+  total      Int
+  components Json
+  createdAt  DateTime      @default(now())
+  snapshot   CrawlSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
 
   @@map("technical_scores")
 }
@@ -236,156 +215,135 @@ model Task {
   evidence       Json
   suggestedOwner String?
   confidence     Float
-  status         String   @default("open") // open, done, verified, dismissed
+  status         String   @default("open")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-
   site           Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
-  @@map("tasks")
   @@index([siteId, status])
   @@index([templateKey])
+  @@map("tasks")
 }
 
-// ============================
-// Natural Language Report
-// ============================
-
 model WeeklyReport {
-  id              String    @id @default(cuid())
-  companyId       String    @map("org_id")
-  weekStartUtc    DateTime  @map("week_start_utc")
+  id              String                @id @default(cuid())
+  companyId       String                @map("org_id")
+  weekStartUtc    DateTime              @map("week_start_utc")
   status          String
   model           String?
-  summaryMarkdown String?   @map("summary_markdown")
-  summaryJson String? @map("summary_json")
-  tokensIn        Int?      @map("tokens_in")
-  tokensOut       Int?      @map("tokens_out")
-  costCents       Int?      @map("cost_cents")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt      @map("updated_at")
+  summaryMarkdown String?               @map("summary_markdown")
+  summaryJson     Json?                 @map("summary_json")
+  tokensIn        Int?                  @map("tokens_in")
+  tokensOut       Int?                  @map("tokens_out")
+  costCents       Int?                  @map("cost_cents")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  sections        WeeklyReportSection[]
+  company         Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  // Relations
-  company  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  sections WeeklyReportSection[]
-
-  @@map("weekly_reports")
   @@unique([companyId, weekStartUtc])
   @@index([companyId])
   @@index([weekStartUtc])
+  @@map("weekly_reports")
 }
 
 model WeeklyReportSection {
-  id            String   @id @default(cuid())
-  reportId      String   @map("report_id")
-  key           String
-  title         String?
-  order         Int      @default(0)
-  bodyMarkdown  String?  @map("body_markdown")
-  bodyJson String? @map("body_json")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt      @map("updated_at")
+  id           String       @id @default(cuid())
+  reportId     String       @map("report_id")
+  key          String
+  title        String?
+  order        Int          @default(0)
+  bodyMarkdown String?      @map("body_markdown")
+  bodyJson     Json?        @map("body_json")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  report       WeeklyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
-  // Relations
-  report  WeeklyReport           @relation(fields: [reportId], references: [id], onDelete: Cascade)
-
-  @@map("weekly_report_sections")
   @@index([reportId])
   @@index([key])
+  @@map("weekly_report_sections")
 }
 
-// Analysis Pipeline Results Models
 model TechnicalStructureAnalysis {
-  id                Int      @id @default(autoincrement())
-  brandProfileId    Int
-  websiteUrl        String
-  overallScore      Float    @default(0)
-  performanceScore  Float?
-  seoScore          Float?
+  id                 Int          @id @default(autoincrement())
+  brandProfileId     Int
+  websiteUrl         String
+  overallScore       Float        @default(0)
+  performanceScore   Float?
+  seoScore           Float?
   accessibilityScore Float?
-  securityScore     Float?
-  structureScore    Float?
-  insights          String   @default("[]")
-  recommendations   String   @default("[]")
-  metadata          String   @default("{}")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
+  securityScore      Float?
+  structureScore     Float?
+  insights           Json         @default("[]")
+  recommendations    Json         @default("[]")
+  metadata           Json         @default("{}")
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  brandProfile       BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
   @@index([brandProfileId])
   @@index([brandProfileId, createdAt])
 }
 
 model GeoAnalysisResult {
-  id              Int      @id @default(autoincrement())
-  brandProfileId  Int
-  overallScore    Float    @default(0)
-  analyses        String   @default("[]")
-  summary         String   @default("{}")
-  timestamp       DateTime @default(now())
-  createdAt       DateTime @default(now())
-  
-  // Relations
-  brandProfile    BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
+  id             Int          @id @default(autoincrement())
+  brandProfileId Int
+  overallScore   Float        @default(0)
+  analyses       Json         @default("[]")
+  summary        Json         @default("{}")
+  timestamp      DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
   @@index([brandProfileId])
   @@index([brandProfileId, timestamp])
 }
 
 model OrganicTrafficMetrics {
-  id                    Int      @id @default(autoincrement())
-  brandProfileId        Int
-  monthlyVisitors       Int      @default(0)
-  monthOverMonthGrowth  Float    @default(0)
-  topPages              String   @default("[]")
-  topKeywords           String   @default("[]")
-  metadata              String   @default("{}")
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
-  // Relations
-  brandProfile          BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
+  id                   Int          @id @default(autoincrement())
+  brandProfileId       Int
+  monthlyVisitors      Int          @default(0)
+  monthOverMonthGrowth Float        @default(0)
+  topPages             Json         @default("[]")
+  topKeywords          Json         @default("[]")
+  metadata             Json         @default("{}")
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  brandProfile         BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
   @@index([brandProfileId])
 }
 
 model NaturalLanguageReport {
-  id              Int      @id @default(autoincrement())
+  id              Int          @id @default(autoincrement())
   brandProfileId  Int
   reportText      String
-  insights        String   @default("[]")
-  recommendations String   @default("[]")
-  metadata        String   @default("{}")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  // Relations
+  insights        Json         @default("[]")
+  recommendations Json         @default("[]")
+  metadata        Json         @default("{}")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
   brandProfile    BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
+
   @@index([brandProfileId])
   @@index([brandProfileId, createdAt])
 }
 
-// AI Referral Traffic Tracking
 model AIReferralVisit {
-  id              Int      @id @default(autoincrement())
-  brandProfileId  Int
-  siteId          String   // Unique tracking ID per site
-  referrer        String   // Full referrer URL (e.g., "https://chatgpt.com")
-  aiProvider      String   // Normalized: chatgpt, perplexity, claude, gemini
-  path            String   // Path visited (e.g., "/blog/article")
-  userAgent       String?  // Browser user agent
-  ipAddress       String?  // IP address (hashed for privacy)
-  sessionId       String?  // Session identifier
-  metadata        Json      // Additional tracking data
-  timestamp       DateTime @default(now())
-  createdAt       DateTime @default(now())
-  
-  // Relations
-  brandProfile    BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
+  id             Int          @id @default(autoincrement())
+  brandProfileId Int
+  siteId         String
+  referrer       String
+  aiProvider     String
+  path           String
+  userAgent      String?
+  ipAddress      String?
+  sessionId      String?
+  metadata       Json         @default("{}")
+  timestamp      DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
   @@index([brandProfileId])
   @@index([siteId])
   @@index([brandProfileId, timestamp])
@@ -394,145 +352,127 @@ model AIReferralVisit {
 }
 
 model AIReferralAnalytics {
-  id                    Int      @id @default(autoincrement())
-  brandProfileId        Int
-  totalVisits           Int      @default(0)
-  chatgptVisits         Int      @default(0)
-  perplexityVisits      Int      @default(0)
-  claudeVisits          Int      @default(0)
-  geminiVisits          Int      @default(0)
-  topPages              Json      // [{path: string, visits: number}]
-  periodStart           DateTime
-  periodEnd             DateTime
-  metadata              Json     
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
-  // Relations
-  brandProfile          BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
+  id               Int          @id @default(autoincrement())
+  brandProfileId   Int
+  totalVisits      Int          @default(0)
+  chatgptVisits    Int          @default(0)
+  perplexityVisits Int          @default(0)
+  claudeVisits     Int          @default(0)
+  geminiVisits     Int          @default(0)
+  topPages         Json         @default("[]")
+  periodStart      DateTime
+  periodEnd        DateTime
+  metadata         Json         @default("{}")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  brandProfile     BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
   @@index([brandProfileId])
   @@index([brandProfileId, periodStart])
 }
 
-// Agent Deployment and Execution Models
 model DeployedAgent {
-  id                Int      @id @default(autoincrement())
-  brandProfileId    Int
-  agentType         String   // "aeo-geo-optimizer", "growth-scout", etc.
-  agentName         String
-  agentDescription  String?
-  status            String   @default("deploying") // deploying, active, paused, failed
-  githubRepoId      String?  // Connected GitHub repository ID
-  githubRepoName    String?  // e.g., "EmiCorleone/mudramvp"
-  githubBranch      String   @default("main")
-  lastExecutedAt    DateTime?
-  deployedAt        DateTime @default(now())
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  tasks             AgentTask[]
-  optimizations     AgentOptimization[]
-  
+  id               Int                 @id @default(autoincrement())
+  brandProfileId   Int
+  agentType        String
+  agentName        String
+  agentDescription String?
+  status           String              @default("deploying")
+  githubRepoId     String?
+  githubRepoName   String?
+  githubBranch     String              @default("main")
+  lastExecutedAt   DateTime?
+  deployedAt       DateTime            @default(now())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  optimizations    AgentOptimization[]
+  tasks            AgentTask[]
+  brandProfile     BrandProfile        @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
   @@index([brandProfileId])
   @@index([brandProfileId, status])
   @@index([status])
 }
 
 model AgentTask {
-  id                Int      @id @default(autoincrement())
-  deployedAgentId   Int
-  taskType          String   // "analyze", "optimize", "generate_schema", "create_pr"
-  taskName          String
-  status            String   @default("pending") // pending, running, completed, failed
-  input             Json     // Task input parameters
-  output            Json?    // Task results
-  errorMessage      String?  
-  startedAt         DateTime?
-  completedAt       DateTime?
-  createdAt         DateTime @default(now())
-  
-  // Relations
-  deployedAgent     DeployedAgent @relation(fields: [deployedAgentId], references: [id], onDelete: Cascade)
-  
+  id              Int           @id @default(autoincrement())
+  deployedAgentId Int
+  taskType        String
+  taskName        String
+  status          String        @default("pending")
+  input           Json
+  output          Json?
+  errorMessage    String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  deployedAgent   DeployedAgent @relation(fields: [deployedAgentId], references: [id], onDelete: Cascade)
+
   @@index([deployedAgentId])
   @@index([deployedAgentId, status])
   @@index([status])
 }
 
 model AgentOptimization {
-  id                Int      @id @default(autoincrement())
-  deployedAgentId   Int
-  optimizationType  String   // "schema_markup", "faq_section", "headers", "meta", etc.
-  filePath          String?  // File that was modified
-  description       String   
-  beforeCode        String?  
-  afterCode         String?  
-  impact            String   // "high", "medium", "low"
-  status            String   @default("pending") // pending, applied, pr_created, merged, failed
-  pullRequestUrl    String?
-  appliedAt         DateTime?
-  createdAt         DateTime @default(now())
-  
-  // Relations
-  deployedAgent     DeployedAgent @relation(fields: [deployedAgentId], references: [id], onDelete: Cascade)
-  
+  id               Int           @id @default(autoincrement())
+  deployedAgentId  Int
+  optimizationType String
+  filePath         String?
+  description      String
+  beforeCode       String?
+  afterCode        String?
+  impact           String
+  status           String        @default("pending")
+  pullRequestUrl   String?
+  appliedAt        DateTime?
+  createdAt        DateTime      @default(now())
+  deployedAgent    DeployedAgent @relation(fields: [deployedAgentId], references: [id], onDelete: Cascade)
+
   @@index([deployedAgentId])
   @@index([deployedAgentId, status])
 }
 
 model GitHubIntegration {
-  id                Int      @id @default(autoincrement())
-  userId            String
-  accessToken       String    // Encrypted GitHub token (OAuth or Installation)
-  refreshToken      String?  
-  tokenExpiresAt    DateTime?
-  installationId    Int?     // GitHub App installation ID (null for OAuth)
-  integrationType   String   @default("oauth") // "oauth" or "installation"
-  githubUserId      String
-  githubUsername    String
-  avatarUrl         String?
-  scope             String?  // OAuth scopes or "installation"
-  repositories      String    // JSON array of repository full names (e.g., ["owner/repo1", "owner/repo2"])
-  expiresAt         DateTime? // Installation token expiration (tokens expire after 1 hour)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@unique([userId])
+  id              Int       @id @default(autoincrement())
+  userId          String    @unique
+  accessToken     String
+  refreshToken    String?
+  tokenExpiresAt  DateTime?
+  githubUserId    String
+  githubUsername  String
+  avatarUrl       String?
+  scope           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  installationId  Int?
+  integrationType String    @default("oauth")
+  expiresAt       DateTime?
+  repositories    String[]
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([githubUserId])
   @@index([installationId])
 }
 
-// ============================
-// Autonomous Agent Infrastructure
-// ============================
-
 model AgentExecution {
-  id                Int      @id @default(autoincrement())
-  brandProfileId    Int
-  agentType         String   // "content_optimizer", "competitive_intel", "reddit_scout", "technical_validator"
-  executionId       String   @unique @default(cuid())
-  status            String   @default("pending") // pending, running, completed, failed
-  input             Json     // Execution input parameters
-  output            Json?    // Execution results
-  metrics           Json?    // Performance metrics (API costs, tokens used, time taken)
-  errorMessage      String?  
-  startedAt         DateTime?
-  completedAt       DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  memoryEntries     AgentMemory[]
+  id                   Int                   @id @default(autoincrement())
+  brandProfileId       Int
+  agentType            String
+  executionId          String                @unique @default(cuid())
+  status               String                @default("pending")
+  input                Json
+  output               Json?
+  metrics              Json?
+  errorMessage         String?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  brandProfile         BrandProfile          @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  memoryEntries        AgentMemory[]
   contentOptimizations ContentOptimization[]
-  
+
   @@index([brandProfileId])
   @@index([brandProfileId, agentType])
   @@index([brandProfileId, status])
@@ -542,18 +482,16 @@ model AgentExecution {
 }
 
 model AgentMemory {
-  id                Int      @id @default(autoincrement())
-  executionId       Int
-  agentType         String
-  memoryKey         String   // "last_analyzed_pages", "competitor_baselines", "reddit_threads_processed"
-  memoryValue       Json     // Stored data (array of pages, competitor data, etc.)
-  expiresAt         DateTime? // Optional TTL for memory entries
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
-  
+  id          Int            @id @default(autoincrement())
+  executionId Int
+  agentType   String
+  memoryKey   String
+  memoryValue Json
+  expiresAt   DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  execution   AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
   @@unique([executionId, memoryKey])
   @@index([executionId])
   @@index([agentType, memoryKey])
@@ -562,20 +500,18 @@ model AgentMemory {
 }
 
 model AgentSchedule {
-  id                Int      @id @default(autoincrement())
-  brandProfileId    Int
-  agentType         String
-  isEnabled         Boolean  @default(true)
-  cronExpression    String   // "0 9 * * *" for daily 9am, "0 9 * * 1" for weekly Monday 9am
-  lastRunAt         DateTime?
-  nextRunAt         DateTime?
-  config            Json     // Agent-specific configuration
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
+  id             Int          @id @default(autoincrement())
+  brandProfileId Int
+  agentType      String
+  isEnabled      Boolean      @default(true)
+  cronExpression String
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  config         Json
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
   @@unique([brandProfileId, agentType])
   @@index([brandProfileId])
   @@index([agentType])
@@ -584,22 +520,20 @@ model AgentSchedule {
 }
 
 model ContentOptimization {
-  id                Int      @id @default(autoincrement())
-  brandProfileId    Int
-  executionId       Int
-  pageUrl           String
-  originalScore     Float    // GEO score before optimization
-  optimizedScore    Float?   // GEO score after optimization (null if not re-tested)
-  improvements      Json     // Array of applied improvements
-  prUrl             String?  // GitHub PR URL
-  status            String   @default("pending") // pending, pr_created, merged, deployed, verified
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
-  
+  id             Int            @id @default(autoincrement())
+  brandProfileId Int
+  executionId    Int
+  pageUrl        String
+  originalScore  Float
+  optimizedScore Float?
+  improvements   Json
+  prUrl          String?
+  status         String         @default("pending")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  brandProfile   BrandProfile   @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  execution      AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
   @@index([brandProfileId])
   @@index([executionId])
   @@index([brandProfileId, status])
@@ -608,65 +542,57 @@ model ContentOptimization {
 }
 
 model CronExecutionLog {
-  id                  Int      @id @default(autoincrement())
-  jobType             String   // "weekly_analysis", "cleanup", etc.
-  executedAt          DateTime @default(now())
-  profilesProcessed   Int      @default(0)
-  successful          Int      @default(0)
-  failed              Int      @default(0)
-  errors              String[] // Array of error messages
-  duration            Int      // Execution time in seconds
-  
+  id                Int      @id @default(autoincrement())
+  jobType           String
+  executedAt        DateTime @default(now())
+  profilesProcessed Int      @default(0)
+  successful        Int      @default(0)
+  failed            Int      @default(0)
+  errors            String[]
+  duration          Int
+
   @@index([jobType, executedAt])
   @@index([executedAt])
   @@map("cron_execution_logs")
 }
 
-// ============================
-// AI Referral Tracking System
-// ============================
-
 model TrackingCode {
-  id                Int      @id @default(autoincrement())
-  brandProfileId    Int      @unique
-  trackingId        String   @unique @default(cuid()) // Unique tracking identifier
-  scriptVersion     String   @default("1.0.0")
-  isActive          Boolean  @default(true)
-  totalEvents       Int      @default(0) // Cached count of all events
-  totalAIReferrals  Int      @default(0) // Cached count of AI referrals
-  lastEventAt       DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  events            AnalyticsEvent[]
-  
+  id               Int              @id @default(autoincrement())
+  brandProfileId   Int              @unique
+  trackingId       String           @unique @default(cuid())
+  scriptVersion    String           @default("1.0.0")
+  isActive         Boolean          @default(true)
+  totalEvents      Int              @default(0)
+  totalAIReferrals Int              @default(0)
+  lastEventAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  events           AnalyticsEvent[]
+  brandProfile     BrandProfile     @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
   @@index([trackingId])
   @@index([brandProfileId])
   @@map("tracking_codes")
 }
 
 model AnalyticsEvent {
-  id                Int      @id @default(autoincrement())
-  trackingCodeId    Int
-  trackingId        String   // Denormalized for fast lookups
-  brandProfileId    Int      // Denormalized for fast lookups
-  eventType         String   @default("page_view") // page_view, click, conversion
-  pageUrl           String   @db.Text
-  pageTitle         String?  @db.Text
-  referrer          String?  @db.Text
-  isAIReferral      Boolean  @default(false)
-  aiPlatform        String?  // chatgpt, perplexity, gemini, claude
-  userAgent         String?  @db.Text
-  ipAddress         String?
-  sessionId         String?  // For grouping events by session
-  metadata          Json?    // Additional event data
-  createdAt         DateTime @default(now())
-  
-  // Relations
-  trackingCode      TrackingCode @relation(fields: [trackingCodeId], references: [id], onDelete: Cascade)
-  
+  id             Int          @id @default(autoincrement())
+  trackingCodeId Int
+  trackingId     String
+  brandProfileId Int
+  eventType      String       @default("page_view")
+  pageUrl        String
+  pageTitle      String?
+  referrer       String?
+  isAIReferral   Boolean      @default(false)
+  aiPlatform     String?
+  userAgent      String?
+  ipAddress      String?
+  sessionId      String?
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  trackingCode   TrackingCode @relation(fields: [trackingCodeId], references: [id], onDelete: Cascade)
+
   @@index([trackingCodeId])
   @@index([trackingId])
   @@index([brandProfileId])
@@ -679,25 +605,23 @@ model AnalyticsEvent {
 }
 
 model AIReferralMetrics {
-  id                Int      @id @default(autoincrement())
+  id                Int          @id @default(autoincrement())
   brandProfileId    Int
-  month             DateTime // First day of the month
-  totalVisits       Int      @default(0)
-  chatgptVisits     Int      @default(0)
-  perplexityVisits  Int      @default(0)
-  geminiVisits      Int      @default(0)
-  claudeVisits      Int      @default(0)
-  otherAIVisits     Int      @default(0) // For future AI platforms
-  uniqueVisitors    Int      @default(0)
-  totalPageViews    Int      @default(0)
-  averageTimeOnSite Float?   // Seconds
-  bounceRate        Float?   // Percentage
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
+  month             DateTime
+  totalVisits       Int          @default(0)
+  chatgptVisits     Int          @default(0)
+  perplexityVisits  Int          @default(0)
+  geminiVisits      Int          @default(0)
+  claudeVisits      Int          @default(0)
+  otherAIVisits     Int          @default(0)
+  uniqueVisitors    Int          @default(0)
+  totalPageViews    Int          @default(0)
+  averageTimeOnSite Float?
+  bounceRate        Float?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
   brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
+
   @@unique([brandProfileId, month])
   @@index([brandProfileId])
   @@index([brandProfileId, month])
@@ -705,93 +629,193 @@ model AIReferralMetrics {
   @@map("ai_referral_metrics")
 }
 
-// ============================
-// Conversation Radar
-// ============================
+model PolicyFile {
+  id                    String       @id @default(dbgenerated("gen_random_uuid()"))
+  brand_profile_id      Int
+  domain                String
+  robots_txt_exists     Boolean      @default(false)
+  robots_txt_content    String?
+  sitemap_xml_exists    Boolean      @default(false)
+  sitemap_xml_url       String?
+  llms_txt_exists       Boolean      @default(false)
+  llms_txt_content      String?
+  llms_full_txt_exists  Boolean      @default(false)
+  llms_full_txt_content String?
+  checked_at            DateTime     @default(now())
+  created_at            DateTime     @default(now())
+  updated_at            DateTime     @default(now())
+  BrandProfile          BrandProfile @relation(fields: [brand_profile_id], references: [id], onDelete: Cascade)
 
-model ConversationOpportunity {
-  id                Int      @id @default(autoincrement())
-  brandProfileId    Int
-  
-  // Post identification
-  postUrl           String   // Unique Reddit/LinkedIn URL
-  postId            String?  // Platform-specific ID (Reddit: "1oiwt3p", LinkedIn: URN)
-  platform          String   // "reddit" | "linkedin"
-  
-  // Post metadata (from Apify)
-  postTitle         String?
-  postBody          String?  
-  postAuthor        String?
-  subreddit         String?  // Reddit only
-  
-  // Engagement metrics
-  score             Int?     // Reddit upvotes or LinkedIn likes
-  numComments       Int?
-  upvoteRatio       Float?   // Reddit only (0.0 - 1.0)
-  engagementString  String?  // Pre-formatted: "312 upvotes · 47 comments"
-  
-  // Discovery context
-  mode              String   // "cited" | "proactive"
-  discoveredVia     Json     // Array: [{ promptId, promptText, provider }]
-  searchQuery       String?  // Mode 2: the query that found this
-  
-  // AI-generated insights
-  conversationSnapshot String?   // Summary of conversation
-  whyThisMatters    Json?    // Array of strings
-  suggestedAngle    String?      // Response angle
-  isPromotionalOpportunity Boolean? // TRUE if post asks for tools/recommendations
-  promotionalReason String?      // Why it's promotional (if applicable)
-  relevanceScore    Float?   // 0-100 score
-  
-  // Status tracking
-  status            String   @default("new") // new, reviewed, engaged, dismissed
-  engagedAt         DateTime?
-  dismissedAt       DateTime?
-  dismissReason     String?
-  
-  // Timestamps
-  postCreatedAt     DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  brandProfile      BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
-  @@unique([brandProfileId, postUrl])
-  @@index([brandProfileId])
-  @@index([brandProfileId, status])
-  @@index([brandProfileId, platform])
-  @@index([brandProfileId, mode])
-  @@index([postCreatedAt])
-  @@map("conversation_opportunities")
+  @@index([domain])
+  @@index([brand_profile_id])
+  @@map("policy_files")
 }
 
-// Campaign Management
-model Campaign {
-  id              String   @id @default(cuid())
-  userId          String?  // Optional for now, can be linked to user later
-  brandProfileId  Int?     // Optional for now
-  title           String
-  body            String
-  type            String   @default("blog") // blog, newsletter, case
-  mode            String   @default("geo")  // geo, seo
-  status          String   @default("draft") // draft, published
-  slug            String?  // URL slug
-  prompt          String?  // The prompt used for generation
-  icp             String?  // Ideal Customer Profile
-  keyword         String?  // SEO keyword if applicable
-  metadata        String   @default("{}") // JSON string for additional data
-  publishedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  // Relations
-  brandProfile    BrandProfile? @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  
-  @@index([brandProfileId])
-  @@index([userId])
+model SitemapPage {
+  id               String         @id @default(dbgenerated("gen_random_uuid()"))
+  brand_profile_id Int
+  domain           String
+  page_url         String
+  page_type        String?
+  last_modified    DateTime?
+  change_frequency String?
+  priority         Float?
+  discovered_at    DateTime       @default(now())
+  last_scraped_at  DateTime?
+  scrape_status    String         @default("pending")
+  scrape_error     String?
+  created_at       DateTime       @default(now())
+  updated_at       DateTime       @default(now())
+  page_scores      PageScore[]
+  page_snapshots   PageSnapshot[]
+  BrandProfile     BrandProfile   @relation(fields: [brand_profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([brand_profile_id, domain, page_url], map: "sitemap_pages_brand_domain_url_unique")
+  @@index([domain])
+  @@index([brand_profile_id])
+  @@index([page_url])
+  @@index([scrape_status])
+  @@map("sitemap_pages")
+}
+
+model PageSnapshot {
+  id                      String       @id @default(dbgenerated("gen_random_uuid()"))
+  brand_profile_id        Int
+  sitemap_page_id         String
+  page_url                String
+  version                 Int          @default(1)
+  is_current              Boolean      @default(true)
+  html_content            String
+  html_length             Int
+  metadata_json           Json         @default("{}")
+  structured_data_json    Json         @default("{}")
+  semantic_structure_json Json         @default("{}")
+  faq_content_json        Json         @default("{}")
+  validation_results_json Json         @default("{}")
+  scraped_at              DateTime     @default(now())
+  scrape_duration_ms      Int?
+  http_status_code        Int?
+  content_type            String?
+  created_at              DateTime     @default(now())
+  page_scores             PageScore?
+  BrandProfile            BrandProfile @relation(fields: [brand_profile_id], references: [id], onDelete: Cascade)
+  sitemap_pages           SitemapPage  @relation(fields: [sitemap_page_id], references: [id], onDelete: Cascade)
+
+  @@index([brand_profile_id])
+  @@index([is_current])
+  @@index([page_url])
+  @@index([scraped_at])
+  @@index([sitemap_page_id])
+  @@map("page_snapshots")
+}
+
+model PageScore {
+  id                      String       @id @default(dbgenerated("gen_random_uuid()"))
+  brand_profile_id        Int
+  page_snapshot_id        String       @unique(map: "page_scores_snapshot_unique")
+  sitemap_page_id         String
+  page_url                String
+  overall_score           Float        @default(0)
+  structured_data_score   Float        @default(0)
+  structured_data_details Json         @default("{}")
+  semantic_html_score     Float        @default(0)
+  semantic_html_details   Json         @default("{}")
+  citability_score        Float        @default(0)
+  citability_details      Json         @default("{}")
+  accessibility_score     Float        @default(0)
+  accessibility_details   Json         @default("{}")
+  answer_engine_score     Float        @default(0)
+  answer_engine_details   Json         @default("{}")
+  issues                  Json         @default("[]")
+  recommendations         Json         @default("[]")
+  scored_at               DateTime     @default(now())
+  created_at              DateTime     @default(now())
+  updated_at              DateTime     @default(now())
+  BrandProfile            BrandProfile @relation(fields: [brand_profile_id], references: [id], onDelete: Cascade)
+  page_snapshots          PageSnapshot @relation(fields: [page_snapshot_id], references: [id], onDelete: Cascade)
+  sitemap_pages           SitemapPage  @relation(fields: [sitemap_page_id], references: [id], onDelete: Cascade)
+
+  @@index([brand_profile_id])
+  @@index([overall_score])
+  @@index([page_snapshot_id])
+  @@index([sitemap_page_id])
+  @@map("page_scores")
+}
+
+model SiteStructureScore {
+  id                    String       @id @default(dbgenerated("gen_random_uuid()"))
+  brand_profile_id      Int
+  domain                String
+  overall_score         Float        @default(0)
+  structured_data_score Float        @default(0)
+  semantic_html_score   Float        @default(0)
+  citability_score      Float        @default(0)
+  accessibility_score   Float        @default(0)
+  answer_engine_score   Float        @default(0)
+  total_pages           Int          @default(0)
+  pages_scraped         Int          @default(0)
+  pages_scored          Int          @default(0)
+  pages_with_issues     Int          @default(0)
+  schema_coverage       Json         @default("{}")
+  top_issues            Json         @default("[]")
+  score_by_page_type    Json         @default("{}")
+  previous_score        Float?
+  score_change          Float?
+  computed_at           DateTime     @default(now())
+  created_at            DateTime     @default(now())
+  updated_at            DateTime     @default(now())
+  BrandProfile          BrandProfile @relation(fields: [brand_profile_id], references: [id], onDelete: Cascade)
+
+  @@index([domain])
+  @@index([brand_profile_id])
+  @@index([computed_at])
+  @@map("site_structure_scores")
+}
+
+model ScrapeJob {
+  id               String       @id @default(dbgenerated("gen_random_uuid()"))
+  brand_profile_id Int
+  domain           String
+  job_type         String       @default("full_site")
+  status           String       @default("pending")
+  total_pages      Int          @default(0)
+  pages_scraped    Int          @default(0)
+  pages_scored     Int          @default(0)
+  pages_failed     Int          @default(0)
+  config           Json         @default("{}")
+  error_message    String?
+  errors           Json         @default("[]")
+  started_at       DateTime?
+  completed_at     DateTime?
+  duration_ms      Int?
+  created_at       DateTime     @default(now())
+  updated_at       DateTime     @default(now())
+  BrandProfile     BrandProfile @relation(fields: [brand_profile_id], references: [id], onDelete: Cascade)
+
   @@index([status])
-  @@index([createdAt])
+  @@index([brand_profile_id])
+  @@index([created_at])
+  @@map("scrape_jobs")
 }
 
+enum RecommendationCategory {
+  STRUCTURED_DATA
+  CONTENT_AUTHORITY
+  TECHNICAL_ACCESSIBILITY
+  FAQ_OPTIMIZATION
+  CONTENT_FRESHNESS
+  ENTITY_RECOGNITION
+}
 
+enum RecommendationImpact {
+  SEO
+  PERFORMANCE
+  ACCESSIBILITY
+  USER_EXPERIENCE
+}
+
+enum RecommendationSeverity {
+  HIGH
+  MEDIUM
+  LOW
+}

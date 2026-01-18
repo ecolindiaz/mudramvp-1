@@ -20,6 +20,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Mudra - GEO Platform",
   description: "Generative Engine Optimization platform for startups",
+  icons: {
+    icon: "/Mudra-Logo.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({

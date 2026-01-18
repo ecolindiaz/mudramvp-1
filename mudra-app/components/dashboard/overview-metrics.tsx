@@ -8,9 +8,10 @@ import { useBrandProfile } from "@/components/brand-profile-context"
 import { Card, CardContent, CardHeader, CardTitle, CardAction } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Info, Link, Copy, Check, ExternalLink, X, ArrowUp, Settings, Zap } from "lucide-react"
+import { Info, Link, Copy, Check, ArrowUp, Settings, Loader2, AlertCircle, Github, ExternalLink } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "react-hot-toast"
 
 interface OverviewMetricsProps {
@@ -35,30 +36,101 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   // Generate tracking script dynamically from backend
   const [trackingScript, setTrackingScript] = useState('')
   const [siteIdValue, setSiteIdValue] = useState('')
-  
-  // Fetch tracking script when modal opens
+
+  // GitHub and repository state for auto-install
+  const [githubConnected, setGithubConnected] = useState(false)
+  const [githubUsername, setGithubUsername] = useState('')
+  const [repositories, setRepositories] = useState<Array<{ fullName: string; defaultBranch: string }>>([])
+  const [selectedRepo, setSelectedRepo] = useState('')
+  const [selectedBranch, setSelectedBranch] = useState('main')
+  const [loadingRepos, setLoadingRepos] = useState(false)
+
+  // Tracking stats state
+  const [trackingStats, setTrackingStats] = useState<{
+    totalEvents: number
+    totalAIReferrals: number
+    trackingId: string
+    lastEventAt: string | null
+    isActive: boolean
+  } | null>(null)
+
+  // Install result state
+  const [installSuccess, setInstallSuccess] = useState<{ prUrl: string; prNumber: number } | null>(null)
+  const [installError, setInstallError] = useState<string | null>(null)
+
+  // Fetch tracking script and tracking stats when modal opens
   useEffect(() => {
-    const loadTrackingScript = async () => {
+    const loadModalData = async () => {
       if (!showTrackingModal || !profile.id) return
-      
+
+      // Reset states when modal opens
+      setVerificationStatus('idle')
+      setVerificationMessage('')
+
       try {
-        const response = await fetch(`/api/analytics/script?brandProfileId=${profile.id}`)
-        const result = await response.json()
-        
-        if (result.success && result.data) {
-          setTrackingScript(result.data.script)
-          setSiteIdValue(result.data.siteId)
-          // Store siteId for future use
+        // Fetch tracking script
+        const scriptResponse = await fetch(`/api/analytics/script?brandProfileId=${profile.id}`)
+        const scriptResult = await scriptResponse.json()
+
+        if (scriptResult.success && scriptResult.data) {
+          setTrackingScript(scriptResult.data.script)
+          setSiteIdValue(scriptResult.data.siteId)
           if (typeof window !== 'undefined') {
-            localStorage.setItem('mudra:siteId', result.data.siteId)
+            localStorage.setItem('mudra:siteId', scriptResult.data.siteId)
           }
         }
+
+        // Fetch tracking stats from /api/tracking/code
+        try {
+          const statsResponse = await fetch('/api/tracking/code')
+          const statsResult = await statsResponse.json()
+
+          if (statsResult.success && statsResult.data) {
+            setTrackingStats({
+              totalEvents: statsResult.data.totalEvents || 0,
+              totalAIReferrals: statsResult.data.totalAIReferrals || 0,
+              trackingId: statsResult.data.trackingId || '',
+              lastEventAt: statsResult.data.lastEventAt,
+              isActive: statsResult.data.isActive || false
+            })
+          }
+        } catch (statsError) {
+          console.error('Error fetching tracking stats:', statsError)
+        }
+
+        // Fetch GitHub connection status and repos
+        setLoadingRepos(true)
+        try {
+          const installStatusResponse = await fetch('/api/tracking/install')
+          const installStatus = await installStatusResponse.json()
+
+          if (installStatus.success && installStatus.data) {
+            setGithubConnected(installStatus.data.githubConnected || false)
+            setGithubUsername(installStatus.data.githubUsername || '')
+
+            const repos = (installStatus.data.repositories || []).map((repoName: string) => ({
+              fullName: repoName,
+              defaultBranch: 'main'
+            }))
+            setRepositories(repos)
+            if (repos.length > 0 && !selectedRepo) {
+              setSelectedRepo(repos[0].fullName)
+            }
+          } else {
+            setGithubConnected(false)
+          }
+        } catch (githubError) {
+          console.error('Error checking GitHub:', githubError)
+          setGithubConnected(false)
+        } finally {
+          setLoadingRepos(false)
+        }
       } catch (error) {
-        console.error('Error fetching tracking script:', error)
+        console.error('Error fetching modal data:', error)
       }
     }
-    
-    loadTrackingScript()
+
+    loadModalData()
   }, [showTrackingModal, profile.id])
   
   // Old static script generation (kept as fallback)
@@ -89,39 +161,57 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     setShowTrackingModal(true)
   }
 
+  // Verification state for showing progress in modal
+  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'failed'>('idle')
+  const [verificationMessage, setVerificationMessage] = useState('')
+
+  // Modal view mode: 'traffic' for minimal traffic view, 'script' for script settings
+  const [modalView, setModalView] = useState<'traffic' | 'script'>('traffic')
+
+  // Mock data for AI referral traffic by model
+  const [mockReferralData, setMockReferralData] = useState<{
+    total: number
+    byModel: { name: string; visits: number; icon: string; color: string }[]
+  } | null>(null)
+
   const handleVerifyScript = async () => {
-    if (!profile.id || !siteIdValue) {
-      console.error('Missing brandProfileId or siteId')
-      return
-    }
-    
-    setShowTrackingModal(false)
-    setIsConnecting(true)
-    
+    setVerificationStatus('verifying')
+
     try {
-      const response = await fetch('/api/analytics/script/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brandProfileId: profile.id,
-          siteId: siteIdValue
-        })
-      })
-      
+      // Call the actual verification API
+      const siteIdToVerify = siteIdValue || (typeof window !== 'undefined' ? localStorage.getItem('mudra:siteId') : null)
+
+      if (!siteIdToVerify) {
+        setVerificationStatus('failed')
+        setVerificationMessage('No tracking ID found. Please copy and install the script first.')
+        return
+      }
+
+      const response = await fetch(`/api/analytics/verify?siteId=${siteIdToVerify}`)
       const result = await response.json()
-      
-      if (result.success && result.data) {
-        setIsTrackingConnected(result.data.connected)
-        
-        if (result.data.connected) {
-          // Fetch actual traffic data
+
+      if (result.success && result.data?.verified) {
+        setVerificationStatus('success')
+        setVerificationMessage('Tracking script detected!')
+
+        // Close modal and show loading on widget
+        setTimeout(async () => {
+          setShowTrackingModal(false)
+          setIsTrackingConnected(true)
+          setLoadingAiReferral(true)
+
+          // Fetch actual referral data
           await fetchAiReferralTraffic()
-        }
+          setLoadingAiReferral(false)
+        }, 800)
+      } else {
+        setVerificationStatus('failed')
+        setVerificationMessage(result.error?.message || 'Tracking script not detected. Please ensure it is installed correctly.')
       }
     } catch (error) {
-      console.error('Error verifying tracking script:', error)
-    } finally {
-      setIsConnecting(false)
+      console.error('Verification error:', error)
+      setVerificationStatus('failed')
+      setVerificationMessage('Failed to verify. Please try again.')
     }
   }
 
@@ -157,85 +247,55 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   const [hasAiTrafficHistory, setHasAiTrafficHistory] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [isInstallingTracking, setIsInstallingTracking] = useState(false)
+  const [loadingAiReferral, setLoadingAiReferral] = useState(false)
+  const [loadingReferralModels, setLoadingReferralModels] = useState(false)
 
-  // Handle auto-install tracking script via GitHub agent
+  // Handle auto-install tracking script via GitHub agent (uses /api/tracking/install - same as TrackingCodeManager)
   const handleAutoInstall = async () => {
     if (!profile.id) {
       toast.error("Brand profile not found");
       return;
     }
 
+    if (!selectedRepo) {
+      setInstallError("Please select a repository");
+      return;
+    }
+
     try {
       setIsInstallingTracking(true);
-      toast("Checking GitHub connection...", { icon: "🔍" });
+      setInstallError(null);
+      setInstallSuccess(null);
 
-      // Check if GitHub is connected
-      const githubCheckResponse = await fetch('/api/integrations/github');
-      const githubCheck = await githubCheckResponse.json();
+      toast("Creating pull request...", { icon: "🤖" });
 
-      if (!githubCheck.success || !githubCheck.connected) {
-        toast.error("GitHub not connected. Please connect GitHub first in Integrations page.");
-        return;
-      }
-
-      // Fetch available repositories
-      const reposResponse = await fetch('/api/github/repos');
-      const reposResult = await reposResponse.json();
-
-      if (!reposResult.success || !reposResult.data?.repos || reposResult.data.repos.length === 0) {
-        toast.error("No accessible repositories found. Please connect a GitHub repository first.");
-        return;
-      }
-
-      // For now, use the first repository (in future, show selection dialog)
-      const selectedRepo = reposResult.data.repos[0];
-      
-      toast("Deploying tracking installation agent...", { icon: "🤖" });
-
-      // Deploy tracking installer agent
-      const deployResponse = await fetch('/api/agents/deploy', {
+      // Use /api/tracking/install POST - same endpoint TrackingCodeManager used
+      const response = await fetch('/api/tracking/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          agentType: 'tracking-installer',
-          agentName: 'AI Referral Tracking Installer',
-          agentDescription: 'Automatically installs Mudra tracking script in your codebase',
-          githubRepoName: selectedRepo.fullName, // e.g., "username/repo-name"
-          githubBranch: selectedRepo.defaultBranch || 'main'
+          repoFullName: selectedRepo,
+          branch: selectedBranch
         })
       });
 
-      const deployResult = await deployResponse.json();
+      const result = await response.json();
 
-      if (!deployResponse.ok) {
-        throw new Error(deployResult.error?.message || 'Failed to deploy agent');
-      }
-
-      toast.success("Agent deployed! Starting installation...", { icon: "✅" });
-
-      // Execute install_tracking action
-      const executeResponse = await fetch('/api/agents/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deployedAgentId: deployResult.data.id,
-          action: 'install_tracking'
-        })
-      });
-
-      const executeResult = await executeResponse.json();
-
-      if (!executeResponse.ok) {
-        throw new Error(executeResult.error?.message || 'Failed to execute agent');
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to install tracking');
       }
 
       // Show success with PR link
-      if (executeResult.data?.prUrl) {
+      if (result.data?.prUrl) {
+        setInstallSuccess({
+          prUrl: result.data.prUrl,
+          prNumber: result.data.prNumber || 0
+        });
         toast.success(
           <div>
-            <p className="font-semibold">Installation PR created! 🎉</p>
-            <a href={executeResult.data.prUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-400 hover:underline">
-              View PR on GitHub →
+            <p className="font-semibold">Installation PR created!</p>
+            <a href={result.data.prUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-400 hover:underline">
+              View PR on GitHub
             </a>
           </div>,
           { duration: 8000 }
@@ -250,9 +310,9 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
     } catch (error) {
       console.error('Auto-install error:', error);
-      toast.error(
-        error instanceof Error ? error.message : "Installation failed. Please try manual install."
-      );
+      const errorMessage = error instanceof Error ? error.message : "Installation failed. Please try manual install.";
+      setInstallError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsInstallingTracking(false);
     }
@@ -609,7 +669,31 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       />
 
       {/* AI Referral Traffic Card */}
-      {isTrackingConnected ? (
+      {loadingAiReferral ? (
+        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3">
+          <CardHeader className="border-0">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
+              </div>
+              <CardAction>
+                <Button variant="ghost" size="icon" className="-me-1.5" aria-label="About this metric">
+                  <Info className="size-4 text-white/70" />
+                </Button>
+              </CardAction>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2.5">
+              <span className="h-6 w-20 rounded bg-white/10 animate-pulse" />
+              <span className="h-5 w-14 rounded bg-white/10 animate-pulse" />
+            </div>
+            <div className="mt-2 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
+              <span className="h-3 w-32 rounded bg-white/10 animate-pulse" />
+            </div>
+          </CardContent>
+        </Card>
+      ) : isTrackingConnected ? (
         <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3">
           <CardHeader className="border-0">
             <div className="flex items-start justify-between gap-4">
@@ -676,7 +760,29 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
                 variant="ghost"
                 size="sm"
                 className="h-7 px-2 text-xs text-white/70 hover:text-white"
-                onClick={() => setShowTrackingModal(true)}
+                onClick={async () => {
+                  setModalView('traffic')
+                  setLoadingReferralModels(true)
+                  setMockReferralData(null)
+                  setShowTrackingModal(true)
+
+                  try {
+                    // Fetch real referral data by model
+                    const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&byModel=true`)
+                    const result = await response.json()
+
+                    if (result.success && result.data?.byModel) {
+                      setMockReferralData({
+                        total: result.data.traffic || 0,
+                        byModel: result.data.byModel
+                      })
+                    }
+                  } catch (error) {
+                    console.error('Error fetching referral data:', error)
+                  } finally {
+                    setLoadingReferralModels(false)
+                  }
+                }}
               >
                 Settings
               </Button>
@@ -766,144 +872,293 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
       {/* AI Referral Tracking Setup Modal */}
       <Dialog open={showTrackingModal} onOpenChange={setShowTrackingModal}>
-        <DialogContent className="!max-w-3xl sm:!max-w-3xl bg-dark-grey border-white/10 p-0 !rounded-[12px] overflow-hidden shadow-xl">
+        <DialogContent className={`${modalView === 'traffic' && isTrackingConnected ? '!max-w-lg' : '!max-w-2xl'} bg-dark-grey border-white/10 p-0 !rounded-[16px] overflow-hidden shadow-xl [&>button]:hidden`}>
           <DialogHeader className="sr-only">
             <DialogTitle>AI Referral Tracking</DialogTitle>
           </DialogHeader>
-          <div className="bg-dark-grey px-6 pt-6 pb-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-white mb-2 tracking-tight">
-                {isTrackingConnected ? "AI Referral Tracking Settings" : "Connect AI Referral Tracking"}
-              </h2>
-              <p className="text-sm text-white/60 leading-relaxed max-w-2xl">
-                {isTrackingConnected 
-                  ? "View your tracking script and setup instructions." 
-                  : "Track traffic from AI search engines - install automatically or manually."}
-              </p>
-            </div>
+          <div className="bg-dark-grey px-8 pt-8 pb-8">
+            {/* TRAFFIC VIEW - Minimal view when clicking Settings */}
+            {modalView === 'traffic' && isTrackingConnected && (
+              <div className="space-y-6">
+                {/* Header */}
+                <div>
+                  <h2 className="text-xl font-semibold text-white mb-1 tracking-tight">AI Referral Traffic</h2>
+                  <p className="text-sm text-white/60">Traffic from AI platforms this month</p>
+                </div>
 
-            <div className="space-y-5">
-            
-            {/* Auto-Install Option */}
-            {!isTrackingConnected && (
-              <div className="rounded-lg border border-white/[0.08] bg-black/20 p-5">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 mt-0.5">
-                    <div className="size-10 rounded-full bg-purple-500/20 flex items-center justify-center">
-                      <Zap className="size-5 text-purple-400" />
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-white mb-1.5">
-                      Recommended: Auto-Install via GitHub
-                    </h3>
-                    <p className="text-xs text-white/60 leading-relaxed mb-3">
-                      Let our agent automatically detect your framework, inject the tracking code, and create a pull request. 
-                      Works with Next.js, React, Vue, and more.
-                    </p>
-                    <Button
-                      size="sm"
-                      onClick={handleAutoInstall}
-                      disabled={isInstallingTracking}
-                      className="h-8 px-4 text-xs bg-purple-600 hover:bg-purple-700 text-white border-0 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isInstallingTracking ? (
-                        <>
-                          <svg className="animate-spin -ml-1 mr-2 h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Installing...
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="size-3.5 mr-1.5" /> Auto-Install with Agent
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                {/* Traffic by Model - 2x2 Widget Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  {loadingReferralModels || !mockReferralData ? (
+                    // Loading skeleton for models
+                    <>
+                      {[1, 2, 3, 4].map((i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-3 p-3 rounded-lg border border-white/[0.08]"
+                        >
+                          <span className="w-5 h-5 rounded bg-white/10 animate-pulse" />
+                          <div className="flex-1 space-y-1.5">
+                            <span className="block h-3 w-14 rounded bg-white/10 animate-pulse" />
+                            <span className="block h-5 w-10 rounded bg-white/10 animate-pulse" />
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    mockReferralData.byModel.map((model) => (
+                      <div
+                        key={model.name}
+                        className="flex items-center gap-3 p-3 rounded-lg border border-white/[0.08]"
+                      >
+                        <img src={model.icon} alt={model.name} className="w-5 h-5 opacity-80" />
+                        <div className="flex-1">
+                          <span className="text-xs text-white/50">{model.name}</span>
+                          <div className="text-lg font-semibold text-white">{model.visits.toLocaleString()}</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Buttons */}
+                <div className="pt-6 space-y-3">
+                  <Button
+                    className="w-full h-10 px-5 rounded-lg bg-white text-[#0a0a0a] hover:bg-white/90 text-sm font-medium transition-all border-0"
+                    onClick={() => setShowTrackingModal(false)}
+                  >
+                    Done
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full h-10 text-sm text-white/50 hover:text-white/70 hover:bg-transparent"
+                    onClick={() => setModalView('script')}
+                  >
+                    <Settings className="size-4 mr-2" />
+                    Script Settings
+                  </Button>
                 </div>
               </div>
             )}
 
-            {/* Manual Install Section */}
-            <div className={!isTrackingConnected ? "opacity-60" : ""}>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-xs font-medium text-white/40 uppercase tracking-wider">
-                  {isTrackingConnected ? "Your Tracking Script" : "Or Install Manually"}
-                </span>
-                <div className="flex-1 h-px bg-white/[0.08]"></div>
-              </div>
-            </div>
-            
-            {/* Step 1: Copy Script */}
-            <div className="space-y-2.5">
-              <div className="flex items-center gap-2.5">
-                <span className="inline-flex items-center justify-center size-5 rounded-full bg-white/10 text-white text-xs font-medium">1</span>
-                <h3 className="text-sm font-medium text-white">Copy the tracking script</h3>
-              </div>
-              <div className="relative">
-                <pre className="rounded-lg border border-white/[0.08] bg-black/40 p-4 pr-24 text-[11px] text-white/85 leading-relaxed overflow-hidden">
-                  <code style={{ display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{trackingScript || fallbackTrackingScript}</code>
-                </pre>
-                <Button
-                  size="sm"
-                  onClick={handleCopyScript}
-                  className="absolute top-3 right-3 h-7 px-3 text-xs bg-white/10 hover:bg-white/20 text-white border-0 rounded-md"
-                  variant="ghost"
-                >
-                  {scriptCopied ? (
-                    <>
-                      <Check className="size-3.5 mr-1.5" /> Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="size-3.5 mr-1.5" /> Copy
-                    </>
-                  )}
-                </Button>
+            {/* SCRIPT VIEW - Full script settings */}
+            {(modalView === 'script' || !isTrackingConnected) && (
+            <>
+            <div className="mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-white mb-1 tracking-tight">
+                    {isTrackingConnected ? "Script Settings" : "Connect AI Referral Tracking"}
+                  </h2>
+                  <p className="text-sm text-white/60">
+                    {isTrackingConnected
+                      ? "Copy and install this script on your website."
+                      : "Track traffic from AI search engines."}
+                  </p>
+                </div>
+                {isTrackingConnected && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-white/50 hover:text-white"
+                    onClick={() => setModalView('traffic')}
+                  >
+                    Back
+                  </Button>
+                )}
               </div>
             </div>
 
-            {/* Step 2: Paste in Head */}
-            <div className="space-y-2.5">
-              <div className="flex items-center gap-2.5">
-                <span className="inline-flex items-center justify-center size-5 rounded-full bg-white/10 text-white text-xs font-medium">2</span>
-                <h3 className="text-sm font-medium text-white">Paste it in the <code className="text-white/90 font-mono text-xs">&lt;head&gt;</code> of your site</h3>
-              </div>
-              <p className="text-sm text-white/60 pl-7 leading-relaxed">
-                Add the script to the <code className="px-1.5 py-0.5 rounded bg-white/10 text-white/90 text-xs font-mono">&lt;head&gt;</code> section, preferably before the closing <code className="px-1.5 py-0.5 rounded bg-white/10 text-white/90 text-xs font-mono">&lt;/head&gt;</code> tag.
-              </p>
-            </div>
+            <div className="space-y-5">
 
-            {/* Step 3: Help Links */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center justify-center size-6 rounded-full bg-white/10 text-white text-sm font-medium">3</span>
-                <h3 className="text-sm font-medium text-white">Need help?</h3>
-              </div>
-              <div className="flex items-center gap-2.5 pl-7 flex-wrap">
-                <a href="#" className="inline-flex items-center gap-1.5 text-xs text-white/70 hover:text-white transition-colors">
-                  <ExternalLink className="size-3" /> Installation Guide
-                </a>
-                <span className="text-white/30">•</span>
-                <a href="#" className="inline-flex items-center gap-1.5 text-xs text-white/70 hover:text-white transition-colors">
-                  <ExternalLink className="size-3" /> Troubleshooting
-                </a>
-              </div>
-            </div>
-
-            {/* Verify Button */}
-            <div className="pt-5 border-t border-white/[0.08]">
-              <Button 
-                className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium transition-all shadow-sm hover:shadow-md border-0"
-                onClick={handleVerifyScript}
-                disabled={isConnecting}
+            {/* Script Code */}
+            <div className="relative">
+              <pre className="rounded-lg border border-white/[0.08] bg-black/30 p-4 pr-20 text-[11px] text-white/80 leading-relaxed overflow-x-auto">
+                <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{trackingScript || fallbackTrackingScript}</code>
+              </pre>
+              <Button
+                size="sm"
+                onClick={handleCopyScript}
+                className="absolute top-3 right-3 h-8 px-3 text-xs bg-white/10 hover:bg-white/20 text-white border-0 rounded-md"
+                variant="ghost"
               >
-                {isConnecting ? "Verifying..." : "Script Added - Verify Connection"}
+                {scriptCopied ? (
+                  <>
+                    <Check className="size-3.5 mr-1.5" /> Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="size-3.5 mr-1.5" /> Copy
+                  </>
+                )}
               </Button>
             </div>
+
+            {/* Instructions */}
+            <p className="text-sm text-white/50">
+              Paste this script in the <code className="px-1.5 py-0.5 rounded bg-white/10 text-white/70 text-xs font-mono">&lt;head&gt;</code> section of your website.
+            </p>
+
+            {/* Auto-Install via GitHub */}
+            <div className="pt-5 border-t border-white/[0.08]">
+              <div className="flex items-center gap-2 mb-3">
+                <Github className="size-4 text-white/70" />
+                <span className="text-sm font-medium text-white/90">Auto-Install via GitHub</span>
+              </div>
+
+              {loadingRepos ? (
+                <div className="flex items-center gap-2 text-sm text-white/50">
+                  <Loader2 className="size-4 animate-spin" />
+                  Loading...
+                </div>
+              ) : !githubConnected ? (
+                <div className="p-3 rounded-lg border border-white/[0.08] bg-white/[0.02]">
+                  <p className="text-sm text-white/60 mb-2">Connect GitHub to auto-install the tracking script.</p>
+                  <a
+                    href="/dashboard/integrations"
+                    className="text-sm text-white/90 hover:text-white underline inline-flex items-center gap-1"
+                  >
+                    Go to Integrations <ExternalLink className="size-3" />
+                  </a>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {githubUsername && (
+                    <p className="text-xs text-white/50">Connected as {githubUsername}</p>
+                  )}
+
+                  {repositories.length > 0 ? (
+                    <>
+                      <Select value={selectedRepo} onValueChange={setSelectedRepo}>
+                        <SelectTrigger className="w-full h-9 bg-white/5 border-white/[0.08] text-white text-sm">
+                          <SelectValue placeholder="Select repository" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-dark-grey border-white/[0.08]">
+                          {repositories.map((repo) => (
+                            <SelectItem key={repo.fullName} value={repo.fullName} className="text-white focus:bg-white/10">
+                              {repo.fullName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      {installSuccess ? (
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                          <Check className="size-4 text-emerald-400" />
+                          <div className="flex-1">
+                            <p className="text-sm text-emerald-300">PR Created</p>
+                          </div>
+                          <a
+                            href={installSuccess.prUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
+                          >
+                            View PR <ExternalLink className="size-3" />
+                          </a>
+                        </div>
+                      ) : installError ? (
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                          <AlertCircle className="size-4 text-red-400" />
+                          <p className="text-sm text-red-300">{installError}</p>
+                        </div>
+                      ) : (
+                        <Button
+                          className="w-full h-9 bg-white/10 hover:bg-white/15 text-white text-sm border-0"
+                          onClick={handleAutoInstall}
+                          disabled={isInstallingTracking || !selectedRepo}
+                        >
+                          {isInstallingTracking ? (
+                            <>
+                              <Loader2 className="size-4 mr-2 animate-spin" />
+                              Creating PR...
+                            </>
+                          ) : (
+                            <>
+                              <Github className="size-4 mr-2" />
+                              Install via PR
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-white/50">No repositories found.</p>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* Verification Section */}
+            <div className="pt-5 border-t border-white/[0.08] space-y-4">
+              {/* Success Status */}
+              {verificationStatus === 'success' && (
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                  <Check className="h-5 w-5 text-emerald-400" />
+                  <div>
+                    <p className="text-sm font-medium text-emerald-300">Connected!</p>
+                    <p className="text-xs text-emerald-300/70">{verificationMessage}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Failed Status */}
+              {verificationStatus === 'failed' && (
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <AlertCircle className="h-5 w-5 text-red-400" />
+                  <div>
+                    <p className="text-sm font-medium text-red-300">Not Detected</p>
+                    <p className="text-xs text-red-300/70">{verificationMessage}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Verify Button - Show when idle, verifying, or failed */}
+              {(verificationStatus === 'idle' || verificationStatus === 'verifying' || verificationStatus === 'failed') && (
+                <Button
+                  className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium transition-all shadow-sm hover:shadow-md border-0"
+                  onClick={handleVerifyScript}
+                  disabled={verificationStatus === 'verifying'}
+                >
+                  {verificationStatus === 'verifying' ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : verificationStatus === 'failed' ? (
+                    "Try Again"
+                  ) : (
+                    "Script Added - Verify Connection"
+                  )}
+                </Button>
+              )}
+
+              {/* Close button when success */}
+              {verificationStatus === 'success' && (
+                <Button
+                  className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 text-sm font-medium transition-all shadow-sm hover:shadow-md border-0"
+                  onClick={() => setShowTrackingModal(false)}
+                >
+                  Done
+                </Button>
+              )}
+            </div>
+
+            {/* Tracking ID and Last Event - When Connected or has stats */}
+            {(trackingStats?.trackingId || siteIdValue) && (
+              <div className="pt-4 border-t border-white/[0.08] space-y-2">
+                <div className="text-xs text-white/60">
+                  Tracking ID: <code className="px-2 py-1 bg-white/5 rounded text-white/80">{trackingStats?.trackingId || siteIdValue}</code>
+                </div>
+                {trackingStats?.lastEventAt && (
+                  <div className="text-xs text-white/60">
+                    Last event: {new Date(trackingStats.lastEventAt).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            )}
+            </div>
+            </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

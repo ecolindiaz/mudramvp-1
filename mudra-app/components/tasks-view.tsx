@@ -356,7 +356,7 @@ function TaskDetailModal({ task, displayIndex, onComplete, onVerify, latestSnaps
           
         </Tabs>
 
-        <div className="grid grid-cols-2 gap-5 pt-4">
+        <div className="pt-4">
           <DialogClose asChild>
             <Button
               disabled={!allStepsDone}
@@ -367,17 +367,6 @@ function TaskDetailModal({ task, displayIndex, onComplete, onVerify, latestSnaps
               Mark as Complete
             </Button>
           </DialogClose>
-          <Button
-            variant="outline"
-            className="w-full h-11 rounded-lg"
-            onClick={() => {
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-              const detail = { initialMessage: `Help me do task number ${displayIndex}` }
-              window.dispatchEvent(new CustomEvent('mudra:open-chat', { detail } as any))
-            }}
-          >
-            Ask AI
-          </Button>
         </div>
       </div>
     </DialogContent>

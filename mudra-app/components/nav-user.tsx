@@ -89,7 +89,7 @@ export function NavUser({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground outline-none ring-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none"
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
                 <AvatarImage src={user.avatar || undefined} alt={user.name} />
@@ -126,25 +126,35 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="!bg-white/[0.08] my-2 mx-2" />
             <DropdownMenuGroup className="px-2 py-1 space-y-0.5">
-              <DropdownMenuItem className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9">
+              <DropdownMenuItem
+                onClick={() => router.push('/dashboard/account')}
+                className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
                 <IconUserCircle className="w-4 h-4" />
                 Account
               </DropdownMenuItem>
-              <DropdownMenuItem className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9">
-                <IconCreditCard className="w-4 h-4" />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9">
-                <IconNotification className="w-4 h-4" />
-                Notifications
-              </DropdownMenuItem>
+              {process.env.NODE_ENV !== 'production' && (
+                <DropdownMenuItem
+                  onClick={() => router.push('/dashboard/billing')}
+                  className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
+                  <IconCreditCard className="w-4 h-4" />
+                  Billing
+                </DropdownMenuItem>
+              )}
+              {process.env.NODE_ENV !== 'production' && (
+                <DropdownMenuItem
+                  onClick={() => router.push('/dashboard/notifications')}
+                  className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
+                  <IconNotification className="w-4 h-4" />
+                  Notifications
+                </DropdownMenuItem>
+              )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator className="!bg-white/[0.08] my-2 mx-2" />
             <div className="px-2 py-1">
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={handleSignOut}
                 onSelect={(e) => e.preventDefault()}
-                className="rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 focus:text-red-300 cursor-pointer">
+                className="rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 focus:text-red-300 cursor-pointer outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
                 <IconLogout className="w-4 h-4" />
               Log out
             </DropdownMenuItem>

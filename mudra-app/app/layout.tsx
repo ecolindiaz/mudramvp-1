@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import NextAuthSessionProvider from "@/components/SessionProvider";
 
@@ -19,6 +20,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Mudra - GEO Platform",
   description: "Generative Engine Optimization platform for startups",
+  icons: {
+    icon: "/Mudra-Logo.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
@@ -36,6 +41,7 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">
             {children}
             <Toaster />
+            <Analytics />
           </ThemeProvider>
         </NextAuthSessionProvider>
       </body>

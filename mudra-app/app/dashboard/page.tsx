@@ -11,8 +11,6 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics"
 import { NaturalLanguageReport } from "@/components/dashboard/natural-language-report"
-import AIReferralTrafficKPI from "@/components/dashboard/ai-referral-traffic-kpi"
-import TrackingCodeManager from "@/components/dashboard/tracking-code-manager"
 import type { TimeRange } from "@/components/dashboard/time-range-selector"
 import type { AIModel } from "@/components/dashboard/model-selector"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -131,14 +129,6 @@ function DashboardPageInner() {
                   timeRange={timeRange}
                   selectedModel={selectedModel}
                 />
-              </div>
-
-              {/* AI Referral Traffic Section */}
-              <div className="px-4 lg:px-6 pt-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <AIReferralTrafficKPI />
-                  <TrackingCodeManager />
-                </div>
               </div>
 
               {/* Natural Language Report */}

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import {
   IconTrendingUp,
   IconChartBar,
-  IconChecklist,
   IconMessageChatbot,
   IconUser,
   IconSparkles,
@@ -94,13 +93,6 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
           >
             <IconMessageChatbot className="mr-2 h-4 w-4" />
             <span>Tracked Prompts</span>
-          </CommandItem>
-          <CommandItem
-            onSelect={() => runCommand(() => router.push("/dashboard/tasks"))}
-            className="text-white/70 hover:text-white data-[selected=true]:bg-white/10 data-[selected=true]:text-white cursor-pointer"
-          >
-            <IconChecklist className="mr-2 h-4 w-4" />
-            <span>Tasks</span>
           </CommandItem>
         </CommandGroup>
         <CommandSeparator className="bg-white/[0.06]" />

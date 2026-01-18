@@ -215,34 +215,34 @@ export async function savePolicyFileResult(
     where: {
       // Use a compound lookup - find by brandProfileId and domain
       id: await prisma.policyFile.findFirst({
-        where: { brandProfileId, domain: result.domain },
+        where: { brand_profile_id: brandProfileId, domain: result.domain },
         select: { id: true },
       }).then(r => r?.id ?? 'new-record'),
     },
     create: {
-      brandProfileId,
+      brand_profile_id: brandProfileId,
       domain: result.domain,
-      robotsTxtExists: result.robots.exists,
-      robotsTxtContent: result.robots.content,
-      sitemapXmlExists: result.sitemap.exists,
-      sitemapXmlUrl: result.sitemap.url,
-      llmsTxtExists: result.llmsTxt.exists,
-      llmsTxtContent: result.llmsTxt.content,
-      llmsFullTxtExists: result.llmsFullTxt.exists,
-      llmsFullTxtContent: result.llmsFullTxt.content,
-      checkedAt: result.checkedAt,
+      robots_txt_exists: result.robots.exists,
+      robots_txt_content: result.robots.content,
+      sitemap_xml_exists: result.sitemap.exists,
+      sitemap_xml_url: result.sitemap.url,
+      llms_txt_exists: result.llmsTxt.exists,
+      llms_txt_content: result.llmsTxt.content,
+      llms_full_txt_exists: result.llmsFullTxt.exists,
+      llms_full_txt_content: result.llmsFullTxt.content,
+      checked_at: result.checkedAt,
     },
     update: {
-      robotsTxtExists: result.robots.exists,
-      robotsTxtContent: result.robots.content,
-      sitemapXmlExists: result.sitemap.exists,
-      sitemapXmlUrl: result.sitemap.url,
-      llmsTxtExists: result.llmsTxt.exists,
-      llmsTxtContent: result.llmsTxt.content,
-      llmsFullTxtExists: result.llmsFullTxt.exists,
-      llmsFullTxtContent: result.llmsFullTxt.content,
-      checkedAt: result.checkedAt,
-      updatedAt: new Date(),
+      robots_txt_exists: result.robots.exists,
+      robots_txt_content: result.robots.content,
+      sitemap_xml_exists: result.sitemap.exists,
+      sitemap_xml_url: result.sitemap.url,
+      llms_txt_exists: result.llmsTxt.exists,
+      llms_txt_content: result.llmsTxt.content,
+      llms_full_txt_exists: result.llmsFullTxt.exists,
+      llms_full_txt_content: result.llmsFullTxt.content,
+      checked_at: result.checkedAt,
+      updated_at: new Date(),
     },
   });
 }
@@ -255,7 +255,7 @@ export async function getCachedPolicyFiles(
   domain: string
 ): Promise<PolicyFileResult | null> {
   const record = await prisma.policyFile.findFirst({
-    where: { brandProfileId, domain: normalizeToOrigin(domain) },
+    where: { brand_profile_id: brandProfileId, domain: normalizeToOrigin(domain) },
   });
   
   if (!record) return null;
@@ -263,29 +263,29 @@ export async function getCachedPolicyFiles(
   return {
     domain: record.domain,
     robots: {
-      exists: record.robotsTxtExists,
+      exists: record.robots_txt_exists,
       url: `${record.domain}/robots.txt`,
-      content: record.robotsTxtContent ?? undefined,
-      sitemapUrls: record.sitemapXmlUrl ? [record.sitemapXmlUrl] : [],
-      crawlDirectives: record.robotsTxtContent 
-        ? parseCrawlDirectives(record.robotsTxtContent) 
+      content: record.robots_txt_content ?? undefined,
+      sitemapUrls: record.sitemap_xml_url ? [record.sitemap_xml_url] : [],
+      crawlDirectives: record.robots_txt_content 
+        ? parseCrawlDirectives(record.robots_txt_content) 
         : [],
     },
     sitemap: {
-      exists: record.sitemapXmlExists,
-      url: record.sitemapXmlUrl ?? `${record.domain}/sitemap.xml`,
+      exists: record.sitemap_xml_exists,
+      url: record.sitemap_xml_url ?? `${record.domain}/sitemap.xml`,
     },
     llmsTxt: {
-      exists: record.llmsTxtExists,
+      exists: record.llms_txt_exists,
       url: `${record.domain}/llms.txt`,
-      content: record.llmsTxtContent ?? undefined,
+      content: record.llms_txt_content ?? undefined,
     },
     llmsFullTxt: {
-      exists: record.llmsFullTxtExists,
+      exists: record.llms_full_txt_exists,
       url: `${record.domain}/llms-full.txt`,
-      content: record.llmsFullTxtContent ?? undefined,
+      content: record.llms_full_txt_content ?? undefined,
     },
-    checkedAt: record.checkedAt,
+    checkedAt: record.checked_at,
   };
 }
 
@@ -298,13 +298,13 @@ export async function needsPolicyRefresh(
   maxAgeHours: number = 24
 ): Promise<boolean> {
   const record = await prisma.policyFile.findFirst({
-    where: { brandProfileId, domain: normalizeToOrigin(domain) },
-    select: { checkedAt: true },
+    where: { brand_profile_id: brandProfileId, domain: normalizeToOrigin(domain) },
+    select: { checked_at: true },
   });
   
   if (!record) return true;
   
-  const ageMs = Date.now() - record.checkedAt.getTime();
+  const ageMs = Date.now() - record.checked_at.getTime();
   const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
   
   return ageMs > maxAgeMs;

@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const job = await prisma.scrapeJob.findUnique({
       where: { id: jobId },
       include: {
-        brandProfile: {
+        BrandProfile: {
           include: { user: { select: { email: true } } },
         },
       },
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (job.brandProfile.user?.email !== session.user.email) {
+    if (job.BrandProfile.user?.email !== session.user.email) {
       return NextResponse.json(
         { success: false, error: { message: 'Unauthorized' } },
         { status: 403 }
@@ -67,20 +67,20 @@ export async function GET(request: NextRequest) {
         domain: job.domain,
         status: job.status,
         progress: {
-          totalPages: job.totalPages,
-          pagesScraped: job.pagesScraped,
-          pagesScored: job.pagesScored,
-          pagesFailed: job.pagesFailed,
-          percentComplete: job.totalPages > 0 
-            ? Math.round((job.pagesScored / job.totalPages) * 100) 
+          totalPages: job.total_pages,
+          pagesScraped: job.pages_scraped,
+          pagesScored: job.pages_scored,
+          pagesFailed: job.pages_failed,
+          percentComplete: job.total_pages > 0 
+            ? Math.round((job.pages_scored / job.total_pages) * 100) 
             : 0,
         },
         timing: {
-          startedAt: job.startedAt,
-          completedAt: job.completedAt,
-          durationMs: job.durationMs,
+          startedAt: job.started_at,
+          completedAt: job.completed_at,
+          durationMs: job.duration_ms,
         },
-        error: job.errorMessage,
+        error: job.error_message,
       },
     });
 

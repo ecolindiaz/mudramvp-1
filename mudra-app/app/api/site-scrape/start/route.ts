@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     // Check for existing running job
     const existingJob = await prisma.scrapeJob.findFirst({
       where: {
-        brandProfileId,
+        brand_profile_id: brandProfileId,
         status: { in: ['pending', 'policy_check', 'sitemap_discovery', 'scraping', 'scoring'] },
       },
     });
@@ -82,8 +82,8 @@ export async function POST(request: NextRequest) {
 
     // Get the job ID from a quick lookup
     const newJob = await prisma.scrapeJob.findFirst({
-      where: { brandProfileId },
-      orderBy: { createdAt: 'desc' },
+      where: { brand_profile_id: brandProfileId },
+      orderBy: { created_at: 'desc' },
       select: { id: true },
     });
 

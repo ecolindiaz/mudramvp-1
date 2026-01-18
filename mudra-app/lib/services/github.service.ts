@@ -251,7 +251,7 @@ export async function saveGitHubIntegration(data: {
       githubUsername: data.githubUsername,
       avatarUrl: data.avatarUrl,
       scope: data.scope,
-      repositories: JSON.stringify([]),
+      repositories: [],
     },
     update: {
       accessToken: data.accessToken,

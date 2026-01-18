@@ -320,28 +320,28 @@ export async function saveSitemapPages(
       try {
         await prisma.sitemapPage.upsert({
           where: {
-            brandProfileId_domain_pageUrl: {
-              brandProfileId,
+            brand_profile_id_domain_page_url: {
+              brand_profile_id: brandProfileId,
               domain: discovery.domain,
-              pageUrl: entry.loc,
+              page_url: entry.loc,
             },
           },
           create: {
-            brandProfileId,
+            brand_profile_id: brandProfileId,
             domain: discovery.domain,
-            pageUrl: entry.loc,
-            pageType: classifyPageType(entry.loc),
-            lastModified: entry.lastmod ? new Date(entry.lastmod) : null,
-            changeFrequency: entry.changefreq,
+            page_url: entry.loc,
+            page_type: classifyPageType(entry.loc),
+            last_modified: entry.lastmod ? new Date(entry.lastmod) : null,
+            change_frequency: entry.changefreq,
             priority: entry.priority,
-            scrapeStatus: 'pending',
+            scrape_status: 'pending',
           },
           update: {
-            pageType: classifyPageType(entry.loc),
-            lastModified: entry.lastmod ? new Date(entry.lastmod) : null,
-            changeFrequency: entry.changefreq,
+            page_type: classifyPageType(entry.loc),
+            last_modified: entry.lastmod ? new Date(entry.lastmod) : null,
+            change_frequency: entry.changefreq,
             priority: entry.priority,
-            updatedAt: new Date(),
+            updated_at: new Date(),
           },
         });
         savedCount++;
@@ -363,23 +363,30 @@ export async function getPendingPages(
   domain: string,
   limit?: number
 ): Promise<Array<{ id: string; pageUrl: string; pageType: string | null }>> {
-  return prisma.sitemapPage.findMany({
+  const pages = await prisma.sitemapPage.findMany({
     where: {
-      brandProfileId,
+      brand_profile_id: brandProfileId,
       domain,
-      scrapeStatus: 'pending',
+      scrape_status: 'pending',
     },
     select: {
       id: true,
-      pageUrl: true,
-      pageType: true,
+      page_url: true,
+      page_type: true,
     },
     orderBy: [
       { priority: 'desc' },
-      { pageType: 'asc' },
+      { page_type: 'asc' },
     ],
     take: limit,
   });
+  
+  // Map to camelCase for the return type
+  return pages.map(p => ({
+    id: p.id,
+    pageUrl: p.page_url,
+    pageType: p.page_type,
+  }));
 }
 
 /**
@@ -393,10 +400,10 @@ export async function updatePageScrapeStatus(
   await prisma.sitemapPage.update({
     where: { id: pageId },
     data: {
-      scrapeStatus: status,
-      scrapeError: error,
-      lastScrapedAt: status === 'completed' ? new Date() : undefined,
-      updatedAt: new Date(),
+      scrape_status: status,
+      scrape_error: error,
+      last_scraped_at: status === 'completed' ? new Date() : undefined,
+      updated_at: new Date(),
     },
   });
 }
@@ -415,8 +422,8 @@ export async function getSitemapStats(
   byPageType: Record<string, number>;
 }> {
   const pages = await prisma.sitemapPage.groupBy({
-    by: ['scrapeStatus', 'pageType'],
-    where: { brandProfileId, domain },
+    by: ['scrape_status', 'page_type'],
+    where: { brand_profile_id: brandProfileId, domain },
     _count: true,
   });
   
@@ -433,12 +440,12 @@ export async function getSitemapStats(
     stats.totalPages += count;
     
     // Status counts
-    if (group.scrapeStatus === 'pending') stats.pending += count;
-    if (group.scrapeStatus === 'completed') stats.completed += count;
-    if (group.scrapeStatus === 'failed') stats.failed += count;
+    if (group.scrape_status === 'pending') stats.pending += count;
+    if (group.scrape_status === 'completed') stats.completed += count;
+    if (group.scrape_status === 'failed') stats.failed += count;
     
     // Page type counts
-    const type = group.pageType || 'other';
+    const type = group.page_type || 'other';
     stats.byPageType[type] = (stats.byPageType[type] || 0) + count;
   }
   

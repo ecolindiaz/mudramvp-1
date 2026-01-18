@@ -119,16 +119,16 @@ async function savePageSnapshot(
   // Mark previous snapshots as not current
   await prisma.pageSnapshot.updateMany({
     where: {
-      brandProfileId,
-      sitemapPageId,
-      isCurrent: true,
+      brand_profile_id: brandProfileId,
+      sitemap_page_id: sitemapPageId,
+      is_current: true,
     },
-    data: { isCurrent: false },
+    data: { is_current: false },
   });
   
   // Get the next version number
   const lastSnapshot = await prisma.pageSnapshot.findFirst({
-    where: { brandProfileId, sitemapPageId },
+    where: { brand_profile_id: brandProfileId, sitemap_page_id: sitemapPageId },
     orderBy: { version: 'desc' },
     select: { version: true },
   });
@@ -140,24 +140,24 @@ async function savePageSnapshot(
   // Create new snapshot
   const snapshot = await prisma.pageSnapshot.create({
     data: {
-      brandProfileId,
-      sitemapPageId,
-      pageUrl,
+      brand_profile_id: brandProfileId,
+      sitemap_page_id: sitemapPageId,
+      page_url: pageUrl,
       version,
-      isCurrent: true,
-      htmlContent: html,
-      htmlLength: html.length,
-      metadataJson: JSON.parse(JSON.stringify(extraction.metadata)),
-      structuredDataJson: JSON.parse(JSON.stringify(extraction.structuredData)),
-      semanticStructureJson: JSON.parse(JSON.stringify({
+      is_current: true,
+      html_content: html,
+      html_length: html.length,
+      metadata_json: JSON.parse(JSON.stringify(extraction.metadata)),
+      structured_data_json: JSON.parse(JSON.stringify(extraction.structuredData)),
+      semantic_structure_json: JSON.parse(JSON.stringify({
         headings: extraction.headings,
         semanticElements: extraction.semanticElements,
       })),
-      faqContentJson: JSON.parse(JSON.stringify(extraction.faqContent)),
-      validationResultsJson: JSON.parse(JSON.stringify(extraction.validation)),
-      httpStatusCode: statusCode,
-      contentType,
-      scrapeDurationMs: duration,
+      faq_content_json: JSON.parse(JSON.stringify(extraction.faqContent)),
+      validation_results_json: JSON.parse(JSON.stringify(extraction.validation)),
+      http_status_code: statusCode,
+      content_type: contentType,
+      scrape_duration_ms: duration,
     },
   });
   
@@ -176,41 +176,41 @@ async function savePageScore(
 ): Promise<void> {
   // Upsert page score
   await prisma.pageScore.upsert({
-    where: { pageSnapshotId },
+    where: { page_snapshot_id: pageSnapshotId },
     create: {
-      brandProfileId,
-      pageSnapshotId,
-      sitemapPageId,
-      pageUrl,
-      overallScore: score.overall,
-      structuredDataScore: score.structuredData.score,
-      structuredDataDetails: JSON.parse(JSON.stringify(score.structuredData)),
-      semanticHtmlScore: score.semanticHtml.score,
-      semanticHtmlDetails: JSON.parse(JSON.stringify(score.semanticHtml)),
-      citabilityScore: score.citability.score,
-      citabilityDetails: JSON.parse(JSON.stringify(score.citability)),
-      accessibilityScore: score.accessibility.score,
-      accessibilityDetails: JSON.parse(JSON.stringify(score.accessibility)),
-      answerEngineScore: score.answerEngine.score,
-      answerEngineDetails: JSON.parse(JSON.stringify(score.answerEngine)),
+      brand_profile_id: brandProfileId,
+      page_snapshot_id: pageSnapshotId,
+      sitemap_page_id: sitemapPageId,
+      page_url: pageUrl,
+      overall_score: score.overall,
+      structured_data_score: score.structuredData.score,
+      structured_data_details: JSON.parse(JSON.stringify(score.structuredData)),
+      semantic_html_score: score.semanticHtml.score,
+      semantic_html_details: JSON.parse(JSON.stringify(score.semanticHtml)),
+      citability_score: score.citability.score,
+      citability_details: JSON.parse(JSON.stringify(score.citability)),
+      accessibility_score: score.accessibility.score,
+      accessibility_details: JSON.parse(JSON.stringify(score.accessibility)),
+      answer_engine_score: score.answerEngine.score,
+      answer_engine_details: JSON.parse(JSON.stringify(score.answerEngine)),
       issues: JSON.parse(JSON.stringify(score.issues)),
       recommendations: JSON.parse(JSON.stringify(score.recommendations)),
     },
     update: {
-      overallScore: score.overall,
-      structuredDataScore: score.structuredData.score,
-      structuredDataDetails: JSON.parse(JSON.stringify(score.structuredData)),
-      semanticHtmlScore: score.semanticHtml.score,
-      semanticHtmlDetails: JSON.parse(JSON.stringify(score.semanticHtml)),
-      citabilityScore: score.citability.score,
-      citabilityDetails: JSON.parse(JSON.stringify(score.citability)),
-      accessibilityScore: score.accessibility.score,
-      accessibilityDetails: JSON.parse(JSON.stringify(score.accessibility)),
-      answerEngineScore: score.answerEngine.score,
-      answerEngineDetails: JSON.parse(JSON.stringify(score.answerEngine)),
+      overall_score: score.overall,
+      structured_data_score: score.structuredData.score,
+      structured_data_details: JSON.parse(JSON.stringify(score.structuredData)),
+      semantic_html_score: score.semanticHtml.score,
+      semantic_html_details: JSON.parse(JSON.stringify(score.semanticHtml)),
+      citability_score: score.citability.score,
+      citability_details: JSON.parse(JSON.stringify(score.citability)),
+      accessibility_score: score.accessibility.score,
+      accessibility_details: JSON.parse(JSON.stringify(score.accessibility)),
+      answer_engine_score: score.answerEngine.score,
+      answer_engine_details: JSON.parse(JSON.stringify(score.answerEngine)),
       issues: JSON.parse(JSON.stringify(score.issues)),
       recommendations: JSON.parse(JSON.stringify(score.recommendations)),
-      updatedAt: new Date(),
+      updated_at: new Date(),
     },
   });
 }
@@ -287,9 +287,9 @@ export async function createScrapeJob(
   
   const job = await prisma.scrapeJob.create({
     data: {
-      brandProfileId,
+      brand_profile_id: brandProfileId,
       domain: normalizeToOrigin(domain),
-      jobType: 'full_site',
+      job_type: 'full_site',
       status: 'pending',
       config: fullConfig,
     },
@@ -319,8 +319,15 @@ async function updateJobStatus(
     where: { id: jobId },
     data: {
       status,
-      ...updates,
-      updatedAt: new Date(),
+      total_pages: updates.totalPages,
+      pages_scraped: updates.pagesScraped,
+      pages_scored: updates.pagesScored,
+      pages_failed: updates.pagesFailed,
+      error_message: updates.errorMessage,
+      started_at: updates.startedAt,
+      completed_at: updates.completedAt,
+      duration_ms: updates.durationMs,
+      updated_at: new Date(),
     },
   });
 }
@@ -338,10 +345,10 @@ export async function getScrapeJobProgress(jobId: string): Promise<ScrapeJobProg
   return {
     jobId: job.id,
     status: job.status as ScrapeJobStatus,
-    totalPages: job.totalPages,
-    pagesScraped: job.pagesScraped,
-    pagesScored: job.pagesScored,
-    pagesFailed: job.pagesFailed,
+    totalPages: job.total_pages,
+    pagesScraped: job.pages_scraped,
+    pagesScored: job.pages_scored,
+    pagesFailed: job.pages_failed,
     errors: (job.errors as any[]) || [],
   };
 }
@@ -357,10 +364,10 @@ export async function computeSiteWideScore(
   
   // Get all page scores
   const pageScores = await prisma.pageScore.findMany({
-    where: { brandProfileId },
+    where: { brand_profile_id: brandProfileId },
     include: {
-      sitemapPage: {
-        select: { pageType: true, pageUrl: true },
+      sitemap_pages: {
+        select: { page_type: true, page_url: true },
       },
     },
   });
@@ -372,12 +379,12 @@ export async function computeSiteWideScore(
   // Calculate averages
   const sumScores = pageScores.reduce(
     (acc, p) => ({
-      overall: acc.overall + p.overallScore,
-      structuredData: acc.structuredData + p.structuredDataScore,
-      semanticHtml: acc.semanticHtml + p.semanticHtmlScore,
-      citability: acc.citability + p.citabilityScore,
-      accessibility: acc.accessibility + p.accessibilityScore,
-      answerEngine: acc.answerEngine + p.answerEngineScore,
+      overall: acc.overall + p.overall_score,
+      structuredData: acc.structuredData + p.structured_data_score,
+      semanticHtml: acc.semanticHtml + p.semantic_html_score,
+      citability: acc.citability + p.citability_score,
+      accessibility: acc.accessibility + p.accessibility_score,
+      answerEngine: acc.answerEngine + p.answer_engine_score,
     }),
     { overall: 0, structuredData: 0, semanticHtml: 0, citability: 0, accessibility: 0, answerEngine: 0 }
   );
@@ -392,7 +399,7 @@ export async function computeSiteWideScore(
   
   // Get total pages from sitemap
   const totalPages = await prisma.sitemapPage.count({
-    where: { brandProfileId, domain: normalizedDomain },
+    where: { brand_profile_id: brandProfileId, domain: normalizedDomain },
   });
   
   const pagesScored = pageScores.length;
@@ -408,7 +415,7 @@ export async function computeSiteWideScore(
       if (existing) {
         existing.count++;
         if (existing.urls.length < 3) {
-          existing.urls.push(pageScore.pageUrl);
+          existing.urls.push(pageScore.page_url);
         }
       } else {
         issueMap.set(key, {
@@ -416,7 +423,7 @@ export async function computeSiteWideScore(
           severity: issue.severity,
           dimension: issue.dimension,
           title: issue.title,
-          urls: [pageScore.pageUrl],
+          urls: [pageScore.page_url],
         });
       }
     }
@@ -440,26 +447,26 @@ export async function computeSiteWideScore(
   const pageTypeScores = new Map<string, { count: number; sumOverall: number; sumSD: number; sumSH: number; sumC: number; sumA: number; sumAE: number }>();
   
   for (const pageScore of pageScores) {
-    const pageType = pageScore.sitemapPage?.pageType || 'other';
+    const pageType = pageScore.sitemap_pages?.page_type || 'other';
     const existing = pageTypeScores.get(pageType);
     
     if (existing) {
       existing.count++;
-      existing.sumOverall += pageScore.overallScore;
-      existing.sumSD += pageScore.structuredDataScore;
-      existing.sumSH += pageScore.semanticHtmlScore;
-      existing.sumC += pageScore.citabilityScore;
-      existing.sumA += pageScore.accessibilityScore;
-      existing.sumAE += pageScore.answerEngineScore;
+      existing.sumOverall += pageScore.overall_score;
+      existing.sumSD += pageScore.structured_data_score;
+      existing.sumSH += pageScore.semantic_html_score;
+      existing.sumC += pageScore.citability_score;
+      existing.sumA += pageScore.accessibility_score;
+      existing.sumAE += pageScore.answer_engine_score;
     } else {
       pageTypeScores.set(pageType, {
         count: 1,
-        sumOverall: pageScore.overallScore,
-        sumSD: pageScore.structuredDataScore,
-        sumSH: pageScore.semanticHtmlScore,
-        sumC: pageScore.citabilityScore,
-        sumA: pageScore.accessibilityScore,
-        sumAE: pageScore.answerEngineScore,
+        sumOverall: pageScore.overall_score,
+        sumSD: pageScore.structured_data_score,
+        sumSH: pageScore.semantic_html_score,
+        sumC: pageScore.citability_score,
+        sumA: pageScore.accessibility_score,
+        sumAE: pageScore.answer_engine_score,
       });
     }
   }
@@ -484,7 +491,7 @@ export async function computeSiteWideScore(
   
   for (const schemaType of schemaTypes) {
     const pagesWithSchema = pageScores.filter(p => {
-      const details = p.structuredDataDetails as any;
+      const details = p.structured_data_details as any;
       return details?.breakdown?.some((b: any) => 
         b.description?.includes(schemaType)
       );
@@ -494,9 +501,9 @@ export async function computeSiteWideScore(
   
   // Get previous score for comparison
   const previousRecord = await prisma.siteStructureScore.findFirst({
-    where: { brandProfileId, domain: normalizedDomain },
-    orderBy: { computedAt: 'desc' },
-    select: { overallScore: true },
+    where: { brand_profile_id: brandProfileId, domain: normalizedDomain },
+    orderBy: { computed_at: 'desc' },
+    select: { overall_score: true },
   });
   
   const result: SiteWideScore = {
@@ -518,31 +525,31 @@ export async function computeSiteWideScore(
     schemaCoverage: schemaCoverage as any,
     topIssues,
     scoreByPageType,
-    previousScore: previousRecord?.overallScore,
-    scoreChange: previousRecord ? Math.round((avgOverall - previousRecord.overallScore) * 10) / 10 : undefined,
+    previousScore: previousRecord?.overall_score,
+    scoreChange: previousRecord ? Math.round((avgOverall - previousRecord.overall_score) * 10) / 10 : undefined,
     computedAt: new Date(),
   };
   
   // Save to database
   await prisma.siteStructureScore.create({
     data: {
-      brandProfileId,
+      brand_profile_id: brandProfileId,
       domain: normalizedDomain,
-      overallScore: result.overall,
-      structuredDataScore: result.dimensions.structuredData,
-      semanticHtmlScore: result.dimensions.semanticHtml,
-      citabilityScore: result.dimensions.citability,
-      accessibilityScore: result.dimensions.accessibility,
-      answerEngineScore: result.dimensions.answerEngine,
-      totalPages: result.stats.totalPages,
-      pagesScraped: result.stats.pagesScraped,
-      pagesScored: result.stats.pagesScored,
-      pagesWithIssues: result.stats.pagesWithIssues,
-      schemaCoverage,
-      topIssues,
-      scoreByPageType,
-      previousScore: result.previousScore,
-      scoreChange: result.scoreChange,
+      overall_score: result.overall,
+      structured_data_score: result.dimensions.structuredData,
+      semantic_html_score: result.dimensions.semanticHtml,
+      citability_score: result.dimensions.citability,
+      accessibility_score: result.dimensions.accessibility,
+      answer_engine_score: result.dimensions.answerEngine,
+      total_pages: result.stats.totalPages,
+      pages_scraped: result.stats.pagesScraped,
+      pages_scored: result.stats.pagesScored,
+      pages_with_issues: result.stats.pagesWithIssues,
+      schema_coverage: schemaCoverage,
+      top_issues: topIssues,
+      score_by_page_type: scoreByPageType,
+      previous_score: result.previousScore,
+      score_change: result.scoreChange,
     },
   });
   
@@ -670,40 +677,40 @@ export async function getLatestSiteScore(
   brandProfileId: number,
   domain?: string
 ): Promise<SiteWideScore | null> {
-  const where: any = { brandProfileId };
+  const where: any = { brand_profile_id: brandProfileId };
   if (domain) {
     where.domain = normalizeToOrigin(domain);
   }
   
   const record = await prisma.siteStructureScore.findFirst({
     where,
-    orderBy: { computedAt: 'desc' },
+    orderBy: { computed_at: 'desc' },
   });
   
   if (!record) return null;
   
   return {
     domain: record.domain,
-    overall: record.overallScore,
+    overall: record.overall_score,
     dimensions: {
-      structuredData: record.structuredDataScore,
-      semanticHtml: record.semanticHtmlScore,
-      citability: record.citabilityScore,
-      accessibility: record.accessibilityScore,
-      answerEngine: record.answerEngineScore,
+      structuredData: record.structured_data_score,
+      semanticHtml: record.semantic_html_score,
+      citability: record.citability_score,
+      accessibility: record.accessibility_score,
+      answerEngine: record.answer_engine_score,
     },
     stats: {
-      totalPages: record.totalPages,
-      pagesScraped: record.pagesScraped,
-      pagesScored: record.pagesScored,
-      pagesWithIssues: record.pagesWithIssues,
+      totalPages: record.total_pages,
+      pagesScraped: record.pages_scraped,
+      pagesScored: record.pages_scored,
+      pagesWithIssues: record.pages_with_issues,
     },
-    schemaCoverage: record.schemaCoverage as any,
-    topIssues: record.topIssues as any[],
-    scoreByPageType: record.scoreByPageType as any,
-    previousScore: record.previousScore ?? undefined,
-    scoreChange: record.scoreChange ?? undefined,
-    computedAt: record.computedAt,
+    schemaCoverage: record.schema_coverage as any,
+    topIssues: record.top_issues as any[],
+    scoreByPageType: record.score_by_page_type as any,
+    previousScore: record.previous_score ?? undefined,
+    scoreChange: record.score_change ?? undefined,
+    computedAt: record.computed_at,
   };
 }
 
@@ -738,33 +745,33 @@ export async function getPageScores(
   }>;
   total: number;
 }> {
-  const where: any = { brandProfileId };
+  const where: any = { brand_profile_id: brandProfileId };
   
   if (options.domain) {
-    where.pageUrl = { startsWith: normalizeToOrigin(options.domain) };
+    where.page_url = { startsWith: normalizeToOrigin(options.domain) };
   }
   
   if (options.minScore !== undefined) {
-    where.overallScore = { ...where.overallScore, gte: options.minScore };
+    where.overall_score = { ...where.overall_score, gte: options.minScore };
   }
   
   if (options.maxScore !== undefined) {
-    where.overallScore = { ...where.overallScore, lte: options.maxScore };
+    where.overall_score = { ...where.overall_score, lte: options.maxScore };
   }
   
   const orderBy: any = {};
   switch (options.orderBy) {
     case 'score_asc':
-      orderBy.overallScore = 'asc';
+      orderBy.overall_score = 'asc';
       break;
     case 'score_desc':
-      orderBy.overallScore = 'desc';
+      orderBy.overall_score = 'desc';
       break;
     case 'url':
-      orderBy.pageUrl = 'asc';
+      orderBy.page_url = 'asc';
       break;
     default:
-      orderBy.overallScore = 'desc';
+      orderBy.overall_score = 'desc';
   }
   
   const [pages, total] = await Promise.all([
@@ -774,7 +781,7 @@ export async function getPageScores(
       take: options.limit || 50,
       skip: options.offset || 0,
       include: {
-        sitemapPage: { select: { pageType: true } },
+        sitemap_pages: { select: { page_type: true } },
       },
     }),
     prisma.pageScore.count({ where }),
@@ -782,18 +789,18 @@ export async function getPageScores(
   
   return {
     pages: pages.map(p => ({
-      pageUrl: p.pageUrl,
-      pageType: p.sitemapPage?.pageType || null,
-      overallScore: p.overallScore,
+      pageUrl: p.page_url,
+      pageType: p.sitemap_pages?.page_type || null,
+      overallScore: p.overall_score,
       dimensions: {
-        structuredData: p.structuredDataScore,
-        semanticHtml: p.semanticHtmlScore,
-        citability: p.citabilityScore,
-        accessibility: p.accessibilityScore,
-        answerEngine: p.answerEngineScore,
+        structuredData: p.structured_data_score,
+        semanticHtml: p.semantic_html_score,
+        citability: p.citability_score,
+        accessibility: p.accessibility_score,
+        answerEngine: p.answer_engine_score,
       },
       issueCount: Array.isArray(p.issues) ? (p.issues as any[]).length : 0,
-      scoredAt: p.scoredAt,
+      scoredAt: p.scored_at,
     })),
     total,
   };

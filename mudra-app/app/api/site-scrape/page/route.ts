@@ -54,20 +54,20 @@ export async function GET(request: NextRequest) {
     // Get page score
     const pageScore = await prisma.pageScore.findFirst({
       where: {
-        brandProfileId,
-        pageUrl,
+        brand_profile_id: brandProfileId,
+        page_url: pageUrl,
       },
       include: {
-        sitemapPage: {
-          select: { pageType: true, lastModified: true },
+        sitemap_pages: {
+          select: { page_type: true, last_modified: true },
         },
-        pageSnapshot: {
+        page_snapshots: {
           select: {
             version: true,
-            htmlLength: true,
-            metadataJson: true,
-            scrapedAt: true,
-            httpStatusCode: true,
+            html_length: true,
+            metadata_json: true,
+            scraped_at: true,
+            http_status_code: true,
           },
         },
       },
@@ -81,16 +81,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Format response
-    const grade = getScoreGrade(pageScore.overallScore);
+    const grade = getScoreGrade(pageScore.overall_score);
 
     return NextResponse.json({
       success: true,
       data: {
-        pageUrl: pageScore.pageUrl,
-        pageType: pageScore.sitemapPage?.pageType,
+        pageUrl: pageScore.page_url,
+        pageType: pageScore.sitemap_pages?.page_type,
         
         overall: {
-          score: pageScore.overallScore,
+          score: pageScore.overall_score,
           grade: grade.grade,
           label: grade.label,
         },
@@ -98,33 +98,33 @@ export async function GET(request: NextRequest) {
         dimensions: {
           structuredData: {
             name: getDimensionDisplayName('structuredData'),
-            score: pageScore.structuredDataScore,
-            grade: getScoreGrade(pageScore.structuredDataScore),
-            details: pageScore.structuredDataDetails,
+            score: pageScore.structured_data_score,
+            grade: getScoreGrade(pageScore.structured_data_score),
+            details: pageScore.structured_data_details,
           },
           semanticHtml: {
             name: getDimensionDisplayName('semanticHtml'),
-            score: pageScore.semanticHtmlScore,
-            grade: getScoreGrade(pageScore.semanticHtmlScore),
-            details: pageScore.semanticHtmlDetails,
+            score: pageScore.semantic_html_score,
+            grade: getScoreGrade(pageScore.semantic_html_score),
+            details: pageScore.semantic_html_details,
           },
           citability: {
             name: getDimensionDisplayName('citability'),
-            score: pageScore.citabilityScore,
-            grade: getScoreGrade(pageScore.citabilityScore),
-            details: pageScore.citabilityDetails,
+            score: pageScore.citability_score,
+            grade: getScoreGrade(pageScore.citability_score),
+            details: pageScore.citability_details,
           },
           accessibility: {
             name: getDimensionDisplayName('accessibility'),
-            score: pageScore.accessibilityScore,
-            grade: getScoreGrade(pageScore.accessibilityScore),
-            details: pageScore.accessibilityDetails,
+            score: pageScore.accessibility_score,
+            grade: getScoreGrade(pageScore.accessibility_score),
+            details: pageScore.accessibility_details,
           },
           answerEngine: {
             name: getDimensionDisplayName('answerEngine'),
-            score: pageScore.answerEngineScore,
-            grade: getScoreGrade(pageScore.answerEngineScore),
-            details: pageScore.answerEngineDetails,
+            score: pageScore.answer_engine_score,
+            grade: getScoreGrade(pageScore.answer_engine_score),
+            details: pageScore.answer_engine_details,
           },
         },
         
@@ -132,14 +132,14 @@ export async function GET(request: NextRequest) {
         recommendations: pageScore.recommendations,
         
         snapshot: {
-          version: pageScore.pageSnapshot?.version,
-          htmlLength: pageScore.pageSnapshot?.htmlLength,
-          metadata: pageScore.pageSnapshot?.metadataJson,
-          scrapedAt: pageScore.pageSnapshot?.scrapedAt,
-          httpStatusCode: pageScore.pageSnapshot?.httpStatusCode,
+          version: pageScore.page_snapshots?.version,
+          htmlLength: pageScore.page_snapshots?.html_length,
+          metadata: pageScore.page_snapshots?.metadata_json,
+          scrapedAt: pageScore.page_snapshots?.scraped_at,
+          httpStatusCode: pageScore.page_snapshots?.http_status_code,
         },
         
-        scoredAt: pageScore.scoredAt,
+        scoredAt: pageScore.scored_at,
       },
     });
 

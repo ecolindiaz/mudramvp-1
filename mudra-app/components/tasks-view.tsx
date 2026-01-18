@@ -51,7 +51,6 @@ import {
 import { useEffect, useState } from "react"
 import type { ScrapeSnapshot } from "@/lib/analysis/technical/types"
 import { toast } from "sonner"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
 
 // AI Task Generator removed
 
@@ -357,7 +356,7 @@ function TaskDetailModal({ task, displayIndex, onComplete, onVerify, latestSnaps
           
         </Tabs>
 
-        <div className="grid grid-cols-2 gap-5 pt-4">
+        <div className="pt-4">
           <DialogClose asChild>
             <Button
               disabled={!allStepsDone}
@@ -368,17 +367,6 @@ function TaskDetailModal({ task, displayIndex, onComplete, onVerify, latestSnaps
               Mark as Complete
             </Button>
           </DialogClose>
-          <Button
-            variant="outline"
-            className="w-full h-11 rounded-lg"
-            onClick={() => {
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-              const detail = { initialMessage: `Help me do task number ${displayIndex}` }
-              window.dispatchEvent(new CustomEvent('mudra:open-chat', { detail } as any))
-            }}
-          >
-            Ask AI
-          </Button>
         </div>
       </div>
     </DialogContent>
@@ -651,21 +639,6 @@ export function TasksView() {
         </div>
       </div>
       
-      {/* Context-aware AI Chat */}
-      <FloatingMudraButton 
-        siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''}
-        taskContext={tasks.map(task => ({
-          id: task.id,
-          header: task.header,
-          type: task.type,
-          status: task.status,
-          description: task.description,
-          detailedSteps: task.detailedSteps,
-          resources: task.resources,
-          estimatedTime: task.estimatedTime,
-          difficulty: task.difficulty
-        }))}
-      />
     </div>
   )
 } 

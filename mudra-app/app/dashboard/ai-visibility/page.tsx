@@ -8,7 +8,6 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { TimeRangeSelector, type TimeRange } from "@/components/dashboard/time-range-selector"
 import { ModelSelector, type AIModel } from "@/components/dashboard/model-selector"
 import { Button } from "@/components/ui/button"
@@ -361,7 +360,6 @@ function AIVisibilityPageContent() {
         </div>
       </SidebarInset>
       
-      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
 }

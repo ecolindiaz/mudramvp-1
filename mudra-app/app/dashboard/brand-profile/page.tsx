@@ -3,7 +3,6 @@ import { BrandProfileForm } from "@/components/brand-profile-form"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { BrandProfileProvider } from "@/components/brand-profile-context"
 
 export default function BrandProfilePage() {
@@ -30,13 +29,6 @@ export default function BrandProfilePage() {
           </div>
         </SidebarInset>
 
-        <FloatingMudraButton
-          siteId={
-            typeof window !== "undefined"
-              ? localStorage.getItem("mudra:siteId") || ""
-              : ""
-          }
-        />
       </SidebarProvider>
     </BrandProfileProvider>
   )

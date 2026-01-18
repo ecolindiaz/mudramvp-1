@@ -33,7 +33,6 @@ import {
   type LucideProps,
 } from "lucide-react"
 import Image from "next/image"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { cn } from "@/lib/utils"
 
 // Custom Reddit icon (not available in Lucide)
@@ -1225,8 +1224,6 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
         </div>
       </SidebarInset>
 
-      {/* Mudra Chat */}
-      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
 
       {/* View All Side Popup */}
       <Sheet open={isViewAllOpen} onOpenChange={setIsViewAllOpen}>

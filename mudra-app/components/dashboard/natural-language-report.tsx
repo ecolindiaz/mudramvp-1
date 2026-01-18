@@ -3,26 +3,17 @@
 import React from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 import {
-  mockOverviewMetrics,
-  mockAiVisibilityData,
-  mockDashboardMetrics,
-} from "@/lib/mock/data"
-import { 
-  IconSparkles, 
-  IconTrendingUp, 
-  IconTarget, 
-  IconCheck, 
-  IconDownload, 
-  IconCopy, 
+  IconSparkles,
+  IconDownload,
+  IconCopy,
   IconInfoCircle
 } from "@tabler/icons-react"
-import { Clock, FileText } from "lucide-react"
+import { FileText } from "lucide-react"
 import { useNlr } from '@/hooks/use-nlr'
 import type { NlrSummaryJson } from '@/types/nlr'
 import useSWR from 'swr'
@@ -34,31 +25,11 @@ interface NaturalLanguageReportProps {
   selectedModel: AIModel
 }
 
-function generateSummary(): string {
-  const humans = mockOverviewMetrics.humansReferredFromLLMs.current
-  const tasks = mockOverviewMetrics.weeklyTasksCompleted.current
-  const goals = mockOverviewMetrics.thisWeekGoals.current
-
-  const aiVisibility = mockAiVisibilityData.overallScore
-  const contentQuality = mockOverviewMetrics.contentQualityScore.current
-  const technical = mockDashboardMetrics.technicalScore.current
-  const visibilityChange = mockOverviewMetrics.aiVisibilityRank.change
-  const topModels = mockAiVisibilityData.byModel.slice(0, 2).map(m => m.model).join(" and ")
-
-  return (
-    `Your brand currently holds an AI Visibility score of ${aiVisibility}/100, with solid technical health ` +
-    `(${technical}/100) and content quality at ${contentQuality}/100. In the recent period, ` +
-    `${humans} users were referred by AI search engines. Visibility improved ${visibilityChange}% vs the ` +
-    `previous period with strongest model coverage from ${topModels}. This week you closed ${tasks} tasks ` +
-    `against ${goals} goals. Focus on strengthening content breadth and citing authoritative sources to ` +
-    `convert visibility into more qualified referrals.`
-  )
-}
 
 export function NaturalLanguageReport({ className, timeRange, selectedModel }: NaturalLanguageReportProps) {
   const router = useRouter()
   const [showReportHistory, setShowReportHistory] = React.useState(false)
-  
+
   // Suppress unused variable warnings for now; wiring into real data later
   void timeRange
   void selectedModel
@@ -109,7 +80,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   }
 
   function buildDigestibleSummary(): string {
-    if (!summaryJson) return summaryFromModel || generateSummary()
+    if (!summaryJson) return summaryFromModel
     const parts: string[] = []
 
     // Agent Lab section
@@ -238,7 +209,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     if (next) parts.push(`Next: ${next}.`)
 
     const text = parts.filter(Boolean).join(' ').trim()
-    return text || summaryFromModel || generateSummary()
+    return text || summaryFromModel
   }
 
   const summary = buildDigestibleSummary()
@@ -311,11 +282,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   }, [refreshCompetitors])
 
   // Recent chats data (will be connected to backend)
-  const recentChats: Array<{ id: string; promptId: string; question: string; timestamp: string; model: string }> = [
-    { id: "chat_1", promptId: "prompt_abc123", question: "What are the best AI training data platforms?", timestamp: "2h ago", model: "ChatGPT" },
-    { id: "chat_2", promptId: "prompt_def456", question: "How to label data for machine learning models?", timestamp: "5h ago", model: "Claude" },
-    { id: "chat_3", promptId: "prompt_ghi789", question: "What is RLHF and how does it work?", timestamp: "1d ago", model: "Perplexity" },
-  ]
+  const recentChats: Array<{ id: string; promptId: string; question: string; timestamp: string; model: string }> = []
 
   const handleChatClick = (promptId: string) => {
     // Navigate to tracked prompt detail page
@@ -323,14 +290,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   }
 
   // Report history data (will be connected to backend)
-  const reportHistory: Array<{ id: string; title: string; date: string }> = [
-    { id: "report_1", title: "Nov 10 - Performance Report", date: "3 days ago" },
-    { id: "report_2", title: "Nov 7 - Technical Improvements", date: "6 days ago" },
-    { id: "report_3", title: "Nov 4 - Content Optimization", date: "9 days ago" },
-    { id: "report_4", title: "Nov 1 - AI Traffic Report", date: "12 days ago" },
-    { id: "report_5", title: "Oct 29 - Schema Deployment", date: "15 days ago" },
-    { id: "report_6", title: "Oct 26 - Weekly Analysis", date: "18 days ago" },
-  ]
+  const reportHistory: Array<{ id: string; title: string; date: string }> = []
 
   // Model logo mapping - using public folder
   const getModelIcon = (model: string) => {
@@ -353,38 +313,8 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     return "/openai_dark.svg"
   }
 
-  // Temporarily render with mock data for UI review
-  // if (isLoading) {
-  //   return (
-  //     <div className={cn("rounded-lg border border-white/10 bg-transparent backdrop-blur-sm p-6", className)}>
-  //       <div className="h-5 w-40 bg-white/10 animate-pulse rounded mb-3" />
-  //       <div className="space-y-2">
-  //         <div className="h-4 w-full bg-white/5 animate-pulse rounded" />
-  //         <div className="h-4 w-11/12 bg-white/5 animate-pulse rounded" />
-  //         <div className="h-4 w-10/12 bg-white/5 animate-pulse rounded" />
-  //       </div>
-  //     </div>
-  //   )
-  // }
-
-  // if (error) {
-  //   return (
-  //     <div className={cn("rounded-lg border border-red-600/30 bg-red-500/10 p-6 text-sm text-red-200", className)}>
-  //       Failed to load Natural Language Report. Please try again.
-  //     </div>
-  //   )
-  // }
-
-  // if (!report) {
-  //   return (
-  //     <div className={cn("rounded-lg border border-white/10 bg-transparent p-6 text-sm text-white/70", className)}>
-  //       Natural Language Report is not available yet.
-  //     </div>
-  //   )
-  // }
-
   return (
-    <div className={cn("rounded-lg border border-white/[0.08] bg-transparent backdrop-blur-sm", className)}>
+    <div className={cn("rounded-lg border border-white/[0.08] bg-transparent", className)}>
       <div className="p-6 md:p-7 lg:p-9">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -392,10 +322,6 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             <h2 className="text-xl md:text-2xl font-semibold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">What the AI sees in your data</h2>
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded-lg border border-yellow-500/20 px-2.5 py-1 text-xs text-yellow-400 bg-yellow-500/10">
-              <IconSparkles className="size-4 text-yellow-400" />
-              AI Summary
-            </div>
             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-white/80 hover:text-white">
               <IconCopy className="size-3.5 mr-1" /> Copy
             </Button>
@@ -426,9 +352,25 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                   <TooltipContent sideOffset={8}>AI-generated summary of your visibility performance</TooltipContent>
                 </Tooltip>
               </div>
-              <p className="text-sm leading-relaxed text-white/85">
-                {summary}
-              </p>
+
+              {isLoading ? (
+                <div className="space-y-2">
+                  <div className="h-4 w-full bg-white/5 animate-pulse rounded" />
+                  <div className="h-4 w-11/12 bg-white/5 animate-pulse rounded" />
+                  <div className="h-4 w-10/12 bg-white/5 animate-pulse rounded" />
+                  <div className="h-4 w-full bg-white/5 animate-pulse rounded" />
+                  <div className="h-4 w-9/12 bg-white/5 animate-pulse rounded" />
+                </div>
+              ) : error ? (
+                <p className="text-sm text-white/60">Failed to load report. Please try again.</p>
+              ) : !summary ? (
+                <p className="text-sm text-white/60">No report available yet.</p>
+              ) : (
+                <p className="text-sm leading-relaxed text-white/85">
+                  {summary}
+                </p>
+              )}
+
               <div className="mt-3 flex justify-between items-center">
                 <div className="rounded-md border border-white/[0.08] px-2 py-1">
                   <Button
@@ -440,15 +382,6 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                     <FileText className="size-3.5 mr-1.5" /> History
                   </Button>
                 </div>
-                <Button
-                  size="sm"
-                  className="h-7 px-3 text-xs"
-                  onClick={() => {
-                    window.dispatchEvent(new Event("mudra:open-chat"))
-                  }}
-                >
-                  <IconSparkles className="size-3.5 mr-1.5" /> Ask AI
-                </Button>
               </div>
             </div>
 
@@ -553,31 +486,38 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                 </Tooltip>
               </div>
               <div className="p-4">
-                <div className="grid grid-cols-3 gap-3">
-                  {recentChats.map((chat) => (
-                    <div 
-                      key={chat.id} 
-                      onClick={() => handleChatClick(chat.promptId)}
-                      className="rounded-lg border border-white/[0.08] bg-transparent p-4 hover:bg-white/[0.02] hover:border-white/[0.12] transition-all cursor-pointer min-h-[125px] flex flex-col"
-                    >
-                      <div className="flex items-start gap-2.5 mb-3 flex-1">
-                        <div className="flex items-center justify-center size-5 flex-shrink-0 mt-0.5">
-                          <img 
-                            src={getModelIcon(chat.model)} 
-                            alt={chat.model}
-                            className="size-5 object-contain"
-                          />
+                {recentChats.length === 0 ? (
+                  <div className="py-8 text-center">
+                    <p className="text-sm text-white/60">No recent chats available yet.</p>
+                    <p className="text-xs text-white/40 mt-1">Recent chat responses will appear here once analyzed.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    {recentChats.map((chat) => (
+                      <div
+                        key={chat.id}
+                        onClick={() => handleChatClick(chat.promptId)}
+                        className="rounded-lg border border-white/[0.08] bg-transparent p-4 hover:bg-white/[0.02] hover:border-white/[0.12] transition-all cursor-pointer min-h-[125px] flex flex-col"
+                      >
+                        <div className="flex items-start gap-2.5 mb-3 flex-1">
+                          <div className="flex items-center justify-center size-5 flex-shrink-0 mt-0.5">
+                            <img
+                              src={getModelIcon(chat.model)}
+                              alt={chat.model}
+                              className="size-5 object-contain"
+                            />
+                          </div>
+                          <p className="text-sm text-white/90 leading-relaxed line-clamp-3 flex-1">
+                            {chat.question}
+                          </p>
                         </div>
-                        <p className="text-sm text-white/90 leading-relaxed line-clamp-3 flex-1">
-                          {chat.question}
-                        </p>
+                        <div className="flex items-center justify-end pt-2 mt-auto border-t border-white/[0.06]">
+                          <span className="text-[10px] text-white/50">{chat.timestamp}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-end pt-2 mt-auto border-t border-white/[0.06]">
-                        <span className="text-[10px] text-white/50">{chat.timestamp}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -592,48 +532,55 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
               <div>
                 <DialogTitle className="text-lg font-semibold text-white">Report History</DialogTitle>
                 <DialogDescription className="text-white/60 text-sm mt-1">
-                  {reportHistory.length} reports generated
+                  {reportHistory.length > 0 ? `${reportHistory.length} reports generated` : 'No reports yet'}
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
           <div className="p-6">
-            <div className="space-y-2">
-              {reportHistory.map((report, idx) => (
-                <div 
-                  key={report.id} 
-                  className="rounded-lg border border-white/[0.08] bg-transparent p-4 hover:bg-white/[0.02] hover:border-white/[0.12] transition-all cursor-pointer group"
-                  onClick={() => console.log('Open report:', report.id)}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="flex items-center justify-center size-8 rounded-md bg-white/5 border border-white/[0.08] flex-shrink-0 group-hover:border-white/[0.12] transition-colors">
-                        <FileText className="size-4 text-white/70 group-hover:text-white/90 transition-colors" />
+            {reportHistory.length === 0 ? (
+              <div className="py-12 text-center">
+                <p className="text-sm text-white/60">No history of reports yet.</p>
+                <p className="text-xs text-white/40 mt-1">Reports will appear here once generated.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {reportHistory.map((report) => (
+                  <div
+                    key={report.id}
+                    className="rounded-lg border border-white/[0.08] bg-transparent p-4 hover:bg-white/[0.02] hover:border-white/[0.12] transition-all cursor-pointer group"
+                    onClick={() => console.log('Open report:', report.id)}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="flex items-center justify-center size-8 rounded-md bg-white/5 border border-white/[0.08] flex-shrink-0 group-hover:border-white/[0.12] transition-colors">
+                          <FileText className="size-4 text-white/70 group-hover:text-white/90 transition-colors" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-medium text-white/90 group-hover:text-white transition-colors">
+                            {report.title}
+                          </h3>
+                          <p className="text-xs text-white/50 mt-1">{report.date}</p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-medium text-white/90 group-hover:text-white transition-colors">
-                          {report.title}
-                        </h3>
-                        <p className="text-xs text-white/50 mt-1">{report.date}</p>
-                      </div>
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 rounded-md opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-all flex-shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          console.log('Download report:', report.id)
+                        }}
+                      >
+                        <IconDownload className="size-4 text-white/70" />
+                      </Button>
                     </div>
-                    
-                    <Button 
-                      size="sm" 
-                      variant="ghost"
-                      className="h-8 w-8 p-0 rounded-md opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-all flex-shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        console.log('Download report:', report.id)
-                      }}
-                    >
-                      <IconDownload className="size-4 text-white/70" />
-                    </Button>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

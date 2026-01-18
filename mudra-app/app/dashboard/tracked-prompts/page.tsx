@@ -48,7 +48,6 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { FloatingMudraButton } from "@/components/floating-mudra-button"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 
 type TrackedPrompt = {
@@ -857,7 +856,6 @@ function TrackedPromptsPageInner() {
         </div>
       </SidebarInset>
 
-      <FloatingMudraButton siteId={typeof window !== 'undefined' ? (localStorage.getItem('mudra:siteId') || '') : ''} />
     </SidebarProvider>
   )
 }

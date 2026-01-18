@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Upload } from "lucide-react"
 
 // Consistent styles for Mudra theme
-const inputStyles = "bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+const inputStyles = "bg-white/5 border border-white/[0.08] text-white placeholder-white/30 focus:bg-white/10 focus:border-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed"
 const labelStyles = "text-white/80 text-sm font-medium"
 
 // Mock data - will be replaced with actual data from backend
@@ -188,7 +188,7 @@ export function BrandProfileForm() {
                 value={formData.companyName}
                 onChange={(e) => handleInputChange("companyName", e.target.value)}
                 disabled={!isEditing}
-                className="bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-white/5 border border-white/[0.08] text-white placeholder-white/30 focus:bg-white/10 focus:border-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
@@ -199,7 +199,7 @@ export function BrandProfileForm() {
                 onChange={(e) => handleInputChange("companyWebsite", e.target.value)}
                 disabled={!isEditing}
                 placeholder="https://yourcompany.com"
-                className="bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-white/5 border border-white/[0.08] text-white placeholder-white/30 focus:bg-white/10 focus:border-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
@@ -210,7 +210,7 @@ export function BrandProfileForm() {
                 onChange={(e) => handleInputChange("companyLinkedIn", e.target.value)}
                 disabled={!isEditing}
                 placeholder="https://linkedin.com/company/yourcompany"
-                className="bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-white/5 border border-white/[0.08] text-white placeholder-white/30 focus:bg-white/10 focus:border-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
@@ -221,7 +221,7 @@ export function BrandProfileForm() {
                 onChange={(e) => handleInputChange("companyTwitter", e.target.value)}
                 disabled={!isEditing}
                 placeholder="https://twitter.com/yourcompany"
-                className="bg-white/5 border-white/10 text-white placeholder-white/30 focus:bg-white/10 focus:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-white/5 border border-white/[0.08] text-white placeholder-white/30 focus:bg-white/10 focus:border-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -259,6 +259,7 @@ export function BrandProfileForm() {
                   value={formData.userName}
                   onChange={(e) => handleInputChange("userName", e.target.value)}
                   disabled={!isEditing}
+                  className={inputStyles}
                 />
               </div>
               <div className="space-y-2">
@@ -268,6 +269,7 @@ export function BrandProfileForm() {
                   value={formData.userRole}
                   onChange={(e) => handleInputChange("userRole", e.target.value)}
                   disabled={!isEditing}
+                  className={inputStyles}
                 />
               </div>
             </div>
@@ -293,6 +295,7 @@ export function BrandProfileForm() {
               disabled={!isEditing}
               rows={3}
               placeholder="Describe what your company does..."
+              className={inputStyles}
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -303,6 +306,7 @@ export function BrandProfileForm() {
                 value={formData.companyIndustry}
                 onChange={(e) => handleInputChange("companyIndustry", e.target.value)}
                 disabled={!isEditing}
+                className={inputStyles}
               />
             </div>
             <div className="space-y-2">
@@ -445,7 +449,7 @@ export function BrandProfileForm() {
           <CardDescription className="text-white/50 text-sm">Upload documents to use as context (optional)</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-white/20 bg-black/40 p-4">
+          <div className="rounded-lg border border-white/[0.08] bg-black/40 p-4">
             <input id="kb-files-dash" type="file" multiple accept={accepted} onChange={handleKBFiles} className="hidden" />
             {isEditing && (
               <label htmlFor="kb-files-dash">

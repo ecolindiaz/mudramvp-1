@@ -4,7 +4,7 @@ import * as React from "react"
 import { forwardRef } from "react"
 import { useSession } from "next-auth/react"
 import { IconSearch, IconPhone, IconMessage } from "@tabler/icons-react"
-import { LayoutDashboard, MessageSquare, AlertCircle, User, Sparkles, Link as LinkIcon } from "lucide-react"
+import { LayoutDashboard, MessageSquare, Bug, User, FileText, Link as LinkIcon } from "lucide-react"
 import type { LucideProps } from "lucide-react"
 
 // Custom Astromech Agent Icon Component - Fixed to match Lucide icon type
@@ -81,7 +81,7 @@ const data = {
         {
           title: "Issues",
           url: "/dashboard/issues",
-          icon: AlertCircle,
+          icon: Bug,
         },
       ]
     },
@@ -91,7 +91,7 @@ const data = {
         {
           title: "Content Lab",
           url: "/dashboard/campaigns",
-          icon: Sparkles,
+          icon: FileText,
         },
         {
           title: "Agent Lab",

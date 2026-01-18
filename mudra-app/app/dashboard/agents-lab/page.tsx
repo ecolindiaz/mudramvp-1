@@ -162,13 +162,13 @@ function AgentsLabPageInner() {
 
   const agentMetricsMap: Record<string, { optimizations: number; activeTasks: number; totalTasks: number }> = {
     "Content Optimizer": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
-    "LLMs.txt Indexer": { optimizations: 24, activeTasks: 3, totalTasks: 5 },
-    "Robots Gatekeeper": { optimizations: 18, activeTasks: 2, totalTasks: 4 },
-    "Schema Architect": { optimizations: 31, activeTasks: 4, totalTasks: 6 },
-    "Content Router": { optimizations: 12, activeTasks: 1, totalTasks: 3 },
-    "FAQ Author": { optimizations: 9, activeTasks: 1, totalTasks: 2 },
+    "LLMs.txt Indexer": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
+    "Robots Gatekeeper": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
+    "Schema Architect": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
+    "Content Router": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
+    "FAQ Author": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
     // Use real data for Conversation Radar - only count 70%+ relevance opportunities as "active"
-    "Conversation Radar": { 
+    "Conversation Radar": {
       optimizations: radarOpportunities.filter((o: any) =>
         (o.status === 'queued' || o.status === 'running') &&
         typeof o.relevanceScore === 'number' &&
@@ -181,7 +181,7 @@ function AgentsLabPageInner() {
       ).length,
       totalTasks: radarOpportunities.length
     },
-    "Citations Outreach": { optimizations: 11, activeTasks: 2, totalTasks: 3 },
+    "Citations Outreach": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
   }
 
   // Fetch Technical Structure score
@@ -619,6 +619,9 @@ function AgentsLabPageInner() {
   const isDetailView = Boolean(selectedAgent)
   const selectedAgentMetrics = selectedAgent ? agentMetricsMap[selectedAgent.agentName] ?? { optimizations: 0, activeTasks: 0, totalTasks: 0 } : null
 
+  // Calculate total optimizations across all agents for general dashboard view
+  const totalOptimizations = Object.values(agentMetricsMap).reduce((sum, metrics) => sum + metrics.optimizations, 0)
+
   // Track analyzing state to force re-render after timeout
   const [analyzingAgents, setAnalyzingAgents] = useState<Set<string>>(new Set())
 
@@ -870,7 +873,7 @@ function AgentsLabPageInner() {
         },
         {
           title: "Optimizations Shipped",
-          value: 24,
+          value: totalOptimizations,
           delta: 0,
           lastValue: 0,
           positive: true,

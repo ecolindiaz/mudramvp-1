@@ -54,7 +54,7 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
   // 1) Get or create draft report
   const existing = await prisma.weeklyReport.findUnique({
     where: { companyId_weekStartUtc: { companyId, weekStartUtc: weekStart } },
-    include: { sections: { include: { sources: true } } },
+    include: { sections: true },
   })
 
   const report = existing ?? (await prisma.weeklyReport.create({

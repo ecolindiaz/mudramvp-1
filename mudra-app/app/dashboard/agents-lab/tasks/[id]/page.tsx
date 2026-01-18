@@ -1223,8 +1223,6 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
           </div>
         </div>
       </SidebarInset>
-
-
       {/* View All Side Popup */}
       <Sheet open={isViewAllOpen} onOpenChange={setIsViewAllOpen}>
         <SheetContent 

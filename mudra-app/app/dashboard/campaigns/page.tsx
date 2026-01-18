@@ -575,7 +575,6 @@ function CampaignsPageInner() {
           </div>
         </div>
       </SidebarInset>
-      
     </SidebarProvider>
   )
 }

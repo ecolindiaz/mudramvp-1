@@ -28,7 +28,6 @@ export default function BrandProfilePage() {
             </div>
           </div>
         </SidebarInset>
-
       </SidebarProvider>
     </BrandProfileProvider>
   )

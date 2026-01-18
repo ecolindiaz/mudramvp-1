@@ -161,7 +161,6 @@ function TasksPageInner() {
           </div>
         </div>
       </SidebarInset>
-      
     </SidebarProvider>
   )
 }

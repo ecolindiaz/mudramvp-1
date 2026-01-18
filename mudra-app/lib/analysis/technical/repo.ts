@@ -99,15 +99,12 @@ export async function saveTasks(siteId: string, tasks: TaskInstance[]) {
   return created;
 }
 
-export async function recordVerification(taskId: string, snapshotId: string, passed: boolean) {
-  const verification = await prisma.taskVerification.create({
-    data: { taskId, snapshotId, passed },
-  });
-
+// Note: Task verification was removed - tasks can be marked verified directly
+export async function recordVerification(taskId: string, _snapshotId: string, passed: boolean) {
   if (passed) {
     await markTaskVerified(taskId);
   }
-  return verification;
+  return { taskId, passed };
 }
 
 export async function getLatestSnapshot(siteId: string) {

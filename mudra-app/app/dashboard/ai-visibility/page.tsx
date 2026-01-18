@@ -359,7 +359,6 @@ function AIVisibilityPageContent() {
           </div>
         </div>
       </SidebarInset>
-      
     </SidebarProvider>
   )
 }

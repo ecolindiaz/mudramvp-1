@@ -142,7 +142,6 @@ function DashboardPageInner() {
           </div>
         </div>
       </SidebarInset>
-      
     </SidebarProvider>
   )
 }

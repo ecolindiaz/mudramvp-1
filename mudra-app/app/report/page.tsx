@@ -491,7 +491,6 @@ function ReportContent() {
           </div>
         </div>
       </SidebarInset>
-      
     </SidebarProvider>
   )
 }

@@ -855,7 +855,6 @@ function TrackedPromptsPageInner() {
           </div>
         </div>
       </SidebarInset>
-
     </SidebarProvider>
   )
 }

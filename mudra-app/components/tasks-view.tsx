@@ -638,7 +638,6 @@ export function TasksView() {
           </Card>
         </div>
       </div>
-      
     </div>
   )
 } 

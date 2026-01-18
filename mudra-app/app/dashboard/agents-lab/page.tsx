@@ -1835,8 +1835,6 @@ function AgentsLabPageInner() {
           </div>
         </div>
       </SidebarInset>
-      
-      
       {/* Active PRs Sheet */}
       <Sheet open={isPrSheetOpen} onOpenChange={setIsPrSheetOpen}>
         <SheetContent 

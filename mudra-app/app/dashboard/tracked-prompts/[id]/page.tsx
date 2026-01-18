@@ -1863,7 +1863,6 @@ function TrackedPromptDeepViewInner() {
           </div>
         </div>
       </SidebarInset>
-
     </SidebarProvider>
   )
 }

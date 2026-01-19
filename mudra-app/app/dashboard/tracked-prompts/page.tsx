@@ -232,7 +232,7 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
         <div className="flex items-center justify-center">
             <Tooltip>
               <TooltipTrigger asChild>
-              <span className="inline-flex items-center justify-center size-6 rounded-full bg-white/5 border border-white/[0.08] flex-shrink-0 p-1 cursor-default">
+              <span className="inline-flex items-center justify-center size-6 rounded-full bg-white/5 border border-white/[0.04] flex-shrink-0 p-1 cursor-default">
                 <img
                   src={getModelIcon(model)}
                   alt={model}
@@ -660,7 +660,7 @@ function TrackedPromptsPageInner() {
             </div>
 
             {/* Clean Divider Line - Full Width */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             {/* Content Area */}
             <div className="flex flex-col flex-1">
@@ -735,7 +735,7 @@ function TrackedPromptsPageInner() {
                     Showing {filteredData.length} of {data.length} prompts
                   </div>
                 </div>
-                <div className="overflow-hidden rounded-xl border border-white/[0.08]">
+                <div className="overflow-hidden rounded-xl border border-white/[0.04]">
                   <Table className="table-fixed text-sm">
                     <TableHeader className="bg-white/[0.04]">
                       {table.getHeaderGroups().map((headerGroup) => (

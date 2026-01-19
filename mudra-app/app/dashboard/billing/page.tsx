@@ -283,12 +283,12 @@ function BillingPageInner() {
             </div>
 
             {/* Divider Line */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             {/* Content */}
             <div className="flex-1 px-4 lg:px-6 py-6 space-y-6">
               {/* Current Plan */}
-              <Card className="bg-transparent border-white/10">
+              <Card className="bg-transparent border-white/[0.04]">
                 <CardHeader className="flex flex-col gap-2">
                       <CardTitle className="text-white">Current Plan</CardTitle>
                   <CardDescription className="text-white/60">
@@ -296,17 +296,17 @@ function BillingPageInner() {
                       </CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="rounded-lg border border-white/10 p-3">
+                  <div className="rounded-lg border border-white/[0.04] p-3">
                     <p className="text-xs text-white/50">Billing cycle</p>
                       <p className="text-lg font-semibold text-white capitalize">{billingInfo.billingCycle}</p>
                     </div>
-                  <div className="rounded-lg border border-white/10 p-3">
+                  <div className="rounded-lg border border-white/[0.04] p-3">
                     <p className="text-xs text-white/50">Next billing</p>
                       <p className="text-lg font-semibold text-white">
                         {format(billingInfo.currentPeriodEnd, "MMM d, yyyy")}
                       </p>
                     </div>
-                  <div className="rounded-lg border border-white/10 p-3">
+                  <div className="rounded-lg border border-white/[0.04] p-3">
                     <p className="text-xs text-white/50">Amount</p>
                       <p className="text-lg font-semibold text-white">
                         ${currentPlanDetails?.price[billingInfo.billingCycle] || 0}/{billingInfo.billingCycle === "monthly" ? "mo" : "yr"}
@@ -337,7 +337,7 @@ function BillingPageInner() {
 
               {/* Payment Method */}
               {billingInfo.paymentMethod && (
-                <Card className="bg-transparent border-white/10">
+                <Card className="bg-transparent border-white/[0.04]">
                   <CardContent className="flex items-center justify-between gap-4 p-4">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-14 bg-white rounded-md flex items-center justify-center">
@@ -387,7 +387,7 @@ function BillingPageInner() {
                   return (
                     <Card
                       key={plan.id}
-                      className={`bg-transparent border-white/10 ${isCurrentPlan ? "ring-1 ring-white/30" : ""}`}
+                      className={`bg-transparent border-white/[0.04] ${isCurrentPlan ? "ring-1 ring-white/30" : ""}`}
                     >
                       <CardHeader>
                         <CardTitle className="text-white text-xl">{plan.name}</CardTitle>
@@ -440,7 +440,7 @@ function BillingPageInner() {
               </div>
 
               {/* Invoices */}
-              <Card className="bg-transparent border-white/10">
+              <Card className="bg-transparent border-white/[0.04]">
                 <CardHeader>
                   <CardTitle className="text-white">Billing History</CardTitle>
                   <CardDescription className="text-white/60">
@@ -453,7 +453,7 @@ function BillingPageInner() {
                       {invoices.map((invoice) => (
                         <div
                           key={invoice.id}
-                          className="flex items-center justify-between p-3 rounded-lg border border-white/10"
+                          className="flex items-center justify-between p-3 rounded-lg border border-white/[0.04]"
                         >
                             <div>
                               <p className="text-white font-medium">
@@ -500,7 +500,7 @@ function BillingPageInner() {
 
       {/* Upgrade Confirmation Dialog */}
       <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
-        <DialogContent className="bg-[#1a1a1a] border-white/10">
+        <DialogContent className="bg-[#1a1a1a] border-white/[0.04]">
           <DialogHeader>
             <DialogTitle className="text-white">Confirm Upgrade</DialogTitle>
             <DialogDescription className="text-white/60">
@@ -508,7 +508,7 @@ function BillingPageInner() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Alert className="bg-white/5 border-white/10">
+            <Alert className="bg-white/5 border-white/[0.04]">
               <Sparkles className="h-4 w-4" />
               <AlertTitle className="text-white">What happens next?</AlertTitle>
               <AlertDescription className="text-white/60">
@@ -526,7 +526,7 @@ function BillingPageInner() {
               variant="outline"
               onClick={() => setShowUpgradeDialog(false)}
               disabled={loading}
-              className="border-white/10 text-white hover:bg-white/5"
+              className="border-white/[0.04] text-white hover:bg-white/5"
             >
               Cancel
             </Button>

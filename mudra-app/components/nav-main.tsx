@@ -30,8 +30,8 @@ const NavigationItem = memo(({
       asChild
       className={`h-8 px-3 text-sm font-medium relative transition-all duration-200 group rounded ${
         isActive
-          ? 'text-white/80 bg-white/10'
-          : 'text-white/70 hover:text-white/80 hover:bg-white/10'
+          ? 'text-white bg-white/10'
+          : 'text-white hover:text-white hover:bg-white/10'
       }`}
     >
       <Link href={item.url}>
@@ -39,12 +39,12 @@ const NavigationItem = memo(({
           <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-white/60 rounded-full" />
         )}
         {item.icon && (
-          <item.icon className={`w-4 h-4 mr-2.5 transition-all duration-200 ${
+          <item.icon strokeWidth={2.5} className={`w-[25px] h-[25px] mr-1.25 transition-all duration-200 ${
             isActive ? 'text-white/70' : 'text-white/60 group-hover:text-white/80'
           }`} />
         )}
         <span className={`transition-all duration-200 ${
-          isActive ? 'text-white/70 font-medium' : 'font-normal'
+          isActive ? 'text-white font-medium' : 'text-white font-normal'
         }`}>
           {item.title}
         </span>
@@ -74,11 +74,11 @@ export const NavMain = memo(function NavMain({
     <div className="px-2 space-y-3">
       {items?.map((section, index) => (
         <SidebarGroup key={section.title}>
-          <SidebarGroupLabel className="text-sm font-medium text-white/50 px-2 pb-1.5 pt-0">
+          <SidebarGroupLabel className="text-sm font-medium text-white px-2 pb-1.5 pt-0">
             {section.title}
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-0.5">
+            <SidebarMenu className="space-y-0">
               {section.items.map((item) => {
                 const isActive = !!(pathname && (pathname === item.url || (item.url === "/dashboard/campaigns" && pathname.startsWith("/dashboard/campaigns/"))))
                 return (

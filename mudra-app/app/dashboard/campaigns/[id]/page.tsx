@@ -358,12 +358,12 @@ function CampaignCanvasPageInner({
                     }} 
                     variant="outline" 
                     size="sm" 
-                    className={`h-9 px-4 rounded-md gap-2 text-xs font-medium transition-all duration-200 ${published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-white/5 text-white hover:bg-white/10 border-white/[0.08]"}`}
+                    className={`h-9 px-4 rounded-md gap-2 text-xs font-medium transition-all duration-200 ${published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-white/5 text-white hover:bg-white/10 border-white/[0.04]"}`}
                   >
                     <CheckCircle2 className="size-3.5" />{published ? 'Published' : 'Publish'}
                   </Button>
                   
-                  <Button onClick={handleSave} disabled={saving} variant="outline" size="sm" className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium gap-2 disabled:opacity-50">
+                  <Button onClick={handleSave} disabled={saving} variant="outline" size="sm" className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.04] text-xs font-medium gap-2 disabled:opacity-50">
                     <Save className="size-3.5" />{saving ? 'Saving…' : 'Save'}
                   </Button>
                   
@@ -376,7 +376,7 @@ function CampaignCanvasPageInner({
                     <Trash2 className="size-3.5" />Delete
                   </Button>
                   
-                  <Button asChild size="sm" className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium">
+                  <Button asChild size="sm" className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.04] text-xs font-medium">
                     <Link href="/dashboard/campaigns">Back</Link>
                   </Button>
                 </div>
@@ -384,20 +384,20 @@ function CampaignCanvasPageInner({
             </div>
 
           {/* Header Divider */}
-          <div className="h-[1px] bg-white/10"></div>
+          <div className="h-[0.25px] bg-white/10"></div>
 
           <div className="px-4 lg:px-6 pb-4 md:pb-6 pt-4">
               {isLoading ? (
                 /* Droid-lab style loading card */
                 <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                  <Card className="w-full max-w-md rounded-xl border border-white/[0.08] bg-[#121212] shadow-md">
+                  <Card className="w-full max-w-md rounded-xl border border-white/[0.04] bg-[#121212] shadow-md">
                     <CardContent className="pt-6 pb-6 px-6 relative overflow-hidden">
                       <div className="pointer-events-none absolute inset-0">
                         <div className="absolute -bottom-20 -left-12 w-48 h-48 bg-primary/10 blur-3xl rounded-full" />
                       </div>
                       <div className="flex flex-col items-center gap-4 text-center relative">
                         <div className="relative flex items-center justify-center">
-                          <div className="absolute inset-[-12px] rounded-full border border-white/[0.08] animate-[spin_6s_linear_infinite]" />
+                          <div className="absolute inset-[-12px] rounded-full border border-white/[0.04] animate-[spin_6s_linear_infinite]" />
                           <div className="absolute inset-[-20px] rounded-full border border-dashed border-white/[0.06] animate-[spin_10s_linear_infinite]" />
                           <div className="flex items-center justify-center w-12 h-12 rounded-lg border border-white/[0.12] bg-white/[0.04]">
                             <Loader2 className="size-6 text-white/90 animate-spin" />
@@ -422,7 +422,7 @@ function CampaignCanvasPageInner({
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4 items-start h-full">
                 {/* Editor (left side) */}
                 <div className="lg:col-span-2 space-y-2 order-1 lg:order-1 flex flex-col">
-                    <Card className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col">
+                    <Card className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col">
                     <CardHeader className="pb-2 px-5 pt-4 flex-shrink-0">
                       <div className="flex items-center justify-between">
                         <div>
@@ -435,7 +435,7 @@ function CampaignCanvasPageInner({
                           <Button
                             variant="outline"
                             size="sm"
-                            className={`h-8 px-3 rounded-md text-xs font-medium gap-1.5 ${editMode ? "bg-primary text-white hover:bg-primary/90 border-primary" : "bg-white/5 text-white hover:bg-white/10 border-white/[0.08]"}`}
+                            className={`h-8 px-3 rounded-md text-xs font-medium gap-1.5 ${editMode ? "bg-primary text-white hover:bg-primary/90 border-primary" : "bg-white/5 text-white hover:bg-white/10 border-white/[0.04]"}`}
                             onClick={() => setEditMode((v) => !v)}
                           >
                             <Edit className="size-3.5" /> {editMode ? "Editing" : "Edit"}
@@ -444,7 +444,7 @@ function CampaignCanvasPageInner({
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.08] text-xs font-medium gap-1.5"
+                              className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.04] text-xs font-medium gap-1.5"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 setShowCopyMenu((v) => !v)
@@ -508,7 +508,7 @@ function CampaignCanvasPageInner({
                           value={title} 
                           onChange={(e) => setTitle(e.target.value)} 
                           disabled={isLoading || !editMode}
-                          className="h-9 rounded-lg bg-white/[0.03] border-white/[0.08] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] disabled:opacity-50 text-sm" 
+                          className="h-9 rounded-lg bg-white/[0.03] border-white/[0.04] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] disabled:opacity-50 text-sm" 
                           placeholder="Post title" 
                         />
                       <div className="h-[70vh]">
@@ -565,11 +565,11 @@ function CampaignCanvasPageInner({
                     </div>
                   ) : (
                     /* Normal Tabs */
-                    <Card className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col w-full flex-1 min-h-0">
+                    <Card className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col w-full flex-1 min-h-0">
                       <CardContent className="p-0 flex flex-col flex-1 min-h-0">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col flex-1 min-h-0">
-                        <div className="px-5 pt-2 pb-3 border-b border-white/[0.08] flex-shrink-0">
-                          <TabsList className="bg-white/[0.03] border border-white/[0.08] rounded-lg p-1 h-9 gap-1">
+                        <div className="px-5 pt-2 pb-3 border-b border-white/[0.04] flex-shrink-0">
+                          <TabsList className="bg-white/[0.03] border border-white/[0.04] rounded-lg p-1 h-9 gap-1">
                             <TabsTrigger 
                               value="copy" 
                               className="px-4 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0a0a0a] data-[state=active]:shadow-sm border-0 data-[state=inactive]:text-white/70"
@@ -642,11 +642,11 @@ function CampaignCanvasPageInner({
                             <div className="space-y-2.5 pl-5">
                               <div className="flex items-center justify-between gap-4">
                                 <span className="text-white/60 text-xs font-medium uppercase tracking-wide">Type</span>
-                                <Badge variant="outline" className="capitalize bg-white/5 border-white/[0.08] text-white/90 text-xs">{type}</Badge>
+                                <Badge variant="outline" className="capitalize bg-white/5 border-white/[0.04] text-white/90 text-xs">{type}</Badge>
                               </div>
                               <div className="flex items-center justify-between gap-4">
                                 <span className="text-white/60 text-xs font-medium uppercase tracking-wide">Mode</span>
-                                <Badge variant="outline" className="uppercase bg-white/5 border-white/[0.08] text-white/90 text-xs">{mode}</Badge>
+                                <Badge variant="outline" className="uppercase bg-white/5 border-white/[0.04] text-white/90 text-xs">{mode}</Badge>
                               </div>
                             </div>
                           </div>
@@ -660,7 +660,7 @@ function CampaignCanvasPageInner({
                             <div className="space-y-2.5 pl-5">
                               <div className="flex items-center justify-between gap-4">
                                 <span className="text-white/60 text-xs font-medium uppercase tracking-wide">Publication</span>
-                                <Badge variant="outline" className={published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-white/5 border-white/[0.08] text-white/90"} style={{ fontSize: '11px' }}>
+                                <Badge variant="outline" className={published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-white/5 border-white/[0.04] text-white/90"} style={{ fontSize: '11px' }}>
                                   {published ? "Published" : "Draft"}
                                 </Badge>
                               </div>
@@ -672,7 +672,7 @@ function CampaignCanvasPageInner({
                           </div>
 
                           {/* Word Count Section */}
-                          <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4 space-y-2">
+                          <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-4 space-y-2">
                             <h3 className="text-sm font-semibold text-white">Word Count</h3>
                             <div className="space-y-1">
                               <div className="text-4xl font-bold text-white tracking-tight">
@@ -689,7 +689,7 @@ function CampaignCanvasPageInner({
                             <h3 className="text-sm font-semibold text-white">Metadata</h3>
                             <div className="space-y-4">
                               {/* Meta Title */}
-                              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+                              <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-3 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs font-medium text-white/70 uppercase tracking-wide">Meta title</span>
                                   <button
@@ -706,7 +706,7 @@ function CampaignCanvasPageInner({
                               </div>
 
                               {/* Meta Description */}
-                              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+                              <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-3 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs font-medium text-white/70 uppercase tracking-wide">Meta description</span>
                                   <button
@@ -723,7 +723,7 @@ function CampaignCanvasPageInner({
                               </div>
 
                               {/* Slug */}
-                              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+                              <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-3 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs font-medium text-white/70 uppercase tracking-wide">Slug</span>
                                   <button
@@ -740,7 +740,7 @@ function CampaignCanvasPageInner({
                               </div>
 
                               {/* Tags */}
-                              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+                              <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-3 space-y-2">
                                 <span className="text-xs font-medium text-white/70 uppercase tracking-wide">Tags</span>
                                 <div className="flex flex-wrap gap-1.5">
                                   {tags.length > 0 ? (
@@ -767,7 +767,7 @@ function CampaignCanvasPageInner({
                               <LinkIcon className="size-4 text-white/80" />
                               <h3 className="text-sm font-semibold text-white">Backlinks</h3>
                             </div>
-                            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
+                            <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-4">
                               {(() => {
                                 // Extract links from body content
                                 const linkRegex = /\[([^\]]+)\]\(([^\)]+)\)/g

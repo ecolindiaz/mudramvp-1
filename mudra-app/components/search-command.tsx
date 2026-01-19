@@ -14,6 +14,7 @@ import {
   Search,
   Bug,
 } from "lucide-react"
+import { OverviewIcon, TrackedPromptsIcon, IssuesIcon, ContentLabIcon, AgentLabIcon } from "@/components/icons"
 
 import {
   CommandDialog,
@@ -30,11 +31,11 @@ interface SearchCommandProps {
 }
 
 const navigationItems = [
-  { title: "Overview", url: "/dashboard", icon: LayoutDashboard, keywords: ["home", "dashboard"] },
-  { title: "Tracked Prompts", url: "/dashboard/tracked-prompts", icon: MessageSquare, keywords: ["prompts", "tracking"] },
-  { title: "Issues", url: "/dashboard/issues", icon: Bug, keywords: ["bugs", "problems"] },
-  { title: "Content Lab", url: "/dashboard/campaigns", icon: FileText, keywords: ["campaigns", "content"] },
-  { title: "Agent Lab", url: "/dashboard/agents-lab", icon: LayoutDashboard, keywords: ["agents", "ai"] },
+  { title: "Overview", url: "/dashboard", icon: OverviewIcon, keywords: ["home", "dashboard"] },
+  { title: "Tracked Prompts", url: "/dashboard/tracked-prompts", icon: TrackedPromptsIcon, keywords: ["prompts", "tracking"] },
+  { title: "Issues", url: "/dashboard/issues", icon: IssuesIcon, keywords: ["bugs", "problems"] },
+  { title: "Content Lab", url: "/dashboard/campaigns", icon: ContentLabIcon, keywords: ["campaigns", "content"] },
+  { title: "Agent Lab", url: "/dashboard/agents-lab", icon: AgentLabIcon, keywords: ["agents", "ai"] },
   { title: "Brand Profile", url: "/dashboard/brand-profile", icon: User, keywords: ["brand", "profile", "settings"] },
   { title: "Integrations", url: "/dashboard/integrations", icon: LinkIcon, keywords: ["connect", "api"] },
 ]

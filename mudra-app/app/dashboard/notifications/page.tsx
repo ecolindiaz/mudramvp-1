@@ -287,7 +287,7 @@ function NotificationsPageInner() {
             </div>
 
             {/* Divider Line */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             {/* Content */}
             <div className="flex-1 px-4 lg:px-6 py-6">
@@ -384,7 +384,7 @@ function NotificationsPageInner() {
                       ))}
                     </div>
                   ) : (
-                    <Card className="bg-transparent border-white/[0.08]">
+                    <Card className="bg-transparent border-white/[0.04]">
                       <CardContent className="py-12 text-center">
                         <BellOff className="h-12 w-12 mx-auto mb-4 text-white/30" />
                         <h3 className="text-lg font-semibold text-white mb-2">No notifications yet</h3>
@@ -399,7 +399,7 @@ function NotificationsPageInner() {
                 {/* Settings Tab */}
                 <TabsContent value="settings" className="space-y-6 mt-6">
                   {/* Email Notifications */}
-                  <Card className="bg-transparent border-white/[0.08]">
+                  <Card className="bg-transparent border-white/[0.04]">
                     <CardHeader>
                       <div className="flex items-center gap-2">
                         <Mail className="h-5 w-5 text-white" />
@@ -488,7 +488,7 @@ function NotificationsPageInner() {
                   </Card>
 
                   {/* In-App Notifications */}
-                  <Card className="bg-transparent border-white/[0.08]">
+                  <Card className="bg-transparent border-white/[0.04]">
                     <CardHeader>
                       <div className="flex items-center gap-2">
                         <Bell className="h-5 w-5 text-white" />
@@ -562,7 +562,7 @@ function NotificationsPageInner() {
                   </Card>
 
                   {/* Slack Integration */}
-                  <Card className="bg-transparent border-white/[0.08]">
+                  <Card className="bg-transparent border-white/[0.04]">
                     <CardHeader>
                       <div className="flex items-center gap-2">
                         <Slack className="h-5 w-5 text-white" />

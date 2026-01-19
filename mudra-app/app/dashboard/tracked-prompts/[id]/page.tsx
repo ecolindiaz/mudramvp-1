@@ -730,7 +730,7 @@ function TrackedPromptDeepViewInner() {
             </div>
 
             {/* Clean Divider Line - Full Width */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             {/* Content */}
             <div className="flex flex-1 px-4 lg:px-6 pt-6 pb-6 md:pb-8">
@@ -794,7 +794,7 @@ function TrackedPromptDeepViewInner() {
                       <div className="mt-3 flex items-center justify-center gap-6 md:hidden" />
                     </CardContent>
                   </Card>
-                  <Card className="bg-transparent rounded-xl border border-white/[0.08] overflow-hidden py-0 shadow-none gap-0">
+                  <Card className="bg-transparent rounded-xl border border-white/[0.04] overflow-hidden py-0 shadow-none gap-0">
                     <CardContent className="p-0 min-h-[360px] md:min-h-[400px]">
                       <div className="overflow-hidden max-h-[360px] md:max-h-[400px] overflow-y-auto">
                         <Table className="w-full text-sm">
@@ -954,7 +954,7 @@ function TrackedPromptDeepViewInner() {
                                     </TableCell>
                                     <TableCell className="text-center px-2">
                                       <div className="flex items-center justify-center">
-                                        <Badge variant="outline" className="inline-flex items-center justify-center h-6 min-w-[56px] px-2.5 text-[13px] rounded-md border border-white/[0.08] bg-white/[0.03] text-white/80 tabular-nums">
+                                        <Badge variant="outline" className="inline-flex items-center justify-center h-6 min-w-[56px] px-2.5 text-[13px] rounded-md border border-white/[0.04] bg-white/[0.03] text-white/80 tabular-nums">
                                           {row.citationFrequencyPercent || Math.round((row.frequency / Math.max(1, totalCitationFrequency)) * 100)}%
                                         </Badge>
                                       </div>
@@ -1178,7 +1178,7 @@ function TrackedPromptDeepViewInner() {
                               <Button
                               variant="outline"
                               size="sm"
-                              className="h-7 px-3 rounded-md border-white/[0.08] bg-white/[0.03] text-white/70 hover:text-white hover:bg-white/[0.06] transition-colors text-[13px]"
+                              className="h-7 px-3 rounded-md border-white/[0.04] bg-white/[0.03] text-white/70 hover:text-white hover:bg-white/[0.06] transition-colors text-[13px]"
                               onClick={() => setSourceVisibleCount(Math.min(sourceVisibleCount + INITIAL_VISIBLE, sortedCitationSources.length))}
                               aria-label="Expand sources"
                               disabled={remainingSources <= 0}

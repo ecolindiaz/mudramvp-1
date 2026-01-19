@@ -38,7 +38,7 @@ function IssuesPageInner() {
             </div>
 
             {/* Clean Divider Line - Full Width */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             {/* Content Area */}
             <div className="flex flex-col flex-1">

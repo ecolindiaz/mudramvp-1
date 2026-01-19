@@ -275,9 +275,6 @@ export async function POST(request: NextRequest) {
     // IMPORTANT: Encrypt the access token before storing
     const encryptedToken = encrypt(token);
     
-    // Ensure repositories is properly formatted as a JSON string
-    const reposJson = JSON.stringify(repositories);
-    
     const integrationData = {
       accessToken: encryptedToken,
       refreshToken: null,
@@ -288,7 +285,7 @@ export async function POST(request: NextRequest) {
       avatarUrl: githubUser.avatar_url ? String(githubUser.avatar_url) : null,
       installationId: Number(installationId),
       integrationType: 'installation' as const,
-      repositories: reposJson,
+      repositories: repositories,
     }
     
     console.log('[GitHub Sync] Integration data:', {

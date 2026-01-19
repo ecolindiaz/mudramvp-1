@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
         scope: data.scope,
         installationId: data.installationId,
         integrationType: data.installationId ? 'installation' : 'oauth',
-        repositories: JSON.stringify(data.repositories || []),
+        repositories: data.repositories || [],
         tokenExpiresAt: data.expiresAt,
       },
       update: {
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
         scope: data.scope,
         installationId: data.installationId,
         integrationType: data.installationId ? 'installation' : 'oauth',
-        repositories: JSON.stringify(data.repositories || []),
+        repositories: data.repositories || [],
         tokenExpiresAt: data.expiresAt,
         updatedAt: new Date(),
       },

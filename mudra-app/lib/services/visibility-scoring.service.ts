@@ -78,12 +78,12 @@ function calculateWeightedScore(tests: PromptTestResult[]): {
     brandSpecific: { score: number; mentions: number; total: number };
   };
 } {
-  // Group tests by category
+  // Group tests by category (case-insensitive)
   const categories = {
-    organic: tests.filter(t => t.promptCategory === 'Organic'),
-    competitor: tests.filter(t => t.promptCategory === 'Competitor'),
-    howTo: tests.filter(t => t.promptCategory === 'How-to Guides'),
-    brandSpecific: tests.filter(t => t.promptCategory === 'Brand-Specific'),
+    organic: tests.filter(t => t.promptCategory?.toLowerCase() === 'organic'),
+    competitor: tests.filter(t => t.promptCategory?.toLowerCase() === 'competitor'),
+    howTo: tests.filter(t => t.promptCategory?.toLowerCase() === 'how-to guides'),
+    brandSpecific: tests.filter(t => t.promptCategory?.toLowerCase() === 'brand-specific'),
   };
 
   // Calculate score for each category

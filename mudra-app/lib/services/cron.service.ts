@@ -162,6 +162,14 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
     const improved = deltas.filter(d => d.improvement).length;
     const declined = deltas.filter(d => d.degradation).length;
     console.log(`📈 [CRON] Deltas: ${improved} improved, ${declined} declined`);
+
+    // ✅ NEW: Execute Content Optimizer agents for deployed/enabled instances
+    try {
+      await executeContentOptimizerAgents();
+    } catch (agentError) {
+      console.error('⚠️ [CRON] Content Optimizer execution failed:', agentError);
+      log.errors.push(`Content Optimizer: ${agentError instanceof Error ? agentError.message : 'Unknown error'}`);
+    }
   } catch (error) {
     console.error('❌ [CRON] Fatal error during weekly analysis:', error);
     log.errors.push(`Fatal: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -185,6 +193,100 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
   }
 
   return log;
+}
+
+/**
+ * Execute Content Optimizer agents for all deployed & enabled instances
+ * Runs after weekly analysis to optimize low-scoring pages
+ */
+async function executeContentOptimizerAgents(): Promise<void> {
+  console.log('🤖 [CRON] Starting Content Optimizer agent execution...');
+
+  try {
+    // Find all deployed Content Optimizer agents that are active
+    const deployedAgents = await prisma.deployedAgent.findMany({
+      where: {
+        agentType: 'content_optimizer',
+        status: 'active',
+      },
+      include: {
+        brandProfile: true,
+      },
+    });
+
+    if (deployedAgents.length === 0) {
+      console.log('📭 [CRON] No active Content Optimizer agents found');
+      return;
+    }
+
+    console.log(`🔍 [CRON] Found ${deployedAgents.length} active Content Optimizer agents`);
+
+    // Dynamically import the agent to avoid circular dependencies
+    const { ContentOptimizerAgent } = await import('@/lib/agents/content-optimizer-agent');
+
+    for (const deployed of deployedAgents) {
+      if (!deployed.brandProfile) {
+        console.log(`⚠️ [CRON] Skipping agent ${deployed.id} - no brand profile`);
+        continue;
+      }
+
+      const brandProfileId = deployed.brandProfileId;
+      const companyName = deployed.brandProfile.companyName || 'Unknown';
+
+      // Check if agent has GitHub repo configured
+      const agentSchedule = await prisma.agentSchedule.findFirst({
+        where: {
+          brandProfileId,
+          agentType: 'content_optimizer',
+          isEnabled: true,
+        },
+      });
+
+      if (!agentSchedule?.config) {
+        console.log(`⚠️ [CRON] Skipping ${companyName} - no repo configured`);
+        continue;
+      }
+
+      const config = agentSchedule.config as Record<string, unknown>;
+      if (!config.githubRepo) {
+        console.log(`⚠️ [CRON] Skipping ${companyName} - githubRepo not set`);
+        continue;
+      }
+
+      console.log(`🔧 [CRON] Running Content Optimizer for ${companyName}...`);
+
+      try {
+        const agent = new ContentOptimizerAgent({ brandProfileId });
+        const result = await agent.run({ maxPages: 10 }); // Limit to 10 pages per weekly run
+
+        if (result.success) {
+          const data = result.data as { optimizedPages?: unknown[]; successfulOptimizations?: number };
+          console.log(`✅ [CRON] Content Optimizer succeeded for ${companyName}: ${data.successfulOptimizations || 0} PRs created`);
+          
+          // Update last executed timestamp
+          await prisma.deployedAgent.update({
+            where: { id: deployed.id },
+            data: { lastExecutedAt: new Date() },
+          });
+        } else {
+          console.error(`❌ [CRON] Content Optimizer failed for ${companyName}: ${result.error}`);
+        }
+      } catch (agentError) {
+        console.error(`❌ [CRON] Exception in Content Optimizer for ${companyName}:`, agentError);
+      }
+
+      // Add delay between agents to prevent API throttling (10 seconds)
+      if (deployedAgents.indexOf(deployed) < deployedAgents.length - 1) {
+        console.log('⏳ [CRON] Waiting 10s before next agent...');
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      }
+    }
+
+    console.log('✅ [CRON] Content Optimizer execution completed');
+  } catch (error) {
+    console.error('❌ [CRON] Error executing Content Optimizer agents:', error);
+    throw error;
+  }
 }
 
 /**

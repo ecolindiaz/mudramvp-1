@@ -83,11 +83,17 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    console.log('[GitHub PRs] Agent schedule lookup:', {
+      brandProfileId,
+      found: !!agentSchedule,
+      config: agentSchedule?.config,
+    })
+
     if (!agentSchedule?.config) {
       return NextResponse.json({
         success: true,
         data: [],
-        message: 'No repository configured for Content Optimizer agent',
+        message: `No repository configured for Content Optimizer agent (brandProfileId: ${brandProfileId})`,
       })
     }
 

@@ -5,7 +5,7 @@ import { logNlrJob } from '@/lib/services/observability.service'
 import { collectNlrInputs } from '@/lib/analysis/nlr/mappers'
 import { rankChanges } from '@/lib/analysis/nlr/diff'
 import { buildNlrPrompt } from '@/lib/ai/prompts/nlr-prompt'
-import { prisma } from '@/lib/db/reports'
+import { prisma } from '@/lib/prisma'
 
 function toDate(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value)

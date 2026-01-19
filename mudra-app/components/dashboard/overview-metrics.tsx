@@ -8,7 +8,7 @@ import { useBrandProfile } from "@/components/brand-profile-context"
 import { Card, CardContent, CardHeader, CardTitle, CardAction } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Info, Link, Copy, Check, ArrowUp, Settings, Loader2, AlertCircle, Github, ExternalLink } from "lucide-react"
+import { Info, Link, Copy, Check, ArrowUp, ArrowDown, ArrowLeft, Settings, Loader2, AlertCircle, Github, ExternalLink, X } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -672,46 +672,33 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       {loadingAiReferral ? (
         <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3">
           <CardHeader className="border-0">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
-              </div>
-              <CardAction>
-                <Button variant="ghost" size="icon" className="-me-1.5" aria-label="About this metric">
-                  <Info className="size-4 text-white/70" />
-                </Button>
-              </CardAction>
-            </div>
+            <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1.5">
             <div className="flex items-center justify-between gap-2.5">
-              <span className="h-6 w-20 rounded bg-white/10 animate-pulse" />
-              <span className="h-5 w-14 rounded bg-white/10 animate-pulse" />
+              <span className="h-7 w-16 rounded bg-white/[0.06] animate-pulse" />
+              <span className="h-5 w-12 rounded bg-white/[0.06] animate-pulse" />
             </div>
-            <div className="mt-2 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
-              <span className="h-3 w-32 rounded bg-white/10 animate-pulse" />
+            <div className="border-t border-white/[0.06] pt-2.5 mt-2">
+              <span className="h-3 w-24 rounded bg-white/[0.06] animate-pulse block" />
             </div>
           </CardContent>
         </Card>
       ) : isTrackingConnected ? (
-        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3">
+        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] hover:border-white/[0.12] transition-colors gap-3">
           <CardHeader className="border-0">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
-              </div>
-              <CardAction>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="-me-1.5" aria-label="About this metric">
-                      <Info className="size-4 text-white/70" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent sideOffset={8} className="max-w-xs text-white/90">
-                    Traffic referred from AI Models
-                  </TooltipContent>
-                </Tooltip>
-              </CardAction>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-white/30 hover:text-white/60 transition-colors">
+                    <Info className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={8} className="max-w-xs text-white/90">
+                  Traffic referred from AI models
+                </TooltipContent>
+              </Tooltip>
             </div>
           </CardHeader>
           <CardContent className="space-y-1.5">
@@ -719,58 +706,30 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
               <span className="text-2xl font-medium text-foreground tracking-tight">
                 {aiReferralTraffic.toLocaleString()}
               </span>
-              <Badge
-                variant="success"
-                className="appearance-light bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
-              >
-                <ArrowUp className="size-3" />
-                {aiReferralDelta}%
-              </Badge>
+              {aiReferralDelta !== 0 && (
+                <Badge
+                  variant={aiReferralDelta > 0 ? "success" : "destructive"}
+                  className={aiReferralDelta > 0 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : ""}
+                >
+                  {aiReferralDelta > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+                  {Math.abs(aiReferralDelta)}%
+                </Badge>
+              )}
             </div>
-            <div className="overflow-hidden transition-all duration-300 ease-out max-h-0 group-hover:max-h-12">
-              <div className="h-10 w-full opacity-0 -translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
-                <svg viewBox="0 0 100 20" className="w-full h-full text-emerald-400/70">
-                  <defs>
-                    <linearGradient id="aiTrafficGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="currentColor" stopOpacity="0.4" />
-                      <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <polyline
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="0.8"
-                    points="0,15 14.3,13 28.6,11 42.9,9 57.1,10 71.4,7 85.7,5 100,3"
-                  />
-                  <polygon
-                    fill="url(#aiTrafficGradient)"
-                    points="0,15 14.3,13 28.6,11 42.9,9 57.1,10 71.4,7 85.7,5 100,3 100,20 0,20"
-                  />
-                </svg>
-              </div>
-            </div>
-            <div className="mt-2 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
-              <div className="text-xs text-muted-foreground">
-                Last Updated:{" "}
-                <span className="font-medium text-foreground">
-                  {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs text-white/70 hover:text-white"
+            <div className="border-t border-white/[0.06] pt-2.5 mt-2 flex items-center justify-between">
+              <span className="text-xs text-white/40">
+                {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+              <button
+                className="text-xs text-white/40 hover:text-white/70 transition-colors"
                 onClick={async () => {
                   setModalView('traffic')
                   setLoadingReferralModels(true)
                   setMockReferralData(null)
                   setShowTrackingModal(true)
-
                   try {
-                    // Fetch real referral data by model
                     const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&byModel=true`)
                     const result = await response.json()
-
                     if (result.success && result.data?.byModel) {
                       setMockReferralData({
                         total: result.data.traffic || 0,
@@ -784,87 +743,56 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
                   }
                 }}
               >
-                Settings
-              </Button>
+                Details
+              </button>
             </div>
           </CardContent>
         </Card>
       ) : isConnecting ? (
         <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3">
           <CardHeader className="border-0">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
-              </div>
-            </div>
+            <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="relative size-8">
-                  <div className="absolute inset-0 rounded-full border-2 border-white/10"></div>
-                  <div className="absolute inset-0 rounded-full border-2 border-t-emerald-500 border-r-emerald-500/50 border-b-transparent border-l-transparent animate-spin"></div>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-base font-medium text-white/90">Connecting...</span>
-                  <span className="text-xs text-white/60">Detecting traffic</span>
-                </div>
-              </div>
+            <div className="flex items-center gap-3">
+              <div className="size-5 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
+              <span className="text-sm text-white/60">Connecting...</span>
             </div>
-            <div className="mt-2 border-t border-white/10 pt-2.5">
-              <div className="text-xs text-muted-foreground">
-                Verifying script installation...
-              </div>
+            <div className="border-t border-white/[0.06] pt-2.5 mt-2">
+              <span className="text-xs text-white/30">Verifying installation</span>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3 hover:border-white/[0.12] transition-colors">
+        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] hover:border-white/[0.12] transition-colors gap-3">
           <CardHeader className="border-0">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
-              </div>
-              <CardAction>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="-me-1.5 hover:bg-white/5" aria-label="About this metric">
-                      <Info className="size-4 text-white/70 group-hover:text-white/90 transition-colors" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent sideOffset={8} className="max-w-xs text-white/90">
-                    Track traffic referred from AI agents and chatbots
-                  </TooltipContent>
-                </Tooltip>
-              </CardAction>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-white/30 hover:text-white/60 transition-colors">
+                    <Info className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={8} className="max-w-xs text-white/90">
+                  Track visitors from AI chatbots
+                </TooltipContent>
+              </Tooltip>
             </div>
           </CardHeader>
           <CardContent className="space-y-1.5">
             <div className="flex items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="flex items-center justify-center size-8 rounded-md border border-white/10 bg-white/5 group-hover:border-white/20 transition-colors">
-                  <Link className="size-4 text-white/80" />
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-base font-medium text-foreground">Not Connected</span>
-                </div>
-              </div>
+              <span className="text-sm text-white/50">Not connected</span>
               <Button 
                 size="sm" 
                 onClick={handleConnect}
-                className="h-8 px-3 rounded-md bg-white text-black hover:bg-white/90 text-xs font-medium shadow-sm hover:shadow transition-shadow"
+                className="h-7 px-3 rounded-md bg-white text-black hover:bg-white/90 text-xs font-medium"
               >
                 Connect
               </Button>
             </div>
-            <div className="mt-2 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
-              <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <svg className="size-3 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path strokeLinecap="round" d="M12 6v6l4 2" />
-                </svg>
-                2 min setup
-              </div>
+            <div className="border-t border-white/[0.06] pt-2.5 mt-2">
+              <span className="text-xs text-white/30">2 min setup</span>
             </div>
           </CardContent>
         </Card>
@@ -872,292 +800,225 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
       {/* AI Referral Tracking Setup Modal */}
       <Dialog open={showTrackingModal} onOpenChange={setShowTrackingModal}>
-        <DialogContent className={`${modalView === 'traffic' && isTrackingConnected ? '!max-w-lg' : '!max-w-2xl'} bg-dark-grey border-white/10 p-0 !rounded-[16px] overflow-hidden shadow-xl [&>button]:hidden`}>
+        <DialogContent className={`${modalView === 'traffic' && isTrackingConnected ? '!max-w-md' : '!max-w-lg'} bg-[#161616] border-white/[0.08] p-0 !rounded-xl overflow-hidden [&>button]:hidden`}>
           <DialogHeader className="sr-only">
             <DialogTitle>AI Referral Tracking</DialogTitle>
           </DialogHeader>
-          <div className="bg-dark-grey px-8 pt-8 pb-8">
-            {/* TRAFFIC VIEW - Minimal view when clicking Settings */}
+          
+          <div className="p-6">
+            {/* TRAFFIC VIEW */}
             {modalView === 'traffic' && isTrackingConnected && (
-              <div className="space-y-6">
-                {/* Header */}
-                <div>
-                  <h2 className="text-xl font-semibold text-white mb-1 tracking-tight">AI Referral Traffic</h2>
-                  <p className="text-sm text-white/60">Traffic from AI platforms this month</p>
+              <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-medium text-white">AI Referral Traffic</h2>
+                    <p className="text-xs text-white/40 mt-0.5">This month</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowTrackingModal(false)}
+                    className="text-white/30 hover:text-white/60 transition-colors"
+                  >
+                    <X className="size-4" />
+                  </button>
                 </div>
 
-                {/* Traffic by Model - 2x2 Widget Grid */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   {loadingReferralModels || !mockReferralData ? (
-                    // Loading skeleton for models
-                    <>
-                      {[1, 2, 3, 4].map((i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-3 p-3 rounded-lg border border-white/[0.08]"
-                        >
-                          <span className="w-5 h-5 rounded bg-white/10 animate-pulse" />
-                          <div className="flex-1 space-y-1.5">
-                            <span className="block h-3 w-14 rounded bg-white/10 animate-pulse" />
-                            <span className="block h-5 w-10 rounded bg-white/10 animate-pulse" />
-                          </div>
-                        </div>
-                      ))}
-                    </>
+                    [1, 2, 3, 4].map((i) => (
+                      <div key={i} className="p-3 rounded-lg border border-white/[0.06] bg-white/[0.02]">
+                        <div className="h-4 w-12 rounded bg-white/[0.06] animate-pulse mb-2" />
+                        <div className="h-6 w-8 rounded bg-white/[0.06] animate-pulse" />
+                      </div>
+                    ))
                   ) : (
                     mockReferralData.byModel.map((model) => (
-                      <div
-                        key={model.name}
-                        className="flex items-center gap-3 p-3 rounded-lg border border-white/[0.08]"
-                      >
-                        <img src={model.icon} alt={model.name} className="w-5 h-5 opacity-80" />
-                        <div className="flex-1">
-                          <span className="text-xs text-white/50">{model.name}</span>
-                          <div className="text-lg font-semibold text-white">{model.visits.toLocaleString()}</div>
+                      <div key={model.name} className="p-3 rounded-lg border border-white/[0.06] bg-white/[0.02]">
+                        <div className="flex items-center gap-2 mb-1">
+                          <img src={model.icon} alt="" className="w-4 h-4 opacity-60" />
+                          <span className="text-xs text-white/40">{model.name}</span>
                         </div>
+                        <div className="text-lg font-medium text-white">{model.visits.toLocaleString()}</div>
                       </div>
                     ))
                   )}
                 </div>
 
-                {/* Buttons */}
-                <div className="pt-6 space-y-3">
+                <div className="flex gap-2 pt-2">
                   <Button
-                    className="w-full h-10 px-5 rounded-lg bg-white text-[#0a0a0a] hover:bg-white/90 text-sm font-medium transition-all border-0"
+                    className="flex-1 h-9 bg-white text-black hover:bg-white/90 text-sm font-medium rounded-lg"
                     onClick={() => setShowTrackingModal(false)}
                   >
                     Done
                   </Button>
                   <Button
                     variant="ghost"
-                    className="w-full h-10 text-sm text-white/50 hover:text-white/70 hover:bg-transparent"
+                    className="h-9 px-3 text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
                     onClick={() => setModalView('script')}
                   >
-                    <Settings className="size-4 mr-2" />
-                    Script Settings
+                    <Settings className="size-4" />
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* SCRIPT VIEW - Full script settings */}
+            {/* SCRIPT VIEW */}
             {(modalView === 'script' || !isTrackingConnected) && (
-            <>
-            <div className="mb-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-white mb-1 tracking-tight">
-                    {isTrackingConnected ? "Script Settings" : "Connect AI Referral Tracking"}
-                  </h2>
-                  <p className="text-sm text-white/60">
-                    {isTrackingConnected
-                      ? "Copy and install this script on your website."
-                      : "Track traffic from AI search engines."}
-                  </p>
-                </div>
-                {isTrackingConnected && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-white/50 hover:text-white"
-                    onClick={() => setModalView('traffic')}
+              <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-medium text-white">
+                      {isTrackingConnected ? "Script Settings" : "Connect Tracking"}
+                    </h2>
+                    <p className="text-xs text-white/40 mt-0.5">
+                      {isTrackingConnected ? "Your tracking script" : "Track AI referral traffic"}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => isTrackingConnected ? setModalView('traffic') : setShowTrackingModal(false)}
+                    className="text-white/30 hover:text-white/60 transition-colors"
                   >
-                    Back
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-5">
-
-            {/* Script Code */}
-            <div className="relative">
-              <pre className="rounded-lg border border-white/[0.08] bg-black/30 p-4 pr-20 text-[11px] text-white/80 leading-relaxed overflow-x-auto">
-                <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{trackingScript || fallbackTrackingScript}</code>
-              </pre>
-              <Button
-                size="sm"
-                onClick={handleCopyScript}
-                className="absolute top-3 right-3 h-8 px-3 text-xs bg-white/10 hover:bg-white/20 text-white border-0 rounded-md"
-                variant="ghost"
-              >
-                {scriptCopied ? (
-                  <>
-                    <Check className="size-3.5 mr-1.5" /> Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="size-3.5 mr-1.5" /> Copy
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {/* Instructions */}
-            <p className="text-sm text-white/50">
-              Paste this script in the <code className="px-1.5 py-0.5 rounded bg-white/10 text-white/70 text-xs font-mono">&lt;head&gt;</code> section of your website.
-            </p>
-
-            {/* Auto-Install via GitHub */}
-            <div className="pt-5 border-t border-white/[0.08]">
-              <div className="flex items-center gap-2 mb-3">
-                <Github className="size-4 text-white/70" />
-                <span className="text-sm font-medium text-white/90">Auto-Install via GitHub</span>
-              </div>
-
-              {loadingRepos ? (
-                <div className="flex items-center gap-2 text-sm text-white/50">
-                  <Loader2 className="size-4 animate-spin" />
-                  Loading...
+                    {isTrackingConnected ? <ArrowLeft className="size-4" /> : <X className="size-4" />}
+                  </button>
                 </div>
-              ) : !githubConnected ? (
-                <div className="p-3 rounded-lg border border-white/[0.08] bg-white/[0.02]">
-                  <p className="text-sm text-white/60 mb-2">Connect GitHub to auto-install the tracking script.</p>
-                  <a
-                    href="/dashboard/integrations"
-                    className="text-sm text-white/90 hover:text-white underline inline-flex items-center gap-1"
+
+                {/* Script Code */}
+                <div className="relative">
+                  <pre className="rounded-lg border border-white/[0.06] bg-black/20 p-4 pr-16 text-[11px] text-white/70 leading-relaxed overflow-x-auto">
+                    <code className="break-all whitespace-pre-wrap">{trackingScript || fallbackTrackingScript}</code>
+                  </pre>
+                  <button
+                    onClick={handleCopyScript}
+                    className="absolute top-3 right-3 px-2.5 py-1 text-[11px] text-white/50 hover:text-white/80 bg-white/[0.08] hover:bg-white/[0.12] rounded transition-colors"
                   >
-                    Go to Integrations <ExternalLink className="size-3" />
-                  </a>
+                    {scriptCopied ? "Copied" : "Copy"}
+                  </button>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {githubUsername && (
-                    <p className="text-xs text-white/50">Connected as {githubUsername}</p>
-                  )}
 
-                  {repositories.length > 0 ? (
-                    <>
-                      <Select value={selectedRepo} onValueChange={setSelectedRepo}>
-                        <SelectTrigger className="w-full h-9 bg-white/5 border-white/[0.08] text-white text-sm">
-                          <SelectValue placeholder="Select repository" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-dark-grey border-white/[0.08]">
-                          {repositories.map((repo) => (
-                            <SelectItem key={repo.fullName} value={repo.fullName} className="text-white focus:bg-white/10">
-                              {repo.fullName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                <p className="text-xs text-white/30">
+                  Add to your site's <code className="px-1 py-0.5 rounded bg-white/[0.06] text-white/50">&lt;head&gt;</code>
+                </p>
 
-                      {installSuccess ? (
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                          <Check className="size-4 text-emerald-400" />
-                          <div className="flex-1">
-                            <p className="text-sm text-emerald-300">PR Created</p>
-                          </div>
-                          <a
-                            href={installSuccess.prUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
-                          >
-                            View PR <ExternalLink className="size-3" />
-                          </a>
-                        </div>
-                      ) : installError ? (
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                          <AlertCircle className="size-4 text-red-400" />
-                          <p className="text-sm text-red-300">{installError}</p>
-                        </div>
-                      ) : (
-                        <Button
-                          className="w-full h-9 bg-white/10 hover:bg-white/15 text-white text-sm border-0"
-                          onClick={handleAutoInstall}
-                          disabled={isInstallingTracking || !selectedRepo}
-                        >
-                          {isInstallingTracking ? (
-                            <>
-                              <Loader2 className="size-4 mr-2 animate-spin" />
-                              Creating PR...
-                            </>
-                          ) : (
-                            <>
-                              <Github className="size-4 mr-2" />
-                              Install via PR
-                            </>
-                          )}
-                        </Button>
+                {/* GitHub Auto-Install */}
+                <div className="pt-4 border-t border-white/[0.06]">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Github className="size-3.5 text-white/50" />
+                    <span className="text-xs font-medium text-white/70">Auto-install via GitHub</span>
+                  </div>
+
+                  {loadingRepos ? (
+                    <div className="flex items-center gap-2 text-xs text-white/40">
+                      <Loader2 className="size-3 animate-spin" />
+                      Loading...
+                    </div>
+                  ) : !githubConnected ? (
+                    <a
+                      href="/dashboard/integrations"
+                      className="text-xs text-white/50 hover:text-white/80 inline-flex items-center gap-1 transition-colors"
+                    >
+                      Connect GitHub <ExternalLink className="size-3" />
+                    </a>
+                  ) : (
+                    <div className="space-y-2">
+                      {githubUsername && (
+                        <p className="text-[10px] text-white/30">@{githubUsername}</p>
                       )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-white/50">No repositories found.</p>
+                      {repositories.length > 0 ? (
+                        <>
+                          <Select value={selectedRepo} onValueChange={setSelectedRepo}>
+                            <SelectTrigger className="w-full h-8 bg-white/[0.03] border-white/[0.06] text-white text-xs">
+                              <SelectValue placeholder="Select repository" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#161616] border-white/[0.08]">
+                              {repositories.map((repo) => (
+                                <SelectItem key={repo.fullName} value={repo.fullName} className="text-white text-xs focus:bg-white/[0.06]">
+                                  {repo.fullName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+
+                          {installSuccess ? (
+                            <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                              <span className="text-xs text-emerald-400">PR created</span>
+                              <a href={installSuccess.prUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-400 hover:underline">
+                                View <ExternalLink className="size-3 inline" />
+                              </a>
+                            </div>
+                          ) : installError ? (
+                            <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                              <span className="text-xs text-red-400">{installError}</span>
+                            </div>
+                          ) : (
+                            <Button
+                              className="w-full h-8 bg-white/[0.06] hover:bg-white/[0.1] text-white/70 text-xs border-0"
+                              onClick={handleAutoInstall}
+                              disabled={isInstallingTracking || !selectedRepo}
+                            >
+                              {isInstallingTracking ? (
+                                <><Loader2 className="size-3 mr-1.5 animate-spin" /> Creating PR...</>
+                              ) : (
+                                "Create PR"
+                              )}
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs text-white/40">No repositories found</p>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
 
-            {/* Verification Section */}
-            <div className="pt-5 border-t border-white/[0.08] space-y-4">
-              {/* Success Status */}
-              {verificationStatus === 'success' && (
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                  <Check className="h-5 w-5 text-emerald-400" />
-                  <div>
-                    <p className="text-sm font-medium text-emerald-300">Connected!</p>
-                    <p className="text-xs text-emerald-300/70">{verificationMessage}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Failed Status */}
-              {verificationStatus === 'failed' && (
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-                  <AlertCircle className="h-5 w-5 text-red-400" />
-                  <div>
-                    <p className="text-sm font-medium text-red-300">Not Detected</p>
-                    <p className="text-xs text-red-300/70">{verificationMessage}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Verify Button - Show when idle, verifying, or failed */}
-              {(verificationStatus === 'idle' || verificationStatus === 'verifying' || verificationStatus === 'failed') && (
-                <Button
-                  className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium transition-all shadow-sm hover:shadow-md border-0"
-                  onClick={handleVerifyScript}
-                  disabled={verificationStatus === 'verifying'}
-                >
-                  {verificationStatus === 'verifying' ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Verifying...
-                    </>
-                  ) : verificationStatus === 'failed' ? (
-                    "Try Again"
-                  ) : (
-                    "Script Added - Verify Connection"
+                {/* Verification */}
+                <div className="pt-4 border-t border-white/[0.06] space-y-3">
+                  {verificationStatus === 'success' && (
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                      <Check className="size-4 text-emerald-400" />
+                      <span className="text-xs text-emerald-400">Connected</span>
+                    </div>
                   )}
-                </Button>
-              )}
 
-              {/* Close button when success */}
-              {verificationStatus === 'success' && (
-                <Button
-                  className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 text-sm font-medium transition-all shadow-sm hover:shadow-md border-0"
-                  onClick={() => setShowTrackingModal(false)}
-                >
-                  Done
-                </Button>
-              )}
-            </div>
+                  {verificationStatus === 'failed' && (
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                      <AlertCircle className="size-4 text-red-400" />
+                      <span className="text-xs text-red-400">Not detected</span>
+                    </div>
+                  )}
 
-            {/* Tracking ID and Last Event - When Connected or has stats */}
-            {(trackingStats?.trackingId || siteIdValue) && (
-              <div className="pt-4 border-t border-white/[0.08] space-y-2">
-                <div className="text-xs text-white/60">
-                  Tracking ID: <code className="px-2 py-1 bg-white/5 rounded text-white/80">{trackingStats?.trackingId || siteIdValue}</code>
+                  {(verificationStatus === 'idle' || verificationStatus === 'verifying' || verificationStatus === 'failed') && (
+                    <Button
+                      className="w-full h-9 bg-white text-black hover:bg-white/90 text-sm font-medium rounded-lg"
+                      onClick={handleVerifyScript}
+                      disabled={verificationStatus === 'verifying'}
+                    >
+                      {verificationStatus === 'verifying' ? (
+                        <><Loader2 className="size-4 mr-2 animate-spin" /> Verifying...</>
+                      ) : verificationStatus === 'failed' ? (
+                        "Try Again"
+                      ) : (
+                        "Verify Connection"
+                      )}
+                    </Button>
+                  )}
+
+                  {verificationStatus === 'success' && (
+                    <Button
+                      className="w-full h-9 bg-white text-black hover:bg-white/90 text-sm font-medium rounded-lg"
+                      onClick={() => setShowTrackingModal(false)}
+                    >
+                      Done
+                    </Button>
+                  )}
                 </div>
-                {trackingStats?.lastEventAt && (
-                  <div className="text-xs text-white/60">
-                    Last event: {new Date(trackingStats.lastEventAt).toLocaleString()}
+
+                {(trackingStats?.trackingId || siteIdValue) && (
+                  <div className="pt-3 border-t border-white/[0.06]">
+                    <p className="text-[10px] text-white/30">
+                      ID: <code className="text-white/50">{trackingStats?.trackingId || siteIdValue}</code>
+                    </p>
                   </div>
                 )}
               </div>
-            )}
-            </div>
-            </>
             )}
           </div>
         </DialogContent>

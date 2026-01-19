@@ -14,16 +14,20 @@ function Checkbox({
     <CheckboxPrimitive.Root
       data-slot="checkbox"
       className={cn(
-        "peer border-white/[0.06] dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
+        "peer size-4 shrink-0 rounded-[5px] border border-white/20 bg-white/[0.03] transition-all duration-150 outline-none",
+        "hover:border-white/30 hover:bg-white/[0.06]",
+        "data-[state=checked]:bg-white data-[state=checked]:border-white data-[state=checked]:text-black",
+        "focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-0",
+        "disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       {...props}
     >
       <CheckboxPrimitive.Indicator
         data-slot="checkbox-indicator"
-        className="flex items-center justify-center text-current transition-none"
+        className="flex items-center justify-center text-current"
       >
-        <CheckIcon className="size-3.5" />
+        <CheckIcon className="size-3" strokeWidth={2.5} />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   )

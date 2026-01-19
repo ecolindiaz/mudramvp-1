@@ -187,10 +187,17 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         return
       }
 
-      const response = await fetch(`/api/analytics/verify?siteId=${siteIdToVerify}`)
+      const response = await fetch('/api/analytics/script/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandProfileId: profile.id,
+          siteId: siteIdToVerify
+        })
+      })
       const result = await response.json()
 
-      if (result.success && result.data?.verified) {
+      if (result.success && result.data?.connected) {
         setVerificationStatus('success')
         setVerificationMessage('Tracking script detected!')
 

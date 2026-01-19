@@ -2,10 +2,10 @@
 
 import * as React from "react"
 import { forwardRef } from "react"
-import { useSession } from "next-auth/react"
-import { IconSearch, IconPhone, IconMessage } from "@tabler/icons-react"
+import { IconSearch, IconCreditCard, IconLogout, IconNotification, IconUserCircle, IconQuestionMark, IconCalendar, IconFileText, IconExternalLink } from "@tabler/icons-react"
 import { User, Link as LinkIcon, Inbox } from "lucide-react"
 import type { LucideProps } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 // Custom Overview Icon Component
 const OverviewIcon = forwardRef<SVGSVGElement, LucideProps>(
@@ -162,7 +162,6 @@ AstromechIcon.displayName = "AstromechIcon"
 
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
 import { SearchCommand } from "@/components/search-command"
 import { InboxPanel } from "@/components/inbox-panel"
 import {
@@ -173,8 +172,23 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { useBrandProfile } from "@/components/brand-profile-context"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/components/ui/avatar"
 
 // Interface for company data
 interface CompanyData {
@@ -263,12 +277,53 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [inboxOpen, setInboxOpen] = React.useState(false)
   const [isMounted, setIsMounted] = React.useState(false)
-  
-  // Get session data from NextAuth
-  const { data: session } = useSession()
-  
+
   // Get brand profile data
   const { profile } = useBrandProfile()
+
+  // Get router and sidebar state
+  const router = useRouter()
+  const { isMobile } = useSidebar()
+
+  // Handle sign out
+  const handleSignOut = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    console.log('Signing out...')
+
+    // Clear localStorage cache first to prevent data leakage between users
+    try {
+      localStorage.removeItem('mudra_brand_profile')
+      console.log('Cleared mudra_brand_profile from localStorage')
+    } catch (storageError) {
+      console.warn('Failed to clear localStorage:', storageError)
+    }
+
+    try {
+      // Get CSRF token first
+      const csrfResponse = await fetch('/api/auth/csrf')
+      const { csrfToken } = await csrfResponse.json()
+
+      // Call signout with CSRF token
+      const response = await fetch('/api/auth/signout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `csrfToken=${csrfToken}`,
+      })
+
+      console.log('Sign out response:', response.status)
+
+      // Redirect to login
+      window.location.href = '/login'
+    } catch (error) {
+      console.error('Sign out error:', error)
+      // Force redirect even if there's an error
+      window.location.href = '/login'
+    }
+  }
   
   // Debug logging for profile loading
   React.useEffect(() => {
@@ -295,30 +350,6 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
     website: isMounted && profile?.companyWebsite ? profile.companyWebsite : undefined,
     logo: isMounted && profile?.userAvatar ? profile.userAvatar : undefined
   }), [profile, isMounted])
-  
-  // Use real user data from session, fallback to mock data
-  const userData = session?.user ? {
-    name: session.user.name || "User",
-    email: session.user.email || "user@example.com",
-    avatar: session.user.image || "",
-  } : data.user
-
-  // Handle company menu interaction
-  const handleCompanyMenuClick = React.useCallback(() => {
-    setIsDropdownOpen(prev => !prev)
-    // TODO: In future, this could open a company switcher dropdown or settings menu
-  }, [])
-
-  // Handle keyboard navigation for company menu
-  const handleCompanyMenuKeyDown = React.useCallback((event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      handleCompanyMenuClick()
-    }
-    if (event.key === 'Escape' && isDropdownOpen) {
-      setIsDropdownOpen(false)
-    }
-  }, [handleCompanyMenuClick, isDropdownOpen])
 
   // Get company initials for avatar
   const companyInitials = React.useMemo(() => 
@@ -339,45 +370,111 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
         <SidebarHeader className="pb-0 bg-sidebar-grey h-[var(--header-height)] flex items-center">
           {/* Company Header */}
           <div className="px-2.5 w-full">
-            <button
-              onClick={handleCompanyMenuClick}
-              onKeyDown={handleCompanyMenuKeyDown}
-              className="inline-flex items-center gap-2.5 px-0 py-2 rounded-lg transition-all duration-200 cursor-pointer group/company focus:outline-none hover:bg-white/[0.03] w-full"
-              aria-label={`Company menu for ${companyData.name}${companyData.website ? ` (${companyData.website})` : ''}`}
-              aria-expanded={isDropdownOpen}
-              aria-haspopup="menu"
-              type="button"
-            >
-              <div className="w-7 h-7 bg-gradient-to-br from-white/10 to-white/5 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-200 group-hover/company:from-white/15 group-hover/company:to-white/10 border border-white/[0.08]">
-                {companyData.logo ? (
-                  <img
-                    src={companyData.logo}
-                    alt={`${companyData.name} logo`}
-                    className="w-4 h-4 rounded object-cover"
-                  />
-                ) : (
-                  <span className="text-white/80 font-semibold text-[10px] transition-all duration-200 group-hover/company:text-white">
-                    {companyInitials}
-                  </span>
-                )}
-              </div>
-              <div className="min-w-0 text-left flex-1">
-                <p className="text-white/80 text-sm font-medium truncate transition-all duration-200 group-hover/company:text-white">
-                  {companyData.name}
-                </p>
-              </div>
-              <svg
-                className={`w-3 h-3 text-white/30 transition-all duration-200 flex-shrink-0 group-hover/company:text-white/50 ${
-                  isDropdownOpen ? 'rotate-180' : ''
-                }`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
+            <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="inline-flex items-center gap-2.5 px-0 py-2 rounded-lg cursor-pointer group/company w-full outline-none ring-0 border-0 focus:outline-none focus:ring-0 focus:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:border-0 data-[state=open]:outline-none data-[state=open]:ring-0 data-[state=closed]:outline-none data-[state=closed]:ring-0"
+                  aria-label={`Company menu for ${companyData.name}${companyData.website ? ` (${companyData.website})` : ''}`}
+                  aria-expanded={isDropdownOpen}
+                  aria-haspopup="menu"
+                  type="button"
+                >
+                  <div className="inline-flex items-center gap-2.5 px-0 py-0 rounded-lg hover:bg-white/[0.03] flex-1 min-w-0">
+                    <div className="w-7 h-7 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08]">
+                      {companyData.logo ? (
+                        <img
+                          src={companyData.logo}
+                          alt={`${companyData.name} logo`}
+                          className="w-4 h-4 rounded object-cover"
+                        />
+                      ) : (
+                        <span className="text-white/80 font-semibold text-[10px] transition-all duration-200 group-hover/company:text-white">
+                          {companyInitials}
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 text-left flex-1">
+                      <p className="text-white/80 text-sm font-medium truncate transition-all duration-200 group-hover/company:text-white">
+                        {companyData.name}
+                      </p>
+                    </div>
+                  </div>
+                  <svg
+                    className={`w-3 h-3 text-white/30 flex-shrink-0 ${
+                      isDropdownOpen ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg bg-dark-grey border-white/[0.08] backdrop-blur-sm [&[data-state=closed]]:!hidden"
+                side={isMobile ? "bottom" : "right"}
+                align="start"
+                sideOffset={4}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+                <DropdownMenuLabel className="p-0 font-normal">
+                  <div className="flex items-center gap-2.5 px-3 py-2.5 text-left text-sm">
+                    <div className="w-7 h-7 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08]">
+                      {companyData.logo ? (
+                        <img
+                          src={companyData.logo}
+                          alt={`${companyData.name} logo`}
+                          className="w-4 h-4 rounded object-cover"
+                        />
+                      ) : (
+                        <span className="text-white/80 font-semibold text-[10px]">
+                          {companyInitials}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 text-left text-sm">
+                      <span className="truncate font-medium text-white/90">{companyData.name}</span>
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className="!bg-white/[0.08] my-2 mx-2" />
+                <DropdownMenuGroup className="px-2 py-1 space-y-0.5">
+                  <DropdownMenuItem
+                    onClick={() => router.push('/dashboard/account')}
+                    className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
+                    <IconUserCircle className="w-4 h-4" />
+                    Account
+                  </DropdownMenuItem>
+                  {process.env.NODE_ENV !== 'production' && (
+                    <DropdownMenuItem
+                      onClick={() => router.push('/dashboard/billing')}
+                      className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
+                      <IconCreditCard className="w-4 h-4" />
+                      Billing
+                    </DropdownMenuItem>
+                  )}
+                  {process.env.NODE_ENV !== 'production' && (
+                    <DropdownMenuItem
+                      onClick={() => router.push('/dashboard/notifications')}
+                      className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
+                      <IconNotification className="w-4 h-4" />
+                      Notifications
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator className="!bg-white/[0.08] my-2 mx-2" />
+                <div className="px-2 py-1">
+                  <DropdownMenuItem
+                    onClick={handleSignOut}
+                    onSelect={(e) => e.preventDefault()}
+                    className="rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 focus:text-red-300 cursor-pointer outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
+                    <IconLogout className="w-4 h-4" />
+                    Log out
+                  </DropdownMenuItem>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </SidebarHeader>
 
@@ -422,28 +519,43 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
 
           <NavSecondary items={data.navSecondary} className="mt-auto" />
         </SidebarContent>
-        <SidebarFooter className="bg-sidebar-grey space-y-3 pb-4">
-          {/* Support & Feedback - Simplified */}
-          <div className="px-3 space-y-1">
-            {/* Live Support - hidden in production */}
-            {process.env.NODE_ENV !== 'production' && (
-              <button className="w-full h-8 px-3 text-xs text-white/60 hover:text-white/90 hover:bg-white/[0.03] transition-all duration-200 flex items-center gap-2 rounded-md group">
-                <IconPhone strokeWidth={2.5} className="w-3.5 h-3.5 text-white/40 group-hover:text-white/70 transition-colors" />
-                <span className="font-medium">Live Support</span>
-              </button>
-            )}
-            <button className="w-full h-8 px-3 text-xs text-white/60 hover:text-white/90 hover:bg-white/[0.03] transition-all duration-200 flex items-center gap-2 rounded-md group">
-              <IconMessage strokeWidth={2.5} className="w-3.5 h-3.5 text-white/40 group-hover:text-white/70 transition-colors" />
-              <span className="font-medium">Feedback</span>
-            </button>
-          </div>
-
-          {/* Divider */}
+        <SidebarFooter className="bg-sidebar-grey pb-4">
           <div className="px-3">
-            <div className="h-px bg-white/[0.08]"></div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-9 h-9 flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.05] rounded-md transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0">
+                  <IconQuestionMark strokeWidth={2} className="w-5 h-5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="min-w-52 rounded-lg bg-dark-grey border-white/[0.08] backdrop-blur-sm [&[data-state=closed]]:!hidden"
+                side="top"
+                align="start"
+                sideOffset={8}
+              >
+                <DropdownMenuGroup className="px-2 py-2 space-y-0.5">
+                  <DropdownMenuItem
+                    onClick={() => window.open('https://cal.com/nano-mudra/quick-30-min', '_blank')}
+                    className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <IconCalendar className="w-4 h-4 text-white/50" />
+                      <span>Book a demo</span>
+                    </div>
+                    <IconExternalLink className="w-3.5 h-3.5 text-white/30" />
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => window.open('https://docs.trymudra.com/', '_blank')}
+                    className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <IconFileText className="w-4 h-4 text-white/50" />
+                      <span>Docs</span>
+                    </div>
+                    <IconExternalLink className="w-3.5 h-3.5 text-white/30" />
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-
-          <NavUser user={userData} />
         </SidebarFooter>
       </Sidebar>
     </>

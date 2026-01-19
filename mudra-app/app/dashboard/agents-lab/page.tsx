@@ -145,6 +145,8 @@ function AgentsLabPageInner() {
     deployedAt: Date
     lastActivity: Date
     status: "deploying" | "active" | "inactive"
+    githubRepo?: string
+    githubBranch?: string
   }>>([])
 
   // Handle agent selection from URL params (for back navigation from opportunity detail)
@@ -188,6 +190,22 @@ function AgentsLabPageInner() {
       totalTasks: radarOpportunities.length
     },
     "Citations Outreach": { optimizations: 11, activeTasks: 2, totalTasks: 3 },
+  }
+
+  // Fetch GitHub connection status
+  const fetchGitHubStatus = async () => {
+    if (!profile.id) return
+
+    try {
+      const response = await fetch(`/api/github/status?brandProfileId=${profile.id}`)
+      const result = await response.json()
+      
+      if (result.success && result.connected) {
+        setIsGithubConnected(true)
+      }
+    } catch (error) {
+      console.error('Error fetching GitHub status:', error)
+    }
   }
 
   // Fetch Technical Structure score
@@ -295,18 +313,23 @@ function AgentsLabPageInner() {
       
       if (result.success && result.data) {
         // Map database records to UI state
-        const agents = result.data.map((agent: any) => ({
-          id: `${agent.agentType}-${agent.id}`,
-          agentName: agent.agentType.split('_').map((w: string) => 
-            w.charAt(0).toUpperCase() + w.slice(1)
-          ).join(' '),
-          agentDescription: 'Deployed agent',
-          icon: Sparkles,
-          impact: 'High' as const,
-          deployedAt: new Date(agent.createdAt),
-          lastActivity: new Date(agent.updatedAt),
-          status: 'active' as const,
-        }))
+        const agents = result.data.map((agent: any) => {
+          const config = agent.config || {}
+          return {
+            id: `${agent.agentType}-${agent.id}`,
+            agentName: agent.agentType.split('_').map((w: string) => 
+              w.charAt(0).toUpperCase() + w.slice(1)
+            ).join(' '),
+            agentDescription: 'Deployed agent',
+            icon: Sparkles,
+            impact: 'High' as const,
+            deployedAt: new Date(agent.createdAt),
+            lastActivity: new Date(agent.updatedAt),
+            status: 'active' as const,
+            githubRepo: config.githubRepo,
+            githubBranch: config.githubBranch,
+          }
+        })
         setDeployedAgents(agents)
       }
     } catch (error) {
@@ -321,6 +344,7 @@ function AgentsLabPageInner() {
       fetchDeployedAgents()
       fetchRadarOpportunities()
       fetchPullRequests()
+      fetchGitHubStatus()
     }
   }, [profile.id])
 
@@ -582,14 +606,10 @@ function AgentsLabPageInner() {
     repo.fullName.toLowerCase().includes(repoSearchQuery.toLowerCase())
   )
   
-  // Handle GitHub connection
+  // Handle GitHub connection - redirect to integrations page
   const handleGithubConnect = async () => {
-    setIsConnectingGithub(true)
-    // Simulate GitHub OAuth flow
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    setIsGithubConnected(true)
-    setIsConnectingGithub(false)
-    setIsRepoDropdownOpen(true)
+    // Redirect to integrations page to connect GitHub
+    window.location.href = '/dashboard/settings/integrations'
   }
   
   // Handle repo selection
@@ -1703,7 +1723,17 @@ function AgentsLabPageInner() {
                                       {agent.agentName}
                                     </p>
                                     <p className="text-xs leading-relaxed text-white/60">
-                                      {agent.agentDescription}
+                                      {agent.githubRepo ? (
+                                        <span className="flex items-center gap-1.5">
+                                          <svg className="w-3 h-3 text-white/50" fill="currentColor" viewBox="0 0 24 24">
+                                            <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+                                          </svg>
+                                          <span className="font-mono">{agent.githubRepo}</span>
+                                          {agent.githubBranch && <span className="text-white/40">({agent.githubBranch})</span>}
+                                        </span>
+                                      ) : (
+                                        agent.agentDescription
+                                      )}
                                     </p>
                                   </div>
                                 </div>

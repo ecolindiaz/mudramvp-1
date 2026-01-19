@@ -4,7 +4,7 @@ import * as React from "react"
 import { forwardRef } from "react"
 import { useSession } from "next-auth/react"
 import { IconSearch, IconPhone, IconMessage } from "@tabler/icons-react"
-import { LayoutDashboard, MessageSquare, Bug, User, FileText, Link as LinkIcon } from "lucide-react"
+import { LayoutDashboard, MessageSquare, Bug, User, FileText, Link as LinkIcon, Inbox } from "lucide-react"
 import type { LucideProps } from "lucide-react"
 
 // Custom Astromech Agent Icon Component - Fixed to match Lucide icon type
@@ -29,6 +29,7 @@ import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
 import { SearchCommand } from "@/components/search-command"
+import { InboxPanel } from "@/components/inbox-panel"
 import {
   Sidebar,
   SidebarContent,
@@ -123,6 +124,7 @@ const data = {
 export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false)
   const [searchOpen, setSearchOpen] = React.useState(false)
+  const [inboxOpen, setInboxOpen] = React.useState(false)
   const [isMounted, setIsMounted] = React.useState(false)
   
   // Get session data from NextAuth
@@ -199,11 +201,11 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
       >
         <SidebarHeader className="pb-0 bg-dark-grey h-[var(--header-height)] flex items-center">
           {/* Company Header */}
-          <div className="px-3 w-full">
+          <div className="px-2.5 w-full">
             <button
               onClick={handleCompanyMenuClick}
               onKeyDown={handleCompanyMenuKeyDown}
-              className="inline-flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-200 cursor-pointer group/company focus:outline-none hover:bg-white/[0.03] w-full"
+              className="inline-flex items-center gap-2.5 px-0 py-2 rounded-lg transition-all duration-200 cursor-pointer group/company focus:outline-none hover:bg-white/[0.03] w-full"
               aria-label={`Company menu for ${companyData.name}${companyData.website ? ` (${companyData.website})` : ''}`}
               aria-expanded={isDropdownOpen}
               aria-haspopup="menu"
@@ -245,10 +247,45 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
         {/* Divider */}
         <Separator className="w-full border-white/[0.08]" />
         
-        <SidebarContent className="px-0 bg-dark-grey pt-4">
+        <SidebarContent className="px-0 bg-dark-grey pt-3">
+          {/* Search Bar - Moved to top */}
+          <div className="px-3 pb-1.5">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="relative group w-full h-9 text-left transition-all rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.12]"
+            >
+              <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 group-hover:text-white/60 transition-colors" />
+              <div className="w-full h-full pl-9 pr-3 text-sm flex items-center justify-between text-white/40 group-hover:text-white/60">
+                <span>Search</span>
+                <kbd className="pointer-events-none inline-flex h-4 select-none items-center rounded border border-white/[0.08] bg-white/[0.05] px-1.5 font-mono text-[9px] font-medium text-white/50">
+                  ⌘K
+                </kbd>
+              </div>
+            </button>
+          </div>
+
+          {/* Inbox Button */}
+          <div className="px-3 pb-1">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <InboxPanel open={inboxOpen} onOpenChange={setInboxOpen}>
+                  <SidebarMenuButton
+                    tooltip="Inbox"
+                    className="h-8 px-3 text-sm font-medium relative transition-all duration-200 group rounded text-white/70 hover:text-white/80 hover:bg-white/10 cursor-pointer"
+                  >
+                    <Inbox className="w-4 h-4 mr-2.5 transition-all duration-200 text-white/60 group-hover:text-white/80" />
+                    <span className="transition-all duration-200 font-normal">
+                      Inbox
+                    </span>
+                  </SidebarMenuButton>
+                </InboxPanel>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </div>
+
           {/* Main Navigation */}
           <NavMain items={data.navMain} />
-          
+
           <NavSecondary items={data.navSecondary} className="mt-auto" />
         </SidebarContent>
         <SidebarFooter className="bg-dark-grey space-y-3 pb-4">
@@ -266,28 +303,12 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
               <span className="font-medium">Feedback</span>
             </button>
           </div>
-          
+
           {/* Divider */}
           <div className="px-3">
             <div className="h-px bg-white/[0.08]"></div>
           </div>
-          
-          {/* Search Bar - Refined */}
-          <div className="px-3">
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="relative group w-full h-9 text-left transition-all rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.12]"
-            >
-              <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 group-hover:text-white/60 transition-colors" />
-              <div className="w-full h-full pl-9 pr-3 text-xs flex items-center justify-between text-white/40 group-hover:text-white/60">
-                <span>Search</span>
-                <kbd className="pointer-events-none inline-flex h-4 select-none items-center rounded border border-white/[0.08] bg-white/[0.05] px-1.5 font-mono text-[9px] font-medium text-white/50">
-                  ⌘K
-                </kbd>
-              </div>
-            </button>
-          </div>
-          
+
           <NavUser user={userData} />
         </SidebarFooter>
       </Sidebar>

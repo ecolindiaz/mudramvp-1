@@ -28,7 +28,7 @@ const NavigationItem = memo(({
       tooltip={item.title}
       isActive={isActive}
       asChild
-      className={`h-9 px-3 text-sm font-medium relative transition-all duration-200 group rounded ${
+      className={`h-8 px-3 text-sm font-medium relative transition-all duration-200 group rounded ${
         isActive
           ? 'text-white/80 bg-white/10'
           : 'text-white/70 hover:text-white/80 hover:bg-white/10'
@@ -71,10 +71,10 @@ export const NavMain = memo(function NavMain({
   const pathname = usePathname()
 
   return (
-    <div className="px-2 space-y-4">
+    <div className="px-2 space-y-3">
       {items?.map((section, index) => (
         <SidebarGroup key={section.title}>
-          <SidebarGroupLabel className="text-sm font-medium text-white/50 px-2 pb-2 pt-1">
+          <SidebarGroupLabel className="text-sm font-medium text-white/50 px-2 pb-1.5 pt-0">
             {section.title}
           </SidebarGroupLabel>
           <SidebarGroupContent>

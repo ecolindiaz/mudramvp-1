@@ -56,6 +56,8 @@ model BrandProfile {
   site_structure_scores      SiteStructureScore[]
   sitemap_pages              SitemapPage[]
   trackingCode               TrackingCode?
+  campaigns                  Campaign[]
+  conversationOpportunities  ConversationOpportunity[]
 
   @@index([userId])
 }
@@ -818,4 +820,99 @@ enum RecommendationSeverity {
   HIGH
   MEDIUM
   LOW
+}
+
+// ============================================================================
+// CONVERSATION RADAR
+// ============================================================================
+
+model ConversationOpportunity {
+  id                       Int          @id @default(autoincrement())
+  brandProfileId           Int
+
+  // Discovery source
+  mode                     String       // 'cited' | 'proactive'
+  platform                 String       // 'reddit'
+  discoveredVia            Json?        // Array of discovery sources
+  searchQuery              String?      // The query used (for proactive)
+
+  // Reddit post data
+  postId                   String?
+  postUrl                  String
+  postTitle                String?
+  postBody                 String?
+  postAuthor               String?
+  postCreatedAt            DateTime?
+  subreddit                String?
+  score                    Int?
+  numComments              Int?
+  upvoteRatio              Float?
+  engagementString         String?
+
+  // LLM Analysis results
+  conversationSnapshot     String?      // 2-3 sentence summary
+  whyThisMatters           Json?        // String array of reasons
+  suggestedAngle           String?      // Strategic guidance
+  relevanceScore           Int?         // 0-100
+  impact                   String?      // 'High' | 'Medium' | 'Low'
+  engagementTiming         String?      // 'urgent' | 'soon' | 'whenever'
+  warningFlags             Json?        // String array
+  isPromotionalOpportunity Boolean?
+  promotionalReason        String?
+
+  // Status tracking
+  status                   String       @default("new") // 'new' | 'engaged' | 'dismissed'
+  engagedAt                DateTime?
+  dismissedAt              DateTime?
+  dismissReason            String?
+
+  // Quality metrics
+  qualityScore             Float?
+
+  // Timestamps
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+
+  // Relations
+  brandProfile             BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([brandProfileId, postUrl])
+  @@index([brandProfileId])
+  @@index([brandProfileId, status])
+  @@index([brandProfileId, relevanceScore])
+  @@index([status])
+  @@index([createdAt])
+  @@map("conversation_opportunities")
+}
+
+// ============================================================================
+// CAMPAIGNS
+// ============================================================================
+
+model Campaign {
+  id             String       @id @default(cuid())
+  userId         String?
+  brandProfileId Int?
+  title          String
+  body           String
+  type           String       @default("blog") // 'blog' | 'social' | 'email'
+  mode           String       @default("geo")  // 'geo' | 'brand'
+  status         String       @default("draft") // 'draft' | 'published' | 'scheduled'
+  slug           String?
+  prompt         String?      // The AI prompt used to generate
+  icp            String?      // Ideal customer profile
+  keyword        String?      // Target keyword
+  metadata       Json         @default("{}")
+  publishedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Relations
+  brandProfile   BrandProfile? @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([brandProfileId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("campaigns")
 }

@@ -1,39 +1,34 @@
-## Vercel Web Analytics Implementation
+## Vercel Speed Insights Integration
 
-Successfully installed and configured Vercel Web Analytics for the Next.js application.
+Successfully installed and configured Vercel Speed Insights for the Next.js project.
 
-### What Was Implemented:
+### What was implemented:
 
-1. **Installed Package**: 
-   - Ran `npm install @vercel/analytics` to add the package to the project
-   - Package version: ^1.6.1
-   - Updated package.json with the new dependency
+1. **Package Installation**
+   - Installed `@vercel/speed-insights` (version ^1.3.1) using pnpm
+   - Updated pnpm-lock.yaml with the new dependency
 
-2. **Updated Root Layout**:
-   - Modified: `app/layout.tsx`
-   - Added import: `import { Analytics } from "@vercel/analytics/next";`
-   - Added the `<Analytics />` component inside the `<body>` tag within the ThemeProvider
-   - Placed after `<Toaster />` component, maintaining existing code structure
+2. **Component Integration**
+   - Added import statement: `import { SpeedInsights } from "@vercel/speed-insights/next"`
+   - Added `<SpeedInsights />` component in the root layout (app/layout.tsx)
+   - Placed the component inside the `<body>` tag, after the `<Analytics />` component
 
-3. **Project Type**:
-   - Verified this is an App Router project (has `/app` directory with layout.tsx)
-   - Used the correct import path for App Router: `@vercel/analytics/next`
+### Files Modified:
+- `mudra-app/package.json` - Added @vercel/speed-insights dependency
+- `mudra-app/pnpm-lock.yaml` - Updated lock file with new dependency
+- `mudra-app/app/layout.tsx` - Added SpeedInsights import and component
 
-4. **Files Modified**:
-   - `app/layout.tsx` - Added Analytics import and component
-   - `package.json` - Added @vercel/analytics dependency
-   - `package-lock.json` - Updated lock file with new dependency and its subdependencies
-   - `next-env.d.ts` - Auto-generated type definitions updated
+### Implementation Details:
+
+The project uses Next.js 16.1.3 with the App Router, so the import from `@vercel/speed-insights/next` was used (recommended for Next.js 13.5+). The SpeedInsights component was added to the root layout to ensure it's available across all pages.
+
+The component is placed after the existing `<Analytics />` component from Vercel Analytics, maintaining consistency with other tracking and monitoring integrations already present in the application.
 
 ### Verification:
-- Package installation successful with npm
-- Analytics component properly imported and placed in root layout
-- Compilation successful (built with Turbopack)
-- No linting errors introduced from the changes
-- All dependencies properly resolved and locked
 
-### Notes:
-- The component is placed inside the body tag as recommended, after the Toaster component
-- Positioning within the ThemeProvider ensures proper context inheritance
-- The implementation follows Vercel Web Analytics documentation for Next.js App Router
-- No existing code structure was modified, only additions made
+- Package was successfully installed and appears in package.json and lock file
+- The `/next` export path exists in the @vercel/speed-insights package
+- The layout file structure is preserved and maintains all existing functionality
+- The component is correctly positioned within the body tag alongside other UI providers
+
+The integration is now complete and ready to collect Web Vitals data from the application.

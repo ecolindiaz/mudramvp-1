@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { mastra } from "@/mastra";
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
-import { prisma } from "@/lib/prisma";
 import { requireAuth } from '@/lib/auth/require-auth';
 import { applyRateLimit } from '@/lib/auth/rate-limiter';
 
@@ -108,46 +107,12 @@ export async function POST(req: NextRequest) {
         if (result.status === "success" && result.result) {
           console.log(`[Workflow ${workflowRunId}] Completed successfully`);
           
-          // Save to database
+          // Generate campaign ID for tracking
           const campaignId = `cmp_${Date.now().toString(36)}`;
-          const slug = result.result.metadata.title
-            .toLowerCase()
-            .replace(/[^a-z0-9\s-]/g, "")
-            .replace(/\s+/g, "-")
-            .replace(/-+/g, "-")
-            .trim();
 
-          try {
-            await prisma.campaign.create({
-              data: {
-                id: campaignId,
-                brandProfileId: brandProfile.id,
-                title: result.result.metadata.title,
-                body: result.result.content,
-                type: "Blog Post",
-                mode: "geo",
-                status: "draft",
-                slug: slug,
-                prompt: workflowInput.trackedPrompt,
-                icp: brandContext.targetICP || "",
-                metadata: JSON.stringify({
-                  wordCount: result.result.metadata.wordCount,
-                  sections: result.result.metadata.sections,
-                  sourcesScraped: result.result.metadata.sourcesScraped,
-                  researchQueriesRun: result.result.metadata.researchQueriesRun,
-                  author: result.result.metadata.author,
-                  metaDescription: (result.result.metadata as any).metaDescription || "",
-                  tags: ["AEO"],
-                  sources: result.result.metadata.sources || [],
-                  generatedAt: new Date().toISOString(),
-                  workflowRunId,
-                }),
-              },
-            });
-            console.log(`[Workflow ${workflowRunId}] Saved campaign ${campaignId} to database`);
-          } catch (dbError) {
-            console.error(`[Workflow ${workflowRunId}] Failed to save to database:`, dbError);
-          }
+          // NOTE: Campaign model doesn't exist in schema yet
+          // Storing result in memory only for now
+          console.log(`[Workflow ${workflowRunId}] Campaign ${campaignId} generated (not persisted - Campaign model not in schema)`);
 
           activeRuns.set(workflowRunId, {
             status: "completed",
@@ -220,46 +185,9 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // If not in memory (e.g., server recompiled), check database for completed campaign
-  // This handles the case where the workflow completed but the server restarted
-  try {
-    const campaign = await prisma.campaign.findFirst({
-      where: {
-        metadata: {
-          contains: workflowRunId,
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-
-    if (campaign) {
-      // Found a completed campaign for this workflow!
-      const metadata = campaign.metadata ? JSON.parse(campaign.metadata) : {};
-      
-      return NextResponse.json({
-        success: true,
-        workflowRunId,
-        status: "completed",
-        result: {
-          campaignId: campaign.id,
-          content: campaign.body,
-          metadata: {
-            title: campaign.title,
-            wordCount: metadata.wordCount,
-            sections: metadata.sections,
-            author: metadata.author,
-            sourcesScraped: metadata.sourcesScraped,
-            researchQueriesRun: metadata.researchQueriesRun,
-          },
-        },
-      });
-    }
-  } catch (dbError) {
-    console.error(`[API GET] Database lookup failed for ${workflowRunId}:`, dbError);
-  }
-
+  // If not in memory (e.g., server recompiled), the workflow state is lost
+  // Campaign model doesn't exist in schema, so we can't check database
+  
   // Not found anywhere - could still be processing or truly expired
   return NextResponse.json(
     { 

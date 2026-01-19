@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { runSinglePromptAnalysis } from '../../../../lib/services/single-prompt-analysis.service'
 
 // Validation constants
 const MAX_PROMPT_LENGTH = 500
 const MAX_ACTIVE_PROMPTS = 50
-const VALID_CATEGORIES = ['Organic', 'How-to', 'Brand-Specific', 'Competitor', 'How-to Guides']
+const VALID_CATEGORIES = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific']
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,14 +38,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate category
+    // Validate category (case-insensitive)
     const normalizedCategory = category || 'Organic'
-    if (!VALID_CATEGORIES.includes(normalizedCategory)) {
+    const categoryMatch = VALID_CATEGORIES.find(
+      cat => cat.toLowerCase() === normalizedCategory.toLowerCase()
+    )
+    if (!categoryMatch) {
       return NextResponse.json(
         { success: false, error: { message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}`, code: 'VALIDATION_ERROR' } },
         { status: 400 }
       )
     }
+    // Use the canonical casing from VALID_CATEGORIES
+    const canonicalCategory = categoryMatch
 
     // Validate brandProfileId is a number
     if (typeof brandProfileId !== 'number' || brandProfileId <= 0) {
@@ -91,7 +97,7 @@ export async function POST(request: NextRequest) {
         const created = await tx.prompt.create({
           data: {
             text: trimmedText,
-            category: normalizedCategory,
+            category: canonicalCategory,
             isCustom: true,
             isActive: true,
             brandProfileId: brandProfileId,
@@ -125,7 +131,7 @@ export async function POST(request: NextRequest) {
       const prismaError = error as { code?: string; message?: string }
       if (prismaError.code === 'P2021' || prismaError.message?.includes('does not exist') || prismaError.code === 'P2003') {
         console.log('⚠️ Prisma client error, using raw SQL fallback...')
-        newPrompt = await createPromptWithRawSQL(brandProfileId, trimmedText, normalizedCategory)
+        newPrompt = await createPromptWithRawSQL(brandProfileId, trimmedText, canonicalCategory)
       } else {
         throw error
       }
@@ -138,7 +144,7 @@ export async function POST(request: NextRequest) {
     if (runAnalysis) {
       try {
         // Trigger single-prompt analysis asynchronously (don't block response)
-        triggerSinglePromptAnalysis(brandProfileId, newPrompt.id, trimmedText, normalizedCategory)
+        triggerSinglePromptAnalysis(brandProfileId, newPrompt.id, trimmedText, newPrompt.category || canonicalCategory)
           .catch(err => console.error('❌ Background analysis failed:', err))
         analysisTriggered = true
         console.log(`🚀 Triggered immediate analysis for prompt ${newPrompt.id}`)
@@ -263,9 +269,6 @@ async function triggerSinglePromptAnalysis(
   promptText: string,
   category: string
 ): Promise<void> {
-  // Import here to avoid circular dependencies
-  const { runSinglePromptAnalysis } = await import('@/lib/services/single-prompt-analysis.service')
-  
   await runSinglePromptAnalysis({
     brandProfileId,
     promptId,

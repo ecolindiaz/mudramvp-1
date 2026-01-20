@@ -175,8 +175,9 @@ function isProviderAvailable(provider: string, apiKeys: DirectGEOConfig['apiKeys
 
 /**
  * Analyze a single prompt with a provider
+ * Exported for use by single-prompt analysis service
  */
-async function analyzePromptWithProvider(
+export async function analyzePromptWithProvider(
   prompt: string,
   provider: string,
   config: DirectGEOConfig

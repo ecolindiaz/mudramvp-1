@@ -1,10 +1,5 @@
-import { PrismaClient, Prisma, WeeklyReport, WeeklyReportSection } from "@prisma/client";
-
-// Local singleton Prisma client (mirrors pattern used elsewhere)
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-export const prisma: PrismaClient =
-  globalForPrisma.prisma ?? new PrismaClient();
-if (!globalForPrisma.prisma) globalForPrisma.prisma = prisma;
+import { Prisma, WeeklyReport, WeeklyReportSection } from "@prisma/client";
+import { prisma } from '@/lib/prisma';
 
 export type WeeklyReportWithRelations = WeeklyReport & {
   sections: WeeklyReportSection[];
@@ -77,7 +72,7 @@ export async function upsertWeeklyReport(
         status: input.status,
         model: input.model,
         summaryMarkdown: input.summaryMarkdown,
-        summaryJson: input.summaryJson !== undefined ? JSON.stringify(input.summaryJson) : null,
+        summaryJson: input.summaryJson === null ? Prisma.JsonNull : input.summaryJson,
         tokensIn: input.tokensIn ?? undefined,
         tokensOut: input.tokensOut ?? undefined,
         costCents: input.costCents ?? undefined,
@@ -88,7 +83,7 @@ export async function upsertWeeklyReport(
         status: input.status ?? "queued",
         model: input.model ?? null,
         summaryMarkdown: input.summaryMarkdown ?? null,
-        summaryJson: input.summaryJson !== undefined ? JSON.stringify(input.summaryJson) : null,
+        summaryJson: input.summaryJson === null ? Prisma.JsonNull : input.summaryJson,
         tokensIn: input.tokensIn ?? undefined,
         tokensOut: input.tokensOut ?? undefined,
         costCents: input.costCents ?? undefined,
@@ -111,7 +106,7 @@ export async function upsertWeeklyReport(
             title: section.title ?? null,
             order: section.order ?? index,
             bodyMarkdown: section.bodyMarkdown ?? null,
-            bodyJson: section.bodyJson !== undefined ? JSON.stringify(section.bodyJson) : null,
+            bodyJson: section.bodyJson ?? undefined,
           },
         });
       }

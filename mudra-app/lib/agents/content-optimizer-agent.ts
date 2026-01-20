@@ -1,5 +1,6 @@
 import { MudraBaseAgent, type AgentExecutionInput, type AgentExecutionOutput } from './base-agent'
 import { prisma } from '@/lib/prisma'
+import OpenAI from 'openai'
 
 interface PageToOptimize {
   url: string
@@ -24,6 +25,14 @@ interface Improvement {
 interface PRResult {
   prUrl: string
   prNumber: number
+}
+
+interface LLMGeneratedImprovement {
+  type: string
+  description: string
+  code: string
+  impact: string
+  reasoning: string
 }
 
 /**
@@ -77,9 +86,9 @@ export class ContentOptimizerAgent extends MudraBaseAgent {
 
       for (const page of pagesToOptimize) {
         try {
-          // Generate improvements
+          // Generate improvements using LLM
           const improvements = await this.generateImprovements(page)
-          totalTokensUsed += 500 // Estimate for GPT-4 call
+          totalTokensUsed += 1500 // GPT-4o: ~500 input + ~1000 output tokens
 
           // Create PR
           const prResult = await this.createPR(page.url, improvements)
@@ -194,9 +203,154 @@ export class ContentOptimizerAgent extends MudraBaseAgent {
   }
 
   /**
-   * Generate improvements for a page based on its analysis
+   * Generate improvements for a page using LLM (GPT-4o)
+   * Uses brand context to generate relevant, personalized optimizations
    */
   private async generateImprovements(page: PageToOptimize): Promise<Improvement[]> {
+    const brandProfile = await this.getBrandProfile()
+    
+    if (!brandProfile) {
+      console.warn('[ContentOptimizer] Brand profile not found, using fallback generation')
+      return this.generateFallbackImprovements(page)
+    }
+
+    // Check for OpenAI API key
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn('[ContentOptimizer] OpenAI API key not configured, using fallback generation')
+      return this.generateFallbackImprovements(page)
+    }
+
+    try {
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      })
+
+      const systemPrompt = `You are a GEO (Generative Engine Optimization) expert helping optimize web pages for AI visibility.
+Your task is to generate specific, actionable code improvements that will help AI systems better understand and cite this content.
+
+Brand Context:
+- Company: ${brandProfile.companyName || 'Unknown Company'}
+- Website: ${brandProfile.companyWebsite || 'https://example.com'}
+- Industry: ${brandProfile.companyIndustry || 'Technology'}
+- Description: ${brandProfile.companyDescription || 'No description provided'}
+- Services: ${brandProfile.companyServices || 'No services listed'}
+- ICP: ${brandProfile.companyICP || 'No ICP defined'}
+
+Generate improvements as a JSON array with this structure:
+[
+  {
+    "type": "schema_markup" | "faq_section" | "headers" | "meta_tags",
+    "description": "Clear description of the improvement",
+    "code": "Complete, ready-to-use HTML/JSON-LD code",
+    "impact": "high" | "medium" | "low",
+    "reasoning": "Why this helps AI visibility"
+  }
+]
+
+Important guidelines:
+1. Use REAL company data (name, website, description) in all schema markup
+2. Generate FAQ questions relevant to the company's actual industry/product
+3. All code must be complete and production-ready
+4. Focus on improvements that help AI models cite this content
+5. Prioritize: Schema markup > FAQ sections > Headers`
+
+      const userPrompt = `Analyze this page and generate optimization improvements:
+
+Page URL: ${page.url}
+Current GEO Score: ${page.score}%
+Missing Schemas: ${page.missingSchemas?.join(', ') || 'None detected'}
+Has FAQ Section: ${page.hasFAQ ? 'Yes' : 'No'}
+Headings: H1=${page.headings?.h1Count || 0}, H2=${page.headings?.h2Count || 0}, H3=${page.headings?.h3Count || 0}
+
+Generate 2-4 high-impact improvements that will increase this page's AI visibility.
+Return ONLY a valid JSON array, no markdown or explanation.`
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+        response_format: { type: 'json_object' },
+      })
+
+      const content = response.choices[0]?.message?.content
+      if (!content) {
+        console.warn('[ContentOptimizer] Empty LLM response, using fallback')
+        return this.generateFallbackImprovements(page)
+      }
+
+      // Parse the JSON response
+      let parsed: { improvements?: LLMGeneratedImprovement[] }
+      try {
+        parsed = JSON.parse(content)
+      } catch (parseError) {
+        console.error('[ContentOptimizer] Failed to parse LLM response:', parseError)
+        return this.generateFallbackImprovements(page)
+      }
+
+      const llmImprovements = parsed.improvements || (Array.isArray(parsed) ? parsed : [])
+      
+      // Transform to our Improvement interface
+      const improvements: Improvement[] = llmImprovements.map((imp: LLMGeneratedImprovement) => ({
+        type: this.normalizeImprovementType(imp.type),
+        description: imp.description,
+        code: imp.code,
+        impact: this.normalizeImpact(imp.impact),
+        filePath: this.extractFilePath(page.url),
+      }))
+
+      console.log(`[ContentOptimizer] LLM generated ${improvements.length} improvements for ${page.url}`)
+      
+      // Sort by impact (high > medium > low)
+      return improvements.sort((a, b) => {
+        const impactOrder = { high: 3, medium: 2, low: 1 }
+        return impactOrder[b.impact] - impactOrder[a.impact]
+      })
+
+    } catch (error) {
+      console.error('[ContentOptimizer] LLM generation failed:', error)
+      return this.generateFallbackImprovements(page)
+    }
+  }
+
+  /**
+   * Normalize improvement type from LLM response
+   */
+  private normalizeImprovementType(type: string): Improvement['type'] {
+    const normalized = type.toLowerCase().replace(/[^a-z_]/g, '')
+    const validTypes: Improvement['type'][] = ['schema_markup', 'faq_section', 'headers', 'meta_tags']
+    
+    if (validTypes.includes(normalized as Improvement['type'])) {
+      return normalized as Improvement['type']
+    }
+    
+    // Map common variations
+    if (normalized.includes('schema')) return 'schema_markup'
+    if (normalized.includes('faq')) return 'faq_section'
+    if (normalized.includes('header') || normalized.includes('heading')) return 'headers'
+    if (normalized.includes('meta')) return 'meta_tags'
+    
+    return 'schema_markup' // Default
+  }
+
+  /**
+   * Normalize impact level from LLM response
+   */
+  private normalizeImpact(impact: string): Improvement['impact'] {
+    const normalized = impact.toLowerCase()
+    if (normalized.includes('high')) return 'high'
+    if (normalized.includes('low')) return 'low'
+    return 'medium' // Default
+  }
+
+  /**
+   * Fallback improvements when LLM is unavailable
+   * Uses templates with basic brand data
+   */
+  private async generateFallbackImprovements(page: PageToOptimize): Promise<Improvement[]> {
     const improvements: Improvement[] = []
 
     // 1. Schema markup improvements
@@ -242,19 +396,20 @@ export class ContentOptimizerAgent extends MudraBaseAgent {
   }
 
   /**
-   * Generate schema markup code for a specific type
+   * Generate schema markup code for a specific type (fallback/template version)
    */
   private generateSchemaMarkup(schemaType: string): string {
-    const brandProfile = this.getBrandProfile()
-    
+    // Note: This is a template fallback - LLM generates better, personalized versions
     const schemas: Record<string, string> = {
       Organization: `<script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "Organization",
-  "name": "Your Company Name",
-  "url": "${(brandProfile as any)?.companyWebsite || 'https://example.com'}",
-  "logo": "${(brandProfile as any)?.companyWebsite || 'https://example.com'}/logo.png"
+  "name": "[YOUR COMPANY NAME]",
+  "url": "[YOUR WEBSITE URL]",
+  "logo": "[YOUR LOGO URL]",
+  "description": "[YOUR COMPANY DESCRIPTION]",
+  "sameAs": []
 }
 </script>`,
       BreadcrumbList: `<script type="application/ld+json">
@@ -265,29 +420,69 @@ export class ContentOptimizerAgent extends MudraBaseAgent {
     "@type": "ListItem",
     "position": 1,
     "name": "Home",
-    "item": "${(brandProfile as any)?.companyWebsite || 'https://example.com'}"
+    "item": "[YOUR WEBSITE URL]"
   }]
 }
 </script>`,
       FAQPage: this.generateFAQSection(),
+      Product: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "[PRODUCT NAME]",
+  "description": "[PRODUCT DESCRIPTION]",
+  "brand": {
+    "@type": "Brand",
+    "name": "[YOUR COMPANY NAME]"
+  }
+}
+</script>`,
+      WebSite: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "[YOUR COMPANY NAME]",
+  "url": "[YOUR WEBSITE URL]",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "[YOUR WEBSITE URL]/search?q={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+}
+</script>`,
     }
 
-    return schemas[schemaType] || `<!-- Add ${schemaType} schema here -->`
+    return schemas[schemaType] || `<!-- Add ${schemaType} schema markup here -->`
   }
 
   /**
-   * Generate FAQ section with schema markup
+   * Generate FAQ section with schema markup (fallback/template version)
+   * Note: LLM generates industry-specific, personalized FAQ content
    */
   private generateFAQSection(): string {
-    return `<section class="faq-section">
+    return `<!-- FAQ Section with Schema Markup -->
+<section class="faq-section" itemscope itemtype="https://schema.org/FAQPage">
   <h2>Frequently Asked Questions</h2>
-  <div class="faq-item">
-    <h3>Question 1: What is your main service?</h3>
-    <p>Answer: [Your detailed answer here]</p>
+  
+  <div class="faq-item" itemscope itemprop="mainEntity" itemtype="https://schema.org/Question">
+    <h3 itemprop="name">What problem does your product/service solve?</h3>
+    <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
+      <p itemprop="text">[Describe the core problem you solve and how your solution helps]</p>
+    </div>
   </div>
-  <div class="faq-item">
-    <h3>Question 2: How does it work?</h3>
-    <p>Answer: [Your detailed answer here]</p>
+  
+  <div class="faq-item" itemscope itemprop="mainEntity" itemtype="https://schema.org/Question">
+    <h3 itemprop="name">How does your solution work?</h3>
+    <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
+      <p itemprop="text">[Explain your process or technology in simple terms]</p>
+    </div>
+  </div>
+  
+  <div class="faq-item" itemscope itemprop="mainEntity" itemtype="https://schema.org/Question">
+    <h3 itemprop="name">What makes you different from competitors?</h3>
+    <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
+      <p itemprop="text">[Highlight your unique value proposition]</p>
+    </div>
   </div>
 </section>
 
@@ -295,21 +490,32 @@ export class ContentOptimizerAgent extends MudraBaseAgent {
 {
   "@context": "https://schema.org",
   "@type": "FAQPage",
-  "mainEntity": [{
-    "@type": "Question",
-    "name": "What is your main service?",
-    "acceptedAnswer": {
-      "@type": "Answer",
-      "text": "[Your detailed answer here]"
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What problem does your product/service solve?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "[Describe the core problem you solve and how your solution helps]"
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does your solution work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "[Explain your process or technology in simple terms]"
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What makes you different from competitors?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "[Highlight your unique value proposition]"
+      }
     }
-  }, {
-    "@type": "Question",
-    "name": "How does it work?",
-    "acceptedAnswer": {
-      "@type": "Answer",
-      "text": "[Your detailed answer here]"
-    }
-  }]
+  ]
 }
 </script>`
   }

@@ -1,169 +1,120 @@
+/**
+ * Campaign Save API
+ * 
+ * GET - List all campaigns for a brand
+ * POST - Create or update a campaign
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
-import { requireAuth } from "@/lib/auth/require-auth";
-import { applyRateLimit } from "@/lib/auth/rate-limiter";
 
 export async function POST(req: NextRequest) {
-  // Apply rate limiting
-  const rateLimited = applyRateLimit(req, 'standard');
-  if (rateLimited) return rateLimited;
-
   try {
-    // Require authentication
-    const authResult = await requireAuth();
-    if (!authResult.success) {
-      return authResult.response;
-    }
+    const body = await req.json();
+    const { id, title, body: campaignBody, type, mode, status, brandProfileId, userId, slug, prompt, icp, keyword, metadata } = body;
 
-    const { 
-      id, 
-      title, 
-      body, 
-      type, 
-      mode, 
-      status = "draft", 
-      metadata,
-      slug,
-      prompt,
-      icp,
-      keyword
-    } = await req.json();
-
-    console.log('💾 Campaign save request:', {
-      id,
-      title: title?.substring(0, 50) + '...',
-      type,
-      mode,
-      status,
-      slug,
-      prompt: prompt?.substring(0, 50) + '...',
-      icp: icp?.substring(0, 50) + '...',
-      keyword
-    });
-
-    if (!id || !title || !body) {
-      console.log('❌ Missing required fields:', { id: !!id, title: !!title, body: !!body });
+    if (!title || !campaignBody) {
       return NextResponse.json(
-        { error: "Missing required fields: id, title, body" },
+        { success: false, error: "Title and body are required" },
         { status: 400 }
       );
     }
 
-    // Get brand profile for ownership validation
-    const brandProfile = await getBrandProfileByUserId(authResult.user.id);
-    if (!brandProfile) {
-      return NextResponse.json(
-        { error: "Brand profile not found. Please complete onboarding first." },
-        { status: 400 }
-      );
+    if (id) {
+      // Update existing campaign
+      const campaign = await prisma.campaign.update({
+        where: { id },
+        data: {
+          title,
+          body: campaignBody,
+          type: type || "blog",
+          mode: mode || "geo",
+          status: status || "draft",
+          slug,
+          prompt,
+          icp,
+          keyword,
+          metadata: metadata || {},
+          updatedAt: new Date(),
+        },
+      });
+
+      return NextResponse.json({ success: true, campaign });
+    } else {
+      // Create new campaign
+      const campaign = await prisma.campaign.create({
+        data: {
+          title,
+          body: campaignBody,
+          type: type || "blog",
+          mode: mode || "geo",
+          status: status || "draft",
+          brandProfileId,
+          userId,
+          slug,
+          prompt,
+          icp,
+          keyword,
+          metadata: metadata || {},
+        },
+      });
+
+      return NextResponse.json({ success: true, campaign });
     }
-
-    // Check if campaign exists and belongs to this user (for updates)
-    const existingCampaign = await prisma.campaign.findUnique({
-      where: { id },
-      select: { brandProfileId: true }
-    });
-
-    if (existingCampaign && existingCampaign.brandProfileId !== brandProfile.id) {
-      console.log('❌ Unauthorized: Campaign belongs to different user');
-      return NextResponse.json(
-        { error: "Unauthorized: You don't have permission to modify this campaign" },
-        { status: 403 }
-      );
-    }
-
-    // Use Prisma upsert with brandProfileId for ownership
-    const campaign = await prisma.campaign.upsert({
-      where: { id },
-      update: {
-        title,
-        body,
-        type,
-        mode,
-        status,
-        slug,
-        prompt,
-        icp,
-        keyword,
-        metadata: JSON.stringify(metadata || {}),
-        updatedAt: new Date(),
-        ...(status === "published" && { publishedAt: new Date() })
-      },
-      create: {
-        id,
-        brandProfileId: brandProfile.id,
-        title,
-        body,
-        type: type || "blog",
-        mode: mode || "geo",
-        status,
-        slug,
-        prompt,
-        icp,
-        keyword,
-        metadata: JSON.stringify(metadata || {}),
-        ...(status === "published" && { publishedAt: new Date() })
-      }
-    });
-
-    console.log('✅ Campaign saved successfully:', {
-      id: campaign.id,
-      title: campaign.title?.substring(0, 50) + '...',
-      slug: campaign.slug,
-      prompt: campaign.prompt?.substring(0, 50) + '...',
-      icp: campaign.icp?.substring(0, 50) + '...',
-      keyword: campaign.keyword
-    });
-    
-    return NextResponse.json({ success: true, campaign });
-  } catch (error: any) {
-    console.error("❌ Save campaign error:", error);
+  } catch (error) {
+    console.error("[Campaigns API] Error saving campaign:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to save campaign" },
+      { success: false, error: "Failed to save campaign" },
       { status: 500 }
     );
   }
 }
 
 export async function GET(req: NextRequest) {
-  // Apply rate limiting
-  const rateLimited = applyRateLimit(req, 'standard');
-  if (rateLimited) return rateLimited;
-
   try {
-    // Require authentication
-    const authResult = await requireAuth();
-    if (!authResult.success) {
-      return authResult.response;
-    }
-
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status") || "draft";
+    const brandProfileId = searchParams.get("brandProfileId");
+    const userId = searchParams.get("userId");
+    const status = searchParams.get("status");
+    const limit = parseInt(searchParams.get("limit") || "50", 10);
+    const offset = parseInt(searchParams.get("offset") || "0", 10);
 
-    // Get brand profile for ownership filtering
-    const brandProfile = await getBrandProfileByUserId(authResult.user.id);
-    if (!brandProfile) {
-      return NextResponse.json(
-        { error: "Brand profile not found. Please complete onboarding first." },
-        { status: 400 }
-      );
+    const where: Record<string, unknown> = {};
+
+    if (brandProfileId) {
+      where.brandProfileId = parseInt(brandProfileId, 10);
     }
 
-    // Only return campaigns belonging to this user's brand profile
-    const campaigns = await prisma.campaign.findMany({
-      where: { 
-        status,
-        brandProfileId: brandProfile.id
-      },
-      orderBy: { updatedAt: 'desc' }
-    });
+    if (userId) {
+      where.userId = userId;
+    }
 
-    return NextResponse.json({ success: true, campaigns });
-  } catch (error: any) {
-    console.error("Get campaigns error:", error);
+    if (status && status !== "all") {
+      where.status = status;
+    }
+
+    const [campaigns, total] = await Promise.all([
+      prisma.campaign.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.campaign.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      campaigns,
+      meta: {
+        total,
+        limit,
+        offset,
+      },
+    });
+  } catch (error) {
+    console.error("[Campaigns API] Error fetching campaigns:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to get campaigns" },
+      { success: false, error: "Failed to fetch campaigns" },
       { status: 500 }
     );
   }

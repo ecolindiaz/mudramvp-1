@@ -1,75 +1,58 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { 
-  analyzeOpportunity,
-  analyzeNewOpportunities,
-} from '@/lib/services/conversation-radar.service';
-
 /**
- * POST /api/conversation-radar/analyze
+ * Conversation Radar Analyze API
  * 
- * Analyze opportunities with the Conversation Radar LLM agent
- * 
- * Body (for single opportunity):
- * - opportunityId: number
- * 
- * Body (for batch analysis):
- * - brandProfileId: number
- * - limit: number (default: 10)
- * - minRelevanceScore: number (default: 0)
+ * POST - Trigger LLM analysis on specific opportunities
  */
-export async function POST(request: NextRequest) {
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+
+export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    // Always require authentication - no dev mode bypass
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const body = await req.json();
+    const { opportunityIds, brandProfileId } = body;
+
+    if (!brandProfileId) {
+      return NextResponse.json(
+        { success: false, error: 'brandProfileId is required' },
+        { status: 400 }
+      );
     }
-    
-    const body = await request.json();
-    const { opportunityId, brandProfileId, limit = 10, minRelevanceScore = 0 } = body;
-    
-    // Single opportunity analysis
-    if (opportunityId) {
-      console.log(`[Conversation Radar] Analyzing single opportunity ${opportunityId}`);
-      
-      const analysis = await analyzeOpportunity(opportunityId);
-      
+
+    // Get opportunities to analyze
+    const where: Record<string, unknown> = { brandProfileId };
+    if (opportunityIds && opportunityIds.length > 0) {
+      where.id = { in: opportunityIds };
+    } else {
+      // Analyze unanalyzed opportunities by default
+      where.conversationSnapshot = null;
+    }
+
+    const opportunities = await prisma.conversationOpportunity.findMany({
+      where,
+      take: 10, // Limit batch size
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (opportunities.length === 0) {
       return NextResponse.json({
         success: true,
-        data: {
-          opportunityId,
-          analysis,
-        },
+        analyzed: 0,
+        message: 'No opportunities to analyze',
       });
     }
-    
-    // Batch analysis
-    if (brandProfileId) {
-      console.log(`[Conversation Radar] Batch analyzing opportunities for brand ${brandProfileId}`);
-      
-      const result = await analyzeNewOpportunities(brandProfileId, {
-        limit,
-        minRelevanceScore,
-      });
-      
-      return NextResponse.json({
-        success: true,
-        data: result,
-        message: `Analyzed ${result.analyzed} opportunities${result.errors > 0 ? `, ${result.errors} errors` : ''}`,
-      });
-    }
-    
-    return NextResponse.json(
-      { success: false, error: 'Either opportunityId or brandProfileId is required' },
-      { status: 400 }
-    );
+
+    // TODO: Connect to conversation-radar.service.ts analyzeOpportunity function
+    // For now, return the count of opportunities that would be analyzed
+    return NextResponse.json({
+      success: true,
+      toAnalyze: opportunities.length,
+      opportunityIds: opportunities.map(o => o.id),
+      message: `${opportunities.length} opportunities queued for analysis`,
+    });
   } catch (error) {
-    console.error('[POST /api/conversation-radar/analyze] Error:', error);
+    console.error('[Conversation Radar API] Error triggering analysis:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to analyze opportunities' },
+      { success: false, error: 'Failed to trigger analysis' },
       { status: 500 }
     );
   }

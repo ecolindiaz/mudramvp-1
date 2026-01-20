@@ -1,93 +1,96 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { 
-  getOpportunitiesForFrontend, 
-  getOpportunityForFrontend,
-  updateOpportunityStatus 
-} from '@/lib/services/conversation-radar.service';
-
 /**
- * GET /api/conversation-radar/opportunities
+ * Conversation Radar Opportunities API
  * 
- * Returns conversation opportunities for a brand or a single opportunity
- * 
- * Query params (for listing):
- * - brandProfileId: required (unless opportunityId is provided)
- * - status: 'new' | 'reviewed' | 'engaged' | 'dismissed' | 'all' (default: 'new')
- * - mode: 'cited' | 'proactive' (optional)
- * - platform: 'reddit' (optional)
- * - limit: number (default: 50)
- * - offset: number (default: 0)
- * 
- * Query params (for single opportunity):
- * - opportunityId: number (returns single opportunity with full details)
+ * GET - Fetch opportunities for a brand
+ * PATCH - Update opportunity status
  */
-export async function GET(request: NextRequest) {
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+
+export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    // Always require authentication - no dev mode bypass
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { searchParams } = new URL(request.url);
-    const opportunityId = searchParams.get('opportunityId');
-    
-    // Single opportunity fetch
-    if (opportunityId) {
-      const opportunity = await getOpportunityForFrontend(parseInt(opportunityId));
-      
-      if (!opportunity) {
-        return NextResponse.json(
-          { success: false, error: 'Opportunity not found' },
-          { status: 404 }
-        );
-      }
-      
-      return NextResponse.json({
-        success: true,
-        data: opportunity,
-      });
-    }
-    
-    // List opportunities
+    const { searchParams } = new URL(req.url);
     const brandProfileId = searchParams.get('brandProfileId');
     const status = searchParams.get('status') || 'new';
-    const mode = searchParams.get('mode') as 'cited' | 'proactive' | null;
-    const platform = searchParams.get('platform') as 'reddit' | null;
+    const mode = searchParams.get('mode');
+    const includeAll = searchParams.get('includeAll') === 'true';
+    const minRelevanceScore = parseInt(searchParams.get('minRelevanceScore') || '70', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
-    const includeAll = searchParams.get('includeAll') === 'true'; // For "All opportunities" view
-    
+
     if (!brandProfileId) {
       return NextResponse.json(
         { success: false, error: 'brandProfileId is required' },
         { status: 400 }
       );
     }
-    
-    const opportunities = await getOpportunitiesForFrontend(parseInt(brandProfileId), {
-      status,
-      mode: mode || undefined,
-      platform: platform || undefined,
-      limit,
-      offset,
-      includeAll, // If true, shows all relevance scores (for "All opportunities" view)
-    });
-    
+
+    const where: Record<string, unknown> = {
+      brandProfileId: parseInt(brandProfileId, 10),
+    };
+
+    if (status !== 'all') {
+      where.status = status;
+    }
+
+    if (mode) {
+      where.mode = mode;
+    }
+
+    // Only show high-relevance opportunities by default (70%+)
+    // Unless includeAll is true (for "All opportunities" view)
+    if (!includeAll && minRelevanceScore > 0) {
+      where.relevanceScore = { gte: minRelevanceScore };
+    }
+
+    const [opportunities, total] = await Promise.all([
+      prisma.conversationOpportunity.findMany({
+        where,
+        orderBy: [
+          { relevanceScore: 'desc' },
+          { postCreatedAt: 'desc' },
+        ],
+        take: limit,
+        skip: offset,
+      }),
+      prisma.conversationOpportunity.count({ where }),
+    ]);
+
+    // Format opportunities for frontend
+    const data = opportunities.map((opp) => ({
+      id: `opp-${opp.id}`,
+      dbId: opp.id,
+      title: opp.postTitle ? `Reddit: ${opp.postTitle}` : 'Reddit: Conversation opportunity',
+      description: opp.conversationSnapshot || (opp.postBody?.slice(0, 150) + '...' || 'No description'),
+      impact: getImpactLevel(opp.relevanceScore),
+      status: mapStatus(opp.status),
+      lastActivity: opp.updatedAt,
+      url: opp.postUrl,
+      platform: 'Reddit',
+      postedAt: opp.postCreatedAt,
+      engagement: opp.engagementString,
+      promptOrigin: opp.mode === 'cited' ? 'tracked' : 'search',
+      relevanceScore: opp.relevanceScore,
+      isPromotionalOpportunity: opp.isPromotionalOpportunity,
+      promotionalReason: opp.promotionalReason,
+      suggestedAngle: opp.suggestedAngle,
+      whyThisMatters: opp.whyThisMatters,
+      subreddit: opp.subreddit,
+      mode: opp.mode,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: opportunities,
+      data,
       meta: {
-        count: opportunities.length,
+        total,
+        count: data.length,
         limit,
         offset,
       },
     });
   } catch (error) {
-    console.error('[GET /api/conversation-radar/opportunities] Error:', error);
+    console.error('[Conversation Radar API] Error fetching opportunities:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch opportunities' },
       { status: 500 }
@@ -95,60 +98,59 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * PATCH /api/conversation-radar/opportunities
- * 
- * Update an opportunity's status
- * 
- * Body:
- * - opportunityId: number (required)
- * - status: 'new' | 'reviewed' | 'engaged' | 'dismissed' (required)
- * - dismissReason: string (optional, for dismissed status)
- */
-export async function PATCH(request: NextRequest) {
+export async function PATCH(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    // Allow dev mode bypass for testing
-    const isDev = process.env.NODE_ENV === 'development';
-    if (!isDev && !session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const body = await request.json();
+    const body = await req.json();
     const { opportunityId, status, dismissReason } = body;
-    
+
     if (!opportunityId || !status) {
       return NextResponse.json(
         { success: false, error: 'opportunityId and status are required' },
         { status: 400 }
       );
     }
-    
-    const validStatuses = ['new', 'reviewed', 'engaged', 'dismissed'];
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json(
-        { success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` },
-        { status: 400 }
-      );
+
+    const data: Record<string, unknown> = { status };
+
+    if (status === 'engaged') {
+      data.engagedAt = new Date();
+    } else if (status === 'dismissed') {
+      data.dismissedAt = new Date();
+      data.dismissReason = dismissReason;
     }
-    
-    const updated = await updateOpportunityStatus(
-      opportunityId,
-      status as 'new' | 'reviewed' | 'engaged' | 'dismissed',
-      dismissReason
-    );
-    
-    return NextResponse.json({
-      success: true,
-      data: updated,
+
+    const opportunity = await prisma.conversationOpportunity.update({
+      where: { id: opportunityId },
+      data,
     });
+
+    return NextResponse.json({ success: true, opportunity });
   } catch (error) {
-    console.error('[PATCH /api/conversation-radar/opportunities] Error:', error);
+    console.error('[Conversation Radar API] Error updating opportunity:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to update opportunity' },
       { status: 500 }
     );
+  }
+}
+
+function getImpactLevel(score?: number | null): 'High' | 'Medium' | 'Low' {
+  if (!score) return 'Medium';
+  if (score >= 70) return 'High';
+  if (score >= 40) return 'Medium';
+  return 'Low';
+}
+
+function mapStatus(status: string): 'running' | 'queued' | 'completed' | 'failed' {
+  switch (status) {
+    case 'new':
+      return 'queued';
+    case 'engaged':
+      return 'completed';
+    case 'dismissed':
+      return 'failed';
+    default:
+      return 'queued';
   }
 }
 

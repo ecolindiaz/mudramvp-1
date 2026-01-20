@@ -64,11 +64,17 @@ function AgentsLabPageInner() {
   const [branchSearchQuery, setBranchSearchQuery] = useState("")
   // PR sidebar
   const [isPrSheetOpen, setIsPrSheetOpen] = useState(false)
-  const activePullRequests: Array<{ id: number; title: string; branch: string; updatedAt: string; status: "open" | "draft" }> = [
-    { id: 142, title: "feat: improve LLMs.txt index generation", branch: "feature/llms-improve-index", updatedAt: "2m ago", status: "open" },
-    { id: 139, title: "fix: robots rules for AI crawlers", branch: "fix/robots-ai-crawlers", updatedAt: "14m ago", status: "draft" },
-    { id: 133, title: "docs: update GEO readme", branch: "docs/update-geo-readme", updatedAt: "38m ago", status: "open" },
-  ]
+  const [activePullRequests, setActivePullRequests] = useState<Array<{
+    id: number
+    number: number
+    title: string
+    branch: string
+    htmlUrl: string
+    updatedAt: string
+    status: "open" | "draft"
+  }>>([])
+  const [isLoadingPRs, setIsLoadingPRs] = useState(false)
+  const [prRepository, setPrRepository] = useState<string | null>(null)
   
   // State for GitHub connection
   const [isGithubConnected, setIsGithubConnected] = useState(false)
@@ -139,6 +145,8 @@ function AgentsLabPageInner() {
     deployedAt: Date
     lastActivity: Date
     status: "deploying" | "active" | "inactive"
+    githubRepo?: string
+    githubBranch?: string
   }>>([])
 
   // Handle agent selection from URL params (for back navigation from opportunity detail)
@@ -182,6 +190,22 @@ function AgentsLabPageInner() {
       totalTasks: radarOpportunities.length
     },
     "Citations Outreach": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
+  }
+
+  // Fetch GitHub connection status
+  const fetchGitHubStatus = async () => {
+    if (!profile.id) return
+
+    try {
+      const response = await fetch(`/api/github/status?brandProfileId=${profile.id}`)
+      const result = await response.json()
+      
+      if (result.success && result.connected) {
+        setIsGithubConnected(true)
+      }
+    } catch (error) {
+      console.error('Error fetching GitHub status:', error)
+    }
   }
 
   // Fetch Technical Structure score
@@ -234,6 +258,51 @@ function AgentsLabPageInner() {
     }
   }
 
+  // Fetch GitHub Pull Requests from configured repository
+  const fetchPullRequests = async () => {
+    if (!profile.id) return
+    
+    setIsLoadingPRs(true)
+    try {
+      const response = await fetch(`/api/github/pull-requests?brandProfileId=${profile.id}&state=open`)
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        // Format the PRs for display
+        const formattedPRs = result.data.map((pr: any) => ({
+          id: pr.id,
+          number: pr.number,
+          title: pr.title,
+          branch: pr.branch,
+          htmlUrl: pr.htmlUrl,
+          updatedAt: formatPrTimeAgo(new Date(pr.updatedAt)),
+          status: pr.draft ? 'draft' as const : 'open' as const,
+        }))
+        setActivePullRequests(formattedPRs)
+        setPrRepository(result.repository || null)
+      }
+    } catch (error) {
+      console.error('Error fetching pull requests:', error)
+    } finally {
+      setIsLoadingPRs(false)
+    }
+  }
+
+  // Helper to format time ago for PRs
+  const formatPrTimeAgo = (date: Date): string => {
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+    
+    if (diffMins < 1) return 'just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return date.toLocaleDateString()
+  }
+
   // Fetch deployed agents from database
   const fetchDeployedAgents = async () => {
     if (!profile.id) return
@@ -244,18 +313,23 @@ function AgentsLabPageInner() {
       
       if (result.success && result.data) {
         // Map database records to UI state
-        const agents = result.data.map((agent: any) => ({
-          id: `${agent.agentType}-${agent.id}`,
-          agentName: agent.agentType.split('_').map((w: string) => 
-            w.charAt(0).toUpperCase() + w.slice(1)
-          ).join(' '),
-          agentDescription: 'Deployed agent',
-          icon: Sparkles,
-          impact: 'High' as const,
-          deployedAt: new Date(agent.createdAt),
-          lastActivity: new Date(agent.updatedAt),
-          status: 'active' as const,
-        }))
+        const agents = result.data.map((agent: any) => {
+          const config = agent.config || {}
+          return {
+            id: `${agent.agentType}-${agent.id}`,
+            agentName: agent.agentType.split('_').map((w: string) => 
+              w.charAt(0).toUpperCase() + w.slice(1)
+            ).join(' '),
+            agentDescription: 'Deployed agent',
+            icon: Sparkles,
+            impact: 'High' as const,
+            deployedAt: new Date(agent.createdAt),
+            lastActivity: new Date(agent.updatedAt),
+            status: 'active' as const,
+            githubRepo: config.githubRepo,
+            githubBranch: config.githubBranch,
+          }
+        })
         setDeployedAgents(agents)
       }
     } catch (error) {
@@ -269,6 +343,8 @@ function AgentsLabPageInner() {
       fetchTechnicalHistory()
       fetchDeployedAgents()
       fetchRadarOpportunities()
+      fetchPullRequests()
+      fetchGitHubStatus()
     }
   }, [profile.id])
 
@@ -530,14 +606,10 @@ function AgentsLabPageInner() {
     repo.fullName.toLowerCase().includes(repoSearchQuery.toLowerCase())
   )
   
-  // Handle GitHub connection
+  // Handle GitHub connection - redirect to integrations page
   const handleGithubConnect = async () => {
-    setIsConnectingGithub(true)
-    // Simulate GitHub OAuth flow
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    setIsGithubConnected(true)
-    setIsConnectingGithub(false)
-    setIsRepoDropdownOpen(true)
+    // Redirect to integrations page to connect GitHub
+    window.location.href = '/dashboard/settings/integrations'
   }
   
   // Handle repo selection
@@ -1654,7 +1726,17 @@ function AgentsLabPageInner() {
                                       {agent.agentName}
                                     </p>
                                     <p className="text-xs leading-relaxed text-white/60">
-                                      {agent.agentDescription}
+                                      {agent.githubRepo ? (
+                                        <span className="flex items-center gap-1.5">
+                                          <svg className="w-3 h-3 text-white/50" fill="currentColor" viewBox="0 0 24 24">
+                                            <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+                                          </svg>
+                                          <span className="font-mono">{agent.githubRepo}</span>
+                                          {agent.githubBranch && <span className="text-white/40">({agent.githubBranch})</span>}
+                                        </span>
+                                      ) : (
+                                        agent.agentDescription
+                                      )}
                                     </p>
                                   </div>
                                 </div>
@@ -1848,23 +1930,37 @@ function AgentsLabPageInner() {
             <SheetTitle className="text-xl font-semibold text-white tracking-tight">
               Active Pull Requests
             </SheetTitle>
+            {prRepository && (
+              <p className="text-xs text-white/50 mt-1 font-mono">{prRepository}</p>
+            )}
           </SheetHeader>
           <div className="flex-1 overflow-y-auto p-6 space-y-3">
-            {activePullRequests.length === 0 ? (
-              <div className="rounded-lg border border-white/[0.04] bg-[#1a1a1a] p-6 text-center">
-                <p className="text-sm text-white/60">No active PRs for this agent.</p>
+            {isLoadingPRs ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+              </div>
+            ) : activePullRequests.length === 0 ? (
+              <div className="rounded-lg border border-white/[0.08] bg-[#1a1a1a] p-6 text-center">
+                <p className="text-sm text-white/60">
+                  {prRepository
+                    ? "No open pull requests in this repository."
+                    : "Configure a repository in Content Optimizer to see PRs."}
+                </p>
               </div>
             ) : (
               activePullRequests.map((pr) => (
-                <div
+                <a
                   key={pr.id}
-                  className="rounded-lg border border-white/[0.04] bg-[#1a1a1a] p-4 hover:border-white/[0.12] transition-colors"
+                  href={pr.htmlUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-lg border border-white/[0.08] bg-[#1a1a1a] p-4 hover:border-white/[0.2] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1.5">
                         <GitPullRequest className="w-4 h-4 text-white/70" />
-                        <span className="text-sm font-semibold text-white truncate">#{pr.id} {pr.title}</span>
+                        <span className="text-sm font-semibold text-white truncate">#{pr.number} {pr.title}</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-white/60">
                         <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 font-mono">{pr.branch}</span>
@@ -1873,7 +1969,7 @@ function AgentsLabPageInner() {
                       </div>
                     </div>
                     <span className={cn(
-                      "text-[11px] font-medium px-2 py-0.5 rounded-md border",
+                      "text-[11px] font-medium px-2 py-0.5 rounded-md border shrink-0",
                       pr.status === "open" 
                         ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                         : "bg-white/10 text-white/70 border-white/15"
@@ -1881,7 +1977,7 @@ function AgentsLabPageInner() {
                       {pr.status === "open" ? "Open" : "Draft"}
                     </span>
                   </div>
-                </div>
+                </a>
               ))
             )}
           </div>

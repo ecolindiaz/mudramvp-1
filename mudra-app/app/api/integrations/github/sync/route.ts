@@ -279,14 +279,19 @@ export async function POST(request: NextRequest) {
       accessToken: encryptedToken,
       refreshToken: null,
       tokenExpiresAt: expiresAt ? new Date(expiresAt) : null,
-      scope: repositories.join(','),
-      githubUserId: githubUser.id.toString(),
-      githubUsername: githubUser.login,
-      avatarUrl: githubUser.avatar_url,
-      installationId: installationId,
+      scope: repositories.length > 0 ? repositories.join(',') : 'installation',
+      githubUserId: String(githubUser.id),
+      githubUsername: String(githubUser.login),
+      avatarUrl: githubUser.avatar_url ? String(githubUser.avatar_url) : null,
+      installationId: Number(installationId),
       integrationType: 'installation' as const,
-      repositories: JSON.stringify(repositories),
+      repositories: repositories,
     }
+    
+    console.log('[GitHub Sync] Integration data:', {
+      ...integrationData,
+      accessToken: '[REDACTED]',
+    })
 
     let integration
     if (user.githubIntegration) {

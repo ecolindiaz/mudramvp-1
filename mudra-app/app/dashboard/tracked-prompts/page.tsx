@@ -370,6 +370,7 @@ function TrackedPromptsPageInner() {
   const [addOpen, setAddOpen] = useState(false)
   const [newPromptText, setNewPromptText] = useState("")
   const [newIntent, setNewIntent] = useState<string>("Organic")
+  const [runAnalysisOnAdd, setRunAnalysisOnAdd] = useState(false) // BUG-3: Option to run immediate analysis
   const [showAll, setShowAll] = useState(false)
   
   // Filter states
@@ -531,10 +532,26 @@ function TrackedPromptsPageInner() {
     }
   }
 
+  // Validation constants (match backend)
+  const MAX_PROMPT_LENGTH = 500
+
   const handleAddPrompt = async () => {
     const text = newPromptText.trim()
+    
+    // Frontend validation (BUG-4)
     if (!text) {
       setErrorMessage('Please enter a prompt')
+      return
+    }
+    
+    if (text.length > MAX_PROMPT_LENGTH) {
+      setErrorMessage(`Prompt cannot exceed ${MAX_PROMPT_LENGTH} characters`)
+      return
+    }
+
+    // Check if at limit before making request
+    if (data.length >= 50) {
+      setErrorMessage('Maximum 50 active prompts allowed. Please delete a prompt before adding a new one.')
       return
     }
 
@@ -549,6 +566,7 @@ function TrackedPromptsPageInner() {
           promptText: text,
           category: newIntent,
           brandProfileId: profile.id,
+          runAnalysis: runAnalysisOnAdd, // BUG-3: Pass immediate analysis flag
         }),
       })
 
@@ -556,12 +574,13 @@ function TrackedPromptsPageInner() {
       console.log('📥 Add prompt response:', { status: response.status, result })
 
       if (response.ok && result.success) {
-        console.log('✅ Prompt added successfully')
+        console.log('✅ Prompt added successfully', result.data?.analysisTriggered ? '(analysis triggered)' : '')
 
         // Close dialog and reset form
         setAddOpen(false)
         setNewPromptText("")
         setNewIntent("Organic")
+        setRunAnalysisOnAdd(false)
         setErrorMessage(null)
 
         // Add the prompt immediately with isPending: true to show loading state
@@ -869,7 +888,7 @@ function TrackedPromptsPageInner() {
                     <DialogHeader>
                       <DialogTitle>Add Prompt</DialogTitle>
                       <DialogDescription>
-                        Manually add a prompt to track. Maximum 50 active prompts allowed.
+                        Manually add a prompt to track ({data.length}/50 active prompts).
                       </DialogDescription>
                     </DialogHeader>
                     
@@ -881,15 +900,32 @@ function TrackedPromptsPageInner() {
                     
                     <div className="space-y-4 pt-2">
                       <div className="space-y-2">
-                        <Label htmlFor="prompt-text">Prompt</Label>
+                        <div className="flex justify-between items-center">
+                          <Label htmlFor="prompt-text">Prompt</Label>
+                          <span className={cn(
+                            "text-xs",
+                            newPromptText.length > MAX_PROMPT_LENGTH ? "text-red-400" : "text-muted-foreground"
+                          )}>
+                            {newPromptText.length}/{MAX_PROMPT_LENGTH}
+                          </span>
+                        </div>
                         <Textarea 
                           id="prompt-text" 
                           value={newPromptText} 
                           onChange={(e) => setNewPromptText(e.target.value)} 
                           placeholder="Type your prompt..." 
-                          className="min-h-[90px] rounded-lg border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none"
+                          className={cn(
+                            "min-h-[90px] rounded-lg border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none",
+                            newPromptText.length > MAX_PROMPT_LENGTH && "border-red-500/50"
+                          )}
                           disabled={isAdding}
+                          maxLength={MAX_PROMPT_LENGTH + 50} // Allow slight overage to show error
                         />
+                        {newPromptText.length > MAX_PROMPT_LENGTH && (
+                          <p className="text-xs text-red-400">
+                            Prompt is too long. Please shorten it to {MAX_PROMPT_LENGTH} characters or less.
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="intent">Intent</Label>
@@ -912,6 +948,21 @@ function TrackedPromptsPageInner() {
                           </SelectContent>
                         </Select>
                       </div>
+                      {/* BUG-3 Enhancement: Option to run immediate analysis */}
+                      <div className="flex items-center space-x-2 pt-1">
+                        <Checkbox 
+                          id="run-analysis" 
+                          checked={runAnalysisOnAdd}
+                          onCheckedChange={(checked) => setRunAnalysisOnAdd(checked === true)}
+                          disabled={isAdding}
+                        />
+                        <Label 
+                          htmlFor="run-analysis" 
+                          className="text-sm font-normal cursor-pointer text-muted-foreground"
+                        >
+                          Run analysis immediately (test against all AI models)
+                        </Label>
+                      </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-3">
                       <Button 
@@ -920,6 +971,7 @@ function TrackedPromptsPageInner() {
                           setAddOpen(false)
                           setErrorMessage(null)
                           setNewPromptText("")
+                          setRunAnalysisOnAdd(false)
                         }} 
                         className="h-9 rounded-lg"
                         disabled={isAdding}
@@ -929,15 +981,15 @@ function TrackedPromptsPageInner() {
                       <Button 
                         onClick={handleAddPrompt} 
                         className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
-                        disabled={isAdding || !newPromptText.trim()}
+                        disabled={isAdding || !newPromptText.trim() || newPromptText.length > MAX_PROMPT_LENGTH}
                       >
                         {isAdding ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Adding...
+                            {runAnalysisOnAdd ? 'Adding & Analyzing...' : 'Adding...'}
                           </>
                         ) : (
-                          'Add Prompt'
+                          runAnalysisOnAdd ? 'Add & Analyze' : 'Add Prompt'
                         )}
                       </Button>
                     </div>

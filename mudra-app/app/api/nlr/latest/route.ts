@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getWeeklyReportByWeek, prisma } from "@/lib/db/reports";
+import { getWeeklyReportByWeek } from "@/lib/db/reports";
+import { prisma } from "@/lib/prisma";
 
 function isAdmin(req: NextRequest): boolean {
   const token = req.headers.get('x-admin-token') || ''

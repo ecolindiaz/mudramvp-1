@@ -114,11 +114,6 @@ export async function POST(request: NextRequest) {
     })
 
     // Update tracking status to 'connected' on first visit
-    const brandProfile = await prisma.brandProfile.findUnique({
-      where: { id: brandProfileId },
-      select: { trackingStatus: true }
-    })
-
     if (brandProfile && brandProfile.trackingStatus !== 'connected') {
       await prisma.brandProfile.update({
         where: { id: brandProfileId },

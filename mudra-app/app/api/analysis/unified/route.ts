@@ -15,12 +15,21 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    console.log('[Unified Analysis API] Received request body:', {
+      brandProfileId: body.brandProfileId,
+      brandName: body.brandName,
+      website: body.website ? '✓' : '✗',
+      skipCooldown: body.skipCooldown,
+      generateReport: body.generateReport,
+    });
     
     // Require authentication and verify brand profile access
     const authResult = await requireAuthWithBrandAccess(body.brandProfileId);
     if (!authResult.success) {
+      console.error('[Unified Analysis API] Auth failed for brandProfileId:', body.brandProfileId);
       return authResult.response;
     }
+    console.log('[Unified Analysis API] Auth successful, user brandProfileId:', authResult.brandProfileId);
     const {
       brandProfileId,
       brandName,

@@ -92,32 +92,48 @@ export function useAnalysisPipeline() {
 
     try {
       // Call the UNIFIED analysis endpoint (used by both onboarding and dashboard)
+      const requestPayload = {
+        brandProfileId: config.brandProfileId,
+        brandName: config.brandName,
+        website: config.website,
+        description: config.description,
+        industry: config.industry,
+        competitors: config.competitors || [],
+        skipCooldown: true, // Skip cooldown for onboarding (first analysis)
+        generateReport: true, // Generate report during onboarding
+      };
+      
+      console.log("🔴 [useAnalysisPipeline] Sending request payload:", requestPayload);
+      
       const response = await fetch('/api/analysis/unified', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          brandProfileId: config.brandProfileId,
-          brandName: config.brandName,
-          website: config.website,
-          description: config.description,
-          industry: config.industry,
-          competitors: config.competitors || [],
-          skipCooldown: false, // Respect cooldown for onboarding
-          generateReport: true, // Generate report during onboarding
-        }),
+        body: JSON.stringify(requestPayload),
       });
 
       console.log("🔴 [useAnalysisPipeline] API response status:", response.status)
 
+      // Read response body for better error messages
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        console.error("🔴 [useAnalysisPipeline] Failed to parse response as JSON:", responseText.substring(0, 500));
+        throw new Error(`Pipeline failed: ${response.statusText} - Invalid response`);
+      }
+
       if (!response.ok) {
-        throw new Error(`Pipeline failed: ${response.statusText}`);
+        // Extract detailed error message from API response
+        const errorDetail = result?.error?.message || result?.error || result?.message || response.statusText;
+        console.error("🔴 [useAnalysisPipeline] API error response:", result);
+        throw new Error(`Pipeline failed (${response.status}): ${errorDetail}`);
       }
 
       clearInterval(progressInterval);
       
-      const result = await response.json();
       console.log("🔴 [useAnalysisPipeline] Unified API result:", result)
 
       if (result.success) {

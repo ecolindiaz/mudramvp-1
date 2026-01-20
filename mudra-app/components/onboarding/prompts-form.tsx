@@ -59,6 +59,12 @@ export function PromptsForm() {
     console.log("🟢 [PromptsForm] Profile ID check - analysisStarted:", analysisStarted, "profile.id:", profile?.id, "companyName:", onboardingData.companyName, "hasTriggeredAnalysis:", hasTriggeredAnalysis.current)
     
     if (analysisStarted && onboardingData.companyName && profile?.id && profile.id > 0 && !hasTriggeredAnalysis.current) {
+      // Validate required fields before triggering analysis
+      if (!onboardingData.companyWebsite) {
+        console.error("🔴 [PromptsForm] Cannot trigger analysis - missing website URL")
+        return;
+      }
+      
       hasTriggeredAnalysis.current = true // Mark as triggered to prevent duplicate runs
       
       console.log("🟢 🟢 🟢 [PromptsForm] ✅✅✅ TRIGGERING ANALYSIS NOW WITH PROFILE ID:", profile.id)
@@ -66,7 +72,7 @@ export function PromptsForm() {
       const config = {
         brandProfileId: profile.id, // ✅ Use actual profile ID from database
         brandName: onboardingData.companyName,
-        website: onboardingData.companyWebsite || '',
+        website: onboardingData.companyWebsite,
         industry: onboardingData.companyIndustry || undefined,
         description: onboardingData.companyDescription || undefined,
         competitors: onboardingData.competitors || [],

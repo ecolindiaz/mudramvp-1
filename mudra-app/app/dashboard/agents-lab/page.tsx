@@ -624,12 +624,17 @@ function AgentsLabPageInner() {
 
   // Run Content Optimizer
   const runContentOptimizer = async (maxPages: number = 10) => {
-    if (!profile.id) return
+    if (!profile.id) {
+      console.error('Content Optimizer: No profile ID')
+      return
+    }
 
     setIsOptimizerRunning(true)
     setOptimizerResults([])
 
     try {
+      console.log('[ContentOptimizer] Starting with brandProfileId:', profile.id, 'maxPages:', maxPages)
+      
       const response = await fetch('/api/agents/content-optimizer/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -640,9 +645,13 @@ function AgentsLabPageInner() {
       })
 
       const data = await response.json()
+      console.log('[ContentOptimizer] Response:', data)
 
       if (!data.success) {
-        throw new Error(data.error || 'Optimization failed')
+        const errorMsg = data.error || 'Optimization failed'
+        console.error('[ContentOptimizer] Error:', errorMsg)
+        alert(`Content Optimizer Error: ${errorMsg}`)
+        throw new Error(errorMsg)
       }
 
       const optimizedPages = data.data?.optimizedPages || []
@@ -655,8 +664,16 @@ function AgentsLabPageInner() {
         activeTasks: 0,
         totalTasks: optimizedPages.length,
       }
+      
+      if (optimizedPages.length === 0) {
+        alert('No pages found that need optimization (all scores above 70%)')
+      } else {
+        alert(`Optimization complete! ${successCount} PRs created out of ${optimizedPages.length} pages`)
+      }
     } catch (error) {
       console.error('Content Optimizer error:', error)
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      alert(`Content Optimizer failed: ${errorMsg}`)
     } finally {
       setIsOptimizerRunning(false)
     }

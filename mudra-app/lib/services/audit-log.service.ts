@@ -205,19 +205,17 @@ async function flushAuditBuffer(): Promise<void> {
 
 /**
  * Check if AuditLog table exists
+ * Note: After adding AuditLog model to schema and running migration,
+ * this check should always pass. Cache removed to allow dynamic detection.
  */
-let tableExistsCache: boolean | null = null;
-
 async function checkAuditLogTable(): Promise<boolean> {
-  if (tableExistsCache !== null) return tableExistsCache;
-
   try {
-    // Try a simple query
+    // Try a simple query - will succeed after migration
     await (prisma as any).auditLog?.findFirst?.({ take: 1 });
-    tableExistsCache = true;
     return true;
-  } catch {
-    tableExistsCache = false;
+  } catch (error) {
+    // Table doesn't exist yet or Prisma client not regenerated
+    console.warn('[Audit] AuditLog table check failed. Run: npx prisma generate && npx prisma migrate dev');
     return false;
   }
 }

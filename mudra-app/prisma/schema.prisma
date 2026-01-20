@@ -917,3 +917,23 @@ model Campaign {
   @@index([createdAt])
   @@map("campaigns")
 }
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  action       String
+  userId       String?
+  resourceType String
+  resourceId   String?
+  metadata     String?  @db.Text
+  ipAddress    String?
+  userAgent    String?  @db.Text
+  success      Boolean  @default(true)
+  errorMessage String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([resourceType, resourceId])
+  @@map("audit_logs")
+}

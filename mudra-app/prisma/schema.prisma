@@ -35,6 +35,7 @@ model BrandProfile {
   trackingInstalledAt        DateTime?
   trackingSiteId             String?
   trackingStatus             String                       @default("not_connected")
+  siteId                     String?                      @unique
   aiReferralAnalytics        AIReferralAnalytics[]
   aiReferralVisits           AIReferralVisit[]
   user                       User?                        @relation(fields: [userId], references: [id])

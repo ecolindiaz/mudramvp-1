@@ -113,10 +113,16 @@ export async function saveBrandProfileForUser(userId: string, profile: any) {
   } else {
     // Create new profile for this user
     console.log("🟢 [saveBrandProfileForUser] Creating new profile for user:", userId);
+    
+    // Generate unique siteId for tracking
+    const crypto = require('crypto');
+    const siteId = `site_${crypto.randomBytes(16).toString('hex')}`;
+    
     const created = await prisma.brandProfile.create({ 
       data: {
         ...data,
         userId,
+        siteId,
       }
     });
     return deserializeProfile(created);

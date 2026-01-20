@@ -2,6 +2,32 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 
+// Simple in-memory rate limiter for tracking endpoint
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
+const RATE_LIMIT_WINDOW_MS = 60000 // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 100 // 100 requests per minute per siteId
+
+function checkRateLimit(siteId: string): boolean {
+  const now = Date.now()
+  const record = rateLimitMap.get(siteId)
+  
+  if (!record || now > record.resetTime) {
+    // Create new window
+    rateLimitMap.set(siteId, {
+      count: 1,
+      resetTime: now + RATE_LIMIT_WINDOW_MS
+    })
+    return true
+  }
+  
+  if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return false // Rate limit exceeded
+  }
+  
+  record.count++
+  return true
+}
+
 /**
  * POST /api/analytics/track
  * Receives tracking data from embedded script
@@ -28,6 +54,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Rate limiting per siteId
+    if (!checkRateLimit(siteId)) {
+      console.warn(`[RateLimit] Exceeded limit for siteId: ${siteId}`)
+      return NextResponse.json(
+        { error: 'Rate limit exceeded' },
+        { status: 429 }
+      )
+    }
+
     // Validate AI provider
     const validProviders = ['chatgpt', 'perplexity', 'claude', 'gemini']
     if (!validProviders.includes(aiProvider)) {
@@ -37,20 +72,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find brand profile by siteId (siteId should be stored in BrandProfile)
-    // For now, we'll use siteId as a lookup - you'll need to add this field to BrandProfile
-    // or use a mapping table
-    
-    // TODO: Add siteId field to BrandProfile model or create a SiteTracking mapping table
-    // For now, we'll extract brandProfileId from siteId format: "site_{brandProfileId}_{random}"
-    const brandProfileId = parseInt(siteId.split('_')[1]) || null
-    
-    if (!brandProfileId) {
+    // 🔒 SECURITY FIX (EN-40): Validate siteId against database
+    const brandProfile = await prisma.brandProfile.findUnique({
+      where: { siteId },
+      select: { 
+        id: true, 
+        trackingStatus: true 
+      }
+    })
+
+    if (!brandProfile) {
+      // Invalid siteId - reject request
+      console.warn(`[Security] Invalid siteId attempted: ${siteId}`)
       return NextResponse.json(
-        { error: 'Invalid site ID format' },
-        { status: 400 }
+        { error: 'Invalid site ID' },
+        { status: 401 }
       )
     }
+
+    const brandProfileId = brandProfile.id
 
     // Hash IP address for privacy
     const ipAddress = request.headers.get('x-forwarded-for') || 

@@ -30,27 +30,34 @@ export interface GeneratedTrackingScript {
 export async function getOrCreateSiteId(brandProfileId: number): Promise<string> {
   const profile = await prisma.brandProfile.findUnique({
     where: { id: brandProfileId },
-    select: { trackingSiteId: true, companyName: true }
+    select: { siteId: true, trackingSiteId: true, companyName: true }
   });
 
   if (!profile) {
     throw new Error(`Brand profile ${brandProfileId} not found`);
   }
 
-  // Return existing siteId if available
+  // Return existing siteId if available (prefer new siteId field)
+  if (profile.siteId) {
+    console.log(`[TrackingScript] Using existing siteId: ${profile.siteId}`);
+    return profile.siteId;
+  }
+  
+  // Fallback to trackingSiteId for backward compatibility
   if (profile.trackingSiteId) {
-    console.log(`[TrackingScript] Using existing siteId: ${profile.trackingSiteId}`);
+    console.log(`[TrackingScript] Using legacy trackingSiteId: ${profile.trackingSiteId}`);
     return profile.trackingSiteId;
   }
 
-  // Generate new siteId: site_{brandProfileId}_{randomId}
-  const randomId = nanoid(16);
-  const siteId = `site_${brandProfileId}_${randomId}`;
+  // Generate new siteId (random hex, not tied to brandProfileId for security)
+  const crypto = require('crypto');
+  const siteId = `site_${crypto.randomBytes(16).toString('hex')}`;
 
-  // Store in database
+  // Store in both fields for backward compatibility during migration
   await prisma.brandProfile.update({
     where: { id: brandProfileId },
     data: { 
+      siteId,
       trackingSiteId: siteId,
       trackingStatus: 'not_connected'
     }

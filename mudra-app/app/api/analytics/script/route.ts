@@ -33,17 +33,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Get or generate unique siteId
-    // Format: site_{brandProfileId}_{random}
-    let siteId = profile.trackingSiteId
+    let siteId = profile.siteId || profile.trackingSiteId
     
     if (!siteId) {
-      // Generate new siteId
-      siteId = `site_${profileId}_${crypto.randomBytes(8).toString('hex')}`
+      // Generate new siteId (random hex for security - not tied to brandProfileId)
+      siteId = `site_${crypto.randomBytes(16).toString('hex')}`
       
-      // Save to database
+      // Save to database (both fields for backward compatibility)
       await prisma.brandProfile.update({
         where: { id: profileId },
         data: {
+          siteId,
           trackingSiteId: siteId,
           trackingStatus: 'pending' // Will be updated to 'connected' when first visit is tracked
         }

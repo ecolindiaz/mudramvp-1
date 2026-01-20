@@ -519,7 +519,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
             </div>
 
             {/* Header Divider */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             {/* No KPIs here; vertical sections connect directly below header divider */}
 
@@ -639,7 +639,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                                 return (
                                   <div
                                     key={`${group.label}-${idx}`}
-                                    className="h-8 px-3 gap-2 rounded-md bg-white/5 text-white border border-white/[0.08] text-xs font-medium flex items-center"
+                                    className="h-8 px-3 gap-2 rounded-md bg-white/5 text-white border border-white/[0.04] text-xs font-medium flex items-center"
                                   >
                                     <GitBranch className="w-3.5 h-3.5 text-white/60 shrink-0" />
                                     <span>{item.text}</span>
@@ -655,7 +655,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                                     "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
                                     item.variant === "destructive"
                                       ? "bg-red-500/10 border border-red-500/20 text-red-300"
-                                      : "bg-white/[0.02] border border-white/[0.05] text-white/70 hover:bg-white/[0.03] hover:border-white/[0.08]"
+                                      : "bg-white/[0.02] border border-white/[0.05] text-white/70 hover:bg-white/[0.03] hover:border-white/[0.04]"
                                   )}
                                 >
                                   {isClaude ? (
@@ -680,7 +680,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                   )}
 
                   {/* Content separator */}
-                  <div className="h-[1px] bg-white/10"></div>
+                  <div className="h-[0.25px] bg-white/10"></div>
 
                   {/* Tab Selector - Only for regular tasks */}
                   {!isOpportunity && (
@@ -693,7 +693,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                           "h-9 px-5 text-sm font-medium transition-all duration-200",
                           selectedTab === "logs"
                             ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
-                            : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
+                            : "border-white/[0.04] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                         )}
                       >
                         Agent Logs
@@ -706,7 +706,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                           "h-9 px-5 text-sm font-medium transition-all duration-200",
                           selectedTab === "summary"
                             ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
-                            : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
+                            : "border-white/[0.04] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                         )}
                       >
                         Agent Summary
@@ -858,7 +858,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                       </div>
                     </div>
                   ) : (
-                  <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col h-[500px]">
+                  <div className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col h-[500px]">
                     <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.01] flex-shrink-0">
                       <h3 className="text-sm font-semibold text-white">
                         {selectedTab === "logs" ? "Agent Logs" : "Agent Summary"}
@@ -1011,7 +1011,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                       ) : (
                         // Empty State with Animations for Queued/In Progress
                         <div className="flex flex-col items-center justify-center py-8">
-                          <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden">
+                          <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.04] p-6 shadow-xl overflow-hidden">
                             {/* Title Section */}
                             <div className="text-center mb-5">
                               <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
@@ -1133,7 +1133,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                                 <div className="bg-[#1a1a1a] rounded-lg border border-white/[0.06] p-4 space-y-3">
                                   {/* Terminal Header */}
                                   <div className="flex items-center gap-2 pb-3 border-b border-white/[0.06]">
-                                    <div className="flex items-center justify-center size-8 rounded bg-white/[0.05] border border-white/[0.08]">
+                                    <div className="flex items-center justify-center size-8 rounded bg-white/[0.05] border border-white/[0.04]">
                                       <Terminal className="h-4 w-4 text-white/60" />
                                     </div>
                                     <div className="flex-1 space-y-1.5">
@@ -1169,7 +1169,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                                 <div className="bg-[#1a1a1a] rounded-lg border border-white/[0.06] p-4 space-y-3">
                                   {/* Document Header */}
                                   <div className="flex items-center gap-3 pb-3 border-b border-white/[0.06]">
-                                    <div className="flex items-center justify-center size-8 rounded bg-white/[0.05] border border-white/[0.08]">
+                                    <div className="flex items-center justify-center size-8 rounded bg-white/[0.05] border border-white/[0.04]">
                                       <FileText className="h-4 w-4 text-white/60" />
                                     </div>
                                     <div className="flex-1 space-y-1.5">
@@ -1219,7 +1219,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
             </div>
 
             {/* Second Horizontal Divider Line - Full Width */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
           </div>
         </div>
       </SidebarInset>
@@ -1373,7 +1373,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
             ) : (
               // Empty State with Animations for Queued/In Progress
               <div className="flex flex-col items-center justify-center min-h-[800px]">
-                <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden">
+                <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.04] p-6 shadow-xl overflow-hidden">
                   {/* Title Section */}
                   <div className="text-center mb-5">
                     <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
@@ -1495,7 +1495,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                       <div className="bg-[#1a1a1a] rounded-lg border border-white/[0.06] p-4 space-y-3">
                         {/* Terminal Header */}
                         <div className="flex items-center gap-2 pb-3 border-b border-white/[0.06]">
-                          <div className="flex items-center justify-center size-8 rounded bg-white/[0.05] border border-white/[0.08]">
+                          <div className="flex items-center justify-center size-8 rounded bg-white/[0.05] border border-white/[0.04]">
                             <Terminal className="h-4 w-4 text-white/60" />
                           </div>
                           <div className="flex-1 space-y-1.5">
@@ -1531,7 +1531,7 @@ The LLMs.txt index file is now available and ready for AI crawlers to discover a
                       <div className="bg-[#1a1a1a] rounded-lg border border-white/[0.06] p-4 space-y-3">
                         {/* Document Header */}
                         <div className="flex items-center gap-3 pb-3 border-b border-white/[0.06]">
-                          <div className="flex items-center justify-center size-8 rounded bg-white/[0.05] border border-white/[0.08]">
+                          <div className="flex items-center justify-center size-8 rounded bg-white/[0.05] border border-white/[0.04]">
                             <FileText className="h-4 w-4 text-white/60" />
                           </div>
                           <div className="flex-1 space-y-1.5">

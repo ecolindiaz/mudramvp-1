@@ -130,7 +130,7 @@ function IntegrationsPageInner() {
             </div>
 
             {/* Divider line layout */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             {/* Toolbar */}
             <div className="px-4 lg:px-6 pt-6">
@@ -152,7 +152,7 @@ function IntegrationsPageInner() {
               <div className="text-sm text-white/70 mb-3">Source Control</div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* GitHub */}
-                <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] hover:border-white/[0.12] transition-all duration-200">
+                <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.04] hover:border-white/[0.12] transition-all duration-200">
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">
@@ -227,7 +227,7 @@ function IntegrationsPageInner() {
                 </Card>
 
                 {/* GitLab */}
-                <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] hover:border-white/[0.12] transition-all duration-200">
+                <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.04] hover:border-white/[0.12] transition-all duration-200">
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">
@@ -252,7 +252,7 @@ function IntegrationsPageInner() {
                 </Card>
 
                 {/* Slack */}
-                <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] hover:border-white/[0.12] transition-all duration-200">
+                <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.04] hover:border-white/[0.12] transition-all duration-200">
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">

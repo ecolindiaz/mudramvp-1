@@ -8,7 +8,6 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics"
 import { NaturalLanguageReport } from "@/components/dashboard/natural-language-report"
 import type { TimeRange } from "@/components/dashboard/time-range-selector"
@@ -62,7 +61,6 @@ function DashboardPageInner() {
       <AppSidebar />
       <SidebarInset>
         <SiteHeader />
-        <Separator className="w-full border-border" />
         <div className="flex flex-1 flex-col overflow-x-hidden max-w-full">
           <div className="@container/main flex flex-1 flex-col overflow-x-hidden max-w-full">
             {/* Page Header */}
@@ -120,7 +118,7 @@ function DashboardPageInner() {
             </div>
             
             {/* Divider Line - Full Width */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.5px] bg-white/10"></div>
             
             <div className="flex flex-1 flex-col pt-6 pb-8">
               {/* Overview Metrics */}

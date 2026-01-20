@@ -170,13 +170,13 @@ function AgentsLabPageInner() {
 
   const agentMetricsMap: Record<string, { optimizations: number; activeTasks: number; totalTasks: number }> = {
     "Content Optimizer": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
-    "LLMs.txt Indexer": { optimizations: 24, activeTasks: 3, totalTasks: 5 },
-    "Robots Gatekeeper": { optimizations: 18, activeTasks: 2, totalTasks: 4 },
-    "Schema Architect": { optimizations: 31, activeTasks: 4, totalTasks: 6 },
-    "Content Router": { optimizations: 12, activeTasks: 1, totalTasks: 3 },
-    "FAQ Author": { optimizations: 9, activeTasks: 1, totalTasks: 2 },
+    "LLMs.txt Indexer": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
+    "Robots Gatekeeper": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
+    "Schema Architect": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
+    "Content Router": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
+    "FAQ Author": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
     // Use real data for Conversation Radar - only count 70%+ relevance opportunities as "active"
-    "Conversation Radar": { 
+    "Conversation Radar": {
       optimizations: radarOpportunities.filter((o: any) =>
         (o.status === 'queued' || o.status === 'running') &&
         typeof o.relevanceScore === 'number' &&
@@ -189,7 +189,7 @@ function AgentsLabPageInner() {
       ).length,
       totalTasks: radarOpportunities.length
     },
-    "Citations Outreach": { optimizations: 11, activeTasks: 2, totalTasks: 3 },
+    "Citations Outreach": { optimizations: 0, activeTasks: 0, totalTasks: 0 },
   }
 
   // Fetch GitHub connection status
@@ -691,6 +691,9 @@ function AgentsLabPageInner() {
   const isDetailView = Boolean(selectedAgent)
   const selectedAgentMetrics = selectedAgent ? agentMetricsMap[selectedAgent.agentName] ?? { optimizations: 0, activeTasks: 0, totalTasks: 0 } : null
 
+  // Calculate total optimizations across all agents for general dashboard view
+  const totalOptimizations = Object.values(agentMetricsMap).reduce((sum, metrics) => sum + metrics.optimizations, 0)
+
   // Track analyzing state to force re-render after timeout
   const [analyzingAgents, setAnalyzingAgents] = useState<Set<string>>(new Set())
 
@@ -942,7 +945,7 @@ function AgentsLabPageInner() {
         },
         {
           title: "Optimizations Shipped",
-          value: 24,
+          value: totalOptimizations,
           delta: 0,
           lastValue: 0,
           positive: true,
@@ -1024,7 +1027,7 @@ function AgentsLabPageInner() {
                           value={taskSearchQuery}
                           onChange={(e) => setTaskSearchQuery(e.target.value)}
                           placeholder={isConversationRadar ? "Search Opportunity" : "Search Task"}
-                          className="h-9 rounded-full !bg-[#1a1a1a] border border-white/[0.08] text-xs text-white/80 placeholder:text-white/50 pl-8 pr-3 focus-visible:ring-0 focus-visible:border-white/20 focus-visible:!bg-[#1a1a1a]"
+                          className="h-9 rounded-full !bg-[#1a1a1a] border border-white/[0.04] text-xs text-white/80 placeholder:text-white/50 pl-8 pr-3 focus-visible:ring-0 focus-visible:border-white/20 focus-visible:!bg-[#1a1a1a]"
                         />
                       </div>
                   </div>
@@ -1113,7 +1116,7 @@ function AgentsLabPageInner() {
             </div>
 
           {/* Header Divider */}
-          <div className="h-[1px] bg-white/10"></div>
+          <div className="h-[0.5px] bg-white/10"></div>
 
             {/* Agent Metrics Section */}
             <div className="py-6 space-y-4">
@@ -1136,7 +1139,7 @@ function AgentsLabPageInner() {
                   />
                 ))}
               {isDetailView && selectedAgent && (
-                <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] hover:border-white/[0.12] transition-all duration-200 gap-3">
+                <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.04] hover:border-white/[0.12] transition-all duration-200 gap-3">
                   <CardHeader className="border-0 pb-0">
                     <CardTitle className="text-base font-semibold text-white tracking-tight">Run Status</CardTitle>
                   </CardHeader>
@@ -1155,7 +1158,7 @@ function AgentsLabPageInner() {
             </div>
 
             {/* First Horizontal Divider Line - Full Width */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             {/* Bottom Section with Vertical Divisions */}
             <div className="flex flex-1 overflow-hidden">
@@ -1285,7 +1288,7 @@ function AgentsLabPageInner() {
                           >
                             <SelectTrigger
                               size="sm"
-                              className="h-8 px-3 gap-2 max-w-[200px] rounded-md bg-white/5 text-white hover:bg-white/10 border border-white/[0.08] text-xs font-medium transition-colors focus-visible:ring-0 focus-visible:ring-offset-0 outline-none [&>*[data-slot='select-value']]:flex [&>*[data-slot='select-value']]:items-center [&>*[data-slot='select-value']]:gap-2 [&>svg:not(:first-child)]:hidden [&>span>svg]:hidden"
+                              className="h-8 px-3 gap-2 max-w-[200px] rounded-md bg-white/5 text-white hover:bg-white/10 border border-white/[0.04] text-xs font-medium transition-colors focus-visible:ring-0 focus-visible:ring-offset-0 outline-none [&>*[data-slot='select-value']]:flex [&>*[data-slot='select-value']]:items-center [&>*[data-slot='select-value']]:gap-2 [&>svg:not(:first-child)]:hidden [&>span>svg]:hidden"
                             >
                               <GitBranch className="w-3.5 h-3.5 text-white/60 shrink-0 pointer-events-none" />
                               <SelectValue className="text-xs truncate" />
@@ -1340,7 +1343,7 @@ function AgentsLabPageInner() {
                             "h-9 px-5 text-sm font-medium transition-all duration-200",
                             taskFilter === "active"
                               ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
-                              : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
+                              : "border-white/[0.04] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                           )}
                         >
                           {isConversationRadar ? "Active Opportunities" : "Active Tasks"}
@@ -1353,7 +1356,7 @@ function AgentsLabPageInner() {
                             "h-9 px-5 text-sm font-medium transition-all duration-200",
                             taskFilter === "all"
                               ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
-                              : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
+                              : "border-white/[0.04] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                           )}
                         >
                           {isConversationRadar ? "All Opportunities" : "All Tasks"}
@@ -1369,7 +1372,7 @@ function AgentsLabPageInner() {
                             "h-9 px-5 text-sm font-medium transition-all duration-200",
                             viewMode === "active"
                               ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
-                              : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
+                              : "border-white/[0.04] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                           )}
                         >
                           Active Agents
@@ -1382,7 +1385,7 @@ function AgentsLabPageInner() {
                             "h-9 px-5 text-sm font-medium transition-all duration-200",
                             viewMode === "inactive"
                               ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
-                              : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
+                              : "border-white/[0.04] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                           )}
                         >
                           Inactive Agents
@@ -1398,7 +1401,7 @@ function AgentsLabPageInner() {
                       {selectedAgent.agentName === "Content Optimizer" ? (
                         <div className="space-y-4">
                           {/* Run Optimizer Buttons */}
-                          <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] p-6 shadow-sm">
+                          <div className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] p-6 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
                               <div>
                                 <h3 className="text-lg font-semibold text-white mb-1">Run Optimization</h3>
@@ -1438,7 +1441,7 @@ function AgentsLabPageInner() {
 
                           {/* Optimization Results */}
                           {optimizerResults.length > 0 && (
-                            <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                            <div className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm">
                               <div className="px-6 py-4 border-b border-white/[0.06]">
                                 <h3 className="text-sm font-semibold text-white">
                                   Optimization Results ({optimizerResults.filter(r => r.prUrl).length} of {optimizerResults.length} successful)
@@ -1503,7 +1506,7 @@ function AgentsLabPageInner() {
                         </div>
                       ) : (
                         /* Regular Task View for Other Agents */
-                      <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                      <div className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm">
                         {filteredTasks.length > 0 ? (
                           filteredTasks.map((task, index) => {
                             const Icon = task.icon
@@ -1544,7 +1547,7 @@ function AgentsLabPageInner() {
                                   className="px-6 py-5 flex items-center justify-between gap-6 transition-colors duration-200 hover:bg-white/[0.02] border-b border-white/[0.06] last:border-b-0"
                                 >
                                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                                  <div className="flex items-center justify-center size-10 rounded-lg border bg-white/[0.05] border-white/[0.08] shadow-sm">
+                                  <div className="flex items-center justify-center size-10 rounded-lg border bg-white/[0.05] border-white/[0.04] shadow-sm">
                                     <Icon className="h-5 w-5 text-white/85" />
                                   </div>
                                   <div className="flex-1 min-w-0">
@@ -1618,11 +1621,11 @@ function AgentsLabPageInner() {
                         ) : isAnalyzing ? (
                           // Analyzing State - Agent is generating tasks
                           <div className="flex flex-col items-center justify-center min-h-[400px] px-6 py-10">
-                            <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden">
+                            <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.04] p-6 shadow-xl overflow-hidden">
                               {/* Title Section */}
                               <div className="text-center mb-5">
                                 <div className="flex items-center justify-center mb-4">
-                                  <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.08]">
+                                  <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.04]">
                                     <Loader2 className="h-5 w-5 text-orange-500 animate-spin" />
                                   </div>
                                 </div>
@@ -1640,7 +1643,7 @@ function AgentsLabPageInner() {
                               <div className="bg-[#1a1a1a] rounded-lg border border-white/[0.06] p-4 space-y-3">
                                 {/* Header Section */}
                                 <div className="flex items-center gap-3 pb-3 border-b border-white/[0.06]">
-                                  <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.08]">
+                                  <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.04]">
                                     <Bot className="h-5 w-5 text-orange-500" />
                                   </div>
                                   <div className="flex-1 space-y-1.5">
@@ -1694,7 +1697,7 @@ function AgentsLabPageInner() {
                     </div>
                   ) : filteredDeployedAgents.length > 0 ? (
                     <div className="space-y-2">
-                      <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                      <div className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm">
                         {filteredDeployedAgents.map((agent) => {
                           const Icon = agent.icon
                           const isLocked = agent.status !== "active"
@@ -1715,7 +1718,7 @@ function AgentsLabPageInner() {
                               <div className="px-6 py-5 flex items-center justify-between gap-4">
                                 {/* Left Section - Icon, Agent Name and Description */}
                                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                                  <div className="flex items-center justify-center size-10 rounded-lg border bg-white/[0.05] border-white/[0.08] group-hover:bg-white/[0.08] group-hover:border-white/[0.15] transition-all duration-200 flex-shrink-0 shadow-sm group-hover:shadow">
+                                  <div className="flex items-center justify-center size-10 rounded-lg border bg-white/[0.05] border-white/[0.04] group-hover:bg-white/[0.08] group-hover:border-white/[0.15] transition-all duration-200 flex-shrink-0 shadow-sm group-hover:shadow">
                                     <Icon className="h-5 w-5 text-white/90 group-hover:text-white transition-colors" />
                                   </div>
                                   <div className="flex-1 min-w-0">
@@ -1835,7 +1838,7 @@ function AgentsLabPageInner() {
                     <div className="flex flex-col items-center justify-center py-16 px-6">
                       <div className="flex flex-col items-center max-w-md text-center w-full">
                         {/* Dashboard Preview Card */}
-                        <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden group">
+                        <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.04] p-6 shadow-xl overflow-hidden group">
                           {/* Title Section */}
                           <div className="text-center mb-5">
                             <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
@@ -1852,7 +1855,7 @@ function AgentsLabPageInner() {
                           <div className="mb-5">
                             {/* Header Section */}
                             <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/[0.06]">
-                              <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.08] flex-shrink-0">
+                              <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.04] flex-shrink-0">
                                 <Bot className="h-5 w-5 text-orange-500" />
                               </div>
                               <div className="flex-1 space-y-1.5">
@@ -1913,7 +1916,7 @@ function AgentsLabPageInner() {
             </div>
 
             {/* Second Horizontal Divider Line - Full Width */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
           </div>
         </div>
       </SidebarInset>
@@ -1939,8 +1942,8 @@ function AgentsLabPageInner() {
             ) : activePullRequests.length === 0 ? (
               <div className="rounded-lg border border-white/[0.08] bg-[#1a1a1a] p-6 text-center">
                 <p className="text-sm text-white/60">
-                  {prRepository 
-                    ? "No open pull requests in this repository." 
+                  {prRepository
+                    ? "No open pull requests in this repository."
                     : "Configure a repository in Content Optimizer to see PRs."}
                 </p>
               </div>

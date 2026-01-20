@@ -24,27 +24,27 @@ const NavigationItem = memo(({
   isActive: boolean 
 }) => (
   <SidebarMenuItem>
-    <SidebarMenuButton 
-      tooltip={item.title} 
-      isActive={isActive} 
+    <SidebarMenuButton
+      tooltip={item.title}
+      isActive={isActive}
       asChild
-      className={`h-9 px-3 text-sm font-medium relative transition-all duration-200 group rounded ${
-        isActive 
-          ? 'text-white bg-white/5' 
-          : 'text-white/70 hover:text-white/90 hover:bg-white/5'
+      className={`h-8 px-3 text-sm font-medium relative transition-all duration-200 group rounded ${
+        isActive
+          ? 'text-white bg-white/10'
+          : 'text-white hover:text-white hover:bg-white/10'
       }`}
     >
       <Link href={item.url}>
         {isActive && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-white rounded-full animate-glow" />
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-white/60 rounded-full" />
         )}
         {item.icon && (
-          <item.icon className={`w-4 h-4 mr-2.5 transition-all duration-200 ${
-            isActive ? 'text-white' : 'text-white/60 group-hover:text-white/80'
+          <item.icon strokeWidth={2.5} className={`w-[25px] h-[25px] mr-1.25 transition-all duration-200 ${
+            isActive ? 'text-white/70' : 'text-white/60 group-hover:text-white/80'
           }`} />
         )}
         <span className={`transition-all duration-200 ${
-          isActive ? 'text-white font-medium' : 'font-normal'
+          isActive ? 'text-white font-medium' : 'text-white font-normal'
         }`}>
           {item.title}
         </span>
@@ -71,14 +71,14 @@ export const NavMain = memo(function NavMain({
   const pathname = usePathname()
 
   return (
-    <div className="px-2 space-y-4">
+    <div className="px-2 space-y-3">
       {items?.map((section, index) => (
         <SidebarGroup key={section.title}>
-          <SidebarGroupLabel className="text-[10px] font-semibold text-white/50 uppercase tracking-[0.1em] px-2 pb-2 pt-1">
+          <SidebarGroupLabel className="text-sm font-medium text-white px-2 pb-1.5 pt-0">
             {section.title}
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-0.5">
+            <SidebarMenu className="space-y-0">
               {section.items.map((item) => {
                 const isActive = !!(pathname && (pathname === item.url || (item.url === "/dashboard/campaigns" && pathname.startsWith("/dashboard/campaigns/"))))
                 return (

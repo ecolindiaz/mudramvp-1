@@ -108,152 +108,6 @@ type ChatHistoryEntry = {
   responseCitations?: { domain: string; type?: 'Example' | 'Listicle' | 'Blog Post' | 'Case Study' | 'Docs' | 'Other' }[]
 }
 
-// @deprecated - This mock data is no longer used. All data now comes from the API.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const mockRecentChats: ChatHistoryEntry[] = [
-  {
-    id: 'h1',
-    provider: 'Google',
-    snippet: 'Leading AI infrastructure providers in Silicon Valley include NVIDIA, Google, Microsoft and Scale AI…',
-    rank: 1,
-    timeAgo: '23 hr. ago',
-    avgPosition: 1.6,
-    date: '27 Oct, 2025',
-    mentioned: true,
-    position: 4,
-    extraMentions: 38,
-    fullResponse: [
-      'Leading AI infrastructure providers in Silicon Valley include hardware giants like NVIDIA, cloud providers such as Google and Microsoft, and specialized infrastructure and data companies like Scale AI and SambaNova Systems. These companies provide the hardware, software, and data services essential for developing and deploying AI models.',
-      '',
-      'Sources: digiscorp.com · nvidia.com · vt.edu · shadihinlab.com',
-      '',
-      'Hardware and chip providers — source: impaxam.com',
-      '• NVIDIA: A dominant force in AI hardware, providing GPUs and software that are integrated into systems by other hardware manufacturers like Dell, HPE, and Supermicro.',
-      '• SambaNova Systems: Develops hardware and software solutions specifically for large‑scale deep learning.',
-      '• AMD: A major player in AI chips, offering components like FPGAs.',
-      '',
-      'Cloud and platform providers — source: yahoo.com',
-      '• Google: Invests heavily in AI and has developed its own hardware like TPUs.',
-      '• Microsoft: A major cloud provider investing billions in AI infrastructure, including data centers.',
-      '• Amazon: Also investing billions in data centers to support AI infrastructure.',
-      '• IBM: Provides enterprise‑level AI solutions and infrastructure.'
-    ].join('\n'),
-    responseCitations: [
-      { domain: 'digiscorp.com', type: 'Docs' },
-      { domain: 'nvidia.com', type: 'Docs' },
-      { domain: 'vt.edu', type: 'Other' },
-      { domain: 'shadihinlab.com', type: 'Blog Post' },
-      { domain: 'impaxam.com', type: 'Docs' },
-      { domain: 'yahoo.com', type: 'Blog Post' }
-    ]
-  },
-  {
-    id: 'h2',
-    provider: 'OpenAI',
-    snippet: 'If you’re an AI startup in the U.S., here’s a structured growth framework to scale…',
-    rank: 1,
-    timeAgo: '23 hr. ago',
-    avgPosition: 1.8,
-    date: '27 Oct, 2025',
-    mentioned: true,
-    position: 1,
-    extraMentions: 14,
-    fullResponse: [
-      'If you’re an AI‑startup based in the U.S., scaling well means more than “just build a model and go viral.” Below is a structured growth framework tailored to AI startups — combining what’s working in 2025 with practical U.S. market considerations.',
-      '',
-      '1. Foundation & Product–Market Fit',
-      '✓ Solve a real, urgent problem',
-      '• Many AI startups fail by building “cool tech” instead of solving a pressing pain point. Pick a domain where customers pay for value.',
-      '• Focus on outcome not model: time saved, cost reduced, revenue improved.',
-      '',
-      '🧱 Build a defensible core',
-      '• As models commoditize, moats come from proprietary data, domain expertise, workflow embedding, and vertical specialization.',
-      '',
-      '2. Go‑to‑Market & Growth Strategy',
-      '📌 Focus on a niche then expand',
-      '• Start with one clearly defined segment. Once you nail it, expand horizontally or deepen vertically.',
-      '',
-      '🔁 Use AI to power growth itself',
-      '• Leverage your product’s AI for lead scoring, sales assistance, and onboarding.',
-    ].join('\n'),
-    responseCitations: [
-      { domain: 'a16z.com', type: 'Blog Post' },
-      { domain: 'ycombinator.com', type: 'Blog Post' }
-    ]
-  },
-  {
-    id: 'h3',
-    provider: 'Anthropic',
-    snippet: 'There are several high‑quality data annotation platforms that cater to different data types…',
-    rank: 2,
-    timeAgo: '23 hr. ago',
-    avgPosition: 2.3,
-    date: '27 Oct, 2025',
-    mentioned: true,
-    position: 4,
-    extraMentions: 38,
-    fullResponse: [
-      'Best data annotation platforms for machine learning fall into three buckets: full‑service vendors, managed marketplaces, and self‑serve tools.',
-      '',
-      '• Full‑service: Provide project management, QA, and vertical expertise (e.g., medical, legal).',
-      '• Managed marketplaces: Flexible staffing with vetted workers; great for spikes and cost control.',
-      '• Self‑serve: Fast iteration for in‑house teams; strong analytics and labeling ops features.',
-    ].join('\n'),
-    responseCitations: [
-      { domain: 'paperswithcode.com', type: 'Docs' },
-      { domain: 'scale.com', type: 'Docs' }
-    ]
-  },
-  {
-    id: 'h4',
-    provider: 'Perplexity',
-    snippet: 'Here are five top companies that offer high‑quality data labeling and training‑data solutions…',
-    rank: 1,
-    timeAgo: '23 hr. ago',
-    avgPosition: 1.4,
-    date: '28 Oct, 2025',
-    mentioned: true,
-    position: 4,
-    extraMentions: 38,
-    fullResponse: [
-      'Top companies that offer high‑quality data labeling and training‑data solutions include Scale AI, Labelbox, and Appen, each with strengths in tooling, workforce quality, or vertical expertise.',
-      '',
-      '• Scale AI: enterprise‑grade workflows and robust QA.',
-      '• Labelbox: modern tooling and model‑assisted labeling.',
-      '• Appen: global workforce at scale.',
-    ].join('\n'),
-    responseCitations: [
-      { domain: 'labelbox.com', type: 'Docs' },
-      { domain: 'scale.com', type: 'Docs' },
-      { domain: 'appen.com', type: 'Docs' }
-    ]
-  },
-  {
-    id: 'h5',
-    provider: 'Gemini',
-    snippet: 'Major US‑based AI platforms include large integrated cloud services and specialized providers…',
-    rank: 1,
-    timeAgo: '23 hr. ago',
-    avgPosition: 1.5,
-    date: '30 Oct, 2025',
-    mentioned: true,
-    position: 1,
-    extraMentions: 39,
-    fullResponse: [
-      'US‑based platforms for AI model training and hosting include AWS, Google Cloud, Microsoft Azure, and Oracle. For startups, selecting a platform often comes down to managed services, GPU availability, and ecosystem fit.',
-      '',
-      '• AWS: breadth of managed services and GPU options.',
-      '• Google Cloud: Vertex AI and TPU availability.',
-      '• Azure: strong enterprise integrations and OpenAI partnership.',
-    ].join('\n'),
-    responseCitations: [
-      { domain: 'cloud.google.com', type: 'Docs' },
-      { domain: 'aws.amazon.com', type: 'Docs' },
-      { domain: 'azure.microsoft.com', type: 'Docs' }
-    ]
-  },
-]
-
 // Helper to map provider names from API to UI format
 function mapProviderName(provider: string): ChatHistoryEntry['provider'] {
   const lower = provider.toLowerCase()
@@ -383,8 +237,6 @@ function CitationCategoryIcon({ category }: { category: CitationCategory }) {
       return <Globe className={common} />
   }
 }
-
-// (Derived metrics moved inside component)
 
 function TrackedPromptDeepViewInner() {
   const { profile } = useBrandProfile()
@@ -758,22 +610,21 @@ function TrackedPromptDeepViewInner() {
                 <div />
               </div>
               {/* Current Prompt and Intent tags + aligned filters */}
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-                    <MessageSquare className="h-4 w-4 text-white/80" />
-                    <span className="text-sm font-medium text-white/90 truncate" title={promptLabel}>{promptLabel}</span>
-                  </div>
+              <div className="mt-3 flex items-center justify-between gap-4 overflow-hidden">
+                <div className="flex items-center gap-2 min-w-0 flex-1 text-[13px] text-white/50">
+                  <MessageSquare className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate" title={promptLabel}>{promptLabel}</span>
                   {promptIntentLabel && (
-                    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-                      <Tag className="h-4 w-4 text-white/80" />
-                      <span className="text-sm font-medium text-white/90">{promptIntentLabel}</span>
-                    </div>
+                    <>
+                      <span className="text-white/20 flex-shrink-0">·</span>
+                      <Tag className="h-3 w-3 flex-shrink-0" />
+                      <span className="flex-shrink-0">{promptIntentLabel}</span>
+                    </>
                   )}
                 </div>
-                <div className="hidden md:flex items-center gap-3">
+                <div className="hidden md:flex items-center gap-3 flex-shrink-0">
                   <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
+                    <SelectTrigger className="w-[140px] h-8 text-[13px] bg-white/5 border-white/10 text-white focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
                       <SelectValue placeholder="All Platforms" />
                     </SelectTrigger>
                     <SelectContent className="bg-dark-grey border-white/10">
@@ -852,7 +703,7 @@ function TrackedPromptDeepViewInner() {
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 text-[13px]">
                     {([
                       { key: '7d', label: '7d' },
                       { key: '14d', label: '14d' },
@@ -863,8 +714,10 @@ function TrackedPromptDeepViewInner() {
                         type="button"
                         onClick={() => setDateRange(opt.key)}
                         className={cn(
-                          "h-8 px-3 text-sm rounded-full border border-white/10",
-                          dateRange === opt.key ? "bg-white/10 text-white" : "bg-transparent text-white/80 hover:text-white hover:bg-white/5"
+                          "px-2 py-1 rounded transition-colors",
+                          dateRange === opt.key 
+                            ? "text-white bg-white/[0.06]" 
+                            : "text-white/40 hover:text-white/60"
                         )}
                         aria-pressed={dateRange === opt.key}
                       >
@@ -877,7 +730,7 @@ function TrackedPromptDeepViewInner() {
             </div>
 
             {/* Clean Divider Line - Full Width */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             {/* Content */}
             <div className="flex flex-1 px-4 lg:px-6 pt-6 pb-6 md:pb-8">
@@ -941,59 +794,27 @@ function TrackedPromptDeepViewInner() {
                       <div className="mt-3 flex items-center justify-center gap-6 md:hidden" />
                     </CardContent>
                   </Card>
-                  <Card className="bg-transparent rounded-lg border border-white/[0.06] py-0">
-                    <CardContent className="p-0 min-h-[340px] md:min-h-[380px]">
-                      <div>
-                        <div className="rounded-lg border-0 overflow-hidden max-h-[340px] md:max-h-[360px] overflow-y-auto">
-                          <Table className="w-full text-[15px]">
-                          <TableHeader className="bg-white/5 sticky top-0 z-10 backdrop-blur-sm border-b border-white/10 text-[13px]">
-                              <TableRow className="hover:bg-transparent h-12">
-                                <TableHead className="w-[44px] text-white/70 px-4"></TableHead>
-                                <TableHead className="w-[56px] text-white/70 px-2">#</TableHead>
-                                <TableHead className="text-white/70 px-4">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="inline-flex items-center gap-1.5 cursor-help">Company <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Competitor name mentioned in responses</TooltipContent>
-                                  </Tooltip>
-                                </TableHead>
-                                <TableHead className="w-[120px] text-right text-white/70 px-4">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="inline-flex items-center gap-1.5 cursor-help">Visibility <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Percent of chats that mention this competitor</TooltipContent>
-                                  </Tooltip>
-                                </TableHead>
-                                <TableHead className="w-[140px] text-right text-white/70 px-4">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="inline-flex items-center gap-1.5 cursor-help">Sentiment <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Overall tone of mentions for this competitor</TooltipContent>
-                                  </Tooltip>
-                                </TableHead>
-                                <TableHead className="w-[120px] text-right text-white/70 px-4">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="inline-flex items-center gap-1.5 cursor-help">Position <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Average position where competitor appears (lower is better)</TooltipContent>
-                                  </Tooltip>
-                                </TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
+                  <Card className="bg-transparent rounded-xl border border-white/[0.04] overflow-hidden py-0 shadow-none gap-0">
+                    <CardContent className="p-0 min-h-[360px] md:min-h-[400px]">
+                      <div className="overflow-hidden max-h-[360px] md:max-h-[400px] overflow-y-auto">
+                        <Table className="w-full text-sm">
+                          <TableHeader className="sticky top-0 z-10 bg-white/[0.04]">
+                            <TableRow className="hover:bg-transparent border-white/[0.06]">
+                              <TableHead className="w-12 h-11 px-4"></TableHead>
+                              <TableHead className="w-12 h-11 text-white/80 px-2">#</TableHead>
+                              <TableHead className="h-11 text-white/80 px-4">Company</TableHead>
+                              <TableHead className="w-28 h-11 text-white/80 text-center px-4">Visibility</TableHead>
+                              <TableHead className="w-28 h-11 text-white/80 text-center px-4">Sentiment</TableHead>
+                              <TableHead className="w-24 h-11 text-white/80 text-center px-4">Position</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {competitorsDataWithYou.length === 0 ? (
                               <TableRow className="hover:bg-transparent">
                                 <TableCell colSpan={6} className="h-32 text-center">
-                                  <div className="flex flex-col items-center justify-center gap-2 text-white/60">
-                                    <Building2 className="h-8 w-8 opacity-40" />
-                                    <div className="text-sm">No competitor data available yet</div>
-                                    <div className="text-xs text-white/40">
-                                      Competitors will appear here after they are mentioned in AI responses
-                                    </div>
+                                  <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                                    <Building2 className="h-6 w-6 opacity-40" />
+                                    <div className="text-sm">No competitor data yet</div>
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -1001,63 +822,50 @@ function TrackedPromptDeepViewInner() {
                               competitorsDataWithYou.map((row, index) => (
                                 <TableRow 
                                   key={row.isYou ? 'you-row' : row.rank} 
-                                  className={cn(
-                                    "hover:bg-white/10 h-12 md:h-14 border-b border-white/10 last:border-b-0",
-                                    row.isYou && "bg-emerald-500/10 border-l-2 border-l-emerald-500"
-                                  )}
+                                  className="border-white/[0.06] hover:bg-white/[0.03] transition-colors"
                                 >
-                                  <TableCell className="px-4 align-middle">
+                                  <TableCell className="px-4 py-3.5 align-middle">
                                     <Checkbox
-                                      className="scale-105"
                                       checked={activeCompetitor === row.company}
                                       onCheckedChange={() => setActiveCompetitor(activeCompetitor === row.company ? null : row.company)}
                                       aria-label={`Select ${row.company}`}
                                     />
                                   </TableCell>
-                                  <TableCell className="text-white/90 px-2">
-                                    {row.isYou ? (
-                                      <span className="text-emerald-400 font-medium">★</span>
-                                    ) : (
-                                      index
-                                    )}
+                                  <TableCell className="text-white/60 px-2 py-3.5 align-middle">
+                                    {index}
                                   </TableCell>
-                                  <TableCell className="text-white/90 truncate px-4">
-                                    <span className={cn("truncate", row.isYou && "text-emerald-400 font-medium")}>
-                                      {row.isYou ? `${row.company} (You)` : row.company}
-                                    </span>
+                                  <TableCell className="text-white/90 px-4 py-3.5 align-middle">
+                                    {row.isYou ? `${row.company} (You)` : row.company}
                                   </TableCell>
-                                <TableCell className="text-right px-4">
-                                    <Badge variant="outline" className={cn(
-                                      "rounded-md px-2 py-0.5 text-[13px] border",
-                                      row.isYou ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : getVisibilityClass(row.visibility)
+                                  <TableCell className="text-center px-4 py-3.5 align-middle">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <div className={cn(
+                                        "w-2 h-2 rounded-full",
+                                        row.visibility >= 70 ? "bg-emerald-500" :
+                                        row.visibility >= 40 ? "bg-yellow-500" :
+                                        row.visibility > 0 ? "bg-orange-500" : "bg-white/30"
+                                      )} />
+                                      <span className="text-white/80">{row.visibility}%</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-center px-4 py-3.5 align-middle">
+                                    <Badge className={cn(
+                                      "px-2 py-0.5 rounded text-xs font-medium border-0",
+                                      row.sentiment === 'Negative' && "bg-white/10 text-white/80",
+                                      row.sentiment === 'Neutral' && "bg-white/10 text-white/80",
+                                      row.sentiment === 'Positive' && "bg-white/10 text-white/80"
                                     )}>
-                                    {row.visibility}%
-                                  </Badge>
-                                </TableCell>
-                                  <TableCell className="text-right px-4">
-                                    <Badge className={`px-2 py-0.5 text-[13px] rounded border-0 ${
-                                      row.sentiment === 'Negative' ? 'bg-red-500/20 text-red-300' :
-                                      row.sentiment === 'Neutral' ? 'bg-white/10 text-white/80' :
-                                      'bg-emerald-500/20 text-emerald-300'
-                                    }`}>
                                       {row.sentiment}
                                     </Badge>
                                   </TableCell>
-                                <TableCell className="text-right px-4">
-                                  {row.position === null ? (
-                                    <span className="text-white/60">—</span>
-                                  ) : (
-                                      <Badge variant="outline" className={`rounded-md px-2 py-0.5 text-[13px] border ${getPositionClass(row.position)}`}>
-                                      {row.position.toFixed(1)}
-                                    </Badge>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            ))
+                                  <TableCell className="text-white/60 text-center px-4 py-3.5 align-middle">
+                                    {row.position === null ? "—" : `#${row.position.toFixed(1)}`}
+                                  </TableCell>
+                                </TableRow>
+                              ))
                             )}
-                            </TableBody>
-                          </Table>
-                        </div>
+                          </TableBody>
+                        </Table>
                       </div>
                     </CardContent>
                   </Card>
@@ -1084,35 +892,35 @@ function TrackedPromptDeepViewInner() {
                   </div>
                 </div>
                 {/* Bottom: switch between chat executions table and sources table */}
-                <Card className="bg-transparent rounded-lg border border-white/[0.06] py-0">
+                <Card className="bg-transparent rounded-lg border border-white/[0.06] py-0 shadow-none gap-0">
                   <CardContent className="p-0">
                     
                     {bottomView === 'sources' ? (
-                      <div className="p-0">
-                        <Table className="w-full text-[15px] table-fixed">
-                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
+                      <div>
+                        <Table className="w-full text-[14px] table-fixed">
+                          <TableHeader className="sticky top-0 z-10 bg-white/[0.03] border-b border-white/[0.06] text-[13px]">
                             <TableRow className="hover:bg-transparent h-12">
-                              <TableHead className="w-[56px] text-center text-white/70 px-2">#</TableHead>
-                              <TableHead className="w-[50%] text-white/70 pl-2 pr-4">
+                              <TableHead className="w-[56px] text-center text-white/50 font-medium px-2">#</TableHead>
+                              <TableHead className="w-[50%] text-white/50 font-medium pl-2 pr-4">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="inline-flex items-center gap-1.5 cursor-help">Domain <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
+                                    <span className="inline-flex items-center gap-1.5 cursor-help">Domain <HelpCircle className="h-3.5 w-3.5 opacity-50" /></span>
                                   </TooltipTrigger>
                                   <TooltipContent>Root domain cited in model responses for this prompt.</TooltipContent>
                                 </Tooltip>
                               </TableHead>
-                              <TableHead className="w-[120px] text-center text-white/70 px-2">
+                              <TableHead className="w-[120px] text-center text-white/50 font-medium px-2">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="inline-flex items-center gap-1.5 cursor-help">Citation Frequency (%) <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
+                                    <span className="inline-flex items-center gap-1.5 cursor-help">Citation Frequency (%) <HelpCircle className="h-3.5 w-3.5 opacity-50" /></span>
                                   </TooltipTrigger>
                                   <TooltipContent>Share of prompt runs where this domain appears as a citation.</TooltipContent>
                                 </Tooltip>
                               </TableHead>
-                              <TableHead className="w-[180px] text-center text-white/70 px-2">
+                              <TableHead className="w-[180px] text-center text-white/50 font-medium px-2">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="inline-flex items-center gap-1.5 cursor-help">Type of Citation <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
+                                    <span className="inline-flex items-center gap-1.5 cursor-help">Type of Citation <HelpCircle className="h-3.5 w-3.5 opacity-50" /></span>
                                   </TooltipTrigger>
                                   <TooltipContent>Category of this source.</TooltipContent>
                                 </Tooltip>
@@ -1123,9 +931,11 @@ function TrackedPromptDeepViewInner() {
                             {visibleSources.length === 0 ? (
                               <TableRow className="hover:bg-transparent">
                                 <TableCell colSpan={4} className="h-32 text-center">
-                                  <div className="flex flex-col items-center justify-center gap-2 text-white/60">
-                                    <Globe className="h-8 w-8 opacity-40" />
-                                    <div className="text-sm">No citation sources found</div>
+                                  <div className="flex flex-col items-center justify-center gap-3 text-white/60">
+                                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.04] ring-1 ring-white/[0.06]">
+                                      <Globe className="h-5 w-5 opacity-50" />
+                                    </div>
+                                    <div className="text-sm font-medium text-white/70">No citation sources found</div>
                                     <div className="text-xs text-white/40">
                                       Sources will appear here after they are cited in AI responses
                                     </div>
@@ -1135,23 +945,23 @@ function TrackedPromptDeepViewInner() {
                             ) : visibleSources.map((row, idx) => (
                               <Dialog key={`${row.domain}-${row.citationType}-${idx}`}>
                                 <DialogTrigger asChild>
-                              <TableRow className={`hover:bg-white/10 even:bg-white/[0.03] border-b border-white/10 last:border-b-0 ${rowHeightClass} cursor-pointer`}>
-                                    <TableCell className="w-[56px] text-center text-white/80 px-2">
+                              <TableRow className={`group transition-colors duration-150 hover:bg-white/[0.04] odd:bg-transparent even:bg-white/[0.015] border-b border-white/[0.04] last:border-b-0 ${rowHeightClass} cursor-pointer`}>
+                                    <TableCell className="w-[56px] text-center text-white/40 group-hover:text-white/60 px-2 transition-colors">
                                       {idx + 1}
                                     </TableCell>
-                                    <TableCell className="w-[50%] text-white/90 truncate pl-2 pr-4 max-w-0">
+                                    <TableCell className="w-[50%] text-white/80 group-hover:text-white/95 truncate pl-2 pr-4 max-w-0 transition-colors">
                                       <span className="truncate">{row.domain}</span>
                                     </TableCell>
                                     <TableCell className="text-center px-2">
                                       <div className="flex items-center justify-center">
-                                        <Badge variant="outline" className="inline-flex items-center justify-center h-6 min-w-[56px] px-2 text-[13px] rounded-md border border-white/10 bg-white/5 text-white/90">
+                                        <Badge variant="outline" className="inline-flex items-center justify-center h-6 min-w-[56px] px-2.5 text-[13px] rounded-md border border-white/[0.04] bg-white/[0.03] text-white/80 tabular-nums">
                                           {row.citationFrequencyPercent || Math.round((row.frequency / Math.max(1, totalCitationFrequency)) * 100)}%
                                         </Badge>
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-center px-2">
                                       <div className="flex items-center justify-center">
-                                        <Badge className="inline-flex items-center justify-center gap-1.5 h-6 min-w-[140px] px-2 text-[13px] rounded bg-white text-black">
+                                        <Badge className="inline-flex items-center justify-center gap-1.5 h-6 min-w-[140px] px-2.5 text-[13px] rounded-md bg-white/95 text-black font-medium shadow-sm">
                                           <CitationCategoryIcon category={mapCitationCategory(row.citationType)} />
                                           {mapCitationCategory(row.citationType)}
                                         </Badge>
@@ -1159,93 +969,66 @@ function TrackedPromptDeepViewInner() {
                                     </TableCell>
                                   </TableRow>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-4xl md:max-w-4xl rounded-xl border border-white/[0.08] bg-transparent backdrop-blur-sm p-0 max-h-[90vh] overflow-y-auto">
+                                <DialogContent className="sm:max-w-3xl rounded-xl border border-white/[0.06] bg-dark-grey p-0 max-h-[90vh] overflow-y-auto">
                                   <DialogHeader>
                                     <DialogTitle className="sr-only">Source Details</DialogTitle>
                                   </DialogHeader>
-                                  <div className="px-5 py-6 space-y-6">
-                                    {/* Breadcrumb guide */}
-                                    <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px]">
-                                      <MessageSquare className="h-3.5 w-3.5 text-white/70" />
-                                      <span className="text-white/70">Prompts</span>
-                                      <ChevronRight className="h-3.5 w-3.5 text-white/50" />
-                                      <span className="truncate max-w-[45%] text-white/80" title={promptLabel}>{promptLabel}</span>
-                                      <ChevronRight className="h-3.5 w-3.5 text-white/50" />
-                                      <span className="text-white/70">Sources</span>
-                                      <ChevronRight className="h-3.5 w-3.5 text-white/50" />
-                                      <span className="truncate text-white/90 font-medium" title={row.domain}>{row.domain}</span>
-                                    </div>
-                                    {/* Domain header with range filter on the right */}
-                                    <div className="flex items-center justify-between py-1.5">
-                                      <div className="flex items-center gap-3 min-w-0">
-                                        <div className="text-sm text-white/80 truncate">{row.domain}</div>
-                                        <a href={`https://${row.domain}`} target="_blank" rel="noreferrer" className="text-xs text-white/70 hover:text-white/90 underline whitespace-nowrap">Visit domain</a>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        {(['7d','14d','30d'] as const).map((r) => (
-                                          <Button
-                                            key={r}
-                                            variant={sourcesRange === r ? 'default' : 'ghost'}
-                                            size="sm"
-                                            className={(sourcesRange === r ? 'bg-white text-black hover:bg-white/90 ' : 'border border-white/10 bg-white/5 text-white/80 hover:text-white ') + 'h-7 rounded-full text-[12px] px-3'}
-                                            onClick={() => setSourcesRange(r)}
-                                            aria-label={`Filter URLs ${r}`}
+                                  <div className="p-6 space-y-6">
+                                    {/* Header with domain info */}
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.05]">
+                                          <Globe className="h-5 w-5 text-white/50" />
+                                        </div>
+                                        <div>
+                                          <div className="text-sm font-medium text-white/90">{row.domain}</div>
+                                          <a
+                                            href={`https://${row.domain}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-xs text-white/40 hover:text-white/60 transition-colors"
                                           >
-                                            {r.toUpperCase()}
-                                          </Button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                    {/* KPI row */}
-                                    <div className="grid grid-cols-1 gap-4">
-                                      {/* Left KPI: Citation Frequency % */}
-                                      <div className="rounded-lg border border-white/10 bg-white/5 p-5 md:p-5 min-h-[110px]">
-                                        <div className="flex items-center justify-between gap-6">
-                                          <div className="flex-1">
-                                            <Tooltip>
-                                              <TooltipTrigger asChild>
-                                                <div className="text-base md:text-lg font-semibold text-white/90 cursor-help inline-flex items-center gap-1.5">Citation Frequency <HelpCircle className="h-3.5 w-3.5 opacity-70" /></div>
-                                              </TooltipTrigger>
-                                              <TooltipContent>
-                                                Percentage of prompt runs where this domain appears
-                                              </TooltipContent>
-                                            </Tooltip>
-                                          </div>
-                                          <div className="text-4xl md:text-5xl font-semibold leading-none tracking-tight text-white/90">
-                                            {Math.round((row.frequency / Math.max(1, totalCitationFrequency)) * 100)}%
-                                          </div>
+                                            Visit domain →
+                                          </a>
                                         </div>
                                       </div>
                                     </div>
-                                    {/* View selector: Sources | This prompt | All prompts */}
-                                    <div className="mt-2 flex items-center justify-start">
-                                      <div className="flex items-center gap-2">
-                                        <Button
-                                          variant={sourceDialogView === 'sources' ? 'default' : 'ghost'}
-                                          size="sm"
-                                          className={(sourceDialogView === 'sources' ? 'bg-white text-black hover:bg-white/90 ' : 'border border-white/10 bg-white/5 text-white/80 hover:text-white ') + 'h-7 rounded-full text-[12px] px-3'}
-                                          onClick={() => setSourceDialogView('sources')}
-                                          aria-label="View sources list"
-                                        >
-                                          Sources
-                                        </Button>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <Button
-                                              variant={sourceDialogView === 'prompt' ? 'default' : 'ghost'}
-                                              size="sm"
-                                              className={(sourceDialogView === 'prompt' ? 'bg-white text-black hover:bg-white/90 ' : 'border border-white/10 bg-white/5 text-white/80 hover:text-white ') + 'h-7 rounded-full text-[12px] px-3'}
-                                              onClick={() => setSourceDialogView('prompt')}
-                                              aria-label="View chats for this prompt"
-                                            >
-                                              This prompt <HelpCircle className="h-3 w-3 ml-1 opacity-70" />
-                                            </Button>
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                            Shows chats for this prompt where this source was cited
-                                          </TooltipContent>
-                                        </Tooltip>
+
+                                    {/* Citation Frequency Card */}
+                                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                                      <div className="text-xs text-white/40 mb-1.5">Citation Frequency</div>
+                                      <div className="text-2xl font-semibold text-white/90">
+                                        {Math.round((row.frequency / Math.max(1, totalCitationFrequency)) * 100)}%
                                       </div>
+                                      <div className="text-xs text-white/40 mt-1">How often this source appears in responses</div>
+                                    </div>
+
+                                    {/* Tab selector */}
+                                    <div className="flex items-center gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/[0.06] w-fit">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSourceDialogView('sources')}
+                                        className={cn(
+                                          "px-3 py-1.5 rounded-md text-[13px] font-medium transition-all",
+                                          sourceDialogView === 'sources'
+                                            ? "bg-white text-black"
+                                            : "text-white/60 hover:text-white/80"
+                                        )}
+                                      >
+                                        Sources
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setSourceDialogView('prompt')}
+                                        className={cn(
+                                          "px-3 py-1.5 rounded-md text-[13px] font-medium transition-all",
+                                          sourceDialogView === 'prompt'
+                                            ? "bg-white text-black"
+                                            : "text-white/60 hover:text-white/80"
+                                        )}
+                                      >
+                                        This prompt
+                                      </button>
                                     </div>
 
                                     {/* Chats by source (conditional) */}
@@ -1258,130 +1041,123 @@ function TrackedPromptDeepViewInner() {
                                       const remainingLocal = Math.max(0, chatsForDomain.length - visibleChatsLocal.length)
 
                                       return (
-                                        <div className="mt-3 rounded-lg border border-white/[0.08] bg-transparent">
-                                          <div className="max-h-[30vh] overflow-y-auto">
-                                            <Table className="w-full text-[14px] md:text-[15px] table-fixed">
-                                              <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
-                                                <TableRow className="hover:bg-transparent h-10">
-                                                  <TableHead className="w-[220px] text-white/70 px-4">Platform</TableHead>
-                                                  <TableHead className="text-white/70">Response</TableHead>
-                                                  <TableHead className="w-[100px] text-center text-white/70 px-2">Citations</TableHead>
-                                                  <TableHead className="w-[140px] text-center text-white/70 px-2">Date</TableHead>
+                                        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                                          <div className="max-h-[35vh] overflow-y-auto">
+                                            <Table className="w-full">
+                                              <TableHeader className="sticky top-0 z-10 bg-white/[0.03]">
+                                                <TableRow className="hover:bg-transparent border-b border-white/[0.06]">
+                                                  <TableHead className="w-[160px] text-[13px] font-medium text-white/50 px-4 h-10">Platform</TableHead>
+                                                  <TableHead className="text-[13px] font-medium text-white/50 h-10">Response</TableHead>
+                                                  <TableHead className="w-[80px] text-center text-[13px] font-medium text-white/50 px-2 h-10">Citations</TableHead>
+                                                  <TableHead className="w-[100px] text-center text-[13px] font-medium text-white/50 px-2 h-10">Date</TableHead>
                                                 </TableRow>
                                               </TableHeader>
                                               <TableBody>
-                                                {visibleChatsLocal.map((chat) => (
-                                                  <TableRow key={chat.id} className="hover:bg-white/[0.04] border-b border-white/[0.08] last:border-b-0">
-                                                    <TableCell className="px-4">
-                                                      <div className="flex items-center gap-2">
-                                                        <div className="flex items-center justify-center size-7 rounded-md border border-white/10 bg-white/5">
-                                                          <Image src={getProviderIconSrc(chat.provider)} alt={`${chat.provider} icon`} width={12} height={12} />
-                                                        </div>
-                                                        <span className="text-sm text-white/90">{getProviderDisplay(chat.provider)}</span>
-                                                      </div>
+                                                {visibleChatsLocal.map((chat) => {
+                                                  const responseText = (chat.fullResponse || '').split('\n').filter(Boolean).join(' ')
+                                                  const words = responseText.split(/\s+/).filter(Boolean)
+                                                  const previewText = words.slice(0, 3).join(' ')
+                                                  const hasMore = words.length > 3
+                                                  return (
+                                                  <TableRow key={chat.id} className="hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 transition-colors">
+                                                    <TableCell className="px-4 py-3">
+                                                      <span className="text-[13px] text-white/80">{getProviderDisplay(chat.provider)}</span>
                                                     </TableCell>
-                                                    <TableCell>
-                                                      <div className="text-xs text-white/80 line-clamp-2 max-w-full">
-                                                        {(chat.fullResponse || '').split('\n').filter(Boolean).slice(0, 2).join(' ').slice(0, 220)}
-                                                      </div>
+                                                    <TableCell className="py-3 max-w-[200px]">
+                                                      <span
+                                                        title={responseText}
+                                                        className="text-[13px] text-white/60 cursor-help truncate block"
+                                                      >
+                                                        {previewText}{hasMore && '...'}
+                                                      </span>
                                                     </TableCell>
-                                                    <TableCell className="text-center text-white/80 px-2">
-                                                      <Badge variant="outline" className="h-6 px-2 text-[12px] rounded-md border-white/[0.08] bg-white/5 text-white/90">
-                                                        {Math.max(1, (chat.responseCitations || []).filter((c) => (c as any).domain === row.domain).length)}
-                                                      </Badge>
+                                                    <TableCell className="text-center text-[13px] text-white/60 px-2 py-3">
+                                                      {Math.max(1, (chat.responseCitations || []).filter((c) => (c as any).domain === row.domain).length)}
                                                     </TableCell>
-                                                    <TableCell className="text-center text-white/80 px-2">{chat.date}</TableCell>
+                                                    <TableCell className="text-center text-[13px] text-white/50 px-2 py-3">{chat.date}</TableCell>
                                                   </TableRow>
-                                                ))}
+                                                  )
+                                                })}
                                                 {visibleChatsLocal.length === 0 ? (
                                                   <TableRow>
-                                                    <TableCell colSpan={4} className="text-center text-white/60 h-16">
-                                                      No chats found for this source.
+                                                    <TableCell colSpan={4} className="text-center py-10">
+                                                      <div className="text-[13px] text-white/40">No chats found for this source</div>
                                                     </TableCell>
                                                   </TableRow>
                                                 ) : null}
                                               </TableBody>
                                             </Table>
                                           </div>
-                                          <div className="flex items-center justify-between px-4 py-2 border-t border-white/[0.08]">
-                                            <div className="flex items-center gap-2">
-                                              <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-8 px-3 rounded-md border-white/[0.08] bg-white/5 text-white/80 hover:text-white"
+                                          {chatsForDomain.length > 0 && (
+                                            <div className="flex items-center justify-between px-4 py-2.5 border-t border-white/[0.06] text-[13px]">
+                                              <button
+                                                type="button"
                                                 onClick={() => setSourceChatsVisibleCount(Math.min(sourceChatsVisibleCount + INITIAL_VISIBLE, chatsForDomain.length))}
-                                                aria-label="Expand chats for this source"
                                                 disabled={remainingLocal <= 0}
+                                                className={cn(
+                                                  "text-white/50 hover:text-white/80 transition-colors",
+                                                  remainingLocal <= 0 && "opacity-40 cursor-not-allowed"
+                                                )}
                                               >
-                                                Expand
-                                              </Button>
-                                              {remainingLocal > 0 ? (
-                                                <span className="text-xs text-white/50">{Math.min(INITIAL_VISIBLE, remainingLocal)} more</span>
-                                              ) : (
-                                                <span className="text-xs text-white/40">All items shown</span>
-                                              )}
+                                                {remainingLocal > 0 ? `Show ${Math.min(INITIAL_VISIBLE, remainingLocal)} more` : 'All shown'}
+                                              </button>
+                                              <span className="text-white/40">{visibleChatsLocal.length} of {chatsForDomain.length}</span>
                                             </div>
-                                            <span className="text-xs text-white/60">Showing 1 – {visibleChatsLocal.length} of {chatsForDomain.length} items</span>
-                                          </div>
+                                          )}
                                         </div>
                                       )
                                     })()}
 
-                                    {/* URLs table (mock; wired later) */}
+                                    {/* URLs table */}
                                     {sourceDialogView === 'sources' && (
-                                    <div className="rounded-lg border border-white/10 bg-white/[0.03]">
-                                      <div className="max-h-[45vh] overflow-y-auto">
-                                        <Table className="w-full text-[15px]">
-                                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
-                                            <TableRow className="hover:bg-transparent h-10">
-                                              <TableHead className="text-white/70 px-4">URL</TableHead>
-                                              <TableHead className="w-[180px] text-center text-white/70 px-2">
-                                                <Tooltip>
-                                                  <TooltipTrigger asChild>
-                                                    <span className="inline-flex items-center gap-1.5 cursor-help">Type of Content <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
-                                                  </TooltipTrigger>
-                                                  <TooltipContent>Format of the referenced page (blog, guide, list, etc.)</TooltipContent>
-                                                </Tooltip>
-                                              </TableHead>
-                                              <TableHead className="w-[140px] text-center text-white/70 px-2">
-                                                <Tooltip>
-                                                  <TooltipTrigger asChild>
-                                                    <span className="inline-flex items-center gap-1.5 cursor-help">Mentioned? <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
-                                                  </TooltipTrigger>
-                                                  <TooltipContent>Was your brand mentioned in this source?</TooltipContent>
-                                                </Tooltip>
-                                              </TableHead>
+                                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                                      <div className="max-h-[40vh] overflow-y-auto">
+                                        <Table className="w-full">
+                                          <TableHeader className="sticky top-0 z-10 bg-white/[0.03]">
+                                            <TableRow className="hover:bg-transparent border-b border-white/[0.06]">
+                                              <TableHead className="text-[13px] font-medium text-white/50 px-4 h-10">URL</TableHead>
+                                              <TableHead className="w-[140px] text-center text-[13px] font-medium text-white/50 px-3 h-10">Type</TableHead>
+                                              <TableHead className="w-[100px] text-center text-[13px] font-medium text-white/50 px-3 h-10">Mentioned</TableHead>
                                             </TableRow>
                                           </TableHeader>
                                           <TableBody>
-                                            {/* Use real URLs from API if available, otherwise show empty state */}
                                             {(row.urls && row.urls.length > 0) ? (
                                               row.urls.map((item: { url: string; title?: string; citationType: string; brandMentioned: boolean }, idx: number) => (
-                                              <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/10 h-12 border-b border-white/10 last:border-b-0">
-                                                <TableCell className="px-5">
-                                                  <a href={item.url} target="_blank" rel="noreferrer" className="text-white/90 hover:underline truncate inline-block max-w-full align-middle">
+                                              <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 transition-colors">
+                                                <TableCell className="px-4 py-3">
+                                                  <a
+                                                    href={item.url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-[13px] text-white/70 hover:text-white transition-colors truncate block max-w-[400px]"
+                                                    title={item.url}
+                                                  >
                                                     {item.url}
                                                   </a>
                                                 </TableCell>
-                                                <TableCell className="text-center">
-                                                  <Badge className="h-6 px-2 text-[12px] rounded border border-white/15 bg-white/10 text-white/80 inline-flex items-center gap-1">
+                                                <TableCell className="text-center px-3 py-3">
+                                                  <span className="inline-flex items-center gap-1.5 text-[12px] text-white/60">
                                                     <ContentTypeIcon type={mapContentType(item.citationType)} />
                                                     {mapContentType(item.citationType)}
-                                                  </Badge>
+                                                  </span>
                                                 </TableCell>
-                                                <TableCell className="text-center">
+                                                <TableCell className="text-center px-3 py-3">
                                                   {item.brandMentioned ? (
-                                                    <Badge className="h-6 px-2 text-[12px] rounded border-0 bg-emerald-500/20 text-emerald-300 inline-flex items-center gap-1"><CheckCircle className="h-3.5 w-3.5" />Yes</Badge>
+                                                    <span className="inline-flex items-center gap-1 text-[12px] text-emerald-400">
+                                                      <CheckCircle className="h-3.5 w-3.5" />Yes
+                                                    </span>
                                                   ) : (
-                                                    <Badge className="h-6 px-2 text-[12px] rounded border-0 bg-red-500/20 text-red-300 inline-flex items-center gap-1"><XCircle className="h-3.5 w-3.5" />No</Badge>
+                                                    <span className="inline-flex items-center gap-1 text-[12px] text-white/40">
+                                                      <XCircle className="h-3.5 w-3.5" />No
+                                                    </span>
                                                   )}
                                                 </TableCell>
                                               </TableRow>
                                               ))
                                             ) : (
                                               <TableRow>
-                                                <TableCell colSpan={3} className="text-center text-white/60 h-16">
-                                                  No individual URLs tracked for this domain yet.
+                                                <TableCell colSpan={3} className="text-center py-10">
+                                                  <div className="text-[13px] text-white/40">No URLs tracked for this domain yet</div>
                                                 </TableCell>
                                               </TableRow>
                                             )}
@@ -1397,12 +1173,12 @@ function TrackedPromptDeepViewInner() {
                           </TableBody>
                         </Table>
                         {/* Bottom footer with Expand control and range */}
-                        <div className="flex items-center justify-between px-4 py-2 border-t border-white/10">
-                          <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-between px-4 py-2.5 border-t border-white/[0.06] bg-white/[0.01]">
+                          <div className="flex items-center gap-3">
                               <Button
                               variant="outline"
                               size="sm"
-                              className="h-8 px-3 rounded-md border-white/10 bg-white/5 text-white/80 hover:text-white"
+                              className="h-7 px-3 rounded-md border-white/[0.04] bg-white/[0.03] text-white/70 hover:text-white hover:bg-white/[0.06] transition-colors text-[13px]"
                               onClick={() => setSourceVisibleCount(Math.min(sourceVisibleCount + INITIAL_VISIBLE, sortedCitationSources.length))}
                               aria-label="Expand sources"
                               disabled={remainingSources <= 0}
@@ -1410,12 +1186,12 @@ function TrackedPromptDeepViewInner() {
                               Expand
                             </Button>
                               {remainingSources > 0 ? (
-                                <span className="text-xs text-white/50">{Math.min(INITIAL_VISIBLE, remainingSources)} more</span>
+                                <span className="text-[12px] text-white/40">{Math.min(INITIAL_VISIBLE, remainingSources)} more</span>
                               ) : (
-                                <span className="text-xs text-white/40">All items shown</span>
+                                <span className="text-[12px] text-white/30">All items shown</span>
                               )}
                           </div>
-                          <span className="text-xs text-white/60">
+                          <span className="text-[12px] text-white/40 tabular-nums">
                             {sortedCitationSources.length > 0 
                               ? `Showing 1 – ${visibleSources.length} of ${sortedCitationSources.length} items`
                               : 'No sources available'
@@ -1424,46 +1200,46 @@ function TrackedPromptDeepViewInner() {
                         </div>
                       </div>
                     ) : (
-                      <div className="p-0">
-                        <Table className="w-full text-[14px] md:text-[15px] table-fixed">
-                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
+                      <div>
+                        <Table className="w-full text-[14px] table-fixed">
+                          <TableHeader className="sticky top-0 z-10 bg-white/[0.03] border-b border-white/[0.06] text-[13px]">
                             <TableRow className="hover:bg-transparent h-12">
-                              <TableHead className="w-[220px] text-white/70 px-4">
+                              <TableHead className="w-[220px] text-white/50 font-medium px-4">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="inline-flex items-center gap-1.5 cursor-help">Platform <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
+                                    <span className="inline-flex items-center gap-1.5 cursor-help">Platform <HelpCircle className="h-3.5 w-3.5 opacity-50" /></span>
                                   </TooltipTrigger>
                                   <TooltipContent>Platform where the prompt was run.</TooltipContent>
                                 </Tooltip>
                               </TableHead>
-                              <TableHead className="w-[120px] text-white/70">
+                              <TableHead className="w-[120px] text-white/50 font-medium">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="inline-flex items-center gap-1.5 cursor-help">Mentioned? <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
+                                    <span className="inline-flex items-center gap-1.5 cursor-help">Mentioned? <HelpCircle className="h-3.5 w-3.5 opacity-50" /></span>
                                   </TooltipTrigger>
-                                  <TooltipContent>Whether your brand was or wasn’t mentioned in the model response</TooltipContent>
+                                  <TooltipContent>Whether your brand was or wasn't mentioned in the model response</TooltipContent>
                                 </Tooltip>
                               </TableHead>
-                              <TableHead className="w-[100px] text-white/70">
+                              <TableHead className="w-[100px] text-white/50 font-medium">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="inline-flex items-center gap-1.5 cursor-help">Position <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
+                                    <span className="inline-flex items-center gap-1.5 cursor-help">Position <HelpCircle className="h-3.5 w-3.5 opacity-50" /></span>
                                   </TooltipTrigger>
-                                  <TooltipContent>Position of brand mention in the model’s response (less is better)</TooltipContent>
+                                  <TooltipContent>Position of brand mention in the model's response (less is better)</TooltipContent>
                                 </Tooltip>
                               </TableHead>
-                              <TableHead className="text-white/70">
+                              <TableHead className="text-white/50 font-medium">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="inline-flex items-center gap-1.5 cursor-help">Response <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
+                                    <span className="inline-flex items-center gap-1.5 cursor-help">Response <HelpCircle className="h-3.5 w-3.5 opacity-50" /></span>
                                   </TooltipTrigger>
                                   <TooltipContent>Output of the model</TooltipContent>
                                 </Tooltip>
                               </TableHead>
-                              <TableHead className="w-[140px] text-white/70 text-center px-2">
+                              <TableHead className="w-[140px] text-white/50 font-medium text-center px-2">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="inline-flex items-center gap-1.5 cursor-help">Date <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
+                                    <span className="inline-flex items-center gap-1.5 cursor-help">Date <HelpCircle className="h-3.5 w-3.5 opacity-50" /></span>
                                   </TooltipTrigger>
                                   <TooltipContent>When this prompt was queried</TooltipContent>
                                 </Tooltip>
@@ -1517,166 +1293,145 @@ function TrackedPromptDeepViewInner() {
                                 <TableCell className="text-center text-white/80 px-2">{chat.date}</TableCell>
                                   </TableRow>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-3xl rounded-xl border border-white/[0.08] bg-transparent backdrop-blur-sm p-0">
+                                <DialogContent className="sm:max-w-3xl rounded-xl border border-white/[0.06] bg-dark-grey p-0">
                                   <DialogHeader>
                                     <DialogTitle className="sr-only">Chat Details</DialogTitle>
                                   </DialogHeader>
-                                  <div className="p-5 space-y-5">
-                                    {/* Top stats */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                      <div className="rounded-md border border-white/10 bg-white/5 p-3 flex items-center gap-2">
-                                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-[4px] ring-1 ring-white/15 overflow-hidden bg-white/5">
-                                          <Image src={getProviderIconSrc(chat.provider)} alt={`${chat.provider} icon`} width={14} height={14} />
+                                  <div className="p-6 space-y-6">
+                                    {/* Header with model info */}
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.05]">
+                                          <Image src={getProviderIconSrc(chat.provider)} alt={`${chat.provider} icon`} width={18} height={18} />
                                         </span>
-                                        <span className="text-sm text-white/90">{getProviderDisplay(chat.provider)}</span>
+                                        <div>
+                                          <div className="text-sm font-medium text-white/90">{getProviderDisplay(chat.provider)}</div>
+                                          <div className="text-xs text-white/40">{chat.date}</div>
+                                        </div>
                                       </div>
-                                      <div className="rounded-md border border-white/10 bg-white/5 p-3 flex items-center gap-2">
-                                        {chat.mentioned ? (
-                                          <CheckCircle className="h-4 w-4 text-emerald-300" />
-                                        ) : (
-                                          <XCircle className="h-4 w-4 text-white/60" />
-                                        )}
-                                        <span className="text-sm text-white/90">{chat.mentioned ? 'Mentioned' : 'Not Mentioned'}</span>
-                                      </div>
-                                      <div className="rounded-md border border-white/10 bg-white/5 p-3 flex items-center gap-2">
-                                        <span className="text-xs text-white/70">Position</span>
-                                        <Badge variant="outline" className="h-6 px-2 text-[12px] rounded-md border-white/10 bg-white/5 text-white/90">#{chat.position}</Badge>
-                                      </div>
-                                      <div className="rounded-md border border-white/10 bg-white/5 p-3 text-center">
-                                        <div className="text-xs text-white/70">Date</div>
-                                        <div className="text-sm text-white/90">{chat.date}</div>
+                                      <div className="flex items-center gap-3 text-[13px]">
+                                        <div className="flex items-center gap-1.5">
+                                          {chat.mentioned ? (
+                                            <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
+                                          ) : (
+                                            <XCircle className="h-3.5 w-3.5 text-white/40" />
+                                          )}
+                                          <span className="text-white/60">{chat.mentioned ? 'Mentioned' : 'Not mentioned'}</span>
+                                        </div>
+                                        <span className="text-white/20">·</span>
+                                        <span className="text-white/60">Position <span className="text-white/90">#{chat.position}</span></span>
                                       </div>
                                     </div>
 
-                                    {/* Prompt as title */}
+                                    {/* Prompt */}
                                     <div>
-                                      <div className="text-xs text-white/60 mb-1">Prompt</div>
-                                      <div className="text-base md:text-lg font-semibold text-white/90">{promptLabel}</div>
+                                      <div className="text-xs text-white/40 mb-1.5">Prompt</div>
+                                      <div className="text-[15px] text-white/80">{promptLabel}</div>
                                     </div>
 
-                                    {/* Response container */}
-                                    <div className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-4 max-h-[45vh] overflow-y-auto">
-                                      <div className="text-xs text-white/60 mb-2">Model Response</div>
-                                      <pre className="text-[13px] text-white/85 leading-relaxed whitespace-pre-wrap font-mono">
-{``}
-                                        {chat.fullResponse}
-                                      </pre>
+                                    {/* Response preview */}
+                                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                                      <div className="text-xs text-white/40 mb-2">Response</div>
+                                      <div className="text-[13px] text-white/60 leading-relaxed line-clamp-3">
+                                        {(chat.fullResponse || '').split('\n').filter(Boolean).slice(0, 2).join(' ').slice(0, 200)}...
+                                      </div>
                                     </div>
 
-                                    {/* Citations widgets */}
+                                    {/* Citations */}
                                     <div>
-                                      <div className="text-xs text-white/60 mb-2">Citations in this response</div>
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[30vh] overflow-y-auto pr-1">
+                                      <div className="text-xs text-white/40 mb-3">Citations</div>
+                                      <div className="flex flex-wrap gap-2">
                                         {(chat.responseCitations && chat.responseCitations.length > 0 ? chat.responseCitations : citationSources).map((c) => (
                                           <Dialog key={`${(c as any).domain}-${(c as any).citationType ?? (c as any).type ?? ''}`}>
                                             <DialogTrigger asChild>
-                                              <div className="rounded-md border border-white/10 bg-white/5 p-3 flex items-center justify-between cursor-pointer hover:bg-white/10">
-                                                <div className="truncate text-sm text-white/90 mr-2 underline">
-                                                  {(c as any).domain}
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                  {('frequency' in (c as any) ? (c as any).frequency : undefined) !== undefined ? (
-                                                    <Badge variant="outline" className="h-6 px-2 text-[12px] rounded-md border-white/10 bg-white/5 text-white/80">
-                                                      {Math.round((((c as any).frequency / Math.max(1, totalCitationFrequency)) as number) * 100)}%
-                                                    </Badge>
-                                                  ) : null}
-                                                  {((c as any).citationType ?? (c as any).type) ? (
-                                                    <Badge className="h-6 px-2 text-[12px] rounded-md border-0 bg-white text-black">{(c as any).citationType ?? (c as any).type}</Badge>
-                                                  ) : null}
-                                                </div>
-                                              </div>
+                                              <button className="inline-flex items-center gap-2 rounded-md bg-white/[0.05] hover:bg-white/[0.08] px-3 py-1.5 text-[13px] text-white/70 hover:text-white/90 transition-colors">
+                                                <span>{(c as any).domain}</span>
+                                                {((c as any).citationType ?? (c as any).type) && (
+                                                  <span className="text-white/40">·</span>
+                                                )}
+                                                {((c as any).citationType ?? (c as any).type) && (
+                                                  <span className="text-white/50">{(c as any).citationType ?? (c as any).type}</span>
+                                                )}
+                                              </button>
                                             </DialogTrigger>
-                                            <DialogContent className="sm:max-w-4xl md:max-w-4xl rounded-xl border border-white/[0.08] bg-transparent backdrop-blur-sm p-0 max-h-[90vh] overflow-y-auto">
+                                            <DialogContent className="sm:max-w-4xl md:max-w-4xl rounded-xl border border-white/[0.06] bg-dark-grey p-0 max-h-[90vh] overflow-y-auto">
                                               <DialogHeader>
                                                 <DialogTitle className="sr-only">Source Details</DialogTitle>
                                               </DialogHeader>
-                                              <div className="px-5 py-6 space-y-6">
-                                                {/* Breadcrumb guide */}
-                                                <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px]">
-                                                  <MessageSquare className="h-3.5 w-3.5 text-white/70" />
-                                                  <span className="text-white/70">Prompts</span>
-                                                  <ChevronRight className="h-3.5 w-3.5 text-white/50" />
-                                                  <span className="truncate max-w-[45%] text-white/80" title={promptLabel}>{promptLabel}</span>
-                                                  <ChevronRight className="h-3.5 w-3.5 text-white/50" />
-                                                  <span className="text-white/70">Sources</span>
-                                                  <ChevronRight className="h-3.5 w-3.5 text-white/50" />
-                                                  <span className="truncate text-white/90 font-medium" title={(c as any).domain}>{(c as any).domain}</span>
-                                                </div>
-                                                {/* Domain header with range filter on the right */}
-                                                <div className="flex items-center justify-between py-1.5">
-                                                  <div className="flex items-center gap-3 min-w-0">
-                                                    <div className="text-sm text-white/80 truncate">{(c as any).domain}</div>
-                                                    <a href={`https://${(c as any).domain}`} target="_blank" rel="noreferrer" className="text-xs text-white/70 hover:text-white/90 underline whitespace-nowrap">Visit domain</a>
+                                              <div className="p-6 space-y-6">
+                                                {/* Header with domain info */}
+                                                <div className="flex items-center justify-between">
+                                                  <div className="flex items-center gap-3">
+                                                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.05]">
+                                                      <Globe className="h-5 w-5 text-white/50" />
+                                                    </div>
+                                                    <div>
+                                                      <div className="text-sm font-medium text-white/90">{(c as any).domain}</div>
+                                                      <a href={`https://${(c as any).domain}`} target="_blank" rel="noreferrer" className="text-xs text-white/40 hover:text-white/60 transition-colors">
+                                                        Visit domain →
+                                                      </a>
+                                                    </div>
                                                   </div>
-                                                  <div className="flex items-center gap-2">
+                                                  <div className="flex items-center gap-1 text-[13px]">
                                                     {(['7d','14d','30d'] as const).map((r) => (
-                                                      <Button
+                                                      <button
                                                         key={r}
-                                                        variant={sourcesRange === r ? 'default' : 'ghost'}
-                                                        size="sm"
-                                                        className={(sourcesRange === r ? 'bg-white text-black hover:bg-white/90 ' : 'border border-white/10 bg-white/5 text-white/80 hover:text-white ') + 'h-7 rounded-full text-[12px] px-3'}
+                                                        type="button"
                                                         onClick={() => setSourcesRange(r)}
+                                                        className={cn(
+                                                          "px-2 py-1 rounded transition-colors",
+                                                          sourcesRange === r 
+                                                            ? "text-white bg-white/[0.06]" 
+                                                            : "text-white/40 hover:text-white/60"
+                                                        )}
                                                         aria-label={`Filter URLs ${r}`}
                                                       >
-                                                        {r.toUpperCase()}
-                                                      </Button>
+                                                        {r}
+                                                      </button>
                                                     ))}
                                                   </div>
                                                 </div>
-                                                {/* KPI row */}
-                                                <div className="grid grid-cols-1 gap-4">
-                                                  {/* Left KPI: Citation Frequency % */}
-                                                  <div className="rounded-lg border border-white/10 bg-white/5 p-5 md:p-5 min-h-[110px]">
-                                                    <div className="flex items-center justify-between gap-6">
-                                                      <div className="flex-1">
-                                                        <Tooltip>
-                                                          <TooltipTrigger asChild>
-                                                            <div className="text-base md:text-lg font-semibold text-white/90 cursor-help inline-flex items-center gap-1.5">Citation Frequency <HelpCircle className="h-3.5 w-3.5 opacity-70" /></div>
-                                                          </TooltipTrigger>
-                                                          <TooltipContent>
-                                                            Percentage of prompt runs where this domain appears
-                                                          </TooltipContent>
-                                                        </Tooltip>
-                                                      </div>
-                                                      <div className="text-4xl md:text-5xl font-semibold leading-none tracking-tight text-white/90">
-                                                        {(() => {
-                                                          const src = sortedCitationSources.find((s) => s.domain === (c as any).domain)
-                                                          return Math.round(((src?.frequency || 0) / Math.max(1, totalCitationFrequency)) * 100)
-                                                        })()}%
-                                                      </div>
-                                                    </div>
+
+                                                {/* Citation Frequency stat */}
+                                                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                                                  <div className="text-xs text-white/40 mb-1.5">Citation Frequency</div>
+                                                  <div className="text-2xl font-semibold text-white/90">
+                                                    {(() => {
+                                                      const src = sortedCitationSources.find((s) => s.domain === (c as any).domain)
+                                                      return Math.round(((src?.frequency || 0) / Math.max(1, totalCitationFrequency)) * 100)
+                                                    })()}%
                                                   </div>
+                                                  <div className="text-xs text-white/40 mt-1">How often this source appears in responses</div>
                                                 </div>
-                                                {/* View selector: Sources | This prompt */}
-                                                <div className="mt-2 flex items-center justify-start">
-                                                  <div className="flex items-center gap-2">
-                                                    <Button
-                                                      variant={sourceDialogView === 'sources' ? 'default' : 'ghost'}
-                                                      size="sm"
-                                                      className={(sourceDialogView === 'sources' ? 'bg-white text-black hover:bg-white/90 ' : 'border border-white/10 bg-white/5 text-white/80 hover:text-white ') + 'h-7 rounded-full text-[12px] px-3'}
-                                                      onClick={() => setSourceDialogView('sources')}
-                                                      aria-label="View sources list"
-                                                    >
-                                                      Sources
-                                                    </Button>
-                                                    <Tooltip>
-                                                      <TooltipTrigger asChild>
-                                                        <Button
-                                                          variant={sourceDialogView === 'prompt' ? 'default' : 'ghost'}
-                                                          size="sm"
-                                                          className={(sourceDialogView === 'prompt' ? 'bg-white text-black hover:bg-white/90 ' : 'border border-white/10 bg-white/5 text-white/80 hover:text-white ') + 'h-7 rounded-full text-[12px] px-3'}
-                                                          onClick={() => setSourceDialogView('prompt')}
-                                                          aria-label="View chats for this prompt"
-                                                        >
-                                                          This prompt <HelpCircle className="h-3 w-3 ml-1 opacity-70" />
-                                                        </Button>
-                                                      </TooltipTrigger>
-                                                      <TooltipContent>
-                                                        Shows chats for this prompt where this source was cited
-                                                      </TooltipContent>
-                                                    </Tooltip>
-                                                  </div>
+
+                                                {/* View selector */}
+                                                <div className="flex items-center gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/[0.06] w-fit">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setSourceDialogView('sources')}
+                                                    className={cn(
+                                                      "px-3 py-1.5 rounded-md text-[13px] font-medium transition-all",
+                                                      sourceDialogView === 'sources'
+                                                        ? "bg-white text-black"
+                                                        : "text-white/60 hover:text-white/80"
+                                                    )}
+                                                  >
+                                                    Sources
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setSourceDialogView('prompt')}
+                                                    className={cn(
+                                                      "px-3 py-1.5 rounded-md text-[13px] font-medium transition-all",
+                                                      sourceDialogView === 'prompt'
+                                                        ? "bg-white text-black"
+                                                        : "text-white/60 hover:text-white/80"
+                                                    )}
+                                                  >
+                                                    This prompt
+                                                  </button>
                                                 </div>
+
                                                 {/* Chats by source (conditional) */}
                                                 {sourceDialogView !== 'sources' && (() => {
                                                   const domain = (c as any).domain
@@ -1686,135 +1441,126 @@ function TrackedPromptDeepViewInner() {
                                                   const visibleChatsLocal = chatsForDomain.slice(0, sourceChatsVisibleCount)
                                                   const remainingLocal = Math.max(0, chatsForDomain.length - visibleChatsLocal.length)
                                                   return (
-                                                    <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.03]">
+                                                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
                                                       <div className="max-h-[30vh] overflow-y-auto">
-                                                        <Table className="w-full text-[14px] md:text-[15px] table-fixed">
-                                                          <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
-                                                            <TableRow className="hover:bg-transparent h-10">
-                                                              <TableHead className="w-[220px] text-white/70 px-4">Platform</TableHead>
-                                                              <TableHead className="text-white/70">Response</TableHead>
-                                                              <TableHead className="w-[100px] text-center text-white/70 px-2">Citations</TableHead>
-                                                              <TableHead className="w-[140px] text-center text-white/70 px-2">Date</TableHead>
+                                                        <Table className="w-full">
+                                                          <TableHeader className="sticky top-0 z-10 bg-white/[0.03]">
+                                                            <TableRow className="hover:bg-transparent border-b border-white/[0.06]">
+                                                              <TableHead className="w-[160px] text-[13px] font-medium text-white/50 px-4 h-10">Platform</TableHead>
+                                                              <TableHead className="text-[13px] font-medium text-white/50 h-10">Response</TableHead>
+                                                              <TableHead className="w-[80px] text-center text-[13px] font-medium text-white/50 px-2 h-10">Citations</TableHead>
+                                                              <TableHead className="w-[100px] text-center text-[13px] font-medium text-white/50 px-2 h-10">Date</TableHead>
                                                             </TableRow>
                                                           </TableHeader>
                                                           <TableBody>
-                                                            {visibleChatsLocal.map((chat) => (
-                                                              <TableRow key={chat.id} className="hover:bg-white/10 border-b border-white/10 last:border-b-0">
-                                                                <TableCell className="px-4">
-                                                                  <div className="flex items-center gap-2">
-                                                                    <span className="text-sm text-white/90">{getProviderDisplay(chat.provider)}</span>
-                                                                  </div>
+                                                            {visibleChatsLocal.map((chat) => {
+                                                              const responseText = (chat.fullResponse || '').split('\n').filter(Boolean).join(' ')
+                                                              const words = responseText.split(/\s+/).filter(Boolean)
+                                                              const previewText = words.slice(0, 3).join(' ')
+                                                              const hasMore = words.length > 3
+                                                              return (
+                                                              <TableRow key={chat.id} className="hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 transition-colors">
+                                                                <TableCell className="px-4 py-3">
+                                                                  <span className="text-[13px] text-white/80">{getProviderDisplay(chat.provider)}</span>
                                                                 </TableCell>
-                                                                <TableCell>
-                                                                  <div className="text-xs text-white/80 line-clamp-2 max-w-full">
-                                                                    {(chat.fullResponse || '').split('\n').filter(Boolean).slice(0, 2).join(' ').slice(0, 220)}
-                                                                  </div>
+                                                                <TableCell className="py-3 max-w-[200px]">
+                                                                  <span
+                                                                    title={responseText}
+                                                                    className="text-[13px] text-white/60 cursor-help truncate block"
+                                                                  >
+                                                                    {previewText}{hasMore && '...'}
+                                                                  </span>
                                                                 </TableCell>
-                                                                <TableCell className="text-center text-white/80 px-2">
-                                                                  <Badge variant="outline" className="h-6 px-2 text-[12px] rounded-md border-white/10 bg-white/5 text-white/90">
-                                                                    {Math.max(1, (chat.responseCitations || []).filter((y) => (y as any).domain === domain).length)}
-                                                                  </Badge>
+                                                                <TableCell className="text-center text-[13px] text-white/60 px-2 py-3">
+                                                                  {Math.max(1, (chat.responseCitations || []).filter((y) => (y as any).domain === domain).length)}
                                                                 </TableCell>
-                                                                <TableCell className="text-center text-white/80 px-2">{chat.date}</TableCell>
+                                                                <TableCell className="text-center text-[13px] text-white/50 px-2 py-3">{chat.date}</TableCell>
                                                               </TableRow>
-                                                            ))}
-                                                            {visibleChatsLocal.length === 0 ? (
+                                                              )
+                                                            })}
+                                                            {visibleChatsLocal.length === 0 && (
                                                               <TableRow>
-                                                                <TableCell colSpan={4} className="text-center text-white/60 h-16">
+                                                                <TableCell colSpan={4} className="text-center text-white/40 h-16 text-[13px]">
                                                                   No chats found for this source.
                                                                 </TableCell>
                                                               </TableRow>
-                                                            ) : null}
+                                                            )}
                                                           </TableBody>
                                                         </Table>
                                                       </div>
-                                                      <div className="flex items-center justify-between px-4 py-2 border-t border-white/10">
-                                                        <div className="flex items-center gap-2">
-                                                          <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="h-8 px-3 rounded-md border-white/10 bg-white/5 text-white/80 hover:text-white"
+                                                      {chatsForDomain.length > 0 && (
+                                                        <div className="flex items-center justify-between px-4 py-2.5 border-t border-white/[0.06] text-[13px]">
+                                                          <button
+                                                            type="button"
                                                             onClick={() => setSourceChatsVisibleCount(Math.min(sourceChatsVisibleCount + INITIAL_VISIBLE, chatsForDomain.length))}
-                                                            aria-label="Expand chats for this source"
                                                             disabled={remainingLocal <= 0}
+                                                            className={cn(
+                                                              "text-white/50 hover:text-white/80 transition-colors",
+                                                              remainingLocal <= 0 && "opacity-40 cursor-not-allowed"
+                                                            )}
                                                           >
-                                                            Expand
-                                                          </Button>
-                                                          {remainingLocal > 0 ? (
-                                                            <span className="text-xs text-white/50">{Math.min(INITIAL_VISIBLE, remainingLocal)} more</span>
-                                                          ) : (
-                                                            <span className="text-xs text-white/40">All items shown</span>
-                                                          )}
+                                                            {remainingLocal > 0 ? `Show ${Math.min(INITIAL_VISIBLE, remainingLocal)} more` : 'All shown'}
+                                                          </button>
+                                                          <span className="text-white/40">{visibleChatsLocal.length} of {chatsForDomain.length}</span>
                                                         </div>
-                                                        <span className="text-xs text-white/60">Showing 1 – {visibleChatsLocal.length} of {chatsForDomain.length} items</span>
-                                                      </div>
+                                                      )}
                                                     </div>
                                                   )
                                                 })()}
-                                                {/* URLs table (mock; wired later) */}
+
+                                                {/* URLs table */}
                                                 {sourceDialogView === 'sources' && (
-                                                  <div className="rounded-lg border border-white/10 bg-white/[0.03]">
-                                                    <div className="max-h-[45vh] overflow-y-auto">
-                                                      <Table className="w-full text-[15px]">
-                                                        <TableHeader className="sticky top-0 z-10 backdrop-blur-sm bg-white/5 border-b border-white/[0.08] text-[13px]">
-                                                          <TableRow className="hover:bg-transparent h-10">
-                                                            <TableHead className="text-white/70 px-4">URL</TableHead>
-                                                            <TableHead className="w-[180px] text-center text-white/70 px-2">
-                                              <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                  <span className="inline-flex items-center gap-1.5 cursor-help">Type of Content <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Format of the referenced page (blog, guide, list, etc.)</TooltipContent>
-                                              </Tooltip>
-                                                            </TableHead>
-                                                            <TableHead className="w-[140px] text-center text-white/70 px-2">
-                                              <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                  <span className="inline-flex items-center gap-1.5 cursor-help">Mentioned? <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Was your brand mentioned in this source?</TooltipContent>
-                                              </Tooltip>
-                                                            </TableHead>
+                                                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                                                    <div className="max-h-[40vh] overflow-y-auto">
+                                                      <Table className="w-full">
+                                                        <TableHeader className="sticky top-0 z-10 bg-white/[0.03]">
+                                                          <TableRow className="hover:bg-transparent border-b border-white/[0.06]">
+                                                            <TableHead className="text-[13px] font-medium text-white/50 px-4 h-10">URL</TableHead>
+                                                            <TableHead className="w-[140px] text-center text-[13px] font-medium text-white/50 px-3 h-10">Type</TableHead>
+                                                            <TableHead className="w-[100px] text-center text-[13px] font-medium text-white/50 px-3 h-10">Mentioned</TableHead>
                                                           </TableRow>
                                                         </TableHeader>
                                                         <TableBody>
-                                                          {/* Use real URL data from citation sources if available */}
                                                           {(() => {
                                                             const domain = (c as any).domain
                                                             const sourceData = sortedCitationSources.find(s => s.domain === domain)
                                                             const urls = sourceData?.urls || []
-                                                            
+
                                                             if (urls.length === 0) {
                                                               return (
                                                                 <TableRow>
-                                                                  <TableCell colSpan={3} className="text-center text-white/60 h-16">
-                                                                    No individual URLs tracked for this domain yet.
+                                                                  <TableCell colSpan={3} className="text-center py-10">
+                                                                    <div className="text-[13px] text-white/40">No URLs tracked for this domain yet</div>
                                                                   </TableCell>
                                                                 </TableRow>
                                                               )
                                                             }
-                                                            
+
                                                             return urls.map((item: { url: string; title?: string; citationType: string; brandMentioned: boolean }, idx: number) => (
-                                                            <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/10 h-12 border-b border-white/10 last:border-b-0">
-                                                              <TableCell className="px-5">
-                                                                <a href={item.url} target="_blank" rel="noreferrer" className="text-white/90 hover:underline truncate inline-block max-w-full align-middle">
-                                                                  {item.url}
-                                                                </a>
-                                                              </TableCell>
-                                                              <TableCell className="text-center">
-                                                                <Badge className="h-6 px-2 text-[12px] rounded border border-white/15 bg-white/10 text-white/80 inline-flex items-center gap-1">
-                                                                  <ContentTypeIcon type={mapContentType(item.citationType)} />
-                                                                  {mapContentType(item.citationType)}
-                                                                </Badge>
-                                                              </TableCell>
-                                                              <TableCell className="text-center">
-                                                                {item.brandMentioned ? (
-                                                                  <Badge className="h-6 px-2 text-[12px] rounded border-0 bg-emerald-500/20 text-emerald-300 inline-flex items-center gap-1"><CheckCircle className="h-3.5 w-3.5" />Yes</Badge>
-                                                                ) : (
-                                                                  <Badge className="h-6 px-2 text-[12px] rounded border-0 bg-red-500/20 text-red-300 inline-flex items-center gap-1"><XCircle className="h-3.5 w-3.5" />No</Badge>
-                                                                )}
-                                                              </TableCell>
-                                                            </TableRow>
+                                                              <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 transition-colors">
+                                                                <TableCell className="px-4 py-3">
+                                                                  <a href={item.url} target="_blank" rel="noreferrer" className="text-[13px] text-white/70 hover:text-white/90 transition-colors truncate block max-w-full">
+                                                                    {item.url}
+                                                                  </a>
+                                                                </TableCell>
+                                                                <TableCell className="text-center py-3">
+                                                                  <span className="inline-flex items-center gap-1.5 text-[12px] text-white/60">
+                                                                    <ContentTypeIcon type={mapContentType(item.citationType)} />
+                                                                    {mapContentType(item.citationType)}
+                                                                  </span>
+                                                                </TableCell>
+                                                                <TableCell className="text-center py-3">
+                                                                  {item.brandMentioned ? (
+                                                                    <span className="inline-flex items-center gap-1 text-[12px] text-emerald-400">
+                                                                      <CheckCircle className="h-3 w-3" />Yes
+                                                                    </span>
+                                                                  ) : (
+                                                                    <span className="inline-flex items-center gap-1 text-[12px] text-white/40">
+                                                                      <XCircle className="h-3 w-3" />No
+                                                                    </span>
+                                                                  )}
+                                                                </TableCell>
+                                                              </TableRow>
                                                             ))
                                                           })()}
                                                         </TableBody>

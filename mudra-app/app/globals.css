@@ -213,6 +213,10 @@
   .bg-dark-grey {
     background-color: #111111;
   }
+
+  .bg-sidebar-grey {
+    background-color: #161616;
+  }
   
   /* Navigation Active Indicator Animation */
   @keyframes glow {

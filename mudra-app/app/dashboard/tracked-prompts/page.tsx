@@ -59,6 +59,7 @@ type TrackedPrompt = {
   sentiment: "Positive" | "Neutral" | "Negative" | null
   position: number | null
   lastRun: string | null
+  isPending?: boolean // True when prompt is added but not yet analyzed
 }
 
 // Model logo mapping - same as Recent Chats
@@ -89,19 +90,7 @@ const getModelIcon = (model: string) => {
 const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedPrompt>[] => [
   {
     id: "select",
-    header: ({ table }) => (
-      <div className="flex items-center justify-center">
-        <Checkbox
-          className="scale-105"
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && "indeterminate")
-          }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all"
-        />
-      </div>
-    ),
+    header: () => null,
     cell: ({ row }) => (
       <div className="flex items-center justify-center">
         <Checkbox
@@ -137,46 +126,79 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
       </div>
     ),
     enableSorting: false,
-    size: 640,
+    size: 400,
   },
   {
     header: () => (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="w-full text-center cursor-default">Visibility</div>
+          <div className="cursor-default text-center">Visibility</div>
         </TooltipTrigger>
         <TooltipContent>Percentage of responses that mention your brand</TooltipContent>
       </Tooltip>
     ),
     accessorKey: "visibility",
     cell: ({ row }) => {
+      // Show skeleton loading state for pending prompts
+      if (row.original.isPending) {
+        return (
+          <div className="flex items-center gap-2 pl-2">
+            <span className="h-5 w-12 rounded bg-white/[0.06] animate-pulse" />
+          </div>
+        )
+      }
       const value = Number(row.getValue("visibility"))
-      return <div className="w-24 mx-auto text-center text-white/90 font-semibold">{value}%</div>
+      const getColor = () => {
+        if (value >= 70) return "bg-emerald-500"
+        if (value >= 40) return "bg-yellow-500"
+        if (value > 0) return "bg-orange-500"
+        return "bg-white/30"
+      }
+      return (
+        <div className="flex items-center gap-2 pl-2">
+          <div className={`w-2 h-2 rounded-full ${getColor()}`} />
+          <span className="text-white/90 font-medium">{value}%</span>
+        </div>
+      )
     },
     enableSorting: true,
-    size: 160,
+    size: 100,
   },
   {
     header: () => (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="cursor-default">Position</div>
+          <div className="cursor-default text-center">Position</div>
         </TooltipTrigger>
         <TooltipContent>Average rank where your brand appears (lower is better)</TooltipContent>
       </Tooltip>
     ),
     accessorKey: "position",
     cell: ({ row }) => {
+      // Show skeleton loading state for pending prompts
+      if (row.original.isPending) {
+        return (
+          <div className="flex items-center pl-2">
+            <span className="h-5 w-10 rounded bg-white/[0.06] animate-pulse" />
+          </div>
+        )
+      }
       const pos = row.getValue("position") as number | null
       if (!pos) {
-        return <span className="text-muted-foreground text-sm">—</span>
+        return (
+          <div className="flex items-center pl-2">
+            <span className="text-muted-foreground text-sm">—</span>
+          </div>
+        )
       }
       return (
-        <Badge className="px-2 rounded text-muted-foreground bg-white/5 border-0"># {pos.toFixed(1)}</Badge>
+        <div className="flex items-center pl-2">
+          <span className="text-white/80 text-sm font-medium">#{pos.toFixed(1)}</span>
+        </div>
       )
     },
     enableSorting: true,
-    size: 120,
+    size: 90,
   },
   {
     header: () => (
@@ -189,6 +211,14 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
     ),
     accessorKey: "model",
     cell: ({ row }) => {
+      // Show skeleton loading state for pending prompts
+      if (row.original.isPending) {
+        return (
+          <div className="flex items-center justify-center">
+            <span className="h-6 w-6 rounded-full bg-white/[0.06] animate-pulse" />
+          </div>
+        )
+      }
       const model = row.getValue("model") as string | null
       if (!model) {
         return (
@@ -202,9 +232,9 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
         <div className="flex items-center justify-center">
             <Tooltip>
               <TooltipTrigger asChild>
-              <span className="inline-flex items-center justify-center size-6 rounded-full bg-white/5 border border-white/[0.08] flex-shrink-0 p-1 cursor-default">
-                <img 
-                  src={getModelIcon(model)} 
+              <span className="inline-flex items-center justify-center size-6 rounded-full bg-white/5 border border-white/[0.04] flex-shrink-0 p-1 cursor-default">
+                <img
+                  src={getModelIcon(model)}
                   alt={model}
                   className="size-4 object-contain"
                   />
@@ -216,7 +246,7 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
       )
     },
     enableSorting: false,
-    size: 100,
+    size: 70,
   },
   {
     header: () => (
@@ -229,6 +259,14 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
     ),
     accessorKey: "lastRun",
     cell: ({ row }) => {
+      // Show skeleton loading state for pending prompts
+      if (row.original.isPending) {
+        return (
+          <div className="flex items-center justify-center">
+            <span className="h-5 w-14 rounded bg-white/[0.06] animate-pulse" />
+          </div>
+        )
+      }
       const lastRun = row.getValue("lastRun") as string | null
       if (!lastRun) {
         return (
@@ -244,58 +282,83 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
       )
     },
     enableSorting: false,
-    size: 120,
+    size: 90,
   },
   {
     header: () => (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="cursor-default">Intent</div>
+          <div className="cursor-default text-center">Intent</div>
         </TooltipTrigger>
         <TooltipContent>Category of the prompt (Organic, Competitor, How‑to, Brand‑Specific)</TooltipContent>
       </Tooltip>
     ),
     accessorKey: "intent",
     cell: ({ row }) => {
+      // Show skeleton loading state for pending prompts
+      if (row.original.isPending) {
+        return (
+          <div className="flex items-center justify-center">
+            <span className="h-5 w-16 rounded bg-white/[0.06] animate-pulse" />
+          </div>
+        )
+      }
       const intent = row.getValue("intent") as string | null
       if (!intent) {
-        return <span className="text-muted-foreground text-sm">—</span>
+        return (
+          <div className="flex items-center justify-center">
+            <span className="text-muted-foreground text-sm">—</span>
+          </div>
+        )
       }
-      return <Badge className="px-2 rounded bg-white text-black">{intent}</Badge>
+      return (
+        <div className="flex items-center justify-center">
+          <Badge className="px-2 py-0.5 rounded text-xs font-medium bg-white/10 text-white/80 border-0">
+            {intent}
+          </Badge>
+        </div>
+      )
     },
     enableSorting: false,
-    size: 170,
+    size: 120,
   },
   {
     header: () => (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="cursor-default">Sentiment</div>
+          <div className="cursor-default text-center">Sentiment</div>
         </TooltipTrigger>
         <TooltipContent>Overall tone of mentions (Positive / Neutral / Negative)</TooltipContent>
       </Tooltip>
     ),
     accessorKey: "sentiment",
     cell: ({ row }) => {
+      // Show skeleton loading state for pending prompts
+      if (row.original.isPending) {
+        return (
+          <div className="flex items-center justify-center">
+            <span className="h-5 w-14 rounded bg-white/[0.06] animate-pulse" />
+          </div>
+        )
+      }
       const sentiment = row.getValue("sentiment") as string | null
       if (!sentiment) {
-        return <span className="text-muted-foreground text-sm">—</span>
+        return (
+          <div className="flex items-center justify-center">
+            <span className="text-muted-foreground text-sm">—</span>
+          </div>
+        )
       }
       return (
-        <Badge
-          className={cn(
-            "px-2 rounded",
-            sentiment === "negative" && "bg-red-500/20 text-red-300",
-            sentiment === "neutral" && "bg-white/10 text-white/80",
-            sentiment === "positive" && "bg-emerald-500/20 text-emerald-300"
-          )}
-        >
-          {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)}
-        </Badge>
+        <div className="flex items-center justify-center">
+          <Badge className="px-2 py-0.5 rounded text-xs font-medium bg-white/10 text-white/80 border-0">
+            {sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase()}
+          </Badge>
+        </div>
       )
     },
     enableSorting: false,
-    size: 140,
+    size: 100,
   },
 ]
 
@@ -352,15 +415,21 @@ function TrackedPromptsPageInner() {
       
       if (result.success && result.prompts) {
         // Transform API response to table format
-        const transformedData: TrackedPrompt[] = result.prompts.map((p: any) => ({
-          id: p.id.toString(),
-          prompt: p.text,
-          visibility: Math.round(p.visibility || 0), // Ensure integer percentage
-          model: p.model || null,
-          intent: p.category || null,
-          sentiment: p.sentiment || null,
-          position: p.position || null
-        }))
+        const transformedData: TrackedPrompt[] = result.prompts.map((p: any) => {
+          // Check if prompt has been analyzed (has model or visibility data)
+          const hasBeenAnalyzed = p.model || (p.visibility && p.visibility > 0)
+          return {
+            id: p.id.toString(),
+            prompt: p.text,
+            visibility: Math.round(p.visibility || 0), // Ensure integer percentage
+            model: p.model || null,
+            intent: p.category || null,
+            sentiment: p.sentiment || null,
+            position: p.position || null,
+            lastRun: null,
+            isPending: !hasBeenAnalyzed, // Show loading state if not yet analyzed
+          }
+        })
         
         console.log(`✅ Loaded ${transformedData.length} prompts with analysis results`)
         if (transformedData.length > 0) {
@@ -382,7 +451,6 @@ function TrackedPromptsPageInner() {
       }
     } catch (error) {
       console.error('❌ Error fetching prompts:', error)
-      setData([])
       setErrorMessage('Failed to load prompts. Please try again.')
     } finally {
       setIsLoading(false)
@@ -507,15 +575,32 @@ function TrackedPromptsPageInner() {
 
       if (response.ok && result.success) {
         console.log('✅ Prompt added successfully', result.data?.analysisTriggered ? '(analysis triggered)' : '')
-        
+
         // Close dialog and reset form
         setAddOpen(false)
         setNewPromptText("")
         setNewIntent("Organic")
         setRunAnalysisOnAdd(false)
         setErrorMessage(null)
-        
-        // Refresh data from server to get the new prompt
+
+        // Add the prompt immediately with isPending: true to show loading state
+        const pendingPrompt: TrackedPrompt = {
+          id: result.promptId?.toString() || `pending-${Date.now()}`,
+          prompt: text,
+          visibility: 0,
+          model: null,
+          intent: newIntent,
+          sentiment: null,
+          position: null,
+          lastRun: null,
+          isPending: true, // Show loading skeleton in data columns
+        }
+
+        // Add pending prompt at the top
+        setData((prev) => [pendingPrompt, ...prev])
+
+        // Refresh data from server to get the analyzed results
+        // This will replace the pending prompt with the real data once analyzed
         await fetchPrompts()
       } else {
         const errorMsg = result.error?.message || result.message || 'Failed to add prompt'
@@ -594,7 +679,7 @@ function TrackedPromptsPageInner() {
             </div>
 
             {/* Clean Divider Line - Full Width */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             {/* Content Area */}
             <div className="flex flex-col flex-1">
@@ -669,11 +754,11 @@ function TrackedPromptsPageInner() {
                     Showing {filteredData.length} of {data.length} prompts
                   </div>
                 </div>
-                <div className="overflow-hidden rounded-md border border-white/[0.06] bg-transparent">
-                  <Table className="table-fixed text-[14px] md:text-[15px]">
-                    <TableHeader className="bg-white/[0.03]">
+                <div className="overflow-hidden rounded-xl border border-white/[0.04]">
+                  <Table className="table-fixed text-sm">
+                    <TableHeader className="bg-white/[0.04]">
                       {table.getHeaderGroups().map((headerGroup) => (
-                        <TableRow key={headerGroup.id} className="hover:bg-transparent text-[13px] md:text-sm">
+                        <TableRow key={headerGroup.id} className="hover:bg-transparent border-white/[0.06]">
                           {headerGroup.headers.map((header) => (
                             <TableHead
                               key={header.id}
@@ -728,9 +813,17 @@ function TrackedPromptsPageInner() {
                         </TableRow>
                       ) : table.getRowModel().rows?.length ? (
                         table.getRowModel().rows.map((row) => (
-                          <TableRow key={row.id} data-state={row.getIsSelected() && "selected"} className="text-[14px] md:text-[15px]">
+                          <TableRow 
+                            key={row.id} 
+                            data-state={row.getIsSelected() && "selected"} 
+                            className="border-white/[0.06] hover:bg-white/[0.03] transition-colors"
+                          >
                             {row.getVisibleCells().map((cell) => (
-                              <TableCell key={cell.id} className="py-4 align-middle">
+                              <TableCell 
+                                key={cell.id} 
+                                style={{ width: `${cell.column.getSize()}px` }}
+                                className="py-3.5 align-middle"
+                              >
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </TableCell>
                             ))}

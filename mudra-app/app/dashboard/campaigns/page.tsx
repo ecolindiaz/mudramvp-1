@@ -387,16 +387,16 @@ function CampaignsPageInner() {
           </div>
 
           {/* Clean Divider Line - Full Width */}
-          <div className="h-[1px] bg-white/10"></div>
+          <div className="h-[0.25px] bg-white/10"></div>
 
           {/* Progress Animation - Shown on main page when generating */}
           {isGenerating && (
             <div className="flex flex-col items-center justify-center min-h-[500px] px-4 lg:px-6 py-10">
-              <div className="relative w-full max-w-2xl bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden">
+              <div className="relative w-full max-w-2xl bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.04] p-6 shadow-xl overflow-hidden">
                 {/* Title Section */}
                 <div className="text-center mb-6">
                   <div className="flex items-center justify-center mb-4">
-                    <div className="flex items-center justify-center size-12 rounded-lg bg-white/[0.05] border border-white/[0.08]">
+                    <div className="flex items-center justify-center size-12 rounded-lg bg-white/[0.05] border border-white/[0.04]">
                       <Loader2 className="h-6 w-6 text-primary animate-spin" />
                     </div>
                   </div>
@@ -468,7 +468,7 @@ function CampaignsPageInner() {
                         "h-9 px-5 text-sm font-medium transition-all duration-200",
                         statusFilter === "draft"
                           ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
-                          : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
+                          : "border-white/[0.04] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                       )}
                     >
                       Drafts
@@ -481,7 +481,7 @@ function CampaignsPageInner() {
                         "h-9 px-5 text-sm font-medium transition-all duration-200",
                         statusFilter === "published"
                           ? "bg-white/15 border-white/25 text-white hover:bg-white/20 hover:border-white/30 shadow-sm shadow-white/5"
-                          : "border-white/[0.08] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
+                          : "border-white/[0.04] bg-transparent text-white/50 hover:bg-white/5 hover:text-white/80 hover:border-white/[0.12]"
                       )}
                     >
                       Published
@@ -490,7 +490,7 @@ function CampaignsPageInner() {
 
                   {/* Campaign Table */}
                   {filteredCampaigns.length > 0 ? (
-                    <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                    <div className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm">
                       <table className="w-full">
                         <thead>
                           <tr className="border-b border-white/[0.06] bg-white/[0.02]">
@@ -512,7 +512,7 @@ function CampaignsPageInner() {
                               >
                                 <td className="px-6 py-4">
                                   <div className="flex items-center gap-3">
-                                    <div className="flex items-center justify-center size-9 rounded-lg border bg-white/[0.05] border-white/[0.08] group-hover:bg-white/[0.08] group-hover:border-white/[0.15] transition-all duration-200 flex-shrink-0 shadow-sm group-hover:shadow">
+                                    <div className="flex items-center justify-center size-9 rounded-lg border bg-white/[0.05] border-white/[0.04] group-hover:bg-white/[0.08] group-hover:border-white/[0.15] transition-all duration-200 flex-shrink-0 shadow-sm group-hover:shadow">
                                       <Icon className="h-4 w-4 text-white/80 group-hover:text-white transition-colors" />
                                     </div>
                                     <span className="text-sm font-semibold text-white group-hover:text-white/90 transition-colors truncate">{c.title}</span>
@@ -563,7 +563,7 @@ function CampaignsPageInner() {
                       </table>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center py-16 px-6 rounded-xl border border-white/[0.08] bg-[#1a1a1a]">
+                    <div className="flex flex-col items-center justify-center py-16 px-6 rounded-xl border border-white/[0.04] bg-[#1a1a1a]">
                       <div className="text-sm text-white/50 mb-1">No {statusFilter} campaigns found</div>
                       <div className="text-xs text-white/40">Create a new campaign to get started</div>
                     </div>

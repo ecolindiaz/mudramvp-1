@@ -136,7 +136,7 @@ function TasksPageInner() {
             </div>
 
             {/* Clean Divider Line - Full Width */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             <div className="flex flex-col gap-5 md:gap-6 pb-6 md:pb-8 pt-6">
               {/* AI Visibility Analysis Results - Recommendations and Prompts */}

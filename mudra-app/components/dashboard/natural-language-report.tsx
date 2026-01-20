@@ -244,7 +244,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   // - Excludes the user's brand from competitors
   // - Ranks by SOV (highest first)
   // - Returns Top 5 competitors
-  const { data: competitorsData, mutate: refreshCompetitors } = useSWR(
+  const { data: competitorsData, mutate: refreshCompetitors, isLoading: isLoadingCompetitors } = useSWR(
     brandProfileId ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&limit=5` : null,
     async (url: string) => {
       const res = await fetch(url)
@@ -355,11 +355,11 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
               {isLoading ? (
                 <div className="space-y-2">
-                  <div className="h-4 w-full bg-white/5 animate-pulse rounded" />
-                  <div className="h-4 w-11/12 bg-white/5 animate-pulse rounded" />
-                  <div className="h-4 w-10/12 bg-white/5 animate-pulse rounded" />
-                  <div className="h-4 w-full bg-white/5 animate-pulse rounded" />
-                  <div className="h-4 w-9/12 bg-white/5 animate-pulse rounded" />
+                  <div className="h-4 w-full bg-white/10 animate-pulse rounded" />
+                  <div className="h-4 w-11/12 bg-white/10 animate-pulse rounded" />
+                  <div className="h-4 w-10/12 bg-white/10 animate-pulse rounded" />
+                  <div className="h-4 w-full bg-white/10 animate-pulse rounded" />
+                  <div className="h-4 w-9/12 bg-white/10 animate-pulse rounded" />
                 </div>
               ) : error ? (
                 <p className="text-sm text-white/60">Failed to load report. Please try again.</p>
@@ -443,15 +443,30 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                   <span>Company</span>
                   <span>SOV %</span>
                 </div>
-                {competitorRankings.length === 0 ? (
+                {isLoadingCompetitors ? (
+                  <div className="divide-y divide-white/[0.06]">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div
+                        key={i}
+                        className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5"
+                      >
+                        <div className="w-6">
+                          <span className="block h-4 w-3 rounded bg-white/10 animate-pulse" />
+                        </div>
+                        <span className="block h-4 w-24 rounded bg-white/10 animate-pulse" />
+                        <span className="block h-4 w-10 rounded bg-white/10 animate-pulse" />
+                      </div>
+                    ))}
+                  </div>
+                ) : competitorRankings.length === 0 ? (
                   <div className="px-4 py-8 text-center">
                     <p className="text-sm text-white/60">No competitor data available yet.</p>
                     <p className="text-xs text-white/40 mt-1">Run an analysis to see competitor rankings.</p>
                   </div>
                 ) : (
                   competitorRankings.map((competitor, idx) => (
-                    <div 
-                      key={idx} 
+                    <div
+                      key={idx}
                       className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.02]"
                     >
                       <div className="w-6 text-sm text-white/60 tabular-nums">{idx + 1}</div>
@@ -471,9 +486,6 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             <div className="rounded-lg border border-white/[0.08] bg-transparent overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
                 <div className="flex items-center gap-2">
-                  <svg className="size-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
                   <div className="text-sm font-medium text-white/90">Recent Chats</div>
                 </div>
                 <Tooltip>
@@ -486,7 +498,28 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                 </Tooltip>
               </div>
               <div className="p-4">
-                {recentChats.length === 0 ? (
+                {isLoading ? (
+                  <div className="grid grid-cols-3 gap-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="rounded-lg border border-white/[0.08] bg-transparent p-4 min-h-[125px] flex flex-col"
+                      >
+                        <div className="flex items-start gap-2.5 mb-3 flex-1">
+                          <span className="size-5 rounded bg-white/10 animate-pulse flex-shrink-0" />
+                          <div className="flex-1 space-y-2">
+                            <span className="block h-3 w-full rounded bg-white/10 animate-pulse" />
+                            <span className="block h-3 w-5/6 rounded bg-white/10 animate-pulse" />
+                            <span className="block h-3 w-4/6 rounded bg-white/10 animate-pulse" />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-end pt-2 mt-auto border-t border-white/[0.06]">
+                          <span className="block h-2 w-16 rounded bg-white/10 animate-pulse" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : recentChats.length === 0 ? (
                   <div className="py-8 text-center">
                     <p className="text-sm text-white/60">No recent chats available yet.</p>
                     <p className="text-xs text-white/40 mt-1">Recent chat responses will appear here once analyzed.</p>

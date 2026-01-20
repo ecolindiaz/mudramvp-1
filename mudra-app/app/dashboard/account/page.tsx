@@ -228,7 +228,7 @@ function AccountPageInner() {
             </div>
 
             {/* Divider Line */}
-            <div className="h-[1px] bg-white/10"></div>
+            <div className="h-[0.25px] bg-white/10"></div>
 
             {/* Content */}
             <div className="flex-1 px-4 lg:px-6 py-6">
@@ -241,7 +241,7 @@ function AccountPageInner() {
 
                 {/* Profile Tab */}
                 <TabsContent value="profile" className="space-y-6 mt-6">
-                  <Card className="bg-transparent border-white/10">
+                  <Card className="bg-transparent border-white/[0.04]">
                     <CardHeader>
                       <CardTitle className="text-white">Profile Information</CardTitle>
                       <CardDescription className="text-white/60">
@@ -251,7 +251,7 @@ function AccountPageInner() {
                     <CardContent className="space-y-6">
                       {/* Avatar Section */}
                       <div className="flex items-center gap-6">
-                        <Avatar className="h-24 w-24 border-2 border-white/10">
+                        <Avatar className="h-24 w-24 border-2 border-white/[0.04]">
                           <AvatarImage src={avatarUrl} alt={name} />
                           <AvatarFallback className="bg-white/10 text-white text-xl">
                             {getInitials(name || "User")}
@@ -259,7 +259,7 @@ function AccountPageInner() {
                         </Avatar>
                         <div className="flex-1">
                           <Label htmlFor="avatar-upload" className="cursor-pointer">
-                            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors w-fit">
+                            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/[0.04] rounded-lg transition-colors w-fit">
                               <Camera className="h-4 w-4" />
                               <span className="text-sm">Update photo</span>
                             </div>
@@ -278,7 +278,7 @@ function AccountPageInner() {
                         </div>
                       </div>
 
-                      <Separator className="border-white/10" />
+                      <Separator className="border-white/[0.04]" />
 
                       {/* Profile Form */}
                       <form onSubmit={handleUpdateProfile} className="space-y-4">
@@ -294,7 +294,7 @@ function AccountPageInner() {
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            className="bg-white/5 border-white/10 text-white"
+                            className="bg-white/5 border-white/[0.04] text-white"
                             placeholder="Enter your full name"
                             disabled={loading}
                           />
@@ -312,7 +312,7 @@ function AccountPageInner() {
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="bg-white/5 border-white/10 text-white"
+                            className="bg-white/5 border-white/[0.04] text-white"
                             placeholder="Enter your email"
                             disabled={loading}
                           />
@@ -345,7 +345,7 @@ function AccountPageInner() {
                               setEmail(session?.user?.email || "")
                             }}
                             disabled={loading}
-                            className="h-9 border-white/10 text-white hover:bg-white/5"
+                            className="h-9 border-white/[0.04] text-white hover:bg-white/5"
                           >
                             Reset
                           </Button>
@@ -355,7 +355,7 @@ function AccountPageInner() {
                   </Card>
 
                   {/* Connected Accounts */}
-                  <Card className="bg-transparent border-white/10">
+                  <Card className="bg-transparent border-white/[0.04]">
                     <CardHeader>
                       <CardTitle className="text-white">Connected Accounts</CardTitle>
                       <CardDescription className="text-white/60">
@@ -363,7 +363,7 @@ function AccountPageInner() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10">
+                      <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/[0.04]">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 bg-white rounded-lg flex items-center justify-center">
                             <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -400,7 +400,7 @@ function AccountPageInner() {
 
                 {/* Security Tab */}
                 <TabsContent value="security" className="space-y-6 mt-6">
-                  <Card className="bg-transparent border-white/10">
+                  <Card className="bg-transparent border-white/[0.04]">
                     <CardHeader>
                       <CardTitle className="text-white">Change Password</CardTitle>
                       <CardDescription className="text-white/60">
@@ -421,7 +421,7 @@ function AccountPageInner() {
                             type="password"
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
-                            className="bg-white/5 border-white/10 text-white"
+                            className="bg-white/5 border-white/[0.04] text-white"
                             placeholder="Enter current password"
                             disabled={loading}
                           />
@@ -436,7 +436,7 @@ function AccountPageInner() {
                             type="password"
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
-                            className="bg-white/5 border-white/10 text-white"
+                            className="bg-white/5 border-white/[0.04] text-white"
                             placeholder="Enter new password"
                             disabled={loading}
                           />
@@ -451,7 +451,7 @@ function AccountPageInner() {
                             type="password"
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
-                            className="bg-white/5 border-white/10 text-white"
+                            className="bg-white/5 border-white/[0.04] text-white"
                             placeholder="Confirm new password"
                             disabled={loading}
                           />
@@ -470,7 +470,7 @@ function AccountPageInner() {
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-transparent border-white/10">
+                  <Card className="bg-transparent border-white/[0.04]">
                     <CardHeader>
                       <CardTitle className="text-white">Two-Factor Authentication</CardTitle>
                       <CardDescription className="text-white/60">
@@ -478,21 +478,21 @@ function AccountPageInner() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10">
+                      <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/[0.04]">
                         <div>
                           <p className="text-white font-medium">Authenticator App</p>
                           <p className="text-sm text-white/50">Use an app to generate codes</p>
                         </div>
-                        <Button variant="outline" size="sm" className="h-9 border-white/10 text-white hover:bg-white/5">
+                        <Button variant="outline" size="sm" className="h-9 border-white/[0.04] text-white hover:bg-white/5">
                           Enable
                         </Button>
                       </div>
-                      <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10">
+                      <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/[0.04]">
                         <div>
                           <p className="text-white font-medium">SMS Authentication</p>
                           <p className="text-sm text-white/50">Receive codes via text message</p>
                         </div>
-                        <Button variant="outline" size="sm" className="h-9 border-white/10 text-white hover:bg-white/5">
+                        <Button variant="outline" size="sm" className="h-9 border-white/[0.04] text-white hover:bg-white/5">
                           Enable
                         </Button>
                       </div>
@@ -529,7 +529,7 @@ function AccountPageInner() {
                             Delete Account
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="bg-[#1a1a1a] border-white/10">
+                        <DialogContent className="bg-[#1a1a1a] border-white/[0.04]">
                           <DialogHeader>
                             <DialogTitle className="text-white">Are you absolutely sure?</DialogTitle>
                             <DialogDescription className="text-white/60">
@@ -550,7 +550,7 @@ function AccountPageInner() {
                               value={deleteConfirmation}
                               onChange={(e) => setDeleteConfirmation(e.target.value)}
                               placeholder="Type DELETE to confirm"
-                              className="bg-white/5 border-white/10 text-white"
+                              className="bg-white/5 border-white/[0.04] text-white"
                             />
                           </div>
                           <DialogFooter>
@@ -560,7 +560,7 @@ function AccountPageInner() {
                                 setShowDeleteDialog(false)
                                 setDeleteConfirmation("")
                               }}
-                              className="border-white/10 text-white hover:bg-white/5"
+                              className="border-white/[0.04] text-white hover:bg-white/5"
                             >
                               Cancel
                             </Button>

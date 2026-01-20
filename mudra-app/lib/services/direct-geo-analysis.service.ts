@@ -941,10 +941,11 @@ async function analyzeWithAnthropic(
   try {
     console.log('[Anthropic] Testing prompt:', prompt.substring(0, 60) + '...');
     
-    // Use Claude with web search tool for grounded responses
-    // Note: As of 2025, Claude supports web search via tool use
+    // Use Claude without tools - standard API call
+    // Note: Claude doesn't support web_search as a built-in tool
+    // For grounded responses, use Perplexity or Google Gemini with search grounding
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514', // Latest Claude model with tool support
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 1500,
       messages: [
         {
@@ -952,14 +953,7 @@ async function analyzeWithAnthropic(
           content: prompt,
         },
       ],
-      // Enable web search tool for grounded responses
-      tools: [
-        {
-          type: 'web_search' as any,
-          name: 'web_search',
-          // Web search is a built-in tool that Claude can use automatically
-        }
-      ],
+      // No tools array - using standard Claude without web search
     });
 
     // Extract text from response
@@ -970,27 +964,10 @@ async function analyzeWithAnthropic(
       if (block.type === 'text') {
         text += block.text;
       }
-      // Extract citations from tool use results if available
-      if (block.type === 'tool_use' && block.name === 'web_search') {
-        // Web search results contain citations
-        const input = block.input as any;
-        if (input?.results) {
-          input.results.forEach((result: any, idx: number) => {
-            citations.push({
-              url: result.url || '',
-              title: result.title,
-              snippet: result.snippet,
-              position: idx + 1,
-            });
-          });
-        }
-      }
     }
     
     console.log('[Anthropic] Response received:', text.substring(0, 100) + '...');
-    if (citations.length > 0) {
-      console.log(`[Anthropic] Extracted ${citations.length} citations`);
-    }
+    console.log('[Anthropic] Note: Citations not available - using standard Claude without web search');
 
     // Analyze the response using OpenAI for consistency
     if (!config.apiKeys.openai) {
@@ -1048,8 +1025,26 @@ async function analyzeWithAnthropic(
       citations: citations.length > 0 ? citations : undefined,
     };
   } catch (error: any) {
-    console.error(`❌ Error analyzing with Anthropic:`, error.message || error);
-    throw error;
+    // Enhanced error logging with specific error identification
+    console.error(`❌ [Anthropic] Error during analysis:`);
+    console.error(`   Message: ${error.message || 'Unknown error'}`);
+    console.error(`   Status: ${error.status || 'N/A'}`);
+    console.error(`   Type: ${error.type || error.error?.type || 'N/A'}`);
+    
+    if (error.status === 405) {
+      console.error(`   ⚠️  HTTP 405 Method Not Allowed - Invalid API configuration`);
+      throw new Error(`Anthropic API error: Method Not Allowed (405). This typically indicates invalid tool configuration or API endpoint issue.`);
+    }
+    
+    if (error.status === 401) {
+      throw new Error(`Anthropic API authentication failed. Please check your API key.`);
+    }
+    
+    if (error.status === 429) {
+      throw new Error(`Anthropic API rate limit exceeded. Please try again later.`);
+    }
+    
+    throw new Error(`Anthropic API error: ${error.message || 'Unknown error'}`);
   }
 }
 
@@ -1074,14 +1069,16 @@ async function analyzeWithGoogle(
     console.log('[Google] Testing prompt:', prompt.substring(0, 60) + '...');
     
     // Use Gemini with Google Search grounding
+    // Note: Google Search grounding requires proper API setup and may not be available in all regions
+    // Reference: https://ai.google.dev/gemini-api/docs/grounding
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash', // Latest Gemini model
-      // Enable Google Search grounding for real-time information
+      model: 'gemini-2.0-flash-exp', // Latest Gemini model with experimental features
+      // Google Search grounding - using proper format per SDK documentation
       tools: [
         {
           googleSearch: {},
-        } as any,
-      ],
+        },
+      ] as any, // Type assertion needed as SDK types may not be fully up to date
     });
 
     const result = await model.generateContent(prompt);
@@ -1170,8 +1167,30 @@ async function analyzeWithGoogle(
       searchQueries: searchQueries.length > 0 ? searchQueries : undefined,
     };
   } catch (error: any) {
-    console.error(`❌ Error analyzing with Google:`, error.message || error);
-    throw error;
+    // Enhanced error logging with specific error identification
+    console.error(`❌ [Google] Error during analysis:`);
+    console.error(`   Message: ${error.message || 'Unknown error'}`);
+    console.error(`   Status: ${error.status || error.statusCode || 'N/A'}`);
+    
+    if (error.message?.includes('API key')) {
+      throw new Error(`Google API authentication failed. Please check your API key.`);
+    }
+    
+    if (error.status === 405 || error.statusCode === 405) {
+      console.error(`   ⚠️  HTTP 405 Method Not Allowed - Invalid API configuration`);
+      throw new Error(`Google Gemini API error: Method Not Allowed (405). This may indicate googleSearch tool is not available or configured incorrectly.`);
+    }
+    
+    if (error.status === 429 || error.statusCode === 429) {
+      throw new Error(`Google API rate limit exceeded. Please try again later.`);
+    }
+    
+    if (error.message?.includes('grounding') || error.message?.includes('googleSearch')) {
+      console.error(`   ⚠️  Google Search grounding may not be available in your region or API setup`);
+      throw new Error(`Google Gemini grounding error: ${error.message}. Consider using standard Gemini model without googleSearch.`);
+    }
+    
+    throw new Error(`Google Gemini API error: ${error.message || 'Unknown error'}`);
   }
 }
 

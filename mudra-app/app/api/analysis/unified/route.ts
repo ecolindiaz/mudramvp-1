@@ -64,11 +64,23 @@ export async function POST(request: NextRequest) {
         data: result,
       });
     } else {
-      console.error('[Unified Analysis API] Analysis failed:', result.error);
+      const errorMessage = result.error || 'Analysis failed with unknown error';
+      const errorCode = result.errorCode || 'ANALYSIS_UNKNOWN_ERROR';
+      
+      console.error('[Unified Analysis API] Analysis failed:', {
+        error: errorMessage,
+        code: errorCode,
+        geoAnalysisId: result.geoAnalysisId,
+        technicalAnalysisId: result.technicalAnalysisId,
+      });
+      
       return NextResponse.json(
         {
           success: false,
-          error: result.error || 'Analysis failed',
+          error: {
+            message: errorMessage,
+            code: errorCode,
+          },
           details: {
             geoAnalysisId: result.geoAnalysisId,
             technicalAnalysisId: result.technicalAnalysisId,

@@ -59,10 +59,15 @@ export async function POST(request: NextRequest) {
     console.error('[Pipeline API] ❌ Error:', error);
     console.error('[Pipeline API] ❌ Error stack:', error instanceof Error ? error.stack : 'No stack');
     
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error occurred';
+    
     return NextResponse.json(
       { 
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: {
+          message: errorMessage,
+          code: 'PIPELINE_FATAL_ERROR',
+        },
         progress: {
           geoAnalysis: 'failed',
           trafficMetrics: 'failed',

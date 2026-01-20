@@ -151,7 +151,18 @@ export function useAnalysisPipeline() {
           }));
         }
       } else {
-        console.error("🔴 [useAnalysisPipeline] Unified analysis failed:", result.error)
+        // Handle structured error response: { error: { message: string, code: string } }
+        const errorMessage = typeof result.error === 'object' && result.error?.message 
+          ? result.error.message 
+          : result.error || 'Analysis failed';
+        const errorCode = typeof result.error === 'object' && result.error?.code
+          ? result.error.code
+          : 'UNKNOWN_ERROR';
+        
+        console.error("🔴 [useAnalysisPipeline] Unified analysis failed:", {
+          message: errorMessage,
+          code: errorCode
+        })
         clearInterval(progressInterval);
         setSimulatedProgress(0);
         setPipelineState({
@@ -162,7 +173,7 @@ export function useAnalysisPipeline() {
             technicalStructure: 'failed',
             report: 'failed',
           },
-          error: result.error || 'Analysis failed',
+          error: errorMessage,
         });
       }
 

@@ -30,6 +30,7 @@ export interface UnifiedAnalysisResult {
   technicalAnalysisId?: number;
   reportId?: number;
   error?: string;
+  errorCode?: string;
   scores: {
     aiVisibility?: number;
     technical?: number;
@@ -59,19 +60,43 @@ export async function runUnifiedAnalysis(
       runTechnicalAnalysisCore(config),
     ]);
 
-    // Process results
+    // Process results and capture errors
+    const errors: string[] = [];
+
+    // Handle GEO analysis result
     if (geoResult.status === 'fulfilled' && geoResult.value.success) {
       result.geoAnalysisId = geoResult.value.id;
       result.scores.aiVisibility = geoResult.value.score;
       console.log('[Unified Analysis] GEO completed:', geoResult.value.score);
+    } else if (geoResult.status === 'rejected') {
+      const errorMsg = geoResult.reason instanceof Error 
+        ? geoResult.reason.message 
+        : String(geoResult.reason || 'GEO analysis failed');
+      errors.push(`GEO Analysis: ${errorMsg}`);
+      console.error('[Unified Analysis] GEO failed:', errorMsg);
+    } else if (geoResult.status === 'fulfilled' && !geoResult.value.success) {
+      const errorMsg = geoResult.value.error || 'GEO analysis returned unsuccessful';
+      errors.push(`GEO Analysis: ${errorMsg}`);
+      console.error('[Unified Analysis] GEO unsuccessful:', errorMsg);
     }
 
+    // Handle Technical analysis result
     if (technicalResult.status === 'fulfilled' && technicalResult.value.success) {
       result.technicalAnalysisId = technicalResult.value.id;
       result.scores.technical = technicalResult.value.overallScore;
       result.scores.seo = technicalResult.value.seoScore;
       result.scores.geo = technicalResult.value.geoScore;
       console.log('[Unified Analysis] Technical completed:', technicalResult.value.overallScore);
+    } else if (technicalResult.status === 'rejected') {
+      const errorMsg = technicalResult.reason instanceof Error 
+        ? technicalResult.reason.message 
+        : String(technicalResult.reason || 'Technical analysis failed');
+      errors.push(`Technical Analysis: ${errorMsg}`);
+      console.error('[Unified Analysis] Technical failed:', errorMsg);
+    } else if (technicalResult.status === 'fulfilled' && !technicalResult.value.success) {
+      const errorMsg = technicalResult.value.error || 'Technical analysis returned unsuccessful';
+      errors.push(`Technical Analysis: ${errorMsg}`);
+      console.error('[Unified Analysis] Technical unsuccessful:', errorMsg);
     }
 
     // Generate report if requested (typically for onboarding)
@@ -85,15 +110,31 @@ export async function runUnifiedAnalysis(
       if (reportResult.success) {
         result.reportId = reportResult.id;
         console.log('[Unified Analysis] Report generated:', reportResult.id);
+      } else if (reportResult.error) {
+        errors.push(`Report Generation: ${reportResult.error}`);
+        console.error('[Unified Analysis] Report generation failed:', reportResult.error);
       }
     }
 
+    // Set success status and error message
     result.success = !!(result.geoAnalysisId || result.technicalAnalysisId);
+    
+    if (errors.length > 0) {
+      result.error = errors.join('; ');
+      
+      // If both analyses failed completely, mark as unsuccessful
+      if (!result.geoAnalysisId && !result.technicalAnalysisId) {
+        result.success = false;
+      }
+    }
+    
     return result;
 
   } catch (error) {
     console.error('[Unified Analysis] Fatal error:', error);
-    result.error = error instanceof Error ? error.message : 'Unknown error';
+    result.error = error instanceof Error ? error.message : 'Unknown fatal error occurred';
+    result.errorCode = 'ANALYSIS_FATAL_ERROR';
+    result.success = false;
     return result;
   }
 }

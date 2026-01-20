@@ -44,7 +44,32 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Step 1: Get the latest COMPLETED analysis run for this brand profile
+    // Step 1: Get the latest GEO analysis result first (primary source of truth)
+    // This is the fallback when AnalysisRun is in mock mode
+    let latestAnalysis = null
+    try {
+      latestAnalysis = await prisma.geoAnalysisResult.findFirst({
+        where: {
+          brandProfileId: profileId
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      })
+      if (latestAnalysis) {
+        console.log(`✅ Found GeoAnalysisResult for brand profile ${profileId} (created: ${latestAnalysis.createdAt})`)
+      }
+    } catch (error: any) {
+      // If table doesn't exist, just continue without analysis
+      if (error.code === 'P2021' || error.message?.includes('does not exist')) {
+        console.log(`⚠️ GEO analysis results table not found, skipping analysis query`)
+        latestAnalysis = null
+      } else {
+        throw error
+      }
+    }
+
+    // Step 2: Try to get the latest COMPLETED analysis run (optional - may be in mock mode)
     // Handle case where analysis_runs table might not exist
     let latestAnalysisRun = null
     try {
@@ -57,6 +82,9 @@ export async function GET(request: NextRequest) {
           ranAt: 'desc'
         }
       })
+      if (latestAnalysisRun) {
+        console.log(`✅ Found completed AnalysisRun for brand profile ${profileId} (id: ${latestAnalysisRun.id})`)
+      }
     } catch (error: any) {
       // If table doesn't exist, just continue without analysis run
       if (error.code === 'P2021' || error.message?.includes('does not exist')) {
@@ -65,6 +93,13 @@ export async function GET(request: NextRequest) {
       } else {
         throw error
       }
+    }
+
+    // Step 3: Use GeoAnalysisResult as fallback when AnalysisRun is missing/mock
+    // This handles the case where AnalysisRun is in mock mode but GeoAnalysisResult exists
+    if (!latestAnalysisRun && latestAnalysis && latestAnalysis.analyses) {
+      console.log(`ℹ️ No completed AnalysisRun found, but GeoAnalysisResult exists - proceeding with GeoAnalysisResult as source of truth`)
+      // Continue processing with latestAnalysis (skip the early return below)
     }
 
     // Helper function to get and return prompts without results
@@ -141,9 +176,10 @@ export async function GET(request: NextRequest) {
       return promptsWithoutResults
     }
 
-    // If no analysis run, still try to return prompts without results
-    if (!latestAnalysisRun) {
-      console.log(`No completed analysis runs found for brand profile ${profileId}, returning prompts without results`)
+    // Only return early if BOTH latestAnalysisRun AND latestAnalysis are missing
+    // (latestAnalysis from GeoAnalysisResult serves as fallback when AnalysisRun is in mock mode)
+    if (!latestAnalysisRun && (!latestAnalysis || !latestAnalysis.analyses)) {
+      console.log(`No completed analysis runs AND no GeoAnalysisResult found for brand profile ${profileId}, returning prompts without results`)
       
       const promptsWithoutResults = await getPromptsWithoutResults()
       
@@ -166,28 +202,10 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Step 2: Get the GEO analysis result which contains the actual tested prompts
-    let latestAnalysis = null
-    try {
-      latestAnalysis = await prisma.geoAnalysisResult.findFirst({
-        where: {
-          brandProfileId: profileId
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      })
-    } catch (error: any) {
-      // If table doesn't exist, just continue without analysis
-      if (error.code === 'P2021' || error.message?.includes('does not exist')) {
-        console.log(`⚠️ GEO analysis results table not found, skipping analysis query`)
-        latestAnalysis = null
-      } else {
-        throw error
-      }
-    }
+    // At this point, we have latestAnalysis from GeoAnalysisResult (queried earlier)
+    // No need to query again - it was already fetched in Step 1
 
-    // If no GEO analysis, return prompts without results
+    // If no GEO analysis data, return prompts without results
     if (!latestAnalysis || !latestAnalysis.analyses) {
       console.log(`No GEO analysis results found for brand profile ${profileId}, returning prompts without results`)
       

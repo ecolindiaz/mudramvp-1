@@ -73,7 +73,8 @@ export async function updateAnalysisRun(
   try {
     // If it's a mock ID (string starting with 'mock-'), just return mock data
     if (typeof analysisRunId === 'string' && analysisRunId.startsWith('mock-')) {
-      console.warn('⚠️ Skipping update for mock analysis run');
+      console.warn(`⚠️ Skipping database update for mock analysis run (id: ${analysisRunId})`);
+      console.log(`ℹ️ Mock mode: Analysis status would be '${updates.status}' - GeoAnalysisResult is the source of truth`);
       return {
         id: analysisRunId,
         ...updates,
@@ -84,12 +85,15 @@ export async function updateAnalysisRun(
     // Check if analysisRun table exists
     if (!prisma.analysisRun) {
       console.warn('⚠️ AnalysisRun table does not exist yet. Skipping update.');
+      console.log(`ℹ️ Table missing: Analysis status would be '${updates.status}' - GeoAnalysisResult is the source of truth`);
       return {
         id: analysisRunId,
         ...updates,
         completedAt: updates.status === 'completed' || updates.status === 'failed' ? new Date() : null
       };
     }
+
+    console.log(`📝 Updating AnalysisRun ${analysisRunId}: status='${updates.status}'${updates.overallScore !== undefined ? `, score=${updates.overallScore}` : ''}`);
 
     const analysisRun = await prisma.analysisRun.update({
       where: { id: Number(analysisRunId) },
@@ -102,6 +106,8 @@ export async function updateAnalysisRun(
           : undefined
       }
     })
+
+    console.log(`✅ AnalysisRun ${analysisRunId} updated successfully: status='${analysisRun.status}'`);
 
     return analysisRun
   } catch (error) {

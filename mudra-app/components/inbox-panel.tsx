@@ -49,7 +49,16 @@ export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        {children}
+        <div className="relative">
+          {children}
+          <span
+            className={`absolute top-1/2 -translate-y-1/2 right-2 w-2 h-2 bg-blue-500 rounded-full transition-all duration-200 ${
+              unreadCount > 0 && !open
+                ? 'opacity-100 scale-100'
+                : 'opacity-0 scale-0'
+            }`}
+          />
+        </div>
       </PopoverTrigger>
       <PopoverContent
         side="right"
@@ -98,7 +107,7 @@ export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
                   key={notification.id}
                   onClick={() => markAsRead(notification.id)}
                   className={`
-                    relative px-4 py-3 cursor-pointer transition-colors
+                    relative px-4 py-3 cursor-pointer transition-all duration-200
                     hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0
                     ${!notification.isRead ? 'bg-white/[0.02]' : ''}
                   `}
@@ -107,16 +116,18 @@ export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
                     {/* Unread indicator + Icon container */}
                     <div className="flex items-center gap-2">
                       <div className="w-1.5 flex-shrink-0">
-                        {!notification.isRead && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                        )}
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full bg-blue-500 transition-all duration-200 ${
+                            !notification.isRead ? 'opacity-100 scale-100' : 'opacity-0 scale-0'
+                          }`}
+                        />
                       </div>
                       <div className="flex-shrink-0 p-1.5 rounded-md bg-white/[0.05] text-white/50">
                         {notification.icon}
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[13px] leading-relaxed ${notification.isRead ? 'text-white/50' : 'text-white/80'}`}>
+                      <p className={`text-[13px] leading-relaxed transition-colors duration-200 ${notification.isRead ? 'text-white/50' : 'text-white/80'}`}>
                         {notification.message}
                       </p>
                       <span className="text-[11px] text-white/30 mt-1 block">

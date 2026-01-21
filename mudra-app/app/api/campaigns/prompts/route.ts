@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import { getActivePrompts } from '@/lib/services/prompt-storage.service'
 
 /**
@@ -7,6 +10,11 @@ import { getActivePrompts } from '@/lib/services/prompt-storage.service'
  */
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
 
@@ -18,7 +26,17 @@ export async function GET(request: NextRequest) {
     }
 
     const profileId = parseInt(brandProfileId)
-    
+
+    // Verify the user owns this brand profile
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      include: { brandProfile: true }
+    })
+
+    if (!user?.brandProfile || user.brandProfile.id !== profileId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     // Get active prompts for the brand profile
     const prompts = await getActivePrompts(profileId)
 

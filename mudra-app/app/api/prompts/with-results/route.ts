@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { 
   calculateAggregateScore, 
@@ -13,14 +15,19 @@ import {
  */
 export async function GET(request: NextRequest) {
   let profileId: number = NaN
-  
+
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
 
     if (!brandProfileId) {
       return NextResponse.json(
-        { 
+        {
           success: false,
           error: 'brandProfileId is required',
           prompts: [],
@@ -31,16 +38,34 @@ export async function GET(request: NextRequest) {
     }
 
     profileId = parseInt(brandProfileId)
-    
+
     if (isNaN(profileId)) {
       return NextResponse.json(
-        { 
+        {
           success: false,
           error: 'Invalid brandProfileId',
           prompts: [],
           count: 0
         },
         { status: 400 }
+      )
+    }
+
+    // Verify the user owns this brand profile
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      include: { brandProfile: true }
+    })
+
+    if (!user?.brandProfile || user.brandProfile.id !== profileId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Forbidden',
+          prompts: [],
+          count: 0
+        },
+        { status: 403 }
       )
     }
 

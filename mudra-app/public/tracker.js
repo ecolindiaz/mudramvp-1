@@ -29,7 +29,7 @@
     // Fallback to defaults
     scriptOrigin = window.location.hostname === 'localhost' 
       ? 'http://localhost:3000'
-      : 'https://mudramvp.vercel.app';
+      : 'https://app.trymudra.com';
   }
   
   var API_ENDPOINT = scriptOrigin + '/api/analytics/track';

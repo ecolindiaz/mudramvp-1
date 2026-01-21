@@ -193,26 +193,12 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Strategy 4: FIRST-TIME USER - if only one personal installation exists, use it
-        // This is the KEY fix - doesn't require /user endpoint at all
-        let firstTimeUserMatch = false;
-        if (!user.githubIntegration && installation.account?.type === 'User') {
-          const personalInstallations = allInstallations.filter(
-            (i: any) => i.account?.type === 'User'
-          );
-          if (personalInstallations.length === 1) {
-            firstTimeUserMatch = true;
-            console.log('[GitHub Sync] First-time user match: single personal installation found for', installation.account.login);
-          }
-        }
-
-        const isMatch = emailMatches || usernameMatches || accountLoginMatches || firstTimeUserMatch;
+        const isMatch = emailMatches || usernameMatches || accountLoginMatches;
 
         console.log('[GitHub Sync] Match check for installation', installation.id, {
           emailMatches,
           usernameMatches,
           accountLoginMatches,
-          firstTimeUserMatch,
           isMatch,
         })
 
@@ -241,7 +227,7 @@ export async function POST(request: NextRequest) {
     if (!userInstallation) {
       return NextResponse.json({
         success: false,
-        error: 'No GitHub App installation found for your account. Please install the app first at: https://github.com/apps/' + process.env.NEXT_PUBLIC_GITHUB_APP_NAME,
+        error: 'No matching GitHub installation found. Please ensure your GitHub account email matches your Mudra account email, or reinstall the GitHub App at: https://github.com/apps/' + process.env.NEXT_PUBLIC_GITHUB_APP_NAME,
       })
     }
 

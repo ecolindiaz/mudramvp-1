@@ -18,10 +18,7 @@ export async function POST(request: NextRequest) {
     // Check if Resend is configured
     if (!resend || !resendApiKey) {
       console.warn("⚠️ RESEND_API_KEY not configured - email sending disabled")
-      console.log("📋 Credentials (email not sent):")
-      console.log("   Email:", email)
-      console.log("   Username:", username)
-      console.log("   Password:", password)
+      console.log("📋 Credentials created (email not sent) for:", email)
       
       return NextResponse.json({
         success: true,

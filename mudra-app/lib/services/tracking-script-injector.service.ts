@@ -24,7 +24,7 @@ export function injectTrackingScript(
   siteId: string,
   appRouterDetected?: boolean
 ): InjectionResult {
-  const scriptUrl = process.env.NEXT_PUBLIC_TRACKER_URL || 'https://app.mudra.ai/tracker.js';
+  const scriptUrl = process.env.NEXT_PUBLIC_TRACKER_URL || 'https://app.trymudra.com/tracker.js';
 
   try {
     switch (framework) {

@@ -10,6 +10,7 @@ const PUBLIC_ROUTES = [
     '/signup',
     '/api/auth',
     '/api/health',
+    '/api/track',
     '/images',
     '/_next',
     '/favicon.ico',

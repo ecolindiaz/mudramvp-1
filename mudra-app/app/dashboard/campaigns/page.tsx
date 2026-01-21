@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { BrandProfileProvider } from "@/components/brand-profile-context"
+import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -78,6 +78,7 @@ const CONTENT_TYPES: Array<{ value: ContentType; label: string; description: str
 const INTENT_CATEGORIES = ["Organic", "Competitor", "How-to", "Brand-Specific"]
 
 function CampaignsPageInner() {
+  const { profile } = useBrandProfile()
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1) // 1=Content Type, 2=Intent & Prompt, 3=ICP, 4=Review & Generate
   const [selectedContentType, setSelectedContentType] = useState<ContentType | null>(null)
   const [selectedIntent, setSelectedIntent] = useState<string | null>(null)
@@ -110,23 +111,22 @@ function CampaignsPageInner() {
   
   // Load tracked prompts from database
   useEffect(() => {
+    if (!profile?.id) return
+    
     const fetchPrompts = async () => {
       try {
-        // For now, use brandProfileId = 1 (the existing user)
-        // In a real app, this would come from the user's session
-        const res = await fetch('/api/campaigns/prompts?brandProfileId=1')
+        const res = await fetch(`/api/campaigns/prompts?brandProfileId=${profile.id}`)
         const data = await res.json()
         if (data.success && data.prompts) {
           setPromptSuggestions(data.prompts)
         }
       } catch (error) {
         console.error("Failed to load prompts:", error)
-        // Fallback to empty array if API fails
         setPromptSuggestions([])
       }
     }
     fetchPrompts()
-  }, [])
+  }, [profile?.id])
 
   // Filter prompts by selected intent
   useEffect(() => {

@@ -940,10 +940,9 @@ async function analyzeWithAnthropic(
 
   try {
     console.log('[Anthropic] Testing prompt:', prompt.substring(0, 60) + '...');
-    
-    // Use Claude without tools - standard API call
-    // Note: Claude doesn't support web_search as a built-in tool
-    // For grounded responses, use Perplexity or Google Gemini with search grounding
+
+    // Use Claude with web_search tool for grounded, real-time responses
+    // Reference: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1500,
@@ -953,21 +952,61 @@ async function analyzeWithAnthropic(
           content: prompt,
         },
       ],
-      // No tools array - using standard Claude without web search
+      tools: [
+        {
+          type: 'web_search_20250305',
+          name: 'web_search',
+          max_uses: 5,
+        } as any, // Type assertion needed as SDK types may lag behind API
+      ],
     });
 
-    // Extract text from response
+    // Extract text and citations from response
+    // Response includes: text blocks, server_tool_use (search queries), web_search_tool_result (results)
     let text = '';
     const citations: Citation[] = [];
-    
+
     for (const block of response.content) {
       if (block.type === 'text') {
         text += block.text;
+        // Extract citations from text blocks (they appear inline with cited_text)
+        const textBlock = block as any;
+        if (textBlock.citations && Array.isArray(textBlock.citations)) {
+          for (const citation of textBlock.citations) {
+            if (citation.type === 'web_search_result_location') {
+              citations.push({
+                url: citation.url || '',
+                title: citation.title,
+                snippet: citation.cited_text,
+                position: citations.length + 1,
+              });
+            }
+          }
+        }
+      }
+      // Also extract URLs from web_search_tool_result blocks
+      if (block.type === 'web_search_tool_result') {
+        const resultBlock = block as any;
+        if (resultBlock.content && Array.isArray(resultBlock.content)) {
+          for (const result of resultBlock.content) {
+            if (result.type === 'web_search_result' && result.url) {
+              // Only add if not already in citations
+              const existingUrls = citations.map(c => c.url);
+              if (!existingUrls.includes(result.url)) {
+                citations.push({
+                  url: result.url,
+                  title: result.title,
+                  position: citations.length + 1,
+                });
+              }
+            }
+          }
+        }
       }
     }
-    
+
     console.log('[Anthropic] Response received:', text.substring(0, 100) + '...');
-    console.log('[Anthropic] Note: Citations not available - using standard Claude without web search');
+    console.log(`[Anthropic] Extracted ${citations.length} citations from web search`);
 
     // Analyze the response using OpenAI for consistency
     if (!config.apiKeys.openai) {
@@ -1030,20 +1069,29 @@ async function analyzeWithAnthropic(
     console.error(`   Message: ${error.message || 'Unknown error'}`);
     console.error(`   Status: ${error.status || 'N/A'}`);
     console.error(`   Type: ${error.type || error.error?.type || 'N/A'}`);
-    
+
     if (error.status === 405) {
-      console.error(`   ⚠️  HTTP 405 Method Not Allowed - Invalid API configuration`);
-      throw new Error(`Anthropic API error: Method Not Allowed (405). This typically indicates invalid tool configuration or API endpoint issue.`);
+      console.error(`   ⚠️  HTTP 405 Method Not Allowed - Check web_search tool configuration`);
+      throw new Error(`Anthropic API error: Method Not Allowed (405). Ensure web_search_20250305 tool type is used and web search is enabled in Console.`);
     }
-    
+
     if (error.status === 401) {
       throw new Error(`Anthropic API authentication failed. Please check your API key.`);
     }
-    
+
     if (error.status === 429) {
       throw new Error(`Anthropic API rate limit exceeded. Please try again later.`);
     }
-    
+
+    if (error.status === 400) {
+      // Check for web search specific errors
+      const errorMessage = error.message || '';
+      if (errorMessage.includes('web_search') || errorMessage.includes('tool')) {
+        console.error(`   ⚠️  Web search tool error - may need to enable in Anthropic Console`);
+        throw new Error(`Anthropic web search error: ${errorMessage}. Ensure web search is enabled in your Anthropic Console settings.`);
+      }
+    }
+
     throw new Error(`Anthropic API error: ${error.message || 'Unknown error'}`);
   }
 }

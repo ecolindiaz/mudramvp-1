@@ -369,7 +369,7 @@ async function analyzeWithOpenAI(
       if (item.type === 'message') {
         for (const c of item.content || []) {
           if (c.type === 'output_text') {
-            text = c.text || '';
+            text += c.text || '';
             // Extract inline citations from annotations
             for (const a of c.annotations || []) {
               if (a.type === 'url_citation') {

@@ -30,10 +30,11 @@ export async function GET(request: NextRequest) {
     // Verify the user owns this brand profile
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      include: { brandProfile: true }
+      include: { brandProfiles: true }
     })
 
-    if (!user?.brandProfile || user.brandProfile.id !== profileId) {
+    const userBrandProfile = user?.brandProfiles?.find(bp => bp.id === profileId)
+    if (!userBrandProfile) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

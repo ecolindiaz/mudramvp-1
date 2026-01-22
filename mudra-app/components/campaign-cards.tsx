@@ -2,10 +2,19 @@
 // This component displays campaign cards and user actions (save, copy, rate, etc.)
 
 import React from "react"
-import { Campaign } from "@/lib/llm/post-process-campaigns"
+
+interface Campaign {
+  title?: string
+  objective: string
+  description: string
+  channel: string
+  kpis?: string
+  tools?: string
+  type?: string
+}
 
 interface CampaignCardsProps {
-  campaigns: (Campaign & { type?: string })[]
+  campaigns: Campaign[]
 }
 
 export default function CampaignCards({ campaigns }: CampaignCardsProps) {

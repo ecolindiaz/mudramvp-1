@@ -91,17 +91,26 @@ npx prisma studio               # Database GUI
 npm run docker:dev              # Builds & starts container on port 3000
 npm run docker:down             # Stop container
 npm run docker:logs             # View logs
+npm run docker:db               # Access PostgreSQL shell
 
 # Database operations
 npx prisma migrate dev          # Create migration
 npx prisma db push              # Push schema changes
+npx prisma:studio               # Database GUI (alternative command)
+
+# Scraper utilities
+npm run enhanced-geo -- https://example.com  # Run enhanced GEO scraper
+npm run geo -- https://example.com           # Run basic GEO scraper
+npm run extract -- https://example.com       # Extract structured data
 ```
 
 **Docker Development Notes:**
-- Uses Turbopack (`--turbo`) for fast startup (~2.7s)
-- Health checks via `/api/health` endpoint
+- Uses Turbopack with `onDemandEntries` for fast startup (~2.7s)
+- Health checks via wget to `http://localhost:3000` (runs every 30s after 180s start period)
 - Volume mounts enable hot-reload without rebuilds
-- If container hangs on "Starting", check: DNS resolution, Prisma singleton pattern, or CSS compilation errors
+- Container runs as `node` user (non-root) for security
+- Resource limits: 4 CPU, 8GB memory (reservations: 1 CPU, 2GB)
+- If container hangs on "Starting", check: DNS resolution, Prisma singleton pattern, CSS compilation errors, or Tailwind content configuration
 
 ### firegeo (SaaS Starter)
 ```powershell
@@ -148,7 +157,10 @@ npm run db:studio               # Drizzle Studio GUI
 - **Data fetching:** Fetch in Server Components, pass props down
 - **Mutations:** Use API routes, not Server Actions (project convention)
 - **Error handling:** Always implement loading states and error boundaries
-- **Turbopack configuration**: Use `next.config.ts` with `turbopack` (not `experimental.turbo`) and `onDemandEntries` for fast dev startup
+- **Turbopack configuration**: Use `next.config.ts` with `turbopack` (not `experimental.turbo`)
+- **onDemandEntries**: Defers page compilation for faster dev startup - pages compile on first access
+- **watchOptions**: Excludes heavy directories (`docs/`, `llm/`, `scripts/archive/`) from file watching to reduce memory usage
+- **Optimization**: Use `experimental.optimizePackageImports` for tree-shaking large libraries (Radix UI, Recharts, Lucide)
 
 ## External Service Integration
 
@@ -183,9 +195,18 @@ node quick-check.js             # firegeo directory
 
 # Run scraper manually
 npm run enhanced-geo -- https://example.com
+npm run geo -- https://example.com
+npm run extract -- https://example.com
 
 # Database queries
 npx prisma studio               # Visual database browser
+npm run docker:db               # PostgreSQL shell (Docker)
+
+# Docker debugging
+docker logs mudra-app-dev                           # View container logs
+docker exec mudra-app-dev netstat -tlnp             # Check port binding
+docker exec mudra-app-dev wget http://localhost:3000/api/health  # Test health
+Remove-Item -Path ".next" -Recurse -Force           # Clear Next.js cache (Windows)
 ```
 
 ## Environment Variables
@@ -214,15 +235,26 @@ FIRECRAWL_API_KEY=...
 - `mudra-app/lib/services/direct-geo-analysis.service.ts` - DirectGEO API client
 - `mudra-app/lib/services/prompt-generation.service.ts` - AI prompt generator
 - `mudra-app/lib/services/technical-analysis.service.ts` - Technical scoring (12 components)
+- `mudra-app/lib/services/visibility-scoring.service.ts` - AI visibility calculations
+- `mudra-app/lib/services/prompt-storage.service.ts` - Prompt CRUD operations
+- `mudra-app/lib/services/analysis-run.service.ts` - Analysis execution tracking
 
-### API Routes
+### API Routes (Feature-Grouped Structure)
 - `mudra-app/app/api/analysis/unified/route.ts` - **Unified analysis endpoint (dashboard)**
 - `mudra-app/app/api/analysis/pipeline/route.ts` - Analysis pipeline (onboarding)
 - `mudra-app/app/api/prompts/active/route.ts` - Get active prompts by brandProfileId
+- `mudra-app/app/api/brand-profile/route.ts` - Brand profile CRUD with timeout handling
+- `mudra-app/app/api/health/route.ts` - Docker health check endpoint
+- `mudra-app/app/api/nlr/` - Natural language report endpoints
+- `mudra-app/app/api/analytics/` - Analytics and tracking endpoints
 
 ### Components
 - `mudra-app/app/dashboard/page.tsx` - Main dashboard, triggers unified analysis
 - `mudra-app/components/analysis-results.tsx` - Display GEO + technical scores
+- `mudra-app/components/dashboard/overview-metrics.tsx` - Metric cards with platform filtering
+- `mudra-app/components/dashboard/natural-language-report.tsx` - AI-generated report display
+- `mudra-app/components/dashboard/dashboard-stat-card.tsx` - Reusable stat card with sparklines
+- `mudra-app/components/app-sidebar.tsx` - Navigation sidebar with Lucide icons
 - `firegeo/app/dashboard/page.tsx` - SaaS starter dashboard
 
 ## Testing & Debugging
@@ -240,11 +272,17 @@ FIRECRAWL_API_KEY=...
 - **Do** generate prompts before first analysis - checked in `runGeoAnalysisCore()`
 
 ## Documentation Files
-- `MERMAID_ARCHITECTURE.md` - Visual system diagrams (sequence, flow, architecture)
-- `UNIFIED_ANALYSIS_IMPLEMENTATION.md` - Detailed unified service explanation
-- `SYSTEM_ARCHITECTURE.md` - ASCII architecture diagrams
-- `project-context.md` - Business logic and feature specs
-- `.cursorrules` - Comprehensive coding standards
+- `IMPLEMENTATION_OVERVIEW.md` - Recent UI/UX implementation details and component changes
+- `docs/architecture/MERMAID_ARCHITECTURE.md` - Visual system diagrams (sequence, flow, architecture)
+- `docs/mudra-app/UNIFIED_ANALYSIS_IMPLEMENTATION.md` - Detailed unified service explanation
+- `docs/architecture/SYSTEM_ARCHITECTURE.md` - ASCII architecture diagrams
+- `docs/implementation/project-context.md` - Business logic and feature specs
+- `.cursorrules` - Comprehensive coding standards and project conventions
+- `mudra-app/AUTH_SETUP_GUIDE.md` - Authentication configuration
+- `mudra-app/CITATIONS_IMPLEMENTATION_COMPLETE.md` - Citation tracking implementation
+- `mudra-app/EMAIL_INTEGRATION.md` - Email service setup
+- `mudra-app/LIVE_SEARCH_IMPLEMENTATION_PLAN.md` - Live search feature docs
+- `mudra-app/TYPESCRIPT_RELOAD_NOTE.md` - TypeScript reload fixes
 
 ## Questions to Ask Before Implementation
 1. Which app? (`mudra-app` vs `firegeo`)

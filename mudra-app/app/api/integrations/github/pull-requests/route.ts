@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { applyRateLimit } from '@/lib/auth/rate-limiter'
@@ -39,6 +41,8 @@ export interface GitHubPullRequest {
 /**
  * GET /api/integrations/github/pull-requests
  * Fetch open pull requests from the configured GitHub repository
+ * 
+ * Security: Requires session authentication and verifies brand profile ownership.
  */
 export async function GET(request: NextRequest) {
   // Rate limit
@@ -46,6 +50,16 @@ export async function GET(request: NextRequest) {
   if (rateLimited) return rateLimited
 
   try {
+    // Require session authentication
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const brandProfileId = searchParams.get('brandProfileId')
     const state = searchParams.get('state') || 'open' // open, closed, all
@@ -69,7 +83,15 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    if (!brandProfile?.user?.githubIntegration) {
+    // Verify the authenticated user owns this brand profile
+    if (!brandProfile || brandProfile.user?.email !== session.user.email) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden: You do not own this brand profile' },
+        { status: 403 }
+      )
+    }
+
+    if (!brandProfile.user?.githubIntegration) {
       return NextResponse.json({
         success: true,
         data: [],

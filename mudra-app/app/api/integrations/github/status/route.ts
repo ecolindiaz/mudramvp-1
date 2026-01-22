@@ -6,10 +6,10 @@ import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 /**
  * GET /api/integrations/github/status
- * Check if GitHub integration is connected for the user
+ * Check if GitHub integration is connected for the authenticated user
  * 
- * Query params:
- * - brandProfileId (optional): If provided, checks via brand profile. Otherwise uses session.
+ * Security: Always requires session authentication.
+ * If brandProfileId is provided, verifies the user owns that brand profile.
  */
 export async function GET(request: NextRequest) {
   // Rate limit
@@ -17,10 +17,20 @@ export async function GET(request: NextRequest) {
   if (rateLimited) return rateLimited
 
   try {
+    // Always require session authentication
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const brandProfileId = searchParams.get('brandProfileId')
 
-    // If brandProfileId is provided, use that path (for agents-lab)
+    // If brandProfileId is provided, verify ownership
     if (brandProfileId) {
       const brandProfile = await prisma.brandProfile.findUnique({
         where: { id: parseInt(brandProfileId) },
@@ -33,7 +43,15 @@ export async function GET(request: NextRequest) {
         },
       })
 
-      if (!brandProfile?.user?.githubIntegration) {
+      // Verify the authenticated user owns this brand profile
+      if (!brandProfile || brandProfile.user?.email !== session.user.email) {
+        return NextResponse.json(
+          { success: false, error: 'Forbidden: You do not own this brand profile' },
+          { status: 403 }
+        )
+      }
+
+      if (!brandProfile.user?.githubIntegration) {
         return NextResponse.json({
           success: true,
           connected: false,
@@ -53,16 +71,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Otherwise, use session (for integrations page)
-    const session = await getServerSession(authOptions)
-
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
+    // No brandProfileId - use session user directly
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
       include: { githubIntegration: true },
@@ -86,6 +95,28 @@ export async function GET(request: NextRequest) {
       repositories: integration.repositories || [],
       integrationType: integration.integrationType,
     })
+
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      include: { githubIntegration: true },
+    })
+
+    if (!user?.githubIntegration) {
+      return NextResponse.json({
+        success: true,
+        connected: false,
+        message: 'GitHub not connected',
+      })
+    }
+
+    const integration = user.githubIntegration
 
   } catch (error) {
     console.error('[GitHub Status] Error:', error)

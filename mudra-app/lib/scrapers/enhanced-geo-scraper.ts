@@ -493,7 +493,7 @@ async function checkTxtFiles(baseUrl: string): Promise<{
   llms: TxtFileCheck;
   llmsFull: TxtFileCheck;
 }> {
-  const app = createFirecrawlApp();
+  const app = await createFirecrawlApp();
   const origin = new URL(baseUrl).origin;
   const targets = ['robots.txt', 'llms.txt', 'llms-full.txt'];
 
@@ -662,7 +662,7 @@ function calculateGEOScore(data: Omit<EnhancedGEOResult, 'geoScore'>): EnhancedG
  * Extract comprehensive enhanced GEO data
  */
 export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEOOutput> {
-  const app = createFirecrawlApp();
+  const app = await createFirecrawlApp();
   
   console.log(`🔍 Running Enhanced GEO Analysis on: ${url}`);
   
@@ -965,7 +965,7 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEOOu
 
 // Company-page scrape using Firecrawl formats html + rawHtml, plus optional JSON mode
 export async function scrapeCompanyPage(url: string, opts: ScrapeOpts = {}): Promise<ScrapeResult> {
-  const app = createFirecrawlApp();
+  const app = await createFirecrawlApp();
   const { fresh, locale, userHeaders, useLlmJsonMode, llmSchema, llmPrompt } = opts;
   const scrapeParams: any = {
     formats: ['html', 'rawHtml'],
@@ -1103,7 +1103,7 @@ export async function batchScrape(urls: string[], opts: ScrapeOpts = {}): Promis
     urls = urls.slice(0, MAX_PAGES_PER_USER);
   }
 
-  const app = createFirecrawlApp();
+  const app = await createFirecrawlApp();
   const { fresh, locale, userHeaders, useLlmJsonMode, llmSchema, llmPrompt } = opts;
   const scrapeParams: any = {
     formats: ['html', 'rawHtml'],

@@ -15,7 +15,7 @@ export type CrawlOptions = {
 };
 
 export async function scrapeToMarkdown(url: string, opts: ScrapeOptions = {}): Promise<string> {
-  const app = createFirecrawlApp();
+  const app = await createFirecrawlApp();
   const res = await app.scrapeUrl(url, {
     formats: ['markdown'],
     onlyMainContent: opts.onlyMainContent ?? false,
@@ -32,7 +32,7 @@ export async function scrapeToMarkdown(url: string, opts: ScrapeOptions = {}): P
 }
 
 export async function crawlToMarkdown(url: string, opts: CrawlOptions = {}): Promise<string> {
-  const app = createFirecrawlApp();
+  const app = await createFirecrawlApp();
   const res = await app.crawlUrl(url, {
     limit: opts.limit ?? 50,
     maxDepth: opts.maxDepth,

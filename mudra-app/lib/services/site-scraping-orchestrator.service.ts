@@ -70,7 +70,7 @@ async function scrapePage(url: string, timeout: number = 30000): Promise<{
   const startTime = Date.now();
   
   try {
-    const app = createFirecrawlApp();
+    const app = await createFirecrawlApp();
     
     const result = await app.scrapeUrl(url, {
       formats: ['rawHtml' as any],

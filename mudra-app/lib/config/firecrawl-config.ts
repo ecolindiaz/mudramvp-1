@@ -1,8 +1,4 @@
-import * as dotenv from 'dotenv';
-import FirecrawlApp from '@mendable/firecrawl-js';
-
-// Load environment variables
-dotenv.config();
+// This file should only be used on the server side
 
 /**
  * Firecrawl configuration interface
@@ -60,8 +56,11 @@ export interface ScrapeResult {
 
 /**
  * Initialize Firecrawl App with API key from environment
+ * Uses dynamic import to avoid bundling issues
  */
-export function createFirecrawlApp(): FirecrawlApp {
+export async function createFirecrawlApp(): Promise<any> {
+  const { default: FirecrawlApp } = await import('@mendable/firecrawl-js');
+  
   const apiKey = process.env.FIRECRAWL_API_KEY;
   
   if (!apiKey) {

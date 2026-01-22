@@ -27,8 +27,8 @@ export function NavSecondary({
     <SidebarGroup className={cn("px-2", className)} {...props}>
       <SidebarGroupContent>
         <SidebarMenu className="space-y-0.5">
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
+          {items.map((item, index) => (
+            <SidebarMenuItem key={`secondary-${index}-${item.title}-${item.url}`}>
               <SidebarMenuButton 
                 asChild
                 className="h-8 px-2.5 text-sm font-normal"

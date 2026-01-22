@@ -9,18 +9,11 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics"
-<<<<<<< Updated upstream
 import { NaturalLanguageReport } from "@/components/dashboard/natural-language-report"
 import type { TimeRange } from "@/components/dashboard/time-range-selector"
 import type { AIModel } from "@/components/dashboard/model-selector"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Image from "next/image"
-=======
-import { OverviewContainers } from "@/components/dashboard/overview-containers"
-import { TimeRangeSelector, type TimeRange } from "@/components/dashboard/time-range-selector"
-import { ModelSelector, type AIModel } from "@/components/dashboard/model-selector"
-import { DashboardStatus } from "@/components/dashboard/DashboardStatus"
->>>>>>> Stashed changes
 
 type PlatformFilter = "all" | AIModel
 
@@ -124,19 +117,10 @@ function DashboardPageInner() {
               </div>
             </div>
             
-<<<<<<< Updated upstream
             {/* Divider Line - Full Width */}
             <div className="h-[0.5px] bg-white/10"></div>
             
             <div className="flex flex-1 flex-col pt-6 pb-8">
-=======
-            <div className="flex flex-col gap-4 pb-4 md:gap-6 md:pb-6">
-              {/* Dashboard Status */}
-              <div className="px-4 lg:px-6">
-                <DashboardStatus />
-              </div>
-              
->>>>>>> Stashed changes
               {/* Overview Metrics */}
               <div>
                 <OverviewMetrics 

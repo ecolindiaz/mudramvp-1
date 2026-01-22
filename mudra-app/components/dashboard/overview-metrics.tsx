@@ -1,11 +1,6 @@
 "use client"
 
-<<<<<<< Updated upstream
 import { DashboardStatCard } from "./dashboard-stat-card"
-=======
-import { MetricCard } from "./metric-card"
-import { useDashboardData } from "@/hooks/useDashboardData"
->>>>>>> Stashed changes
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 import { useState, useEffect } from "react"
@@ -26,15 +21,10 @@ interface OverviewMetricsProps {
 }
 
 export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: OverviewMetricsProps) {
-<<<<<<< Updated upstream
-=======
-  const { data, loading, error } = useDashboardData(timeRange, false)
-
->>>>>>> Stashed changes
   // Suppress unused variable warnings for future use
+  void timeRange
   void selectedModel
 
-<<<<<<< Updated upstream
   const { profile } = useBrandProfile()
   
   // AI Referral Tracking modal state
@@ -165,46 +155,6 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     } catch (error) {
       console.error('Failed to copy script:', error)
     }
-=======
-  if (loading) {
-    return (
-      <div className="px-4 lg:px-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="px-4 lg:px-6">
-        <div className="text-red-500 text-center py-8">
-          Error loading metrics: {error}
-        </div>
-      </div>
-    )
-  }
-
-  if (!data) {
-    return (
-      <div className="px-4 lg:px-6">
-        <div className="text-muted-foreground text-center py-8">
-          No data available
-        </div>
-      </div>
-    )
-  }
-
-  const { summary } = data.metrics
-
-  // Redirect handlers for each metric card
-  const handleHumansReferredRedirect = () => {
-    // TODO: Navigate to analytics/traffic page
-    console.log("Redirecting to Humans Referred analytics page")
->>>>>>> Stashed changes
   }
 
   const handleConnect = () => {
@@ -679,7 +629,6 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     : 0
 
   return (
-<<<<<<< Updated upstream
     <div className="grid grid-cols-1 gap-4 md:gap-5 px-4 lg:px-6 @xl/main:grid-cols-2 @3xl/main:grid-cols-4">
       <DashboardStatCard
         title="AI Visibility Score"
@@ -854,61 +803,6 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
             </div>
           </CardContent>
         </Card>
-=======
-    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-3">
-      <MetricCard
-        title="AI Visibility Score"
-        value={Math.round(summary.avgVisibilityScore)}
-        status={summary.avgVisibilityScore >= 70 ? "positive" : summary.avgVisibilityScore >= 50 ? "neutral" : "negative"}
-        trend={summary.avgVisibilityScore >= 70 ? "up" : summary.avgVisibilityScore >= 50 ? "neutral" : "down"}
-        icon="target"
-        onRedirect={handleAIVisibilityRedirect}
-        redirectLabel="View Details"
-      />
-      
-      <MetricCard
-        title="Total Analyses"
-        value={summary.totalAnalyses}
-        status={summary.totalAnalyses > 0 ? "positive" : "neutral"}
-        trend={summary.totalAnalyses > 5 ? "up" : summary.totalAnalyses > 0 ? "neutral" : "down"}
-        icon="trending-up"
-        onRedirect={handleTasksCompletedRedirect}
-        redirectLabel="View"
-      />
-
-      <MetricCard
-        title="Credits Used"
-        value={summary.totalCreditsUsed}
-        status="neutral"
-        trend="neutral"
-        icon="check"
-        onRedirect={handleWeekGoalsRedirect}
-        redirectLabel="View Usage"
-      />
-
-      {showAll && (
-        <>
-          <MetricCard
-            title="AI Conversations"
-            value={summary.totalConversations}
-            status="positive"
-            trend="up"
-            icon="users"
-            onRedirect={handleAIVisibilityRedirect}
-            redirectLabel="View"
-          />
-          
-          <MetricCard
-            title="Analysis Score"
-            value={Math.round(summary.avgVisibilityScore)}
-            status="positive"
-            trend="up"
-            icon="check"
-            onRedirect={handleContentQualityRedirect}
-            redirectLabel="View"
-          />
-        </>
->>>>>>> Stashed changes
       )}
 
       {/* AI Referral Tracking Setup Modal */}

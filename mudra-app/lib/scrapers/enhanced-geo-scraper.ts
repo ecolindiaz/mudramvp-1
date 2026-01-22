@@ -659,104 +659,130 @@ function calculateGEOScore(data: Omit<EnhancedGEOResult, 'geoScore'>): EnhancedG
 }
 
 /**
- * Extract comprehensive enhanced GEO data - OPTIMIZED VERSION (1 API call instead of 5)
+ * Extract comprehensive enhanced GEO data
  */
-<<<<<<< Updated upstream
 export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEOOutput> {
   const app = createFirecrawlApp();
-=======
-export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEOResult> {
-  const app = await createFirecrawlApp();
->>>>>>> Stashed changes
   
   console.log(`🔍 Running Enhanced GEO Analysis on: ${url}`);
   
-  // Single comprehensive API call to save credits
-  console.log('📄 Running comprehensive analysis (1 API call to save credits)...');
-  const comprehensiveResult = await app.scrapeUrl(url, {
+  // Make sequential API calls to respect rate limits (Free plan: 10 requests/min)
+  console.log('📄 Step 1/5: Extracting HTML and structured data...');
+  const htmlResult = await app.scrapeUrl(url, {
     formats: ["html", "markdown", "extract"],
     extract: {
-      prompt: `Perform comprehensive website analysis and return structured JSON:
-
-{
-  "structuredData": {
-    "jsonLdScripts": "Extract all JSON-LD structured data scripts",
-    "microdata": "Extract all microdata attributes",
-    "schemaTypes": "List all Schema.org types found",
-    "organizationData": "Organization schema details",
-    "websiteData": "Website schema details",
-    "faqSchema": "FAQ schema if present"
-  },
-  "contentStructure": {
-    "headings": {
-      "h1": ["text of all H1 tags"],
-      "h2": ["text of all H2 tags"],
-      "h3": ["text of all H3 tags"]
-    },
-    "authoritySignals": {
-      "statistics": ["numbers and statistics mentioned"],
-      "expertQuotes": ["expert quotes or testimonials"],
-      "citations": ["citations or references"]
-    },
-    "contentQuality": {
-      "wordCount": "approximate word count",
-      "paragraphs": "number of paragraphs",
-      "lists": "number of lists",
-      "images": "number of images"
-    }
-  },
-  "entities": {
-    "organizations": ["companies, brands, organizations mentioned"],
-    "people": ["people, experts, authors mentioned"],
-    "technologies": ["tech stacks, frameworks, tools mentioned"],
-    "products": ["products, services mentioned"],
-    "locations": ["geographic locations mentioned"]
-  },
-  "faqContent": {
-    "faqSections": ["FAQ sections found"],
-    "questionAnswerPairs": "count of Q&A pairs",
-    "supportContent": ["help, support content"]
-  },
-  "freshness": {
-    "publishDate": "publication date if found",
-    "lastModified": "last modified date if found",
-    "updateFrequency": "update frequency indicators",
-    "freshnessSignals": ["recent updates, news, timestamps"]
-  },
-  "technical": {
-    "metaTags": {
-      "title": "page title",
-      "description": "meta description",
-      "canonical": "canonical URL"
-    },
-    "openGraph": {
-      "title": "og:title",
-      "description": "og:description",
-      "image": "og:image"
-    }
-  }
-}
-
-Analyze thoroughly and return complete structured data.`
+      prompt: "Find and extract all JSON-LD structured data, microdata, and Schema.org markup. Look for @context, @type, itemscope, itemtype, and structured data examples. Return complete JSON objects."
     },
     onlyMainContent: false,
     timeout: 180000
   });
-
-  // Parse structured data from HTML (using existing regex parsers)
-  const html = (comprehensiveResult as any).html || '';
+  
+  // Wait 8 seconds between requests to stay under rate limit
+  await new Promise(resolve => setTimeout(resolve, 8000));
+  
+  console.log('🏗️ Step 2/5: Analyzing content structure and authority...');
+  const contentResult = await app.scrapeUrl(url, {
+    formats: ["extract"],
+    extract: {
+      prompt: `Extract comprehensive content analysis:
+      
+      1. Heading hierarchy (H1-H6) with exact text
+      2. Authority signals: statistics with numbers, expert quotes, testimonials, citations
+      3. Author information and credentials
+      4. Content quality: word count, paragraph count, lists, tables, images
+      5. Reading level assessment
+      
+      Return as structured JSON with counts and text arrays.`
+    },
+    timeout: 180000
+  });
+  
+  await new Promise(resolve => setTimeout(resolve, 8000));
+  
+  console.log('🧠 Step 3/5: Recognizing entities and knowledge graph signals...');
+  const entityResult = await app.scrapeUrl(url, {
+    formats: ["extract"],
+    extract: {
+      prompt: `Extract entities and knowledge graph signals:
+      
+      1. Organizations and companies mentioned
+      2. People and experts referenced
+      3. Technologies, frameworks, and tools
+      4. Products and services
+      5. Locations and geographical references
+      
+      Return as: {
+        "organizations": [...],
+        "people": [...],
+        "technologies": [...],
+        "products": [...],
+        "locations": [...]
+      }`
+    },
+    timeout: 180000
+  });
+  
+  await new Promise(resolve => setTimeout(resolve, 8000));
+  
+  console.log('❓ Step 4/5: Detecting FAQ and Q&A structures...');
+  const faqResult = await app.scrapeUrl(url, {
+    formats: ["extract"],
+    extract: {
+      prompt: `Detect FAQ structures and Q&A content:
+      
+      1. FAQ sections and help content
+      2. Question-answer pairs
+      3. Support documentation structure
+      4. How-to guides and tutorials
+      5. Troubleshooting sections
+      
+      Return as: {
+        "faqSections": [...],
+        "questionAnswerPairs": number,
+        "supportStructures": [...]
+      }`
+    },
+    timeout: 180000
+  });
+  
+  await new Promise(resolve => setTimeout(resolve, 8000));
+  
+  console.log('🕐 Step 5/5: Analyzing content freshness signals...');
+  const freshnessResult = await app.scrapeUrl(url, {
+    formats: ["extract"],
+    extract: {
+      prompt: `Extract temporal data and freshness signals:
+      
+      1. Publication dates and timestamps
+      2. Last modified or updated dates
+      3. Update frequency indicators
+      4. News, blog posts, or recent content
+      5. Version numbers or release dates
+      
+      Return as: {
+        "publishDate": "...",
+        "lastModified": "...",
+        "updateFrequency": "...",
+        "freshnessSignals": [...]
+      }`
+    },
+    timeout: 180000
+  });
+  
+  // Parse structured data from HTML AND AI extraction
+  const html = (htmlResult as any).html || '';
   const htmlJsonLd = parseJsonLdFromHtml(html);
   const htmlMicrodata = parseMicrodataFromHtml(html);
   
-  // Get AI-extracted data
-  const aiData = (comprehensiveResult as any).extract || {};
-  
-  // Process AI-found JSON-LD scripts
+  // Get AI-extracted structured data (often finds more than regex)
+  const aiStructuredData = (htmlResult as any).extract || {};
   let aiJsonLd = [];
-  const structuredDataSection = aiData.structuredData || {};
   
-  if (structuredDataSection.jsonLdScripts && Array.isArray(structuredDataSection.jsonLdScripts)) {
-    aiJsonLd = structuredDataSection.jsonLdScripts.map((script: any) => {
+  // Process AI-found JSON-LD scripts (AI uses different property names)
+  if (aiStructuredData.jsonLD && Array.isArray(aiStructuredData.jsonLD)) {
+    aiJsonLd = aiStructuredData.jsonLD;
+  } else if (aiStructuredData.jsonLdScripts && Array.isArray(aiStructuredData.jsonLdScripts)) {
+    aiJsonLd = aiStructuredData.jsonLdScripts.map((script: any) => {
       try {
         if (typeof script === 'object' && script.content) {
           return JSON.parse(script.content);
@@ -775,16 +801,15 @@ Analyze thoroughly and return complete structured data.`
   
   // Combine both sources
   const jsonLd = [...htmlJsonLd, ...aiJsonLd];
-  const microdata = htmlMicrodata;
+  const microdata = htmlMicrodata; // AI doesn't extract microdata as well
   const schemaTypes = extractSchemaTypes(jsonLd, microdata);
   
-  // Process AI extraction results (using new structure)
-  const content = aiData.contentStructure || {};
-  const entities = aiData.entities || {};
-  const faq = aiData.faqContent || {};
-  const freshness = aiData.freshness || {};
-  const metadata = (comprehensiveResult as any).metadata || {};
-  const technical = aiData.technical || {};
+  // Process AI extraction results
+  const content = (contentResult as any).extract || {};
+  const entities = (entityResult as any).extract || {};
+  const faq = (faqResult as any).extract || {};
+  const freshness = (freshnessResult as any).extract || {};
+  const metadata = (htmlResult as any).metadata || {};
   
   // Find specific schema types
   const organizationSchema = jsonLd.find(item => 
@@ -833,37 +858,30 @@ Analyze thoroughly and return complete structured data.`
     },
     
     contentStructure: {
-      headingsHierarchy: content.headings || {
+      headingsHierarchy: content.headingsHierarchy || {
         h1: [], h2: [], h3: [], h4: [], h5: [], h6: []
       },
       authoritySignals: {
         statistics: content.authoritySignals?.statistics || [],
         expertQuotes: content.authoritySignals?.expertQuotes || [],
-        authorInfo: {}, // Will be populated from content analysis
+        authorInfo: content.authoritySignals?.authorInfo || {},
         citations: content.authoritySignals?.citations || [],
         testimonials: content.authoritySignals?.testimonials || []
       },
-      contentQuality: {
-        wordCount: content.contentQuality?.wordCount || 0,
-        paragraphCount: content.contentQuality?.paragraphs || 0,
-        listCount: content.contentQuality?.lists || 0,
-        tableCount: content.contentQuality?.tables || 0,
-        imageCount: content.contentQuality?.images || 0,
-        readingLevel: content.contentQuality?.readingLevel || 'unknown'
-      }
+      contentQuality: content.contentQuality || {}
     },
     
     technicalAccessibility: {
       metaTags: {
-        title: technical.metaTags?.title || metadata.title,
-        description: technical.metaTags?.description || metadata.description,
+        title: metadata.title,
+        description: metadata.description,
         robots: metadata.robots,
-        canonical: technical.metaTags?.canonical || metadata.canonical,
+        canonical: metadata.canonical,
         hreflang: [], // TODO: Extract from HTML
         openGraph: {
-          'og:title': technical.openGraph?.title || metadata.ogTitle || '',
-          'og:description': technical.openGraph?.description || metadata.ogDescription || '',
-          'og:image': technical.openGraph?.image || metadata.ogImage || '',
+          'og:title': metadata.ogTitle || '',
+          'og:description': metadata.ogDescription || '',
+          'og:image': metadata.ogImage || '',
           'og:url': metadata.ogUrl || ''
         },
         twitterCard: {
@@ -875,20 +893,20 @@ Analyze thoroughly and return complete structured data.`
       },
       technicalElements: {
         httpsStatus: url.startsWith('https://'),
-        statusCode: metadata.statusCode || 200,
+        statusCode: metadata.statusCode || 0,
         contentType: metadata.contentType,
         responseTime: metadata.responseTime,
-        mobileFriendly: undefined, // TODO: Implement mobile detection
+        mobileFriendly: undefined, // TODO: Implement
         internalLinks: [], // TODO: Extract from content
         coreWebVitals: undefined // TODO: Implement performance metrics
       },
       accessibility: {
         altTextCount: 0, // TODO: Count from HTML
         ariaLabels: [], // TODO: Extract from HTML
-        semanticElements: [], // TODO: Extract semantic HTML elements
-        skipLinks: false, // TODO: Detect skip navigation links
-        headingStructureValid: true, // TODO: Validate heading hierarchy
-        landmarkRoles: [] // TODO: Extract ARIA landmark roles
+        semanticElements: [], // TODO: Extract from HTML
+        skipLinks: false, // TODO: Detect from HTML
+        headingStructureValid: true, // TODO: Validate hierarchy
+        landmarkRoles: [] // TODO: Extract ARIA landmarks
       }
     }
   };

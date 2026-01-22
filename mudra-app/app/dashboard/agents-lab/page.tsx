@@ -197,7 +197,7 @@ function AgentsLabPageInner() {
     if (!profile.id) return
 
     try {
-      const response = await fetch(`/api/github/status?brandProfileId=${profile.id}`)
+      const response = await fetch(`/api/integrations/github/status?brandProfileId=${profile.id}`)
       const result = await response.json()
       
       if (result.success && result.connected) {
@@ -264,7 +264,7 @@ function AgentsLabPageInner() {
     
     setIsLoadingPRs(true)
     try {
-      const response = await fetch(`/api/github/pull-requests?brandProfileId=${profile.id}&state=open`)
+      const response = await fetch(`/api/integrations/github/pull-requests?brandProfileId=${profile.id}&state=open`)
       const result = await response.json()
       
       if (result.success && result.data) {

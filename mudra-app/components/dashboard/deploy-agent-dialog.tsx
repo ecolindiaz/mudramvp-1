@@ -131,11 +131,13 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
     const fetchRepos = async () => {
       setIsLoadingRepos(true)
       try {
-        const response = await fetch('/api/github/repos')
+        const response = await fetch('/api/integrations/github/repositories')
         const result = await response.json()
         
-        if (result.success && result.data?.repos) {
-          setGithubRepos(result.data.repos)
+        // Handle both response formats for compatibility
+        const repos = result.data?.repos || result.repositories || []
+        if (result.success && repos.length > 0) {
+          setGithubRepos(repos)
           setGithubConnected(true)
         } else {
           setGithubConnected(false)

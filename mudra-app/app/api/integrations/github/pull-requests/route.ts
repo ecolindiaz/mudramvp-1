@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY
 
@@ -36,10 +37,14 @@ export interface GitHubPullRequest {
 }
 
 /**
- * GET /api/github/pull-requests
+ * GET /api/integrations/github/pull-requests
  * Fetch open pull requests from the configured GitHub repository
  */
 export async function GET(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard')
+  if (rateLimited) return rateLimited
+
   try {
     const { searchParams } = new URL(request.url)
     const brandProfileId = searchParams.get('brandProfileId')

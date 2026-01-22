@@ -639,7 +639,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         positive={aiVisibilityScore > (aiVisibilityPrevious || 0)}
         sparkline={aiVisibilityScore > 0 ? [0, Math.max(10, aiVisibilityScore * 0.5), Math.max(20, aiVisibilityScore * 0.7), aiVisibilityScore] : [0]}
         accentColor="rgba(255,255,255,0.9)"
-        info="Overall brand visibility combining mention rate (50%) and average ranking (50%) across all AI providers. Firegeo methodology."
+        info="How often AI models mention your brand and where you rank in their responses."
         showLastPeriod={true}
         loading={loadingAIVisibility}
       />
@@ -655,7 +655,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         positive={hasPositionHistory && averagePositionPrevious !== null && averagePosition > 0 ? averagePosition < averagePositionPrevious : true}
         sparkline={averagePosition > 0 ? [10, Math.min(8, averagePosition * 1.2), averagePosition, Math.max(1, averagePosition * 0.8)] : [0]}
         accentColor="rgba(167, 139, 250, 0.9)"
-        info={averagePosition > 0 ? `Average ranking position across all mentions. Position #1 is best. Lower numbers indicate better visibility.` : "No position data available yet."}
+        info={averagePosition > 0 ? `Your typical ranking when mentioned by AI. #1 is best—lower is better.` : "Your typical ranking when mentioned by AI. #1 is best—lower is better."}
         showLastPeriod={true}
         loading={loadingAIVisibility}
         emptyValue="—"
@@ -670,7 +670,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         positive={hasHistoricalData && previousScore !== null ? technicalScore > previousScore : true}
         sparkline={hasHistoricalData ? undefined : technicalScore > 0 ? [0, Math.max(10, technicalScore * 0.6), Math.max(20, technicalScore * 0.8), technicalScore] : [0]}
         accentColor="rgba(255,255,255,0.9)"
-        info={isGeneratingScore ? "Calculating score..." : "How well your site is optimized for AI and SEO."}
+        info={isGeneratingScore ? "Calculating score..." : "How easily can AI agents read and retrieve your site's structure and content."}
         showLastPeriod={true}
         loading={loadingTechnical}
       />

@@ -56,7 +56,8 @@ export interface PromptTest {
   competitorSentiments?: Record<string, 'positive' | 'neutral' | 'negative'>; // Maps competitor name to sentiment
   sentiment: 'positive' | 'neutral' | 'negative';
   confidence: number;
-  citations?: Citation[]; // Sources and citations from live search
+  citations?: Citation[]; // Inline citations referenced in response
+  sources?: Citation[]; // All URLs retrieved during web search
   searchQueries?: string[]; // Queries used for grounding (Gemini)
 }
 
@@ -302,7 +303,7 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
 }
 
 /**
- * Analyze with OpenAI
+ * Analyze with OpenAI using Responses API with web_search tool
  */
 async function analyzeWithOpenAI(
   prompt: string,
@@ -313,48 +314,83 @@ async function analyzeWithOpenAI(
     throw new Error('OpenAI API key required for analysis');
   }
 
-  const apiKey = config.apiKeys.openai;
+  const apiKey = config.apiKeys.openai.trim();
   const openai = new OpenAI({
-    apiKey: apiKey.trim(),
+    apiKey: apiKey,
   });
 
-  // System prompt for consistent ranking behavior
-  const systemPrompt = `You are an expert advisor providing rankings and recommendations.
-
-When asked about tools, services, or companies:
-1. Provide specific rankings with positions (1st, 2nd, etc.)
-2. Be objective and factual
-3. Focus on quality, features, and user satisfaction
-4. Include brief explanations for rankings
-5. If you don't have enough information about a specific company, mention that
-
-Be helpful and comprehensive in your response.`;
-
   try {
-    // Get the provider's response
-    // Note: OpenAI's web_search tool is not yet in stable API
-    // Using GPT-4o for best quality responses
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o', // Using GPT-4o for better quality
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.7,
-      max_tokens: 1200,
+    // Use OpenAI Responses API with web_search tool for real-time data
+    // No system prompt - let the model respond naturally to simulate real user searches
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        tools: [
+          {
+            type: 'web_search',
+            search_context_size: 'high',
+          },
+        ],
+        tool_choice: { type: 'web_search' }, // Force web search
+        input: prompt, // Direct prompt without system instructions
+        include: ['web_search_call.action.sources'],
+      }),
     });
 
-    const text = response.choices[0]?.message?.content || '';
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI Responses API error: ${response.status} - ${errorText.substring(0, 200)}`);
+    }
+
+    const data = await response.json();
     
-    // Citations not available in standard OpenAI API yet
-    // Will be added when web_search tool becomes available in stable API
-    const citations: Citation[] | undefined = undefined;
+    // Extract response text, sources, and citations
+    let text = '';
+    const citations: Citation[] = [];
+    const sources: Citation[] = [];
+    
+    for (const item of data.output || []) {
+      // Get sources from web_search_call
+      if (item.type === 'web_search_call' && item.action?.sources) {
+        for (const s of item.action.sources) {
+          sources.push({
+            url: s.url?.replace(/\?utm_source=openai$/, '') || '',
+            title: s.title || '',
+          });
+        }
+      }
+      
+      // Get response text and citations from message
+      if (item.type === 'message') {
+        for (const c of item.content || []) {
+          if (c.type === 'output_text') {
+            text = c.text || '';
+            // Extract inline citations from annotations
+            for (const a of c.annotations || []) {
+              if (a.type === 'url_citation') {
+                citations.push({
+                  title: a.title || '',
+                  url: a.url?.replace(/\?utm_source=openai$/, '') || '',
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Deduplicate citations and sources
+    const uniqueCitations = Array.from(
+      new Map(citations.map(c => [c.url, c])).values()
+    );
+    const uniqueSources = Array.from(
+      new Map(sources.map(s => [s.url, s])).values()
+    );
 
     // Analyze the response for brand mentions and sentiment using AI
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
@@ -604,7 +640,8 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations,
+      citations: uniqueCitations.length > 0 ? uniqueCitations : undefined,
+      sources: uniqueSources.length > 0 ? uniqueSources : undefined,
     };
   } catch (error) {
     console.error(`Error analyzing with OpenAI:`, error);
@@ -944,7 +981,7 @@ async function analyzeWithAnthropic(
     // Use Claude with web_search tool for grounded, real-time responses
     // Reference: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1500,
       messages: [
         {

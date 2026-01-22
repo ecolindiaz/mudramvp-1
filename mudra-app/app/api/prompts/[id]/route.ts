@@ -132,6 +132,7 @@ export async function GET(
         const competitors = matchingTest.competitors || matchingTest.competitorsMentioned || []
         const competitorPositions = matchingTest.competitorPositions || {}
         const citations = matchingTest.citations || []
+        const sources = matchingTest.sources || []
         
         promptTestResults.push({
           provider: providerName,
@@ -143,6 +144,7 @@ export async function GET(
           competitorsMentioned: competitors,
           competitorPositions: competitorPositions,
           citations: citations,
+          sources: sources,
           timestamp: matchingTest.timestamp || latestAnalysis.createdAt
         })
 

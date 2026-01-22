@@ -72,12 +72,12 @@ export async function GET(request: NextRequest) {
     }
 
     // No brandProfileId - use session user directly
-    const user = await prisma.user.findUnique({
+    const sessionUser = await prisma.user.findUnique({
       where: { email: session.user.email },
       include: { githubIntegration: true },
     })
 
-    if (!user?.githubIntegration) {
+    if (!sessionUser?.githubIntegration) {
       return NextResponse.json({
         success: true,
         connected: false,
@@ -85,38 +85,16 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const integration = user.githubIntegration
+    const sessionIntegration = sessionUser.githubIntegration
 
     return NextResponse.json({
       success: true,
       connected: true,
-      username: integration.githubUsername,
-      avatarUrl: integration.avatarUrl,
-      repositories: integration.repositories || [],
-      integrationType: integration.integrationType,
+      username: sessionIntegration.githubUsername,
+      avatarUrl: sessionIntegration.avatarUrl,
+      repositories: sessionIntegration.repositories || [],
+      integrationType: sessionIntegration.integrationType,
     })
-
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      include: { githubIntegration: true },
-    })
-
-    if (!user?.githubIntegration) {
-      return NextResponse.json({
-        success: true,
-        connected: false,
-        message: 'GitHub not connected',
-      })
-    }
-
-    const integration = user.githubIntegration
 
   } catch (error) {
     console.error('[GitHub Status] Error:', error)

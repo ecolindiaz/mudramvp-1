@@ -1116,11 +1116,11 @@ async function analyzeWithGoogle(
   try {
     console.log('[Google] Testing prompt:', prompt.substring(0, 60) + '...');
     
-    // Use Gemini with Google Search grounding
-    // Note: Google Search grounding requires proper API setup and may not be available in all regions
+    // Use Gemini 3 Flash with Google Search grounding
+    // Reference: https://ai.google.dev/gemini-api/docs/gemini-3
     // Reference: https://ai.google.dev/gemini-api/docs/grounding
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp', // Latest Gemini model with experimental features
+      model: 'gemini-3-flash-preview', // Gemini 3 Flash - free tier model with grounding support
       // Google Search grounding - using proper format per SDK documentation
       tools: [
         {
@@ -1568,7 +1568,7 @@ export function createDirectGEOConfig(
     apiKeys: {
       openai: options.apiKeys?.openai || env.OPENAI_API_KEY,
       anthropic: options.apiKeys?.anthropic || env.ANTHROPIC_API_KEY,
-      google: options.apiKeys?.google || env.GOOGLE_GENERATIVE_AI_API_KEY,
+      google: options.apiKeys?.google || env.GEMINI_API_KEY || env.GOOGLE_API_KEY || env.GOOGLE_GENERATIVE_AI_API_KEY,
       perplexity: options.apiKeys?.perplexity || env.PERPLEXITY_API_KEY,
     },
   };

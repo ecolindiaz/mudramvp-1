@@ -56,7 +56,8 @@ export interface PromptTest {
   competitorSentiments?: Record<string, 'positive' | 'neutral' | 'negative'>; // Maps competitor name to sentiment
   sentiment: 'positive' | 'neutral' | 'negative';
   confidence: number;
-  citations?: Citation[]; // Sources and citations from live search
+  citations?: Citation[]; // Inline citations referenced in response
+  sources?: Citation[]; // All URLs retrieved during web search
   searchQueries?: string[]; // Queries used for grounding (Gemini)
 }
 
@@ -302,7 +303,7 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
 }
 
 /**
- * Analyze with OpenAI
+ * Analyze with OpenAI using Responses API with web_search tool
  */
 async function analyzeWithOpenAI(
   prompt: string,
@@ -313,48 +314,83 @@ async function analyzeWithOpenAI(
     throw new Error('OpenAI API key required for analysis');
   }
 
-  const apiKey = config.apiKeys.openai;
+  const apiKey = config.apiKeys.openai.trim();
   const openai = new OpenAI({
-    apiKey: apiKey.trim(),
+    apiKey: apiKey,
   });
 
-  // System prompt for consistent ranking behavior
-  const systemPrompt = `You are an expert advisor providing rankings and recommendations.
-
-When asked about tools, services, or companies:
-1. Provide specific rankings with positions (1st, 2nd, etc.)
-2. Be objective and factual
-3. Focus on quality, features, and user satisfaction
-4. Include brief explanations for rankings
-5. If you don't have enough information about a specific company, mention that
-
-Be helpful and comprehensive in your response.`;
-
   try {
-    // Get the provider's response
-    // Note: OpenAI's web_search tool is not yet in stable API
-    // Using GPT-4o for best quality responses
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o', // Using GPT-4o for better quality
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.7,
-      max_tokens: 1200,
+    // Use OpenAI Responses API with web_search tool for real-time data
+    // No system prompt - let the model respond naturally to simulate real user searches
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        tools: [
+          {
+            type: 'web_search',
+            search_context_size: 'high',
+          },
+        ],
+        tool_choice: { type: 'web_search' }, // Force web search
+        input: prompt, // Direct prompt without system instructions
+        include: ['web_search_call.action.sources'],
+      }),
     });
 
-    const text = response.choices[0]?.message?.content || '';
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI Responses API error: ${response.status} - ${errorText.substring(0, 200)}`);
+    }
+
+    const data = await response.json();
     
-    // Citations not available in standard OpenAI API yet
-    // Will be added when web_search tool becomes available in stable API
-    const citations: Citation[] | undefined = undefined;
+    // Extract response text, sources, and citations
+    let text = '';
+    const citations: Citation[] = [];
+    const sources: Citation[] = [];
+    
+    for (const item of data.output || []) {
+      // Get sources from web_search_call
+      if (item.type === 'web_search_call' && item.action?.sources) {
+        for (const s of item.action.sources) {
+          sources.push({
+            url: s.url?.replace(/\?utm_source=openai$/, '') || '',
+            title: s.title || '',
+          });
+        }
+      }
+      
+      // Get response text and citations from message
+      if (item.type === 'message') {
+        for (const c of item.content || []) {
+          if (c.type === 'output_text') {
+            text += c.text || '';
+            // Extract inline citations from annotations
+            for (const a of c.annotations || []) {
+              if (a.type === 'url_citation') {
+                citations.push({
+                  title: a.title || '',
+                  url: a.url?.replace(/\?utm_source=openai$/, '') || '',
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Deduplicate citations and sources
+    const uniqueCitations = Array.from(
+      new Map(citations.map(c => [c.url, c])).values()
+    );
+    const uniqueSources = Array.from(
+      new Map(sources.map(s => [s.url, s])).values()
+    );
 
     // Analyze the response for brand mentions and sentiment using AI
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
@@ -604,7 +640,8 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations,
+      citations: uniqueCitations.length > 0 ? uniqueCitations : undefined,
+      sources: uniqueSources.length > 0 ? uniqueSources : undefined,
     };
   } catch (error) {
     console.error(`Error analyzing with OpenAI:`, error);
@@ -940,12 +977,11 @@ async function analyzeWithAnthropic(
 
   try {
     console.log('[Anthropic] Testing prompt:', prompt.substring(0, 60) + '...');
-    
-    // Use Claude without tools - standard API call
-    // Note: Claude doesn't support web_search as a built-in tool
-    // For grounded responses, use Perplexity or Google Gemini with search grounding
+
+    // Use Claude with web_search tool for grounded, real-time responses
+    // Reference: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1500,
       messages: [
         {
@@ -953,21 +989,61 @@ async function analyzeWithAnthropic(
           content: prompt,
         },
       ],
-      // No tools array - using standard Claude without web search
+      tools: [
+        {
+          type: 'web_search_20250305',
+          name: 'web_search',
+          max_uses: 5,
+        } as any, // Type assertion needed as SDK types may lag behind API
+      ],
     });
 
-    // Extract text from response
+    // Extract text and citations from response
+    // Response includes: text blocks, server_tool_use (search queries), web_search_tool_result (results)
     let text = '';
     const citations: Citation[] = [];
-    
+
     for (const block of response.content) {
       if (block.type === 'text') {
         text += block.text;
+        // Extract citations from text blocks (they appear inline with cited_text)
+        const textBlock = block as any;
+        if (textBlock.citations && Array.isArray(textBlock.citations)) {
+          for (const citation of textBlock.citations) {
+            if (citation.type === 'web_search_result_location') {
+              citations.push({
+                url: citation.url || '',
+                title: citation.title,
+                snippet: citation.cited_text,
+                position: citations.length + 1,
+              });
+            }
+          }
+        }
+      }
+      // Also extract URLs from web_search_tool_result blocks
+      if (block.type === 'web_search_tool_result') {
+        const resultBlock = block as any;
+        if (resultBlock.content && Array.isArray(resultBlock.content)) {
+          for (const result of resultBlock.content) {
+            if (result.type === 'web_search_result' && result.url) {
+              // Only add if not already in citations
+              const existingUrls = citations.map(c => c.url);
+              if (!existingUrls.includes(result.url)) {
+                citations.push({
+                  url: result.url,
+                  title: result.title,
+                  position: citations.length + 1,
+                });
+              }
+            }
+          }
+        }
       }
     }
-    
+
     console.log('[Anthropic] Response received:', text.substring(0, 100) + '...');
-    console.log('[Anthropic] Note: Citations not available - using standard Claude without web search');
+    console.log(`[Anthropic] Extracted ${citations.length} citations from web search`);
 
     // Analyze the response using OpenAI for consistency
     if (!config.apiKeys.openai) {
@@ -1030,20 +1106,29 @@ async function analyzeWithAnthropic(
     console.error(`   Message: ${error.message || 'Unknown error'}`);
     console.error(`   Status: ${error.status || 'N/A'}`);
     console.error(`   Type: ${error.type || error.error?.type || 'N/A'}`);
-    
+
     if (error.status === 405) {
-      console.error(`   ⚠️  HTTP 405 Method Not Allowed - Invalid API configuration`);
-      throw new Error(`Anthropic API error: Method Not Allowed (405). This typically indicates invalid tool configuration or API endpoint issue.`);
+      console.error(`   ⚠️  HTTP 405 Method Not Allowed - Check web_search tool configuration`);
+      throw new Error(`Anthropic API error: Method Not Allowed (405). Ensure web_search_20250305 tool type is used and web search is enabled in Console.`);
     }
-    
+
     if (error.status === 401) {
       throw new Error(`Anthropic API authentication failed. Please check your API key.`);
     }
-    
+
     if (error.status === 429) {
       throw new Error(`Anthropic API rate limit exceeded. Please try again later.`);
     }
-    
+
+    if (error.status === 400) {
+      // Check for web search specific errors
+      const errorMessage = error.message || '';
+      if (errorMessage.includes('web_search') || errorMessage.includes('tool')) {
+        console.error(`   ⚠️  Web search tool error - may need to enable in Anthropic Console`);
+        throw new Error(`Anthropic web search error: ${errorMessage}. Ensure web search is enabled in your Anthropic Console settings.`);
+      }
+    }
+
     throw new Error(`Anthropic API error: ${error.message || 'Unknown error'}`);
   }
 }
@@ -1068,11 +1153,11 @@ async function analyzeWithGoogle(
   try {
     console.log('[Google] Testing prompt:', prompt.substring(0, 60) + '...');
     
-    // Use Gemini with Google Search grounding
-    // Note: Google Search grounding requires proper API setup and may not be available in all regions
+    // Use Gemini 3 Flash with Google Search grounding
+    // Reference: https://ai.google.dev/gemini-api/docs/gemini-3
     // Reference: https://ai.google.dev/gemini-api/docs/grounding
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp', // Latest Gemini model with experimental features
+      model: 'gemini-3-flash-preview', // Gemini 3 Flash - free tier model with grounding support
       // Google Search grounding - using proper format per SDK documentation
       tools: [
         {
@@ -1520,7 +1605,7 @@ export function createDirectGEOConfig(
     apiKeys: {
       openai: options.apiKeys?.openai || env.OPENAI_API_KEY,
       anthropic: options.apiKeys?.anthropic || env.ANTHROPIC_API_KEY,
-      google: options.apiKeys?.google || env.GOOGLE_GENERATIVE_AI_API_KEY,
+      google: options.apiKeys?.google || env.GEMINI_API_KEY || env.GOOGLE_API_KEY || env.GOOGLE_GENERATIVE_AI_API_KEY,
       perplexity: options.apiKeys?.perplexity || env.PERPLEXITY_API_KEY,
     },
   };

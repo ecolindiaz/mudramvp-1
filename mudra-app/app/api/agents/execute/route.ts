@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { detectFramework, findExistingTargetFile } from '@/lib/services/framework-detector.service';
 import { generateTrackingScript, updateTrackingStatus } from '@/lib/services/tracking-script-generator.service';
 import { injectTrackingScript, validateInjection } from '@/lib/services/tracking-script-injector.service';
+import { logAIModelCall } from '@/lib/services/ai-model-logging.service';
 
 // Encryption helpers
 const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
@@ -105,6 +106,8 @@ export async function POST(req: NextRequest) {
 }
 
 async function executeAgentTask(taskId: number, agent: any) {
+  const startTime = Date.now();
+  
   try {
     const task = await prisma.agentTask.findUnique({
       where: { id: taskId },
@@ -133,6 +136,8 @@ async function executeAgentTask(taskId: number, agent: any) {
         throw new Error(`Unknown task type: ${task.taskType}`);
     }
 
+    const latencyMs = Date.now() - startTime;
+
     // Update task with results
     await prisma.agentTask.update({
       where: { id: taskId },
@@ -148,8 +153,32 @@ async function executeAgentTask(taskId: number, agent: any) {
       where: { id: agent.id },
       data: { lastExecutedAt: new Date() },
     });
+    
+    // Log successful agent execution (when AI is involved)
+    if (task.taskType === 'analyze' || task.taskType === 'optimize') {
+      logAIModelCall({
+        feature: 'agents',
+        endpoint: '/api/agents/execute',
+        model: 'gpt-5.1', // Mastra agents use GPT-5.1
+        provider: 'openai',
+        status: 'success',
+        latencyMs,
+        brandProfileId: agent.brandProfileId,
+        metadata: {
+          taskType: task.taskType,
+          agentId: agent.id,
+          agentName: agent.agentName,
+        },
+      }).catch(() => {}); // Fire and forget
+    }
   } catch (error: any) {
+    const latencyMs = Date.now() - startTime;
+    
     console.error('Error in executeAgentTask:', error);
+    
+    // Get task type for logging
+    const task = await prisma.agentTask.findUnique({ where: { id: taskId } });
+    
     await prisma.agentTask.update({
       where: { id: taskId },
       data: {
@@ -158,6 +187,25 @@ async function executeAgentTask(taskId: number, agent: any) {
         completedAt: new Date(),
       },
     });
+    
+    // Log failed agent execution
+    if (task?.taskType === 'analyze' || task?.taskType === 'optimize') {
+      logAIModelCall({
+        feature: 'agents',
+        endpoint: '/api/agents/execute',
+        model: 'gpt-5.1',
+        provider: 'openai',
+        status: 'error',
+        latencyMs,
+        errorMessage: error.message,
+        brandProfileId: agent.brandProfileId,
+        metadata: {
+          taskType: task?.taskType,
+          agentId: agent.id,
+          agentName: agent.agentName,
+        },
+      }).catch(() => {});
+    }
   }
 }
 

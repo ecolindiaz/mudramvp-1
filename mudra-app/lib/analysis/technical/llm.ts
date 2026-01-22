@@ -4,6 +4,7 @@ import type { ScrapeSnapshot } from "@/lib/analysis/technical/types";
 import { tryParseEnrichmentJson, buildSystemPrompt, buildUserPrompt } from "@/lib/analysis/technical/prompts";
 import { readKnowledgeDocs } from "@/lib/analysis/technical/knowledge";
 import { baselineStepsForTemplate, deriveEvidenceForTemplate } from "@/lib/analysis/technical/task-templates";
+import { logAIModelCall, estimateAICost } from "@/lib/services/ai-model-logging.service";
 
 const MODEL = openai("gpt-5");
 
@@ -138,17 +139,63 @@ export async function enrichTaskWithLLM(params: {
 	});
 
 	let text = "";
+	const startTime = Date.now();
+	let tokensIn = 0;
+	let tokensOut = 0;
+	
 	try {
+		const systemPrompt = buildSystemPrompt(kbTopics, domain);
+		const userPrompt = buildUserPrompt({ evidence, inputs, knowledge });
+		
 		const res = await generateText({
 			// Type cast required: @ai-sdk/openai v2 returns LanguageModelV2 but generateText expects LanguageModelV1
 			// This is a known compatibility issue between ai@4.3.16 and @ai-sdk/openai@2.0.22
 			model: MODEL as any,
 			temperature: 0.2,
-			system: buildSystemPrompt(kbTopics, domain),
-			prompt: buildUserPrompt({ evidence, inputs, knowledge }),
+			system: systemPrompt,
+			prompt: userPrompt,
 		});
 		text = res.text || "";
+		
+		const latencyMs = Date.now() - startTime;
+		
+		// Extract token usage if available, otherwise estimate
+		tokensIn = (res as any).usage?.promptTokens ?? Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+		tokensOut = (res as any).usage?.completionTokens ?? Math.ceil(text.length / 4);
+		const costCents = Math.round(estimateAICost('gpt-5', tokensIn, tokensOut));
+		
+		// Log successful technical analysis enrichment
+		logAIModelCall({
+			feature: 'technical-analysis',
+			endpoint: 'enrichTaskWithLLM',
+			model: 'gpt-5',
+			provider: 'openai',
+			status: 'success',
+			latencyMs,
+			tokensIn,
+			tokensOut,
+			costCents,
+			metadata: {
+				templateKey,
+				domain,
+				categoryTag,
+			},
+		}).catch(() => {}); // Fire and forget
 	} catch (err) {
+		const latencyMs = Date.now() - startTime;
+		
+		// Log failed enrichment
+		logAIModelCall({
+			feature: 'technical-analysis',
+			endpoint: 'enrichTaskWithLLM',
+			model: 'gpt-5',
+			provider: 'openai',
+			status: 'error',
+			latencyMs,
+			errorMessage: (err as Error).message,
+			metadata: { templateKey, domain, categoryTag },
+		}).catch(() => {});
+		
 		devLog("ERROR", { templateKey, message: (err as Error).message });
 		return {
 			whyItMatters: "This addresses a verified gap in your technical structure.",

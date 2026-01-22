@@ -937,3 +937,42 @@ model AuditLog {
   @@index([resourceType, resourceId])
   @@map("audit_logs")
 }
+
+// AI Model Usage Logging - Observability for AI calls across all features
+model AIModelLog {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  
+  // Who
+  userId         String?
+  brandProfileId Int?
+  
+  // What
+  feature        String   // onboarding, nlr, content-lab, radar, agents, technical-analysis
+  endpoint       String?  // API route or function name
+  model          String   // gpt-5, gpt-4, gemini-3-pro, etc.
+  provider       String   // openai, anthropic, google, etc.
+  
+  // Result
+  status         String   // success, error
+  errorMessage   String?  @db.Text
+  errorCode      String?  // Optional error classification
+  
+  // Performance
+  latencyMs      Int?     // Time to complete in milliseconds
+  tokensIn       Int?     // Input/prompt tokens
+  tokensOut      Int?     // Output/completion tokens
+  costCents      Int?     // Estimated cost in cents (USD)
+  
+  // Metadata
+  metadata       Json?    // Additional context (prompt preview, workflow step, etc.)
+
+  @@index([userId])
+  @@index([brandProfileId])
+  @@index([feature])
+  @@index([model])
+  @@index([status])
+  @@index([createdAt])
+  @@index([feature, createdAt])
+  @@map("ai_model_logs")
+}

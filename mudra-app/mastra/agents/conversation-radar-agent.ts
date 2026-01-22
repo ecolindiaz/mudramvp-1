@@ -1,6 +1,7 @@
 import { Agent } from '@mastra/core';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
+import { logAIModelCall, estimateAICost } from '@/lib/services/ai-model-logging.service';
 
 /**
  * Conversation Radar Agent
@@ -269,16 +270,66 @@ export async function analyzeOpportunityWithAgent(
   // Build the analysis prompt
   const prompt = buildAnalysisPrompt(opportunity, brandContext);
   
-  // Generate structured output
-  const response = await conversationRadarAgent.generate(prompt, {
-    output: opportunityAnalysisSchema,
-  });
+  const startTime = Date.now();
   
-  if (!response.object) {
-    throw new Error('Failed to generate structured analysis');
+  try {
+    // Generate structured output
+    const response = await conversationRadarAgent.generate(prompt, {
+      output: opportunityAnalysisSchema,
+    });
+    
+    if (!response.object) {
+      throw new Error('Failed to generate structured analysis');
+    }
+    
+    const latencyMs = Date.now() - startTime;
+    
+    // Estimate tokens (prompt + response)
+    const estimatedTokensIn = Math.ceil(prompt.length / 4);
+    const estimatedTokensOut = Math.ceil(JSON.stringify(response.object).length / 4);
+    const costCents = Math.round(estimateAICost('gpt-5.1', estimatedTokensIn, estimatedTokensOut));
+    
+    // Log successful analysis
+    logAIModelCall({
+      feature: 'radar',
+      endpoint: '/api/conversation-radar/analyze',
+      model: 'gpt-5.1',
+      provider: 'openai',
+      status: 'success',
+      latencyMs,
+      tokensIn: estimatedTokensIn,
+      tokensOut: estimatedTokensOut,
+      costCents,
+      metadata: {
+        platform: opportunity.platform,
+        mode: opportunity.mode,
+        subreddit: opportunity.subreddit,
+        relevanceScore: response.object.relevanceScore,
+      },
+    }).catch(() => {}); // Fire and forget
+    
+    return response.object;
+  } catch (err) {
+    const latencyMs = Date.now() - startTime;
+    
+    // Log failed analysis
+    logAIModelCall({
+      feature: 'radar',
+      endpoint: '/api/conversation-radar/analyze',
+      model: 'gpt-5.1',
+      provider: 'openai',
+      status: 'error',
+      latencyMs,
+      errorMessage: (err as Error).message,
+      metadata: {
+        platform: opportunity.platform,
+        mode: opportunity.mode,
+        subreddit: opportunity.subreddit,
+      },
+    }).catch(() => {});
+    
+    throw err;
   }
-  
-  return response.object;
 }
 
 /**

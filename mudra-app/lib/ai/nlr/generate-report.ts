@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
 import { getModelConfig, estimateCost } from '@/lib/config/ai-models'
 import { logNlrJob } from '@/lib/services/observability.service'
+import { logAIModelCall, estimateAICost } from '@/lib/services/ai-model-logging.service'
 import { collectNlrInputs } from '@/lib/analysis/nlr/mappers'
 import { rankChanges } from '@/lib/analysis/nlr/diff'
 import { buildNlrPrompt } from '@/lib/ai/prompts/nlr-prompt'
@@ -107,7 +108,32 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
     if (!content || content.length < 20) {
       throw new Error(`Empty content from Gemini 3 Pro: length=${content.length}`)
     }
+    
+    // Log successful Gemini call
+    const geminiCostCents = Math.round(estimateAICost('gemini-3-pro', tokensIn, tokensOut))
+    logAIModelCall({
+      feature: 'nlr',
+      endpoint: '/api/nlr/generate',
+      model: 'gemini-3-pro',
+      provider: 'google',
+      status: 'success',
+      tokensIn,
+      tokensOut,
+      costCents: geminiCostCents,
+      metadata: { companyId, weekStartUtc: weekStart.toISOString() },
+    }).catch(() => {}) // Fire and forget
   } catch (err) {
+    // Log failed Gemini call
+    logAIModelCall({
+      feature: 'nlr',
+      endpoint: '/api/nlr/generate',
+      model: 'gemini-3-pro',
+      provider: 'google',
+      status: 'error',
+      errorMessage: (err as Error).message,
+      metadata: { companyId, weekStartUtc: weekStart.toISOString() },
+    }).catch(() => {})
+    
     // eslint-disable-next-line no-console
     console.error('NLR: Gemini 3 Pro failed, fallback to GPT-4:', err)
     
@@ -129,6 +155,20 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
     const usage: any = (r as any).usage || {}
     tokensIn = usage.prompt_tokens ?? usage.input_tokens ?? 0
     tokensOut = usage.completion_tokens ?? usage.output_tokens ?? 0
+    
+    // Log successful GPT-4 fallback call
+    const gpt4CostCents = Math.round(estimateAICost('gpt-4', tokensIn, tokensOut))
+    logAIModelCall({
+      feature: 'nlr',
+      endpoint: '/api/nlr/generate',
+      model: 'gpt-4',
+      provider: 'openai',
+      status: 'success',
+      tokensIn,
+      tokensOut,
+      costCents: gpt4CostCents,
+      metadata: { companyId, weekStartUtc: weekStart.toISOString(), fallback: true },
+    }).catch(() => {})
   }
 
   // 4) Extract JSON + Markdown

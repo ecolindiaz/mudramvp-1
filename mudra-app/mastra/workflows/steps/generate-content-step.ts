@@ -6,6 +6,7 @@ import {
 } from "../../agents/content-generator-agent";
 import { gapAnalysisOutputSchema } from "../../agents/gap-analysis-agent";
 import { researchOutputSchema } from "../../agents/schemas/research-schema";
+import { logAIModelCall, estimateAICost } from "@/lib/services/ai-model-logging.service";
 
 const inputSchema = z.object({
   trackedPrompt: z.string(),
@@ -79,7 +80,10 @@ export const generateContentStep = createStep({
 
     console.log(`[GenerateContent] Generating article for: "${trackedPrompt}"`);
 
-    const response = await contentGeneratorAgent.generate(
+    const startTime = Date.now();
+    let response;
+    try {
+      response = await contentGeneratorAgent.generate(
       `Generate an AI-optimized article for:
 
 ## Tracked Prompt
@@ -148,6 +152,49 @@ Generate a complete, comprehensive, GEO-optimized article that meets the 1,200-1
         output: contentOutputSchema,
       }
     );
+
+    const latencyMs = Date.now() - startTime;
+    
+    // Estimate tokens (Mastra doesn't expose usage directly, so we estimate)
+    const promptText = `Generate an AI-optimized article for: "${trackedPrompt}"`;
+    const estimatedTokensIn = Math.ceil(promptText.length / 4) + 2000; // ~2k for context
+    const estimatedTokensOut = Math.ceil((response.object?.content?.length || 0) / 4);
+    const costCents = Math.round(estimateAICost('gpt-5.1', estimatedTokensIn, estimatedTokensOut));
+    
+    // Log successful content generation
+    logAIModelCall({
+      feature: 'content-lab',
+      endpoint: '/api/content-lab/generate-optimized',
+      model: 'gpt-5.1',
+      provider: 'openai',
+      status: 'success',
+      latencyMs,
+      tokensIn: estimatedTokensIn,
+      tokensOut: estimatedTokensOut,
+      costCents,
+      metadata: {
+        trackedPrompt: trackedPrompt.slice(0, 100),
+        wordCount: response.object?.metadata?.wordCount,
+        title: response.object?.metadata?.title?.slice(0, 100),
+      },
+    }).catch(() => {}); // Fire and forget
+    } catch (err) {
+      const latencyMs = Date.now() - startTime;
+      
+      // Log failed content generation
+      logAIModelCall({
+        feature: 'content-lab',
+        endpoint: '/api/content-lab/generate-optimized',
+        model: 'gpt-5.1',
+        provider: 'openai',
+        status: 'error',
+        latencyMs,
+        errorMessage: (err as Error).message,
+        metadata: { trackedPrompt: trackedPrompt.slice(0, 100) },
+      }).catch(() => {});
+      
+      throw err;
+    }
 
     console.log(
       `[GenerateContent] Generated article: ${response.object?.metadata?.title}`

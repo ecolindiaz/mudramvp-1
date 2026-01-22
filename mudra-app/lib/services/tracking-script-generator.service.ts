@@ -74,7 +74,7 @@ export async function generateTrackingScript(
   brandProfileId: number
 ): Promise<GeneratedTrackingScript> {
   const siteId = await getOrCreateSiteId(brandProfileId);
-  const scriptUrl = process.env.NEXT_PUBLIC_TRACKER_URL || 'https://app.mudra.ai/tracker.js';
+  const scriptUrl = process.env.NEXT_PUBLIC_TRACKER_URL || 'https://app.trymudra.com/tracker.js';
 
   // Standard HTML script (for static sites, public/index.html)
   const htmlScript = `<!-- Mudra AI Referral Tracking -->
@@ -150,7 +150,7 @@ export async function getTrackingScriptConfig(
   }
 
   const siteId = await getOrCreateSiteId(brandProfileId);
-  const scriptUrl = process.env.NEXT_PUBLIC_TRACKER_URL || 'https://app.mudra.ai/tracker.js';
+  const scriptUrl = process.env.NEXT_PUBLIC_TRACKER_URL || 'https://app.trymudra.com/tracker.js';
 
   return {
     siteId,

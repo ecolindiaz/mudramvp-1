@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+<<<<<<< Updated upstream
 import { scrapeCompanyPage, type ScrapeResult } from '@/lib/scrapers/enhanced-geo-scraper';
 import { requireAuth } from '@/lib/auth/require-auth';
 import { applyRateLimit } from '@/lib/auth/rate-limiter';
+=======
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+import { extractEnhancedGEOData, type EnhancedGEOResult } from '@/lib/scrapers/enhanced-geo-scraper';
+import { saveAnalysisToDatabase } from '@/lib/services/analysis-database.service';
+>>>>>>> Stashed changes
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting (scraping is expensive)
@@ -9,11 +16,17 @@ export async function POST(request: NextRequest) {
   if (rateLimited) return rateLimited;
 
   try {
+<<<<<<< Updated upstream
     // Require authentication
     const authResult = await requireAuth();
     if (!authResult.success) {
       return authResult.response;
     }
+=======
+    // Get user session (optional for now - will use email if available)
+    const session = await getServerSession(authOptions);
+    const userId = session?.user?.email || 'anonymous'; // Allow anonymous access
+>>>>>>> Stashed changes
 
     const body = await request.json();
     const { url } = body;
@@ -51,10 +64,19 @@ export async function POST(request: NextRequest) {
       useLlmJsonMode: false
     });
 
-    // Return success response
+    // Save analysis results to database
+    console.log('💾 Saving analysis results to database...');
+    const { analysisId, websiteId } = await saveAnalysisToDatabase(result, userId);
+    console.log(`✅ Analysis saved with ID: ${analysisId}`);
+
+    // Return success response with database IDs
     return NextResponse.json({
       success: true,
-      data: result
+      data: {
+        ...result,
+        analysisId,
+        websiteId
+      }
     });
 
   } catch (error) {

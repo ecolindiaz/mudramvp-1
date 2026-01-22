@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+<<<<<<< Updated upstream
 import { forwardRef } from "react"
 import { IconSearch, IconCreditCard, IconLogout, IconNotification, IconUserCircle, IconQuestionMark, IconCalendar, IconFileText, IconExternalLink } from "@tabler/icons-react"
 import { User, Link as LinkIcon, Code2 } from "lucide-react"
@@ -186,6 +187,36 @@ const InboxIcon = forwardRef<SVGSVGElement, LucideProps>(
 )
 
 InboxIcon.displayName = "InboxIcon"
+=======
+import {
+  IconCamera,
+  IconChartBar,
+  IconDashboard,
+  IconDatabase,
+  IconFileAi,
+  IconFileDescription,
+  IconFileWord,
+  IconFolder,
+  IconHelp,
+  IconInnerShadowTop,
+  IconListDetails,
+  IconReport,
+  IconSearch,
+  IconSettings,
+  IconUsers,
+  IconSparkles,
+  IconRobot,
+  IconBrandGoogle,
+  IconTarget,
+  IconBug,
+  IconWorldWww,
+  IconTrendingUp,
+  IconUser,
+  IconChecklist,
+  IconPhone,
+  IconMessage,
+} from "@tabler/icons-react"
+>>>>>>> Stashed changes
 
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
@@ -242,7 +273,51 @@ const data = {
   },
   navMain: [
     {
+<<<<<<< Updated upstream
       title: "Core",
+=======
+      title: "Overview",
+      url: "/dashboard",
+      icon: IconTrendingUp,
+    },
+    {
+      title: "AI Visibility",
+      url: "/ai-visibility",
+      icon: IconTarget,
+    },
+    {
+      title: "Report",
+      url: "/report",
+      icon: IconReport,
+    },
+    {
+      title: "Insights",
+      url: "/dashboard/insights",
+      icon: IconChartBar,
+    },
+    {
+      title: "Tasks",
+      url: "/dashboard/tasks",
+      icon: IconChecklist,
+    },
+    {
+      title: "Brand Profile",
+      url: "/dashboard/brand-profile",
+      icon: IconUser,
+    },
+    {
+      title: "Campaign Generator",
+      url: "/dashboard/campaign-generator",
+      icon: IconSparkles,
+    },
+  ],
+  navClouds: [
+    {
+      title: "Capture",
+      icon: IconCamera,
+      isActive: true,
+      url: "#",
+>>>>>>> Stashed changes
       items: [
         {
           title: "Overview",

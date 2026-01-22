@@ -71,6 +71,7 @@ export const NavMain = memo(function NavMain({
   const pathname = usePathname()
 
   return (
+<<<<<<< Updated upstream
     <div className="px-2 space-y-3">
       {items?.map((section, index) => (
         <SidebarGroup key={section.title}>
@@ -94,5 +95,20 @@ export const NavMain = memo(function NavMain({
         </SidebarGroup>
       )) || null}
     </div>
+=======
+    <SidebarGroup>
+      <SidebarGroupContent className="flex flex-col gap-2">
+        <SidebarMenu className="space-y-1">
+          {items?.map((item, index) => (
+            <NavigationItem
+              key={`nav-${index}-${item.title}-${item.url}`}
+              item={item}
+              isActive={pathname === item.url}
+            />
+          )) || null}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+>>>>>>> Stashed changes
   )
 })

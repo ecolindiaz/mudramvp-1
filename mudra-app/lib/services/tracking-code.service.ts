@@ -112,7 +112,7 @@ export async function reactivateTrackingCode(brandProfileId: number): Promise<vo
  * Generate tracking script HTML for embedding
  */
 export function generateTrackingScript(trackingId: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://mudra.so';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.trymudra.com';
   
   return `<!-- Mudra AI Referral Tracking -->
 <script>

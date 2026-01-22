@@ -11,6 +11,7 @@ const PUBLIC_ROUTES = [
     '/api/auth',
     '/api/health',
     '/api/analytics',
+    '/api/track',       // AI referral tracking endpoint (must be public for external scripts)
     '/images',
     '/_next',
     '/favicon.ico',

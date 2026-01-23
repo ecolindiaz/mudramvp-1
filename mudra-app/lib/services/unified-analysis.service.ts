@@ -10,8 +10,8 @@
  * - Natural Language Report Generation
  */
 
-import type { AnalysisPipelineConfig, AnalysisPipelineResult } from './analysis-pipeline.service';
 import { prisma } from '@/lib/prisma';
+import { runDirectGEOAnalysis, createDirectGEOConfig } from './direct-geo-analysis.service';
 
 export interface UnifiedAnalysisConfig {
   brandProfileId: number;
@@ -177,33 +177,27 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       status: 'running'
     });
     
-    // Call DirectGEO API with prompt categories for weighted scoring
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/geo/direct-analysis`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        brandName: config.brandName,
-        website: config.website,
-        industry: config.industry || '',
-        description: config.description || '',
-        competitors: config.competitors || [],
-        customPrompts: prompts.map(p => ({
-          text: p.text,
-          category: p.category, // Pass category for intent weighting
-        })),
-      }),
+    // Call DirectGEO service directly (avoids HTTP auth issues)
+    const geoConfig = createDirectGEOConfig(config.brandName, config.website, {
+      industry: config.industry || '',
+      description: config.description || '',
+      competitors: config.competitors || [],
+      customPrompts: prompts.map(p => ({
+        text: p.text,
+        category: p.category || undefined, // Pass category for intent weighting (convert null to undefined)
+      })),
     });
 
-    if (!response.ok) {
+    let data;
+    try {
+      data = await runDirectGEOAnalysis(geoConfig);
+    } catch (geoError) {
       await updateAnalysisRun(analysisRun.id, {
         status: 'failed',
-        errorMessage: `DirectGEO API failed: ${response.statusText}`
+        errorMessage: `DirectGEO analysis failed: ${geoError instanceof Error ? geoError.message : 'Unknown error'}`
       });
-      throw new Error(`DirectGEO API failed: ${response.statusText}`);
+      throw geoError;
     }
-
-    const apiResponse = await response.json();
-    const data = apiResponse.success ? apiResponse.data : apiResponse;
     
     // Update analysis run
     await updateAnalysisRun(analysisRun.id, {
@@ -217,13 +211,13 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
     await updateLastAnalysisTime(config.brandProfileId);
 
     // DEBUG: Log what we're saving
-    console.log('[GEO Core] Saving analyses with test count:', data.analyses?.length);
+    console.log('[GEO Core] Saving analyses with provider count:', data.analyses?.length);
     if (data.analyses && data.analyses.length > 0) {
       const firstAnalysis = data.analyses[0];
       console.log('[GEO Core] First analysis structure:', {
-        prompt: firstAnalysis.prompt?.substring(0, 50),
-        testsCount: firstAnalysis.tests?.length,
-        firstTestHasCompetitors: firstAnalysis.tests?.[0]?.competitorsMentioned?.length || 0
+        provider: firstAnalysis.provider,
+        promptTestsCount: firstAnalysis.promptTests?.length,
+        firstTestHasCompetitors: firstAnalysis.promptTests?.[0]?.competitors?.length || 0
       });
     }
 

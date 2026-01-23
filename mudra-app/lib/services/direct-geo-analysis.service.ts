@@ -1732,7 +1732,7 @@ export function createDirectGEOConfig(
     industry?: string;
     description?: string;
     competitors?: string[];
-    customPrompts?: string[];
+    customPrompts?: Array<string | { text: string; category?: string }>;
     apiKeys?: Partial<DirectGEOConfig['apiKeys']>;
   } = {}
 ): DirectGEOConfig {

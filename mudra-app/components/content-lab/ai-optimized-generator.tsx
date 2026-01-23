@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,12 +46,46 @@ interface CitationSource {
   domain: string;
   url?: string;
   title?: string;
-  type?: string;
+  provider?: string;
+}
+
+const MAX_SELECTED_SOURCES = 5;
+
+// Model logo mapping
+const MODEL_LOGOS: Record<string, { src: string; alt: string }> = {
+  openai: { src: '/openai_dark.svg', alt: 'OpenAI' },
+  chatgpt: { src: '/openai_dark.svg', alt: 'ChatGPT' },
+  claude: { src: '/claude-ai-icon.svg', alt: 'Claude' },
+  anthropic: { src: '/claude-ai-icon.svg', alt: 'Anthropic' },
+  perplexity: { src: '/perplexity (2).svg', alt: 'Perplexity' },
+  gemini: { src: '/gemini (3).svg', alt: 'Gemini' },
+  google: { src: '/google-logo.svg', alt: 'Google' },
+};
+
+const getModelLogo = (provider: string | undefined) => {
+  if (!provider) return null;
+  const key = provider.toLowerCase();
+  return MODEL_LOGOS[key] || null;
+};
+
+export interface GeneratingContent {
+  workflowRunId: string;
+  title: string;
+  promptText: string;
+  status: 'generating' | 'completed' | 'failed';
+  currentStep: number;
+  error?: string;
 }
 
 interface AIOptimizedGeneratorProps {
   trackedPrompts: TrackedPrompt[];
+  brandProfileId?: number;
   onComplete?: (campaignId: string) => void;
+  onGenerationStart?: (content: GeneratingContent) => void;
+  onGenerationUpdate?: (content: GeneratingContent) => void;
+  activeGeneration?: GeneratingContent | null;
+  externalOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const WORKFLOW_STEPS = [
@@ -105,17 +139,23 @@ const CONTENT_TYPES: Array<{
   },
 ];
 
-// Mock citation sources for demo - in production, these would come from the tracked prompt data
-const getMockCitations = (promptId: string): CitationSource[] => [
-  { domain: "scale.com", url: "https://scale.com", title: "Scale AI" },
-  { domain: "labelbox.com", url: "https://labelbox.com", title: "Labelbox" },
-  { domain: "appen.com", url: "https://appen.com", title: "Appen" },
-  {
-    domain: "aws.amazon.com",
-    url: "https://aws.amazon.com/sagemaker/data-labeling/",
-    title: "AWS SageMaker",
-  },
-];
+// ICP suggestion with icon mapping
+interface ICPSuggestion {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+// Map icons to ICP labels dynamically
+const getIconForICP = (index: number): React.ComponentType<{ className?: string }> => {
+  const icons = [Users, Target, Brain, Shield, Compass, Layers];
+  return icons[index % icons.length];
+};
+
+// Truncate long ICP labels for display
+const truncateICP = (label: string, maxLength: number = 45): string => {
+  if (label.length <= maxLength) return label;
+  return label.substring(0, maxLength).trim() + '...';
+};
 
 const TOTAL_STEPS = 5;
 
@@ -134,10 +174,20 @@ const SUGGESTED_CATEGORY_KEY = normalizeCategory("Organic");
 
 export function AIOptimizedGenerator({
   trackedPrompts,
+  brandProfileId,
   onComplete,
+  onGenerationStart,
+  onGenerationUpdate,
+  activeGeneration,
+  externalOpen,
+  onOpenChange,
 }: AIOptimizedGeneratorProps) {
   const router = useRouter();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [internalDialogOpen, setInternalDialogOpen] = useState(false);
+
+  // Use external control if provided, otherwise use internal state
+  const dialogOpen = externalOpen !== undefined ? externalOpen : internalDialogOpen;
+  const setDialogOpen = onOpenChange || setInternalDialogOpen;
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1); // 1=Content Type, 2=Select prompt, 3=ICP, 4=Select sources, 5=Generating
   const [selectedContentType, setSelectedContentType] =
     useState<ContentType | null>(null);
@@ -152,14 +202,62 @@ export function AIOptimizedGenerator({
   const [selectedSources, setSelectedSources] = useState<Set<string>>(
     new Set()
   );
+  const [isLoadingCitations, setIsLoadingCitations] = useState(false);
 
-  // ICP suggestions - should match the normal campaign flow
-  const icpSuggestions = [
-    { label: "Seed‑stage startup founders", icon: Users },
-    { label: "GTM leads at SaaS startups", icon: Target },
-    { label: "AI practitioners & researchers", icon: Brain },
-    { label: "Developers evaluating AI tools", icon: Shield },
-  ];
+  // ICP suggestions from brand profile
+  const [icpSuggestions, setIcpSuggestions] = useState<ICPSuggestion[]>([]);
+  const [isLoadingICPs, setIsLoadingICPs] = useState(false);
+
+  // Refs to avoid infinite loops in update callback
+  const onGenerationUpdateRef = useRef(onGenerationUpdate);
+  const prevStepRef = useRef<number>(-1);
+
+  // Keep callback ref updated
+  useEffect(() => {
+    onGenerationUpdateRef.current = onGenerationUpdate;
+  }, [onGenerationUpdate]);
+
+  // Fetch ICPs from brand profile
+  useEffect(() => {
+    if (!brandProfileId) return;
+
+    const fetchICPs = async () => {
+      setIsLoadingICPs(true);
+      try {
+        const res = await fetch(`/api/brand-profile`);
+        const data = await res.json();
+
+        if (data && data.companyICP) {
+          // Parse ICPs - could be comma-separated string or JSON array
+          let icps: string[] = [];
+          try {
+            icps = typeof data.companyICP === 'string'
+              ? data.companyICP.includes('[')
+                ? JSON.parse(data.companyICP)
+                : data.companyICP.split(',').map((s: string) => s.trim()).filter(Boolean)
+              : Array.isArray(data.companyICP)
+                ? data.companyICP
+                : [];
+          } catch {
+            icps = data.companyICP.split(',').map((s: string) => s.trim()).filter(Boolean);
+          }
+
+          // Map to ICP suggestions with icons
+          const suggestions = icps.map((label, index) => ({
+            label,
+            icon: getIconForICP(index),
+          }));
+          setIcpSuggestions(suggestions);
+        }
+      } catch (error) {
+        console.error('Failed to fetch ICPs:', error);
+      } finally {
+        setIsLoadingICPs(false);
+      }
+    };
+
+    fetchICPs();
+  }, [brandProfileId]);
 
   const {
     isGenerating,
@@ -168,6 +266,8 @@ export function AIOptimizedGenerator({
     error,
     startGeneration,
     reset,
+    workflowRunId,
+    resumedPromptText,
   } = useAIContentGeneration();
 
   const promptCategories = useMemo(() => {
@@ -211,14 +311,42 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
 
   // Load citations when prompt is selected
   useEffect(() => {
-    if (selectedPrompt) {
-      // In production, fetch real citations from tracked prompt data
-      const citations = getMockCitations(selectedPrompt.id);
-      setAvailableSources(citations);
-      // Auto-select all sources by default
-      setSelectedSources(new Set(citations.map((c) => c.domain)));
-    }
-  }, [selectedPrompt]);
+    if (!selectedPrompt || !brandProfileId) return;
+
+    const fetchCitations = async () => {
+      setIsLoadingCitations(true);
+      try {
+        const res = await fetch(
+          `/api/prompts/citations?brandProfileId=${brandProfileId}&promptText=${encodeURIComponent(selectedPrompt.text)}`
+        );
+        const data = await res.json();
+
+        if (data.success && data.citations) {
+          const citations: CitationSource[] = data.citations.map((c: any) => ({
+            domain: c.domain,
+            url: c.url,
+            title: c.title,
+            provider: c.provider,
+          }));
+          setAvailableSources(citations);
+          // Auto-select first 5 sources by default (or all if less than 5)
+          const initialSelection = citations.slice(0, MAX_SELECTED_SOURCES).map((c) => c.domain);
+          setSelectedSources(new Set(initialSelection));
+        } else {
+          setAvailableSources([]);
+          setSelectedSources(new Set());
+        }
+      } catch (error) {
+        console.error('Failed to fetch citations:', error);
+        setAvailableSources([]);
+        setSelectedSources(new Set());
+      } finally {
+        setIsLoadingCitations(false);
+      }
+    };
+
+    fetchCitations();
+  }, [selectedPrompt, brandProfileId]);
 
   // Handle completion
   useEffect(() => {
@@ -235,10 +363,28 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
     }
   }, [result, router, onComplete]);
 
+  // Notify parent when resuming from localStorage
+  useEffect(() => {
+    if (resumedPromptText && isGenerating && onGenerationUpdateRef.current) {
+      onGenerationUpdateRef.current({
+        workflowRunId: workflowRunId || '',
+        title: `Generating: ${resumedPromptText.substring(0, 50)}...`,
+        promptText: resumedPromptText,
+        status: 'generating',
+        currentStep,
+      });
+    }
+  }, [resumedPromptText, isGenerating, workflowRunId, currentStep]);
+
   const handleOpenChange = (open: boolean) => {
     setDialogOpen(open);
     if (open) {
-      // Reset state when opening
+      // If there's an active generation (including resumed), show progress view
+      if (isGenerating) {
+        setStep(5);
+        return;
+      }
+      // Otherwise reset state when opening
       setStep(1);
       setSelectedContentType(null);
       setSelectedCategory(null);
@@ -260,7 +406,8 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
       const next = new Set(prev);
       if (next.has(domain)) {
         next.delete(domain);
-      } else {
+      } else if (next.size < MAX_SELECTED_SOURCES) {
+        // Only add if under the limit
         next.add(domain);
       }
       return next;
@@ -278,8 +425,42 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
         ...source,
         url: source.url ?? `https://${source.domain}`,
       }));
-    await startGeneration(selectedPrompt.text, sources);
+
+    const runId = await startGeneration(selectedPrompt.text, sources, selectedIcp || undefined);
+
+    // Notify parent about generation start
+    if (runId && onGenerationStart) {
+      onGenerationStart({
+        workflowRunId: runId,
+        title: `Generating: ${selectedPrompt.text.substring(0, 50)}...`,
+        promptText: selectedPrompt.text,
+        status: 'generating',
+        currentStep: 0,
+      });
+    }
   };
+
+  // Update parent when generation progress changes (only when step changes to avoid infinite loop)
+  useEffect(() => {
+    const shouldUpdate = isGenerating && selectedPrompt && currentStep !== prevStepRef.current;
+
+    if (shouldUpdate && onGenerationUpdateRef.current) {
+      prevStepRef.current = currentStep;
+      onGenerationUpdateRef.current({
+        workflowRunId: workflowRunId || '',
+        title: result?.metadata?.title || `Generating: ${selectedPrompt.text.substring(0, 50)}...`,
+        promptText: selectedPrompt.text,
+        status: error ? 'failed' : result ? 'completed' : 'generating',
+        currentStep,
+        error: error || undefined,
+      });
+    }
+
+    // Reset prevStepRef when generation stops
+    if (!isGenerating) {
+      prevStepRef.current = -1;
+    }
+  }, [currentStep, isGenerating, error, result, selectedPrompt, workflowRunId]);
 
   const getStepStatus = (stepIndex: number) => {
     if (error) return "error";
@@ -556,14 +737,13 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                       size="sm"
                       onClick={() => {
                         setStep(1);
-                        setSelectedContentType(null);
                         setSelectedCategory(null);
                         setSelectedPrompt(null);
                       }}
                       className="h-9 px-4 rounded-lg border-white/[0.08] bg-transparent text-white/80 hover:bg-white/5 hover:text-white"
                     >
                       <ChevronLeft className="size-4 mr-1" />
-                      Back to content types
+                      Back
                     </Button>
                   </div>
                 </div>
@@ -573,7 +753,16 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
               {step === 3 && (
                 <div className="space-y-4">
                   <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
-                {icpSuggestions.map((icp) => {
+                {isLoadingICPs ? (
+                  <div className="px-6 py-12 text-center">
+                    <Loader2 className="h-6 w-6 text-white/40 animate-spin mx-auto mb-2" />
+                    <p className="text-sm text-white/50">Loading customer profiles...</p>
+                  </div>
+                ) : icpSuggestions.length === 0 ? (
+                  <div className="px-6 py-12 text-center text-sm text-white/50">
+                    No ideal customer profiles defined. Add ICPs in your brand profile settings.
+                  </div>
+                ) : icpSuggestions.map((icp) => {
                   const isSelected = selectedIcp === icp.label;
                   const Icon = icp.icon;
                       return (
@@ -614,8 +803,9 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                                     ? "text-white"
                                     : "text-white group-hover:text-white"
                                 )}
+                                title={icp.label}
                               >
-                          {icp.label}
+                                {truncateICP(icp.label)}
                               </p>
                             </div>
                           </div>
@@ -656,17 +846,25 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                       </p>
                     </div>
                     <div className="max-h-[280px] overflow-auto">
-                      <table className="w-full">
+                      <table className="w-full table-fixed">
                         <thead>
                           <tr className="text-left text-xs text-white/50 uppercase tracking-wider border-b border-white/[0.04]">
-                        <th className="px-5 py-3 w-12">Use</th>
-                        <th className="px-5 py-3">Source</th>
-                        <th className="px-5 py-3">URL</th>
-                        <th className="px-5 py-3 text-right">Open</th>
+                            <th className="px-3 py-3 w-10">Use</th>
+                            <th className="px-3 py-3 w-[35%]">Source</th>
+                            <th className="px-3 py-3">Domain</th>
+                            <th className="px-3 py-3 w-20">Model</th>
+                            <th className="px-3 py-3 text-right w-12"></th>
                           </tr>
                         </thead>
                         <tbody>
-                          {availableSources.length > 0 ? (
+                          {isLoadingCitations ? (
+                            <tr>
+                              <td colSpan={5} className="px-5 py-8 text-center">
+                                <Loader2 className="h-5 w-5 text-white/40 animate-spin mx-auto mb-2" />
+                                <p className="text-sm text-white/50">Loading citations from AI models...</p>
+                              </td>
+                            </tr>
+                          ) : availableSources.length > 0 ? (
                             availableSources.map((source) => {
                               const isSelected = selectedSources.has(source.domain);
                               return (
@@ -678,36 +876,52 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                                     isSelected ? "bg-white/[0.04]" : "hover:bg-white/[0.02]"
                                   )}
                                 >
-                                  <td className="px-5 py-3 align-middle">
+                                  <td className="px-3 py-3 align-middle">
                                     <Checkbox
                                       checked={isSelected}
+                                      disabled={!isSelected && selectedSources.size >= MAX_SELECTED_SOURCES}
                                       onClick={(event) => event.stopPropagation()}
                                       onCheckedChange={() =>
                                         toggleSource(source.domain)
                                       }
-                                      className="border-white/30 data-[state=checked]:bg-white data-[state=checked]:border-white"
+                                      className="border-white/30 data-[state=checked]:bg-white data-[state=checked]:border-white disabled:opacity-30"
                                     />
                                   </td>
-                                  <td className="px-5 py-3 align-middle">
-                                    <p className="text-sm font-medium text-white/90">
+                                  <td className="px-3 py-3 align-middle">
+                                    <p className="text-sm font-medium text-white/90 truncate" title={source.title || source.domain}>
                                       {source.title || source.domain}
                                     </p>
                                   </td>
-                                  <td className="px-5 py-3 align-middle">
-                                    <p className="text-xs text-white/60 truncate">
-                                      {source.url || `https://${source.domain}`}
+                                  <td className="px-3 py-3 align-middle">
+                                    <p className="text-xs text-white/60 truncate" title={source.domain}>
+                                      {source.domain}
                                     </p>
                                   </td>
-                                  <td className="px-5 py-3 text-right align-middle">
+                                  <td className="px-3 py-3 align-middle">
+                                    {(() => {
+                                      const logo = getModelLogo(source.provider);
+                                      return logo ? (
+                                        <img
+                                          src={logo.src}
+                                          alt={logo.alt}
+                                          title={logo.alt}
+                                          className="h-5 w-5 object-contain opacity-70"
+                                        />
+                                      ) : (
+                                        <span className="text-[10px] text-white/40">{source.provider || 'AI'}</span>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td className="px-3 py-3 text-right align-middle">
                                     <a
                                       href={source.url || `https://${source.domain}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       onClick={(e) => e.stopPropagation()}
-                                      className="inline-flex items-center rounded px-2 py-1 text-xs text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                                      className="inline-flex items-center justify-center rounded p-1.5 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                                      title="Open in new tab"
                                     >
-                                      <ExternalLink className="size-3.5 mr-1" />
-                                      Visit
+                                      <ExternalLink className="size-3.5" />
                                     </a>
                                   </td>
                                 </tr>
@@ -716,7 +930,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                           ) : (
                             <tr>
                               <td
-                                colSpan={4}
+                                colSpan={5}
                                 className="px-5 py-8 text-center text-sm text-white/50"
                               >
                                 No citation sources available for this prompt.
@@ -734,17 +948,13 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setStep(1);
-                    setSelectedContentType(null);
-                    setSelectedCategory(null);
-                    setSelectedPrompt(null);
-                    setSelectedIcp(null);
+                    setStep(3);
                     setSelectedSources(new Set());
                   }}
                   className="h-9 px-4 rounded-lg border-white/[0.08] bg-transparent text-white/80 hover:bg-white/5 hover:text-white"
                 >
                   <ChevronLeft className="size-4 mr-1" />
-                  Edit selections
+                  Back
                 </Button>
                 <Button
                   onClick={handleStartGeneration}
@@ -756,7 +966,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                 </Button>
               </div>
               <p className="text-xs text-white/60 pt-1">
-                Select at least two citations to keep the draft grounded. {selectedSources.size} selected.
+                Select 2-{MAX_SELECTED_SOURCES} sources to power the generation. {selectedSources.size}/{MAX_SELECTED_SOURCES} selected.
               </p>
                 </div>
               )}

@@ -3,6 +3,49 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Utility: Sleep function for retry delays
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Retry helper with exponential backoff for rate limits and transient errors
+ * @param fn Function to retry
+ * @param maxRetries Maximum number of retry attempts (default: 3)
+ * @param initialDelay Initial delay in ms (default: 1000)
+ * @returns Result of the function or throws error after max retries
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  initialDelay: number = 1000
+): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isLastAttempt = attempt === maxRetries - 1;
+      const isRetryable = 
+        error.status === 429 || // Rate limit
+        error.status === 500 || // Server error
+        error.status === 502 || // Bad gateway
+        error.status === 503 || // Service unavailable
+        error.status === 504 || // Gateway timeout
+        error.code === 'ECONNRESET' ||
+        error.code === 'ETIMEDOUT' ||
+        error.message?.includes('timeout');
+      
+      if (!isRetryable || isLastAttempt) {
+        throw error;
+      }
+      
+      const delay = initialDelay * Math.pow(2, attempt);
+      console.warn(`⚠️  Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms due to: ${error.message}`);
+      await sleep(delay);
+    }
+  }
+  
+  throw new Error('Max retries exceeded'); // Should never reach here
+}
+
 // Types for direct GEO analysis
 export interface Citation {
   title?: string;
@@ -322,30 +365,51 @@ async function analyzeWithOpenAI(
   try {
     // Use OpenAI Responses API with web_search tool for real-time data
     // No system prompt - let the model respond naturally to simulate real user searches
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        tools: [
-          {
-            type: 'web_search',
-            search_context_size: 'high',
+    const response = await retryWithBackoff(async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
+      try {
+        const res = await fetch('https://api.openai.com/v1/responses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
           },
-        ],
-        tool_choice: { type: 'web_search' }, // Force web search
-        input: prompt, // Direct prompt without system instructions
-        include: ['web_search_call.action.sources'],
-      }),
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            tools: [
+              {
+                type: 'web_search',
+                search_context_size: 'high',
+              },
+            ],
+            tool_choice: { type: 'web_search' }, // Force web search
+            input: prompt, // Direct prompt without system instructions
+            include: ['web_search_call.action.sources'],
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+          const errorText = await res.text();
+          const error = new Error(`OpenAI Responses API error: ${res.status} - ${errorText.substring(0, 200)}`);
+          (error as any).status = res.status;
+          throw error;
+        }
+        
+        return res;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          const timeoutError = new Error('Request timeout after 60 seconds');
+          (timeoutError as any).code = 'ETIMEDOUT';
+          throw timeoutError;
+        }
+        throw err;
+      }
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenAI Responses API error: ${response.status} - ${errorText.substring(0, 200)}`);
-    }
 
     const data = await response.json();
     
@@ -677,16 +741,38 @@ async function analyzeWithPerplexity(
     // Reference: https://docs.perplexity.ai/guides/model-cards
     console.log('[Perplexity] Testing prompt:', prompt.substring(0, 60) + '...');
     
-    const response: any = await perplexity.chat.completions.create({
-      model: 'sonar-pro', // Pro model with enhanced search and citations
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.2,
-      max_tokens: 1200,
+    const response: any = await retryWithBackoff(async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
+      try {
+        const res = await perplexity.chat.completions.create(
+          {
+            model: 'sonar-pro', // Pro model with enhanced search and citations
+            messages: [
+              {
+                role: 'user',
+                content: prompt,
+              },
+            ],
+            temperature: 0.2,
+            max_tokens: 1200,
+          },
+          {
+            signal: controller.signal as any,
+          } as any
+        );
+        clearTimeout(timeoutId);
+        return res;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          const timeoutError = new Error('Request timeout after 60 seconds');
+          (timeoutError as any).code = 'ETIMEDOUT';
+          throw timeoutError;
+        }
+        throw err;
+      }
     });
 
     const text = response.choices[0]?.message?.content || '';
@@ -980,22 +1066,48 @@ async function analyzeWithAnthropic(
 
     // Use Claude with web_search tool for grounded, real-time responses
     // Reference: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 1500,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      tools: [
-        {
-          type: 'web_search_20250305',
-          name: 'web_search',
-          max_uses: 5,
-        } as any, // Type assertion needed as SDK types may lag behind API
-      ],
+    const response = await retryWithBackoff(async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
+      try {
+        const res = await anthropic.messages.create(
+          {
+            model: 'claude-sonnet-4-5-20250929',
+            max_tokens: 1500,
+            messages: [
+              {
+                role: 'user',
+                content: prompt,
+              },
+            ],
+            tools: [
+              {
+                type: 'web_search_20250305',
+                name: 'web_search',
+                max_uses: 5,
+              } as any, // Type assertion needed as SDK types may lag behind API
+            ],
+          },
+          {
+            signal: controller.signal as any, // SDK may not have full signal support yet
+          }
+        );
+        clearTimeout(timeoutId);
+        return res;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          const timeoutError = new Error('Request timeout after 60 seconds');
+          (timeoutError as any).code = 'ETIMEDOUT';
+          throw timeoutError;
+        }
+        // Normalize error object to include status
+        if (err.status) {
+          (err as any).status = err.status;
+        }
+        throw err;
+      }
     });
 
     // Extract text and citations from response
@@ -1120,6 +1232,10 @@ async function analyzeWithAnthropic(
       throw new Error(`Anthropic API rate limit exceeded. Please try again later.`);
     }
 
+    if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
+      throw new Error(`Anthropic API request timeout. The request took longer than 60 seconds.`);
+    }
+
     if (error.status === 400) {
       // Check for web search specific errors
       const errorMessage = error.message || '';
@@ -1166,7 +1282,30 @@ async function analyzeWithGoogle(
       ] as any, // Type assertion needed as SDK types may not be fully up to date
     });
 
-    const result = await model.generateContent(prompt);
+    const result = await retryWithBackoff(async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
+      try {
+        // Note: Gemini SDK may not fully support AbortSignal yet
+        // Timeout will still trigger abort, but may not cancel in-flight requests
+        const res = await model.generateContent(prompt);
+        clearTimeout(timeoutId);
+        return res;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          const timeoutError = new Error('Request timeout after 60 seconds');
+          (timeoutError as any).code = 'ETIMEDOUT';
+          throw timeoutError;
+        }
+        // Normalize error status
+        if (err.status || err.statusCode) {
+          (err as any).status = err.status || err.statusCode;
+        }
+        throw err;
+      }
+    });
     const response = result.response;
     const text = response.text();
     
@@ -1268,6 +1407,10 @@ async function analyzeWithGoogle(
     
     if (error.status === 429 || error.statusCode === 429) {
       throw new Error(`Google API rate limit exceeded. Please try again later.`);
+    }
+    
+    if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
+      throw new Error(`Google Gemini API request timeout. The request took longer than 60 seconds.`);
     }
     
     if (error.message?.includes('grounding') || error.message?.includes('googleSearch')) {

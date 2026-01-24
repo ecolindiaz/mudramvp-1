@@ -59,7 +59,7 @@ export async function triggerAnalysisPipeline(
       description: config.description,
       industry: config.industry,
       competitors: config.competitors,
-      skipCooldown: false, // Respect cooldown in onboarding
+      skipCooldown: true, // Skip cooldown - onboarding is first analysis for new users
       generateReport: true, // Generate report for onboarding
     });
 

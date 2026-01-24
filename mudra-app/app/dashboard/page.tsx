@@ -27,26 +27,86 @@ const platformOptions = [
 ]
 
 function DashboardPageInner() {
+  const { profile } = useBrandProfile()
   const [timeRange] = React.useState<TimeRange>("7d")
   const [selectedPlatform, setSelectedPlatform] = React.useState<PlatformFilter>("all")
   const selectedModel: AIModel = selectedPlatform === "all" ? "chatgpt" : selectedPlatform
-  const [currentTime, setCurrentTime] = React.useState(new Date())
+  
+  // Analysis cooldown state
+  const [canRunAnalysis, setCanRunAnalysis] = React.useState(false)
+  const [nextAnalysisTime, setNextAnalysisTime] = React.useState<number | null>(null)
+  const [isRunningAnalysis, setIsRunningAnalysis] = React.useState(false)
 
-  // Update time every second
+  // Check cooldown status
   React.useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [])
+    const checkCooldown = async () => {
+      if (!profile?.id) return
+      
+      try {
+        const response = await fetch(`/api/analysis/cooldown?brandProfileId=${profile.id}`)
+        const data = await response.json()
+        
+        if (data.success) {
+          setCanRunAnalysis(data.allowed)
+          if (data.lastRunAt && data.timeUntilNext) {
+            // Calculate target time (when analysis will be available)
+            setNextAnalysisTime(Date.now() + data.timeUntilNext)
+          } else {
+            setNextAnalysisTime(null)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check cooldown:', error)
+      }
+    }
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false 
-    })
+    checkCooldown()
+    // Check every 30 seconds
+    const interval = setInterval(checkCooldown, 30000)
+    return () => clearInterval(interval)
+  }, [profile?.id])
+
+  // Handle run analysis
+  const handleRunAnalysis = async () => {
+    if (!profile?.id || !canRunAnalysis || isRunningAnalysis) return
+
+    setIsRunningAnalysis(true)
+    const toastId = toast.loading('Running analysis...')
+
+    try {
+      const response = await fetch('/api/analysis/unified', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandProfileId: profile.id,
+          brandName: profile.companyName,
+          website: profile.companyWebsite,
+          description: profile.description,
+          industry: profile.industry,
+          competitors: [],
+          skipCooldown: false, // Enforce 24-hour cooldown
+          generateReport: false, // Dashboard doesn't need report
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast.success('Analysis completed successfully!', { id: toastId })
+        // Dispatch event to refresh dashboard metrics
+        window.dispatchEvent(new Event('mudra:website-analyzed'))
+        // Reset cooldown state
+        setCanRunAnalysis(false)
+        setNextAnalysisTime(Date.now() + (24 * 60 * 60 * 1000)) // 24 hours from now
+      } else {
+        toast.error(result.error?.message || 'Analysis failed', { id: toastId })
+      }
+    } catch (error) {
+      console.error('Analysis error:', error)
+      toast.error('Failed to run analysis', { id: toastId })
+    } finally {
+      setIsRunningAnalysis(false)
+    }
   }
 
   return (
@@ -103,16 +163,29 @@ function DashboardPageInner() {
                     </SelectContent>
                   </Select>
 
-                  {/* Timer */}
-                  <div className="flex items-center gap-2 h-9 px-3 rounded-lg border border-white/[0.08] bg-white/5">
-                    <svg className="size-3.5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" />
-                      <path strokeLinecap="round" d="M12 6v6l4 2" />
-                    </svg>
-                    <span className="text-sm font-medium text-white/80 tabular-nums" suppressHydrationWarning>
-                      {formatTime(currentTime)}
-                    </span>
-                  </div>
+                  {/* Countdown Badge */}
+                  {!canRunAnalysis && nextAnalysisTime && (
+                    <CountdownBadge targetMs={nextAnalysisTime} />
+                  )}
+
+                  {/* Run Analysis Button */}
+                  <Button
+                    onClick={handleRunAnalysis}
+                    disabled={!canRunAnalysis || isRunningAnalysis}
+                    className="h-9 bg-white text-black hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium px-4"
+                  >
+                    {isRunningAnalysis ? (
+                      <>
+                        <Loader2 className="size-4 mr-2 animate-spin" />
+                        Running...
+                      </>
+                    ) : (
+                      <>
+                        <PlayCircle className="size-4 mr-2" />
+                        Run Analysis
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
             </div>

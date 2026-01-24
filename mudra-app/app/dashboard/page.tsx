@@ -1,6 +1,6 @@
 "use client"
 import React from "react"
-import { BrandProfileProvider } from "@/components/brand-profile-context"
+import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"

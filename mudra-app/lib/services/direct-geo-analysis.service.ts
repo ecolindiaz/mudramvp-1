@@ -242,6 +242,47 @@ export async function analyzePromptWithProvider(
 }
 
 /**
+ * Extract brand position from bullet lists (•, -, *)
+ * Handles responses like "• Appen\n• Scale AI\n• iMerit" where Scale AI is position 2
+ */
+function extractBrandPositionFromBulletList(text: string, brandName: string): number | null {
+  const lines = text.split('\n');
+  let bulletPosition = 0;
+  const brandLower = brandName.toLowerCase();
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    // Detect section headers (reset bullet count)
+    if (trimmedLine.match(/^#{1,3}\s+/) || trimmedLine.match(/^[A-Z][^:]*:$/)) {
+      bulletPosition = 0;
+      continue;
+    }
+
+    // Match bullet list items: • Company, - Company, * Company
+    // Allow lowercase start for brands like "iMerit"
+    const bulletMatch = trimmedLine.match(/^[•\-\*]\s+\*?\*?([A-Za-z][A-Za-z0-9\s&\.]+)/);
+
+    if (bulletMatch) {
+      bulletPosition++;
+      let company = bulletMatch[1].trim();
+
+      // Clean up company name: remove trailing punctuation, markdown, descriptions
+      company = company.replace(/[:\*]+$/, '').trim();
+      company = company.replace(/\s+[-—–].*$/, '').trim();
+      company = company.replace(/\s{2,}.*$/, '').trim();
+
+      // Check if this is the brand
+      if (company.toLowerCase() === brandLower) {
+        return bulletPosition;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Extract competitor positions using regex patterns (more reliable than LLM for structured lists)
  */
 function extractCompetitorPositionsWithRegex(text: string, brandName: string): Record<string, number> {
@@ -341,7 +382,54 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
       }
     }
   }
-  
+
+  // Method 5: Bullet lists (•, -, *) - extract position from order within section
+  // This handles responses like "• Appen\n• Scale AI\n• iMerit"
+  if (Object.keys(positions).length < 3) {
+    const lines = text.split('\n');
+    let bulletPosition = 0;
+    let lastWasHeader = false;
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+
+      // Detect section headers (reset bullet count)
+      if (trimmedLine.match(/^#{1,3}\s+/) || trimmedLine.match(/^[A-Z][^:]*:$/)) {
+        bulletPosition = 0;
+        lastWasHeader = true;
+        continue;
+      }
+
+      // Match bullet list items: • Company, - Company, * Company
+      // Allow lowercase start for brands like "iMerit"
+      const bulletMatch = trimmedLine.match(/^[•\-\*]\s+\*?\*?([A-Za-z][A-Za-z0-9\s&\.]+)/);
+
+      if (bulletMatch) {
+        bulletPosition++;
+        let company = bulletMatch[1].trim();
+
+        // Clean up company name: remove trailing punctuation, markdown, descriptions
+        company = company.replace(/[:\*]+$/, '').trim();
+        company = company.replace(/\s+[-—–].*$/, '').trim();
+        company = company.replace(/\s{2,}.*$/, '').trim();
+
+        if (company && company.length > 2 && company.length < 50) {
+          // Check if this is the brand (for brand position detection)
+          if (company.toLowerCase() === brandName.toLowerCase()) {
+            // Brand found at this position - will be used by caller
+          } else if (!positions[company]) {
+            positions[company] = bulletPosition;
+          }
+        }
+      } else if (trimmedLine === '' && !lastWasHeader) {
+        // Empty line might indicate end of a list section
+        // But don't reset if we just had a header
+      }
+
+      lastWasHeader = false;
+    }
+  }
+
   return positions;
 }
 
@@ -589,15 +677,23 @@ Return ONLY a valid JSON object with these exact keys:
       const positionPatterns = [
         new RegExp(`(?:^|\\n)(?:###?\\s*)?([1-9]\\d?)(?:st|nd|rd|th)(?:\\s*[Pp]lace)?:?\\s*\\*?\\*?${config.brandName}`, 'i'),
         new RegExp(`#([1-9]\\d?):\\s*${config.brandName}`, 'i'),
-        new RegExp(`(?:ranked?|position)\\s*#?([1-9]\\d?).*${config.brandName}`, 'i'),
+        // More specific: "Brand is ranked #2" or "Brand ranked #2"
+        new RegExp(`${config.brandName}(?:\\s+is)?\\s+(?:ranked?|position(?:ed)?)\\s*#?([1-9]\\d?)`, 'i'),
+        // Numbered list: "2. Scale AI" or "## 2. Scale AI"
+        new RegExp(`(?:^|\\n)\\s*(?:#{1,3}\\s*)?(\\d+)\\.\\s+\\*?\\*?${config.brandName}\\b`, 'im'),
       ];
-      
+
       for (const pattern of positionPatterns) {
         const match = text.match(pattern);
         if (match) {
           brandPosition = parseInt(match[1], 10);
           break;
         }
+      }
+
+      // If no position found, try bullet list detection
+      if (!brandPosition) {
+        brandPosition = extractBrandPositionFromBulletList(text, config.brandName);
       }
       
       // Heuristic sentiment analysis
@@ -932,7 +1028,10 @@ Return ONLY a valid JSON object with these exact keys:
       const positionPatterns = [
         new RegExp(`(?:^|\\n)(?:###?\\s*)?([1-9]\\d?)(?:st|nd|rd|th)(?:\\s*[Pp]lace)?:?\\s*\\*?\\*?${config.brandName}`, 'i'),
         new RegExp(`#([1-9]\\d?):\\s*${config.brandName}`, 'i'),
-        new RegExp(`(?:ranked?|position)\\s*#?([1-9]\\d?).*${config.brandName}`, 'i'),
+        // More specific: "Brand is ranked #2" or "Brand ranked #2"
+        new RegExp(`${config.brandName}(?:\\s+is)?\\s+(?:ranked?|position(?:ed)?)\\s*#?([1-9]\\d?)`, 'i'),
+        // Numbered list: "2. Scale AI" or "## 2. Scale AI"
+        new RegExp(`(?:^|\\n)\\s*(?:#{1,3}\\s*)?(\\d+)\\.\\s+\\*?\\*?${config.brandName}\\b`, 'im'),
       ];
 
       for (const pattern of positionPatterns) {
@@ -941,6 +1040,11 @@ Return ONLY a valid JSON object with these exact keys:
           brandPosition = parseInt(match[1], 10);
           break;
         }
+      }
+
+      // If no position found, try bullet list detection
+      if (!brandPosition) {
+        brandPosition = extractBrandPositionFromBulletList(text, config.brandName);
       }
 
       const sentiment: 'positive' | 'neutral' | 'negative' = brandMentioned ? 'neutral' : 'neutral';
@@ -1285,7 +1389,7 @@ async function analyzeWithGoogle(
     const result = await retryWithBackoff(async () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-      
+
       try {
         // Note: Gemini SDK may not fully support AbortSignal yet
         // Timeout will still trigger abort, but may not cancel in-flight requests
@@ -1314,7 +1418,7 @@ async function analyzeWithGoogle(
     // Extract citations from grounding metadata
     const citations: Citation[] = [];
     const groundingMetadata = (response as any).candidates?.[0]?.groundingMetadata;
-    
+
     if (groundingMetadata?.groundingChunks) {
       groundingMetadata.groundingChunks.forEach((chunk: any, idx: number) => {
         if (chunk.web) {
@@ -1670,8 +1774,18 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     
     console.log(`  ✅ ${provider} results: ${metrics.visibilityScore.toFixed(1)}/100 score, ${Math.round(metrics.mentionRate * 100)}% mention rate`);
     
+    // Map provider names to display names
+    const providerDisplayName = (p: string): string => {
+      switch (p.toLowerCase()) {
+        case 'openai': return 'ChatGPT'
+        case 'google': return 'Gemini'
+        case 'anthropic': return 'Claude'
+        case 'perplexity': return 'Perplexity'
+        default: return p.charAt(0).toUpperCase() + p.slice(1)
+      }
+    }
     return {
-      provider: provider.charAt(0).toUpperCase() + provider.slice(1),
+      provider: providerDisplayName(provider),
       promptTests,
       brandVisibilityScore: metrics.visibilityScore,
       averagePosition: metrics.averagePosition,

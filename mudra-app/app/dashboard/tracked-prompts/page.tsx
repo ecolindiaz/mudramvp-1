@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -55,6 +56,7 @@ type TrackedPrompt = {
   prompt: string
   visibility: number
   model: string | null
+  models: string[] // All models used for this prompt
   intent: string | null
   sentiment: "Positive" | "Neutral" | "Negative" | null
   position: number | null
@@ -65,25 +67,34 @@ type TrackedPrompt = {
 // Model logo mapping - same as Recent Chats
 const getModelIcon = (model: string) => {
   const modelLower = model.toLowerCase()
-  
+
   if (modelLower.includes('claude') || modelLower.includes('anthropic')) {
     return "/claude-ai-icon.svg"
   }
   if (modelLower.includes('perplexity')) {
     return "/perplexity (2).svg"
   }
-  if (modelLower.includes('gemini')) {
+  // Gemini uses Gemini logo (Google's AI is Gemini)
+  if (modelLower.includes('gemini') || modelLower.includes('google')) {
     return "/gemini (3).svg"
   }
-  if (modelLower.includes('google') && !modelLower.includes('gemini')) {
-    return "/google-logo.svg"
-  }
+  // ChatGPT/OpenAI uses OpenAI logo
   if (modelLower.includes('gpt') || modelLower.includes('openai') || modelLower.includes('chatgpt')) {
     return "/openai_dark.svg"
   }
-  
+
   // Default fallback
   return "/openai_dark.svg"
+}
+
+// Get display name for model (normalize Google → Gemini, OpenAI → ChatGPT, etc.)
+const getModelDisplayName = (model: string): string => {
+  const lower = model.toLowerCase()
+  if (lower.includes('openai') || lower.includes('gpt') || lower.includes('chatgpt')) return 'ChatGPT'
+  if (lower.includes('claude') || lower.includes('anthropic')) return 'Claude'
+  if (lower.includes('gemini') || lower.includes('google')) return 'Gemini'
+  if (lower.includes('perplexity')) return 'Perplexity'
+  return model
 }
 
 // Create columns function to access router
@@ -214,13 +225,14 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
       // Show skeleton loading state for pending prompts
       if (row.original.isPending) {
         return (
-          <div className="flex items-center justify-center">
-            <span className="h-6 w-6 rounded-full bg-white/[0.06] animate-pulse" />
+          <div className="flex items-center justify-center gap-1">
+            <span className="h-5 w-5 rounded-full bg-white/[0.06] animate-pulse" />
+            <span className="h-5 w-5 rounded-full bg-white/[0.06] animate-pulse" />
           </div>
         )
       }
-      const model = row.getValue("model") as string | null
-      if (!model) {
+      const models = row.original.models || []
+      if (models.length === 0) {
         return (
           <div className="flex items-center justify-center">
             <span className="text-muted-foreground text-sm">—</span>
@@ -229,19 +241,21 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
       }
 
       return (
-        <div className="flex items-center justify-center">
-            <Tooltip>
+        <div className="flex items-center justify-center gap-0.5">
+          {models.map((model, idx) => (
+            <Tooltip key={`${model}-${idx}`}>
               <TooltipTrigger asChild>
-              <span className="inline-flex items-center justify-center size-6 rounded-full bg-white/5 border border-white/[0.04] flex-shrink-0 p-1 cursor-default">
-                <img
-                  src={getModelIcon(model)}
-                  alt={model}
-                  className="size-4 object-contain"
+                <span className="inline-flex items-center justify-center size-5 rounded-full bg-white/5 border border-white/[0.04] flex-shrink-0 p-0.5 cursor-default">
+                  <img
+                    src={getModelIcon(model)}
+                    alt={getModelDisplayName(model)}
+                    className="size-3.5 object-contain"
                   />
                 </span>
               </TooltipTrigger>
-              <TooltipContent>{model}</TooltipContent>
+              <TooltipContent>{getModelDisplayName(model)}</TooltipContent>
             </Tooltip>
+          ))}
         </div>
       )
     },
@@ -423,6 +437,7 @@ function TrackedPromptsPageInner() {
             prompt: p.text,
             visibility: Math.round(p.visibility || 0), // Ensure integer percentage
             model: p.model || null,
+            models: p.models || [], // All models used
             intent: p.category || null,
             sentiment: p.sentiment || null,
             position: p.position || null,
@@ -465,15 +480,42 @@ function TrackedPromptsPageInner() {
   // Filter the data based on selected filters
   const filteredData = useMemo(() => {
     return data.filter((item) => {
-      const modelMatch = selectedModel === "all" || item.model === selectedModel
+      // Check if any of the item's models match the selected filter (using normalized names)
+      let modelMatch = selectedModel === "all"
+      if (!modelMatch) {
+        if (item.models && item.models.length > 0) {
+          modelMatch = item.models.some(m => getModelDisplayName(m) === selectedModel)
+        } else if (item.model) {
+          modelMatch = getModelDisplayName(item.model) === selectedModel
+        }
+      }
       const intentMatch = selectedIntent === "all" || item.intent === selectedIntent
       return modelMatch && intentMatch
     })
   }, [data, selectedModel, selectedIntent])
 
   // Get unique models and intents for filter dropdowns
+  // Normalize model names to handle duplicates like "Openai" vs "openai" vs "ChatGPT"
+  const normalizeModelName = (model: string): string => {
+    const lower = model.toLowerCase()
+    if (lower.includes('openai') || lower.includes('gpt') || lower.includes('chatgpt')) return 'ChatGPT'
+    if (lower.includes('claude') || lower.includes('anthropic')) return 'Claude'
+    if (lower.includes('gemini') || lower.includes('google')) return 'Gemini'
+    if (lower.includes('perplexity')) return 'Perplexity'
+    return model
+  }
+
   const availableModels = useMemo(() => {
-    const models = Array.from(new Set(data.map(item => item.model).filter((m): m is string => Boolean(m))))
+    // Collect all models from all prompts (using models array)
+    const allModels: string[] = []
+    data.forEach(item => {
+      if (item.models && item.models.length > 0) {
+        item.models.forEach(m => allModels.push(normalizeModelName(m)))
+      } else if (item.model) {
+        allModels.push(normalizeModelName(item.model))
+      }
+    })
+    const models = Array.from(new Set(allModels))
     return models.sort()
   }, [data])
 
@@ -584,11 +626,13 @@ function TrackedPromptsPageInner() {
         setErrorMessage(null)
 
         // Add the prompt immediately with isPending: true to show loading state
+        const newPromptId = result.data?.prompt?.id?.toString() || `pending-${Date.now()}`
         const pendingPrompt: TrackedPrompt = {
-          id: result.promptId?.toString() || `pending-${Date.now()}`,
+          id: newPromptId,
           prompt: text,
           visibility: 0,
           model: null,
+          models: [],
           intent: newIntent,
           sentiment: null,
           position: null,
@@ -599,9 +643,60 @@ function TrackedPromptsPageInner() {
         // Add pending prompt at the top
         setData((prev) => [pendingPrompt, ...prev])
 
-        // Refresh data from server to get the analyzed results
-        // This will replace the pending prompt with the real data once analyzed
-        await fetchPrompts()
+        // If analysis was triggered, poll for results until complete
+        if (runAnalysisOnAdd) {
+          const pollForResults = async (attempts: number = 0, maxAttempts: number = 6) => {
+            if (attempts >= maxAttempts) {
+              console.log('⏰ Max polling attempts reached, giving up')
+              return
+            }
+
+            // Wait before polling (3s first, then 5s intervals)
+            const delay = attempts === 0 ? 3000 : 5000
+            await new Promise(resolve => setTimeout(resolve, delay))
+
+            try {
+              const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
+              const refreshResult = await response.json()
+
+              if (refreshResult.success && refreshResult.prompts) {
+                // Check if our new prompt now has results
+                const newPromptData = refreshResult.prompts.find((p: any) => p.id.toString() === newPromptId)
+                const hasResults = newPromptData && (newPromptData.model || (newPromptData.visibility && newPromptData.visibility > 0))
+
+                const transformedData: TrackedPrompt[] = refreshResult.prompts.map((p: any) => {
+                  const hasBeenAnalyzed = p.model || (p.visibility && p.visibility > 0)
+                  return {
+                    id: p.id.toString(),
+                    prompt: p.text,
+                    visibility: Math.round(p.visibility || 0),
+                    model: p.model || null,
+                    models: p.models || [],
+                    intent: p.category || null,
+                    sentiment: p.sentiment || null,
+                    position: p.position || null,
+                    lastRun: null,
+                    isPending: !hasBeenAnalyzed,
+                  }
+                })
+                setData(transformedData)
+
+                // If our prompt still doesn't have results, keep polling
+                if (!hasResults && attempts < maxAttempts - 1) {
+                  console.log(`🔄 Prompt ${newPromptId} still pending, polling again (attempt ${attempts + 2}/${maxAttempts})`)
+                  pollForResults(attempts + 1, maxAttempts)
+                } else if (hasResults) {
+                  console.log(`✅ Prompt ${newPromptId} analysis complete!`)
+                }
+              }
+            } catch (err) {
+              console.error('Error polling for results:', err)
+            }
+          }
+
+          // Start polling
+          pollForResults()
+        }
       } else {
         const errorMsg = result.error?.message || result.message || 'Failed to add prompt'
         setErrorMessage(errorMsg)
@@ -690,27 +785,23 @@ function TrackedPromptsPageInner() {
                     <span className="text-sm text-muted-foreground">Filter by:</span>
                   </div>
                   <Select value={selectedModel} onValueChange={setSelectedModel}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
+                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white">
                       <SelectValue placeholder="All Models" />
                     </SelectTrigger>
-                    <SelectContent className="bg-dark-grey border-white/10">
-                      <SelectItem value="all" className="focus:bg-white/10 outline-none">
+                    <SelectContent>
+                      <SelectItem value="all">
                         All Models
                       </SelectItem>
                       {availableModels
                         .filter((model): model is string => model !== null)
                         .map((model) => (
-                          <SelectItem 
-                            key={model} 
-                            value={model}
-                            className="focus:bg-white/10 outline-none"
-                          >
+                          <SelectItem key={model} value={model}>
                             <div className="flex items-center gap-2">
                               {getModelIcon(model) && (
-                                <Image 
-                                  src={getModelIcon(model)!} 
-                                  alt="" 
-                                  width={16} 
+                                <Image
+                                  src={getModelIcon(model)!}
+                                  alt=""
+                                  width={16}
                                   height={16}
                                   className="shrink-0"
                                 />
@@ -803,14 +894,58 @@ function TrackedPromptsPageInner() {
                     </TableHeader>
                     <TableBody>
                       {isLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={columns.length} className="h-32 text-center">
-                            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                              <Loader2 className="h-6 w-6 animate-spin" />
-                              <div>Loading prompts...</div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                        // Skeleton loading rows
+                        Array.from({ length: 6 }).map((_, i) => (
+                          <TableRow key={`skeleton-${i}`} className="border-white/[0.06]">
+                            {/* Checkbox */}
+                            <TableCell style={{ width: '36px' }} className="py-3.5">
+                              <div className="flex items-center justify-center">
+                                <Skeleton className="h-4 w-4 rounded bg-white/[0.06]" />
+                              </div>
+                            </TableCell>
+                            {/* Prompt */}
+                            <TableCell style={{ width: '400px' }} className="py-3.5">
+                              <Skeleton className="h-5 w-[85%] bg-white/[0.06]" />
+                            </TableCell>
+                            {/* Visibility */}
+                            <TableCell style={{ width: '100px' }} className="py-3.5">
+                              <div className="flex items-center gap-2 pl-2">
+                                <Skeleton className="h-2 w-2 rounded-full bg-white/[0.06]" />
+                                <Skeleton className="h-4 w-10 bg-white/[0.06]" />
+                              </div>
+                            </TableCell>
+                            {/* Position */}
+                            <TableCell style={{ width: '90px' }} className="py-3.5">
+                              <div className="flex items-center pl-2">
+                                <Skeleton className="h-4 w-10 bg-white/[0.06]" />
+                              </div>
+                            </TableCell>
+                            {/* Model */}
+                            <TableCell style={{ width: '70px' }} className="py-3.5">
+                              <div className="flex items-center justify-center">
+                                <Skeleton className="h-6 w-6 rounded-full bg-white/[0.06]" />
+                              </div>
+                            </TableCell>
+                            {/* Last Run */}
+                            <TableCell style={{ width: '90px' }} className="py-3.5">
+                              <div className="flex items-center justify-center">
+                                <Skeleton className="h-4 w-14 bg-white/[0.06]" />
+                              </div>
+                            </TableCell>
+                            {/* Intent */}
+                            <TableCell style={{ width: '120px' }} className="py-3.5">
+                              <div className="flex items-center justify-center">
+                                <Skeleton className="h-5 w-16 rounded bg-white/[0.06]" />
+                              </div>
+                            </TableCell>
+                            {/* Sentiment */}
+                            <TableCell style={{ width: '100px' }} className="py-3.5">
+                              <div className="flex items-center justify-center">
+                                <Skeleton className="h-5 w-14 rounded bg-white/[0.06]" />
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
                       ) : table.getRowModel().rows?.length ? (
                         table.getRowModel().rows.map((row) => (
                           <TableRow 
@@ -941,7 +1076,7 @@ function TrackedPromptsPageInner() {
                             <SelectValue placeholder="Select intent" />
                           </SelectTrigger>
                           <SelectContent className="rounded-lg">
-                            <SelectItem value="How-to">How-to</SelectItem>
+                            <SelectItem value="How-to Guides">How-to</SelectItem>
                             <SelectItem value="Organic">Organic</SelectItem>
                             <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
                             <SelectItem value="Competitor">Competitor</SelectItem>

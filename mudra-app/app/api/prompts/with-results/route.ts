@@ -353,8 +353,22 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`✅ Matched ${matchedPrompts.length} prompts from analysis with database records`)
-    
-    const prompts = matchedPrompts
+
+    // Create a set of matched prompt IDs for quick lookup
+    const matchedPromptIds = new Set(matchedPrompts.map((p: any) => p.id))
+
+    // Include ALL active prompts - matched ones get analysis data, unmatched ones get empty results
+    const unmatchedPrompts = allPrompts
+      .filter((p: any) => !matchedPromptIds.has(p.id))
+      .map((p: any) => ({
+        ...p,
+        originalText: p.text
+      }))
+
+    console.log(`📋 Including ${unmatchedPrompts.length} additional prompts without analysis results`)
+
+    // Combine matched (with results) and unmatched (pending/new) prompts
+    const prompts = [...matchedPrompts, ...unmatchedPrompts]
 
     // Build a map of prompts with their results (including ALL providers)
     const promptsWithResults = prompts.map((prompt: any) => {
@@ -424,6 +438,9 @@ export async function GET(request: NextRequest) {
       // For backward compatibility, also include top-level metrics from first result
       const firstResult = perPromptScores[0]
 
+      // Get all unique models used for this prompt
+      const allModels = [...new Set(perPromptScores.map(s => s.model).filter(Boolean))]
+
       return {
         id: prompt.id,
         text: prompt.text,
@@ -433,6 +450,7 @@ export async function GET(request: NextRequest) {
         visibility: firstResult?.visibilityScore ?? 0,
         position: firstResult?.position ?? null,
         model: firstResult?.model ?? null,
+        models: allModels, // All models used for this prompt
         sentiment: firstResult?.sentiment ?? null,
         // Detailed breakdown by provider
         results,

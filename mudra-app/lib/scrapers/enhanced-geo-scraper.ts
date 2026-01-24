@@ -995,10 +995,24 @@ export async function scrapeCompanyPage(url: string, opts: ScrapeOpts = {}): Pro
     };
   }
   // Scrape main page and check txt files in parallel
-  const [res, txtFilesResult] = await Promise.all([
-    app.scrapeUrl(url, scrapeParams),
-    checkTxtFiles(url)
-  ]);
+  let res: any;
+  let txtFilesResult: any;
+  
+  try {
+    [res, txtFilesResult] = await Promise.all([
+      app.scrapeUrl(url, scrapeParams),
+      checkTxtFiles(url)
+    ]);
+  } catch (scrapeError: any) {
+    // Handle Firecrawl SDK errors (e.g., undefined response)
+    const errorMessage = scrapeError?.message || 'Unknown Firecrawl error';
+    console.error('[Firecrawl] Scrape error:', errorMessage);
+    throw new Error(`Firecrawl scrape failed: ${errorMessage}`);
+  }
+  
+  if (!res) {
+    throw new Error('Firecrawl returned undefined response');
+  }
   
   if (!('success' in res) || !res.success) throw new Error((res as any)?.error || 'Scrape failed');
   const html: string = (res as any).html ?? '';

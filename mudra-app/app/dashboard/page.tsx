@@ -44,7 +44,8 @@ function DashboardPageInner() {
   // Check cooldown status
   React.useEffect(() => {
     const checkCooldown = async () => {
-      if (!profile?.id) return
+      // Make sure profile is loaded and has a valid ID
+      if (!profile?.id || profile.id <= 0) return
       
       try {
         const response = await fetch(`/api/analysis/cooldown?brandProfileId=${profile.id}`)
@@ -58,9 +59,15 @@ function DashboardPageInner() {
           } else {
             setNextAnalysisTime(null)
           }
+        } else {
+          // If cooldown check fails, allow analysis (fail-open for better UX)
+          console.warn('Cooldown check returned error, allowing analysis:', data.error)
+          setCanRunAnalysis(true)
         }
       } catch (error) {
         console.error('Failed to check cooldown:', error)
+        // On network error, allow analysis (fail-open)
+        setCanRunAnalysis(true)
       }
     }
 
@@ -72,10 +79,22 @@ function DashboardPageInner() {
 
   // Handle run analysis
   const handleRunAnalysis = async () => {
-    if (!profile?.id || !canRunAnalysis || isRunningAnalysis) return
+    if (!profile?.id || profile.id <= 0) {
+      toast.error('Profile not loaded. Please refresh the page.')
+      return
+    }
+    
+    if (!canRunAnalysis) {
+      toast.error('Analysis is on cooldown. Please wait 24 hours.')
+      return
+    }
+    
+    if (isRunningAnalysis) {
+      return
+    }
 
     setIsRunningAnalysis(true)
-    const toastId = toast.loading('Running analysis...')
+    const toastId = toast.loading('Running analysis... This may take 1-2 minutes.')
 
     try {
       const response = await fetch('/api/analysis/unified', {
@@ -94,6 +113,7 @@ function DashboardPageInner() {
       })
 
       const result = await response.json()
+      console.log('[Dashboard] Analysis result:', result)
 
       if (result.success) {
         toast.success('Analysis completed successfully!', { id: toastId })
@@ -103,11 +123,15 @@ function DashboardPageInner() {
         setCanRunAnalysis(false)
         setNextAnalysisTime(Date.now() + (24 * 60 * 60 * 1000)) // 24 hours from now
       } else {
-        toast.error(result.error?.message || 'Analysis failed', { id: toastId })
+        const errorMsg = typeof result.error === 'string' 
+          ? result.error 
+          : result.error?.message || 'Analysis failed'
+        console.error('[Dashboard] Analysis failed:', result)
+        toast.error(errorMsg, { id: toastId })
       }
     } catch (error) {
-      console.error('Analysis error:', error)
-      toast.error('Failed to run analysis', { id: toastId })
+      console.error('[Dashboard] Analysis error:', error)
+      toast.error('Failed to run analysis. Please try again.', { id: toastId })
     } finally {
       setIsRunningAnalysis(false)
     }

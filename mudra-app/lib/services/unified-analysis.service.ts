@@ -147,6 +147,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
   try {
     const { generateAndSaveInitialPrompts, getActivePrompts } = await import('./prompt-storage.service');
     const { canRunAnalysis, updateLastAnalysisTime, createAnalysisRun, updateAnalysisRun } = await import('./analysis-run.service');
+    const { runDirectGEOAnalysis, createDirectGEOConfig } = await import('./direct-geo-analysis.service');
     
     // Check cooldown (unless skipCooldown is true OR DEVELOPMENT_MODE is true)
     const isDevelopmentMode = process.env.DEVELOPMENT_MODE === 'true';
@@ -177,33 +178,19 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       status: 'running'
     });
     
-    // Call DirectGEO API with prompt categories for weighted scoring
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/geo/direct-analysis`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        brandName: config.brandName,
-        website: config.website,
-        industry: config.industry || '',
-        description: config.description || '',
-        competitors: config.competitors || [],
-        customPrompts: prompts.map(p => ({
-          text: p.text,
-          category: p.category, // Pass category for intent weighting
-        })),
-      }),
+    // Call DirectGEO service directly (avoids HTTP fetch issues on Vercel)
+    console.log('[GEO Core] Running DirectGEO analysis directly...');
+    const directGeoConfig = createDirectGEOConfig(config.brandName, config.website, {
+      industry: config.industry || '',
+      description: config.description || '',
+      competitors: config.competitors || [],
+      customPrompts: prompts.map(p => ({
+        text: p.text,
+        category: p.category, // Pass category for intent weighting
+      })),
     });
-
-    if (!response.ok) {
-      await updateAnalysisRun(analysisRun.id, {
-        status: 'failed',
-        errorMessage: `DirectGEO API failed: ${response.statusText}`
-      });
-      throw new Error(`DirectGEO API failed: ${response.statusText}`);
-    }
-
-    const apiResponse = await response.json();
-    const data = apiResponse.success ? apiResponse.data : apiResponse;
+    
+    const data = await runDirectGEOAnalysis(directGeoConfig);
     
     // Update analysis run
     await updateAnalysisRun(analysisRun.id, {

@@ -110,6 +110,7 @@ async function runGeoAnalysis(config: AnalysisPipelineConfig) {
     // First, check if it's the first analysis and generate prompts if needed
     const { generateAndSaveInitialPrompts, getActivePrompts } = await import('./prompt-storage.service');
     const { canRunAnalysis, updateLastAnalysisTime, createAnalysisRun, updateAnalysisRun } = await import('./analysis-run.service');
+    const { runDirectGEOAnalysis, createDirectGEOConfig } = await import('./direct-geo-analysis.service');
     
     // Check 24hr cooldown (skip in development)
     const isDev = process.env.NODE_ENV === 'development';
@@ -140,33 +141,16 @@ async function runGeoAnalysis(config: AnalysisPipelineConfig) {
       status: 'running'
     });
     
-    // Call the DirectGEO API endpoint with stored prompts
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/geo/direct-analysis`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        brandName: config.brandName,
-        website: config.website,
-        industry: config.industry || '',
-        description: config.description || '',
-        competitors: config.competitors || [],
-        customPrompts: prompts.map(p => p.text), // Use stored prompts
-      }),
+    // Call DirectGEO service directly (avoids HTTP fetch issues on Vercel)
+    console.log('[GEO Analysis] Running DirectGEO analysis directly...');
+    const directGeoConfig = createDirectGEOConfig(config.brandName, config.website, {
+      industry: config.industry || '',
+      description: config.description || '',
+      competitors: config.competitors || [],
+      customPrompts: prompts.map(p => p.text), // Use stored prompts
     });
-
-    if (!response.ok) {
-      // Update analysis run as failed
-      await updateAnalysisRun(String(analysisRun.id), {
-        status: 'failed',
-        errorMessage: `DirectGEO API failed: ${response.statusText}`
-      });
-      throw new Error(`DirectGEO API failed: ${response.statusText}`);
-    }
-
-    const apiResponse = await response.json();
     
-    // Extract the actual data from the API response
-    const data = apiResponse.success ? apiResponse.data : apiResponse;
+    const data = await runDirectGEOAnalysis(directGeoConfig);
     
     console.log('[GEO Analysis] Saving to database:', {
       brandName: config.brandName,

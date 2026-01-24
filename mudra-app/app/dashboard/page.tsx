@@ -108,7 +108,7 @@ function DashboardPageInner() {
           industry: profile.companyIndustry,
           competitors: [],
           skipCooldown: false, // Enforce 24-hour cooldown
-          generateReport: false, // Dashboard doesn't need report
+          generateReport: true, // Generate natural language report on each analysis
         }),
       })
 

@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mastra } from "@/mastra";
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 import { requireAuth } from '@/lib/auth/require-auth';
 import { applyRateLimit } from '@/lib/auth/rate-limiter';
+
+// Lazy load Mastra to prevent build-time failures
+let mastraInstance: typeof import("@/mastra").mastra | null = null;
+
+async function getMastra() {
+  if (!mastraInstance) {
+    try {
+      const { mastra } = await import("@/mastra");
+      mastraInstance = mastra;
+    } catch (error) {
+      console.error("[Mastra] Failed to load Mastra:", error);
+      return null;
+    }
+  }
+  return mastraInstance;
+}
 
 // Store active workflow runs for status polling
 const activeRuns = new Map<string, {
@@ -92,6 +107,22 @@ export async function POST(req: NextRequest) {
 
     // Cleanup old runs periodically
     cleanupOldRuns();
+
+    // Load Mastra dynamically
+    const mastra = await getMastra();
+    if (!mastra) {
+      activeRuns.set(workflowRunId, {
+        status: "failed",
+        error: "Mastra workflow engine is not available. Please try again later.",
+        startedAt: activeRuns.get(workflowRunId)!.startedAt,
+      });
+      return NextResponse.json({
+        success: true,
+        workflowRunId,
+        status: "failed",
+        error: "Mastra workflow engine is not available. Please try again later.",
+      }, { status: 503 });
+    }
 
     // Start workflow asynchronously (don't await)
     const workflow = mastra.getWorkflow("aiContentWorkflow");

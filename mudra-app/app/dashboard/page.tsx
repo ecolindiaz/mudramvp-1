@@ -85,8 +85,8 @@ function DashboardPageInner() {
           brandProfileId: profile.id,
           brandName: profile.companyName,
           website: profile.companyWebsite,
-          description: profile.description,
-          industry: profile.industry,
+          description: profile.companyDescription,
+          industry: profile.companyIndustry,
           competitors: [],
           skipCooldown: false, // Enforce 24-hour cooldown
           generateReport: false, // Dashboard doesn't need report

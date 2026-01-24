@@ -1329,11 +1329,11 @@ function TrackedPromptDeepViewInner() {
                                       <div className="text-[15px] text-white/80">{promptLabel}</div>
                                     </div>
 
-                                    {/* Response preview */}
-                                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                                    {/* Full Response */}
+                                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 max-h-[40vh] overflow-y-auto">
                                       <div className="text-xs text-white/40 mb-2">Response</div>
-                                      <div className="text-[13px] text-white/60 leading-relaxed line-clamp-3">
-                                        {(chat.fullResponse || '').split('\n').filter(Boolean).slice(0, 2).join(' ').slice(0, 200)}...
+                                      <div className="text-[13px] text-white/60 leading-relaxed whitespace-pre-wrap">
+                                        {chat.fullResponse || 'No response text available'}
                                       </div>
                                     </div>
 

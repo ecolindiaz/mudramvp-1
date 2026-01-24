@@ -204,13 +204,13 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
     await updateLastAnalysisTime(config.brandProfileId);
 
     // DEBUG: Log what we're saving
-    console.log('[GEO Core] Saving analyses with test count:', data.analyses?.length);
+    console.log('[GEO Core] Saving analyses with provider count:', data.analyses?.length);
     if (data.analyses && data.analyses.length > 0) {
       const firstAnalysis = data.analyses[0];
       console.log('[GEO Core] First analysis structure:', {
-        prompt: firstAnalysis.prompt?.substring(0, 50),
-        testsCount: firstAnalysis.tests?.length,
-        firstTestHasCompetitors: firstAnalysis.tests?.[0]?.competitorsMentioned?.length || 0
+        provider: firstAnalysis.provider,
+        promptTestsCount: firstAnalysis.promptTests?.length,
+        firstTestHasCompetitors: firstAnalysis.promptTests?.[0]?.competitors?.length || 0
       });
     }
 

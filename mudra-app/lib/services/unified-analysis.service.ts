@@ -186,7 +186,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       competitors: config.competitors || [],
       customPrompts: prompts.map(p => ({
         text: p.text,
-        category: p.category, // Pass category for intent weighting
+        category: p.category ?? undefined, // Convert null to undefined for type compatibility
       })),
     });
     

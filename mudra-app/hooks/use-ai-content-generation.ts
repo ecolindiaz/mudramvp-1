@@ -50,10 +50,8 @@ const PROGRESS_STEPS = [
   "Ready in editor",
 ];
 
-const SIMULATED_STEP_DELAYS = [7000, 12000, 14000, 14000, 12000, 10000];
-
-const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_ATTEMPTS = 180; // 6 minutes max
+// Simulated delays for progress steps (in ms)
+const SIMULATED_STEP_DELAYS = [2000, 4000, 6000, 8000, 10000, 12000, 14000];
 
 export function useAIContentGeneration(): UseAIContentGenerationReturn {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -62,19 +60,18 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const progressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const progressCleanupRef = useRef<(() => void) | null>(null);
-  const pollCountRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Cleanup polling on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
       if (progressTimeoutRef.current) {
         clearTimeout(progressTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
     };
   }, []);
@@ -85,35 +82,34 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
     setCurrentStep(0);
     setResult(null);
     setError(null);
-    pollCountRef.current = 0;
     if (progressCleanupRef.current) {
       progressCleanupRef.current();
       progressCleanupRef.current = null;
-    }
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
     }
     if (progressTimeoutRef.current) {
       clearTimeout(progressTimeoutRef.current);
       progressTimeoutRef.current = null;
     }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
   }, []);
 
+  // Simulate progress steps while waiting for API
   const simulateProgress = useCallback(() => {
     let stepIndex = 0;
+    let cancelled = false;
 
     const scheduleNext = () => {
-      if (stepIndex >= PROGRESS_STEPS.length - 2) {
+      if (cancelled || stepIndex >= PROGRESS_STEPS.length - 1) {
         return;
       }
 
-      const delay =
-        SIMULATED_STEP_DELAYS[
-          Math.min(stepIndex, SIMULATED_STEP_DELAYS.length - 1)
-        ] ?? 10000;
+      const delay = SIMULATED_STEP_DELAYS[stepIndex] ?? 3000;
 
       progressTimeoutRef.current = setTimeout(() => {
+        if (cancelled) return;
         stepIndex += 1;
         setCurrentStep(stepIndex);
         setProgress((prev) => [...prev, PROGRESS_STEPS[stepIndex]]);
@@ -124,80 +120,13 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
     scheduleNext();
 
     return () => {
+      cancelled = true;
       if (progressTimeoutRef.current) {
         clearTimeout(progressTimeoutRef.current);
         progressTimeoutRef.current = null;
       }
     };
   }, []);
-
-  const pollForStatus = useCallback(
-    async (workflowRunId: string) => {
-      try {
-        const response = await fetch(
-          `/api/content-lab/generate-optimized?workflowRunId=${workflowRunId}`
-        );
-        const data = await response.json();
-
-        if (data.status === "completed" && data.result) {
-          // Success!
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-          }
-          if (progressCleanupRef.current) {
-            progressCleanupRef.current();
-            progressCleanupRef.current = null;
-          }
-
-          setCurrentStep(PROGRESS_STEPS.length - 1);
-          setProgress((prev) => [
-            ...prev,
-            "Ready in editor",
-          ]);
-          setResult(data.result);
-          setIsGenerating(false);
-          return true;
-        } else if (data.status === "failed") {
-          // Failure
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-          }
-          if (progressCleanupRef.current) {
-            progressCleanupRef.current();
-            progressCleanupRef.current = null;
-          }
-
-          setError(data.error || "Content generation failed");
-          setIsGenerating(false);
-          return true;
-        }
-
-        // Still processing
-        pollCountRef.current++;
-        if (pollCountRef.current >= MAX_POLL_ATTEMPTS) {
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-          }
-          if (progressCleanupRef.current) {
-            progressCleanupRef.current();
-            progressCleanupRef.current = null;
-          }
-          setError("Content generation timed out. Please try again.");
-          setIsGenerating(false);
-          return true;
-        }
-
-        return false;
-      } catch (err) {
-        console.error("Poll error:", err);
-        return false;
-      }
-    },
-    []
-  );
 
   const startGeneration = useCallback(
     async (trackedPrompt: string, sources: Source[]) => {
@@ -206,8 +135,15 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
       setProgress([PROGRESS_STEPS[0]]);
       setCurrentStep(0);
 
+      // Start progress simulation
+      const stopSimulatedProgress = simulateProgress();
+      progressCleanupRef.current = stopSimulatedProgress;
+
+      // Create abort controller for the request
+      abortControllerRef.current = new AbortController();
+
       try {
-        // Start the workflow
+        // Make the API call (synchronous - waits for result)
         const response = await fetch("/api/content-lab/generate-optimized", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -218,43 +154,45 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
               title: s.title || s.domain,
             })),
           }),
+          signal: abortControllerRef.current.signal,
         });
 
         const data = await response.json();
 
-        if (!data.success) {
-          setError(data.error || "Failed to start content generation");
-          setIsGenerating(false);
-          return;
-        }
-
-        const workflowRunId = data.workflowRunId;
-
-        // Start progress simulation
-        const stopSimulatedProgress = simulateProgress();
-        progressCleanupRef.current = stopSimulatedProgress;
-
-        // Start polling for completion
-        pollCountRef.current = 0;
-        pollIntervalRef.current = setInterval(async () => {
-          const isDone = await pollForStatus(workflowRunId);
-          if (isDone) {
-            if (progressCleanupRef.current) {
-              progressCleanupRef.current();
-              progressCleanupRef.current = null;
-            }
-          }
-        }, POLL_INTERVAL_MS);
-      } catch (err: any) {
+        // Stop progress simulation
         if (progressCleanupRef.current) {
           progressCleanupRef.current();
           progressCleanupRef.current = null;
         }
-        setError(err.message || "Failed to start content generation");
+
+        if (!data.success) {
+          setError(data.error || "Failed to generate content");
+          setIsGenerating(false);
+          return;
+        }
+
+        // Success! Set final step and result
+        setCurrentStep(PROGRESS_STEPS.length - 1);
+        setProgress([...PROGRESS_STEPS]);
+        setResult(data.result);
+        setIsGenerating(false);
+      } catch (err: any) {
+        // Stop progress simulation
+        if (progressCleanupRef.current) {
+          progressCleanupRef.current();
+          progressCleanupRef.current = null;
+        }
+
+        if (err.name === "AbortError") {
+          // Request was cancelled, don't set error
+          return;
+        }
+
+        setError(err.message || "Failed to generate content");
         setIsGenerating(false);
       }
     },
-    [reset, simulateProgress, pollForStatus]
+    [reset, simulateProgress]
   );
 
   return {
@@ -267,4 +205,3 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
     reset,
   };
 }
-

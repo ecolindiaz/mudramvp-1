@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 import { requireAuth } from '@/lib/auth/require-auth';
 import { applyRateLimit } from '@/lib/auth/rate-limiter';
+import { prisma } from '@/lib/prisma';
 
 // Lazy load Mastra to prevent build-time failures
 let mastraInstance: typeof import("@/mastra").mastra | null = null;
@@ -17,24 +18,6 @@ async function getMastra() {
     }
   }
   return mastraInstance;
-}
-
-// Store active workflow runs for status polling
-const activeRuns = new Map<string, {
-  status: "processing" | "completed" | "failed";
-  result?: any;
-  error?: string;
-  startedAt: Date;
-}>();
-
-// Cleanup old runs (older than 1 hour)
-function cleanupOldRuns() {
-  const oneHourAgo = Date.now() - 60 * 60 * 1000;
-  for (const [id, run] of activeRuns.entries()) {
-    if (run.startedAt.getTime() < oneHourAgo) {
-      activeRuns.delete(id);
-    }
-  }
 }
 
 export async function POST(req: NextRequest) {
@@ -76,8 +59,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create unique run ID
-    const workflowRunId = `wf_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+    // Load Mastra dynamically
+    const mastra = await getMastra();
+    if (!mastra) {
+      return NextResponse.json({
+        success: false,
+        error: "AI content generation is temporarily unavailable. Please try again later.",
+      }, { status: 503 });
+    }
 
     // Prepare brand context from profile
     const brandContext = {
@@ -99,134 +88,126 @@ export async function POST(req: NextRequest) {
       brandContext,
     };
 
-    // Initialize run tracking
-    activeRuns.set(workflowRunId, {
-      status: "processing",
-      startedAt: new Date(),
-    });
+    console.log(`[Content-Lab] Starting AI content generation for brand: ${brandContext.brandName}`);
+    
+    // Run workflow synchronously (Vercel functions have 60s timeout configured)
+    const workflow = mastra.getWorkflow("aiContentWorkflow");
+    const run = await workflow.createRunAsync();
+    const result = await run.start({ inputData: workflowInput });
 
-    // Cleanup old runs periodically
-    cleanupOldRuns();
-
-    // Load Mastra dynamically
-    const mastra = await getMastra();
-    if (!mastra) {
-      activeRuns.set(workflowRunId, {
-        status: "failed",
-        error: "Mastra workflow engine is not available. Please try again later.",
-        startedAt: activeRuns.get(workflowRunId)!.startedAt,
+    if (result.status === "success" && result.result) {
+      console.log(`[Content-Lab] Workflow completed successfully`);
+      
+      // Save to database as a draft campaign
+      const campaign = await prisma.campaign.create({
+        data: {
+          userId: authResult.user.id,
+          brandProfileId: brandProfile.id,
+          title: result.result.metadata?.title || "Untitled Article",
+          body: result.result.content || "",
+          type: "blog",
+          mode: "geo",
+          status: "draft",
+          prompt: trackedPrompt || `Prompt ID: ${trackedPromptId}`,
+          metadata: {
+            sourcesScraped: result.result.metadata?.sourcesScraped || sources.length,
+            researchQueriesRun: result.result.metadata?.researchQueriesRun || 0,
+            sections: result.result.metadata?.sections || [],
+            sources: result.result.metadata?.sources || [],
+            wordCount: result.result.metadata?.wordCount || 0,
+            author: result.result.metadata?.author || { name: brandContext.userName, title: brandContext.userRole },
+            generatedAt: new Date().toISOString(),
+          },
+        },
       });
+
       return NextResponse.json({
         success: true,
-        workflowRunId,
+        status: "completed",
+        result: {
+          campaignId: campaign.id,
+          content: result.result.content,
+          metadata: {
+            title: result.result.metadata?.title || "Untitled Article",
+            wordCount: result.result.metadata?.wordCount || 0,
+            sections: result.result.metadata?.sections || [],
+            author: result.result.metadata?.author || { name: brandContext.userName, title: brandContext.userRole },
+            sourcesScraped: result.result.metadata?.sourcesScraped || sources.length,
+            researchQueriesRun: result.result.metadata?.researchQueriesRun || 0,
+            sources: result.result.metadata?.sources || [],
+          },
+        },
+      });
+    } else {
+      console.error(`[Content-Lab] Workflow failed:`, result);
+      return NextResponse.json({
+        success: false,
         status: "failed",
-        error: "Mastra workflow engine is not available. Please try again later.",
-      }, { status: 503 });
+        error: "Content generation workflow did not complete successfully. Please try again.",
+      }, { status: 500 });
     }
-
-    // Start workflow asynchronously (don't await)
-    const workflow = mastra.getWorkflow("aiContentWorkflow");
-    
-    // Execute workflow in background
-    (async () => {
-      try {
-        console.log(`[Workflow ${workflowRunId}] Starting AI content generation...`);
-        
-        const run = await workflow.createRunAsync();
-        const result = await run.start({ inputData: workflowInput });
-
-        if (result.status === "success" && result.result) {
-          console.log(`[Workflow ${workflowRunId}] Completed successfully`);
-          
-          // Generate campaign ID for tracking
-          const campaignId = `cmp_${Date.now().toString(36)}`;
-
-          // NOTE: Campaign model doesn't exist in schema yet
-          // Storing result in memory only for now
-          console.log(`[Workflow ${workflowRunId}] Campaign ${campaignId} generated (not persisted - Campaign model not in schema)`);
-
-          activeRuns.set(workflowRunId, {
-            status: "completed",
-            result: {
-              campaignId,
-              content: result.result.content,
-              metadata: result.result.metadata,
-            },
-            startedAt: activeRuns.get(workflowRunId)!.startedAt,
-          });
-        } else {
-          console.error(`[Workflow ${workflowRunId}] Failed:`, result);
-          activeRuns.set(workflowRunId, {
-            status: "failed",
-            error: "Workflow did not complete successfully",
-            startedAt: activeRuns.get(workflowRunId)!.startedAt,
-          });
-        }
-      } catch (error: any) {
-        console.error(`[Workflow ${workflowRunId}] Error:`, error);
-        activeRuns.set(workflowRunId, {
-          status: "failed",
-          error: error.message || "Unknown error occurred",
-          startedAt: activeRuns.get(workflowRunId)!.startedAt,
-        });
-      }
-    })();
-
-    // Return immediately with run ID for polling
-    return NextResponse.json({
-      success: true,
-      workflowRunId,
-      status: "processing",
-      message: "AI content generation started. Poll /api/content-lab/generate-optimized/[workflowRunId] for status.",
-    });
   } catch (error: any) {
     console.error("[API /content-lab/generate-optimized] Error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to start content generation",
+        error: error.message || "Failed to generate content",
       },
       { status: 500 }
     );
   }
 }
 
-// GET endpoint for status polling
+// GET endpoint - now just checks for existing campaigns by ID
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const workflowRunId = searchParams.get("workflowRunId");
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
 
-  if (!workflowRunId) {
+  const { searchParams } = new URL(req.url);
+  const campaignId = searchParams.get("campaignId");
+
+  if (!campaignId) {
     return NextResponse.json(
-      { success: false, error: "workflowRunId query parameter is required" },
+      { success: false, error: "campaignId query parameter is required" },
       { status: 400 }
     );
   }
 
-  // First check in-memory store
-  const runState = activeRuns.get(workflowRunId);
+  try {
+    const campaign = await prisma.campaign.findFirst({
+      where: {
+        id: campaignId,
+        userId: authResult.user.id,
+      },
+    });
 
-  if (runState) {
+    if (!campaign) {
+      return NextResponse.json(
+        { success: false, error: "Campaign not found" },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      workflowRunId,
-      status: runState.status,
-      result: runState.result,
-      error: runState.error,
+      campaign: {
+        id: campaign.id,
+        title: campaign.title,
+        body: campaign.body,
+        status: campaign.status,
+        metadata: campaign.metadata,
+        createdAt: campaign.createdAt,
+      },
     });
+  } catch (error: any) {
+    console.error("[API /content-lab/generate-optimized GET] Error:", error);
+    return NextResponse.json(
+      { success: false, error: error.message || "Failed to fetch campaign" },
+      { status: 500 }
+    );
   }
-
-  // If not in memory (e.g., server recompiled), the workflow state is lost
-  // Campaign model doesn't exist in schema, so we can't check database
-  
-  // Not found anywhere - could still be processing or truly expired
-  return NextResponse.json(
-    { 
-      success: false, 
-      status: "unknown",
-      error: "Workflow run not found. It may still be processing or has expired." 
-    },
-    { status: 404 }
-  );
 }
 

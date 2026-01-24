@@ -999,15 +999,24 @@ export async function scrapeCompanyPage(url: string, opts: ScrapeOpts = {}): Pro
   let txtFilesResult: any;
   
   try {
+    console.log('[Firecrawl] Starting scrape for:', url);
     [res, txtFilesResult] = await Promise.all([
-      app.scrapeUrl(url, scrapeParams),
+      app.scrapeUrl(url, scrapeParams).catch((err: any) => {
+        // Capture SDK-level errors
+        console.error('[Firecrawl] SDK error:', err?.message || 'Unknown SDK error');
+        throw err;
+      }),
       checkTxtFiles(url)
     ]);
+    console.log('[Firecrawl] Scrape completed, success:', res?.success);
   } catch (scrapeError: any) {
-    // Handle Firecrawl SDK errors (e.g., undefined response)
+    // Handle Firecrawl SDK errors (e.g., undefined response, network errors)
     const errorMessage = scrapeError?.message || 'Unknown Firecrawl error';
+    const errorStatus = scrapeError?.status || scrapeError?.statusCode || 'N/A';
     console.error('[Firecrawl] Scrape error:', errorMessage);
-    throw new Error(`Firecrawl scrape failed: ${errorMessage}`);
+    console.error('[Firecrawl] Error status:', errorStatus);
+    console.error('[Firecrawl] Full error:', JSON.stringify(scrapeError, null, 2));
+    throw new Error(`Firecrawl scrape failed (status: ${errorStatus}): ${errorMessage}`);
   }
   
   if (!res) {

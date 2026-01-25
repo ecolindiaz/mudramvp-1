@@ -1340,7 +1340,7 @@ function TrackedPromptDeepViewInner() {
                                     {/* Citations */}
                                     <div>
                                       <div className="text-xs text-white/40 mb-3">Citations</div>
-                                      <div className="flex flex-wrap gap-2">
+                                      <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto pr-1">
                                         {(chat.responseCitations && chat.responseCitations.length > 0 ? chat.responseCitations : citationSources).map((c) => (
                                           <Dialog key={`${(c as any).domain}-${(c as any).citationType ?? (c as any).type ?? ''}`}>
                                             <DialogTrigger asChild>

@@ -46,22 +46,55 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   )
   
   const companyId = companyData?.data?.companyId || null
-  const { report, isLoading, error, refresh } = useNlr(companyId)
+  const { report: weeklyReport, isLoading: isLoadingWeekly, error: weeklyError, refresh } = useNlr(companyId)
+
+  // Also fetch from NaturalLanguageReport table via analysis results endpoint
+  // This is where onboarding/unified analysis stores reports
+  const brandProfileId = typeof window !== 'undefined' ? localStorage.getItem('mudra:brandProfileId') : null
+  const { data: analysisResultsData, isLoading: isLoadingAnalysis, error: analysisError, mutate: refreshAnalysis } = useSWR(
+    brandProfileId ? `/api/analysis/results?brandProfileId=${brandProfileId}` : null,
+    async (url: string) => {
+      const res = await fetch(url)
+      if (!res.ok) return null
+      return res.json()
+    }
+  )
+
+  // Use weekly report if available, otherwise fallback to NaturalLanguageReport from analysis
+  const report = weeklyReport || null
+  const nlrReport = analysisResultsData?.report || null
+  const isLoading = isLoadingWeekly || isLoadingAnalysis
+  const error = weeklyError || analysisError
 
   // Listen for refresh events from Generate Report button
   React.useEffect(() => {
     const handleRefresh = () => {
       if (refresh) refresh()
+      if (refreshAnalysis) refreshAnalysis()
     }
     
     window.addEventListener('mudra:nlr-refresh', handleRefresh)
-    return () => window.removeEventListener('mudra:nlr-refresh', handleRefresh)
-  }, [refresh])
+    window.addEventListener('mudra:analysis-complete', handleRefresh)
+    window.addEventListener('mudra:website-analyzed', handleRefresh)
+    return () => {
+      window.removeEventListener('mudra:nlr-refresh', handleRefresh)
+      window.removeEventListener('mudra:analysis-complete', handleRefresh)
+      window.removeEventListener('mudra:website-analyzed', handleRefresh)
+    }
+  }, [refresh, refreshAnalysis])
+
+  // Build summary from WeeklyReport (preferred) or NaturalLanguageReport (fallback)
   const summaryJson = (report?.summaryJson || null) as NlrSummaryJson | null
   const summaryFromModel = (report?.summaryMarkdown || '')
     .replace(/^```(md|markdown)?/gi, '')
     .replace(/```$/g, '')
     .trim()
+  
+  // Fallback: Use NaturalLanguageReport text if no WeeklyReport
+  const nlrReportText = nlrReport?.reportText || ''
+  const nlrMetadata = nlrReport?.metadata ? (typeof nlrReport.metadata === 'string' ? JSON.parse(nlrReport.metadata) : nlrReport.metadata) : null
+  const nlrSummary = nlrMetadata?.summary || nlrReportText
+  
   const whatsChanged = summaryJson?.sections?.whats_changed ?? []
   const highlights = summaryJson?.sections?.highlights ?? []
 
@@ -80,15 +113,16 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   }
 
   function buildDigestibleSummary(): string {
-    if (!summaryJson) return summaryFromModel
-    const parts: string[] = []
+    // First try WeeklyReport structured data
+    if (summaryJson) {
+      const parts: string[] = []
 
-    // Agent Lab section
-    const agentLab = summaryJson.sections?.agent_lab
-    if (agentLab?.deployments && agentLab.deployments.length > 0) {
-      const deploymentStr = agentLab.deployments.map(d => `${d.agent_name} ${d.what_changed}`).join('. ')
-      parts.push(`**Agent Lab:** ${deploymentStr}.`)
-    }
+      // Agent Lab section
+      const agentLab = summaryJson.sections?.agent_lab
+      if (agentLab?.deployments && agentLab.deployments.length > 0) {
+        const deploymentStr = agentLab.deployments.map(d => `${d.agent_name} ${d.what_changed}`).join('. ')
+        parts.push(`**Agent Lab:** ${deploymentStr}.`)
+      }
 
     // Opportunities section
     const opportunities = summaryJson.sections?.opportunities
@@ -209,13 +243,17 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     if (next) parts.push(`Next: ${next}.`)
 
     const text = parts.filter(Boolean).join(' ').trim()
-    return text || summaryFromModel
+    return text || summaryFromModel || nlrSummary
+    }
+  
+    // No WeeklyReport data - fallback to NaturalLanguageReport or summaryFromModel
+    return summaryFromModel || nlrSummary || ''
   }
 
-  const summary = buildDigestibleSummary()
+  // Build final summary - prioritize WeeklyReport, fallback to NaturalLanguageReport
+  const summary = buildDigestibleSummary() || nlrSummary
   
-  // Fetch brand profile ID from localStorage
-  const brandProfileId = typeof window !== 'undefined' ? localStorage.getItem('mudra:brandProfileId') : null
+  // Note: brandProfileId is already defined above (line ~51)
 
   // Fetch real citation data from aggregated prompt results
   const { data: citationsData } = useSWR(

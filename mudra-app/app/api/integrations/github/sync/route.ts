@@ -53,8 +53,9 @@ export async function POST(request: NextRequest) {
     })
 
     if (!user) {
+      console.error('[GitHub Sync] User not found in database for email:', session.user.email)
       return NextResponse.json(
-        { success: false, error: 'User not found' },
+        { success: false, error: 'User not found. Please sign out and sign back in to refresh your session.' },
         { status: 404 }
       )
     }

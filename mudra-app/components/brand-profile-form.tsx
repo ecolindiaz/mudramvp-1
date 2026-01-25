@@ -118,8 +118,13 @@ export function BrandProfileForm() {
       companyICP: JSON.stringify(formData.companyICP),
       competitors: formData.competitors, // Keep as array
     }
-    await setProfile(profileToSave as any) // ✅ Persist to context and API
-    setIsEditing(false)
+    try {
+      await setProfile(profileToSave as any) // ✅ Persist to context and API
+      setIsEditing(false) // ✅ Close editing UI on successful save
+    } catch (error) {
+      console.error('❌ Failed to save brand profile:', error)
+      // Keep editing UI open on error so user can retry
+    }
   }
 
   const handleCancel = () => {

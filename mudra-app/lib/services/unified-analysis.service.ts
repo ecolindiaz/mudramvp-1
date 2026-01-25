@@ -370,6 +370,9 @@ async function generateReport(data: {
   geoAnalysisId?: number;
   technicalAnalysisId?: number;
 }) {
+  console.log('[Report] Starting report generation for brandProfileId:', data.brandProfileId);
+  console.log('[Report] Input IDs - GEO:', data.geoAnalysisId, 'Technical:', data.technicalAnalysisId);
+  
   try {
     const geoAnalysis = data.geoAnalysisId 
       ? await prisma.geoAnalysisResult.findUnique({ where: { id: data.geoAnalysisId } })
@@ -379,10 +382,14 @@ async function generateReport(data: {
       ? await prisma.technicalStructureAnalysis.findUnique({ where: { id: data.technicalAnalysisId } })
       : null;
 
+    console.log('[Report] Fetched analysis data - hasGeo:', !!geoAnalysis, 'hasTechnical:', !!technicalAnalysis);
+
     const report = await generateReportContent({
       geoAnalysis,
       technicalAnalysis,
     });
+
+    console.log('[Report] Generated content - summary length:', report.summary?.length, 'sections:', report.sections?.length);
 
     const savedReport = await prisma.naturalLanguageReport.create({
       data: {
@@ -400,9 +407,10 @@ async function generateReport(data: {
       },
     });
 
+    console.log('[Report] ✅ Saved report with ID:', savedReport.id);
     return { success: true, id: savedReport.id };
   } catch (error) {
-    console.error('[Report] Error:', error);
+    console.error('[Report] ❌ Error:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error' 

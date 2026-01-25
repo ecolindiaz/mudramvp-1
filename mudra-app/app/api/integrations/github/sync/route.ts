@@ -130,12 +130,60 @@ export async function POST(request: NextRequest) {
     const allInstallations = await allInstallationsResponse.json()
     console.log('[GitHub Sync] Found', allInstallations.length, 'total installation(s)')
 
+    // Check if user has linked their GitHub account (preferred matching method)
+    const hasLinkedGitHub = !!user.githubId
+    console.log('[GitHub Sync] User has linked GitHub account:', hasLinkedGitHub, user.githubUsername || 'N/A')
+
     // For each installation, check if it matches the current user
     let userInstallation = null
     for (const installation of allInstallations) {
       try {
         console.log('[GitHub Sync] Checking installation:', installation.id, 'account:', installation.account?.login)
         
+        // PRIORITY 1: Match via linked GitHub account (most reliable)
+        // This checks if the installation account ID matches the user's linked GitHub ID
+        if (hasLinkedGitHub && installation.account?.type === 'User') {
+          const linkedIdMatches = String(installation.account.id) === user.githubId
+          const linkedUsernameMatches = installation.account.login === user.githubUsername
+          
+          if (linkedIdMatches || linkedUsernameMatches) {
+            console.log('[GitHub Sync] ✓ Matched via linked GitHub account!')
+            
+            // Get installation access token
+            const tokenResponse = await fetch(
+              `https://api.github.com/app/installations/${installation.id}/access_tokens`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${appJwt}`,
+                  Accept: 'application/vnd.github+json',
+                },
+              }
+            )
+
+            if (!tokenResponse.ok) {
+              console.log('[GitHub Sync] Failed to get token for matched installation:', installation.id)
+              continue
+            }
+
+            const tokenData = await tokenResponse.json()
+            
+            userInstallation = {
+              installation,
+              token: tokenData.token,
+              expiresAt: tokenData.expires_at,
+              githubUser: {
+                login: installation.account.login,
+                id: installation.account.id,
+                avatar_url: installation.account.avatar_url,
+                email: null,
+              },
+            }
+            break
+          }
+        }
+        
+        // FALLBACK: Legacy matching strategies for users who haven't linked yet
         // Get installation access token
         const tokenResponse = await fetch(
           `https://api.github.com/app/installations/${installation.id}/access_tokens`,
@@ -226,9 +274,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (!userInstallation) {
+      // Provide more helpful error message based on whether they've linked their GitHub
+      const errorMessage = hasLinkedGitHub
+        ? `No GitHub App installation found for @${user.githubUsername}. Please install the GitHub App at: https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_NAME}`
+        : `No matching GitHub installation found. Please link your GitHub account first, then install the GitHub App at: https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_NAME}`
+      
       return NextResponse.json({
         success: false,
-        error: 'No matching GitHub installation found. Please ensure your GitHub account email matches your Mudra account email, or reinstall the GitHub App at: https://github.com/apps/' + process.env.NEXT_PUBLIC_GITHUB_APP_NAME,
+        error: errorMessage,
+        requiresLinking: !hasLinkedGitHub,
       })
     }
 

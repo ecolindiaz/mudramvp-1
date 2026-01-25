@@ -57,6 +57,7 @@ function TechnicalStructurePageInner() {
         limit: limit.toString(),
         offset: offset.toString(),
         orderBy,
+        includePages: 'true', // Request pages in the same call
       })
       if (pageTypeFilter) {
         params.set('pageType', pageTypeFilter)
@@ -65,10 +66,19 @@ function TechnicalStructurePageInner() {
       const res = await fetch(`/api/site-scrape/scores?${params}`)
       const data = await res.json()
       
-      if (data.success) {
-        setSiteScore(data.data.siteScore)
-        setPages(data.data.pages)
-        setTotalPages(data.data.total)
+      if (data.success && data.data) {
+        // Handle case when no scores exist yet
+        if (data.data.hasScores === false) {
+          setSiteScore(null)
+          setPages([])
+          setTotalPages(0)
+        } else {
+          // Site score is under data.site (not data.siteScore)
+          setSiteScore(data.data.site || null)
+          // Pages are under data.pages.items
+          setPages(data.data.pages?.items || [])
+          setTotalPages(data.data.pages?.total || 0)
+        }
       }
     } catch (err) {
       console.error('Failed to fetch scores:', err)

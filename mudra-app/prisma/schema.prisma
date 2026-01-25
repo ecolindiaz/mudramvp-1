@@ -59,6 +59,7 @@ model BrandProfile {
   trackingCode               TrackingCode?
   campaigns                  Campaign[]
   conversationOpportunities  ConversationOpportunity[]
+  issues                     Issue[]
 
   @@index([userId])
 }
@@ -94,6 +95,24 @@ model AnalysisRun {
   @@index([brandProfileId, ranAt])
   @@index([status])
   @@map("analysis_runs")
+}
+
+model Issue {
+  id             Int          @id @default(autoincrement())
+  brandProfileId Int
+  title          String
+  description    String?
+  type           String       @default("bug") // bug, improvement, feature
+  status         String       @default("identified") // identified, in_progress, completed, merged
+  priority       String       @default("medium") // low, medium, high, critical
+  order          Int          @default(0) // For ordering within a column
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
+  @@index([brandProfileId])
+  @@index([brandProfileId, status])
+  @@map("issues")
 }
 
 model User {

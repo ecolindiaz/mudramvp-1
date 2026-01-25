@@ -52,7 +52,8 @@ async function generateMetaDescription(content: string, title: string): Promise<
     const contentPreview = content.substring(0, 1500).replace(/#{1,6}\s+/g, '').trim();
 
     const { text } = await generateText({
-      model: openai('gpt-4.1'),
+      // Type cast required: @ai-sdk/openai v2 returns LanguageModelV2 but generateText expects LanguageModelV1
+      model: openai('gpt-4.1') as any,
       prompt: `Generate an SEO-optimized meta description for the following article.
 
 STRICT Requirements:
@@ -75,7 +76,6 @@ Article Content Preview:
 ${contentPreview}
 
 Return ONLY the meta description text, nothing else. Keep it under 150 characters.`,
-      maxTokens: 80,
     });
 
     // Clean and validate the result
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
 
     // Start workflow asynchronously (don't await)
     const workflow = mastra.getWorkflow("aiContentWorkflow");
-    
+
     // Capture brandProfileId for use in async function
     const brandProfileId = brandProfile.id;
     const userId = authResult.user.id;
@@ -313,4 +313,3 @@ export async function GET(req: NextRequest) {
     { status: 404 }
   );
 }
-

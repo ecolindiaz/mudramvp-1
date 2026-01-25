@@ -9,7 +9,50 @@ import {
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { BrandProfileProvider } from "@/components/brand-profile-context"
-import { IconPlus } from "@tabler/icons-react"
+import { IconPlus, IconTrash, IconEdit, IconLoader2 } from "@tabler/icons-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 // Custom status icons
 const IdentifiedIcon = ({ className }: { className?: string }) => (
@@ -53,71 +96,83 @@ const MergedIcon = ({ className }: { className?: string }) => (
 
 // Issue type definition
 interface Issue {
-  id: string
+  id: number
   title: string
+  description?: string | null
   type: "bug" | "improvement" | "feature"
   status: "identified" | "in_progress" | "completed" | "merged"
+  priority: "low" | "medium" | "high" | "critical"
+  order: number
+  createdAt: string
+  updatedAt: string
 }
 
-// Mock issues data
-const mockIssues: Issue[] = [
-  {
-    id: "ISS-01",
-    title: "Brand mentions not being tracked on Reddit",
-    type: "bug",
-    status: "identified",
-  },
-  {
-    id: "ISS-02",
-    title: "Sentiment analysis accuracy improvements",
-    type: "improvement",
-    status: "identified",
-  },
-  {
-    id: "ISS-03",
-    title: "Missing competitor tracking for Twitter/X",
-    type: "feature",
-    status: "in_progress",
-  },
-  {
-    id: "ISS-04",
-    title: "Dashboard loading performance optimization",
-    type: "improvement",
-    status: "in_progress",
-  },
-  {
-    id: "ISS-05",
-    title: "Email notification system implemented",
-    type: "feature",
-    status: "completed",
-  },
-  {
-    id: "ISS-06",
-    title: "Fixed duplicate mention detection",
-    type: "bug",
-    status: "completed",
-  },
-  {
-    id: "ISS-07",
-    title: "API rate limiting implementation",
-    type: "feature",
-    status: "merged",
-  },
-]
-
-// Issue card component
-function IssueCard({ issue }: { issue: Issue }) {
-  const typeConfig = {
-    bug: { color: "bg-red-500", label: "Bug" },
-    improvement: { color: "bg-blue-500", label: "Improvement" },
-    feature: { color: "bg-purple-500", label: "Feature" },
+interface IssueStats {
+  total: number
+  byStatus: {
+    identified: number
+    in_progress: number
+    completed: number
+    merged: number
   }
+  byType: {
+    bug: number
+    improvement: number
+    feature: number
+  }
+  byPriority: {
+    low: number
+    medium: number
+    high: number
+    critical: number
+  }
+  recentIssues: number
+  completedThisWeek: number
+}
 
-  const statusConfig = {
-    identified: { icon: IdentifiedIcon, color: "text-white/60" },
-    in_progress: { icon: InProgressIcon, color: "text-amber-400" },
-    completed: { icon: CompletedIcon, color: "text-white" },
-    merged: { icon: MergedIcon, color: "text-sky-400" },
+const typeConfig = {
+  bug: { color: "bg-red-500", label: "Bug" },
+  improvement: { color: "bg-blue-500", label: "Improvement" },
+  feature: { color: "bg-purple-500", label: "Feature" },
+}
+
+const statusConfig = {
+  identified: { icon: IdentifiedIcon, color: "text-white/60", bg: "bg-white/5" },
+  in_progress: { icon: InProgressIcon, color: "text-amber-400", bg: "bg-amber-400/10" },
+  completed: { icon: CompletedIcon, color: "text-white", bg: "bg-white/10" },
+  merged: { icon: MergedIcon, color: "text-sky-400", bg: "bg-sky-400/10" },
+}
+
+const priorityConfig = {
+  low: { color: "text-white/40", bg: "bg-white/5" },
+  medium: { color: "text-amber-400", bg: "bg-amber-400/10" },
+  high: { color: "text-orange-400", bg: "bg-orange-400/10" },
+  critical: { color: "text-red-400", bg: "bg-red-400/10" },
+}
+
+// Sortable Issue Card Component
+function SortableIssueCard({
+  issue,
+  onEdit,
+  onDelete,
+}: {
+  issue: Issue
+  onEdit: (issue: Issue) => void
+  onDelete: (issue: Issue) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: issue.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
   }
 
   const typeConf = typeConfig[issue.type]
@@ -125,7 +180,78 @@ function IssueCard({ issue }: { issue: Issue }) {
   const StatusIcon = statusConf.icon
 
   return (
-    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3.5 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all cursor-pointer group">
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3.5 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all cursor-grab active:cursor-grabbing group"
+    >
+      <div className="flex items-start gap-3 mb-3">
+        <StatusIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${statusConf.color}`} />
+        <p className="text-[13px] text-white/90 font-medium leading-relaxed flex-1">
+          {issue.title}
+        </p>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button 
+              className="p-1 hover:bg-white/[0.1] rounded opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/50">
+                <circle cx="12" cy="12" r="1"/>
+                <circle cx="12" cy="5" r="1"/>
+                <circle cx="12" cy="19" r="1"/>
+              </svg>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-[#1a1a1a] border-white/10">
+            <DropdownMenuItem 
+              onClick={(e) => { e.stopPropagation(); onEdit(issue); }}
+              className="text-white/80 hover:bg-white/10 cursor-pointer"
+            >
+              <IconEdit className="w-4 h-4 mr-2" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={(e) => { e.stopPropagation(); onDelete(issue); }}
+              className="text-red-400 hover:bg-red-400/10 cursor-pointer"
+            >
+              <IconTrash className="w-4 h-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="flex items-center justify-between pl-7">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]">
+            <span className={`w-1.5 h-1.5 rounded-full ${typeConf.color}`} />
+            <span className="text-[11px] text-white/50">{typeConf.label}</span>
+          </span>
+          {issue.priority !== "medium" && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded ${priorityConfig[issue.priority].bg} ${priorityConfig[issue.priority].color}`}>
+              {issue.priority}
+            </span>
+          )}
+        </div>
+        <span className="text-[11px] text-white/30 group-hover:text-white/50 transition-colors">
+          ISS-{String(issue.id).padStart(2, "0")}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// Static Issue Card for Drag Overlay
+function IssueCardOverlay({ issue }: { issue: Issue }) {
+  const typeConf = typeConfig[issue.type]
+  const statusConf = statusConfig[issue.status]
+  const StatusIcon = statusConf.icon
+
+  return (
+    <div className="bg-white/[0.08] border border-white/[0.15] rounded-xl p-3.5 shadow-xl cursor-grabbing w-[260px]">
       <div className="flex items-start gap-3 mb-3">
         <StatusIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${statusConf.color}`} />
         <p className="text-[13px] text-white/90 font-medium leading-relaxed">
@@ -137,31 +263,369 @@ function IssueCard({ issue }: { issue: Issue }) {
           <span className={`w-1.5 h-1.5 rounded-full ${typeConf.color}`} />
           <span className="text-[11px] text-white/50">{typeConf.label}</span>
         </span>
-        <span className="text-[11px] text-white/30 group-hover:text-white/50 transition-colors">
-          {issue.id}
+        <span className="text-[11px] text-white/30">
+          ISS-{String(issue.id).padStart(2, "0")}
         </span>
       </div>
     </div>
   )
 }
 
-// Column component
-function IssueColumn({
+// Analysis View Component
+function AnalysisView({ stats, isLoading }: { stats: IssueStats | null; isLoading: boolean }) {
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <IconLoader2 className="w-6 h-6 text-white/40 animate-spin" />
+      </div>
+    )
+  }
+
+  if (!stats) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-4">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/40">
+              <line x1="18" y1="20" x2="18" y2="10"/>
+              <line x1="12" y1="20" x2="12" y2="4"/>
+              <line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+          </div>
+          <p className="text-white/50 text-sm">No issue data available</p>
+        </div>
+      </div>
+    )
+  }
+
+  const completionRate = stats.total > 0 
+    ? Math.round(((stats.byStatus.completed + stats.byStatus.merged) / stats.total) * 100) 
+    : 0
+
+  return (
+    <div className="flex-1 px-4 lg:px-6 py-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Total Issues */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+          <div className="text-[11px] text-white/50 uppercase tracking-wider mb-1">Total Issues</div>
+          <div className="text-2xl font-bold text-white">{stats.total}</div>
+          <div className="text-[12px] text-white/40 mt-1">
+            {stats.recentIssues} added this week
+          </div>
+        </div>
+
+        {/* Completion Rate */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+          <div className="text-[11px] text-white/50 uppercase tracking-wider mb-1">Completion Rate</div>
+          <div className="text-2xl font-bold text-white">{completionRate}%</div>
+          <div className="text-[12px] text-white/40 mt-1">
+            {stats.completedThisWeek} completed this week
+          </div>
+        </div>
+
+        {/* Active Issues */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+          <div className="text-[11px] text-white/50 uppercase tracking-wider mb-1">Active Issues</div>
+          <div className="text-2xl font-bold text-amber-400">{stats.byStatus.in_progress}</div>
+          <div className="text-[12px] text-white/40 mt-1">
+            {stats.byStatus.identified} in backlog
+          </div>
+        </div>
+
+        {/* Bugs */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+          <div className="text-[11px] text-white/50 uppercase tracking-wider mb-1">Bug Count</div>
+          <div className="text-2xl font-bold text-red-400">{stats.byType.bug}</div>
+          <div className="text-[12px] text-white/40 mt-1">
+            {stats.byPriority.critical + stats.byPriority.high} high priority
+          </div>
+        </div>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* By Status */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5">
+          <h3 className="text-sm font-medium text-white/80 mb-4">Issues by Status</h3>
+          <div className="space-y-3">
+            {Object.entries(stats.byStatus).map(([status, count]) => {
+              const conf = statusConfig[status as keyof typeof statusConfig]
+              const StatusIcon = conf.icon
+              const percentage = stats.total > 0 ? (count / stats.total) * 100 : 0
+              return (
+                <div key={status} className="flex items-center gap-3">
+                  <div className={`p-1.5 rounded-lg ${conf.bg}`}>
+                    <StatusIcon className={`w-3.5 h-3.5 ${conf.color}`} />
+                  </div>
+                  <span className="text-[13px] text-white/70 capitalize w-24">
+                    {status.replace("_", " ")}
+                  </span>
+                  <div className="flex-1 h-2 bg-white/[0.05] rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full ${conf.bg} rounded-full transition-all`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                  <span className="text-[13px] text-white/50 w-8 text-right">{count}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* By Type */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5">
+          <h3 className="text-sm font-medium text-white/80 mb-4">Issues by Type</h3>
+          <div className="space-y-3">
+            {Object.entries(stats.byType).map(([type, count]) => {
+              const conf = typeConfig[type as keyof typeof typeConfig]
+              const percentage = stats.total > 0 ? (count / stats.total) * 100 : 0
+              return (
+                <div key={type} className="flex items-center gap-3">
+                  <span className={`w-2.5 h-2.5 rounded-full ${conf.color}`} />
+                  <span className="text-[13px] text-white/70 capitalize w-24">{conf.label}</span>
+                  <div className="flex-1 h-2 bg-white/[0.05] rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full ${conf.color} rounded-full transition-all`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                  <span className="text-[13px] text-white/50 w-8 text-right">{count}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* By Priority */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 md:col-span-2">
+          <h3 className="text-sm font-medium text-white/80 mb-4">Issues by Priority</h3>
+          <div className="flex gap-4">
+            {Object.entries(stats.byPriority).map(([priority, count]) => {
+              const conf = priorityConfig[priority as keyof typeof priorityConfig]
+              return (
+                <div key={priority} className={`flex-1 p-4 rounded-xl ${conf.bg} border border-white/[0.06]`}>
+                  <div className={`text-2xl font-bold ${conf.color}`}>{count}</div>
+                  <div className="text-[12px] text-white/50 capitalize mt-1">{priority}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Create/Edit Issue Dialog
+function IssueDialog({
+  open,
+  onOpenChange,
+  issue,
+  defaultStatus,
+  onSave,
+  isLoading,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  issue?: Issue | null
+  defaultStatus?: string
+  onSave: (data: Partial<Issue>) => void
+  isLoading: boolean
+}) {
+  const [title, setTitle] = React.useState("")
+  const [description, setDescription] = React.useState("")
+  const [type, setType] = React.useState<Issue["type"]>("bug")
+  const [status, setStatus] = React.useState<Issue["status"]>("identified")
+  const [priority, setPriority] = React.useState<Issue["priority"]>("medium")
+
+  React.useEffect(() => {
+    if (issue) {
+      setTitle(issue.title)
+      setDescription(issue.description || "")
+      setType(issue.type)
+      setStatus(issue.status)
+      setPriority(issue.priority)
+    } else {
+      setTitle("")
+      setDescription("")
+      setType("bug")
+      setStatus(defaultStatus as Issue["status"] || "identified")
+      setPriority("medium")
+    }
+  }, [issue, defaultStatus, open])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    onSave({ title, description: description || null, type, status, priority })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-[#1a1a1a] border-white/10 text-white max-w-md">
+        <DialogHeader>
+          <DialogTitle>{issue ? "Edit Issue" : "Create Issue"}</DialogTitle>
+          <DialogDescription className="text-white/50">
+            {issue ? "Update the issue details below." : "Add a new issue to track."}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="title" className="text-white/70">Title</Label>
+              <Input
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Issue title..."
+                className="bg-white/[0.05] border-white/10 text-white placeholder:text-white/30"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-white/70">Description</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Optional description..."
+                className="bg-white/[0.05] border-white/10 text-white placeholder:text-white/30 min-h-[80px]"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label className="text-white/70">Type</Label>
+                <Select value={type} onValueChange={(v) => setType(v as Issue["type"])}>
+                  <SelectTrigger className="bg-white/[0.05] border-white/10 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1a1a] border-white/10">
+                    <SelectItem value="bug" className="text-white hover:bg-white/10">Bug</SelectItem>
+                    <SelectItem value="improvement" className="text-white hover:bg-white/10">Improvement</SelectItem>
+                    <SelectItem value="feature" className="text-white hover:bg-white/10">Feature</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white/70">Status</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as Issue["status"])}>
+                  <SelectTrigger className="bg-white/[0.05] border-white/10 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1a1a] border-white/10">
+                    <SelectItem value="identified" className="text-white hover:bg-white/10">Identified</SelectItem>
+                    <SelectItem value="in_progress" className="text-white hover:bg-white/10">In Progress</SelectItem>
+                    <SelectItem value="completed" className="text-white hover:bg-white/10">Completed</SelectItem>
+                    <SelectItem value="merged" className="text-white hover:bg-white/10">Merged</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white/70">Priority</Label>
+                <Select value={priority} onValueChange={(v) => setPriority(v as Issue["priority"])}>
+                  <SelectTrigger className="bg-white/[0.05] border-white/10 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1a1a] border-white/10">
+                    <SelectItem value="low" className="text-white hover:bg-white/10">Low</SelectItem>
+                    <SelectItem value="medium" className="text-white hover:bg-white/10">Medium</SelectItem>
+                    <SelectItem value="high" className="text-white hover:bg-white/10">High</SelectItem>
+                    <SelectItem value="critical" className="text-white hover:bg-white/10">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              className="text-white/60 hover:text-white hover:bg-white/10"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isLoading || !title.trim()}
+              className="bg-white text-black hover:bg-white/90"
+            >
+              {isLoading ? (
+                <IconLoader2 className="w-4 h-4 animate-spin" />
+              ) : issue ? (
+                "Update"
+              ) : (
+                "Create"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Delete Confirmation Dialog
+function DeleteDialog({
+  open,
+  onOpenChange,
+  issue,
+  onConfirm,
+  isLoading,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  issue: Issue | null
+  onConfirm: () => void
+  isLoading: boolean
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-[#1a1a1a] border-white/10 text-white max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete Issue</DialogTitle>
+          <DialogDescription className="text-white/50">
+            Are you sure you want to delete &quot;{issue?.title}&quot;? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="text-white/60 hover:text-white hover:bg-white/10"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={onConfirm}
+            disabled={isLoading}
+            className="bg-red-500 text-white hover:bg-red-600"
+          >
+            {isLoading ? <IconLoader2 className="w-4 h-4 animate-spin" /> : "Delete"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Column with handlers
+function IssueColumnWithHandlers({
   title,
   issues,
-  status
+  status,
+  onAddClick,
+  onEdit,
+  onDelete,
 }: {
   title: string
   issues: Issue[]
   status: "identified" | "in_progress" | "completed" | "merged"
+  onAddClick: (status: string) => void
+  onEdit: (issue: Issue) => void
+  onDelete: (issue: Issue) => void
 }) {
-  const statusConfig = {
-    identified: { icon: IdentifiedIcon, color: "text-white/60", bg: "bg-white/5" },
-    in_progress: { icon: InProgressIcon, color: "text-amber-400", bg: "bg-amber-400/10" },
-    completed: { icon: CompletedIcon, color: "text-white", bg: "bg-white/10" },
-    merged: { icon: MergedIcon, color: "text-sky-400", bg: "bg-sky-400/10" },
-  }
-
   const config = statusConfig[status]
   const StatusIcon = config.icon
 
@@ -178,32 +642,202 @@ function IssueColumn({
             {issues.length}
           </span>
         </div>
-        <button className="p-1.5 hover:bg-white/[0.05] rounded-lg transition-colors opacity-0 group-hover:opacity-100">
-          <IconPlus className="w-3.5 h-3.5 text-white/40" />
+        <button 
+          onClick={() => onAddClick(status)}
+          className="p-1.5 hover:bg-white/[0.05] rounded-lg transition-colors"
+        >
+          <IconPlus className="w-3.5 h-3.5 text-white/40 hover:text-white/70" />
         </button>
       </div>
 
       {/* Issues List */}
-      <div className="space-y-3">
-        {issues.map((issue) => (
-          <IssueCard key={issue.id} issue={issue} />
-        ))}
-        {issues.length === 0 && (
-          <div className="text-[13px] text-white/30 py-8 text-center border border-dashed border-white/[0.08] rounded-xl">
-            No issues
-          </div>
-        )}
-      </div>
+      <SortableContext items={issues.map(i => i.id)} strategy={verticalListSortingStrategy}>
+        <div className="space-y-3 min-h-[100px]" data-status={status}>
+          {issues.map((issue) => (
+            <SortableIssueCard 
+              key={issue.id} 
+              issue={issue} 
+              onEdit={onEdit} 
+              onDelete={onDelete} 
+            />
+          ))}
+          {issues.length === 0 && (
+            <div className="text-[13px] text-white/30 py-8 text-center border border-dashed border-white/[0.08] rounded-xl">
+              No issues
+            </div>
+          )}
+        </div>
+      </SortableContext>
     </div>
   )
 }
 
 function IssuesPageInner() {
-  const [issues] = React.useState<Issue[]>(mockIssues)
+  const [issues, setIssues] = React.useState<Issue[]>([])
+  const [stats, setStats] = React.useState<IssueStats | null>(null)
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [isStatsLoading, setIsStatsLoading] = React.useState(false)
+  const [isSaving, setIsSaving] = React.useState(false)
   const [viewMode, setViewMode] = React.useState<"issues" | "analysis">("issues")
   const [activeTab, setActiveTab] = React.useState<"all" | "active" | "identified">("all")
+  
+  // Dialog states
+  const [issueDialogOpen, setIssueDialogOpen] = React.useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
+  const [editingIssue, setEditingIssue] = React.useState<Issue | null>(null)
+  const [deletingIssue, setDeletingIssue] = React.useState<Issue | null>(null)
+  const [defaultStatus, setDefaultStatus] = React.useState<string>("identified")
+  
+  // Drag state
+  const [activeId, setActiveId] = React.useState<number | null>(null)
 
-  // Apply tab filters
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // Fetch issues
+  const fetchIssues = React.useCallback(async () => {
+    try {
+      const response = await fetch("/api/issues")
+      const data = await response.json()
+      if (data.success) {
+        setIssues(data.data)
+      }
+    } catch (error) {
+      console.error("Failed to fetch issues:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  // Fetch stats
+  const fetchStats = React.useCallback(async () => {
+    setIsStatsLoading(true)
+    try {
+      const response = await fetch("/api/issues/stats")
+      const data = await response.json()
+      if (data.success) {
+        setStats(data.data)
+      }
+    } catch (error) {
+      console.error("Failed to fetch stats:", error)
+    } finally {
+      setIsStatsLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    fetchIssues()
+  }, [fetchIssues])
+
+  React.useEffect(() => {
+    if (viewMode === "analysis") {
+      fetchStats()
+    }
+  }, [viewMode, fetchStats])
+
+  // Create or update issue
+  const handleSaveIssue = async (data: Partial<Issue>) => {
+    setIsSaving(true)
+    try {
+      const url = editingIssue ? `/api/issues/${editingIssue.id}` : "/api/issues"
+      const method = editingIssue ? "PATCH" : "POST"
+      
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      })
+      
+      const result = await response.json()
+      if (result.success) {
+        await fetchIssues()
+        setIssueDialogOpen(false)
+        setEditingIssue(null)
+      }
+    } catch (error) {
+      console.error("Failed to save issue:", error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Delete issue
+  const handleDeleteIssue = async () => {
+    if (!deletingIssue) return
+    setIsSaving(true)
+    try {
+      const response = await fetch(`/api/issues/${deletingIssue.id}`, {
+        method: "DELETE",
+      })
+      const result = await response.json()
+      if (result.success) {
+        await fetchIssues()
+        setDeleteDialogOpen(false)
+        setDeletingIssue(null)
+      }
+    } catch (error) {
+      console.error("Failed to delete issue:", error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Handle drag start
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as number)
+  }
+
+  // Handle drag end
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    setActiveId(null)
+
+    if (!over || active.id === over.id) return
+
+    const activeIssue = issues.find(i => i.id === active.id)
+    const overIssue = issues.find(i => i.id === over.id)
+
+    if (!activeIssue) return
+
+    // Determine target status - check if we're dropping on another issue or on a column
+    const targetStatus = overIssue?.status || activeIssue.status
+    const targetOrder = overIssue?.order ?? 0
+
+    // Optimistic update
+    const newIssues = issues.map(issue => {
+      if (issue.id === activeIssue.id) {
+        return { ...issue, status: targetStatus, order: targetOrder }
+      }
+      return issue
+    })
+    setIssues(newIssues)
+
+    // API call
+    try {
+      await fetch("/api/issues/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          issueId: activeIssue.id,
+          newStatus: targetStatus,
+          newOrder: targetOrder,
+        }),
+      })
+      // Refetch to get accurate order
+      await fetchIssues()
+    } catch (error) {
+      console.error("Failed to reorder:", error)
+      fetchIssues() // Revert on error
+    }
+  }
+
+  // Filter issues
   const filteredIssues = issues.filter(issue => {
     if (activeTab === "active" && (issue.status === "completed" || issue.status === "merged")) {
       return false
@@ -218,6 +852,24 @@ function IssuesPageInner() {
   const inProgressIssues = filteredIssues.filter(i => i.status === "in_progress")
   const completedIssues = filteredIssues.filter(i => i.status === "completed")
   const mergedIssues = filteredIssues.filter(i => i.status === "merged")
+
+  const activeIssue = activeId ? issues.find(i => i.id === activeId) : null
+
+  const handleAddClick = (status: string) => {
+    setDefaultStatus(status)
+    setEditingIssue(null)
+    setIssueDialogOpen(true)
+  }
+
+  const handleEditClick = (issue: Issue) => {
+    setEditingIssue(issue)
+    setIssueDialogOpen(true)
+  }
+
+  const handleDeleteClick = (issue: Issue) => {
+    setDeletingIssue(issue)
+    setDeleteDialogOpen(true)
+  }
 
   return (
     <SidebarProvider
@@ -241,6 +893,13 @@ function IssuesPageInner() {
                   <h1 className="text-2xl font-bold tracking-tight text-white">Issues</h1>
                   <p className="text-sm text-white/60 mt-1">Track and manage issues across your brand</p>
                 </div>
+                <Button
+                  onClick={() => handleAddClick("identified")}
+                  className="bg-white text-black hover:bg-white/90"
+                >
+                  <IconPlus className="w-4 h-4 mr-2" />
+                  New Issue
+                </Button>
               </div>
             </div>
 
@@ -290,6 +949,8 @@ function IssuesPageInner() {
                 </div>
               )}
 
+              {viewMode === "analysis" && <div />}
+
               {/* Right side - View Mode Selector */}
               <div className="flex items-center gap-1.5 ml-auto">
                 <button
@@ -328,54 +989,89 @@ function IssuesPageInner() {
             {/* Divider Line - Full Width */}
             <div className="h-[0.5px] bg-white/10" />
 
+            {/* Loading State */}
+            {isLoading && viewMode === "issues" && (
+              <div className="flex-1 flex items-center justify-center">
+                <IconLoader2 className="w-6 h-6 text-white/40 animate-spin" />
+              </div>
+            )}
+
             {/* Kanban Board - Issues View */}
-            {viewMode === "issues" && (
-              <div className="flex-1 overflow-x-auto">
-                <div className="px-4 lg:px-6 py-6">
-                  <div className="flex gap-6 min-w-max">
-                    <IssueColumn
-                      title="Identified"
-                      issues={identifiedIssues}
-                      status="identified"
-                    />
-                    <IssueColumn
-                      title="In Progress"
-                      issues={inProgressIssues}
-                      status="in_progress"
-                    />
-                    <IssueColumn
-                      title="Completed"
-                      issues={completedIssues}
-                      status="completed"
-                    />
-                    <IssueColumn
-                      title="Merged"
-                      issues={mergedIssues}
-                      status="merged"
-                    />
+            {!isLoading && viewMode === "issues" && (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="flex-1 overflow-x-auto">
+                  <div className="px-4 lg:px-6 py-6">
+                    <div className="flex gap-6 min-w-max">
+                      <IssueColumnWithHandlers
+                        title="Identified"
+                        issues={identifiedIssues}
+                        status="identified"
+                        onAddClick={handleAddClick}
+                        onEdit={handleEditClick}
+                        onDelete={handleDeleteClick}
+                      />
+                      <IssueColumnWithHandlers
+                        title="In Progress"
+                        issues={inProgressIssues}
+                        status="in_progress"
+                        onAddClick={handleAddClick}
+                        onEdit={handleEditClick}
+                        onDelete={handleDeleteClick}
+                      />
+                      <IssueColumnWithHandlers
+                        title="Completed"
+                        issues={completedIssues}
+                        status="completed"
+                        onAddClick={handleAddClick}
+                        onEdit={handleEditClick}
+                        onDelete={handleDeleteClick}
+                      />
+                      <IssueColumnWithHandlers
+                        title="Merged"
+                        issues={mergedIssues}
+                        status="merged"
+                        onAddClick={handleAddClick}
+                        onEdit={handleEditClick}
+                        onDelete={handleDeleteClick}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+                <DragOverlay>
+                  {activeIssue ? <IssueCardOverlay issue={activeIssue} /> : null}
+                </DragOverlay>
+              </DndContext>
             )}
 
             {/* Analysis View */}
             {viewMode === "analysis" && (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-12 h-12 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-4">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/40">
-                      <line x1="18" y1="20" x2="18" y2="10"/>
-                      <line x1="12" y1="20" x2="12" y2="4"/>
-                      <line x1="6" y1="20" x2="6" y2="14"/>
-                    </svg>
-                  </div>
-                  <p className="text-white/50 text-sm">Analysis view coming soon</p>
-                </div>
-              </div>
+              <AnalysisView stats={stats} isLoading={isStatsLoading} />
             )}
           </div>
         </div>
       </SidebarInset>
+
+      {/* Dialogs */}
+      <IssueDialog
+        open={issueDialogOpen}
+        onOpenChange={setIssueDialogOpen}
+        issue={editingIssue}
+        defaultStatus={defaultStatus}
+        onSave={handleSaveIssue}
+        isLoading={isSaving}
+      />
+      <DeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        issue={deletingIssue}
+        onConfirm={handleDeleteIssue}
+        isLoading={isSaving}
+      />
     </SidebarProvider>
   )
 }

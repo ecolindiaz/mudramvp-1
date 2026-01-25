@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       description,
       industry,
       competitors,
-      skipCooldown = false,
+      skipCooldown = false, // Dashboard enforces 24-hour cooldown by default
       generateReport = false,
     } = body;
 

@@ -3,7 +3,7 @@
  * Provides consistent analysis functionality for both:
  * 1. Onboarding pipeline
  * 2. Dashboard "Analyze Website" button
- * 
+ *
  * Ensures both flows use the same logic for:
  * - DirectGEO AI Visibility Analysis
  * - Technical Structure Analysis
@@ -69,8 +69,8 @@ export async function runUnifiedAnalysis(
       result.scores.aiVisibility = geoResult.value.score;
       console.log('[Unified Analysis] GEO completed:', geoResult.value.score);
     } else if (geoResult.status === 'rejected') {
-      const errorMsg = geoResult.reason instanceof Error 
-        ? geoResult.reason.message 
+      const errorMsg = geoResult.reason instanceof Error
+        ? geoResult.reason.message
         : String(geoResult.reason || 'GEO analysis failed');
       errors.push(`GEO Analysis: ${errorMsg}`);
       console.error('[Unified Analysis] GEO failed:', errorMsg);
@@ -88,8 +88,8 @@ export async function runUnifiedAnalysis(
       result.scores.geo = technicalResult.value.geoScore;
       console.log('[Unified Analysis] Technical completed:', technicalResult.value.overallScore);
     } else if (technicalResult.status === 'rejected') {
-      const errorMsg = technicalResult.reason instanceof Error 
-        ? technicalResult.reason.message 
+      const errorMsg = technicalResult.reason instanceof Error
+        ? technicalResult.reason.message
         : String(technicalResult.reason || 'Technical analysis failed');
       errors.push(`Technical Analysis: ${errorMsg}`);
       console.error('[Unified Analysis] Technical failed:', errorMsg);
@@ -118,16 +118,16 @@ export async function runUnifiedAnalysis(
 
     // Set success status and error message
     result.success = !!(result.geoAnalysisId || result.technicalAnalysisId);
-    
+
     if (errors.length > 0) {
       result.error = errors.join('; ');
-      
+
       // If both analyses failed completely, mark as unsuccessful
       if (!result.geoAnalysisId && !result.technicalAnalysisId) {
         result.success = false;
       }
     }
-    
+
     return result;
 
   } catch (error) {
@@ -147,11 +147,11 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
   try {
     const { generateAndSaveInitialPrompts, getActivePrompts } = await import('./prompt-storage.service');
     const { canRunAnalysis, updateLastAnalysisTime, createAnalysisRun, updateAnalysisRun } = await import('./analysis-run.service');
-    
+
     // Check cooldown (unless skipCooldown is true OR DEVELOPMENT_MODE is true)
     const isDevelopmentMode = process.env.DEVELOPMENT_MODE === 'true';
     const shouldSkipCooldown = config.skipCooldown || isDevelopmentMode;
-    
+
     if (!shouldSkipCooldown) {
       const eligibility = await canRunAnalysis(config.brandProfileId);
       if (!eligibility.allowed) {
@@ -160,14 +160,14 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
     } else if (isDevelopmentMode) {
       console.log('[GEO Core] ⚡ Development mode enabled - skipping cooldown');
     }
-    
+
     // Get or generate prompts
     let prompts = await getActivePrompts(config.brandProfileId);
     if (prompts.length === 0) {
       console.log('[GEO Core] Generating initial prompts...');
       prompts = await generateAndSaveInitialPrompts(config.brandProfileId);
     }
-    
+
     // Create analysis run
     const analysisRun = await createAnalysisRun({
       brandProfileId: config.brandProfileId,
@@ -176,7 +176,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       overallScore: 0,
       status: 'running'
     });
-    
+
     // Call DirectGEO service directly (avoids HTTP auth issues)
     const geoConfig = createDirectGEOConfig(config.brandName, config.website, {
       industry: config.industry || '',
@@ -198,7 +198,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       });
       throw geoError;
     }
-    
+
     // Update analysis run
     await updateAnalysisRun(analysisRun.id, {
       status: 'completed',
@@ -206,7 +206,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       overallScore: data.overallScore || 0,
       competitorData: data.competitorComparison || []
     });
-    
+
     // Update last analysis timestamp
     await updateLastAnalysisTime(config.brandProfileId);
 
@@ -236,18 +236,18 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       },
     });
 
-    return { 
-      success: true, 
-      id: geoAnalysis.id, 
-      score: data.overallScore || 0 
+    return {
+      success: true,
+      id: geoAnalysis.id,
+      score: data.overallScore || 0
     };
 
   } catch (error) {
     console.error('[GEO Core] Error:', error);
     console.error('[GEO Core] Error stack:', error instanceof Error ? error.stack : 'No stack');
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }
@@ -262,20 +262,20 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
     const { toScrapeSnapshot } = await import('@/lib/analysis/technical/adapter');
     const { computeTechnicalScore } = await import('@/lib/analysis/technical/score');
     const { saveSnapshot, saveScore, ensureSiteByUrl } = await import('@/lib/analysis/technical/repo');
-    
+
     // Scrape website
     console.log('[Technical Core] Scraping:', config.website);
     const scrapeResult = await scrapeCompanyPage(config.website, {
       fresh: true,
       useLlmJsonMode: false
     });
-    
+
     // Convert and score
     const snapshot = toScrapeSnapshot(scrapeResult);
     const scoreResult = computeTechnicalScore(snapshot);
-    
+
     console.log('[Technical Core] Score:', scoreResult.total);
-    
+
     // Save to database
     try {
       const site = await ensureSiteByUrl(config.website);
@@ -284,20 +284,20 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
     } catch (dbError) {
       console.error('[Technical Core] DB save error:', dbError);
     }
-    
+
     // Calculate category scores
     const seoComponents = scoreResult.components.filter(c => c.category === 'SEO');
     const seoScore = seoComponents.length > 0
-      ? Math.round((seoComponents.reduce((sum, c) => sum + c.score, 0) / 
+      ? Math.round((seoComponents.reduce((sum, c) => sum + c.score, 0) /
                     seoComponents.reduce((sum, c) => sum + c.max, 0)) * 100)
       : 0;
-    
+
     const geoComponents = scoreResult.components.filter(c => c.category === 'GEO');
     const geoScore = geoComponents.length > 0
-      ? Math.round((geoComponents.reduce((sum, c) => sum + c.score, 0) / 
+      ? Math.round((geoComponents.reduce((sum, c) => sum + c.score, 0) /
                     geoComponents.reduce((sum, c) => sum + c.max, 0)) * 100)
       : 0;
-    
+
     // Generate recommendations
     const recommendations = scoreResult.findings.map(finding => ({
       severity: finding.severity,
@@ -305,7 +305,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
       category: finding.category,
       action: generateActionFromFinding(finding)
     }));
-    
+
     // Create analysis record
     const technicalAnalysis = await prisma.technicalStructureAnalysis.create({
       data: {
@@ -351,8 +351,8 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
       },
     });
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       id: technicalAnalysis.id,
       overallScore: scoreResult.total,
       seoScore,
@@ -361,9 +361,9 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
 
   } catch (error) {
     console.error('[Technical Core] Error:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }
@@ -378,7 +378,7 @@ async function generateReport(data: {
   technicalAnalysisId?: number;
 }) {
   try {
-    const geoAnalysis = data.geoAnalysisId 
+    const geoAnalysis = data.geoAnalysisId
       ? await prisma.geoAnalysisResult.findUnique({ where: { id: data.geoAnalysisId } })
       : null;
 
@@ -410,9 +410,9 @@ async function generateReport(data: {
     return { success: true, id: savedReport.id };
   } catch (error) {
     console.error('[Report] Error:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }
@@ -433,7 +433,7 @@ async function generateReportContent(data: {
       title: 'AI Visibility Analysis',
       content: `Your brand has an overall AI visibility score of ${data.geoAnalysis.overallScore.toFixed(1)}/100.`,
     });
-    
+
     if (data.geoAnalysis.recommendations && Array.isArray(data.geoAnalysis.recommendations)) {
       recommendations.push(...data.geoAnalysis.recommendations);
     }
@@ -468,6 +468,6 @@ function generateActionFromFinding(finding: any): string {
     'missing_h1': 'Add a clear H1 heading to your page',
     'missing_meta_description': 'Add a meta description tag to improve search results',
   };
-  
+
   return actionMap[finding.key] || 'Review and fix this issue';
 }

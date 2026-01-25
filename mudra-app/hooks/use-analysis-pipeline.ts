@@ -99,7 +99,7 @@ export function useAnalysisPipeline() {
         description: config.description,
         industry: config.industry,
         competitors: config.competitors || [],
-        skipCooldown: true, // Skip cooldown for onboarding (first analysis)
+        skipCooldown: true, // Skip cooldown - onboarding is first analysis for new users
         generateReport: true, // Generate report during onboarding
       };
       

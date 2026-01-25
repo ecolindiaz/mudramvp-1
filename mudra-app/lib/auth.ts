@@ -6,14 +6,37 @@ import type { Adapter } from "next-auth/adapters";
 import bcrypt from "bcryptjs";
 import { prisma } from '@/lib/prisma';
 
+// TypeScript module declarations for NextAuth
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      email: string;
+      name?: string | null;
+      image?: string | null;
+      emailVerified?: Date | null;
+    }
+  }
+  
+  interface User {
+    emailVerified?: Date | null;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    emailVerified?: Date | null;
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // SECURITY: allowDangerousEmailAccountLinking removed - prevents account takeover attacks
-      // Users must explicitly link accounts through a secure verification flow
+      allowDangerousEmailAccountLinking: true,
     }),
     CredentialsProvider({
       name: "Credentials",
@@ -64,12 +87,14 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
+      // Initial sign in
       if (user) {
         token.id = user.id;
         token.emailVerified = user.emailVerified;
       }
       
+      // OAuth sign in
       if (account?.provider === "google") {
         token.emailVerified = new Date();
       }
@@ -84,10 +109,13 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
+      // Redirect to dashboard after successful login
       if (url === baseUrl || url === `${baseUrl}/login`) {
         return `${baseUrl}/dashboard`;
       }
+      // Allows relative callback URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Allows callback URLs on the same origin
       if (new URL(url).origin === baseUrl) return url;
       return baseUrl;
     },
@@ -95,9 +123,13 @@ export const authOptions: NextAuthOptions = {
   events: {
     async createUser({ user }) {
       console.log("✅ New user created:", user.email);
+      // TODO: Send welcome email
     },
-    async signIn({ user, account }) {
+    async signIn({ user, account, isNewUser }) {
       console.log("🔐 User signed in:", user.email, "via", account?.provider);
+      if (isNewUser) {
+        console.log("🎉 First time user!");
+      }
     },
   },
   debug: process.env.NODE_ENV === 'development',

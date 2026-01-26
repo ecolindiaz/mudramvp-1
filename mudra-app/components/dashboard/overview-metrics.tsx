@@ -656,7 +656,19 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         onClick={() => setAiVisibilityExpanded(!aiVisibilityExpanded)}
       >
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-white/50 font-medium">AI Visibility</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-white/50 font-medium">AI Visibility</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="text-white/30 hover:text-white/50 transition-colors" onClick={(e) => e.stopPropagation()}>
+                  <Info className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={8} className="max-w-xs">
+                How visible your brand is across AI responses. Higher is better.
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <ChevronDown className={`size-3.5 text-white/30 transition-transform ${aiVisibilityExpanded ? 'rotate-180' : ''}`} />
         </div>
         <div className="flex-1 flex flex-col justify-center">
@@ -664,7 +676,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
             <div className="h-9 w-24 rounded bg-white/[0.06] animate-pulse" />
           ) : (
             <div className="flex items-end justify-between">
-              <span className="text-[26px] font-semibold text-white">{aiVisibilityScore}%</span>
+              <span className="text-[24px] font-medium text-white">{aiVisibilityScore}%</span>
               {aiVisibilityDelta !== 0 && (
                 <span className={`text-xs flex items-center gap-0.5 ${aiVisibilityDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {aiVisibilityDelta > 0 ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
@@ -732,7 +744,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
             <div className="h-9 w-20 rounded bg-white/[0.06] animate-pulse" />
           ) : (
             <div className="flex items-end justify-between">
-              <span className="text-[26px] font-semibold text-white">
+              <span className="text-[24px] font-medium text-white">
                 {averagePosition > 0 ? `#${averagePosition.toFixed(1)}` : '—'}
               </span>
               {hasPositionHistory && averagePositionPrevious !== null && averagePosition > 0 && averagePositionPrevious > 0 && (
@@ -757,7 +769,19 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         onClick={() => setTechnicalScoreExpanded(!technicalScoreExpanded)}
       >
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-white/50 font-medium">Technical Score</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-white/50 font-medium">Technical Score</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="text-white/30 hover:text-white/50 transition-colors" onClick={(e) => e.stopPropagation()}>
+                  <Info className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={8} className="max-w-xs">
+                How well your site is structured for AI crawlers and indexing.
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <ChevronDown className={`size-3.5 text-white/30 transition-transform ${technicalScoreExpanded ? 'rotate-180' : ''}`} />
         </div>
         <div className="flex-1 flex flex-col justify-center">
@@ -765,7 +789,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
             <div className="h-9 w-24 rounded bg-white/[0.06] animate-pulse" />
           ) : (
             <div className="flex items-end justify-between">
-              <span className="text-[26px] font-semibold text-white">{isGeneratingScore ? '—' : `${technicalScore}%`}</span>
+              <span className="text-[24px] font-medium text-white">{isGeneratingScore ? '—' : `${technicalScore}%`}</span>
               {hasHistoricalData && previousScore !== null && !isGeneratingScore && (
                 <span className={`text-xs flex items-center gap-0.5 ${technicalScore > previousScore ? 'text-emerald-400' : 'text-red-400'}`}>
                   {technicalScore > previousScore ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
@@ -833,7 +857,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
             <div className="h-9 w-20 rounded bg-white/[0.06] animate-pulse" />
           ) : isTrackingConnected ? (
             <div className="flex items-end justify-between">
-              <span className="text-[26px] font-semibold text-white">{aiReferralTraffic.toLocaleString()}</span>
+              <span className="text-[24px] font-medium text-white">{aiReferralTraffic.toLocaleString()}</span>
               {aiReferralDelta !== 0 && (
                 <span className={`text-xs flex items-center gap-0.5 ${aiReferralDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {aiReferralDelta > 0 ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}

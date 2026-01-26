@@ -116,22 +116,27 @@ model Issue {
 }
 
 model User {
-  id                String             @id @default(cuid())
-  email             String             @unique
-  name              String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  password          String?
-  emailVerified     DateTime?
-  image             String?
-  resetToken        String?
-  resetTokenExpiry  DateTime?
-  verificationToken String?
-  brandProfiles     BrandProfile[]
-  githubIntegration GitHubIntegration?
-  accounts          Account[]
-  sessions          Session[]
+  id                  String             @id @default(cuid())
+  email               String             @unique
+  name                String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  password            String?
+  emailVerified       DateTime?
+  image               String?
+  resetToken          String?
+  resetTokenExpiry    DateTime?
+  verificationToken   String?
+  // GitHub account linking (separate from GitHub App installation)
+  githubId            String?            @unique  // GitHub user ID (numeric string)
+  githubUsername      String?            // GitHub login/username
+  githubLinkedAt      DateTime?          // When the GitHub account was linked
+  brandProfiles       BrandProfile[]
+  githubIntegration   GitHubIntegration?
+  accounts            Account[]
+  sessions            Session[]
 
+  @@index([githubId])
   @@map("users")
 }
 

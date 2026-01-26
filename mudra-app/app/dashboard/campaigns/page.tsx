@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Plus, FileText, Newspaper, Briefcase, Target, Search, Sparkles, CheckCircle2, Loader2, X, Info, ChevronLeft, ChevronRight, Lightbulb, Tag, Clock, List, BookOpen, HelpCircle, GitCompare, MoreHorizontal, FileEdit, CircleCheck } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -445,11 +446,11 @@ function CampaignsPageInner() {
           {/* Progress Animation - Shown on main page when generating */}
           {isGenerating && (
             <div className="flex flex-col items-center justify-center min-h-[500px] px-4 lg:px-6 py-10">
-              <div className="relative w-full max-w-2xl bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.04] p-6 shadow-xl overflow-hidden">
+              <div className="relative w-full max-w-2xl bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.03] p-6 shadow-xl overflow-hidden">
                 {/* Title Section */}
                 <div className="text-center mb-6">
                   <div className="flex items-center justify-center mb-4">
-                    <div className="flex items-center justify-center size-12 rounded-lg bg-white/[0.05] border border-white/[0.04]">
+                    <div className="flex items-center justify-center size-12 rounded-lg bg-white/[0.05] border border-white/[0.03]">
                       <Loader2 className="h-6 w-6 text-primary animate-spin" />
                     </div>
                   </div>
@@ -462,7 +463,7 @@ function CampaignsPageInner() {
                 </div>
                 
                 {/* Progress Steps */}
-                <div className="bg-[#1a1a1a] rounded-lg border border-white/[0.06] p-5 space-y-3">
+                <div className="bg-[#1a1a1a] rounded-lg border border-white/[0.04] p-5 space-y-3">
                   {geoSteps.map((label, idx) => {
                     const done = idx < progressIndex
                     const active = idx === progressIndex
@@ -473,8 +474,8 @@ function CampaignsPageInner() {
                           done
                             ? "border-emerald-500/30 bg-emerald-500/5"
                             : active
-                              ? "border-white/20 ring-1 ring-white/20 bg-white/[0.02]"
-                              : "border-white/[0.06] bg-transparent"
+                              ? "border-white/15 ring-1 ring-white/15 bg-white/[0.02]"
+                              : "border-white/[0.04] bg-transparent"
                         }`}
                       >
                         <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
@@ -494,7 +495,7 @@ function CampaignsPageInner() {
                   })}
                   
                   {generationComplete && (
-                    <div className="flex items-center gap-3 pt-2 mt-2 border-t border-white/[0.06]">
+                    <div className="flex items-center gap-3 pt-2 mt-2 border-t border-white/[0.04]">
                       <CheckCircle2 className="size-5 text-emerald-400 flex-shrink-0" />
                       <span className="text-sm font-medium text-white/90">Document is ready! Redirecting...</span>
                     </div>
@@ -539,17 +540,53 @@ function CampaignsPageInner() {
 
                   {/* Campaign Table */}
                   {isLoadingCampaigns ? (
-                    <div className="flex items-center justify-center py-16 rounded-lg border border-white/[0.08] bg-[#0f0f0f]/50">
-                      <div className="flex items-center gap-3">
-                        <Loader2 className="h-4 w-4 text-white/40 animate-spin" />
-                        <span className="text-sm text-white/50">Loading content...</span>
-                      </div>
-                    </div>
-                  ) : (filteredCampaigns.length > 0 || (generatingContent && generatingContent.status === 'generating' && statusFilter === 'draft')) ? (
-                    <div className="rounded-lg border border-white/[0.08] bg-[#0f0f0f]/50 overflow-hidden">
+                    <div className="rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50 overflow-hidden">
                       <Table>
                         <TableHeader>
-                          <TableRow className="border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.03]">
+                          <TableRow className="border-white/[0.04] bg-white/[0.03] hover:bg-white/[0.03]">
+                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Content</TableHead>
+                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Type</TableHead>
+                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Mode</TableHead>
+                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Updated</TableHead>
+                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <TableRow key={`skeleton-${i}`} className="border-white/[0.04]">
+                              {/* Content */}
+                              <TableCell className="py-3">
+                                <div className="flex items-center gap-2.5">
+                                  <Skeleton className="size-7 rounded bg-white/[0.06]" />
+                                  <Skeleton className="h-4 w-48 bg-white/[0.06]" />
+                                </div>
+                              </TableCell>
+                              {/* Type */}
+                              <TableCell className="py-3">
+                                <Skeleton className="h-4 w-16 bg-white/[0.06]" />
+                              </TableCell>
+                              {/* Mode */}
+                              <TableCell className="py-3">
+                                <Skeleton className="h-6 w-14 rounded-md bg-white/[0.06]" />
+                              </TableCell>
+                              {/* Updated */}
+                              <TableCell className="py-3">
+                                <Skeleton className="h-4 w-12 bg-white/[0.06]" />
+                              </TableCell>
+                              {/* Status */}
+                              <TableCell className="py-3">
+                                <Skeleton className="h-6 w-16 rounded-md bg-white/[0.06]" />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (filteredCampaigns.length > 0 || (generatingContent && generatingContent.status === 'generating' && statusFilter === 'draft')) ? (
+                    <div className="rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50 overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-white/[0.04] bg-white/[0.03] hover:bg-white/[0.03]">
                             <TableHead className="text-white/50 font-medium h-11 text-[13px]">Content</TableHead>
                             <TableHead className="text-white/50 font-medium h-11 text-[13px]">Type</TableHead>
                             <TableHead className="text-white/50 font-medium h-11 text-[13px]">Mode</TableHead>
@@ -562,11 +599,11 @@ function CampaignsPageInner() {
                           {generatingContent && generatingContent.status === 'generating' && statusFilter === 'draft' && (
                             <TableRow
                               onClick={() => setGeneratorDialogOpen(true)}
-                              className="border-white/[0.08] hover:bg-white/[0.03] cursor-pointer group bg-white/[0.02]"
+                              className="border-white/[0.04] hover:bg-white/[0.03] cursor-pointer group bg-white/[0.02]"
                             >
                               <TableCell className="max-w-md py-3">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="flex items-center justify-center size-7 rounded bg-white/[0.04] border border-white/[0.08] flex-shrink-0">
+                                  <div className="flex items-center justify-center size-7 rounded bg-white/[0.04] border border-white/[0.04] flex-shrink-0">
                                     <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
                                   </div>
                                   <span className="text-[13px] font-medium text-white/70 truncate">
@@ -578,7 +615,7 @@ function CampaignsPageInner() {
                                 <span className="text-xs text-white/50">Blog Post</span>
                               </TableCell>
                               <TableCell className="py-3">
-                                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.05]">
+                                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.03]">
                                   <div className="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
                                   <span className="text-xs text-white/70 font-medium">GEO</span>
                                 </div>
@@ -587,7 +624,7 @@ function CampaignsPageInner() {
                                 <span className="text-xs text-white/50">Generating...</span>
                               </TableCell>
                               <TableCell className="py-3">
-                                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.05]">
+                                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.03]">
                                   <Loader2 className="w-3 h-3 text-primary animate-spin" />
                                   <span className="text-xs text-white/70 font-medium">Generating</span>
                                 </div>
@@ -600,11 +637,11 @@ function CampaignsPageInner() {
                               <TableRow
                                 key={c.id}
                                 onClick={() => handleOpenCampaign(c)}
-                                className="border-white/[0.08] hover:bg-white/[0.03] cursor-pointer group"
+                                className="border-white/[0.04] hover:bg-white/[0.03] cursor-pointer group"
                               >
                                 <TableCell className="max-w-md py-3">
                                   <div className="flex items-center gap-2.5">
-                                    <div className="flex items-center justify-center size-7 rounded bg-white/[0.04] border border-white/[0.08] group-hover:bg-white/[0.06] transition-colors flex-shrink-0">
+                                    <div className="flex items-center justify-center size-7 rounded bg-white/[0.04] border border-white/[0.04] group-hover:bg-white/[0.06] transition-colors flex-shrink-0">
                                       <Icon className="h-3.5 w-3.5 text-white/60 group-hover:text-white/80 transition-colors" />
                                     </div>
                                     <span className="text-[13px] font-medium text-white truncate group-hover:text-white/90 transition-colors">
@@ -616,7 +653,7 @@ function CampaignsPageInner() {
                                   <span className="text-xs text-white/50">{c.type}</span>
                                 </TableCell>
                                 <TableCell className="py-3">
-                                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.05]">
+                                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.03]">
                                     <div className={cn(
                                       "w-1.5 h-1.5 rounded-full",
                                       c.mode.toUpperCase() === "GEO" ? "bg-sky-400" : "bg-amber-400"
@@ -630,7 +667,7 @@ function CampaignsPageInner() {
                                   </span>
                                 </TableCell>
                                 <TableCell className="py-3">
-                                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.05]">
+                                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.03]">
                                     <div className={cn(
                                       "w-1.5 h-1.5 rounded-full",
                                       c.status === "Published" ? "bg-green-500" : "bg-white/40"
@@ -645,8 +682,8 @@ function CampaignsPageInner() {
                       </Table>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center py-20 px-6 rounded-lg border border-white/[0.08] bg-[#0f0f0f]/50">
-                      <div className="flex items-center justify-center size-12 rounded-lg bg-white/[0.04] border border-white/[0.08] mb-4">
+                    <div className="flex flex-col items-center justify-center py-20 px-6 rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50">
+                      <div className="flex items-center justify-center size-12 rounded-lg bg-white/[0.04] border border-white/[0.04] mb-4">
                         <FileText className="h-5 w-5 text-white/40" />
                       </div>
                       <div className="text-sm font-medium text-white/60 mb-1">

@@ -164,10 +164,10 @@ function DashboardPageInner() {
                 <div className="flex items-center gap-2.5 flex-shrink-0">
                   {/* Platform Filter */}
                   <Select value={selectedPlatform} onValueChange={(value) => setSelectedPlatform(value as PlatformFilter)}>
-                    <SelectTrigger className="w-[160px] h-9 !bg-[#161616] hover:!bg-[#1c1c1c] border-white/[0.06] text-white rounded-lg transition-all duration-200 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
+                    <SelectTrigger className="w-[160px] h-9 !bg-[#161616] hover:!bg-[#1c1c1c] !border-0 text-white rounded-lg transition-all duration-200 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
                       <SelectValue placeholder="All Models" />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#161616] border-white/[0.06] duration-200">
+                    <SelectContent className="bg-[#161616] border-0 duration-200">
                       {platformOptions.map((option) => (
                         <SelectItem
                           key={option.value}

@@ -729,9 +729,13 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         
         {!aiVisibilityExpanded && (
           <div className="mt-auto pt-3 border-t border-white/[0.06]">
-            <span className="text-xs text-white/30">
-              {hasAiHistory && aiVisibilityPrevious !== null ? `Last period: ${aiVisibilityPrevious}%` : 'Based on AI responses'}
-            </span>
+            {loadingAIVisibility ? (
+              <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
+            ) : (
+              <span className="text-xs text-white/30">
+                {hasAiHistory && aiVisibilityPrevious !== null ? `Last period: ${aiVisibilityPrevious}%` : 'Based on AI responses'}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -769,9 +773,13 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
           )}
         </div>
         <div className="mt-auto pt-3 border-t border-white/[0.06]">
-          <span className="text-xs text-white/30">
-            {hasPositionHistory && averagePositionPrevious !== null ? `Last period: #${averagePositionPrevious.toFixed(1)}` : 'Lower is better'}
-          </span>
+          {loadingAIVisibility ? (
+            <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
+          ) : (
+            <span className="text-xs text-white/30">
+              {hasPositionHistory && averagePositionPrevious !== null ? `Last period: #${averagePositionPrevious.toFixed(1)}` : 'Lower is better'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -854,9 +862,13 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         
         {!technicalScoreExpanded && (
           <div className="mt-auto pt-3 border-t border-white/[0.06]">
-            <span className="text-xs text-white/30">
-              {hasHistoricalData && previousScore !== null ? `Last period: ${previousScore}%` : 'Site structure analysis'}
-            </span>
+            {loadingTechnical ? (
+              <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
+            ) : (
+              <span className="text-xs text-white/30">
+                {hasHistoricalData && previousScore !== null ? `Last period: ${previousScore}%` : 'Site structure analysis'}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -908,7 +920,9 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
           )}
         </div>
         <div className="mt-auto pt-3 border-t border-white/[0.06]">
-          {isTrackingConnected ? (
+          {loadingAiReferral ? (
+            <div className="h-4 w-24 rounded bg-white/[0.06] animate-pulse" />
+          ) : isTrackingConnected ? (
             <button
               className="text-xs text-white/30"
               onClick={async () => {

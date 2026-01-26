@@ -21,8 +21,13 @@ export interface ProviderResult {
   brandMentioned: boolean
   brandPosition?: number
   competitors: string[]
+  competitorPositions?: Record<string, number>
+  competitorSentiments?: Record<string, 'positive' | 'neutral' | 'negative'>
   sentiment: 'positive' | 'neutral' | 'negative'
   confidence: number
+  citations?: Array<{ url: string; title?: string; snippet?: string }>
+  sources?: Array<{ url: string; title?: string; snippet?: string }>
+  searchQueries?: string[]
   error?: string
 }
 
@@ -109,16 +114,21 @@ export async function runSinglePromptAnalysis(
         }
       )
       
-      console.log(`  ✓ [${provider}] Brand mentioned: ${result.brandMentioned}`)
-      
+      console.log(`  ✓ [${provider}] Brand mentioned: ${result.brandMentioned}, citations: ${result.citations?.length || 0}, sources: ${result.sources?.length || 0}`)
+
       return {
         provider,
         response: result.response,
         brandMentioned: result.brandMentioned,
         brandPosition: result.brandPosition,
         competitors: result.competitors,
+        competitorPositions: result.competitorPositions,
+        competitorSentiments: result.competitorSentiments,
         sentiment: result.sentiment,
         confidence: result.confidence,
+        citations: result.citations,
+        sources: result.sources,
+        searchQueries: result.searchQueries,
       }
     } catch (error) {
       console.error(`  ✗ [${provider}] Error:`, error)
@@ -145,9 +155,15 @@ export async function runSinglePromptAnalysis(
   
   console.log(`✅ Single-prompt analysis complete: ${overallVisibility}% visibility`)
   
-  // Store results in PromptResult table if it exists
+  // Store results by appending to GeoAnalysisResult.analyses
   try {
-    await storePromptResults(config.promptId, providerResults, overallVisibility)
+    await storePromptResults(
+      config.promptId,
+      providerResults,
+      overallVisibility,
+      config.promptText,
+      config.brandProfileId
+    )
   } catch (error) {
     console.warn('⚠️ Could not store prompt results:', error)
     // Don't fail - we still have the results
@@ -162,41 +178,97 @@ export async function runSinglePromptAnalysis(
 }
 
 /**
- * Store prompt analysis results
+ * Store prompt analysis results by appending to GeoAnalysisResult.analyses
  */
 async function storePromptResults(
   promptId: number,
   results: ProviderResult[],
-  overallVisibility: number
+  overallVisibility: number,
+  promptText: string,
+  brandProfileId: number
 ): Promise<void> {
-  // Update the prompt with visibility score
-  // We store the most recent visibility in the Prompt table for quick access
   try {
+    // Get the latest GeoAnalysisResult for this brand
+    const latestAnalysis = await prisma.geoAnalysisResult.findFirst({
+      where: { brandProfileId },
+      orderBy: { createdAt: 'desc' }
+    })
+
+    if (latestAnalysis && latestAnalysis.analyses) {
+      // Parse existing analyses
+      let analyses: any[] = []
+      try {
+        analyses = typeof latestAnalysis.analyses === 'string'
+          ? JSON.parse(latestAnalysis.analyses)
+          : (Array.isArray(latestAnalysis.analyses) ? latestAnalysis.analyses : [])
+      } catch {
+        analyses = []
+      }
+
+      // Add new results for this prompt (one entry per provider)
+      for (const result of results) {
+        if (!result.error) {
+          // Map provider names to display names
+          const providerDisplayName = (provider: string): string => {
+            switch (provider.toLowerCase()) {
+              case 'openai': return 'ChatGPT'
+              case 'google': return 'Gemini'
+              case 'anthropic': return 'Claude'
+              case 'perplexity': return 'Perplexity'
+              default: return provider.charAt(0).toUpperCase() + provider.slice(1)
+            }
+          }
+          const displayName = providerDisplayName(result.provider)
+          analyses.push({
+            prompt: promptText,
+            provider: displayName,
+            model: displayName,
+            brandMentioned: result.brandMentioned,
+            brandPosition: result.brandPosition || null,
+            sentiment: result.sentiment,
+            response: result.response, // Full response - no truncation
+            competitors: result.competitors,
+            competitorPositions: result.competitorPositions || {},
+            competitorSentiments: result.competitorSentiments || {},
+            confidence: result.confidence,
+            citations: result.citations || [],
+            sources: result.sources || [],
+            searchQueries: result.searchQueries || [],
+            analyzedAt: new Date().toISOString()
+          })
+        }
+      }
+
+      // Update the GeoAnalysisResult with new analyses
+      const successfulResults = results.filter(r => !r.error)
+
+      await prisma.geoAnalysisResult.update({
+        where: { id: latestAnalysis.id },
+        data: {
+          analyses: JSON.stringify(analyses)
+        }
+      })
+
+      console.log(`📊 Stored ${successfulResults.length} provider results for prompt ${promptId} in GeoAnalysisResult (ID: ${latestAnalysis.id})`)
+      console.log(`   Total analyses in result: ${analyses.length}`)
+      console.log(`   Citations stored per provider:`, successfulResults.map(r => `${r.provider}: ${r.citations?.length || 0}`).join(', '))
+      if (successfulResults.length > 0) {
+        console.log(`   Sample stored result:`, {
+          prompt: promptText.substring(0, 50) + '...',
+          provider: successfulResults[0].provider,
+          brandMentioned: successfulResults[0].brandMentioned
+        })
+      }
+    } else {
+      console.log('ℹ️ No existing GeoAnalysisResult found to append to')
+    }
+
+    // Also update the prompt's updatedAt timestamp
     await prisma.prompt.update({
       where: { id: promptId },
-      data: {
-        updatedAt: new Date(),
-        // If there's a visibility field, update it here
-        // For now, we just update the timestamp to indicate analysis was run
-      }
+      data: { updatedAt: new Date() }
     })
-    
-    // Store detailed results if PromptResult table exists
-    // This is optional - the table may not exist in all deployments
-    const resultData = results.map(r => ({
-      promptId,
-      provider: r.provider,
-      brandMentioned: r.brandMentioned,
-      brandPosition: r.brandPosition || null,
-      sentiment: r.sentiment,
-      confidence: r.confidence,
-      response: r.response.substring(0, 2000), // Truncate for storage
-      createdAt: new Date(),
-    }))
-    
-    console.log(`📊 Stored ${resultData.length} provider results for prompt ${promptId}`)
   } catch (error) {
-    // Table might not exist - that's OK
-    console.log('ℹ️ Could not store detailed results (table may not exist)')
+    console.warn('⚠️ Could not store prompt results:', error)
   }
 }

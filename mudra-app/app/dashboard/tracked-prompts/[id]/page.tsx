@@ -1,10 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
-import { ArrowLeft, TrendingUp, Target, Award, MessageSquare, MessageSquareText, Building2, GraduationCap, Globe, Clock, Maximize2, Tag, ChevronRight, CheckCircle, ChevronDown, XCircle, ExternalLink, FileText, ListOrdered, BookOpen, HelpCircle } from "lucide-react"
+import React, { useMemo, useState, useRef } from "react"
+import { ArrowLeft, TrendingUp, Target, Award, MessageSquare, MessageSquareText, Building2, GraduationCap, Globe, Clock, Maximize2, Tag, ChevronRight, CheckCircle, ChevronDown, ChevronUp, XCircle, ExternalLink, FileText, ListOrdered, BookOpen, HelpCircle, Copy, Check } from "lucide-react"
 import Image from "next/image"
 import { Card, CardContent } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
@@ -90,12 +91,139 @@ type CitationSource = {
   chatsWithCitation?: number
 }
 
+// Response Renderer Component with copy, expand/collapse, and formatting
+function ResponseRenderer({ responseText }: { responseText: string }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
+  const wordCount = responseText.split(/\s+/).filter(Boolean).length
+  const isLongResponse = wordCount > 150
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(responseText)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleToggleExpand = () => {
+    const wasExpanded = isExpanded
+    setIsExpanded(!isExpanded)
+    // Scroll to top of response when expanding
+    if (!wasExpanded && containerRef.current) {
+      setTimeout(() => {
+        containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }, 50)
+    }
+  }
+
+  // Simple markdown-like formatting
+  const formatResponse = (text: string) => {
+    return text.split('\n').map((line, i) => {
+      const trimmed = line.trim()
+      if (!trimmed) return null
+
+      // Headers
+      if (trimmed.startsWith('### ')) {
+        return <h4 key={i} className="text-[14px] font-semibold text-white/90 mt-3 mb-1">{trimmed.slice(4)}</h4>
+      }
+      if (trimmed.startsWith('## ')) {
+        return <h3 key={i} className="text-[15px] font-semibold text-white/90 mt-4 mb-1.5">{trimmed.slice(3)}</h3>
+      }
+      if (trimmed.startsWith('# ')) {
+        return <h2 key={i} className="text-[16px] font-bold text-white/95 mt-4 mb-2">{trimmed.slice(2)}</h2>
+      }
+
+      // Bullet points
+      if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('* ')) {
+        return (
+          <div key={i} className="flex gap-2 mb-1 ml-2">
+            <span className="text-white/40">•</span>
+            <span>{trimmed.slice(2)}</span>
+          </div>
+        )
+      }
+
+      // Numbered lists
+      const numberedMatch = trimmed.match(/^(\d+)\.\s+(.+)/)
+      if (numberedMatch) {
+        return (
+          <div key={i} className="flex gap-2 mb-1 ml-2">
+            <span className="text-white/50 min-w-[1.2rem]">{numberedMatch[1]}.</span>
+            <span>{numberedMatch[2]}</span>
+          </div>
+        )
+      }
+
+      // Bold text within paragraphs
+      const parts = trimmed.split(/(\*\*[^*]+\*\*)/g)
+      const formattedParts = parts.map((part, j) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={j} className="text-white/90 font-medium">{part.slice(2, -2)}</strong>
+        }
+        return part
+      })
+
+      return <p key={i} className="mb-2 last:mb-0">{formattedParts}</p>
+    })
+  }
+
+  return (
+    <div ref={containerRef} className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.04]">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-white/40">Response</span>
+          <span className="text-[11px] text-white/30 bg-white/[0.05] px-1.5 py-0.5 rounded">{wordCount} words</span>
+        </div>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="text-emerald-400">Copied</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3.5 w-3.5" />
+              <span>Copy</span>
+            </>
+          )}
+        </button>
+      </div>
+      <div className={cn(
+        "px-4 py-3 text-[13px] text-white/60 leading-relaxed overflow-y-auto transition-all",
+        isExpanded ? "max-h-[400px]" : "max-h-[200px]"
+      )}>
+        {formatResponse(responseText)}
+      </div>
+      {isLongResponse && (
+        <button
+          onClick={handleToggleExpand}
+          className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-white/40 hover:text-white/60 border-t border-white/[0.04] transition-colors"
+        >
+          {isExpanded ? (
+            <>
+              <ChevronUp className="h-3.5 w-3.5" />
+              <span>Show less</span>
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-3.5 w-3.5" />
+              <span>Show full response</span>
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  )
+}
 
 // Recent chats history
 type ChatHistoryEntry = {
   id: string
-  provider: 'Google' | 'OpenAI' | 'Anthropic' | 'Perplexity' | 'Gemini'
+  provider: 'ChatGPT' | 'Claude' | 'Perplexity' | 'Gemini'
   snippet: string
   rank: number
   timeAgo: string
@@ -111,12 +239,15 @@ type ChatHistoryEntry = {
 // Helper to map provider names from API to UI format
 function mapProviderName(provider: string): ChatHistoryEntry['provider'] {
   const lower = provider.toLowerCase()
-  if (lower.includes('openai') || lower.includes('chatgpt') || lower.includes('gpt')) return 'OpenAI'
-  if (lower.includes('anthropic') || lower.includes('claude')) return 'Anthropic'
+  // ChatGPT/OpenAI -> ChatGPT
+  if (lower.includes('openai') || lower.includes('chatgpt') || lower.includes('gpt')) return 'ChatGPT'
+  // Claude/Anthropic -> Claude
+  if (lower.includes('anthropic') || lower.includes('claude')) return 'Claude'
+  // Perplexity
   if (lower.includes('perplexity')) return 'Perplexity'
-  if (lower.includes('gemini')) return 'Gemini'
-  if (lower.includes('google')) return 'Google'
-  return 'OpenAI' // Default fallback
+  // Gemini/Google -> Gemini (we use Gemini, not Google AI Overviews)
+  if (lower.includes('gemini') || lower.includes('google')) return 'Gemini'
+  return 'ChatGPT' // Default fallback
 }
 
 function getProviderBadgeClass(_provider: ChatHistoryEntry['provider']) {
@@ -126,14 +257,13 @@ function getProviderBadgeClass(_provider: ChatHistoryEntry['provider']) {
 
 function getProviderIconSrc(provider: ChatHistoryEntry['provider']): string {
   switch (provider) {
-    case 'OpenAI':
+    case 'ChatGPT':
       return '/openai_dark.svg'
-    case 'Anthropic':
+    case 'Claude':
       return '/claude-ai-icon.svg'
     case 'Perplexity':
       return '/perplexity%20(2).svg'
     case 'Gemini':
-    case 'Google':
       return '/gemini%20(3).svg'
     default:
       return '/openai_dark.svg'
@@ -142,16 +272,16 @@ function getProviderIconSrc(provider: ChatHistoryEntry['provider']): string {
 
 function getProviderDisplay(provider: ChatHistoryEntry['provider']): string {
   switch (provider) {
-    case 'OpenAI':
+    case 'ChatGPT':
       return 'ChatGPT'
-    case 'Anthropic':
+    case 'Claude':
       return 'Claude'
     case 'Perplexity':
       return 'Perplexity'
-    case 'Google':
-      return 'Google AI Overviews'
     case 'Gemini':
       return 'Gemini'
+    default:
+      return 'ChatGPT'
   }
 }
 
@@ -182,6 +312,36 @@ function mapCitationCategory(original?: string): CitationCategory {
 function extractDomain(url: string): string {
   try {
     const urlObj = new URL(url)
+
+    // Handle Google Vertex AI Search redirect URLs
+    // These look like: vertexaisearch.cloud.google.com/grounding-api-redirect/AWhgh...
+    if (urlObj.hostname.includes('vertexaisearch.cloud.google.com')) {
+      // The path contains base64-encoded data with the actual URL
+      // Try to decode it - the URL is often at the end after decoding
+      const path = urlObj.pathname
+
+      // Try to find encoded URL patterns in the path
+      // Sometimes the actual domain is visible in the decoded path
+      try {
+        // Base64 decode the path segment after /grounding-api-redirect/
+        const encodedPart = path.split('/grounding-api-redirect/')[1]
+        if (encodedPart) {
+          // Try base64 decode
+          const decoded = atob(encodedPart.split('/')[0])
+          // Look for domain patterns in decoded content
+          const domainMatch = decoded.match(/https?:\/\/(?:www\.)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,})/)
+          if (domainMatch) {
+            return domainMatch[1]
+          }
+        }
+      } catch {
+        // Base64 decode failed, continue
+      }
+
+      // Fallback: return a cleaner label for vertex URLs
+      return 'Google Search Result'
+    }
+
     return urlObj.hostname.replace('www.', '')
   } catch {
     // If URL parsing fails, try to extract domain with regex
@@ -287,7 +447,7 @@ function TrackedPromptDeepViewInner() {
   const promptLabel = promptData?.text || (promptId ? `Prompt ${promptId}` : 'Current Prompt')
   const promptIntentRaw = promptData?.category
   const promptIntentLabel = promptIntentRaw
-    ? (promptIntentRaw === 'How-to' ? 'Guide' : promptIntentRaw.replace('-', ' '))
+    ? (promptIntentRaw === 'How-to' || promptIntentRaw === 'How-to Guides' ? 'Guide' : promptIntentRaw.replace('-', ' '))
     : null
   // Expand to show more rows
   const INITIAL_VISIBLE = 10
@@ -319,18 +479,18 @@ function TrackedPromptDeepViewInner() {
   )
   const visibleSources = sortedCitationSources.slice(0, sourceVisibleCount)
   
-  function providerKey(p: ChatHistoryEntry['provider']): 'ChatGPT' | 'Claude' | 'Perplexity' | 'AI Overviews' | 'Gemini' {
+  function providerKey(p: ChatHistoryEntry['provider']): 'ChatGPT' | 'Claude' | 'Perplexity' | 'Gemini' {
     switch (p) {
-      case 'OpenAI':
+      case 'ChatGPT':
         return 'ChatGPT'
-      case 'Anthropic':
+      case 'Claude':
         return 'Claude'
       case 'Perplexity':
         return 'Perplexity'
-      case 'Google':
-        return 'AI Overviews'
       case 'Gemini':
         return 'Gemini'
+      default:
+        return 'ChatGPT'
     }
   }
   // Compute recent chats from API response
@@ -533,7 +693,7 @@ function TrackedPromptDeepViewInner() {
 
   const rowHeightClass = 'h-12'
   
-  // Show loading state
+  // Show loading state with skeleton animations
   if (isLoading) {
     return (
       <SidebarProvider
@@ -544,8 +704,141 @@ function TrackedPromptDeepViewInner() {
         <SidebarInset>
           <SiteHeader />
           <Separator className="w-full border-border" />
-          <div className="flex flex-1 flex-col items-center justify-center bg-dark-grey p-8">
-            <div className="text-muted-foreground">Loading prompt details...</div>
+          <div className="flex flex-1 flex-col bg-dark-grey">
+            <div className="container-type-inline-size container-name-main flex flex-1 flex-col gap-3 md:gap-4 bg-dark-grey">
+              {/* Page Header Skeleton */}
+              <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-8 w-48 bg-white/[0.06]" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-64 bg-white/[0.06]" />
+                    <Skeleton className="h-4 w-16 bg-white/[0.06]" />
+                  </div>
+                  <div className="hidden md:flex items-center gap-3">
+                    <Skeleton className="h-8 w-[140px] bg-white/[0.06]" />
+                    <div className="flex items-center gap-1">
+                      <Skeleton className="h-7 w-8 bg-white/[0.06]" />
+                      <Skeleton className="h-7 w-8 bg-white/[0.06]" />
+                      <Skeleton className="h-7 w-8 bg-white/[0.06]" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="h-[0.25px] bg-white/10" />
+
+              {/* Content Skeleton */}
+              <div className="flex flex-1 px-4 lg:px-6 pt-6 pb-6 md:pb-8">
+                <div className="w-full space-y-4">
+                  {/* Top row: two cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Chart Card Skeleton */}
+                    <Card className="bg-transparent rounded-lg border border-white/[0.06]">
+                      <CardContent className="pt-1 md:pt-2 px-5 md:px-6 pb-3 md:pb-4 min-h-[340px] md:min-h-[380px]">
+                        <div className="flex items-center justify-between -mt-2 mb-0">
+                          <Skeleton className="h-5 w-32 bg-white/[0.06]" />
+                        </div>
+                        <Separator className="-mx-5 md:-mx-6 mb-2 border-border" />
+                        {/* Chart skeleton - using lines to simulate a line chart */}
+                        <div className="h-[290px] md:h-[330px] w-full flex flex-col justify-between pt-4">
+                          <div className="flex-1 relative">
+                            {/* Horizontal grid lines */}
+                            {[0, 1, 2, 3, 4].map((i) => (
+                              <div key={i} className="absolute w-full border-t border-white/[0.04]" style={{ top: `${i * 25}%` }} />
+                            ))}
+                            {/* Skeleton area representing chart data */}
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="w-full h-[60%] flex items-end px-4">
+                                <Skeleton className="w-full h-full bg-white/[0.04] rounded" />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex justify-between pt-2">
+                            {Array.from({ length: 7 }).map((_, i) => (
+                              <Skeleton key={i} className="h-3 w-8 bg-white/[0.06]" />
+                            ))}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Table Card Skeleton */}
+                    <Card className="bg-transparent rounded-xl border border-white/[0.04] overflow-hidden py-0 shadow-none gap-0">
+                      <CardContent className="p-0 min-h-[360px] md:min-h-[400px]">
+                        <div className="overflow-hidden">
+                          {/* Table Header */}
+                          <div className="flex items-center h-11 px-4 bg-white/[0.04] border-b border-white/[0.06]">
+                            <Skeleton className="h-4 w-6 mr-4 bg-white/[0.06]" />
+                            <Skeleton className="h-4 w-6 mr-4 bg-white/[0.06]" />
+                            <Skeleton className="h-4 w-24 mr-auto bg-white/[0.06]" />
+                            <Skeleton className="h-4 w-16 mx-4 bg-white/[0.06]" />
+                            <Skeleton className="h-4 w-16 mx-4 bg-white/[0.06]" />
+                            <Skeleton className="h-4 w-14 bg-white/[0.06]" />
+                          </div>
+                          {/* Table Rows */}
+                          {Array.from({ length: 6 }).map((_, i) => (
+                            <div key={i} className="flex items-center h-12 px-4 border-b border-white/[0.06]">
+                              <Skeleton className="h-4 w-4 mr-4 rounded bg-white/[0.06]" />
+                              <Skeleton className="h-4 w-4 mr-4 bg-white/[0.06]" />
+                              <Skeleton className="h-4 w-32 mr-auto bg-white/[0.06]" />
+                              <Skeleton className="h-4 w-12 mx-4 bg-white/[0.06]" />
+                              <Skeleton className="h-5 w-14 mx-4 rounded bg-white/[0.06]" />
+                              <Skeleton className="h-4 w-10 bg-white/[0.06]" />
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Bottom Toggle Skeleton */}
+                  <div className="flex items-center justify-start gap-2 px-4">
+                    <Skeleton className="h-8 w-28 rounded-full bg-white/[0.06]" />
+                    <Skeleton className="h-8 w-20 rounded-full bg-white/[0.06]" />
+                  </div>
+
+                  {/* Bottom Table Card Skeleton */}
+                  <Card className="bg-transparent rounded-lg border border-white/[0.06] py-0 shadow-none gap-0">
+                    <CardContent className="p-0">
+                      {/* Table Header */}
+                      <div className="flex items-center h-12 px-4 bg-white/[0.03] border-b border-white/[0.06]">
+                        <Skeleton className="h-4 w-24 mr-8 bg-white/[0.06]" />
+                        <Skeleton className="h-4 w-20 mr-8 bg-white/[0.06]" />
+                        <Skeleton className="h-4 w-16 mr-8 bg-white/[0.06]" />
+                        <Skeleton className="h-4 w-48 mr-auto bg-white/[0.06]" />
+                        <Skeleton className="h-4 w-14 bg-white/[0.06]" />
+                      </div>
+                      {/* Table Rows */}
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="flex items-center h-12 px-4 border-b border-white/[0.06] last:border-b-0">
+                          <div className="flex items-center gap-2 w-24 mr-8">
+                            <Skeleton className="h-6 w-6 rounded bg-white/[0.06]" />
+                            <Skeleton className="h-4 w-16 bg-white/[0.06]" />
+                          </div>
+                          <Skeleton className="h-5 w-12 mr-8 rounded bg-white/[0.06]" />
+                          <Skeleton className="h-5 w-10 mr-8 rounded bg-white/[0.06]" />
+                          <Skeleton className="h-4 w-64 mr-auto bg-white/[0.06]" />
+                          <Skeleton className="h-4 w-16 bg-white/[0.06]" />
+                        </div>
+                      ))}
+                      {/* Footer */}
+                      <div className="flex items-center justify-between px-4 py-2.5 border-t border-white/[0.06]">
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="h-7 w-16 rounded bg-white/[0.06]" />
+                          <Skeleton className="h-4 w-16 bg-white/[0.06]" />
+                        </div>
+                        <Skeleton className="h-4 w-32 bg-white/[0.06]" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </div>
           </div>
         </SidebarInset>
       </SidebarProvider>
@@ -1129,10 +1422,10 @@ function TrackedPromptDeepViewInner() {
                                                     href={item.url}
                                                     target="_blank"
                                                     rel="noreferrer"
-                                                    className="text-[13px] text-white/70 hover:text-white transition-colors truncate block max-w-[400px]"
+                                                    className="text-[13px] text-white/70 hover:text-white transition-colors"
                                                     title={item.url}
                                                   >
-                                                    {item.url}
+                                                    {extractDomain(item.url)}
                                                   </a>
                                                 </TableCell>
                                                 <TableCell className="text-center px-3 py-3">
@@ -1293,7 +1586,7 @@ function TrackedPromptDeepViewInner() {
                                 <TableCell className="text-center text-white/80 px-2">{chat.date}</TableCell>
                                   </TableRow>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-3xl rounded-xl border border-white/[0.06] bg-dark-grey p-0">
+                                <DialogContent className="sm:max-w-3xl rounded-xl border border-white/[0.06] bg-dark-grey p-0 max-h-[90vh] overflow-y-auto">
                                   <DialogHeader>
                                     <DialogTitle className="sr-only">Chat Details</DialogTitle>
                                   </DialogHeader>
@@ -1330,12 +1623,7 @@ function TrackedPromptDeepViewInner() {
                                     </div>
 
                                     {/* Full Response */}
-                                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 max-h-[40vh] overflow-y-auto">
-                                      <div className="text-xs text-white/40 mb-2">Response</div>
-                                      <div className="text-[13px] text-white/60 leading-relaxed whitespace-pre-wrap">
-                                        {chat.fullResponse || 'No response text available'}
-                                      </div>
-                                    </div>
+                                    <ResponseRenderer responseText={chat.fullResponse || 'No response available'} />
 
                                     {/* Citations */}
                                     <div>
@@ -1539,8 +1827,8 @@ function TrackedPromptDeepViewInner() {
                                                             return urls.map((item: { url: string; title?: string; citationType: string; brandMentioned: boolean }, idx: number) => (
                                                               <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 transition-colors">
                                                                 <TableCell className="px-4 py-3">
-                                                                  <a href={item.url} target="_blank" rel="noreferrer" className="text-[13px] text-white/70 hover:text-white/90 transition-colors truncate block max-w-full">
-                                                                    {item.url}
+                                                                  <a href={item.url} target="_blank" rel="noreferrer" className="text-[13px] text-white/70 hover:text-white/90 transition-colors">
+                                                                    {extractDomain(item.url)}
                                                                   </a>
                                                                 </TableCell>
                                                                 <TableCell className="text-center py-3">

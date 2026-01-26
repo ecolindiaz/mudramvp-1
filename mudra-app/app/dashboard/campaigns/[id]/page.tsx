@@ -99,7 +99,6 @@ function CampaignCanvasPageInner({
   const [deleting, setDeleting] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState("copy")
   const [metaDescription, setMetaDescription] = React.useState("")
-  const [tags, setTags] = React.useState<string[]>([])
   const [editMode, setEditMode] = React.useState(false)
 
   const [title, setTitle] = React.useState("")
@@ -210,11 +209,14 @@ function CampaignCanvasPageInner({
             setTargetIcp(campaign.icp || "")
             setKeyword(campaign.keyword || "")
             
-            // Load metaDescription and tags from metadata
+            // Load metaDescription from metadata (Prisma Json type is already parsed)
             try {
-              const metadata = campaign.metadata ? JSON.parse(campaign.metadata) : {}
-              setMetaDescription(metadata.metaDescription || "")
-              setTags(metadata.tags || [])
+              const metadata = campaign.metadata && typeof campaign.metadata === 'object'
+                ? campaign.metadata
+                : (typeof campaign.metadata === 'string' ? JSON.parse(campaign.metadata) : {})
+              const metaDesc = (metadata as any).metaDescription || ""
+              console.log('📋 Metadata loaded:', { metadata, metaDescription: metaDesc })
+              setMetaDescription(metaDesc)
             } catch (e) {
               console.warn('Failed to parse campaign metadata:', e)
             }
@@ -568,21 +570,31 @@ function CampaignCanvasPageInner({
                     <Card className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col w-full flex-1 min-h-0">
                       <CardContent className="p-0 flex flex-col flex-1 min-h-0">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col flex-1 min-h-0">
-                        <div className="px-5 pt-2 pb-3 border-b border-white/[0.04] flex-shrink-0">
-                          <TabsList className="bg-white/[0.03] border border-white/[0.04] rounded-lg p-1 h-9 gap-1">
-                            <TabsTrigger 
-                              value="copy" 
-                              className="px-4 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0a0a0a] data-[state=active]:shadow-sm border-0 data-[state=inactive]:text-white/70"
+                        <div className="px-5 pt-4 pb-3 border-b border-white/[0.04] flex-shrink-0">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => setActiveTab("copy")}
+                              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                                activeTab === "copy"
+                                  ? "bg-white/[0.08] text-white"
+                                  : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
+                              }`}
                             >
-                              Copy
-                            </TabsTrigger>
-                            <TabsTrigger 
-                              value="seo" 
-                              className="px-4 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0a0a0a] data-[state=active]:shadow-sm border-0 data-[state=inactive]:text-white/70"
+                              <Info className="w-3.5 h-3.5 opacity-70" />
+                              Overview
+                            </button>
+                            <button
+                              onClick={() => setActiveTab("seo")}
+                              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                                activeTab === "seo"
+                                  ? "bg-white/[0.08] text-white"
+                                  : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
+                              }`}
                             >
+                              <LinkIcon className="w-3.5 h-3.5 opacity-70" />
                               SEO Settings
-                            </TabsTrigger>
-                          </TabsList>
+                            </button>
+                          </div>
                         </div>
 
                         <TabsContent value="copy" className="p-5 space-y-4 mt-0 flex-1 overflow-y-auto">
@@ -737,26 +749,6 @@ function CampaignCanvasPageInner({
                                   </button>
                                 </div>
                                 <p className="text-sm text-white/90 leading-relaxed break-words font-mono">{slug || "Not set"}</p>
-                              </div>
-
-                              {/* Tags */}
-                              <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-3 space-y-2">
-                                <span className="text-xs font-medium text-white/70 uppercase tracking-wide">Tags</span>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {tags.length > 0 ? (
-                                    tags.map((tag, index) => (
-                                      <Badge 
-                                        key={index} 
-                                        variant="outline" 
-                                        className="bg-primary/10 border-primary/20 text-primary text-xs px-2 py-0.5"
-                                      >
-                                        {tag}
-                                      </Badge>
-                                    ))
-                                  ) : (
-                                    <span className="text-sm text-white/50">No tags</span>
-                                  )}
-                                </div>
                               </div>
                             </div>
                           </div>

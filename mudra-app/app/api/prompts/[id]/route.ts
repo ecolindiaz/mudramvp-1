@@ -89,9 +89,12 @@ export async function GET(
 
     // Step 3: Extract analysis results for this specific prompt
     const analysesRaw = latestAnalysis.analyses
-    const analyses: any[] = typeof analysesRaw === 'string' 
-      ? JSON.parse(analysesRaw) 
+    const analyses: any[] = typeof analysesRaw === 'string'
+      ? JSON.parse(analysesRaw)
       : (Array.isArray(analysesRaw) ? analysesRaw : [])
+
+    console.log(`🔍 Prompt detail: Looking for prompt ${promptId} in ${analyses.length} analysis results`)
+
     const normalizeText = (text: string): string => {
       return text
         .toLowerCase()
@@ -101,6 +104,7 @@ export async function GET(
     }
 
     const normalizedPromptText = normalizeText(prompt.text)
+    console.log(`   Normalized prompt text: "${normalizedPromptText.substring(0, 50)}..."`)
 
     // Collect all test results for this prompt across all providers
     const promptTestResults: any[] = []
@@ -155,6 +159,12 @@ export async function GET(
           })
         }
       }
+    }
+
+    console.log(`   Found ${promptTestResults.length} matching test results for this prompt`)
+    if (promptTestResults.length > 0) {
+      console.log(`   Providers:`, promptTestResults.map(r => r.provider).join(', '))
+      console.log(`   Citations per provider:`, promptTestResults.map(r => `${r.provider}: ${r.citations?.length || 0}`).join(', '))
     }
 
     // Step 4: Calculate aggregate metrics for this prompt

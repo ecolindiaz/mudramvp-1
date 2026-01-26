@@ -354,9 +354,16 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     <div className={cn("rounded-xl bg-[#161616]", className)}>
       <div className="p-6 md:p-7 lg:p-9">
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-white/60">Natural Language Report</p>
-            <h2 className="text-xl md:text-2xl font-semibold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">What the AI sees in your data</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold tracking-tight text-white">Natural Language Report</h2>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <IconInfoCircle className="size-4 text-white/60 hover:text-white/90 transition-colors cursor-default" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={8}>The Natural Language Report is your recurring, human-readable summary of what changed in AI search for your brand.</TooltipContent>
+            </Tooltip>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-white/80 hover:text-white">
@@ -375,16 +382,8 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-2">
             <div className="rounded-lg border border-white/[0.04] bg-transparent p-5">
-              <div className="mb-2 flex items-center justify-between text-sm font-medium text-white/90">
+              <div className="mb-2 text-sm font-medium text-white/90">
                 <span>Summary</span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <IconInfoCircle className="size-4 text-white/60 hover:text-white/90 transition-colors cursor-default" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent sideOffset={8}>AI-generated summary of your visibility performance</TooltipContent>
-                </Tooltip>
               </div>
 
               {isLoading ? (

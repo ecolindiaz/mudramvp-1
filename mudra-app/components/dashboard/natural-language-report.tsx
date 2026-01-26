@@ -352,7 +352,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   }
 
   return (
-    <div className={cn("rounded-lg border border-white/[0.08] bg-transparent", className)}>
+    <div className={cn("rounded-xl border border-white/[0.06] bg-[#161616]", className)}>
       <div className="p-6 md:p-7 lg:p-9">
         <div className="flex items-center justify-between mb-6">
           <div>

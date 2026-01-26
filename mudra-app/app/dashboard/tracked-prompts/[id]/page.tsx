@@ -1629,8 +1629,8 @@ function TrackedPromptDeepViewInner() {
                                     <div>
                                       <div className="text-xs text-white/40 mb-3">Citations</div>
                                       <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto pr-1">
-                                        {(chat.responseCitations && chat.responseCitations.length > 0 ? chat.responseCitations : citationSources).map((c) => (
-                                          <Dialog key={`${(c as any).domain}-${(c as any).citationType ?? (c as any).type ?? ''}`}>
+                                        {(chat.responseCitations && chat.responseCitations.length > 0 ? chat.responseCitations : citationSources).map((c, index) => (
+                                          <Dialog key={`${(c as any).domain}-${(c as any).citationType ?? (c as any).type ?? ''}-${index}`}>
                                             <DialogTrigger asChild>
                                               <button className="inline-flex items-center gap-2 rounded-md bg-white/[0.05] hover:bg-white/[0.08] px-3 py-1.5 text-[13px] text-white/70 hover:text-white/90 transition-colors">
                                                 <span>{(c as any).domain}</span>

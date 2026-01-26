@@ -14,10 +14,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Loader2, Play, CheckCircle, XCircle, Clock, MessageSquare, Bot } from "lucide-react"
+import { Loader2, Play, CheckCircle, XCircle, Bot } from "lucide-react"
 import { toast } from "sonner"
 import { AIVisibilityProvider, useAIVisibility } from "@/contexts/ai-visibility-context"
 import { BrandProfileProvider } from "@/components/brand-profile-context"
@@ -165,191 +164,120 @@ function AIVisibilityPageContent() {
                     {currentScore && (
                       <div className="space-y-6">
                         {/* Score Summary */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          {/* AI Visibility Score - Primary Metric */}
-                          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-primary/10">
-                            <CardContent className="pt-6 pb-4">
-                              <div className="text-center space-y-3">
-                                <div className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-                                  {currentScore.percentage}%
-                                </div>
-                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                  AI Visibility Score
-                                </div>
-                                <div className="w-12 h-1 bg-gradient-to-r from-primary to-primary/50 rounded-full mx-auto"></div>
-                              </div>
-                            </CardContent>
-                          </Card>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {/* AI Visibility Score */}
+                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
+                            <div className="text-[11px] text-white/50 uppercase tracking-wide mb-2">Visibility Score</div>
+                            <div className="text-2xl font-semibold text-white">{currentScore.percentage}%</div>
+                          </div>
 
                           {/* Mentions */}
-                          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
-                            <CardContent className="pt-6 pb-4">
-                              <div className="text-center space-y-3">
-                                <div className="text-3xl font-bold text-foreground">
-                                  {currentScore.mentionCount}/10
-                                </div>
-                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                  Mentions
-                                </div>
-                                <div className="w-8 h-0.5 bg-muted-foreground/30 rounded-full mx-auto"></div>
-                              </div>
-                            </CardContent>
-                          </Card>
+                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
+                            <div className="text-[11px] text-white/50 uppercase tracking-wide mb-2">Mentions</div>
+                            <div className="text-2xl font-semibold text-white">{currentScore.mentionCount}<span className="text-white/40 text-lg">/10</span></div>
+                          </div>
 
                           {/* Average Position */}
-                          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
-                            <CardContent className="pt-6 pb-4">
-                              <div className="text-center space-y-3">
-                                <div className="text-3xl font-bold text-foreground">
-                                  {currentScore.averagePosition.toFixed(1)}
-                                </div>
-                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                  Avg Position
-                                </div>
-                                <div className="w-8 h-0.5 bg-muted-foreground/30 rounded-full mx-auto"></div>
-                              </div>
-                            </CardContent>
-                          </Card>
+                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
+                            <div className="text-[11px] text-white/50 uppercase tracking-wide mb-2">Avg Position</div>
+                            <div className="text-2xl font-semibold text-white">
+                              {currentScore.averagePosition > 0 ? `#${currentScore.averagePosition.toFixed(1)}` : '—'}
+                            </div>
+                          </div>
 
                           {/* Total Score */}
-                          <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
-                            <CardContent className="pt-6 pb-4">
-                              <div className="text-center space-y-3">
-                                <div className="text-3xl font-bold text-foreground">
-                                  {currentScore.totalScore.toFixed(1)}
-                                </div>
-                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                  Total Score
-                                </div>
-                                <div className="w-8 h-0.5 bg-muted-foreground/30 rounded-full mx-auto"></div>
-                              </div>
-                            </CardContent>
-                          </Card>
+                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
+                            <div className="text-[11px] text-white/50 uppercase tracking-wide mb-2">Total Score</div>
+                            <div className="text-2xl font-semibold text-white">{currentScore.totalScore.toFixed(1)}</div>
+                          </div>
                         </div>
 
                         {/* Detailed Results */}
-                        <Card className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs">
-                          <CardHeader className="pb-4">
-                            <CardTitle className="text-lg font-semibold">
-                              Detailed Results
-                            </CardTitle>
-                            <CardDescription className="text-muted-foreground/80">
-                              Analysis of each prompt and response
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-3">
-                              {currentScore.results.map((result, index) => (
-                                <Dialog key={index}>
-                                  <DialogTrigger asChild>
-                                    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs border border-border/30 rounded-lg bg-gradient-to-r from-background/50 to-background/30 hover:from-background/60 hover:to-background/40 transition-all duration-200 cursor-pointer group">
-                                      <div className="flex items-start justify-between gap-4 p-4">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 mb-3">
-                                            <Badge variant="outline" className="text-xs font-medium bg-background/50 border-border/50">
-                                              Prompt {index + 1}
-                                            </Badge>
-                                            {result.mentioned ? (
-                                              <Badge variant="default" className="gap-1 bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                                                <CheckCircle className="w-3 h-3" />
-                                                Mentioned
-                                              </Badge>
-                                            ) : (
-                                              <Badge variant="secondary" className="gap-1 bg-muted/50 text-muted-foreground border-muted/30">
-                                                <XCircle className="w-3 h-3" />
-                                                Not Mentioned
-                                              </Badge>
-                                            )}
-                                            {result.position && (
-                                              <Badge variant="outline" className="text-xs bg-background/50 border-border/50">
-                                                Position {result.position}
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          <p className="text-sm font-semibold mb-2 text-foreground/90 group-hover:text-foreground transition-colors">
-                                            {result.prompt}
-                                          </p>
-                                          <div className="flex items-center gap-2">
-                                            <p className="text-xs text-muted-foreground/80 line-clamp-1 leading-relaxed">
-                                              {result.response.substring(0, 100)}...
-                                            </p>
-                                            <div className="flex items-center gap-1">
-                                              <MessageSquare className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                                            </div>
-                                          </div>
-                                        </div>
-                                        <div className="text-right">
-                                          <div className="text-xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-                                            {result.weight.toFixed(1)}
-                                          </div>
-                                          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                            Weight
-                                          </div>
-                                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-[13px] font-medium text-white/90">Prompt Results</h3>
+                            <span className="text-[11px] text-white/40">{currentScore.results.length} prompts analyzed</span>
+                          </div>
+                          <div className="space-y-2">
+                            {currentScore.results.map((result, index) => (
+                              <Dialog key={index}>
+                                <DialogTrigger asChild>
+                                  <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3.5 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all cursor-pointer group">
+                                    <div className="flex items-start gap-3">
+                                      {result.mentioned ? (
+                                        <CheckCircle className="w-4 h-4 mt-0.5 text-emerald-400 flex-shrink-0" />
+                                      ) : (
+                                        <XCircle className="w-4 h-4 mt-0.5 text-white/30 flex-shrink-0" />
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-[13px] text-white/90 font-medium leading-relaxed line-clamp-1">
+                                          {result.prompt}
+                                        </p>
+                                        <p className="text-[11px] text-white/40 mt-1 line-clamp-1">
+                                          {result.response.substring(0, 80)}...
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-2 flex-shrink-0">
+                                        {result.position && (
+                                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] text-white/50">
+                                            #{result.position}
+                                          </span>
+                                        )}
+                                        <span className="text-[11px] text-white/30">
+                                          {result.weight.toFixed(1)}
+                                        </span>
                                       </div>
                                     </div>
-                                  </DialogTrigger>
+                                  </div>
+                                </DialogTrigger>
+                                
+                                <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden bg-[#0a0a0a] border-white/[0.08]">
+                                  <DialogHeader className="pb-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      {result.mentioned ? (
+                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[11px]">
+                                          <CheckCircle className="w-3 h-3" />
+                                          Mentioned
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05] text-white/50 text-[11px]">
+                                          <XCircle className="w-3 h-3" />
+                                          Not Mentioned
+                                        </span>
+                                      )}
+                                      {result.position && (
+                                        <span className="text-[11px] px-2 py-0.5 rounded-md bg-white/[0.05] text-white/50">
+                                          Position #{result.position}
+                                        </span>
+                                      )}
+                                      <span className="text-[11px] text-white/30 ml-auto">
+                                        Weight: {result.weight.toFixed(1)}
+                                      </span>
+                                    </div>
+                                    <DialogTitle className="text-[15px] font-medium text-white/90">
+                                      {result.prompt}
+                                    </DialogTitle>
+                                    <DialogDescription className="text-white/50 text-[12px]">
+                                      ChatGPT response
+                                    </DialogDescription>
+                                  </DialogHeader>
                                   
-                                  <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
-                                    <DialogHeader className="pb-4">
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex items-center gap-2">
-                                          <Badge variant="outline" className="text-xs font-medium bg-background/50 border-border/50">
-                                            Prompt {index + 1}
-                                          </Badge>
-                                          {result.mentioned ? (
-                                            <Badge variant="default" className="gap-1 bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                                              <CheckCircle className="w-3 h-3" />
-                                              Mentioned
-                                            </Badge>
-                                          ) : (
-                                            <Badge variant="secondary" className="gap-1 bg-muted/50 text-muted-foreground border-muted/30">
-                                              <XCircle className="w-3 h-3" />
-                                              Not Mentioned
-                                            </Badge>
-                                          )}
-                                          {result.position && (
-                                            <Badge variant="outline" className="text-xs bg-background/50 border-border/50">
-                                              Position {result.position}
-                                            </Badge>
-                                          )}
-                                        </div>
-                                        <div className="ml-auto">
-                                          <div className="text-lg font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-                                            {result.weight.toFixed(1)} Weight
-                                          </div>
-                                        </div>
+                                  <div className="overflow-y-auto max-h-[55vh]">
+                                    <div className="bg-white/[0.02] rounded-lg p-4 border border-white/[0.06]">
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <Bot className="w-3.5 h-3.5 text-white/50" />
+                                        <span className="text-[11px] text-white/50">Response</span>
                                       </div>
-                                      <DialogTitle className="text-lg font-semibold text-foreground/90 pt-2">
-                                        {result.prompt}
-                                      </DialogTitle>
-                                      <DialogDescription className="text-muted-foreground/80">
-                                        ChatGPT response analysis
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    
-                                    <div className="space-y-4 overflow-y-auto max-h-[60vh]">
-                                      <div className="bg-gradient-to-br from-primary/5 via-primary/3 to-primary/5 rounded-lg p-4 border border-primary/20">
-                                        <div className="flex items-center gap-2 mb-3">
-                                          <Bot className="w-4 h-4 text-primary" />
-                                          <span className="text-sm font-semibold text-foreground/90">ChatGPT Response</span>
-                                          <Badge variant="outline" className="text-xs bg-background/50 border-border/50">
-                                            AI Model
-                                          </Badge>
-                                        </div>
-                                        <div className="bg-background/50 rounded-lg p-4 border border-border/20 backdrop-blur-sm">
-                                          <p className="text-sm text-muted-foreground/90 leading-relaxed whitespace-pre-wrap">
-                                            {result.response}
-                                          </p>
-                                        </div>
-                                      </div>
+                                      <p className="text-[13px] text-white/70 leading-relaxed whitespace-pre-wrap">
+                                        {result.response}
+                                      </p>
                                     </div>
-                                  </DialogContent>
-                                </Dialog>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </CardContent>

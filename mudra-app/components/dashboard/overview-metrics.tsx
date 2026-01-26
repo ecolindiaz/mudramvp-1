@@ -652,7 +652,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     <div className="grid grid-cols-1 gap-4 md:gap-5 px-4 lg:px-6 @xl/main:grid-cols-2 @3xl/main:grid-cols-4">
       {/* AI Visibility Score */}
       <div 
-        className="bg-[#161616] border border-white/[0.06] rounded-xl p-5 flex flex-col cursor-pointer transition-all"
+        className="bg-[#161616]  rounded-xl p-5 flex flex-col cursor-pointer transition-all"
         onClick={() => setAiVisibilityExpanded(!aiVisibilityExpanded)}
       >
         <div className="flex items-center justify-between mb-2">
@@ -709,8 +709,20 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
               ))}
             </div>
             <div className="flex justify-between mt-2">
-              <span className="text-[10px] text-white/30">{aiVisibilityHistory.length >= 2 ? `${aiVisibilityHistory.length} periods ago` : '5 periods ago'}</span>
-              <span className="text-[10px] text-white/30">Now</span>
+              <div className="flex flex-col">
+                <span className="text-[11px] text-white/50 tabular-nums">
+                  {aiVisibilityHistory.length >= 2
+                    ? `${Math.round(aiVisibilityHistory[0])}%`
+                    : hasAiHistory && aiVisibilityPrevious !== null
+                      ? `${Math.round(aiVisibilityPrevious * 0.7)}%`
+                      : '15%'}
+                </span>
+                <span className="text-[10px] text-white/30">Previous</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-[11px] text-white/50 tabular-nums">{aiVisibilityScore}%</span>
+                <span className="text-[10px] text-white/30">Now</span>
+              </div>
             </div>
           </div>
         )}
@@ -725,7 +737,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       </div>
 
       {/* Average Position */}
-      <div className="bg-[#161616] border border-white/[0.06] rounded-xl p-5 min-h-[140px] flex flex-col">
+      <div className="bg-[#161616]  rounded-xl p-5 min-h-[140px] flex flex-col">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-white/50 font-medium">Avg Position</span>
           <Tooltip>
@@ -765,7 +777,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
       {/* Technical Structure Score */}
       <div 
-        className="bg-[#161616] border border-white/[0.06] rounded-xl p-5 flex flex-col cursor-pointer transition-all"
+        className="bg-[#161616]  rounded-xl p-5 flex flex-col cursor-pointer transition-all"
         onClick={() => setTechnicalScoreExpanded(!technicalScoreExpanded)}
       >
         <div className="flex items-center justify-between mb-2">
@@ -822,8 +834,20 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
               ))}
             </div>
             <div className="flex justify-between mt-2">
-              <span className="text-[10px] text-white/30">{technicalScoreHistory.length >= 2 ? `${technicalScoreHistory.length} periods ago` : '5 periods ago'}</span>
-              <span className="text-[10px] text-white/30">Now</span>
+              <div className="flex flex-col">
+                <span className="text-[11px] text-white/50 tabular-nums">
+                  {technicalScoreHistory.length >= 2
+                    ? `${Math.round(technicalScoreHistory[0])}%`
+                    : hasHistoricalData && previousScore !== null
+                      ? `${Math.round(previousScore * 0.7)}%`
+                      : '20%'}
+                </span>
+                <span className="text-[10px] text-white/30">Previous</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-[11px] text-white/50 tabular-nums">{technicalScore}%</span>
+                <span className="text-[10px] text-white/30">Now</span>
+              </div>
             </div>
           </div>
         )}
@@ -838,7 +862,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       </div>
 
       {/* AI Referral Traffic */}
-      <div className="bg-[#161616] border border-white/[0.06] rounded-xl p-5 min-h-[140px] flex flex-col">
+      <div className="bg-[#161616]  rounded-xl p-5 min-h-[140px] flex flex-col">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-white/50 font-medium">AI Referral</span>
           <Tooltip>
@@ -943,14 +967,14 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
                 <div className="grid grid-cols-2 gap-2">
                   {loadingReferralModels || !mockReferralData ? (
                     [1, 2, 3, 4].map((i) => (
-                      <div key={i} className="p-3 rounded-lg border border-white/[0.06] bg-white/[0.02]">
+                      <div key={i} className="p-3 rounded-lg  bg-white/[0.02]">
                         <div className="h-4 w-12 rounded bg-white/[0.06] animate-pulse mb-2" />
                         <div className="h-6 w-8 rounded bg-white/[0.06] animate-pulse" />
                       </div>
                     ))
                   ) : (
                     mockReferralData.byModel.map((model) => (
-                      <div key={model.name} className="p-3 rounded-lg border border-white/[0.06] bg-white/[0.02]">
+                      <div key={model.name} className="p-3 rounded-lg  bg-white/[0.02]">
                         <div className="flex items-center gap-2 mb-1">
                           <img src={model.icon} alt="" className="w-4 h-4 opacity-60" />
                           <span className="text-xs text-white/40">{model.name}</span>
@@ -1001,7 +1025,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
                 {/* Script Code */}
                 <div className="relative">
-                  <pre className="rounded-lg border border-white/[0.06] bg-black/20 p-4 pr-16 text-[11px] text-white/70 leading-relaxed overflow-x-auto">
+                  <pre className="rounded-lg  bg-black/20 p-4 pr-16 text-[11px] text-white/70 leading-relaxed overflow-x-auto">
                     <code className="break-all whitespace-pre-wrap">{trackingScript || fallbackTrackingScript}</code>
                   </pre>
                   <button

@@ -1044,7 +1044,7 @@ function AgentsLabPageInner() {
                           value={taskSearchQuery}
                           onChange={(e) => setTaskSearchQuery(e.target.value)}
                           placeholder={isConversationRadar ? "Search Opportunity" : "Search Task"}
-                          className="h-9 rounded-full !bg-[#1a1a1a] border border-white/[0.04] text-xs text-white/80 placeholder:text-white/50 pl-8 pr-3 focus-visible:ring-0 focus-visible:border-white/20 focus-visible:!bg-[#1a1a1a]"
+                          className="h-9 rounded-full !bg-[#161616] border border-white/[0.04] text-xs text-white/80 placeholder:text-white/50 pl-8 pr-3 focus-visible:ring-0 focus-visible:border-white/20 focus-visible:!bg-[#161616]"
                         />
                       </div>
                   </div>
@@ -1133,7 +1133,7 @@ function AgentsLabPageInner() {
             </div>
 
           {/* Header Divider */}
-          <div className="h-[0.5px] bg-white/10"></div>
+          <div className="h-[0.5px] bg-white/[0.04]"></div>
 
             {/* Agent Metrics Section */}
             <div className="py-6 space-y-4">
@@ -1175,19 +1175,19 @@ function AgentsLabPageInner() {
             </div>
 
             {/* First Horizontal Divider Line - Full Width */}
-            <div className="h-[0.25px] bg-white/10"></div>
+            <div className="h-[0.5px] bg-white/[0.04]"></div>
 
             {/* Bottom Section with Vertical Divisions */}
             <div className="flex flex-1 overflow-hidden">
               {/* Left Section */}
-              <div className="flex-[0.62] flex flex-col border-r border-white/10">
+              <div className="flex-[0.62] flex flex-col border-r border-white/[0.04]">
                 <div className="px-4 lg:px-6 py-6">
                   {/* Left content will be added here */}
                 </div>
               </div>
 
               {/* Middle Section */}
-              <div className="flex-[1.35] flex flex-col border-r border-white/10">
+              <div className="flex-[1.35] flex flex-col border-r border-white/[0.04]">
                 <div className="px-4 lg:px-6 py-6 space-y-6">
                   {/* Title and Description with Branch Selector */}
                   <div className="space-y-5">
@@ -1254,7 +1254,7 @@ function AgentsLabPageInner() {
                                     <ChevronDown className="w-3 h-3" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent className="w-80 bg-[#1a1a1a] border-white/10 p-0" align="end">
+                                <DropdownMenuContent className="w-80 bg-[#161616] border-white/10 p-0" align="end">
                                   <div className="p-2 border-b border-white/10">
                                     <div className="relative">
                                       <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-white/40" />
@@ -1418,7 +1418,7 @@ function AgentsLabPageInner() {
                       {selectedAgent.agentName === "Content Optimizer" ? (
                         <div className="space-y-4">
                           {/* Run Optimizer Buttons */}
-                          <div className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] p-6 shadow-sm">
+                          <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-6 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
                               <div>
                                 <h3 className="text-lg font-semibold text-white mb-1">Run Optimization</h3>
@@ -1458,8 +1458,8 @@ function AgentsLabPageInner() {
 
                           {/* Optimization Results */}
                           {optimizerResults.length > 0 && (
-                            <div className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm">
-                              <div className="px-6 py-4 border-b border-white/[0.06]">
+                            <div className="rounded-xl border border-white/[0.04] bg-[#161616] overflow-hidden shadow-sm">
+                              <div className="px-6 py-4 border-b border-white/[0.03]">
                                 <h3 className="text-sm font-semibold text-white">
                                   Optimization Results ({optimizerResults.filter(r => r.prUrl).length} of {optimizerResults.length} successful)
                                 </h3>
@@ -1523,7 +1523,7 @@ function AgentsLabPageInner() {
                         </div>
                       ) : (
                         /* Regular Task View for Other Agents */
-                      <div className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                      <div className="rounded-xl border border-white/[0.04] bg-[#161616] overflow-hidden shadow-sm">
                         {filteredTasks.length > 0 ? (
                           filteredTasks.map((task, index) => {
                             const Icon = task.icon
@@ -1561,7 +1561,7 @@ function AgentsLabPageInner() {
                                 className="block"
                               >
                                 <div
-                                  className="px-6 py-5 flex items-center justify-between gap-6 transition-colors duration-200 hover:bg-white/[0.02] border-b border-white/[0.06] last:border-b-0"
+                                  className="px-6 py-5 flex items-center justify-between gap-6 transition-colors duration-200 hover:bg-white/[0.02] border-b border-white/[0.03] last:border-b-0"
                                 >
                                 <div className="flex items-center gap-4 flex-1 min-w-0">
                                   <div className="flex items-center justify-center size-10 rounded-lg border bg-white/[0.05] border-white/[0.04] shadow-sm">
@@ -1613,7 +1613,7 @@ function AgentsLabPageInner() {
                                   </TooltipContent>
                                 </Tooltip>
 
-                                <div className="flex items-center gap-2.5 flex-shrink-0 px-3 py-1.5 rounded-md bg-white/[0.02] border border-white/[0.05]">
+                                <div className="flex items-center gap-2.5 flex-shrink-0 px-3 py-1.5 rounded-md bg-white/[0.02] border border-white/[0.03]">
                                   {task.status === "running" || task.status === "queued" ? (
                                     <>
                                       <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
@@ -1657,38 +1657,38 @@ function AgentsLabPageInner() {
                               </div>
                               
                               {/* Analyzing Preview */}
-                              <div className="bg-[#1a1a1a] rounded-lg border border-white/[0.06] p-4 space-y-3">
+                              <div className="bg-[#161616] rounded-xl p-4 space-y-3">
                                 {/* Header Section */}
                                 <div className="flex items-center gap-3 pb-3 border-b border-white/[0.06]">
-                                  <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.04]">
+                                  <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05]">
                                     <Bot className="h-5 w-5 text-orange-500" />
                                   </div>
                                   <div className="flex-1 space-y-1.5">
-                                    <div className="h-2 bg-white/10 rounded-full w-3/4 animate-pulse"></div>
-                                    <div className="h-1.5 bg-white/10 rounded-full w-1/2 animate-pulse"></div>
+                                    <div className="h-2 bg-white/[0.06] rounded-full w-3/4 animate-pulse"></div>
+                                    <div className="h-1.5 bg-white/[0.06] rounded-full w-1/2 animate-pulse"></div>
                                   </div>
                                 </div>
-                                
+
                                 {/* Task Preview Lines */}
                                 <div className="space-y-2">
                                   <div className="flex items-center gap-2">
                                     <div className="w-1.5 h-1.5 rounded-full bg-orange-500/40"></div>
-                                    <div className="h-1.5 bg-white/10 rounded-full w-full animate-pulse"></div>
+                                    <div className="h-1.5 bg-white/[0.06] rounded-full w-full animate-pulse"></div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-white/10"></div>
-                                    <div className="h-1.5 bg-white/10 rounded-full w-5/6 animate-pulse" style={{ animationDelay: '100ms' }}></div>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-white/[0.06]"></div>
+                                    <div className="h-1.5 bg-white/[0.06] rounded-full w-5/6 animate-pulse" style={{ animationDelay: '100ms' }}></div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-white/10"></div>
-                                    <div className="h-1.5 bg-white/10 rounded-full w-4/5 animate-pulse" style={{ animationDelay: '200ms' }}></div>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-white/[0.06]"></div>
+                                    <div className="h-1.5 bg-white/[0.06] rounded-full w-4/5 animate-pulse" style={{ animationDelay: '200ms' }}></div>
                                   </div>
                                 </div>
-                                
+
                                 {/* Status Indicator */}
                                 <div className="flex items-center gap-2 pt-3 border-t border-white/[0.06]">
                                   <Loader2 className="w-3.5 h-3.5 text-orange-500 animate-spin" />
-                                  <div className="h-1.5 bg-white/10 rounded-full flex-1"></div>
+                                  <div className="h-1.5 bg-white/[0.06] rounded-full flex-1"></div>
                                 </div>
                               </div>
                             </div>
@@ -1714,7 +1714,7 @@ function AgentsLabPageInner() {
                     </div>
                   ) : filteredDeployedAgents.length > 0 ? (
                     <div className="space-y-2">
-                      <div className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                      <div className="rounded-xl border border-white/[0.04] bg-[#161616] overflow-hidden shadow-sm">
                         {filteredDeployedAgents.map((agent) => {
                           const Icon = agent.icon
                           const isLocked = agent.status !== "active"
@@ -1722,7 +1722,7 @@ function AgentsLabPageInner() {
                             <div
                               key={agent.id}
                               className={cn(
-                                "relative border-b border-white/[0.06] last:border-b-0 transition-all duration-200 group",
+                                "relative border-b border-white/[0.03] last:border-b-0 transition-all duration-200 group",
                                 isLocked ? "opacity-50 cursor-not-allowed" : "hover:bg-white/[0.03] cursor-pointer"
                               )}
                               onClick={() => {
@@ -1788,7 +1788,7 @@ function AgentsLabPageInner() {
 
                                 {/* Status Indicator */}
                                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                                  <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.05]">
+                                  <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.03]">
                                     {agent.status === "deploying" ? (
                                       <>
                                         <Loader2 className="w-3.5 h-3.5 text-orange-500 animate-spin" />
@@ -1822,7 +1822,7 @@ function AgentsLabPageInner() {
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent
                                       align="end"
-                                      className="w-44 bg-[#1a1a1a] border-white/10"
+                                      className="w-44 bg-[#161616] border-white/10"
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       {agent.status === "active" || agent.status === "deploying" ? (
@@ -1855,54 +1855,54 @@ function AgentsLabPageInner() {
                     <div className="flex flex-col items-center justify-center py-16 px-6">
                       <div className="flex flex-col items-center max-w-md text-center w-full">
                         {/* Dashboard Preview Card */}
-                        <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.04] p-6 shadow-xl overflow-hidden group">
+                        <div className="relative w-full max-w-md bg-[#161616] rounded-xl p-6 overflow-hidden group">
                           {/* Title Section */}
                           <div className="text-center mb-5">
                             <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
                               {viewMode === "active" ? "No Active Agents" : "No Inactive Agents"}
                             </h3>
                             <p className="text-sm text-white/60 leading-relaxed">
-                              {viewMode === "active" 
+                              {viewMode === "active"
                                 ? "You will see active deployed agents here"
                                 : "You will see inactive agents here"}
                             </p>
                           </div>
-                          
+
                           {/* Dashboard Preview */}
                           <div className="mb-5">
                             {/* Header Section */}
                             <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/[0.06]">
-                              <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.04] flex-shrink-0">
+                              <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] flex-shrink-0">
                                 <Bot className="h-5 w-5 text-orange-500" />
                               </div>
                               <div className="flex-1 space-y-1.5">
-                                <div className="h-2 bg-white/10 rounded-full w-3/4"></div>
-                                <div className="h-1.5 bg-white/10 rounded-full w-1/2"></div>
+                                <div className="h-2 bg-white/[0.06] rounded-full w-3/4"></div>
+                                <div className="h-1.5 bg-white/[0.06] rounded-full w-1/2"></div>
                               </div>
                             </div>
-                            
+
                             {/* Dashboard Grid */}
                             <div className="grid grid-cols-2 gap-3 mb-4">
                               {/* Stat Card 1 */}
-                              <div className="bg-white/[0.03] rounded-lg border border-white/[0.06] p-3 space-y-2">
-                                <div className="h-1.5 bg-white/10 rounded-full w-2/3"></div>
-                                <div className="h-3 bg-white/10 rounded-full w-1/2"></div>
-                                <div className="h-1 bg-white/10 rounded-full w-full"></div>
+                              <div className="bg-white/[0.03] rounded-lg p-3 space-y-2">
+                                <div className="h-1.5 bg-white/[0.06] rounded-full w-2/3"></div>
+                                <div className="h-3 bg-white/[0.06] rounded-full w-1/2"></div>
+                                <div className="h-1 bg-white/[0.06] rounded-full w-full"></div>
                               </div>
-                              
+
                               {/* Stat Card 2 */}
-                              <div className="bg-white/[0.03] rounded-lg border border-white/[0.06] p-3 space-y-2">
-                                <div className="h-1.5 bg-white/10 rounded-full w-2/3"></div>
-                                <div className="h-3 bg-white/10 rounded-full w-1/2"></div>
-                                <div className="h-1 bg-white/10 rounded-full w-full"></div>
+                              <div className="bg-white/[0.03] rounded-lg p-3 space-y-2">
+                                <div className="h-1.5 bg-white/[0.06] rounded-full w-2/3"></div>
+                                <div className="h-3 bg-white/[0.06] rounded-full w-1/2"></div>
+                                <div className="h-1 bg-white/[0.06] rounded-full w-full"></div>
                               </div>
                             </div>
-                            
+
                             {/* Status Bar */}
                             <div className="flex items-center gap-2 pt-3 border-t border-white/[0.06]">
                               <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
-                              <div className="h-1.5 bg-white/10 rounded-full flex-1"></div>
-                              <div className="h-2 w-12 bg-white/10 rounded"></div>
+                              <div className="h-1.5 bg-white/[0.06] rounded-full flex-1"></div>
+                              <div className="h-2 w-12 bg-white/[0.06] rounded"></div>
                             </div>
                           </div>
                           
@@ -1933,7 +1933,7 @@ function AgentsLabPageInner() {
             </div>
 
             {/* Second Horizontal Divider Line - Full Width */}
-            <div className="h-[0.25px] bg-white/10"></div>
+            <div className="h-[0.5px] bg-white/[0.04]"></div>
           </div>
         </div>
       </SidebarInset>
@@ -1957,7 +1957,7 @@ function AgentsLabPageInner() {
                 <Loader2 className="w-6 h-6 animate-spin text-white/40" />
               </div>
             ) : activePullRequests.length === 0 ? (
-              <div className="rounded-lg border border-white/[0.08] bg-[#1a1a1a] p-6 text-center">
+              <div className="rounded-lg border border-white/[0.04] bg-[#161616] p-6 text-center">
                 <p className="text-sm text-white/60">
                   {prRepository
                     ? "No open pull requests in this repository."
@@ -1971,7 +1971,7 @@ function AgentsLabPageInner() {
                   href={pr.htmlUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block rounded-lg border border-white/[0.08] bg-[#1a1a1a] p-4 hover:border-white/[0.2] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
+                  className="block rounded-lg border border-white/[0.04] bg-[#161616] p-4 hover:border-white/[0.2] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">

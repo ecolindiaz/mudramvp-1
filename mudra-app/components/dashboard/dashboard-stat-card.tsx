@@ -94,14 +94,14 @@ export function DashboardStatCard({
   const showEmpty = emptyValue && value === 0
 
   return (
-    <Card style={cardStyle} className={cn("group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] hover:border-white/[0.12] transition-all duration-200 gap-3", className)}>
+    <Card style={cardStyle} className={cn("group relative overflow-hidden bg-[#161616] rounded-xl border-0 transition-all duration-200 gap-3", className)}>
 
 
       <CardHeader className="border-0">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-2">
             {Icon && (
-              <div className="flex items-center justify-center size-5 rounded-md bg-white/[0.05] border border-white/[0.08] group-hover:bg-white/[0.08] group-hover:border-white/[0.12] transition-all duration-200 flex-shrink-0">
+              <div className="flex items-center justify-center size-5 rounded-md bg-white/[0.05] group-hover:bg-white/[0.08] transition-all duration-200 flex-shrink-0">
                 <Icon className="size-3 text-white/60 group-hover:text-white/80 transition-colors" />
               </div>
             )}
@@ -231,7 +231,7 @@ export function DashboardStatCard({
             </div>
           </div>
         )}
-        <div className="mt-2 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
+        <div className="mt-2 border-t border-white/[0.06] pt-2.5 flex items-center justify-between gap-3">
           <div className="text-xs text-muted-foreground">
             {loading ? (
               <span className="inline-block h-3 w-32 rounded bg-white/10 animate-pulse" />

@@ -249,7 +249,7 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+    <div className="rounded-xl bg-[#111111] overflow-hidden">
       {sortedDeployments.map((deployment, index) => {
         const Icon = deployment.icon
         const isDisabled = !deployment.isActive
@@ -260,9 +260,9 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
           <div
             key={deployment.id}
             className={cn(
-              "relative border-b border-white/[0.06] last:border-b-0 transition-all duration-200",
-              isDisabled 
-                ? "opacity-50" 
+              "relative border-b border-white/[0.03] last:border-b-0 transition-all duration-200",
+              isDisabled
+                ? "opacity-50"
                 : "hover:bg-white/[0.03] group"
             )}
           >
@@ -270,10 +270,10 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
               {/* Left Section - Icon, Agent Name and Description */}
               <div className="flex items-center gap-4 flex-1 min-w-0">
                 <div className={cn(
-                  "flex items-center justify-center size-10 rounded-lg border transition-all duration-200 flex-shrink-0 shadow-sm",
+                  "flex items-center justify-center size-10 rounded-lg transition-all duration-200 flex-shrink-0",
                   isDisabled
-                    ? "bg-white/[0.03] border-white/[0.06]"
-                    : "bg-white/[0.05] border-white/[0.08] group-hover:bg-white/[0.08] group-hover:border-white/[0.15] group-hover:shadow"
+                    ? "bg-white/[0.03]"
+                    : "bg-white/[0.05] group-hover:bg-white/[0.08]"
                 )}>
                   <Icon className={cn(
                     "h-5 w-5 transition-colors",
@@ -318,7 +318,7 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
                               value={selectedRepos[deployment.id] || ''}
                               onValueChange={(value) => setSelectedRepos(prev => ({ ...prev, [deployment.id]: value }))}
                             >
-                              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10">
+                              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/[0.04]">
                                 <SelectValue placeholder="Select repo" />
                               </SelectTrigger>
                               <SelectContent>
@@ -340,7 +340,7 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
                               onValueChange={(value) => setSelectedBranches(prev => ({ ...prev, [deployment.id]: value }))}
                               disabled={!selectedRepos[deployment.id]}
                             >
-                              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10">
+                              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/[0.04]">
                                 <SelectValue placeholder="Select branch" />
                               </SelectTrigger>
                               <SelectContent>
@@ -424,11 +424,11 @@ function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deplo
 export function DeployAgentDialog({ open, onOpenChange, onDeploy, deployedAgentIds = [] }: DeployAgentDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-3xl sm:!max-w-3xl bg-dark-grey border-white/10 p-0 !rounded-[12px] overflow-hidden shadow-xl">
+      <DialogContent className="!max-w-3xl sm:!max-w-3xl bg-[#161616] border-0 p-0 !rounded-[12px] overflow-hidden shadow-xl">
         <DialogHeader className="sr-only">
           <DialogTitle>Deploy Agent</DialogTitle>
         </DialogHeader>
-        <div className="bg-dark-grey px-6 pt-6 pb-6">
+        <div className="bg-[#161616] px-6 pt-6 pb-6">
           {/* Title and Description */}
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-white mb-2 tracking-tight">

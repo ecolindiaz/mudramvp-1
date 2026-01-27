@@ -2,7 +2,7 @@
 
 > **Version:** 2.0
 > **Status:** Ready for Implementation
-> **Last Updated:** January 2025
+> **Last Updated:** January 2026
 
 ---
 
@@ -245,6 +245,41 @@ Define all TypeScript interfaces for extraction and scoring.
 - `__tests__/lib/analysis/technical/dom-extractor.test.ts`
 - `__tests__/lib/analysis/technical/five-dimension-scorer.test.ts`
 
+#### Phase 1 Testing Requirements
+
+**Test Files:**
+- `__tests__/lib/analysis/technical/dom-extractor.test.ts`
+- `__tests__/lib/analysis/technical/five-dimension-scorer.test.ts`
+
+**DOM Extractor Tests:**
+- [ ] Extracts metadata (title, description, canonical, OG, Twitter cards)
+- [ ] Extracts headings hierarchy correctly
+- [ ] Detects skipped heading levels
+- [ ] Extracts all semantic HTML elements
+- [ ] Parses valid JSON-LD schemas
+- [ ] Handles malformed JSON-LD gracefully
+- [ ] Extracts FAQs from JSON-LD, details/summary, and Q:/A: patterns
+- [ ] Handles empty/minimal HTML without crashing
+- [ ] Handles malformed HTML gracefully
+
+**Five-Dimension Scorer Tests:**
+- [ ] Metadata scoring: all 5 checks (M1-M5) score correctly
+- [ ] Heading scoring: H1 unique, coverage, no skips
+- [ ] Semantic scoring: main/article, header/footer, section count
+- [ ] Schema scoring: present, valid, relevant type
+- [ ] FAQ scoring: linear scale 0→5→10→15
+- [ ] Total score calculation is correct (0-100)
+- [ ] Issues array is populated correctly for failing checks
+- [ ] Interventions array is populated for each failing check
+
+**Test Data:**
+- 10+ real HTML samples from different site types (SaaS, blog, e-commerce)
+- Edge case samples (no metadata, no headings, invalid JSON-LD)
+
+**Exit Criteria:**
+- All unit tests pass
+- Code coverage > 90% for both modules
+
 ---
 
 ### Phase 2: Sitemap Discovery & Multi-Page Scraping
@@ -322,6 +357,37 @@ async function scrapePages(
 4. Collect results with success/failure status per URL
 5. Return all results (including failures with error messages)
 
+#### Phase 2 Testing Requirements
+
+**Test Files:**
+- `__tests__/lib/services/sitemap-discovery.service.test.ts`
+- `__tests__/lib/services/multi-page-scraper.service.test.ts`
+
+**Sitemap Discovery Tests:**
+- [ ] Calls Firecrawl /map endpoint with correct domain
+- [ ] Filters URLs by page type priority correctly
+- [ ] Respects max 20 pages limit
+- [ ] Respects max 10 blogs limit
+- [ ] URL pattern detection works for all page types
+- [ ] Handles empty /map response gracefully
+- [ ] Handles Firecrawl API errors gracefully
+
+**Multi-Page Scraper Tests:**
+- [ ] Scrapes pages in batches of 4 (concurrency limit)
+- [ ] Uses Promise.allSettled for fault tolerance
+- [ ] Returns results for all URLs (success and failure)
+- [ ] Handles individual page failures without stopping batch
+- [ ] Handles Firecrawl rate limits with retry/backoff
+- [ ] Returns raw HTML in correct format
+
+**Test Data:**
+- Mock Firecrawl responses for /map and /scrape
+- Sample URL lists with various page types
+
+**Exit Criteria:**
+- All tests pass with mocked Firecrawl
+- Tested with 1 real site in integration environment
+
 ---
 
 ### Phase 3: Database & Storage
@@ -351,6 +417,30 @@ async function savePageScore(brandProfileId, snapshotId, sitemapPageId, pageUrl,
 async function saveSiteStructureScore(brandProfileId, domain, pageScores): Promise<SiteStructureScore>
 async function getPagesToRescrape(brandProfileId): Promise<SitemapPage[]>
 ```
+
+#### Phase 3 Testing Requirements
+
+**Test Files:**
+- `__tests__/lib/analysis/technical/repo.test.ts`
+
+**Repository Layer Tests:**
+- [ ] `saveSitemapPages` creates/updates SitemapPage records
+- [ ] `savePageSnapshot` creates versioned snapshot with `is_current` flag
+- [ ] Previous snapshot's `is_current` is set to false when new one is saved
+- [ ] `savePageScore` saves all 5-dimension scores correctly
+- [ ] `saveSiteStructureScore` calculates and saves aggregated average
+- [ ] `getPagesToRescrape` returns correct URLs for re-analysis
+- [ ] Handles duplicate URL insertions gracefully (upsert)
+- [ ] Database transactions work correctly
+
+**Test Data:**
+- Test database with sample brand profiles
+- Sample extraction and score data
+
+**Exit Criteria:**
+- All DB operations tested with test database
+- Verified data integrity (foreign keys, constraints)
+- Transaction rollback works on failure
 
 ---
 
@@ -387,6 +477,36 @@ Ensure `/api/analysis/unified` returns the new structure while maintaining backw
 
 Check for robots.txt and llms.txt during analysis.
 
+#### Phase 4 Testing Requirements
+
+**Test Files:**
+- `__tests__/lib/services/unified-analysis.service.test.ts`
+- `__tests__/app/api/analysis/unified/route.test.ts`
+
+**Integration Tests:**
+- [ ] Full flow: trigger → discover → scrape → extract → score → save
+- [ ] GEO and Technical analysis run in parallel correctly
+- [ ] API response includes new `technicalDetails` field
+- [ ] Backward compatibility: existing response fields unchanged
+- [ ] Error handling: partial failures don't crash entire analysis
+- [ ] Policy file detection (robots.txt, llms.txt) works
+
+**E2E Tests:**
+- [ ] Onboarding flow triggers unified analysis correctly
+- [ ] Dashboard "Analyze Website" button works with new system
+- [ ] Results display correctly in UI
+
+**Test Data:**
+- 10+ real websites with varying structures
+- Sites with and without sitemaps
+- Sites with various Schema.org implementations
+
+**Exit Criteria:**
+- All integration tests pass
+- Manual testing on 10+ real sites
+- No regressions in existing functionality
+- API response matches contract
+
 ---
 
 ### Phase 5: Testing & Validation
@@ -408,6 +528,30 @@ Check for robots.txt and llms.txt during analysis.
 **Duration:** 1 day
 
 **File:** `app/api/cron/weekly-technical/route.ts`
+
+#### Phase 6 Testing Requirements
+
+**Test Files:**
+- `__tests__/app/api/cron/weekly-technical/route.test.ts`
+
+**Cron Tests:**
+- [ ] Cron endpoint is protected by CRON_SECRET
+- [ ] Fetches all profiles with previous technical analysis
+- [ ] Retrieves correct URLs from previous analysis (same URLs)
+- [ ] Re-runs analysis with same URL set
+- [ ] Calculates and logs score delta (improvement/regression)
+- [ ] Handles profiles with no previous analysis gracefully
+- [ ] Handles Firecrawl failures without crashing entire cron job
+- [ ] Respects execution time limits (Vercel cron timeout)
+
+**Test Data:**
+- Profiles with existing technical analysis data
+- Profiles with various numbers of pages (1, 10, 20)
+
+**Exit Criteria:**
+- Cron endpoint executes successfully
+- Score deltas are calculated correctly
+- Verified in staging environment with real cron trigger
 
 ---
 
@@ -1190,30 +1334,47 @@ npm install --save-dev @types/cheerio
 - [ ] Create `dom-extractor.ts`
 - [ ] Create `five-dimension-scorer.ts`
 - [ ] Extend `types.ts`
-- [ ] Write unit tests
-- [ ] Pass all unit tests
+- [ ] Write unit tests for DOM extractor
+- [ ] Write unit tests for five-dimension scorer
+- [ ] All unit tests pass
+- [ ] Code coverage > 90%
 
 ### Phase 2: Services
 - [ ] Create `sitemap-discovery.service.ts`
 - [ ] Create `multi-page-scraper.service.ts`
-- [ ] Write integration tests
-- [ ] Pass all integration tests
+- [ ] Write tests with mocked Firecrawl
+- [ ] Test URL pattern detection
+- [ ] Test concurrency and fault tolerance
+- [ ] All Phase 2 tests pass
 
 ### Phase 3: Database
 - [ ] Verify schema fields exist
 - [ ] Extend repository layer
-- [ ] Test DB operations
+- [ ] Write repository tests
+- [ ] Test data integrity and transactions
+- [ ] All Phase 3 tests pass
 
 ### Phase 4: Integration
 - [ ] Modify `unified-analysis.service.ts`
 - [ ] Update API response
-- [ ] E2E tests
-- [ ] Manual testing on 10+ sites
+- [ ] Write integration tests
+- [ ] Write E2E tests
+- [ ] Manual testing on 10+ real sites
+- [ ] Verify backward compatibility
+- [ ] All Phase 4 tests pass
 
-### Phase 5: Cron
+### Phase 5: Testing & Validation
+- [ ] Full integration test suite passes
+- [ ] Manual testing on 20+ real websites
+- [ ] Performance testing (< 60s for 20 pages)
+- [ ] Error rate < 5%
+
+### Phase 6: Cron
 - [ ] Create weekly cron endpoint
 - [ ] Configure Vercel cron
-- [ ] Test cron execution
+- [ ] Write cron endpoint tests
+- [ ] Test score delta calculation
+- [ ] Test in staging environment
 
 ### Deployment
 - [ ] Shadow mode deployment

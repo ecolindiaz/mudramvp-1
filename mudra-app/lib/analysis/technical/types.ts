@@ -3,6 +3,402 @@
 export type TaskCategory = "SEO" | "GEO" | "Content";
 export type TaskImpact = "High" | "Medium" | "Low";
 
+// ============================================================================
+// NEW TYPES FOR MULTI-PAGE 5-DIMENSION SCORING SYSTEM
+// ============================================================================
+
+/**
+ * Page type classification based on URL patterns
+ */
+export type PageType =
+	| "home"
+	| "pricing"
+	| "features"
+	| "product"
+	| "solutions"
+	| "blog"
+	| "about"
+	| "contact"
+	| "documentation"
+	| "other";
+
+/**
+ * Scoring dimension names for the 5-dimension system
+ */
+export type ScoringDimension = "metadata" | "headings" | "semantic" | "schema" | "faq";
+
+/**
+ * Status classification based on total score
+ */
+export type ScoreStatus = "excellent" | "good" | "needs_improvement" | "poor";
+
+/**
+ * Issue severity levels
+ */
+export type IssueSeverity = "high" | "medium" | "low";
+
+/**
+ * Intervention priority levels
+ */
+export type InterventionPriority = "high" | "medium" | "low";
+
+// ============================================================================
+// METADATA EXTRACTION TYPES
+// ============================================================================
+
+export interface TitleExtraction {
+	present: boolean;
+	content: string | null;
+	length: number;
+}
+
+export interface MetaDescriptionExtraction {
+	present: boolean;
+	content: string | null;
+	length: number;
+}
+
+export interface CanonicalExtraction {
+	present: boolean;
+	href: string | null;
+}
+
+export interface OpenGraphTag {
+	property: string;
+	content: string;
+}
+
+export interface OpenGraphExtraction {
+	present: boolean;
+	tags: OpenGraphTag[];
+	count: number;
+}
+
+export interface TwitterCardTag {
+	name: string;
+	content: string;
+}
+
+export interface TwitterCardsExtraction {
+	present: boolean;
+	tags: TwitterCardTag[];
+	count: number;
+}
+
+export interface MetadataExtraction {
+	title: TitleExtraction;
+	meta_description: MetaDescriptionExtraction;
+	canonical: CanonicalExtraction;
+	open_graph: OpenGraphExtraction;
+	twitter_cards: TwitterCardsExtraction;
+}
+
+// ============================================================================
+// HEADINGS EXTRACTION TYPES
+// ============================================================================
+
+export interface HeadingItem {
+	level: number;
+	tag: string;
+	text: string;
+	text_length: number;
+	index: number;
+}
+
+export interface HeadingCounts {
+	h1: number;
+	h2: number;
+	h3: number;
+	h4: number;
+	h5: number;
+	h6: number;
+	total: number;
+}
+
+export interface HeadingsAnalysis {
+	has_h1: boolean;
+	h1_count: number;
+	h1_is_unique: boolean;
+	skipped_levels: string[];
+	violations: string[];
+}
+
+export interface HeadingsExtraction {
+	hierarchy: HeadingItem[];
+	counts: HeadingCounts;
+	analysis: HeadingsAnalysis;
+}
+
+// ============================================================================
+// SEMANTIC HTML EXTRACTION TYPES
+// ============================================================================
+
+export interface SemanticElementInstance {
+	index: number;
+	text_length?: number;
+	child_count?: number;
+	dom_position?: string;
+	type?: string;
+	has_header?: boolean;
+	has_footer?: boolean;
+}
+
+export interface SemanticElementInfo {
+	count: number;
+	instances: SemanticElementInstance[];
+}
+
+export interface SemanticElements {
+	main: SemanticElementInfo;
+	article: SemanticElementInfo;
+	section: SemanticElementInfo;
+	nav: SemanticElementInfo;
+	aside: SemanticElementInfo;
+	header: SemanticElementInfo;
+	footer: SemanticElementInfo;
+}
+
+export interface SemanticAnalysis {
+	has_main: boolean;
+	has_article: boolean;
+	has_sections: boolean;
+	has_nav: boolean;
+	is_div_heavy: boolean;
+	semantic_quality: "excellent" | "good" | "fair" | "poor";
+}
+
+export interface SemanticHTMLExtraction {
+	elements: SemanticElements;
+	div_count: number;
+	semantic_element_count: number;
+	semantic_richness_ratio: number;
+	analysis: SemanticAnalysis;
+}
+
+// ============================================================================
+// SCHEMA / JSON-LD EXTRACTION TYPES
+// ============================================================================
+
+/**
+ * Relevant schema types for Answer Engine Optimization
+ */
+export type RelevantSchemaType =
+	| "Organization"
+	| "WebSite"
+	| "Product"
+	| "Service"
+	| "Article"
+	| "BlogPosting"
+	| "FAQPage"
+	| "BreadcrumbList"
+	| "HowTo"
+	| "SoftwareApplication";
+
+export interface JsonLdBlock {
+	index: number;
+	type: string;
+	valid: boolean;
+	data: Record<string, unknown>;
+}
+
+export interface SchemaAnalysis {
+	has_article_schema: boolean;
+	has_faq_schema: boolean;
+	has_howto_schema: boolean;
+	has_product_schema: boolean;
+	has_breadcrumb_schema: boolean;
+	has_organization_schema: boolean;
+	has_software_application_schema: boolean;
+	has_website_schema: boolean;
+	has_service_schema: boolean;
+	has_blog_posting_schema: boolean;
+}
+
+export interface SchemaExtraction {
+	jsonld_blocks: JsonLdBlock[];
+	schema_types: string[];
+	schema_count: number;
+	has_schema: boolean;
+	analysis: SchemaAnalysis;
+}
+
+// ============================================================================
+// FAQ EXTRACTION TYPES
+// ============================================================================
+
+export interface FAQItem {
+	question: string;
+	answer: string;
+	question_length: number;
+	answer_length: number;
+	source: "jsonld" | "details_summary" | "pattern";
+}
+
+export interface FAQSourceResult {
+	present: boolean;
+	faqs: FAQItem[];
+}
+
+export interface FAQSources {
+	jsonld_faq_schema: FAQSourceResult;
+	details_summary_elements: FAQSourceResult;
+	pattern_matching: FAQSourceResult;
+}
+
+export interface FAQAnalysis {
+	faq_content_exists: boolean;
+	faq_schema_implemented: boolean;
+	uses_semantic_html: boolean;
+	average_answer_length: number;
+	schema_gap: boolean;
+}
+
+export interface FAQExtraction {
+	sources: FAQSources;
+	combined_faqs: FAQItem[];
+	total_faq_count: number;
+	has_faq_content: boolean;
+	has_faq_schema: boolean;
+	analysis: FAQAnalysis;
+}
+
+// ============================================================================
+// CONTENT SNAPSHOT TYPES
+// ============================================================================
+
+export interface LinkCounts {
+	internal: number;
+	external: number;
+}
+
+export interface ContentSnapshot {
+	total_text_length: number;
+	word_count: number;
+	paragraph_count: number;
+	list_count: number;
+	image_count: number;
+	link_count: LinkCounts;
+}
+
+// ============================================================================
+// DOM EXTRACTION (COMBINED)
+// ============================================================================
+
+export interface DOMExtractionData {
+	metadata: MetadataExtraction;
+	headings: HeadingsExtraction;
+	semantic_html: SemanticHTMLExtraction;
+	schema: SchemaExtraction;
+	faqs: FAQExtraction;
+	content_snapshot: ContentSnapshot;
+}
+
+export interface DOMExtraction {
+	page_url: string;
+	page_type: PageType;
+	crawled_at: string;
+	extraction: DOMExtractionData;
+	raw_html_hash: string;
+	html_size_bytes: number;
+}
+
+// ============================================================================
+// SCORING TYPES
+// ============================================================================
+
+/**
+ * Individual check result within a dimension
+ */
+export interface CheckResult {
+	passed: boolean;
+	points: number;
+	max_points: number;
+	rationale: string;
+}
+
+/**
+ * Result for a single scoring dimension
+ */
+export interface DimensionScore {
+	dimension: ScoringDimension;
+	score: number;
+	max_score: number;
+	checks: Record<string, CheckResult>;
+	passed_count: number;
+	total_count: number;
+}
+
+/**
+ * Issue detected during scoring
+ */
+export interface Issue {
+	check: string;
+	dimension: ScoringDimension;
+	severity: IssueSeverity;
+	message: string;
+	page_url: string;
+}
+
+/**
+ * Intervention for future agent fixes
+ */
+export interface Intervention {
+	check: string;
+	priority: InterventionPriority;
+	action: string;
+	target: string;
+	estimated_impact: string;
+	code_hint?: string;
+}
+
+/**
+ * Complete page score result
+ */
+export interface FullPageScore {
+	page_url: string;
+	page_type: PageType;
+	scores: {
+		metadata: number;
+		headings: number;
+		semantic: number;
+		schema: number;
+		faq: number;
+		total: number;
+	};
+	dimension_details: {
+		metadata: DimensionScore;
+		headings: DimensionScore;
+		semantic: DimensionScore;
+		schema: DimensionScore;
+		faq: DimensionScore;
+	};
+	status: ScoreStatus;
+	issues: Issue[];
+	interventions: Intervention[];
+}
+
+/**
+ * Site-wide aggregated score
+ */
+export interface SiteStructureScoreResult {
+	site_score: number;
+	pages_analyzed: number;
+	pages_successful: number;
+	pages_failed: number;
+	page_scores: FullPageScore[];
+	top_issues: Issue[];
+	recommendations: Intervention[];
+	policy_files: {
+		robots_txt: boolean;
+		llms_txt: boolean;
+		llms_full_txt: boolean;
+	};
+}
+
+// ============================================================================
+// LEGACY TYPES (preserved for backward compatibility)
+// ============================================================================
+
 export interface ScrapeSnapshot {
 	url: string;
 	crawledAt?: string; // ISO timestamp when the snapshot was created

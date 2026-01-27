@@ -29,11 +29,15 @@ export async function GET(request: NextRequest) {
     // Generate secure state for CSRF protection
     const state = crypto.randomBytes(32).toString('hex')
     
+    // Build redirect URI - ensure no double slashes
+    const baseUrl = (process.env.NEXTAUTH_URL || '').replace(/\/$/, '') // Remove trailing slash
+    const redirectUri = `${baseUrl}/api/auth/github/link/callback`
+    
     // Store state in a cookie (expires in 10 minutes)
     const response = NextResponse.redirect(
       `https://github.com/login/oauth/authorize?` + new URLSearchParams({
         client_id: clientId,
-        redirect_uri: `${process.env.NEXTAUTH_URL}/api/auth/github/link/callback`,
+        redirect_uri: redirectUri,
         scope: 'read:user user:email',
         state: state,
       }).toString()

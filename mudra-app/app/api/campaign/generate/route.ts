@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { OpenAI } from "openai" // Or Anthropic, etc.
 import fs from "fs"
 import path from "path"
+import { requireAuth } from "@/lib/auth/require-auth";
+import { applyRateLimit } from "@/lib/auth/rate-limiter";
+import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 
 // Helper to call LLM with a prompt
 async function callLLM(prompt: string, context: any) {
@@ -34,7 +37,24 @@ function getRelevantGrowthStrategies(channel: string): any[] {
   )
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest) {  // Apply rate limiting (AI generation is expensive)
+  const rateLimited = applyRateLimit(req, 'aiGeneration');
+  if (rateLimited) return rateLimited;
+
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
+  // Get user's brand profile
+  const brandProfile = await getBrandProfileByUserId(authResult.user.id);
+  if (!brandProfile) {
+    return NextResponse.json(
+      { success: false, error: { message: "Brand profile not found", code: "BRAND_PROFILE_NOT_FOUND" } },
+      { status: 400 }
+    );
+  }
   const { company, description, industry, audience, features, competitors, website, stage, resources } = await req.json()
 
   // Step 1: Summarize startup context

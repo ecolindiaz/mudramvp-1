@@ -7,11 +7,23 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { applyRateLimit } from "@/lib/auth/rate-limiter";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(req, 'standard');
+  if (rateLimited) return rateLimited;
+
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   try {
     const { id } = await params;
 
@@ -23,6 +35,14 @@ export async function GET(
       return NextResponse.json(
         { success: false, error: "Campaign not found" },
         { status: 404 }
+      );
+    }
+
+    // Verify ownership
+    if (campaign.userId !== authResult.user.id) {
+      return NextResponse.json(
+        { success: false, error: { message: "Unauthorized", code: "FORBIDDEN" } },
+        { status: 403 }
       );
     }
 
@@ -40,10 +60,33 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(req, 'standard');
+  if (rateLimited) return rateLimited;
+
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   try {
     const { id } = await params;
     const body = await req.json();
     const { title, body: campaignBody, type, mode, status, slug, prompt, icp, keyword, metadata, publishedAt } = body;
+
+    // Verify ownership before update
+    const existingCampaign = await prisma.campaign.findUnique({
+      where: { id },
+      select: { userId: true }
+    });
+
+    if (!existingCampaign || existingCampaign.userId !== authResult.user.id) {
+      return NextResponse.json(
+        { success: false, error: { message: "Campaign not found or unauthorized", code: "FORBIDDEN" } },
+        { status: 403 }
+      );
+    }
 
     const campaign = await prisma.campaign.update({
       where: { id },
@@ -77,8 +120,31 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(req, 'standard');
+  if (rateLimited) return rateLimited;
+
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   try {
     const { id } = await params;
+
+    // Verify ownership before deletion
+    const existingCampaign = await prisma.campaign.findUnique({
+      where: { id },
+      select: { userId: true }
+    });
+
+    if (!existingCampaign || existingCampaign.userId !== authResult.user.id) {
+      return NextResponse.json(
+        { success: false, error: { message: "Campaign not found or unauthorized", code: "FORBIDDEN" } },
+        { status: 403 }
+      );
+    }
 
     await prisma.campaign.delete({
       where: { id },

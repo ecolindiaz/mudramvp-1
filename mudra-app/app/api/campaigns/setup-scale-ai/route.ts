@@ -1,11 +1,24 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/auth/require-auth';
+import { applyRateLimit } from '@/lib/auth/rate-limiter';
 
 /**
  * POST /api/campaigns/setup-scale-ai
  * Create Scale AI brand profile and generate prompts
+ * ADMIN/DEVELOPMENT ONLY - Creates demo brand profile
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   try {
     console.log('🚀 Setting up Scale AI brand profile...')
     

@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateAndSaveInitialPrompts } from '@/lib/services/prompt-storage.service'
+import { requireAuth, verifyBrandProfileAccess } from '@/lib/auth/require-auth';
+import { applyRateLimit } from '@/lib/auth/rate-limiter';
+import { getBrandProfileByUserId } from '@/lib/prisma-brand-profile';
 
 /**
  * POST /api/campaigns/generate-prompts
  * Generate and save initial prompts for a brand profile
  */
 export async function POST(request: NextRequest) {
+  // Apply rate limiting (AI generation is expensive)
+  const rateLimited = applyRateLimit(request, 'aiGeneration');
+  if (rateLimited) return rateLimited;
+
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   try {
     const { brandProfileId } = await request.json()
 
@@ -17,6 +30,15 @@ export async function POST(request: NextRequest) {
     }
 
     const profileId = parseInt(brandProfileId)
+
+    // Verify user owns this brand profile
+    const accessCheck = await verifyBrandProfileAccess(authResult.user, profileId);
+    if (!accessCheck.allowed) {
+      return accessCheck.response || NextResponse.json(
+        { success: false, error: { message: "Forbidden", code: "FORBIDDEN" } },
+        { status: 403 }
+      );
+    }
     
     console.log(`🎯 Generating prompts for brand profile ${profileId}...`)
     

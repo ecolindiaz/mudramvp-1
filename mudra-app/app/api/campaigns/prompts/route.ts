@@ -3,12 +3,17 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getActivePrompts } from '@/lib/services/prompt-storage.service'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 /**
  * GET /api/campaigns/prompts?brandProfileId={id}
  * Get active prompts for campaign creation
  */
 export async function GET(request: NextRequest) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.email) {

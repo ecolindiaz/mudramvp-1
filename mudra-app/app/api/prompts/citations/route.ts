@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     try {
       analyses = typeof geoAnalysis.analyses === 'string'
         ? JSON.parse(geoAnalysis.analyses)
-        : geoAnalysis.analyses as ProviderAnalysis[];
+        : (geoAnalysis.analyses as unknown) as ProviderAnalysis[];
     } catch {
       return NextResponse.json({
         success: true,

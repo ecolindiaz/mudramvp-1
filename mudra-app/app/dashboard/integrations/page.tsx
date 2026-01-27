@@ -17,10 +17,13 @@ function IntegrationsPageInner() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  
+
   // GitHub account linking state (separate from app installation)
   const [githubLinked, setGithubLinked] = useState(false)
   const [linkedGithubUsername, setLinkedGithubUsername] = useState<string | null>(null)
+
+  // Filter state for All/Installed toggle
+  const [filterView, setFilterView] = useState<'all' | 'installed'>('all')
 
   // Check GitHub connection status on load
   useEffect(() => {
@@ -208,14 +211,24 @@ function IntegrationsPageInner() {
             <div className="px-4 lg:px-6 pt-6">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="inline-flex items-center gap-2">
-                  <Button variant="ghost" size="sm" className="h-8 rounded-full bg-white text-black hover:bg-white/90 px-3 text-xs font-medium">
+                  <Button
+                    variant={filterView === 'all' ? 'default' : 'ghost'}
+                    size="sm"
+                    className={filterView === 'all' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#161616] hover:bg-[#1c1c1c] text-white/70 hover:text-white border-0 transition-all duration-200'}
+                    onClick={() => setFilterView('all')}
+                  >
                     All
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 rounded-full border border-white/10 bg-white/5 text-white/80 hover:text-white px-3 text-xs font-medium">
+                  <Button
+                    variant={filterView === 'installed' ? 'default' : 'ghost'}
+                    size="sm"
+                    className={filterView === 'installed' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#161616] hover:bg-[#1c1c1c] text-white/70 hover:text-white border-0 transition-all duration-200'}
+                    onClick={() => setFilterView('installed')}
+                  >
                     Installed {githubConnected ? 1 : 0}
                   </Button>
                 </div>
-                
+
               </div>
             </div>
 
@@ -224,7 +237,7 @@ function IntegrationsPageInner() {
               <div className="text-sm text-white/70 mb-3">Source Control</div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* GitHub */}
-                <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.04] hover:border-white/[0.12] transition-all duration-200">
+                <Card className="group relative overflow-hidden bg-[#161616] rounded-lg border border-white/[0.04]">
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">
@@ -351,7 +364,7 @@ function IntegrationsPageInner() {
                 </Card>
 
                 {/* GitLab */}
-                <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.04] hover:border-white/[0.12] transition-all duration-200">
+                <Card className="group relative overflow-hidden bg-[#161616] rounded-lg border border-white/[0.04]">
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">
@@ -376,7 +389,7 @@ function IntegrationsPageInner() {
                 </Card>
 
                 {/* Slack */}
-                <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.04] hover:border-white/[0.12] transition-all duration-200">
+                <Card className="group relative overflow-hidden bg-[#161616] rounded-lg border border-white/[0.04]">
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">

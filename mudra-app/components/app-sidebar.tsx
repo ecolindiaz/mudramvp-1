@@ -3,7 +3,7 @@
 import * as React from "react"
 import { forwardRef } from "react"
 import { IconSearch, IconCreditCard, IconLogout, IconNotification, IconUserCircle, IconQuestionMark, IconCalendar, IconFileText, IconExternalLink } from "@tabler/icons-react"
-import { User, Link as LinkIcon, Code2 } from "lucide-react"
+import { User, Link as LinkIcon } from "lucide-react"
 import type { LucideProps } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -274,11 +274,6 @@ const data = {
           url: "/dashboard/agents-lab",
           icon: AgentLabIcon,
         },
-        {
-          title: "Technical Structure",
-          url: "/dashboard/technical",
-          icon: Code2,
-        },
       ]
     },
     {
@@ -515,14 +510,14 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
           <div className="px-3 pb-1.5">
             <button
               onClick={() => setSearchOpen(true)}
-              className="relative group w-full h-9 text-left transition-all rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.12]"
+              className="relative group w-full h-9 text-left transition-all rounded-lg bg-white/[0.06] hover:bg-white/[0.09]"
             >
               <IconSearch strokeWidth={2.5} className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 group-hover:text-white/60 transition-colors" />
-              <div className="w-full h-full pl-9 pr-3 text-sm flex items-center justify-between text-white/40 group-hover:text-white/60">
-                <span>Search</span>
-                <kbd className="pointer-events-none inline-flex h-4 select-none items-center rounded border border-white/[0.08] bg-white/[0.05] px-1.5 font-mono text-[9px] font-medium text-white/50">
-                  ⌘K
-                </kbd>
+              <div className="w-full h-full pl-9 pr-3 flex items-center justify-between text-white/40 group-hover:text-white/60">
+                <span className="text-[13.5px] font-medium">Search</span>
+                <span className="pointer-events-none inline-flex items-center gap-0.5 select-none text-white/40">
+                  <span className="text-[13px]">⌘</span><span className="text-[11px] font-medium">K</span>
+                </span>
               </div>
             </button>
           </div>

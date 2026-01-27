@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 import {
-  IconSparkles,
   IconDownload,
   IconCopy,
   IconInfoCircle
@@ -352,12 +351,19 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   }
 
   return (
-    <div className={cn("rounded-lg border border-white/[0.08] bg-transparent", className)}>
+    <div className={cn("rounded-xl bg-[#161616]", className)}>
       <div className="p-6 md:p-7 lg:p-9">
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-white/60">Natural Language Report</p>
-            <h2 className="text-xl md:text-2xl font-semibold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">What the AI sees in your data</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold tracking-tight text-white">Natural Language Report</h2>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <IconInfoCircle className="size-4 text-white/60 hover:text-white/90 transition-colors cursor-default" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={8}>The Natural Language Report is your recurring, human-readable summary of what changed in AI search for your brand.</TooltipContent>
+            </Tooltip>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-white/80 hover:text-white">
@@ -375,20 +381,9 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-2">
-            <div className="rounded-lg border border-white/[0.08] bg-transparent p-5">
-              <div className="mb-2 flex items-center justify-between text-sm font-medium text-white/90">
-                <div className="flex items-center gap-2">
-                  <IconSparkles className="size-4" />
-                  Summary
-                </div>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <IconInfoCircle className="size-4 text-white/60 hover:text-white/90 transition-colors cursor-default" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent sideOffset={8}>AI-generated summary of your visibility performance</TooltipContent>
-                </Tooltip>
+            <div className="rounded-lg border border-white/[0.04] bg-transparent p-5">
+              <div className="mb-2 text-sm font-medium text-white/50">
+                <span>Summary</span>
               </div>
 
               {isLoading ? (
@@ -400,17 +395,22 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                   <div className="h-4 w-9/12 bg-white/10 animate-pulse rounded" />
                 </div>
               ) : error ? (
-                <p className="text-sm text-white/60">Failed to load report. Please try again.</p>
+                <div className="py-12 text-center">
+                  <p className="text-sm text-white/60">Failed to load report. Please try again.</p>
+                </div>
               ) : !summary ? (
-                <p className="text-sm text-white/60">No report available yet.</p>
+                <div className="py-12 text-center">
+                  <p className="text-sm text-white/60">No report available yet.</p>
+                  <p className="text-xs text-white/40 mt-1">Generate a report to see your AI visibility summary.</p>
+                </div>
               ) : (
                 <p className="text-sm leading-relaxed text-white/85">
                   {summary}
                 </p>
               )}
 
-              <div className="mt-3 flex justify-between items-center">
-                <div className="rounded-md border border-white/[0.08] px-2 py-1">
+              <div className="mt-3 flex justify-end items-center">
+                <div className="rounded-md border border-white/[0.04] px-2 py-1">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -425,8 +425,8 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
             {/* Citations list - Only show when we have real data */}
             {citations.length > 0 && (
-              <div className="mt-5 rounded-lg border border-white/[0.08] bg-transparent overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
+              <div className="mt-5 rounded-lg border border-white/[0.04] bg-transparent overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
                   <div>
                     <div className="text-sm font-medium text-white/90">Citations</div>
                     <div className="text-xs text-white/60">Sources across active models</div>
@@ -448,7 +448,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                   {citations.map((c, idx) => (
                     <div key={idx} className="grid grid-cols-[1fr_auto] items-center px-4 py-3 hover:bg-white/[0.02] transition-colors">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/[0.08] text-[10px] text-white/80">
+                        <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80">
                           {c.domain[0].toUpperCase()}
                         </span>
                         <span className="truncate text-sm text-white/85">{c.domain}</span>
@@ -463,9 +463,9 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
           
           <div className="flex flex-col gap-5">
             {/* Competitor Rankings Table - Share of Voice */}
-            <div className="rounded-lg border border-white/[0.08] bg-transparent overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
-                <div className="text-sm font-medium text-white/90">Competitor Rankings</div>
+            <div className="rounded-lg border border-white/[0.04] bg-transparent overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
+                <div className="text-sm font-medium text-white/50">Competitor Rankings</div>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex">
@@ -497,7 +497,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                     ))}
                   </div>
                 ) : competitorRankings.length === 0 ? (
-                  <div className="px-4 py-8 text-center">
+                  <div className="px-4 py-16 text-center">
                     <p className="text-sm text-white/60">No competitor data available yet.</p>
                     <p className="text-xs text-white/40 mt-1">Run an analysis to see competitor rankings.</p>
                   </div>
@@ -521,10 +521,10 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             </div>
             
             {/* Recent Chats Widget - Horizontal Grid */}
-            <div className="rounded-lg border border-white/[0.08] bg-transparent overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
+            <div className="rounded-lg border border-white/[0.04] bg-transparent overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
                 <div className="flex items-center gap-2">
-                  <div className="text-sm font-medium text-white/90">Recent Chats</div>
+                  <div className="text-sm font-medium text-white/50">Recent Chats</div>
                 </div>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -541,7 +541,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                     {[1, 2, 3].map((i) => (
                       <div
                         key={i}
-                        className="rounded-lg border border-white/[0.08] bg-transparent p-4 min-h-[125px] flex flex-col"
+                        className="rounded-lg border border-white/[0.04] bg-transparent p-4 min-h-[125px] flex flex-col"
                       >
                         <div className="flex items-start gap-2.5 mb-3 flex-1">
                           <span className="size-5 rounded bg-white/10 animate-pulse flex-shrink-0" />
@@ -551,7 +551,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                             <span className="block h-3 w-4/6 rounded bg-white/10 animate-pulse" />
                           </div>
                         </div>
-                        <div className="flex items-center justify-end pt-2 mt-auto border-t border-white/[0.06]">
+                        <div className="flex items-center justify-end pt-2 mt-auto border-t border-white/[0.03]">
                           <span className="block h-2 w-16 rounded bg-white/10 animate-pulse" />
                         </div>
                       </div>
@@ -568,7 +568,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                       <div
                         key={chat.id}
                         onClick={() => handleChatClick(chat.promptId)}
-                        className="rounded-lg border border-white/[0.08] bg-transparent p-4 hover:bg-white/[0.02] hover:border-white/[0.12] transition-all cursor-pointer min-h-[125px] flex flex-col"
+                        className="rounded-lg border border-white/[0.04] bg-transparent p-4 hover:bg-white/[0.02] hover:border-white/[0.12] transition-all cursor-pointer min-h-[125px] flex flex-col"
                       >
                         <div className="flex items-start gap-2.5 mb-3 flex-1">
                           <div className="flex items-center justify-center size-5 flex-shrink-0 mt-0.5">
@@ -582,7 +582,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                             {chat.question}
                           </p>
                         </div>
-                        <div className="flex items-center justify-end pt-2 mt-auto border-t border-white/[0.06]">
+                        <div className="flex items-center justify-end pt-2 mt-auto border-t border-white/[0.03]">
                           <span className="text-[10px] text-white/50">{chat.timestamp}</span>
                         </div>
                       </div>
@@ -598,7 +598,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
       {/* Report History Modal */}
       <Dialog open={showReportHistory} onOpenChange={setShowReportHistory}>
         <DialogContent className="max-w-2xl bg-dark-grey border-0 p-0 overflow-hidden">
-          <DialogHeader className="p-7 pb-5 border-b border-white/[0.08]">
+          <DialogHeader className="p-7 pb-5 border-b border-white/[0.04]">
             <div className="flex items-center justify-between">
               <div>
                 <DialogTitle className="text-lg font-semibold text-white">Report History</DialogTitle>
@@ -620,12 +620,12 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                 {reportHistory.map((report) => (
                   <div
                     key={report.id}
-                    className="rounded-lg border border-white/[0.08] bg-transparent p-4 hover:bg-white/[0.02] hover:border-white/[0.12] transition-all cursor-pointer group"
+                    className="rounded-lg border border-white/[0.04] bg-transparent p-4 hover:bg-white/[0.02] hover:border-white/[0.12] transition-all cursor-pointer group"
                     onClick={() => console.log('Open report:', report.id)}
                   >
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="flex items-center justify-center size-8 rounded-md bg-white/5 border border-white/[0.08] flex-shrink-0 group-hover:border-white/[0.12] transition-colors">
+                        <div className="flex items-center justify-center size-8 rounded-md bg-white/5 border border-white/[0.04] flex-shrink-0 group-hover:border-white/[0.12] transition-colors">
                           <FileText className="size-4 text-white/70 group-hover:text-white/90 transition-colors" />
                         </div>
                         <div className="flex-1 min-w-0">

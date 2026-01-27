@@ -164,22 +164,22 @@ function DashboardPageInner() {
                 <div className="flex items-center gap-2.5 flex-shrink-0">
                   {/* Platform Filter */}
                   <Select value={selectedPlatform} onValueChange={(value) => setSelectedPlatform(value as PlatformFilter)}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white rounded-lg transition-colors focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
+                    <SelectTrigger className="w-[160px] h-9 !bg-[#161616] hover:!bg-[#1c1c1c] !border-0 text-white rounded-lg transition-all duration-200 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
                       <SelectValue placeholder="All Models" />
                     </SelectTrigger>
-                    <SelectContent className="bg-dark-grey border-white/[0.08]">
+                    <SelectContent className="bg-[#161616] border-0 duration-200">
                       {platformOptions.map((option) => (
-                        <SelectItem 
-                          key={option.value} 
+                        <SelectItem
+                          key={option.value}
                           value={option.value}
-                          className="focus:bg-white/10 outline-none text-white"
+                          className="focus:bg-white/[0.08] hover:bg-white/[0.05] outline-none text-white transition-colors duration-150"
                         >
                           <div className="flex items-center gap-2">
                             {option.icon && (
-                              <Image 
-                                src={option.icon} 
-                                alt="" 
-                                width={16} 
+                              <Image
+                                src={option.icon}
+                                alt=""
+                                width={16}
                                 height={16}
                                 className="shrink-0"
                               />

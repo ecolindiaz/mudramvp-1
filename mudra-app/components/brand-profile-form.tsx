@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Upload } from "lucide-react"
 
 // Consistent styles for Mudra theme
-const inputStyles = "bg-white/5 border border-white/[0.08] text-white placeholder-white/30 focus:bg-white/10 focus:border-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed"
+const inputStyles = "bg-white/[0.03] border-0 text-white placeholder-white/30 focus:bg-white/[0.05] disabled:opacity-50 disabled:cursor-not-allowed"
 const labelStyles = "text-white/80 text-sm font-medium"
 
 // Mock data - will be replaced with actual data from backend
@@ -155,7 +155,7 @@ export function BrandProfileForm() {
             <Button 
               variant="outline" 
               onClick={handleCancel}
-              className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:border-white/30"
+              className="border-white/[0.04] bg-white/[0.03] text-white hover:bg-white/[0.06] hover:border-white/[0.08]"
             >
               Cancel
             </Button>
@@ -169,7 +169,7 @@ export function BrandProfileForm() {
         ) : (
           <Button 
             onClick={() => setIsEditing(true)}
-            className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
+            className="bg-white/[0.05] text-white border-0 hover:bg-white/[0.08]"
           >
             Edit Profile
           </Button>
@@ -177,26 +177,26 @@ export function BrandProfileForm() {
       </div>
 
       {/* Company Information Section */}
-      <Card className="bg-transparent backdrop-blur-sm border border-white/[0.08] rounded-lg">
+      <Card className="bg-[#161616] border-0 rounded-xl">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Company Information</CardTitle>
           <CardDescription className="text-white/50 text-sm">
             Basic information about your company
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
+            <div className="rounded-lg border border-white/[0.04] p-4 space-y-2">
               <Label htmlFor="companyName" className="text-white/80 text-sm">Company Name</Label>
               <Input
                 id="companyName"
                 value={formData.companyName}
                 onChange={(e) => handleInputChange("companyName", e.target.value)}
                 disabled={!isEditing}
-                className="bg-white/5 border border-white/[0.08] text-white placeholder-white/30 focus:bg-white/10 focus:border-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-white/[0.03] border-0 text-white placeholder-white/30 focus:bg-white/[0.05] disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
-            <div className="space-y-2">
+            <div className="rounded-lg border border-white/[0.04] p-4 space-y-2">
               <Label htmlFor="companyWebsite" className="text-white/80 text-sm">Company Website</Label>
               <Input
                 id="companyWebsite"
@@ -204,10 +204,10 @@ export function BrandProfileForm() {
                 onChange={(e) => handleInputChange("companyWebsite", e.target.value)}
                 disabled={!isEditing}
                 placeholder="https://yourcompany.com"
-                className="bg-white/5 border border-white/[0.08] text-white placeholder-white/30 focus:bg-white/10 focus:border-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-white/[0.03] border-0 text-white placeholder-white/30 focus:bg-white/[0.05] disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
-            <div className="space-y-2">
+            <div className="rounded-lg border border-white/[0.04] p-4 space-y-2">
               <Label htmlFor="companyLinkedIn" className="text-white/80 text-sm">LinkedIn URL</Label>
               <Input
                 id="companyLinkedIn"
@@ -215,10 +215,10 @@ export function BrandProfileForm() {
                 onChange={(e) => handleInputChange("companyLinkedIn", e.target.value)}
                 disabled={!isEditing}
                 placeholder="https://linkedin.com/company/yourcompany"
-                className="bg-white/5 border border-white/[0.08] text-white placeholder-white/30 focus:bg-white/10 focus:border-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-white/[0.03] border-0 text-white placeholder-white/30 focus:bg-white/[0.05] disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
-            <div className="space-y-2">
+            <div className="rounded-lg border border-white/[0.04] p-4 space-y-2">
               <Label htmlFor="companyTwitter" className="text-white/80 text-sm">Twitter/X URL</Label>
               <Input
                 id="companyTwitter"
@@ -226,7 +226,7 @@ export function BrandProfileForm() {
                 onChange={(e) => handleInputChange("companyTwitter", e.target.value)}
                 disabled={!isEditing}
                 placeholder="https://twitter.com/yourcompany"
-                className="bg-white/5 border border-white/[0.08] text-white placeholder-white/30 focus:bg-white/10 focus:border-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-white/[0.03] border-0 text-white placeholder-white/30 focus:bg-white/[0.05] disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -234,16 +234,16 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Personal Information Section */}
-      <Card className="bg-transparent backdrop-blur-sm border border-white/[0.08] rounded-lg">
+      <Card className="bg-[#161616] border-0 rounded-xl">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Personal Information</CardTitle>
           <CardDescription className="text-white/50 text-sm">
             Your profile information
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-6">
-            <div className="flex flex-col items-center gap-2">
+        <CardContent>
+          <div className="flex items-start gap-6">
+            <div className="rounded-lg border border-white/[0.04] p-4 flex flex-col items-center gap-2">
               <Avatar className="h-20 w-20">
                 <AvatarImage src={formData.userAvatar || undefined} />
                 <AvatarFallback className="text-lg">
@@ -257,7 +257,7 @@ export function BrandProfileForm() {
               )}
             </div>
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="rounded-lg border border-white/[0.04] p-4 space-y-2">
                 <Label htmlFor="userName">Full Name</Label>
                 <Input
                   id="userName"
@@ -267,7 +267,7 @@ export function BrandProfileForm() {
                   className={inputStyles}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="rounded-lg border border-white/[0.04] p-4 space-y-2">
                 <Label htmlFor="userRole">Role</Label>
                 <Input
                   id="userRole"
@@ -283,7 +283,7 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Company Profile Section */}
-      <Card className="bg-transparent backdrop-blur-sm border border-white/[0.08] rounded-lg">
+      <Card className="bg-[#161616] border-0 rounded-xl">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Company Profile</CardTitle>
           <CardDescription className="text-white/50 text-sm">
@@ -291,7 +291,7 @@ export function BrandProfileForm() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
+          <div className="rounded-lg border border-white/[0.04] p-4 space-y-2">
             <Label htmlFor="companyDescription">Company Description</Label>
             <Textarea
               id="companyDescription"
@@ -304,7 +304,7 @@ export function BrandProfileForm() {
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
+            <div className="rounded-lg border border-white/[0.04] p-4 space-y-2">
               <Label htmlFor="companyIndustry">Industry</Label>
               <Input
                 id="companyIndustry"
@@ -314,7 +314,7 @@ export function BrandProfileForm() {
                 className={inputStyles}
               />
             </div>
-            <div className="space-y-2">
+            <div className="rounded-lg border border-white/[0.04] p-4 space-y-2">
               <Label>Services / Products</Label>
               {(formData.companyServices as string[]).map((v, i) => (
                 <div key={`svc-${i}`} className="flex items-center gap-2">
@@ -335,7 +335,7 @@ export function BrandProfileForm() {
               )}
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="rounded-lg border border-white/[0.04] p-4 space-y-2">
             <Label>Ideal Customer Profiles</Label>
             {(formData.companyICP as string[]).map((v, i) => (
               <div key={`icp-${i}`} className="flex items-center gap-2">
@@ -359,7 +359,7 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Competitors Section */}
-      <Card className="bg-transparent backdrop-blur-sm border border-white/[0.08] rounded-lg">
+      <Card className="bg-[#161616] border-0 rounded-xl">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Competitors</CardTitle>
           <CardDescription className="text-white/50 text-sm">
@@ -368,7 +368,7 @@ export function BrandProfileForm() {
         </CardHeader>
         <CardContent className="space-y-4">
           {formData.competitors.map((competitor, index) => (
-            <div key={index} className="space-y-2">
+            <div key={index} className="rounded-lg border border-white/[0.04] p-4 space-y-2">
               <Label htmlFor={`competitor${index + 1}`} className={labelStyles}>
                 Competitor {index + 1}
               </Label>
@@ -393,7 +393,7 @@ export function BrandProfileForm() {
                       const newCompetitors = formData.competitors.filter((_, i) => i !== index)
                       setFormData(prev => ({ ...prev, competitors: newCompetitors }))
                     }}
-                    className="border-white/20 bg-transparent text-white hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-400"
+                    className="border-white/[0.04] bg-white/[0.03] text-white hover:bg-red-500/20 hover:border-red-500/30 hover:text-red-400"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -416,15 +416,15 @@ export function BrandProfileForm() {
             </div>
           ))}
           {isEditing && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setFormData(prev => ({
                   ...prev,
                   competitors: [...prev.competitors, ""]
                 }))
               }}
-              className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:border-white/30"
+              className="border-white/[0.04] bg-white/[0.03] text-white hover:bg-white/[0.06] hover:border-white/[0.08]"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -448,13 +448,13 @@ export function BrandProfileForm() {
       </Card>
 
       {/* Knowledge Base Uploader */}
-      <Card className="bg-transparent backdrop-blur-sm border border-white/[0.08] rounded-lg">
+      <Card className="bg-[#161616] border-0 rounded-xl">
         <CardHeader>
           <CardTitle className="text-white text-lg font-semibold">Knowledge Base</CardTitle>
           <CardDescription className="text-white/50 text-sm">Upload documents to use as context (optional)</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-white/[0.08] bg-black/40 p-4">
+          <div className="rounded-lg border border-white/[0.04] p-4">
             <input id="kb-files-dash" type="file" multiple accept={accepted} onChange={handleKBFiles} className="hidden" />
             {isEditing && (
               <label htmlFor="kb-files-dash">

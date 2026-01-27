@@ -1,14 +1,12 @@
 "use client"
 
-import { DashboardStatCard } from "./dashboard-stat-card"
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 import { useState, useEffect } from "react"
 import { useBrandProfile } from "@/components/brand-profile-context"
-import { Card, CardContent, CardHeader, CardTitle, CardAction } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Info, Link, Copy, Check, ArrowUp, ArrowDown, ArrowLeft, Settings, Loader2, AlertCircle, Github, ExternalLink, X } from "lucide-react"
+import { Info, Check, ArrowUp, ArrowDown, ArrowLeft, Settings, Loader2, AlertCircle, Github, ExternalLink, X, ChevronDown } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -57,6 +55,10 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   // Install result state
   const [installSuccess, setInstallSuccess] = useState<{ prUrl: string; prNumber: number } | null>(null)
   const [installError, setInstallError] = useState<string | null>(null)
+
+  // Expandable card states
+  const [aiVisibilityExpanded, setAiVisibilityExpanded] = useState(false)
+  const [technicalScoreExpanded, setTechnicalScoreExpanded] = useState(false)
 
   // Fetch tracking script and tracking stats when modal opens
   useEffect(() => {
@@ -227,11 +229,13 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   const [previousScore, setPreviousScore] = useState<number | null>(null)
   const [hasHistoricalData, setHasHistoricalData] = useState(false)
   const [isGeneratingScore, setIsGeneratingScore] = useState(false)
+  const [technicalScoreHistory, setTechnicalScoreHistory] = useState<number[]>([])
 
   // State for AI Visibility score
   const [aiVisibilityScore, setAiVisibilityScore] = useState(0)
   const [aiVisibilityPrevious, setAiVisibilityPrevious] = useState<number | null>(null)
   const [hasAiHistory, setHasAiHistory] = useState(false)
+  const [aiVisibilityHistory, setAiVisibilityHistory] = useState<number[]>([])
   
   // Additional Firegeo aggregate metrics
   const [mentionRate, setMentionRate] = useState(0) // Percentage
@@ -336,6 +340,12 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         const currentScore = result.data.latest.total
         setTechnicalScore(currentScore)
         
+        // Store full history for chart (reversed so oldest is first)
+        if (result.data.history && Array.isArray(result.data.history)) {
+          const historyScores = result.data.history.map((h: { total: number }) => h.total).reverse()
+          setTechnicalScoreHistory(historyScores)
+        }
+        
         // Check if we have historical data to compare
         if (result.data.hasHistoricalData && result.data.previous) {
           setHasHistoricalData(true)
@@ -391,7 +401,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       const timeoutId2 = setTimeout(() => controller2.abort(), 10000)
       
       const historyResponse = await fetch(
-        `/api/analysis/geo-history?brandProfileId=${profile.id}&limit=2`,
+        `/api/analysis/geo-history?brandProfileId=${profile.id}&limit=5`,
         { signal: controller2.signal }
       )
       clearTimeout(timeoutId2)
@@ -403,6 +413,11 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       const historyResult = await historyResponse.json()
       
       if (historyResult.success && historyResult.data && historyResult.data.length > 1) {
+        // Store full history for chart (reversed so oldest is first)
+        const historyScores = historyResult.data.map((h: { overallScore: number }) => h.overallScore || 0).reverse()
+        setAiVisibilityHistory(historyScores)
+        console.log('📊 AI Visibility history stored:', historyScores)
+
         // Use previous run's score for comparison
         const previous = historyResult.data[1]
         setAiVisibilityPrevious(previous.overallScore || 0)
@@ -455,7 +470,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       const timeoutId = setTimeout(() => controller.abort('Request timeout'), 10000) // 10s timeout
       
       const response = await fetch(
-        `/api/analysis/technical-history?brandProfileId=${profile.id}&limit=2`,
+        `/api/analysis/technical-history?brandProfileId=${profile.id}&limit=5`,
         { signal: controller.signal }
       )
       clearTimeout(timeoutId)
@@ -471,7 +486,12 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         const current = result.data[0]
         setTechnicalScore(current.overallScore || 0)
         console.log('📊 Technical score updated:', current.overallScore)
-        
+
+        // Store full history for chart (reversed so oldest is first)
+        const historyScores = result.data.map((h: { overallScore: number }) => h.overallScore || 0).reverse()
+        setTechnicalScoreHistory(historyScores)
+        console.log('📊 Technical score history stored:', historyScores)
+
         // Previous score for comparison
         if (result.data.length > 1) {
           const previous = result.data[1]
@@ -630,166 +650,265 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
   return (
     <div className="grid grid-cols-1 gap-4 md:gap-5 px-4 lg:px-6 @xl/main:grid-cols-2 @3xl/main:grid-cols-4">
-      <DashboardStatCard
-        title="AI Visibility Score"
-        value={aiVisibilityScore}
-        suffix="%"
-        delta={aiVisibilityDelta}
-        lastValue={hasAiHistory && aiVisibilityPrevious !== null ? aiVisibilityPrevious : 0}
-        positive={aiVisibilityScore > (aiVisibilityPrevious || 0)}
-        sparkline={aiVisibilityScore > 0 ? [0, Math.max(10, aiVisibilityScore * 0.5), Math.max(20, aiVisibilityScore * 0.7), aiVisibilityScore] : [0]}
-        accentColor="rgba(255,255,255,0.9)"
-        info="How often AI models mention your brand and where you rank in their responses."
-        showLastPeriod={true}
-        loading={loadingAIVisibility}
-      />
-
-      <DashboardStatCard
-        title="Average Position"
-        value={averagePosition}
-        suffix=""
-        delta={hasPositionHistory && averagePositionPrevious !== null && averagePosition > 0 && averagePositionPrevious > 0 
-          ? Math.round(((averagePositionPrevious - averagePosition) / averagePositionPrevious) * 100) 
-          : 0}
-        lastValue={hasPositionHistory && averagePositionPrevious !== null ? averagePositionPrevious : 0}
-        positive={hasPositionHistory && averagePositionPrevious !== null && averagePosition > 0 ? averagePosition < averagePositionPrevious : true}
-        sparkline={averagePosition > 0 ? [10, Math.min(8, averagePosition * 1.2), averagePosition, Math.max(1, averagePosition * 0.8)] : [0]}
-        accentColor="rgba(167, 139, 250, 0.9)"
-        info={averagePosition > 0 ? `Your typical ranking when mentioned by AI. #1 is best—lower is better.` : "Your typical ranking when mentioned by AI. #1 is best—lower is better."}
-        showLastPeriod={true}
-        loading={loadingAIVisibility}
-        emptyValue="—"
-      />
-
-      <DashboardStatCard
-        title="Technical Structure Score"
-        value={isGeneratingScore ? 0 : technicalScore}
-        suffix="%"
-        delta={hasHistoricalData && previousScore !== null ? Math.round(((technicalScore - previousScore) / previousScore) * 100) : 0}
-        lastValue={hasHistoricalData && previousScore !== null ? previousScore : 0}
-        positive={hasHistoricalData && previousScore !== null ? technicalScore > previousScore : true}
-        sparkline={hasHistoricalData ? undefined : technicalScore > 0 ? [0, Math.max(10, technicalScore * 0.6), Math.max(20, technicalScore * 0.8), technicalScore] : [0]}
-        accentColor="rgba(255,255,255,0.9)"
-        info={isGeneratingScore ? "Calculating score..." : "How easily can AI agents read and retrieve your site's structure and content."}
-        showLastPeriod={true}
-        loading={loadingTechnical}
-      />
-
-      {/* AI Referral Traffic Card */}
-      {loadingAiReferral ? (
-        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3">
-          <CardHeader className="border-0">
-            <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2.5">
-              <span className="h-7 w-16 rounded bg-white/[0.06] animate-pulse" />
-              <span className="h-5 w-12 rounded bg-white/[0.06] animate-pulse" />
-            </div>
-            <div className="border-t border-white/[0.06] pt-2.5 mt-2">
-              <span className="h-3 w-24 rounded bg-white/[0.06] animate-pulse block" />
-            </div>
-          </CardContent>
-        </Card>
-      ) : isTrackingConnected ? (
-        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] hover:border-white/[0.12] transition-colors gap-3">
-          <CardHeader className="border-0">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="text-white/30 hover:text-white/60 transition-colors">
-                    <Info className="size-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent sideOffset={8} className="max-w-xs text-white/90">
-                  Traffic referred from AI models
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2.5">
-              <span className="text-2xl font-medium text-foreground tracking-tight">
-                {aiReferralTraffic.toLocaleString()}
-              </span>
-              {aiReferralDelta !== 0 && (
-                <Badge
-                  variant={aiReferralDelta > 0 ? "success" : "destructive"}
-                  className={aiReferralDelta > 0 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : ""}
-                >
-                  {aiReferralDelta > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
-                  {Math.abs(aiReferralDelta)}%
-                </Badge>
+      {/* AI Visibility Score */}
+      <div 
+        className="bg-[#161616]  rounded-xl p-5 flex flex-col cursor-pointer transition-all"
+        onClick={() => setAiVisibilityExpanded(!aiVisibilityExpanded)}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-white/50 font-medium">AI Visibility</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="text-white/30 hover:text-white/50 transition-colors" onClick={(e) => e.stopPropagation()}>
+                  <Info className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={8} className="max-w-xs">
+                How visible your brand is across AI responses. Higher is better.
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <ChevronDown className={`size-3.5 text-white/30 transition-transform ${aiVisibilityExpanded ? 'rotate-180' : ''}`} />
+        </div>
+        <div className="flex-1 flex flex-col justify-center">
+          {loadingAIVisibility ? (
+            <div className="h-9 w-24 rounded bg-white/[0.06] animate-pulse" />
+          ) : (
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-white">{aiVisibilityScore}%</span>
+              {aiVisibilityDelta !== 0 && (
+                <span className={`text-xs flex items-center gap-0.5 ${aiVisibilityDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {aiVisibilityDelta > 0 ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
+                  {Math.abs(aiVisibilityDelta)}%
+                </span>
               )}
             </div>
-            <div className="border-t border-white/[0.06] pt-2.5 mt-2 flex items-center justify-between">
-              <span className="text-xs text-white/40">
-                {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+          )}
+        </div>
+        
+        {/* Expanded Chart */}
+        {aiVisibilityExpanded && !loadingAIVisibility && (
+          <div className="mt-4 pt-4 border-t border-white/[0.06]">
+            <div className="h-[80px] flex items-end gap-1">
+              {(aiVisibilityHistory.length >= 2
+                ? aiVisibilityHistory
+                : [
+                    hasAiHistory && aiVisibilityPrevious !== null ? Math.max(5, aiVisibilityPrevious * 0.7) : 15,
+                    hasAiHistory && aiVisibilityPrevious !== null ? Math.max(8, aiVisibilityPrevious * 0.85) : 25,
+                    hasAiHistory && aiVisibilityPrevious !== null ? aiVisibilityPrevious : 35,
+                    Math.max(10, aiVisibilityScore * 0.9),
+                    aiVisibilityScore
+                  ]
+              ).map((value, i) => (
+                <div
+                  key={i}
+                  className="flex-1 bg-white/10 rounded-sm transition-all"
+                  style={{ height: `${Math.max(8, value * 0.8)}%` }}
+                />
+              ))}
+            </div>
+            <div className="flex justify-between mt-2">
+              <div className="flex flex-col">
+                <span className="text-[11px] text-white/50 tabular-nums">
+                  {aiVisibilityHistory.length >= 2
+                    ? `${Math.round(aiVisibilityHistory[0])}%`
+                    : hasAiHistory && aiVisibilityPrevious !== null
+                      ? `${Math.round(aiVisibilityPrevious * 0.7)}%`
+                      : '15%'}
+                </span>
+                <span className="text-[10px] text-white/30">Previous</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-[11px] text-white/50 tabular-nums">{aiVisibilityScore}%</span>
+                <span className="text-[10px] text-white/30">Now</span>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {!aiVisibilityExpanded && (
+          <div className="mt-auto pt-3 border-t border-white/[0.06]">
+            {loadingAIVisibility ? (
+              <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
+            ) : (
+              <span className="text-xs text-white/30">
+                {hasAiHistory && aiVisibilityPrevious !== null ? `Last period: ${aiVisibilityPrevious}%` : 'Based on AI responses'}
               </span>
-              <button
-                className="text-xs text-white/40 hover:text-white/70 transition-colors"
-                onClick={async () => {
-                  setModalView('traffic')
-                  setLoadingReferralModels(true)
-                  setMockReferralData(null)
-                  setShowTrackingModal(true)
-                  try {
-                    const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&byModel=true`)
-                    const result = await response.json()
-                    if (result.success && result.data?.byModel) {
-                      setMockReferralData({
-                        total: result.data.traffic || 0,
-                        byModel: result.data.byModel
-                      })
-                    }
-                  } catch (error) {
-                    console.error('Error fetching referral data:', error)
-                  } finally {
-                    setLoadingReferralModels(false)
-                  }
-                }}
-              >
-                Details
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Average Position */}
+      <div className="bg-[#161616]  rounded-xl p-5 min-h-[140px] flex flex-col">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-white/50 font-medium">Avg Position</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button className="text-white/30">
+                <Info className="size-3.5" />
               </button>
+            </TooltipTrigger>
+            <TooltipContent sideOffset={8} className="max-w-xs">
+              Your ranking when mentioned. #1 is best.
+            </TooltipContent>
+          </Tooltip>
+        </div>
+        <div className="flex-1 flex flex-col justify-center">
+          {loadingAIVisibility ? (
+            <div className="h-9 w-20 rounded bg-white/[0.06] animate-pulse" />
+          ) : (
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-white">
+                {averagePosition > 0 ? `#${averagePosition.toFixed(1)}` : '—'}
+              </span>
+              {hasPositionHistory && averagePositionPrevious !== null && averagePosition > 0 && averagePositionPrevious > 0 && (
+                <span className={`text-xs flex items-center gap-0.5 ${averagePosition < averagePositionPrevious ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {averagePosition < averagePositionPrevious ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
+                  {Math.abs(Math.round(((averagePositionPrevious - averagePosition) / averagePositionPrevious) * 100))}%
+                </span>
+              )}
             </div>
-          </CardContent>
-        </Card>
-      ) : isConnecting ? (
-        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] gap-3">
-          <CardHeader className="border-0">
-            <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1.5">
-            <div className="flex items-center gap-3">
-              <div className="size-5 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
-              <span className="text-sm text-white/60">Connecting...</span>
+          )}
+        </div>
+        <div className="mt-auto pt-3 border-t border-white/[0.06]">
+          {loadingAIVisibility ? (
+            <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
+          ) : (
+            <span className="text-xs text-white/30">
+              {hasPositionHistory && averagePositionPrevious !== null ? `Last period: #${averagePositionPrevious.toFixed(1)}` : 'Lower is better'}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Technical Structure Score */}
+      <div 
+        className="bg-[#161616]  rounded-xl p-5 flex flex-col cursor-pointer transition-all"
+        onClick={() => setTechnicalScoreExpanded(!technicalScoreExpanded)}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-white/50 font-medium">Technical Score</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="text-white/30 hover:text-white/50 transition-colors" onClick={(e) => e.stopPropagation()}>
+                  <Info className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={8} className="max-w-xs">
+                How well your site is structured for AI crawlers and indexing.
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <ChevronDown className={`size-3.5 text-white/30 transition-transform ${technicalScoreExpanded ? 'rotate-180' : ''}`} />
+        </div>
+        <div className="flex-1 flex flex-col justify-center">
+          {loadingTechnical ? (
+            <div className="h-9 w-24 rounded bg-white/[0.06] animate-pulse" />
+          ) : (
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-white">{isGeneratingScore ? '—' : `${technicalScore}%`}</span>
+              {hasHistoricalData && previousScore !== null && !isGeneratingScore && (
+                <span className={`text-xs flex items-center gap-0.5 ${technicalScore > previousScore ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {technicalScore > previousScore ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
+                  {Math.abs(Math.round(((technicalScore - previousScore) / previousScore) * 100))}%
+                </span>
+              )}
             </div>
-            <div className="border-t border-white/[0.06] pt-2.5 mt-2">
-              <span className="text-xs text-white/30">Verifying installation</span>
+          )}
+        </div>
+        
+        {/* Expanded Chart */}
+        {technicalScoreExpanded && !loadingTechnical && !isGeneratingScore && (
+          <div className="mt-4 pt-4 border-t border-white/[0.06]">
+            <div className="h-[80px] flex items-end gap-1">
+              {(technicalScoreHistory.length >= 2
+                ? technicalScoreHistory
+                : [
+                    hasHistoricalData && previousScore !== null ? Math.max(5, previousScore * 0.7) : 20,
+                    hasHistoricalData && previousScore !== null ? Math.max(8, previousScore * 0.85) : 30,
+                    hasHistoricalData && previousScore !== null ? previousScore : 40,
+                    Math.max(10, technicalScore * 0.95),
+                    technicalScore
+                  ]
+              ).map((value, i) => (
+                <div
+                  key={i}
+                  className="flex-1 bg-white/10 rounded-sm transition-all"
+                  style={{ height: `${Math.max(8, value * 0.8)}%` }}
+                />
+              ))}
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.08] hover:border-white/[0.12] transition-colors gap-3">
-          <CardHeader className="border-0">
+            <div className="flex justify-between mt-2">
+              <div className="flex flex-col">
+                <span className="text-[11px] text-white/50 tabular-nums">
+                  {technicalScoreHistory.length >= 2
+                    ? `${Math.round(technicalScoreHistory[0])}%`
+                    : hasHistoricalData && previousScore !== null
+                      ? `${Math.round(previousScore * 0.7)}%`
+                      : '20%'}
+                </span>
+                <span className="text-[10px] text-white/30">Previous</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-[11px] text-white/50 tabular-nums">{technicalScore}%</span>
+                <span className="text-[10px] text-white/30">Now</span>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {!technicalScoreExpanded && (
+          <div className="mt-auto pt-3 border-t border-white/[0.06]">
+            {loadingTechnical ? (
+              <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
+            ) : (
+              <span className="text-xs text-white/30">
+                {hasHistoricalData && previousScore !== null ? `Last period: ${previousScore}%` : 'Site structure analysis'}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* AI Referral Traffic */}
+      <div className="bg-[#161616]  rounded-xl p-5 min-h-[140px] flex flex-col">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-white/50 font-medium">AI Referral</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button className="text-white/30">
+                <Info className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent sideOffset={8} className="max-w-xs">
+              Traffic from AI chatbots
+            </TooltipContent>
+          </Tooltip>
+        </div>
+        <div className="flex-1 flex flex-col justify-center">
+          {loadingAiReferral ? (
+            <div className="h-9 w-20 rounded bg-white/[0.06] animate-pulse" />
+          ) : isTrackingConnected ? (
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-white">{aiReferralTraffic.toLocaleString()}</span>
+              {aiReferralDelta !== 0 && (
+                <span className={`text-xs flex items-center gap-0.5 ${aiReferralDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {aiReferralDelta > 0 ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
+                  {Math.abs(aiReferralDelta)}%
+                </span>
+              )}
+            </div>
+          ) : isConnecting ? (
+            <div className="flex items-center gap-2">
+              <div className="size-4 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
+              <span className="text-sm text-white/50">Connecting...</span>
+            </div>
+          ) : (
             <div className="flex items-center justify-between">
-              <CardTitle className="text-muted-foreground text-sm font-medium">AI Referral Traffic</CardTitle>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="text-white/30 hover:text-white/60 transition-colors">
-                    <Info className="size-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent sideOffset={8} className="max-w-xs text-white/90">
-                  Track visitors from AI chatbots
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2.5">
-              <span className="text-sm text-white/50">Not connected</span>
+              <span className="text-sm text-white/40">Not connected</span>
               <Button 
                 size="sm" 
                 onClick={handleConnect}
@@ -798,12 +917,42 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
                 Connect
               </Button>
             </div>
-            <div className="border-t border-white/[0.06] pt-2.5 mt-2">
-              <span className="text-xs text-white/30">2 min setup</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </div>
+        <div className="mt-auto pt-3 border-t border-white/[0.06]">
+          {loadingAiReferral ? (
+            <div className="h-4 w-24 rounded bg-white/[0.06] animate-pulse" />
+          ) : isTrackingConnected ? (
+            <button
+              className="text-xs text-white/30"
+              onClick={async () => {
+                setModalView('traffic')
+                setLoadingReferralModels(true)
+                setMockReferralData(null)
+                setShowTrackingModal(true)
+                try {
+                  const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&byModel=true`)
+                  const result = await response.json()
+                  if (result.success && result.data?.byModel) {
+                    setMockReferralData({
+                      total: result.data.traffic || 0,
+                      byModel: result.data.byModel
+                    })
+                  }
+                } catch (error) {
+                  console.error('Error fetching referral data:', error)
+                } finally {
+                  setLoadingReferralModels(false)
+                }
+              }}
+            >
+              View details →
+            </button>
+          ) : (
+            <span className="text-xs text-white/30">2 min setup</span>
+          )}
+        </div>
+      </div>
 
       {/* AI Referral Tracking Setup Modal */}
       <Dialog open={showTrackingModal} onOpenChange={setShowTrackingModal}>
@@ -832,14 +981,14 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
                 <div className="grid grid-cols-2 gap-2">
                   {loadingReferralModels || !mockReferralData ? (
                     [1, 2, 3, 4].map((i) => (
-                      <div key={i} className="p-3 rounded-lg border border-white/[0.06] bg-white/[0.02]">
+                      <div key={i} className="p-3 rounded-lg  bg-white/[0.02]">
                         <div className="h-4 w-12 rounded bg-white/[0.06] animate-pulse mb-2" />
                         <div className="h-6 w-8 rounded bg-white/[0.06] animate-pulse" />
                       </div>
                     ))
                   ) : (
                     mockReferralData.byModel.map((model) => (
-                      <div key={model.name} className="p-3 rounded-lg border border-white/[0.06] bg-white/[0.02]">
+                      <div key={model.name} className="p-3 rounded-lg  bg-white/[0.02]">
                         <div className="flex items-center gap-2 mb-1">
                           <img src={model.icon} alt="" className="w-4 h-4 opacity-60" />
                           <span className="text-xs text-white/40">{model.name}</span>
@@ -890,7 +1039,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
                 {/* Script Code */}
                 <div className="relative">
-                  <pre className="rounded-lg border border-white/[0.06] bg-black/20 p-4 pr-16 text-[11px] text-white/70 leading-relaxed overflow-x-auto">
+                  <pre className="rounded-lg  bg-black/20 p-4 pr-16 text-[11px] text-white/70 leading-relaxed overflow-x-auto">
                     <code className="break-all whitespace-pre-wrap">{trackingScript || fallbackTrackingScript}</code>
                   </pre>
                   <button

@@ -1,0 +1,341 @@
+
+========================================
+  DETAILED ANALYSIS FOR: trymudra.com
+========================================
+
+📍 STEP 1: SITEMAP DISCOVERY
+----------------------------
+Pages discovered: 22
+Pages selected: 10
+[
+  {
+    "url": "https://trymudra.com",
+    "pageType": "home"
+  },
+  {
+    "url": "https://docs.trymudra.com",
+    "pageType": "home"
+  },
+  {
+    "url": "https://www.trymudra.com/pricing",
+    "pageType": "pricing"
+  },
+  {
+    "url": "https://www.trymudra.com/about",
+    "pageType": "about"
+  },
+  {
+    "url": "https://www.trymudra.com/blog",
+    "pageType": "blog"
+  },
+  {
+    "url": "https://www.trymudra.com/blog/mudra-frontier-research-lab-for-aeo",
+    "pageType": "blog"
+  },
+  {
+    "url": "https://www.trymudra.com/blog/legibility-moat-the-engineered-approach-shaping-aeo",
+    "pageType": "blog"
+  },
+  {
+    "url": "https://www.trymudra.com/privacy",
+    "pageType": "other"
+  },
+  {
+    "url": "https://docs.trymudra.com/integrations/github",
+    "pageType": "other"
+  },
+  {
+    "url": "https://www.trymudra.com/robots.txt",
+    "pageType": "other"
+  }
+]
+
+📍 STEP 2: MULTI-PAGE SCRAPING
+-------------------------------
+Scraping results: {
+  "requested": 5,
+  "successful": 5,
+  "failed": 0,
+  "results": [
+    {
+      "url": "https://trymudra.com",
+      "success": true,
+      "htmlSize": 292142,
+      "error": null
+    },
+    {
+      "url": "https://docs.trymudra.com",
+      "success": true,
+      "htmlSize": 200367,
+      "error": null
+    },
+    {
+      "url": "https://www.trymudra.com/pricing",
+      "success": true,
+      "htmlSize": 178748,
+      "error": null
+    },
+    {
+      "url": "https://www.trymudra.com/about",
+      "success": true,
+      "htmlSize": 138904,
+      "error": null
+    },
+    {
+      "url": "https://www.trymudra.com/blog",
+      "success": true,
+      "htmlSize": 136993,
+      "error": null
+    }
+  ]
+}
+
+📍 STEP 3: DOM EXTRACTION
+--------------------------
+Extractions completed: 5
+
+📍 STEP 4: FIVE-DIMENSION SCORING
+----------------------------------
+
+📍 STEP 5: SUMMARY
+------------------
+
+========================================
+  DETAILED ANALYSIS FOR: stripe.com
+========================================
+
+📍 STEP 1: SITEMAP DISCOVERY
+----------------------------
+Pages discovered: 100
+Pages selected: 10
+[
+  {
+    "url": "https://stripe.com",
+    "pageType": "home"
+  },
+  {
+    "url": "https://stripe.com/fr-be/guides/product-resources",
+    "pageType": "product"
+  },
+  {
+    "url": "https://stripe.com/legal/becs",
+    "pageType": "other"
+  },
+  {
+    "url": "https://stripe.com/gb/resources/more/how-to-start-a-power-washing-business-a-guide",
+    "pageType": "other"
+  },
+  {
+    "url": "https://stripe.com/resources/more/how-can-my-customers-pay-by-bank-a-guide",
+    "pageType": "other"
+  },
+  {
+    "url": "https://stripe.com/en-be/resources/more/tiered-pricing-101-a-guide-for-a-strategic-approach",
+    "pageType": "other"
+  },
+  {
+    "url": "https://buy.stripe.com/00gbJQ6gyaWC57a4go",
+    "pageType": "other"
+  },
+  {
+    "url": "https://stripe.com/th/resources/more/no-code-payments-japan",
+    "pageType": "other"
+  },
+  {
+    "url": "https://stripe.com/br/use-cases/in-app-payments",
+    "pageType": "other"
+  },
+  {
+    "url": "https://docs.stripe.com/development",
+    "pageType": "other"
+  }
+]
+
+📍 STEP 2: MULTI-PAGE SCRAPING
+-------------------------------
+Scraping results: {
+  "requested": 5,
+  "successful": 5,
+  "failed": 0,
+  "results": [
+    {
+      "url": "https://stripe.com",
+      "success": true,
+      "htmlSize": 2222742,
+      "error": null
+    },
+    {
+      "url": "https://stripe.com/fr-be/guides/product-resources",
+      "success": true,
+      "htmlSize": 833694,
+      "error": null
+    },
+    {
+      "url": "https://stripe.com/legal/becs",
+      "success": true,
+      "htmlSize": 146256,
+      "error": null
+    },
+    {
+      "url": "https://stripe.com/gb/resources/more/how-to-start-a-power-washing-business-a-guide",
+      "success": true,
+      "htmlSize": 633402,
+      "error": null
+    },
+    {
+      "url": "https://stripe.com/resources/more/how-can-my-customers-pay-by-bank-a-guide",
+      "success": true,
+      "htmlSize": 631155,
+      "error": null
+    }
+  ]
+}
+
+📍 STEP 3: DOM EXTRACTION
+--------------------------
+Extractions completed: 5
+
+📍 STEP 4: FIVE-DIMENSION SCORING
+----------------------------------
+
+📍 STEP 5: SUMMARY
+------------------
+
+========================================
+  COMPLETE ANALYSIS OUTPUT
+========================================
+
+Results saved to: /private/tmp/claude/-Users-emi-Downloads-MainMudra-mudramvp/523c4472-463f-4415-87f1-ba4a4b18afb2/scratchpad/detailed-analysis-results.json
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TRYMUDRA.COM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Pages analyzed: 5
+Average score: 58.6/100
+
+Score breakdown by page:
+
+  📄 trymudra.com
+     Total: 69/100 (needs_improvement)
+     ├── Metadata:  19/25
+     ├── Headings:  20/20
+     ├── Semantic:  15/15
+     ├── Schema:    0/25
+     └── FAQ:       15/15
+
+  📄 docs.trymudra.com
+     Total: 55/100 (needs_improvement)
+     ├── Metadata:  25/25
+     ├── Headings:  20/20
+     ├── Semantic:  10/15
+     ├── Schema:    0/25
+     └── FAQ:       0/15
+
+  📄 www.trymudra.com/pricing
+     Total: 61/100 (needs_improvement)
+     ├── Metadata:  19/25
+     ├── Headings:  12/20
+     ├── Semantic:  15/15
+     ├── Schema:    0/25
+     └── FAQ:       15/15
+
+  📄 www.trymudra.com/about
+     Total: 54/100 (needs_improvement)
+     ├── Metadata:  19/25
+     ├── Headings:  20/20
+     ├── Semantic:  15/15
+     ├── Schema:    0/25
+     └── FAQ:       0/15
+
+  📄 www.trymudra.com/blog
+     Total: 54/100 (needs_improvement)
+     ├── Metadata:  19/25
+     ├── Headings:  20/20
+     ├── Semantic:  15/15
+     ├── Schema:    0/25
+     └── FAQ:       0/15
+
+⚠️  Issues Found (16 total):
+   High: 6, Medium: 10
+
+   Top high-priority issues:
+   - [schema] No JSON-LD schema found
+   - [schema] No JSON-LD schema found
+   - [headings] No H1 tag found on page
+   - [schema] No JSON-LD schema found
+   - [schema] No JSON-LD schema found
+
+🔧 Recommended Interventions (16 total):
+   High priority: 9
+
+   Top recommendations:
+   - inject_jsonld_schema: +25 points potential
+   - inject_jsonld_schema: +25 points potential
+   - generate_faq_section: +15 points
+   - add_h1_tag: +8 points
+   - inject_jsonld_schema: +25 points potential
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  STRIPE.COM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Pages analyzed: 5
+Average score: 63.6/100
+
+Score breakdown by page:
+
+  📄 stripe.com
+     Total: 72/100 (good)
+     ├── Metadata:  25/25
+     ├── Headings:  12/20
+     ├── Semantic:  10/15
+     ├── Schema:    25/25
+     └── FAQ:       0/15
+
+  📄 stripe.com/fr-be/guides/product-resources
+     Total: 47/100 (poor)
+     ├── Metadata:  25/25
+     ├── Headings:  12/20
+     ├── Semantic:  10/15
+     ├── Schema:    0/25
+     └── FAQ:       0/15
+
+  📄 stripe.com/legal/becs
+     Total: 45/100 (poor)
+     ├── Metadata:  18/25
+     ├── Headings:  12/20
+     ├── Semantic:  15/15
+     ├── Schema:    0/25
+     └── FAQ:       0/15
+
+  📄 stripe.com/gb/resources/more/how-to-start-a-power-washing-business-a-guide
+     Total: 82/100 (good)
+     ├── Metadata:  25/25
+     ├── Headings:  12/20
+     ├── Semantic:  15/15
+     ├── Schema:    15/25
+     └── FAQ:       15/15
+
+  📄 stripe.com/resources/more/how-can-my-customers-pay-by-bank-a-guide
+     Total: 72/100 (good)
+     ├── Metadata:  25/25
+     ├── Headings:  12/20
+     ├── Semantic:  15/15
+     ├── Schema:    15/25
+     └── FAQ:       5/15
+
+⚠️  Issues Found (17 total):
+   High: 2, Medium: 15
+
+   Top high-priority issues:
+   - [schema] No JSON-LD schema found
+   - [schema] No JSON-LD schema found
+
+🔧 Recommended Interventions (17 total):
+   High priority: 6
+
+   Top recommendations:
+   - generate_faq_section: +15 points
+   - inject_jsonld_schema: +25 points potential
+   - generate_faq_section: +15 points
+   - inject_meta_description: +7 points
+   - inject_jsonld_schema: +25 points potential

@@ -785,10 +785,10 @@ function TrackedPromptsPageInner() {
                     <span className="text-sm text-muted-foreground">Filter by:</span>
                   </div>
                   <Select value={selectedModel} onValueChange={setSelectedModel}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white/5 border-white/10 text-white">
+                    <SelectTrigger className="w-[160px] h-9 !bg-[#161616] hover:!bg-[#1c1c1c] !border-0 text-white rounded-lg transition-all duration-200">
                       <SelectValue placeholder="All Models" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-[#161616] border-0">
                       <SelectItem value="all">
                         All Models
                       </SelectItem>
@@ -813,10 +813,10 @@ function TrackedPromptsPageInner() {
                     </SelectContent>
                   </Select>
                   <Select value={selectedIntent} onValueChange={setSelectedIntent}>
-                    <SelectTrigger className="w-[180px] h-9 bg-white/5 border-white/10 text-white">
+                    <SelectTrigger className="w-[180px] h-9 !bg-[#161616] hover:!bg-[#1c1c1c] !border-0 text-white rounded-lg transition-all duration-200">
                       <SelectValue placeholder="All Intents" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-[#161616] border-0">
                       <SelectItem value="all">All Intents</SelectItem>
                       {availableIntents
                         .filter((intent): intent is string => intent !== null)

@@ -1,5 +1,14 @@
 import { PrismaClient, Prisma } from "@prisma/client";
-import type { ScrapeSnapshot, ScoreResult, TaskInstance } from "@/lib/analysis/technical/types";
+import type {
+  ScrapeSnapshot,
+  ScoreResult,
+  TaskInstance,
+  DiscoveredPage,
+  DOMExtraction,
+  FullPageScore,
+  Issue,
+  PageType,
+} from "@/lib/analysis/technical/types";
 
 // Singleton Prisma client (works in Next.js app router)
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
@@ -144,4 +153,651 @@ export async function markTaskDismissed(taskId: string) {
   return setTaskStatus(taskId, "dismissed");
 }
 
+// ============================================================================
+// PHASE 3: NEW MULTI-PAGE TECHNICAL STRUCTURE REPOSITORY FUNCTIONS
+// ============================================================================
+
+/**
+ * Save discovered sitemap pages to the database
+ * Uses upsert to handle re-discovery of existing pages
+ */
+export async function saveSitemapPages(
+  brandProfileId: number,
+  domain: string,
+  pages: DiscoveredPage[]
+): Promise<{ created: number; updated: number }> {
+  let created = 0;
+  let updated = 0;
+
+  // Use transaction for atomicity
+  await prisma.$transaction(async (tx) => {
+    for (const page of pages) {
+      const result = await tx.sitemapPage.upsert({
+        where: {
+          brand_profile_id_domain_page_url: {
+            brand_profile_id: brandProfileId,
+            domain,
+            page_url: page.url,
+          },
+        },
+        update: {
+          page_type: page.pageType,
+          priority: page.priority,
+          updated_at: new Date(),
+        },
+        create: {
+          brand_profile_id: brandProfileId,
+          domain,
+          page_url: page.url,
+          page_type: page.pageType,
+          priority: page.priority,
+          scrape_status: "pending",
+        },
+      });
+
+      // Check if it was an insert vs update by comparing created_at and updated_at
+      if (result.created_at.getTime() === result.updated_at.getTime()) {
+        created++;
+      } else {
+        updated++;
+      }
+    }
+  });
+
+  return { created, updated };
+}
+
+/**
+ * Get sitemap pages for a brand profile
+ */
+export async function getSitemapPages(
+  brandProfileId: number,
+  domain: string
+): Promise<Array<{
+  id: string;
+  page_url: string;
+  page_type: string | null;
+  scrape_status: string;
+}>> {
+  return prisma.sitemapPage.findMany({
+    where: {
+      brand_profile_id: brandProfileId,
+      domain,
+    },
+    select: {
+      id: true,
+      page_url: true,
+      page_type: true,
+      scrape_status: true,
+    },
+    orderBy: {
+      priority: "asc",
+    },
+  });
+}
+
+/**
+ * Update sitemap page scrape status
+ */
+export async function updateSitemapPageStatus(
+  sitemapPageId: string,
+  status: "pending" | "scraped" | "failed",
+  error?: string
+): Promise<void> {
+  await prisma.sitemapPage.update({
+    where: { id: sitemapPageId },
+    data: {
+      scrape_status: status,
+      scrape_error: error || null,
+      last_scraped_at: status === "scraped" ? new Date() : undefined,
+      updated_at: new Date(),
+    },
+  });
+}
+
+/**
+ * Save a page snapshot with versioning
+ * Sets is_current to true for the new snapshot and false for all previous ones
+ */
+export async function savePageSnapshot(
+  brandProfileId: number,
+  sitemapPageId: string,
+  pageUrl: string,
+  html: string,
+  extraction: DOMExtraction,
+  metadata?: {
+    scrapeDurationMs?: number;
+    httpStatusCode?: number;
+    contentType?: string;
+  }
+): Promise<{ id: string; version: number }> {
+  // Use transaction to ensure is_current consistency
+  const result = await prisma.$transaction(async (tx) => {
+    // Get current max version for this page
+    const latestSnapshot = await tx.pageSnapshot.findFirst({
+      where: {
+        brand_profile_id: brandProfileId,
+        sitemap_page_id: sitemapPageId,
+      },
+      orderBy: { version: "desc" },
+      select: { version: true },
+    });
+
+    const newVersion = (latestSnapshot?.version ?? 0) + 1;
+
+    // Set all previous snapshots for this page to is_current = false
+    await tx.pageSnapshot.updateMany({
+      where: {
+        brand_profile_id: brandProfileId,
+        sitemap_page_id: sitemapPageId,
+        is_current: true,
+      },
+      data: { is_current: false },
+    });
+
+    // Create the new snapshot
+    const snapshot = await tx.pageSnapshot.create({
+      data: {
+        brand_profile_id: brandProfileId,
+        sitemap_page_id: sitemapPageId,
+        page_url: pageUrl,
+        version: newVersion,
+        is_current: true,
+        html_content: html,
+        html_length: Buffer.byteLength(html, "utf8"),
+        metadata_json: extraction.extraction.metadata as unknown as Prisma.InputJsonValue,
+        structured_data_json: extraction.extraction.schema as unknown as Prisma.InputJsonValue,
+        semantic_structure_json: {
+          headings: extraction.extraction.headings,
+          semantic_html: extraction.extraction.semantic_html,
+        } as unknown as Prisma.InputJsonValue,
+        faq_content_json: extraction.extraction.faqs as unknown as Prisma.InputJsonValue,
+        validation_results_json: {
+          page_type: extraction.page_type,
+          raw_html_hash: extraction.raw_html_hash,
+          html_size_bytes: extraction.html_size_bytes,
+          content_snapshot: extraction.extraction.content_snapshot,
+        } as unknown as Prisma.InputJsonValue,
+        scrape_duration_ms: metadata?.scrapeDurationMs,
+        http_status_code: metadata?.httpStatusCode,
+        content_type: metadata?.contentType,
+      },
+    });
+
+    return { id: snapshot.id, version: newVersion };
+  });
+
+  return result;
+}
+
+/**
+ * Get the current snapshot for a page
+ */
+export async function getCurrentSnapshot(
+  brandProfileId: number,
+  sitemapPageId: string
+): Promise<{
+  id: string;
+  page_url: string;
+  version: number;
+  html_content: string;
+  scraped_at: Date;
+} | null> {
+  return prisma.pageSnapshot.findFirst({
+    where: {
+      brand_profile_id: brandProfileId,
+      sitemap_page_id: sitemapPageId,
+      is_current: true,
+    },
+    select: {
+      id: true,
+      page_url: true,
+      version: true,
+      html_content: true,
+      scraped_at: true,
+    },
+  });
+}
+
+/**
+ * Save page score with 5-dimension scores
+ * Maps the new scoring dimensions to the database fields:
+ * - structured_data_score → Metadata (25 pts)
+ * - semantic_html_score → Headings (20 pts)
+ * - citability_score → Semantic (15 pts)
+ * - accessibility_score → Schema (25 pts)
+ * - answer_engine_score → FAQ (15 pts)
+ */
+export async function savePageScore(
+  brandProfileId: number,
+  snapshotId: string,
+  sitemapPageId: string,
+  pageUrl: string,
+  score: FullPageScore
+): Promise<{ id: string }> {
+  // Delete existing score for this snapshot (if any) to allow re-scoring
+  await prisma.pageScore.deleteMany({
+    where: { page_snapshot_id: snapshotId },
+  });
+
+  const pageScore = await prisma.pageScore.create({
+    data: {
+      brand_profile_id: brandProfileId,
+      page_snapshot_id: snapshotId,
+      sitemap_page_id: sitemapPageId,
+      page_url: pageUrl,
+      overall_score: score.scores.total,
+      // Map 5-dimension scores to database fields
+      structured_data_score: score.scores.metadata, // Metadata (25 pts)
+      structured_data_details: score.dimension_details.metadata as unknown as Prisma.InputJsonValue,
+      semantic_html_score: score.scores.headings, // Headings (20 pts)
+      semantic_html_details: score.dimension_details.headings as unknown as Prisma.InputJsonValue,
+      citability_score: score.scores.semantic, // Semantic (15 pts)
+      citability_details: score.dimension_details.semantic as unknown as Prisma.InputJsonValue,
+      accessibility_score: score.scores.schema, // Schema (25 pts)
+      accessibility_details: score.dimension_details.schema as unknown as Prisma.InputJsonValue,
+      answer_engine_score: score.scores.faq, // FAQ (15 pts)
+      answer_engine_details: score.dimension_details.faq as unknown as Prisma.InputJsonValue,
+      issues: score.issues as unknown as Prisma.InputJsonValue,
+      recommendations: score.interventions as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  return { id: pageScore.id };
+}
+
+/**
+ * Get all page scores for a brand profile and domain
+ */
+export async function getPageScores(
+  brandProfileId: number,
+  options?: { limit?: number; orderBy?: "overall_score" | "scored_at" }
+): Promise<Array<{
+  id: string;
+  page_url: string;
+  overall_score: number;
+  structured_data_score: number;
+  semantic_html_score: number;
+  citability_score: number;
+  accessibility_score: number;
+  answer_engine_score: number;
+  scored_at: Date;
+}>> {
+  return prisma.pageScore.findMany({
+    where: { brand_profile_id: brandProfileId },
+    select: {
+      id: true,
+      page_url: true,
+      overall_score: true,
+      structured_data_score: true,
+      semantic_html_score: true,
+      citability_score: true,
+      accessibility_score: true,
+      answer_engine_score: true,
+      scored_at: true,
+    },
+    orderBy: { [options?.orderBy ?? "scored_at"]: "desc" },
+    take: options?.limit,
+  });
+}
+
+/**
+ * Save aggregated site structure score
+ * Computes averages from page scores and stores the result
+ */
+export async function saveSiteStructureScore(
+  brandProfileId: number,
+  domain: string,
+  pageScores: FullPageScore[],
+  topIssues: Issue[],
+  scoreByPageType: Record<PageType, { count: number; avgScore: number }>
+): Promise<{ id: string; overall_score: number; score_change: number | null }> {
+  if (pageScores.length === 0) {
+    throw new Error("Cannot save site structure score with no page scores");
+  }
+
+  // Calculate averages
+  const avgOverall =
+    pageScores.reduce((sum, p) => sum + p.scores.total, 0) / pageScores.length;
+  const avgMetadata =
+    pageScores.reduce((sum, p) => sum + p.scores.metadata, 0) / pageScores.length;
+  const avgHeadings =
+    pageScores.reduce((sum, p) => sum + p.scores.headings, 0) / pageScores.length;
+  const avgSemantic =
+    pageScores.reduce((sum, p) => sum + p.scores.semantic, 0) / pageScores.length;
+  const avgSchema =
+    pageScores.reduce((sum, p) => sum + p.scores.schema, 0) / pageScores.length;
+  const avgFaq =
+    pageScores.reduce((sum, p) => sum + p.scores.faq, 0) / pageScores.length;
+
+  // Count pages with issues
+  const pagesWithIssues = pageScores.filter((p) => p.issues.length > 0).length;
+
+  // Calculate schema coverage (which schema types are present across pages)
+  const schemaCoverage: Record<string, number> = {};
+  for (const page of pageScores) {
+    const schemaDetails = page.dimension_details.schema;
+    for (const [check, result] of Object.entries(schemaDetails.checks)) {
+      if (result.passed) {
+        schemaCoverage[check] = (schemaCoverage[check] ?? 0) + 1;
+      }
+    }
+  }
+
+  // Get previous score for comparison
+  const previousScore = await prisma.siteStructureScore.findFirst({
+    where: {
+      brand_profile_id: brandProfileId,
+      domain,
+    },
+    orderBy: { computed_at: "desc" },
+    select: { overall_score: true },
+  });
+
+  const scoreChange = previousScore
+    ? avgOverall - previousScore.overall_score
+    : null;
+
+  // Create the new site structure score
+  const siteScore = await prisma.siteStructureScore.create({
+    data: {
+      brand_profile_id: brandProfileId,
+      domain,
+      overall_score: Math.round(avgOverall * 100) / 100,
+      structured_data_score: Math.round(avgMetadata * 100) / 100,
+      semantic_html_score: Math.round(avgHeadings * 100) / 100,
+      citability_score: Math.round(avgSemantic * 100) / 100,
+      accessibility_score: Math.round(avgSchema * 100) / 100,
+      answer_engine_score: Math.round(avgFaq * 100) / 100,
+      total_pages: pageScores.length,
+      pages_scraped: pageScores.length,
+      pages_scored: pageScores.length,
+      pages_with_issues: pagesWithIssues,
+      schema_coverage: schemaCoverage as unknown as Prisma.InputJsonValue,
+      top_issues: topIssues.slice(0, 10) as unknown as Prisma.InputJsonValue,
+      score_by_page_type: scoreByPageType as unknown as Prisma.InputJsonValue,
+      previous_score: previousScore?.overall_score,
+      score_change: scoreChange ? Math.round(scoreChange * 100) / 100 : null,
+    },
+  });
+
+  return {
+    id: siteScore.id,
+    overall_score: siteScore.overall_score,
+    score_change: siteScore.score_change,
+  };
+}
+
+/**
+ * Get the latest site structure score
+ */
+export async function getLatestSiteStructureScore(
+  brandProfileId: number,
+  domain: string
+): Promise<{
+  id: string;
+  overall_score: number;
+  structured_data_score: number;
+  semantic_html_score: number;
+  citability_score: number;
+  accessibility_score: number;
+  answer_engine_score: number;
+  total_pages: number;
+  pages_with_issues: number;
+  score_change: number | null;
+  computed_at: Date;
+} | null> {
+  return prisma.siteStructureScore.findFirst({
+    where: {
+      brand_profile_id: brandProfileId,
+      domain,
+    },
+    orderBy: { computed_at: "desc" },
+    select: {
+      id: true,
+      overall_score: true,
+      structured_data_score: true,
+      semantic_html_score: true,
+      citability_score: true,
+      accessibility_score: true,
+      answer_engine_score: true,
+      total_pages: true,
+      pages_with_issues: true,
+      score_change: true,
+      computed_at: true,
+    },
+  });
+}
+
+/**
+ * Get pages to re-scrape for weekly cron job
+ * Returns URLs from the most recent scrape for each brand profile
+ */
+export async function getPagesToRescrape(
+  brandProfileId: number
+): Promise<Array<{ id: string; page_url: string; page_type: string | null }>> {
+  // Get all sitemap pages that have been scraped at least once
+  return prisma.sitemapPage.findMany({
+    where: {
+      brand_profile_id: brandProfileId,
+      scrape_status: "scraped",
+    },
+    select: {
+      id: true,
+      page_url: true,
+      page_type: true,
+    },
+    orderBy: {
+      priority: "asc",
+    },
+  });
+}
+
+/**
+ * Get all brand profiles with previous technical analysis (for cron)
+ */
+export async function getBrandProfilesWithAnalysis(): Promise<Array<{
+  id: number;
+  companyWebsite: string | null;
+}>> {
+  // Get profiles that have at least one site structure score
+  const profiles = await prisma.brandProfile.findMany({
+    where: {
+      site_structure_scores: {
+        some: {},
+      },
+    },
+    select: {
+      id: true,
+      companyWebsite: true,
+    },
+  });
+
+  return profiles;
+}
+
+/**
+ * Save or update policy file detection results
+ */
+export async function savePolicyFile(
+  brandProfileId: number,
+  domain: string,
+  policyData: {
+    robotsTxtExists: boolean;
+    robotsTxtContent?: string;
+    sitemapXmlExists: boolean;
+    sitemapXmlUrl?: string;
+    llmsTxtExists: boolean;
+    llmsTxtContent?: string;
+    llmsFullTxtExists: boolean;
+    llmsFullTxtContent?: string;
+  }
+): Promise<{ id: string }> {
+  const result = await prisma.policyFile.upsert({
+    where: {
+      // Need to use the compound unique constraint or find by brand_profile_id + domain
+      id: await prisma.policyFile
+        .findFirst({
+          where: { brand_profile_id: brandProfileId, domain },
+          select: { id: true },
+        })
+        .then((p) => p?.id ?? "new-record"),
+    },
+    update: {
+      robots_txt_exists: policyData.robotsTxtExists,
+      robots_txt_content: policyData.robotsTxtContent,
+      sitemap_xml_exists: policyData.sitemapXmlExists,
+      sitemap_xml_url: policyData.sitemapXmlUrl,
+      llms_txt_exists: policyData.llmsTxtExists,
+      llms_txt_content: policyData.llmsTxtContent,
+      llms_full_txt_exists: policyData.llmsFullTxtExists,
+      llms_full_txt_content: policyData.llmsFullTxtContent,
+      checked_at: new Date(),
+      updated_at: new Date(),
+    },
+    create: {
+      brand_profile_id: brandProfileId,
+      domain,
+      robots_txt_exists: policyData.robotsTxtExists,
+      robots_txt_content: policyData.robotsTxtContent,
+      sitemap_xml_exists: policyData.sitemapXmlExists,
+      sitemap_xml_url: policyData.sitemapXmlUrl,
+      llms_txt_exists: policyData.llmsTxtExists,
+      llms_txt_content: policyData.llmsTxtContent,
+      llms_full_txt_exists: policyData.llmsFullTxtExists,
+      llms_full_txt_content: policyData.llmsFullTxtContent,
+    },
+  });
+
+  return { id: result.id };
+}
+
+/**
+ * Get policy file status for a domain
+ */
+export async function getPolicyFile(
+  brandProfileId: number,
+  domain: string
+): Promise<{
+  id: string;
+  robots_txt_exists: boolean;
+  sitemap_xml_exists: boolean;
+  llms_txt_exists: boolean;
+  llms_full_txt_exists: boolean;
+  checked_at: Date;
+} | null> {
+  return prisma.policyFile.findFirst({
+    where: {
+      brand_profile_id: brandProfileId,
+      domain,
+    },
+    select: {
+      id: true,
+      robots_txt_exists: true,
+      sitemap_xml_exists: true,
+      llms_txt_exists: true,
+      llms_full_txt_exists: true,
+      checked_at: true,
+    },
+  });
+}
+
+// ============================================================================
+// SCRAPE JOB MANAGEMENT
+// ============================================================================
+
+/**
+ * Create a new scrape job for tracking analysis progress
+ */
+export async function createScrapeJob(
+  brandProfileId: number,
+  domain: string,
+  jobType: "full_site" | "rescrape" | "single_page",
+  totalPages: number,
+  config?: Record<string, unknown>
+): Promise<{ id: string }> {
+  const job = await prisma.scrapeJob.create({
+    data: {
+      brand_profile_id: brandProfileId,
+      domain,
+      job_type: jobType,
+      status: "pending",
+      total_pages: totalPages,
+      config: (config ?? {}) as Prisma.InputJsonValue,
+    },
+  });
+
+  return { id: job.id };
+}
+
+/**
+ * Update scrape job progress
+ */
+export async function updateScrapeJobProgress(
+  jobId: string,
+  progress: {
+    status?: "pending" | "running" | "completed" | "failed";
+    pagesScraped?: number;
+    pagesScored?: number;
+    pagesFailed?: number;
+    errorMessage?: string;
+    errors?: Array<{ url: string; error: string }>;
+  }
+): Promise<void> {
+  const updateData: Prisma.ScrapeJobUpdateInput = {
+    updated_at: new Date(),
+  };
+
+  if (progress.status) {
+    updateData.status = progress.status;
+    if (progress.status === "running" && !updateData.started_at) {
+      updateData.started_at = new Date();
+    }
+    if (progress.status === "completed" || progress.status === "failed") {
+      updateData.completed_at = new Date();
+    }
+  }
+
+  if (progress.pagesScraped !== undefined) {
+    updateData.pages_scraped = progress.pagesScraped;
+  }
+  if (progress.pagesScored !== undefined) {
+    updateData.pages_scored = progress.pagesScored;
+  }
+  if (progress.pagesFailed !== undefined) {
+    updateData.pages_failed = progress.pagesFailed;
+  }
+  if (progress.errorMessage) {
+    updateData.error_message = progress.errorMessage;
+  }
+  if (progress.errors) {
+    updateData.errors = progress.errors as Prisma.InputJsonValue;
+  }
+
+  await prisma.scrapeJob.update({
+    where: { id: jobId },
+    data: updateData,
+  });
+}
+
+/**
+ * Complete a scrape job with final metrics
+ */
+export async function completeScrapeJob(
+  jobId: string,
+  success: boolean,
+  durationMs: number,
+  errorMessage?: string
+): Promise<void> {
+  await prisma.scrapeJob.update({
+    where: { id: jobId },
+    data: {
+      status: success ? "completed" : "failed",
+      completed_at: new Date(),
+      duration_ms: durationMs,
+      error_message: errorMessage,
+      updated_at: new Date(),
+    },
+  });
+}
 

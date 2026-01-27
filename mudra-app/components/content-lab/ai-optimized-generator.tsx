@@ -491,12 +491,12 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
           AI-Optimized Content
         </Button>
       </DialogTrigger>
-      <DialogContent className="!max-w-2xl sm:!max-w-2xl bg-dark-grey border-white/10 p-0 !rounded-[12px] overflow-hidden shadow-xl">
+      <DialogContent className="!max-w-2xl sm:!max-w-2xl bg-[#161616] border-0 p-0 !rounded-[12px] overflow-hidden shadow-xl">
         <DialogHeader className="sr-only">
           <DialogTitle>Generate AI-Optimized Content</DialogTitle>
         </DialogHeader>
 
-        <div className="bg-dark-grey px-6 pt-6 pb-6">
+        <div className="bg-[#161616] px-6 pt-6 pb-6">
           {/* Title and Description */}
           <div className="mb-6">
             <div className="flex items-center justify-between gap-4 mb-2">
@@ -538,7 +538,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
             <div className="space-y-4">
               {/* Step 1: Select Content Type */}
               {step === 1 && (
-                <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                <div className="rounded-xl bg-[#111111] overflow-hidden">
                   {CONTENT_TYPES.map((contentType) => {
                     const Icon = contentType.icon;
                     const isSelected = selectedContentType === contentType.value;
@@ -553,7 +553,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                           }
                         }}
                         className={cn(
-                          "px-6 py-4 flex items-center justify-between gap-6 border-b border-white/[0.06] last:border-b-0 transition-all duration-200",
+                          "px-6 py-4 flex items-center justify-between gap-6 border-b border-white/[0.03] last:border-b-0 transition-all duration-200",
                           isDisabled
                             ? "opacity-50 cursor-not-allowed"
                             : "cursor-pointer group",
@@ -565,12 +565,12 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                         <div className="flex items-center gap-4 flex-1 min-w-0">
                           <div
                             className={cn(
-                              "flex items-center justify-center size-11 rounded-xl border transition-all duration-200 flex-shrink-0 shadow-sm",
+                              "flex items-center justify-center size-11 rounded-xl transition-all duration-200 flex-shrink-0",
                               isDisabled
-                                ? "bg-white/[0.03] border-white/[0.06]"
+                                ? "bg-white/[0.03]"
                                 : isSelected
-                                  ? "bg-white/[0.1] border-white/30 shadow-white/10"
-                                  : "bg-white/[0.05] border-white/[0.08] group-hover:bg-white/[0.08] group-hover:border-white/[0.15] group-hover:shadow"
+                                  ? "bg-white/[0.1]"
+                                  : "bg-white/[0.05] group-hover:bg-white/[0.08]"
                             )}
                           >
                             <Icon
@@ -621,9 +621,9 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
               {/* Step 2: Select Category & Prompt */}
               {step === 2 && (
                 <div className="space-y-4">
-                  <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                  <div className="rounded-xl bg-[#111111] overflow-hidden">
                     {!selectedCategory ? (
-                      <div className="divide-y divide-white/[0.06]">
+                      <div className="divide-y divide-white/[0.03]">
                     {promptCategories.length > 0 ? (
                       promptCategories.map((category, index) => {
                         const Icon = categoryIcons[index % categoryIcons.length];
@@ -634,7 +634,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                             className="px-6 py-4 flex items-center justify-between gap-6 transition-all duration-200 cursor-pointer group hover:bg-white/[0.03]"
                           >
                             <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="flex items-center justify-center size-11 rounded-xl border bg-white/[0.05] border-white/[0.08] group-hover:bg-white/[0.08] group-hover:border-white/[0.15] transition-all duration-200 flex-shrink-0 shadow-sm group-hover:shadow">
+                              <div className="flex items-center justify-center size-11 rounded-xl bg-white/[0.05] group-hover:bg-white/[0.08] transition-all duration-200 flex-shrink-0">
                                 <Icon className="h-5 w-5 text-white/90 group-hover:text-white transition-colors" />
                               </div>
                               <div className="flex-1 min-w-0">
@@ -666,7 +666,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                       </div>
                     ) : (
                       <>
-                        <div className="px-6 py-4 flex items-center gap-3 border-b border-white/[0.06] bg-white/[0.02]">
+                        <div className="px-6 py-4 flex items-center gap-3 border-b border-white/[0.03] bg-white/[0.02]">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -693,7 +693,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                                   key={prompt.id}
                                   onClick={() => handlePromptSelect(prompt)}
                                   className={cn(
-                                    "px-6 py-4 flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-b-0 transition-all duration-200 cursor-pointer group",
+                                    "px-6 py-4 flex items-center justify-between gap-4 border-b border-white/[0.03] last:border-b-0 transition-all duration-200 cursor-pointer group",
                                     isSelected
                                       ? "bg-white/[0.05]"
                                       : "hover:bg-white/[0.03]"
@@ -740,7 +740,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                         setSelectedCategory(null);
                         setSelectedPrompt(null);
                       }}
-                      className="h-9 px-4 rounded-lg border-white/[0.08] bg-transparent text-white/80 hover:bg-white/5 hover:text-white"
+                      className="h-9 px-4 rounded-lg border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white"
                     >
                       <ChevronLeft className="size-4 mr-1" />
                       Back
@@ -752,7 +752,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
               {/* Step 3: Select ICP */}
               {step === 3 && (
                 <div className="space-y-4">
-                  <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden shadow-sm">
+                  <div className="rounded-xl bg-[#111111] overflow-hidden">
                 {isLoadingICPs ? (
                   <div className="px-6 py-12 text-center">
                     <Loader2 className="h-6 w-6 text-white/40 animate-spin mx-auto mb-2" />
@@ -773,17 +773,17 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                             setTimeout(() => setStep(4), 200);
                           }}
                           className={cn(
-                            "px-6 py-4 flex items-center justify-between gap-6 border-b border-white/[0.06] last:border-b-0 transition-all duration-200 cursor-pointer group",
+                            "px-6 py-4 flex items-center justify-between gap-6 border-b border-white/[0.03] last:border-b-0 transition-all duration-200 cursor-pointer group",
                             isSelected ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"
                           )}
                         >
                           <div className="flex items-center gap-4 flex-1 min-w-0">
                             <div
                               className={cn(
-                                "flex items-center justify-center size-11 rounded-xl border transition-all duration-200 flex-shrink-0 shadow-sm",
+                                "flex items-center justify-center size-11 rounded-xl transition-all duration-200 flex-shrink-0",
                                 isSelected
-                                  ? "bg-white/[0.1] border-white/30 shadow-white/10"
-                                  : "bg-white/[0.05] border-white/[0.08] group-hover:bg-white/[0.08] group-hover:border-white/[0.15] group-hover:shadow"
+                                  ? "bg-white/[0.1]"
+                                  : "bg-white/[0.05] group-hover:bg-white/[0.08]"
                               )}
                             >
                           <Icon
@@ -824,7 +824,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                       variant="outline"
                       size="sm"
                       onClick={() => setStep(2)}
-                      className="h-9 px-4 rounded-lg border-white/[0.08] bg-transparent text-white/80 hover:bg-white/5 hover:text-white"
+                      className="h-9 px-4 rounded-lg border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white"
                     >
                       <ChevronLeft className="size-4 mr-1" />
                       Back to prompts
@@ -836,8 +836,8 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
               {/* Step 4: Select Citation Sources */}
               {step === 4 && !isGenerating && (
                 <div className="space-y-4">
-                  <div className="rounded-xl border border-white/[0.08] bg-[#1a1a1a] overflow-hidden">
-                    <div className="px-5 py-4 border-b border-white/[0.06]">
+                  <div className="rounded-xl bg-[#111111] overflow-hidden">
+                    <div className="px-5 py-4 border-b border-white/[0.03]">
                       <p className="text-[11px] uppercase tracking-[0.2em] text-white/40 font-semibold mb-1">
                         {selectedCategoryLabel}
                       </p>
@@ -848,7 +848,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                     <div className="max-h-[280px] overflow-auto">
                       <table className="w-full table-fixed">
                         <thead>
-                          <tr className="text-left text-xs text-white/50 uppercase tracking-wider border-b border-white/[0.04]">
+                          <tr className="text-left text-xs text-white/50 uppercase tracking-wider border-b border-white/[0.03]">
                             <th className="px-3 py-3 w-10">Use</th>
                             <th className="px-3 py-3 w-[35%]">Source</th>
                             <th className="px-3 py-3">Domain</th>
@@ -872,7 +872,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                                   key={source.domain}
                                   onClick={() => toggleSource(source.domain)}
                                   className={cn(
-                                    "border-b border-white/[0.04] text-sm transition-colors cursor-pointer",
+                                    "border-b border-white/[0.03] text-sm transition-colors cursor-pointer",
                                     isSelected ? "bg-white/[0.04]" : "hover:bg-white/[0.02]"
                                   )}
                                 >
@@ -951,7 +951,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                     setStep(3);
                     setSelectedSources(new Set());
                   }}
-                  className="h-9 px-4 rounded-lg border-white/[0.08] bg-transparent text-white/80 hover:bg-white/5 hover:text-white"
+                  className="h-9 px-4 rounded-lg border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white"
                 >
                   <ChevronLeft className="size-4 mr-1" />
                   Back
@@ -997,7 +997,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                   </div>
 
                   {/* Progress steps */}
-                  <div className="bg-[#1a1a1a] rounded-lg border border-white/[0.06] p-4 space-y-2.5">
+                  <div className="bg-[#111111] rounded-lg p-4 space-y-2.5">
                     {WORKFLOW_STEPS.map((wfStep, idx) => {
                       const status = getStepStatus(idx);
                       const Icon = wfStep.icon;
@@ -1005,14 +1005,14 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                         <div
                           key={wfStep.id}
                           className={cn(
-                            "flex items-center gap-3 rounded-lg border px-4 py-3 transition-all duration-200",
+                            "flex items-center gap-3 rounded-lg px-4 py-3 transition-all duration-200",
                             status === "complete"
-                              ? "border-emerald-500/30 bg-emerald-500/5"
+                              ? "bg-emerald-500/5"
                               : status === "active"
-                                ? "border-white/25 bg-white/[0.05] ring-1 ring-white/15"
+                                ? "bg-white/[0.05] ring-1 ring-white/10"
                                 : status === "error"
-                                  ? "border-red-500/30 bg-red-500/5"
-                                  : "border-white/[0.06] bg-transparent"
+                                  ? "bg-red-500/5"
+                                  : "bg-transparent"
                           )}
                         >
                           <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
@@ -1059,7 +1059,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
 
                   {/* Post-generation loading before redirect */}
                   {result && !error && (
-                    <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] p-4 space-y-3">
+                    <div className="rounded-lg bg-white/[0.03] p-4 space-y-3">
                       <div className="flex items-center gap-3">
                         <Loader2 className="size-4 text-white animate-spin" />
                         <div className="min-w-0">
@@ -1086,7 +1086,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                           setStep(2);
                         }}
                         variant="outline"
-                        className="border-white/10 hover:bg-white/5"
+                        className="border-0 bg-white/[0.06] hover:bg-white/[0.1]"
                       >
                         Try Again
                       </Button>

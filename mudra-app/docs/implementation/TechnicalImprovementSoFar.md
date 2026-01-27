@@ -1,8 +1,8 @@
 # Technical Structure Improvement - Progress Log
 
-> **Version:** 2.1
+> **Version:** 3.0
 > **Last Updated:** January 27, 2026
-> **Current Phase:** Phase 2 Complete + Enhanced FAQ Detection
+> **Current Phase:** Phase 3 Complete - Database & Storage
 
 ---
 
@@ -513,27 +513,196 @@ All 113 Phase 1 tests still passing after the enhancement.
 
 ---
 
-## Next Phase: Phase 3 - Database & Storage
+## Phase 3: Database & Storage
 
-**Goal:** Store snapshots, scores, and aggregated results.
+**Status:** ✅ COMPLETE
+**Duration:** January 27, 2026
+**Branch:** `CleaningPages`
+
+### Goals Achieved
+
+1. ✅ Verified existing Prisma schema compatibility (all tables exist)
+2. ✅ Extended repository layer with 16 new functions
+3. ✅ Implemented versioned snapshots with `is_current` flag
+4. ✅ Created score aggregation with previous score comparison
+5. ✅ 16 passing integration tests against real database
+
+---
+
+### Files Modified
+
+#### 1. Repository Layer Extension
+**File:** `lib/analysis/technical/repo.ts`
+
+**New Functions Added:**
+
+| Function | Purpose |
+|----------|---------|
+| `saveSitemapPages()` | Upsert discovered pages from sitemap discovery |
+| `getSitemapPages()` | Retrieve pages for a brand profile and domain |
+| `updateSitemapPageStatus()` | Update scrape status (pending/scraped/failed) |
+| `savePageSnapshot()` | Save versioned HTML + extraction data, handles `is_current` flag |
+| `getCurrentSnapshot()` | Get the current (latest) snapshot for a page |
+| `savePageScore()` | Save 5-dimension scores, replaces existing on re-score |
+| `getPageScores()` | Retrieve page scores with optional limit and ordering |
+| `saveSiteStructureScore()` | Calculate and save aggregated site score with change tracking |
+| `getLatestSiteStructureScore()` | Get the most recent site-wide score |
+| `getPagesToRescrape()` | Get URLs with "scraped" status for weekly cron |
+| `getBrandProfilesWithAnalysis()` | Get profiles that have previous analysis (for cron) |
+| `savePolicyFile()` | Upsert robots.txt/llms.txt detection results |
+| `getPolicyFile()` | Get policy file status for a domain |
+| `createScrapeJob()` | Create a new scrape job for progress tracking |
+| `updateScrapeJobProgress()` | Update job status and counters |
+| `completeScrapeJob()` | Mark job as completed/failed with duration |
+
+---
+
+### Database Score Field Mapping
+
+The 5-dimension scores map to database fields as follows:
+
+| Dimension | Points | Database Field |
+|-----------|--------|----------------|
+| **Metadata** | 25 | `structured_data_score` |
+| **Headings** | 20 | `semantic_html_score` |
+| **Semantic** | 15 | `citability_score` |
+| **Schema** | 25 | `accessibility_score` |
+| **FAQ** | 15 | `answer_engine_score` |
+| **Total** | 100 | `overall_score` |
+
+---
+
+### Key Features Implemented
+
+#### Snapshot Versioning
+- Each new snapshot increments the version number
+- `is_current` flag marks the latest snapshot (set to `true`)
+- Previous snapshots have `is_current = false`
+- Enables historical comparison and diffing
+
+#### Score Change Tracking
+- `saveSiteStructureScore()` fetches previous score before saving
+- Calculates `score_change` delta
+- Stores `previous_score` for reference
+
+#### Aggregation Logic
+- Site score = average of all page scores
+- Counts pages with issues
+- Calculates schema coverage across pages
+- Limits `top_issues` to 10 entries
+
+#### Job Progress Tracking
+- Full lifecycle: pending → running → completed/failed
+- Tracks pages scraped, scored, and failed
+- Records duration and error messages
+
+---
+
+### Integration Tests
+
+**File:** `lib/analysis/technical/__tests__/repo-test-runner.ts`
+
+Run with:
+```bash
+npx tsx lib/analysis/technical/__tests__/repo-test-runner.ts
+```
+
+**Test Coverage:**
+
+| Test | Status |
+|------|--------|
+| saveSitemapPages | ✅ |
+| getSitemapPages | ✅ |
+| updateSitemapPageStatus | ✅ |
+| savePageSnapshot (v1) | ✅ |
+| savePageSnapshot (versioning) | ✅ |
+| getCurrentSnapshot | ✅ |
+| savePageScore | ✅ |
+| getPageScores | ✅ |
+| saveSiteStructureScore | ✅ |
+| getLatestSiteStructureScore | ✅ |
+| getPagesToRescrape | ✅ |
+| savePolicyFile | ✅ |
+| getPolicyFile | ✅ |
+| createScrapeJob | ✅ |
+| updateScrapeJobProgress | ✅ |
+| completeScrapeJob | ✅ |
+| **TOTAL** | **16 ✅** |
+
+---
+
+### Technical Decisions Made
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Snapshot Versioning | Increment + is_current flag | Allows historical tracking without complex queries |
+| Score Replacement | Delete + create | Ensures single score per snapshot, allows re-scoring |
+| Transaction Usage | For multi-step operations | Ensures atomicity for snapshot versioning |
+| Top Issues Limit | 10 items | Prevents unbounded JSON storage |
+| Schema Coverage | Count by check name | Shows which schema types are present across site |
+
+---
+
+### Example Usage
+
+```typescript
+import {
+  saveSitemapPages,
+  savePageSnapshot,
+  savePageScore,
+  saveSiteStructureScore,
+} from '@/lib/analysis/technical/repo';
+import { discoverPages } from '@/lib/services/sitemap-discovery.service';
+import { scrapePages } from '@/lib/services/multi-page-scraper.service';
+import { htmlToExtraction } from '@/lib/analysis/technical/dom-extractor';
+import { computePageScore, computeSiteScore } from '@/lib/analysis/technical/five-dimension-scorer';
+
+// Step 1: Discover and save pages
+const discovery = await discoverPages('example.com');
+await saveSitemapPages(brandProfileId, 'example.com', discovery.pages);
+
+// Step 2: Scrape and save snapshots
+const scrapeResult = await scrapePages(getUrlsFromDiscovery(discovery));
+
+for (const page of scrapeResult.results.filter(r => r.success)) {
+  const extraction = htmlToExtraction(page.rawHtml!, page.url);
+  const { id: snapshotId } = await savePageSnapshot(
+    brandProfileId, sitemapPageId, page.url, page.rawHtml!, extraction
+  );
+
+  // Step 3: Score and save
+  const score = computePageScore(extraction);
+  await savePageScore(brandProfileId, snapshotId, sitemapPageId, page.url, score);
+}
+
+// Step 4: Aggregate site score
+const pageScores = await getPageScores(brandProfileId);
+const siteScore = await saveSiteStructureScore(
+  brandProfileId, 'example.com', pageScores, topIssues, scoreByPageType
+);
+
+console.log(`Site score: ${siteScore.overall_score} (change: ${siteScore.score_change})`);
+```
+
+---
+
+## Next Phase: Phase 4 - Unified Analysis Service
+
+**Goal:** Create a single service that orchestrates the entire analysis pipeline.
 
 **Tasks:**
-1. Verify existing Prisma schema compatibility
-2. Extend repository layer (`lib/analysis/technical/repo.ts`)
-   - `saveSitemapPages()` - Store discovered pages
-   - `savePageSnapshot()` - Store versioned HTML + extraction
-   - `savePageScore()` - Store 5-dimension scores
-   - `saveSiteStructureScore()` - Store aggregated site score
-   - `getPagesToRescrape()` - Get URLs for weekly cron
+1. Create `lib/services/unified-technical-analysis.service.ts`
+   - Orchestrate: discovery → scrape → extract → score → save
+   - Handle errors gracefully with partial results
+   - Support both full analysis and re-scrape modes
 
-3. Write repository tests
+2. Create API endpoint `/api/analysis/technical/run`
+   - Trigger full site analysis
+   - Return job ID for progress tracking
 
-**Database Tables to Use:**
-- `SitemapPage` - Discovered pages
-- `PageSnapshot` - Versioned HTML + extraction JSON
-- `PageScore` - 5-dimension scores
-- `SiteStructureScore` - Aggregated site-wide scores
-- `PolicyFile` - robots.txt, llms.txt detection
+3. Create weekly cron job for re-analysis
+   - Use `getPagesToRescrape()` and `getBrandProfilesWithAnalysis()`
+   - Compare scores over time
 
 ---
 
@@ -542,7 +711,8 @@ All 113 Phase 1 tests still passing after the enhancement.
 | Date | Phase | Commit Message |
 |------|-------|----------------|
 | Jan 27, 2026 | Phase 1 | DOM Extractor and Five-Dimension Scorer started - Phase 1 of Technical Structure Implementation Finished |
-| Jan 27, 2026 | Phase 2 | *Pending manual commit* |
+| Jan 27, 2026 | Phase 2 | Sitemap Discovery and Multi-Page Scraper started - Phase 2 of Technical Structure Implementation Finished |
+| Jan 27, 2026 | Phase 3 | Database & Storage - Phase 3 of Technical Structure Implementation Finished |
 
 ---
 
@@ -551,5 +721,7 @@ All 113 Phase 1 tests still passing after the enhancement.
 - All legacy types and functions remain unchanged for backward compatibility
 - The new 5-dimension scoring system runs independently from the old scoring in `score.ts`
 - Integration with the unified analysis service will happen in Phase 4
-- HTML storage (for future diffing and agent interventions) will be added in Phase 3
+- HTML storage for future diffing and agent interventions is now implemented in Phase 3
 - Phase 2 services are designed to work together: discovery → scraping → extraction → scoring
+- Phase 3 adds persistence layer: all data can now be stored and retrieved from database
+- Snapshot versioning enables historical comparison and weekly re-analysis

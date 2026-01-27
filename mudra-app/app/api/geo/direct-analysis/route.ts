@@ -3,6 +3,8 @@ import { firegeoClient } from '@/lib/firegeo-client';
 import { runDirectGEOAnalysis, createDirectGEOConfig } from '@/lib/services/direct-geo-analysis.service';
 import { getBrandProfile } from '@/lib/prisma-brand-profile';
 import { logGeoAnalysisRun } from '@/lib/services/geo-analysis-log.service';
+import { requireAuth } from '@/lib/auth/require-auth';
+import { applyRateLimit } from '@/lib/auth/rate-limiter';
 
 type ProviderAnalysis = {
   provider: string;
@@ -91,6 +93,16 @@ type FiregeoAnalysis = {
 };
 
 export async function POST(request: NextRequest) {
+  // Rate limit first - expensive AI operations
+  const rateLimited = applyRateLimit(request, 'aiGeneration');
+  if (rateLimited) return rateLimited;
+
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   const startedAt = Date.now();
   let requestBody: DirectGeoRequestBody | null = null;
   let logBrandName: string | undefined;

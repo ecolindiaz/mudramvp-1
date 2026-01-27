@@ -71,6 +71,12 @@ export interface UnifiedAnalysisResult {
       action: string;
     }>;
     scoreByPageType: Record<string, { count: number; avgScore: number }>;
+    policyFiles?: {
+      robotsTxt: boolean;
+      llmsTxt: boolean;
+      llmsFullTxt: boolean;
+      sitemapXml: boolean;
+    };
   };
 }
 
@@ -501,6 +507,30 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
       } catch (e) { /* ignore */ }
     }
 
+    // Step 5.5: Check policy files (robots.txt, llms.txt, sitemap.xml)
+    console.log('[Technical Core] Step 5.5: Checking policy files...');
+    let policyFileStatus = {
+      robotsTxt: false,
+      llmsTxt: false,
+      llmsFullTxt: false,
+      sitemapXml: false,
+    };
+    try {
+      const { checkPolicyFiles, savePolicyFileResult } = await import('./policy-detection.service');
+      const policyResult = await checkPolicyFiles(domain);
+      policyFileStatus = {
+        robotsTxt: policyResult.robots.exists,
+        llmsTxt: policyResult.llmsTxt.exists,
+        llmsFullTxt: policyResult.llmsFullTxt.exists,
+        sitemapXml: policyResult.sitemap.exists,
+      };
+      // Save to database
+      await savePolicyFileResult(config.brandProfileId, policyResult);
+      console.log(`[Technical Core] Policy files: robots=${policyFileStatus.robotsTxt}, llms.txt=${policyFileStatus.llmsTxt}, sitemap=${policyFileStatus.sitemapXml}`);
+    } catch (policyError) {
+      console.warn('[Technical Core] Policy file check failed:', policyError);
+    }
+
     // Step 6: Run legacy single-page analysis for backward compatibility
     console.log('[Technical Core] Step 6: Running legacy analysis for backward compatibility...');
     let legacySeoScore = 0;
@@ -629,6 +659,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
         topIssues,
         recommendations,
         scoreByPageType,
+        policyFiles: policyFileStatus,
       }
     };
 

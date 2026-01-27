@@ -31,6 +31,7 @@ import type {
 	FAQAnalysis,
 	ContentSnapshot,
 	LinkCounts,
+	ParagraphContent,
 } from "./types";
 
 // ============================================================================
@@ -682,6 +683,19 @@ function extractContentSnapshot($: CheerioAPI, pageUrl: string): ContentSnapshot
 		external: externalLinks,
 	};
 
+	const paragraphsContent: ParagraphContent[] = [];
+	$("p").each((index, el) => {
+		if (paragraphsContent.length >= 50) return false;
+		const text = $(el).text().trim();
+		if (text.length > 10) {
+			paragraphsContent.push({
+				index,
+				text: text.substring(0, 500),
+				char_count: text.length,
+			});
+		}
+	});
+
 	return {
 		total_text_length: bodyText.length,
 		word_count: words.length,
@@ -689,6 +703,7 @@ function extractContentSnapshot($: CheerioAPI, pageUrl: string): ContentSnapshot
 		list_count: lists,
 		image_count: images,
 		link_count,
+		paragraphs: paragraphsContent,
 	};
 }
 

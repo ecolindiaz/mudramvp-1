@@ -271,6 +271,12 @@ export interface LinkCounts {
 	external: number;
 }
 
+export interface ParagraphContent {
+	index: number;
+	text: string;
+	char_count: number;
+}
+
 export interface ContentSnapshot {
 	total_text_length: number;
 	word_count: number;
@@ -278,6 +284,7 @@ export interface ContentSnapshot {
 	list_count: number;
 	image_count: number;
 	link_count: LinkCounts;
+	paragraphs: ParagraphContent[];
 }
 
 // ============================================================================

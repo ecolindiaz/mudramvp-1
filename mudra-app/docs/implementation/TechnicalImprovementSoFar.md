@@ -1,8 +1,8 @@
 # Technical Structure Improvement - Progress Log
 
-> **Version:** 3.0
+> **Version:** 4.0
 > **Last Updated:** January 27, 2026
-> **Current Phase:** Phase 3 Complete - Database & Storage
+> **Current Phase:** Phase 4 Complete - Unified Analysis Integration
 
 ---
 
@@ -686,23 +686,219 @@ console.log(`Site score: ${siteScore.overall_score} (change: ${siteScore.score_c
 
 ---
 
-## Next Phase: Phase 4 - Unified Analysis Service
+## Phase 4: Unified Analysis Integration
 
-**Goal:** Create a single service that orchestrates the entire analysis pipeline.
+**Status:** ✅ COMPLETE
+**Duration:** January 27, 2026
+**Branch:** `CleaningPages`
 
-**Tasks:**
-1. Create `lib/services/unified-technical-analysis.service.ts`
-   - Orchestrate: discovery → scrape → extract → score → save
-   - Handle errors gracefully with partial results
-   - Support both full analysis and re-scrape modes
+### Goals Achieved
 
-2. Create API endpoint `/api/analysis/technical/run`
-   - Trigger full site analysis
-   - Return job ID for progress tracking
+1. ✅ Integrated multi-page analysis into existing unified analysis service
+2. ✅ API endpoint `/api/analysis/unified` now returns detailed technical results
+3. ✅ Weekly cron job automatically uses new multi-page system
+4. ✅ Backward compatibility maintained with legacy scoring
 
-3. Create weekly cron job for re-analysis
-   - Use `getPagesToRescrape()` and `getBrandProfilesWithAnalysis()`
-   - Compare scores over time
+---
+
+### Files Modified
+
+#### 1. Unified Analysis Service
+**File:** `lib/services/unified-analysis.service.ts`
+
+**Changes Made:**
+- Replaced `runTechnicalAnalysisCore()` with new multi-page pipeline
+- Added `technicalDetails` field to `UnifiedAnalysisResult` interface
+- Integrated all Phase 1-3 modules into unified flow
+
+**New Response Structure:**
+```typescript
+interface UnifiedAnalysisResult {
+  success: boolean;
+  geoAnalysisId?: number;
+  technicalAnalysisId?: number;
+  reportId?: number;
+  error?: string;
+  errorCode?: string;
+  scores: {
+    aiVisibility?: number;
+    technical?: number;
+    seo?: number;
+    geo?: number;
+  };
+  // NEW: Multi-page technical details
+  technicalDetails?: {
+    siteScore: number;
+    pagesAnalyzed: number;
+    pagesSuccessful: number;
+    pagesFailed: number;
+    pageScores: Array<{
+      url: string;
+      pageType: string;
+      score: number;
+      dimensions: { metadata, headings, semantic, schema, faq, total };
+      issueCount: number;
+    }>;
+    topIssues: Array<{ check, dimension, severity, message, page_url }>;
+    recommendations: Array<{ severity, message, category, action }>;
+    scoreByPageType: Record<string, { count: number; avgScore: number }>;
+  };
+}
+```
+
+---
+
+### New Pipeline Flow
+
+```
+runTechnicalAnalysisCore(config)
+    │
+    ├─► Step 1: discoverPages() [Firecrawl /map]
+    │   └─► Returns up to 20 prioritized URLs
+    │
+    ├─► Step 2: saveSitemapPages() [Database]
+    │   └─► Store discovered pages
+    │
+    ├─► Step 3: scrapePages() [Firecrawl /scrape, 4 concurrent]
+    │   └─► Returns raw HTML for each page
+    │
+    ├─► Step 4: For each successful page:
+    │   ├─► htmlToExtraction() [Cheerio DOM parsing]
+    │   ├─► computePageScore() [5-dimension scoring]
+    │   ├─► savePageSnapshot() [Versioned HTML storage]
+    │   └─► savePageScore() [Store dimension scores]
+    │
+    ├─► Step 5: computeSiteScore() [Average of page scores]
+    │   └─► saveSiteStructureScore() [With change tracking]
+    │
+    ├─► Step 6: runLegacyAnalysis() [Backward compatibility]
+    │   └─► Runs old single-page scoring for existing features
+    │
+    └─► Step 7: Create TechnicalStructureAnalysis record
+        └─► Includes both new multi-page data and legacy format
+```
+
+---
+
+### Integration Points
+
+#### API Endpoint
+**Path:** `POST /api/analysis/unified`
+
+The existing endpoint now returns `technicalDetails` field with multi-page analysis results.
+
+#### Weekly Cron
+**Path:** `POST /api/cron/weekly-analysis`
+
+Uses `executeWeeklyAnalysis()` from `cron.service.ts`, which calls `runUnifiedAnalysis()`.
+The new multi-page system is automatically used for all weekly re-analyses.
+
+#### Dashboard
+The dashboard "Analyze Website" button calls the same unified analysis endpoint and will now receive detailed multi-page results.
+
+---
+
+### Backward Compatibility
+
+| Feature | Status |
+|---------|--------|
+| `TechnicalStructureAnalysis` table | ✅ Still populated |
+| Legacy `metadata` JSON format | ✅ Preserved |
+| `seoScore`, `geoScore` fields | ✅ Computed from legacy scorer |
+| `CrawlSnapshot` table | ✅ Still populated via `saveSnapshot()` |
+| `TechnicalScore` table | ✅ Still populated via `saveScore()` |
+
+---
+
+### Helper Functions
+
+**New:**
+```typescript
+// Generate actionable recommendations from issues
+function generateActionFromIssue(issue: { check, dimension, message }): string
+```
+
+**Preserved:**
+```typescript
+// Legacy action generation (kept for backward compat)
+function generateActionFromFinding(finding: any): string
+```
+
+---
+
+### Error Handling
+
+- Firecrawl discovery failure → Falls back to home page only
+- Individual page scrape failure → Logged, continues with others
+- DB save failure → Logged, doesn't block analysis
+- Site score requires at least 1 successful page
+
+---
+
+### Performance
+
+| Step | Estimated Time |
+|------|----------------|
+| Sitemap discovery | 2-5s |
+| Scrape 20 pages (4 concurrent) | 15-30s |
+| DOM extraction | 50-200ms per page |
+| Scoring | 10-50ms per page |
+| DB writes | 100-500ms total |
+| **Total** | **30-60s** |
+
+---
+
+### Example Response
+
+```json
+{
+  "success": true,
+  "geoAnalysisId": 123,
+  "technicalAnalysisId": 456,
+  "scores": {
+    "aiVisibility": 65,
+    "technical": 72,
+    "seo": 78,
+    "geo": 45
+  },
+  "technicalDetails": {
+    "siteScore": 72,
+    "pagesAnalyzed": 15,
+    "pagesSuccessful": 14,
+    "pagesFailed": 1,
+    "pageScores": [
+      {
+        "url": "https://example.com/",
+        "pageType": "home",
+        "score": 85,
+        "dimensions": {
+          "metadata": 23,
+          "headings": 18,
+          "semantic": 12,
+          "schema": 22,
+          "faq": 10,
+          "total": 85
+        },
+        "issueCount": 3
+      }
+    ],
+    "topIssues": [
+      {
+        "check": "M3_canonical",
+        "dimension": "metadata",
+        "severity": "medium",
+        "message": "Missing canonical URL",
+        "page_url": "https://example.com/pricing"
+      }
+    ],
+    "scoreByPageType": {
+      "home": { "count": 1, "avgScore": 85 },
+      "pricing": { "count": 1, "avgScore": 72 },
+      "blog": { "count": 5, "avgScore": 65 }
+    }
+  }
+}
+```
 
 ---
 
@@ -713,15 +909,29 @@ console.log(`Site score: ${siteScore.overall_score} (change: ${siteScore.score_c
 | Jan 27, 2026 | Phase 1 | DOM Extractor and Five-Dimension Scorer started - Phase 1 of Technical Structure Implementation Finished |
 | Jan 27, 2026 | Phase 2 | Sitemap Discovery and Multi-Page Scraper started - Phase 2 of Technical Structure Implementation Finished |
 | Jan 27, 2026 | Phase 3 | Database & Storage - Phase 3 of Technical Structure Implementation Finished |
+| Jan 27, 2026 | Phase 4 | Unified Analysis Integration - Phase 4 of Technical Structure Implementation Finished |
+
+---
+
+## Next Phase: Phase 5 - Testing & Validation
+
+**Goal:** Ensure system works correctly across diverse websites.
+
+**Tasks:**
+1. Integration tests for full pipeline
+2. Manual testing on 20+ real websites
+3. Performance testing (< 60s for 20 pages)
+4. Error rate monitoring (< 5%)
 
 ---
 
 ## Notes
 
 - All legacy types and functions remain unchanged for backward compatibility
-- The new 5-dimension scoring system runs independently from the old scoring in `score.ts`
-- Integration with the unified analysis service will happen in Phase 4
-- HTML storage for future diffing and agent interventions is now implemented in Phase 3
-- Phase 2 services are designed to work together: discovery → scraping → extraction → scoring
-- Phase 3 adds persistence layer: all data can now be stored and retrieved from database
-- Snapshot versioning enables historical comparison and weekly re-analysis
+- The new 5-dimension scoring system runs alongside the old scoring in `score.ts`
+- Unified analysis service now orchestrates both GEO and multi-page technical analysis
+- HTML storage for future diffing and agent interventions is fully implemented
+- Phase 2 services work together: discovery → scraping → extraction → scoring
+- Phase 3 persistence layer stores all data with versioning
+- Phase 4 integrates everything into the existing unified analysis flow
+- Weekly cron automatically benefits from the new multi-page system

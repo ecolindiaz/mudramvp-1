@@ -37,6 +37,41 @@ export interface UnifiedAnalysisResult {
     seo?: number;
     geo?: number;
   };
+  // New multi-page technical details (Phase 4)
+  technicalDetails?: {
+    siteScore: number;
+    pagesAnalyzed: number;
+    pagesSuccessful: number;
+    pagesFailed: number;
+    pageScores: Array<{
+      url: string;
+      pageType: string;
+      score: number;
+      dimensions: {
+        metadata: number;
+        headings: number;
+        semantic: number;
+        schema: number;
+        faq: number;
+        total: number;
+      };
+      issueCount: number;
+    }>;
+    topIssues: Array<{
+      check: string;
+      dimension: string;
+      severity: string;
+      message: string;
+      page_url: string;
+    }>;
+    recommendations: Array<{
+      severity: string;
+      message: string;
+      category: string;
+      action: string;
+    }>;
+    scoreByPageType: Record<string, { count: number; avgScore: number }>;
+  };
 }
 
 /**
@@ -86,6 +121,10 @@ export async function runUnifiedAnalysis(
       result.scores.technical = technicalResult.value.overallScore;
       result.scores.seo = technicalResult.value.seoScore;
       result.scores.geo = technicalResult.value.geoScore;
+      // Include new multi-page technical details (Phase 4)
+      if (technicalResult.value.technicalDetails) {
+        result.technicalDetails = technicalResult.value.technicalDetails;
+      }
       console.log('[Unified Analysis] Technical completed:', technicalResult.value.overallScore);
     } else if (technicalResult.status === 'rejected') {
       const errorMsg = technicalResult.reason instanceof Error
@@ -253,110 +292,344 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
 }
 
 /**
- * Core Technical Analysis Logic
+ * Core Technical Analysis Logic - Multi-Page 5-Dimension Scoring System
+ * Phase 4: Integrated pipeline using Firecrawl sitemap discovery + DOM extraction + scoring
  * Shared by onboarding and dashboard
  */
 async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
   try {
+    // Import new multi-page modules
+    const { discoverPages, getUrlsFromDiscovery, createFallbackDiscovery } = await import('./sitemap-discovery.service');
+    const { scrapePages, getSuccessfulScrapes } = await import('./multi-page-scraper.service');
+    const { htmlToExtraction } = await import('@/lib/analysis/technical/dom-extractor');
+    const { computePageScore, computeSiteScore } = await import('@/lib/analysis/technical/five-dimension-scorer');
+    const {
+      saveSitemapPages,
+      savePageSnapshot,
+      savePageScore,
+      saveSiteStructureScore,
+      createScrapeJob,
+      updateScrapeJobProgress,
+      completeScrapeJob,
+    } = await import('@/lib/analysis/technical/repo');
+
+    // Also import legacy modules for backward compatibility
     const { scrapeCompanyPage } = await import('@/lib/scrapers/enhanced-geo-scraper');
     const { toScrapeSnapshot } = await import('@/lib/analysis/technical/adapter');
     const { computeTechnicalScore } = await import('@/lib/analysis/technical/score');
     const { saveSnapshot, saveScore, ensureSiteByUrl } = await import('@/lib/analysis/technical/repo');
 
-    // Scrape website
-    console.log('[Technical Core] Scraping:', config.website);
-    const scrapeResult = await scrapeCompanyPage(config.website, {
-      fresh: true,
-      useLlmJsonMode: false
-    });
-
-    // Convert and score
-    const snapshot = toScrapeSnapshot(scrapeResult);
-    const scoreResult = computeTechnicalScore(snapshot);
-
-    console.log('[Technical Core] Score:', scoreResult.total);
-
-    // Save to database
+    // Extract domain from website URL
+    let domain: string;
     try {
-      const site = await ensureSiteByUrl(config.website);
-      const savedSnapshot = await saveSnapshot(site.id, snapshot);
-      await saveScore(savedSnapshot.id, scoreResult);
-    } catch (dbError) {
-      console.error('[Technical Core] DB save error:', dbError);
+      domain = new URL(config.website).hostname;
+    } catch {
+      domain = config.website.replace(/^https?:\/\//, '').split('/')[0];
     }
 
-    // Calculate category scores
-    const seoComponents = scoreResult.components.filter(c => c.category === 'SEO');
-    const seoScore = seoComponents.length > 0
-      ? Math.round((seoComponents.reduce((sum, c) => sum + c.score, 0) /
-                    seoComponents.reduce((sum, c) => sum + c.max, 0)) * 100)
-      : 0;
+    console.log('[Technical Core] Starting multi-page analysis for:', domain);
 
-    const geoComponents = scoreResult.components.filter(c => c.category === 'GEO');
-    const geoScore = geoComponents.length > 0
-      ? Math.round((geoComponents.reduce((sum, c) => sum + c.score, 0) /
-                    geoComponents.reduce((sum, c) => sum + c.max, 0)) * 100)
-      : 0;
+    // Create scrape job for progress tracking
+    let jobId: string | null = null;
 
-    // Generate recommendations
-    const recommendations = scoreResult.findings.map(finding => ({
-      severity: finding.severity,
-      message: finding.message,
-      category: finding.category,
-      action: generateActionFromFinding(finding)
+    // Step 1: Discover pages via Firecrawl /map
+    console.log('[Technical Core] Step 1: Discovering pages...');
+    let discovery = await discoverPages(domain, { maxPages: 20, maxBlogs: 10 });
+
+    if (!discovery.success || discovery.pages.length === 0) {
+      console.log('[Technical Core] Firecrawl discovery failed, using fallback...');
+      discovery = createFallbackDiscovery(domain);
+    }
+
+    console.log(`[Technical Core] Discovered ${discovery.selectedCount} pages to analyze`);
+
+    // Create job for tracking
+    try {
+      const job = await createScrapeJob(
+        config.brandProfileId,
+        domain,
+        'full_site',
+        discovery.selectedCount,
+        { maxPages: 20, maxBlogs: 10 }
+      );
+      jobId = job.id;
+      await updateScrapeJobProgress(jobId, { status: 'running' });
+    } catch (jobError) {
+      console.warn('[Technical Core] Could not create scrape job:', jobError);
+    }
+
+    // Step 2: Save discovered pages to database
+    console.log('[Technical Core] Step 2: Saving discovered pages...');
+    try {
+      await saveSitemapPages(config.brandProfileId, domain, discovery.pages);
+    } catch (saveError) {
+      console.warn('[Technical Core] Could not save sitemap pages:', saveError);
+    }
+
+    // Step 3: Scrape pages in parallel batches
+    console.log('[Technical Core] Step 3: Scraping pages...');
+    const urls = getUrlsFromDiscovery(discovery);
+    const scrapeResult = await scrapePages(urls, { concurrency: 4, timeoutMs: 30000 });
+
+    console.log(`[Technical Core] Scraped ${scrapeResult.successCount}/${scrapeResult.totalUrls} pages`);
+
+    // Update job progress
+    if (jobId) {
+      try {
+        await updateScrapeJobProgress(jobId, {
+          pagesScraped: scrapeResult.successCount,
+          pagesFailed: scrapeResult.failureCount,
+          errors: scrapeResult.errors,
+        });
+      } catch (e) { /* ignore */ }
+    }
+
+    // Step 4: Extract DOM and score each successful page
+    console.log('[Technical Core] Step 4: Extracting and scoring pages...');
+    const successfulScrapes = getSuccessfulScrapes(scrapeResult);
+    const pageScores: Array<ReturnType<typeof computePageScore>> = [];
+    const allIssues: Array<{ check: string; dimension: string; severity: string; message: string; page_url: string }> = [];
+    let pagesScored = 0;
+
+    // Get sitemap pages for ID lookup
+    const { getSitemapPages } = await import('@/lib/analysis/technical/repo');
+    const sitemapPages = await getSitemapPages(config.brandProfileId, domain);
+    const urlToSitemapPageId = new Map(sitemapPages.map(p => [p.page_url, p.id]));
+
+    for (const page of successfulScrapes) {
+      if (!page.rawHtml) continue;
+
+      try {
+        // Extract DOM data
+        const extraction = htmlToExtraction(page.rawHtml, page.url);
+
+        // Score the page
+        const score = computePageScore(extraction);
+        pageScores.push(score);
+
+        // Collect issues
+        allIssues.push(...score.issues);
+
+        // Save snapshot and score to database
+        const sitemapPageId = urlToSitemapPageId.get(page.url);
+        if (sitemapPageId) {
+          try {
+            const { id: snapshotId } = await savePageSnapshot(
+              config.brandProfileId,
+              sitemapPageId,
+              page.url,
+              page.rawHtml,
+              extraction,
+              { scrapeDurationMs: scrapeResult.durationMs / successfulScrapes.length }
+            );
+
+            await savePageScore(
+              config.brandProfileId,
+              snapshotId,
+              sitemapPageId,
+              page.url,
+              score
+            );
+
+            // Update sitemap page status
+            const { updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
+            await updateSitemapPageStatus(sitemapPageId, 'scraped');
+          } catch (dbError) {
+            console.warn(`[Technical Core] DB save error for ${page.url}:`, dbError);
+          }
+        }
+
+        pagesScored++;
+        console.log(`[Technical Core] Scored ${page.url}: ${score.scores.total}/100 (${score.status})`);
+      } catch (scoreError) {
+        console.error(`[Technical Core] Error scoring ${page.url}:`, scoreError);
+      }
+    }
+
+    // Update job progress
+    if (jobId) {
+      try {
+        await updateScrapeJobProgress(jobId, { pagesScored });
+      } catch (e) { /* ignore */ }
+    }
+
+    // Step 5: Calculate site-wide score
+    console.log('[Technical Core] Step 5: Calculating site score...');
+    const siteScore = computeSiteScore(pageScores);
+
+    // Build score by page type for site structure score
+    const scoreByPageType: Record<string, { count: number; avgScore: number }> = {};
+    for (const score of pageScores) {
+      const type = score.page_type;
+      if (!scoreByPageType[type]) {
+        scoreByPageType[type] = { count: 0, avgScore: 0 };
+      }
+      scoreByPageType[type].count++;
+      scoreByPageType[type].avgScore += score.scores.total;
+    }
+    for (const type of Object.keys(scoreByPageType)) {
+      scoreByPageType[type].avgScore = Math.round(
+        scoreByPageType[type].avgScore / scoreByPageType[type].count
+      );
+    }
+
+    // Get top issues (limited to 10, sorted by severity)
+    const severityOrder = { high: 0, medium: 1, low: 2 };
+    const topIssues = allIssues
+      .sort((a, b) => severityOrder[a.severity as keyof typeof severityOrder] - severityOrder[b.severity as keyof typeof severityOrder])
+      .slice(0, 10);
+
+    // Save site structure score
+    if (pageScores.length > 0) {
+      try {
+        await saveSiteStructureScore(
+          config.brandProfileId,
+          domain,
+          pageScores,
+          topIssues as any,
+          scoreByPageType as any
+        );
+      } catch (siteScoreError) {
+        console.warn('[Technical Core] Could not save site structure score:', siteScoreError);
+      }
+    }
+
+    // Complete job
+    if (jobId) {
+      try {
+        await completeScrapeJob(jobId, true, scrapeResult.durationMs);
+      } catch (e) { /* ignore */ }
+    }
+
+    // Step 6: Run legacy single-page analysis for backward compatibility
+    console.log('[Technical Core] Step 6: Running legacy analysis for backward compatibility...');
+    let legacySeoScore = 0;
+    let legacyGeoScore = 0;
+    let legacyFindings: any[] = [];
+    let legacySnapshot: any = null;
+
+    try {
+      const legacyScrapeResult = await scrapeCompanyPage(config.website, {
+        fresh: true,
+        useLlmJsonMode: false
+      });
+      legacySnapshot = toScrapeSnapshot(legacyScrapeResult);
+      const legacyScoreResult = computeTechnicalScore(legacySnapshot);
+
+      // Save legacy snapshot to crawl_snapshots table
+      try {
+        const site = await ensureSiteByUrl(config.website);
+        const savedSnapshot = await saveSnapshot(site.id, legacySnapshot);
+        await saveScore(savedSnapshot.id, legacyScoreResult);
+      } catch (dbError) {
+        console.warn('[Technical Core] Legacy DB save error:', dbError);
+      }
+
+      const seoComponents = legacyScoreResult.components.filter(c => c.category === 'SEO');
+      legacySeoScore = seoComponents.length > 0
+        ? Math.round((seoComponents.reduce((sum, c) => sum + c.score, 0) /
+                      seoComponents.reduce((sum, c) => sum + c.max, 0)) * 100)
+        : 0;
+
+      const geoComponents = legacyScoreResult.components.filter(c => c.category === 'GEO');
+      legacyGeoScore = geoComponents.length > 0
+        ? Math.round((geoComponents.reduce((sum, c) => sum + c.score, 0) /
+                      geoComponents.reduce((sum, c) => sum + c.max, 0)) * 100)
+        : 0;
+
+      legacyFindings = legacyScoreResult.findings;
+    } catch (legacyError) {
+      console.warn('[Technical Core] Legacy analysis failed:', legacyError);
+    }
+
+    // Generate recommendations from issues
+    const recommendations = topIssues.map(issue => ({
+      severity: issue.severity,
+      message: issue.message,
+      category: issue.dimension,
+      action: generateActionFromIssue(issue)
     }));
 
-    // Create analysis record
+    // Step 7: Create TechnicalStructureAnalysis record (backward compatibility)
     const technicalAnalysis = await prisma.technicalStructureAnalysis.create({
       data: {
         brandProfileId: config.brandProfileId,
         websiteUrl: config.website,
-        overallScore: scoreResult.total,
-        seoScore: seoScore,
+        overallScore: siteScore,
+        seoScore: legacySeoScore,
         performanceScore: 0,
         accessibilityScore: 0,
-        insights: JSON.stringify(scoreResult.findings.map(f => ({
-          type: f.severity,
-          message: f.message,
-          category: f.category
+        insights: JSON.stringify(topIssues.map(i => ({
+          type: i.severity,
+          message: i.message,
+          category: i.dimension
         }))),
         recommendations: JSON.stringify(recommendations),
         metadata: JSON.stringify({
-          components: scoreResult.components,
+          // New multi-page data
+          multiPageAnalysis: {
+            pagesAnalyzed: pageScores.length,
+            pagesSuccessful: scrapeResult.successCount,
+            pagesFailed: scrapeResult.failureCount,
+            siteScore,
+            scoreByPageType,
+            topIssues: topIssues.slice(0, 5),
+          },
+          // Legacy data for backward compatibility
+          components: legacyFindings.length > 0 ? legacyFindings : [],
           structuredData: {
-            hasJsonLd: snapshot.schema?.summary?.jsonLdCount ?? 0 > 0,
-            jsonLdCount: snapshot.schema?.summary?.jsonLdCount ?? 0,
-            hasFaqSchema: snapshot.schema?.summary?.faqSchemaCount ?? 0 > 0
+            hasJsonLd: legacySnapshot?.schema?.summary?.jsonLdCount ?? 0 > 0,
+            jsonLdCount: legacySnapshot?.schema?.summary?.jsonLdCount ?? 0,
+            hasFaqSchema: legacySnapshot?.schema?.summary?.faqSchemaCount ?? 0 > 0
           },
           metaTags: {
-            hasTitle: Boolean(snapshot.metadata?.title),
-            hasDescription: Boolean(snapshot.metadata?.description),
-            hasFavicon: Boolean(snapshot.metadata?.favicon)
+            hasTitle: Boolean(legacySnapshot?.metadata?.title),
+            hasDescription: Boolean(legacySnapshot?.metadata?.description),
+            hasFavicon: Boolean(legacySnapshot?.metadata?.favicon)
           },
           headingStructure: {
-            h1Count: snapshot.htmlStructure?.headings?.h1?.length ?? 0,
-            h2Count: snapshot.htmlStructure?.headings?.h2?.length ?? 0,
-            h3Count: snapshot.htmlStructure?.headings?.h3?.length ?? 0,
-            hasProperStructure: snapshot.htmlStructure?.hasProperStructure ?? false
+            h1Count: legacySnapshot?.htmlStructure?.headings?.h1?.length ?? 0,
+            h2Count: legacySnapshot?.htmlStructure?.headings?.h2?.length ?? 0,
+            h3Count: legacySnapshot?.htmlStructure?.headings?.h3?.length ?? 0,
+            hasProperStructure: legacySnapshot?.htmlStructure?.hasProperStructure ?? false
           },
           llmFiles: {
-            hasRobotsTxt: snapshot.txtFiles?.summary?.hasRobotsTxt ?? false,
-            hasLlmsTxt: snapshot.txtFiles?.summary?.hasLlmsTxt ?? false,
-            hasLlmsFullTxt: snapshot.txtFiles?.summary?.hasLlmsFullTxt ?? false
+            hasRobotsTxt: legacySnapshot?.txtFiles?.summary?.hasRobotsTxt ?? false,
+            hasLlmsTxt: legacySnapshot?.txtFiles?.summary?.hasLlmsTxt ?? false,
+            hasLlmsFullTxt: legacySnapshot?.txtFiles?.summary?.hasLlmsFullTxt ?? false
           },
-          criticalIssues: scoreResult.findings.filter(f => f.severity === 'high').map(f => f.message),
-          warnings: scoreResult.findings.filter(f => f.severity === 'medium').map(f => f.message),
-          suggestions: scoreResult.findings.filter(f => f.severity === 'low').map(f => f.message),
+          criticalIssues: topIssues.filter(i => i.severity === 'high').map(i => i.message),
+          warnings: topIssues.filter(i => i.severity === 'medium').map(i => i.message),
+          suggestions: topIssues.filter(i => i.severity === 'low').map(i => i.message),
         }),
       },
     });
 
+    console.log(`[Technical Core] Multi-page analysis complete: ${siteScore}/100 (${pageScores.length} pages)`);
+
     return {
       success: true,
       id: technicalAnalysis.id,
-      overallScore: scoreResult.total,
-      seoScore,
-      geoScore
+      overallScore: siteScore,
+      seoScore: legacySeoScore,
+      geoScore: legacyGeoScore,
+      // New detailed results
+      technicalDetails: {
+        siteScore,
+        pagesAnalyzed: pageScores.length,
+        pagesSuccessful: scrapeResult.successCount,
+        pagesFailed: scrapeResult.failureCount,
+        pageScores: pageScores.map(ps => ({
+          url: ps.page_url,
+          pageType: ps.page_type,
+          score: ps.scores.total,
+          dimensions: ps.scores,
+          issueCount: ps.issues.length,
+        })),
+        topIssues,
+        recommendations,
+        scoreByPageType,
+      }
     };
 
   } catch (error) {
@@ -366,6 +639,37 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
       error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
+}
+
+/**
+ * Generate action from issue (new 5-dimension system)
+ */
+function generateActionFromIssue(issue: { check: string; dimension: string; message: string }): string {
+  const actionMap: Record<string, string> = {
+    // Metadata
+    'M1_title': 'Add a descriptive <title> tag to your page',
+    'M2_description': 'Add a meta description to improve search visibility',
+    'M3_canonical': 'Add a canonical URL to prevent duplicate content issues',
+    'M4_opengraph': 'Add Open Graph tags for better social sharing',
+    'M5_twitter': 'Add Twitter Card tags for better Twitter previews',
+    // Headings
+    'H1_single': 'Ensure exactly one H1 tag per page',
+    'H2_coverage': 'Add more headings to improve content structure',
+    'H3_no_skips': 'Fix heading hierarchy - avoid skipping levels',
+    // Semantic
+    'S1_main_content': 'Wrap main content in <main> or <article> tags',
+    'S2_page_structure': 'Add <header> and <footer> elements',
+    'S3_sections': 'Use semantic HTML elements instead of divs',
+    // Schema
+    'J1_present': 'Add JSON-LD structured data to your pages',
+    'J2_valid': 'Fix JSON-LD syntax errors',
+    'J3_relevant': 'Use AEO-relevant schema types (Organization, Product, FAQPage, etc.)',
+    // FAQ
+    'FAQ_count': 'Add FAQ content to improve AEO visibility',
+    'FAQ_schema_gap': 'Add FAQPage schema markup to existing FAQ content',
+  };
+
+  return actionMap[issue.check] || `Review and fix: ${issue.message}`;
 }
 
 /**
@@ -467,7 +771,7 @@ async function generateReportContent(data: {
 }
 
 /**
- * Generate action from finding
+ * Generate action from finding (legacy - kept for backward compatibility)
  */
 function generateActionFromFinding(finding: any): string {
   const actionMap: Record<string, string> = {
@@ -479,3 +783,6 @@ function generateActionFromFinding(finding: any): string {
 
   return actionMap[finding.key] || 'Review and fix this issue';
 }
+
+// Re-export for potential external use
+export { generateActionFromFinding };

@@ -910,10 +910,79 @@ function generateActionFromFinding(finding: any): string
 | Jan 27, 2026 | Phase 2 | Sitemap Discovery and Multi-Page Scraper started - Phase 2 of Technical Structure Implementation Finished |
 | Jan 27, 2026 | Phase 3 | Database & Storage - Phase 3 of Technical Structure Implementation Finished |
 | Jan 27, 2026 | Phase 4 | Unified Analysis Integration - Phase 4 of Technical Structure Implementation Finished |
+| Jan 27, 2026 | Phase 5 | Keyword-Targeted Discovery - Phase 5 of Technical Structure Implementation Finished |
 
 ---
 
-## Next Phase: Phase 5 - Testing & Validation
+## Phase 5: Keyword-Targeted Discovery
+
+**Status:** ✅ COMPLETE
+**Duration:** January 27, 2026
+**Branch:** `CleaningPages`
+
+### Goals Achieved
+
+1. ✅ Keyword-targeted search using Firecrawl's `search` parameter
+2. ✅ Smart filtering to exclude docs, changelogs, careers, login pages
+3. ✅ Subdomain filtering (excludes docs.*, api.*, status.*)
+4. ✅ Verified on Stripe, Linear, Vercel - now finds real marketing pages
+
+---
+
+### Problem Solved
+
+**Before:** Discovery returned random deep URLs (e.g., `/fr-be/guides/product-resources`, `/resources/more/how-to-start-a-power-washing-business`)
+
+**After:** Discovery finds actual nav/marketing pages (e.g., `/pricing`, `/features`, `/enterprise`, `/about`)
+
+---
+
+### Implementation Details
+
+**File Modified:** `lib/services/sitemap-discovery.service.ts`
+
+**New Strategy:**
+1. General map call (limit: 30) for homepage + sitemap structure
+2. Targeted keyword searches for: pricing, features, product, solutions, about, customers, enterprise, integrations, blog
+3. Merge results, deduplicate, filter, prioritize
+
+**New Exclusions Added:**
+- URL patterns: `/changelog`, `/careers`, `/jobs`, `/templates`, `/new/`, `/login`, `/signup`, `/signin`, `/register`
+- Subdomains: `docs.*`, `api.*`, `status.*`, `help.*`, `support.*`
+
+**Key Code Changes:**
+```typescript
+const MARKETING_PAGE_KEYWORDS = [
+  { keyword: 'pricing', type: 'pricing', priority: 1 },
+  { keyword: 'features', type: 'features', priority: 2 },
+  { keyword: 'product', type: 'product', priority: 3 },
+  { keyword: 'solutions', type: 'solutions', priority: 4 },
+  // ... etc
+];
+
+// In discoverPages():
+for (const { keyword } of keywordsToSearch.slice(0, 5)) {
+  const searchResult = await firecrawl.mapUrl(normalizedUrl, {
+    limit: 10,
+    search: keyword,
+  });
+  // merge into allDiscoveredUrls
+}
+```
+
+---
+
+### Test Results
+
+| Site | Before | After |
+|------|--------|-------|
+| stripe.com | Random guides, locales | `/pricing`, `/payments/features`, `/enterprise` |
+| linear.app | Changelog, API docs | `/pricing`, `/about`, `/contact`, `/enterprise` |
+| vercel.com | Random templates | `/product-tour`, `/solutions/react`, `/about` |
+
+---
+
+## Next Phase: Phase 6 - Testing & Validation
 
 **Goal:** Ensure system works correctly across diverse websites.
 

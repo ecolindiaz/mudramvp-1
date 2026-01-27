@@ -453,6 +453,121 @@ function extractFAQsFromPatterns($: CheerioAPI): FAQItem[] {
 	return faqs;
 }
 
+/**
+ * Extracts FAQs from accordion-style components and FAQ sections
+ * Detects common patterns like section#faq, button+answer divs, etc.
+ */
+function extractFAQsFromAccordion($: CheerioAPI): FAQItem[] {
+	const faqs: FAQItem[] = [];
+
+	// Find FAQ containers by common selectors
+	const faqSelectors = [
+		'#faq',
+		'[data-section="faq"]',
+		'.faq',
+		'.faqs',
+		'.faq-section',
+		'[class*="faq-"]',
+		'[id*="faq"]',
+	].join(', ');
+
+	const faqContainers = $(faqSelectors);
+
+	faqContainers.each((_containerIndex: number, container: CheerioElement) => {
+		// Pattern: Button with question text + collapsed div with answer
+		$(container).find("button").each((_btnIndex: number, button: CheerioElement) => {
+			// Get question from button's span or direct text
+			const questionEl = $(button).find("span").first();
+			const question = questionEl.length
+				? questionEl.text().trim()
+				: $(button).clone().children("svg, div:has(svg)").remove().end().text().trim();
+
+			if (!question || question.length < 5) return;
+
+			// Find answer in parent's collapsed div
+			const parent = $(button).parent();
+			let answer = "";
+
+			// Look for sibling div with answer content
+			const answerContainer = parent.children("div").last();
+			if (answerContainer.length && !answerContainer.find("button").length) {
+				const answerP = answerContainer.find("p").first();
+				answer = answerP.length ? answerP.text().trim() : answerContainer.text().trim();
+			}
+
+			if (question && answer && answer.length > 10) {
+				faqs.push({
+					question,
+					answer,
+					question_length: question.length,
+					answer_length: answer.length,
+					source: "pattern",
+				});
+			}
+		});
+	});
+
+	// Also check for accordion-item patterns outside explicit FAQ sections
+	$('[class*="accordion-item"], [class*="collapse-item"]').each((_itemIndex: number, item: CheerioElement) => {
+		const header = $(item).find('[class*="header"], [class*="title"], button').first();
+		const content = $(item).find('[class*="content"], [class*="body"], [class*="panel"]').first();
+
+		const question = header.text().trim();
+		const answer = content.text().trim();
+
+		if (question && answer && question.length > 5 && answer.length > 10 && question.length < 200) {
+			faqs.push({
+				question,
+				answer,
+				question_length: question.length,
+				answer_length: answer.length,
+				source: "pattern",
+			});
+		}
+	});
+
+	return faqs;
+}
+
+/**
+ * Extracts FAQs from headings that end with question marks
+ */
+function extractFAQsFromQuestionHeadings($: CheerioAPI): FAQItem[] {
+	const faqs: FAQItem[] = [];
+
+	$("h2, h3, h4").each((_headingIndex: number, heading: CheerioElement) => {
+		const question = $(heading).text().trim();
+
+		// Must end with ?
+		if (!question.endsWith("?")) return;
+
+		// Get following content until next heading
+		let answer = "";
+		let next = $(heading).next();
+
+		while (next.length && !next.is("h1, h2, h3, h4, h5, h6")) {
+			if (next.is("p, div, ul, ol")) {
+				answer += next.text().trim() + " ";
+			}
+			next = next.next();
+		}
+
+		answer = answer.trim();
+
+		if (question && answer && question.length > 10 && answer.length > 20) {
+			faqs.push({
+				question,
+				answer,
+				question_length: question.length,
+				answer_length: answer.length,
+				source: "pattern",
+			});
+		}
+	});
+
+	return faqs;
+}
+
 function deduplicateFAQs(faqs: FAQItem[]): FAQItem[] {
 	const seen = new Set<string>();
 	const unique: FAQItem[] = [];
@@ -473,6 +588,11 @@ function extractFAQs($: CheerioAPI): FAQExtraction {
 	const jsonldFaqs = extractFAQsFromJsonLD($);
 	const detailsFaqs = extractFAQsFromDetails($);
 	const patternFaqs = extractFAQsFromPatterns($);
+	const accordionFaqs = extractFAQsFromAccordion($);
+	const headingFaqs = extractFAQsFromQuestionHeadings($);
+
+	// Combine pattern-based FAQs (accordion, headings, Q:/A: patterns)
+	const allPatternFaqs = [...patternFaqs, ...accordionFaqs, ...headingFaqs];
 
 	const sources: FAQSources = {
 		jsonld_faq_schema: {
@@ -484,12 +604,12 @@ function extractFAQs($: CheerioAPI): FAQExtraction {
 			faqs: detailsFaqs,
 		},
 		pattern_matching: {
-			present: patternFaqs.length > 0,
-			faqs: patternFaqs,
+			present: allPatternFaqs.length > 0,
+			faqs: allPatternFaqs,
 		},
 	};
 
-	const combined = deduplicateFAQs([...jsonldFaqs, ...detailsFaqs, ...patternFaqs]);
+	const combined = deduplicateFAQs([...jsonldFaqs, ...detailsFaqs, ...allPatternFaqs]);
 
 	const totalAnswerLength = combined.reduce((sum, faq) => sum + faq.answer_length, 0);
 	const avgAnswerLength = combined.length > 0 ? Math.round(totalAnswerLength / combined.length) : 0;

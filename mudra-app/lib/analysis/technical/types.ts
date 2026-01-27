@@ -396,6 +396,117 @@ export interface SiteStructureScoreResult {
 }
 
 // ============================================================================
+// PHASE 2: SITEMAP DISCOVERY & MULTI-PAGE SCRAPING TYPES
+// ============================================================================
+
+/**
+ * Page priority for URL selection during sitemap discovery
+ */
+export const PAGE_PRIORITY: Record<PageType, number> = {
+	home: 1, // Always include
+	pricing: 2, // Always include if exists
+	features: 3, // Always include if exists
+	product: 4, // Include up to 5
+	solutions: 5, // Include up to 3
+	about: 6, // Include if exists
+	contact: 7, // Include if exists
+	blog: 8, // Include up to 10 (most recent preferred)
+	documentation: 9, // Include if available
+	other: 10, // Fill remaining slots
+};
+
+/**
+ * Limits for each page type during discovery
+ */
+export const PAGE_TYPE_LIMITS: Partial<Record<PageType, number>> = {
+	product: 5,
+	solutions: 3,
+	blog: 10,
+};
+
+/**
+ * Options for sitemap discovery
+ */
+export interface DiscoveryOptions {
+	/** Maximum total pages to discover (default: 20) */
+	maxPages?: number;
+	/** Maximum blog posts to include (default: 10) */
+	maxBlogs?: number;
+	/** Include sitemap in discovery (default: 'include') */
+	sitemap?: "include" | "only" | "skip";
+	/** Search filter for specific URL patterns */
+	search?: string;
+}
+
+/**
+ * Discovered page information from Firecrawl /map endpoint
+ */
+export interface DiscoveredPage {
+	url: string;
+	title?: string;
+	description?: string;
+	pageType: PageType;
+	priority: number;
+}
+
+/**
+ * Result of sitemap discovery
+ */
+export interface DiscoveryResult {
+	success: boolean;
+	domain: string;
+	totalDiscovered: number;
+	selectedCount: number;
+	pages: DiscoveredPage[];
+	byType: Record<PageType, number>;
+	error?: string;
+}
+
+/**
+ * Options for multi-page scraping
+ */
+export interface MultiPageScrapeOptions {
+	/** Maximum concurrent scraping requests (default: 4) */
+	concurrency?: number;
+	/** Timeout per page in milliseconds (default: 30000) */
+	timeoutMs?: number;
+	/** Whether to bypass cache (default: true for analysis) */
+	bypassCache?: boolean;
+}
+
+/**
+ * Result of scraping a single page
+ */
+export interface PageScrapeResult {
+	url: string;
+	success: boolean;
+	rawHtml?: string;
+	htmlSizeBytes?: number;
+	metadata?: {
+		title?: string;
+		description?: string;
+		sourceURL?: string;
+		statusCode?: number;
+	};
+	error?: string;
+	scrapedAt: string;
+}
+
+/**
+ * Result of multi-page scraping batch
+ */
+export interface MultiPageScrapeResult {
+	totalUrls: number;
+	successCount: number;
+	failureCount: number;
+	results: PageScrapeResult[];
+	errors: Array<{ url: string; error: string }>;
+	startedAt: string;
+	completedAt: string;
+	durationMs: number;
+}
+
+// ============================================================================
 // LEGACY TYPES (preserved for backward compatibility)
 // ============================================================================
 

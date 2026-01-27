@@ -1,8 +1,8 @@
 # Technical Structure Improvement - Progress Log
 
-> **Version:** 1.0
+> **Version:** 2.1
 > **Last Updated:** January 27, 2026
-> **Current Phase:** Phase 1 Complete
+> **Current Phase:** Phase 2 Complete + Enhanced FAQ Detection
 
 ---
 
@@ -264,11 +264,285 @@ other: 9      // Fill remaining slots
 
 ---
 
+---
+
+## Phase 2: Sitemap Discovery & Multi-Page Scraping
+
+**Status:** ✅ COMPLETE
+**Duration:** January 27, 2026
+**Branch:** `CleaningPages`
+
+### Goals Achieved
+
+1. ✅ Integrated Firecrawl `/map` endpoint for URL discovery
+2. ✅ Implemented URL filtering by page type priority
+3. ✅ Created batched parallel scraping with fault tolerance
+4. ✅ Achieved 58 passing unit tests for Phase 2
+
+---
+
+### Files Created
+
+#### 1. Types Extension
+**File:** `lib/analysis/technical/types.ts`
+
+**New Types Added:**
+```typescript
+// Constants
+PAGE_PRIORITY         // Priority mapping for each PageType (1-10)
+PAGE_TYPE_LIMITS      // Max pages per type (product: 5, solutions: 3, blog: 10)
+
+// Discovery Types
+DiscoveryOptions      // maxPages, maxBlogs, sitemap, search
+DiscoveredPage        // url, title, description, pageType, priority
+DiscoveryResult       // success, domain, pages, byType, error
+
+// Scraping Types
+MultiPageScrapeOptions  // concurrency, timeoutMs, bypassCache
+PageScrapeResult        // url, success, rawHtml, htmlSizeBytes, metadata, error
+MultiPageScrapeResult   // totalUrls, successCount, failureCount, results, errors
+```
+
+---
+
+#### 2. Sitemap Discovery Service
+**File:** `lib/services/sitemap-discovery.service.ts`
+
+**Main Functions:**
+```typescript
+// Discover pages on a website using Firecrawl /map endpoint
+async function discoverPages(domain: string, options?: DiscoveryOptions): Promise<DiscoveryResult>
+
+// Get URLs from discovery result for scraping
+function getUrlsFromDiscovery(result: DiscoveryResult): string[]
+
+// Create fallback discovery with home page only
+function createFallbackDiscovery(domain: string): DiscoveryResult
+```
+
+**Features:**
+- Uses Firecrawl `/map` endpoint to discover all URLs
+- Filters by page type priority (home > pricing > features > product > solutions > about > contact > blog > documentation > other)
+- Applies configurable limits:
+  - Default max pages: 20
+  - Default max blogs: 10
+  - Product pages: max 5
+  - Solutions pages: max 3
+- Deduplicates URLs
+- Filters to same domain (includes subdomains)
+- Always ensures home page is included
+- Handles Firecrawl errors gracefully
+
+**Page Type Priority:**
+| Page Type | Priority | Limit |
+|-----------|----------|-------|
+| home | 1 | 1 |
+| pricing | 2 | unlimited |
+| features | 3 | unlimited |
+| product | 4 | 5 |
+| solutions | 5 | 3 |
+| about | 6 | unlimited |
+| contact | 7 | unlimited |
+| blog | 8 | 10 |
+| documentation | 9 | unlimited |
+| other | 10 | fill remaining |
+
+---
+
+#### 3. Multi-Page Scraper Service
+**File:** `lib/services/multi-page-scraper.service.ts`
+
+**Main Functions:**
+```typescript
+// Scrape multiple pages in parallel batches
+async function scrapePages(urls: string[], options?: MultiPageScrapeOptions): Promise<MultiPageScrapeResult>
+
+// Scrape a single URL (convenience wrapper)
+async function scrapeSingleUrl(url: string, options?): Promise<PageScrapeResult>
+
+// Filter successful/failed results
+function getSuccessfulScrapes(result: MultiPageScrapeResult): PageScrapeResult[]
+function getFailedScrapes(result: MultiPageScrapeResult): PageScrapeResult[]
+
+// Retry failed scrapes
+async function retryFailedScrapes(previousResult: MultiPageScrapeResult, options?): Promise<MultiPageScrapeResult>
+```
+
+**Features:**
+- Batched scraping with configurable concurrency (default: 4)
+- Uses `Promise.allSettled` for fault tolerance (individual failures don't crash batch)
+- Extracts raw HTML via Firecrawl `/scrape` endpoint
+- Deduplicates URLs before scraping
+- Calculates duration and statistics
+- Configurable timeout per page (default: 30 seconds)
+- Option to bypass cache for fresh data (default: true)
+- Returns detailed results including metadata and error messages
+
+**Defaults:**
+| Setting | Default | Rationale |
+|---------|---------|-----------|
+| Concurrency | 4 | Firecrawl hobby plan has 5 browser limit, use 4 for buffer |
+| Timeout | 30,000ms | 30 seconds per page |
+| Bypass Cache | true | Analysis needs fresh data |
+
+---
+
+#### 4. Unit Tests
+**Files:**
+- `lib/services/__tests__/sitemap-discovery.service.test.ts` (32 tests)
+- `lib/services/__tests__/multi-page-scraper.service.test.ts` (26 tests)
+
+**Test Coverage:**
+
+| Category | Tests | Status |
+|----------|-------|--------|
+| normalizeDomain | 5 | ✅ |
+| extractDomain | 3 | ✅ |
+| toDiscoveredPage | 4 | ✅ |
+| filterAndPrioritizePages | 5 | ✅ |
+| countByType | 1 | ✅ |
+| deduplicatePages | 2 | ✅ |
+| discoverPages (main) | 10 | ✅ |
+| getUrlsFromDiscovery | 2 | ✅ |
+| createFallbackDiscovery | 2 | ✅ |
+| chunkArray | 4 | ✅ |
+| delay | 1 | ✅ |
+| scrapePages (main) | 13 | ✅ |
+| scrapeSingleUrl | 1 | ✅ |
+| getSuccessfulScrapes | 1 | ✅ |
+| getFailedScrapes | 1 | ✅ |
+| retryFailedScrapes | 2 | ✅ |
+| Concurrency behavior | 2 | ✅ |
+| **TOTAL** | **58** | ✅ |
+
+---
+
+### Technical Decisions Made
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Firecrawl Method | `mapUrl()` for discovery | Returns URLs quickly without full page content |
+| Scrape Format | `rawHtml` only | Need original HTML for DOM extraction, not processed markdown |
+| Concurrency | 4 parallel | Buffer below Firecrawl's 5 browser limit |
+| Fault Tolerance | `Promise.allSettled` | Individual page failures shouldn't fail entire batch |
+| URL Deduplication | Normalize and lowercase | Prevent duplicate scrapes of same page |
+| Home Page Inclusion | Always ensure present | Home page is critical for site analysis |
+| Subdomain Handling | Include if same root domain | blog.example.com should be included with example.com |
+
+---
+
+### How to Run Tests
+
+```bash
+# Run Phase 2 tests only
+npm test -- lib/services/__tests__/sitemap-discovery.service.test.ts lib/services/__tests__/multi-page-scraper.service.test.ts
+
+# Run all Phase 1 + Phase 2 tests
+npm test -- lib/analysis/technical/__tests__ lib/services/__tests__/sitemap-discovery.service.test.ts lib/services/__tests__/multi-page-scraper.service.test.ts
+
+# Run with verbose output
+npm test -- --reporter=verbose
+```
+
+---
+
+### Example Usage
+
+```typescript
+import { discoverPages, getUrlsFromDiscovery } from '@/lib/services/sitemap-discovery.service';
+import { scrapePages } from '@/lib/services/multi-page-scraper.service';
+import { htmlToExtraction } from '@/lib/analysis/technical/dom-extractor';
+import { computePageScore } from '@/lib/analysis/technical/five-dimension-scorer';
+
+// Step 1: Discover pages
+const discovery = await discoverPages('example.com', { maxPages: 20 });
+console.log(`Found ${discovery.selectedCount} pages to analyze`);
+
+// Step 2: Scrape pages
+const urls = getUrlsFromDiscovery(discovery);
+const scrapeResult = await scrapePages(urls, { concurrency: 4 });
+console.log(`Scraped ${scrapeResult.successCount}/${scrapeResult.totalUrls} pages`);
+
+// Step 3: Extract and score each page (Phase 1 modules)
+for (const page of scrapeResult.results.filter(r => r.success)) {
+  const extraction = htmlToExtraction(page.rawHtml!, page.url);
+  const score = computePageScore(extraction);
+  console.log(`${page.url}: ${score.scores.total} points (${score.status})`);
+}
+```
+
+---
+
+## Enhancement: Improved FAQ Detection
+
+**Status:** ✅ COMPLETE
+**Date:** January 27, 2026
+
+### Problem
+
+The original FAQ detection only caught:
+1. JSON-LD FAQPage schema
+2. `<details>/<summary>` HTML elements
+3. "Q: ... A: ..." text patterns
+
+This missed common modern patterns like accordion components used on trymudra.com.
+
+### Solution
+
+Added two new extractors to `lib/analysis/technical/dom-extractor.ts`:
+
+1. **`extractFAQsFromAccordion()`** - Detects:
+   - FAQ sections by ID/class: `#faq`, `.faq`, `[data-section="faq"]`, `[class*="faq-"]`
+   - Button + collapsed div accordion patterns
+   - Accordion-item class patterns
+
+2. **`extractFAQsFromQuestionHeadings()`** - Detects:
+   - Headings (h2-h4) ending with "?"
+   - Following paragraph content as answers
+
+### Impact
+
+| Page | Before | After | Change |
+|------|--------|-------|--------|
+| trymudra.com (home) | 54/100 | 69/100 | **+15** |
+| trymudra.com/pricing | 46/100 | 61/100 | **+15** |
+
+### Test Results
+
+All 113 Phase 1 tests still passing after the enhancement.
+
+---
+
+## Next Phase: Phase 3 - Database & Storage
+
+**Goal:** Store snapshots, scores, and aggregated results.
+
+**Tasks:**
+1. Verify existing Prisma schema compatibility
+2. Extend repository layer (`lib/analysis/technical/repo.ts`)
+   - `saveSitemapPages()` - Store discovered pages
+   - `savePageSnapshot()` - Store versioned HTML + extraction
+   - `savePageScore()` - Store 5-dimension scores
+   - `saveSiteStructureScore()` - Store aggregated site score
+   - `getPagesToRescrape()` - Get URLs for weekly cron
+
+3. Write repository tests
+
+**Database Tables to Use:**
+- `SitemapPage` - Discovered pages
+- `PageSnapshot` - Versioned HTML + extraction JSON
+- `PageScore` - 5-dimension scores
+- `SiteStructureScore` - Aggregated site-wide scores
+- `PolicyFile` - robots.txt, llms.txt detection
+
+---
+
 ## Commit History
 
 | Date | Phase | Commit Message |
 |------|-------|----------------|
-| Jan 27, 2026 | Phase 1 | *Pending manual commit* |
+| Jan 27, 2026 | Phase 1 | DOM Extractor and Five-Dimension Scorer started - Phase 1 of Technical Structure Implementation Finished |
+| Jan 27, 2026 | Phase 2 | *Pending manual commit* |
 
 ---
 
@@ -278,3 +552,4 @@ other: 9      // Fill remaining slots
 - The new 5-dimension scoring system runs independently from the old scoring in `score.ts`
 - Integration with the unified analysis service will happen in Phase 4
 - HTML storage (for future diffing and agent interventions) will be added in Phase 3
+- Phase 2 services are designed to work together: discovery → scraping → extraction → scoring

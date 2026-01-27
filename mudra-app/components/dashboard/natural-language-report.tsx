@@ -382,7 +382,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-2">
             <div className="rounded-lg border border-white/[0.04] bg-transparent p-5">
-              <div className="mb-2 text-sm font-medium text-white/90">
+              <div className="mb-2 text-sm font-medium text-white/50">
                 <span>Summary</span>
               </div>
 
@@ -465,7 +465,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             {/* Competitor Rankings Table - Share of Voice */}
             <div className="rounded-lg border border-white/[0.04] bg-transparent overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
-                <div className="text-sm font-medium text-white/90">Competitor Rankings</div>
+                <div className="text-sm font-medium text-white/50">Competitor Rankings</div>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex">
@@ -524,7 +524,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             <div className="rounded-lg border border-white/[0.04] bg-transparent overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
                 <div className="flex items-center gap-2">
-                  <div className="text-sm font-medium text-white/90">Recent Chats</div>
+                  <div className="text-sm font-medium text-white/50">Recent Chats</div>
                 </div>
                 <Tooltip>
                   <TooltipTrigger asChild>

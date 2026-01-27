@@ -10,9 +10,9 @@ function isAdmin(req: NextRequest): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    // Skip auth in dev mode for easier testing
-    if (process.env.NODE_ENV !== 'development' && !isAdmin(req)) {
-      return NextResponse.json({ success: false, error: { message: 'Unauthorized' } }, { status: 401 })
+    // Always require admin token - no dev bypass
+    if (!isAdmin(req)) {
+      return NextResponse.json({ success: false, error: { message: 'Unauthorized - Admin token required' } }, { status: 401 })
     }
     
     const body = await req.json().catch(() => ({}));

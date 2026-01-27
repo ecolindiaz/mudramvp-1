@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 // Mock data for citation gaps analysis
 const mockCitationGapsData = {
@@ -106,11 +108,31 @@ const mockCitationGapsData = {
 
 // GET /api/insights/citation-gaps - Get citation gaps analysis
 export async function GET(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const { searchParams } = new URL(request.url)
+    const brandProfileIdParam = searchParams.get('brandProfileId')
     const timeRange = searchParams.get('timeRange') || '7d'
     const severity = searchParams.get('severity') // 'critical', 'high', 'medium'
     const category = searchParams.get('category')
+
+    if (!brandProfileIdParam) {
+      return NextResponse.json(
+        { success: false, error: { message: 'brandProfileId is required' } },
+        { status: 400 }
+      )
+    }
+
+    const brandProfileId = parseInt(brandProfileIdParam, 10)
+
+    // Verify user has access to this brand profile
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
     
     // TODO: Replace with actual database queries
     // const gapsData = await getCitationGapsAnalysis(timeRange, severity, category)
@@ -158,9 +180,29 @@ export async function GET(request: NextRequest) {
 
 // POST /api/insights/citation-gaps - Trigger citation gaps analysis
 export async function POST(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json()
-    const { companyUrl, competitors, analysisType } = body
+    const { brandProfileId, companyUrl, competitors, analysisType } = body
+    
+    if (!brandProfileId) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'brandProfileId is required' 
+        },
+        { status: 400 }
+      )
+    }
+
+    // Verify user has access to this brand profile
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
     
     if (!companyUrl) {
       return NextResponse.json(

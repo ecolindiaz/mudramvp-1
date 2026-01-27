@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 // Combined insights data structure
 interface InsightsData {
@@ -73,11 +75,31 @@ const mockInsightsData: InsightsData = {
 
 // GET /api/insights - Get comprehensive insights dashboard data
 export async function GET(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const { searchParams } = new URL(request.url)
+    const brandProfileIdParam = searchParams.get('brandProfileId')
     const timeRange = searchParams.get('timeRange') || '7d'
     const includeRecommendations = searchParams.get('recommendations') !== 'false'
     const includeAlerts = searchParams.get('alerts') !== 'false'
+
+    if (!brandProfileIdParam) {
+      return NextResponse.json(
+        { success: false, error: { message: 'brandProfileId is required' } },
+        { status: 400 }
+      )
+    }
+
+    const brandProfileId = parseInt(brandProfileIdParam, 10)
+
+    // Verify user has access to this brand profile
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
     
     // TODO: Replace with actual database queries and real analysis
     // const brandInsights = await getBrandInsights(timeRange)
@@ -123,14 +145,35 @@ export async function GET(request: NextRequest) {
 
 // POST /api/insights - Trigger comprehensive insights analysis
 export async function POST(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json()
     const { 
+      brandProfileId,
       companyUrl, 
       competitors, 
       analysisTypes = ['brand', 'citations', 'prompts'],
       priority = 'normal'
     } = body
+    
+    if (!brandProfileId) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'brandProfileId is required' 
+        },
+        { status: 400 }
+      )
+    }
+
+    // Verify user has access to this brand profile
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
     
     if (!companyUrl) {
       return NextResponse.json(
@@ -179,13 +222,34 @@ export async function POST(request: NextRequest) {
 
 // PUT /api/insights - Update insights configuration
 export async function PUT(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json()
     const { 
+      brandProfileId,
       trackingSettings,
       alertPreferences,
       reportFrequency 
     } = body
+
+    if (!brandProfileId) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'brandProfileId is required' 
+        },
+        { status: 400 }
+      )
+    }
+
+    // Verify user has access to this brand profile
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
     
     // TODO: Implement insights configuration update
     // await updateInsightsConfiguration({

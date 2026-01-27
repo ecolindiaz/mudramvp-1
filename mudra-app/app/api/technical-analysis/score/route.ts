@@ -1,10 +1,22 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { requireAuth } from '@/lib/auth/require-auth';
+import { applyRateLimit } from '@/lib/auth/rate-limiter';
 import { validateScrapeSnapshot } from "@/lib/analysis/technical/validate";
 import { computeTechnicalScore } from "@/lib/analysis/technical/score";
 import { saveSnapshot, saveScore, ensureCompanyAndSiteForUrl, ensureSiteByUrl } from "@/lib/analysis/technical/repo";
 import type { ScrapeSnapshot } from "@/lib/analysis/technical/types";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(req, 'standard');
+  if (rateLimited) return rateLimited;
+
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
   try {
     const body = await req.json().catch(() => ({}));
     const candidate: unknown = body?.snapshot ?? body;

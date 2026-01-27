@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 
 // Mock data for brand insights - replace with actual database queries
 const mockBrandInsights = {
@@ -67,9 +69,29 @@ const mockBrandInsights = {
 
 // GET /api/insights/brand - Get brand insights data
 export async function GET(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const { searchParams } = new URL(request.url)
+    const brandProfileIdParam = searchParams.get('brandProfileId')
     const timeRange = searchParams.get('timeRange') || '7d'
+
+    if (!brandProfileIdParam) {
+      return NextResponse.json(
+        { success: false, error: { message: 'brandProfileId is required' } },
+        { status: 400 }
+      )
+    }
+
+    const brandProfileId = parseInt(brandProfileIdParam, 10)
+
+    // Verify user has access to this brand profile
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
     
     // TODO: Replace with actual database queries based on timeRange
     // const insights = await getBrandInsights(timeRange)
@@ -108,8 +130,29 @@ export async function GET(request: NextRequest) {
 
 // POST /api/insights/brand - Update brand insights (future use)
 export async function POST(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json()
+    const { brandProfileId } = body
+
+    if (!brandProfileId) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'brandProfileId is required' 
+        },
+        { status: 400 }
+      )
+    }
+
+    // Verify user has access to this brand profile
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
     
     // TODO: Implement brand insights update logic
     // const updatedInsights = await updateBrandInsights(body)

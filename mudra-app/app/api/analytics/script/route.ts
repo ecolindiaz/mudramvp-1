@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { applyRateLimit } from '@/lib/auth/rate-limiter'
 import crypto from 'crypto'
 
 /**
@@ -7,18 +9,28 @@ import crypto from 'crypto'
  * Returns tracking script for the user's site
  */
 export async function GET(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const searchParams = request.nextUrl.searchParams
-    const brandProfileId = searchParams.get('brandProfileId')
+    const brandProfileIdParam = searchParams.get('brandProfileId')
 
-    if (!brandProfileId) {
+    if (!brandProfileIdParam) {
       return NextResponse.json(
-        { error: 'brandProfileId is required' },
+        { success: false, error: { message: 'brandProfileId is required' } },
         { status: 400 }
       )
     }
 
-    const profileId = parseInt(brandProfileId)
+    const profileId = parseInt(brandProfileIdParam, 10)
+
+    // Verify user has access to this brand profile
+    const authResult = await requireAuthWithBrandAccess(profileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
 
     // Check if brand profile exists
     const profile = await prisma.brandProfile.findUnique({
@@ -89,14 +101,26 @@ export async function GET(request: NextRequest) {
  * Verifies if tracking script is installed and receiving data
  */
 export async function POST(request: NextRequest) {
+  // Rate limit
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const { brandProfileId, siteId } = await request.json()
 
     if (!brandProfileId || !siteId) {
       return NextResponse.json(
-        { error: 'brandProfileId and siteId are required' },
+        { success: false, error: { message: 'brandProfileId and siteId are required' } },
         { status: 400 }
       )
+    }
+
+    const profileId = parseInt(brandProfileId, 10)
+
+    // Verify user has access to this brand profile
+    const authResult = await requireAuthWithBrandAccess(profileId);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
     // Check if we've received any tracking data for this site

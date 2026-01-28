@@ -273,6 +273,22 @@ export async function POST(request: NextRequest) {
         const [owner, repo] = repoFullName.split('/')
         if (!owner || !repo) {
           console.log(`[Script Verification] ⚠️ Invalid repo format: ${repoFullName}`)
+          continue
+        }
+
+        console.log(`[Script Verification] 🔍 Searching repo: ${repoFullName}`)
+
+        // Search for files containing the siteId using GitHub code search
+        const searchResponse = await fetch(
+          `https://api.github.com/search/code?q=${encodeURIComponent(siteId)}+repo:${owner}/${repo}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          }
+        )
+
         console.log(`[Script Verification] Search response status: ${searchResponse.status}`)
 
         if (searchResponse.status === 403) {
@@ -326,13 +342,11 @@ export async function POST(request: NextRequest) {
                     })
                     
                     return NextResponse.json({
-              t errorText = await searchResponse.text()
-          console.log(`[Script Verification] ❌ Search failed for ${repoFullName}:`, searchResponse.status, errorText.substring(0, 200))
-          continue
-        }
-
-        const searchData = await searchResponse.json()
-        console.log(`[Script Verification] Search results:`, searchData.total_count, 'matches'
+                      success: true,
+                      data: {
+                        connected: true,
+                        message: `Tracking script verified in ${repoFullName}/${filePath}`,
+                        repository: repoFullName,
                         filePath
                       }
                     })
@@ -348,11 +362,13 @@ export async function POST(request: NextRequest) {
         }
 
         if (!searchResponse.ok) {
-          console.log(`[Script Verification] Search failed for ${repoFullName}:`, searchResponse.status)
+          const errorText = await searchResponse.text()
+          console.log(`[Script Verification] ❌ Search failed for ${repoFullName}:`, searchResponse.status, errorText.substring(0, 200))
           continue
         }
 
         const searchData = await searchResponse.json()
+        console.log(`[Script Verification] Search results:`, searchData.total_count, 'matches')
         
         if (searchData.total_count > 0) {
           console.log(`[Script Verification] ✅ Found siteId in ${repoFullName}`)

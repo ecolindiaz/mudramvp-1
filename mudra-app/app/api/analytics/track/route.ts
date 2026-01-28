@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 🔒 SECURITY FIX (EN-40): Validate siteId against database
-    const brandProfile = await prisma.brandProfile.findUnique({
+    const validatedBrandProfile = await prisma.brandProfile.findUnique({
       where: { siteId },
       select: { 
         id: true, 
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    if (!brandProfile) {
+    if (!validatedBrandProfile) {
       // Invalid siteId - reject request
       console.warn(`[Security] Invalid siteId attempted: ${siteId}`)
       return NextResponse.json(
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const brandProfileId = brandProfile.id
+    const brandProfileId = validatedBrandProfile.id
 
     // Hash IP address for privacy
     const ipAddress = request.headers.get('x-forwarded-for') || 

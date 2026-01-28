@@ -118,29 +118,4 @@ export function generateTrackingScript(siteId: string): string {
   // Return simple external script tag that loads tracker.js
   return `<!-- Mudra AI Referral Tracking -->
 <script src="${baseUrl}/tracker.js" data-site-id="${siteId}" async></script>`;
-
-    
-    // Use sendBeacon for reliability
-    if (navigator.sendBeacon) {
-      var blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-      navigator.sendBeacon(apiUrl, blob);
-    } else {
-      // Fallback to fetch
-      fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        keepalive: true
-      }).catch(function() {});
-    }
-  }
-  
-  // Track on page load
-  if (document.readyState === 'complete') {
-    track();
-  } else {
-    window.addEventListener('load', track);
-  }
-})();
-</script>`;
 }

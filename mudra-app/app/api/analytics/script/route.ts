@@ -231,7 +231,15 @@ export async function POST(request: NextRequest) {
     // Get the repository list from the integration
     const repositories = githubIntegration.repositories as string[] | null
     
+    console.log('[Script Verification] GitHub integration:', {
+      integrationType: githubIntegration.integrationType,
+      installationId: githubIntegration.installationId,
+      githubUsername: githubIntegration.githubUsername,
+      repositories
+    })
+    
     if (!repositories || repositories.length === 0) {
+      console.log('[Script Verification] No repositories found in integration')
       return NextResponse.json({
         success: true,
         data: {
@@ -244,29 +252,49 @@ export async function POST(request: NextRequest) {
     console.log('[Script Verification] Checking repos:', repositories, 'for siteId:', siteId)
 
     // Get valid GitHub token
-    const accessToken = await getValidGitHubToken(githubIntegration)
+    let accessToken: string
+    try {
+      accessToken = await getValidGitHubToken(githubIntegration)
+      console.log('[Script Verification] ✅ Got valid GitHub token')
+    } catch (tokenError: any) {
+      console.error('[Script Verification] ❌ Failed to get GitHub token:', tokenError.message)
+      return NextResponse.json({
+        success: true,
+        data: {
+          connected: false,
+          message: 'Failed to authenticate with GitHub. Please reconnect your GitHub account.'
+        }
+      })
+    }
 
     // Search through each repository for the tracking script
     for (const repoFullName of repositories) {
       try {
         const [owner, repo] = repoFullName.split('/')
-        if (!owner || !repo) continue
-
-        console.log(`[Script Verification] Searching repo: ${repoFullName}`)
-
-        // Search for files containing the siteId using GitHub code search
-        const searchResponse = await fetch(
-          `https://api.github.com/search/code?q=${encodeURIComponent(siteId)}+repo:${owner}/${repo}`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              Accept: 'application/vnd.github.v3+json',
-            },
-          }
-        )
+        if (!owner || !repo) {
+          console.log(`[Script Verification] ⚠️ Invalid repo format: ${repoFullName}`)
+        console.log(`[Script Verification] Search response status: ${searchResponse.status}`)
 
         if (searchResponse.status === 403) {
           // Rate limited or no access, try alternative method
+          console.log(`[Script Verification] ⚠️ Code search rate limited or forbidden, trying direct file access...`)
+          
+          // Try to fetch common entry point files
+          const commonFiles = [
+            'index.html',
+            'public/index.html',
+            'src/index.html',
+            'app/layout.tsx',
+            'app/layout.js',
+            'pages/_app.tsx',
+            'pages/_app.js',
+            'pages/_document.tsx',
+            'pages/_document.js',
+            'src/app/layout.tsx',
+            'src/pages/_app.tsx',
+          ]
+          
+          console.log(`[Script Verification] Checking ${commonFiles.length} common files...`)/ Rate limited or no access, try alternative method
           console.log(`[Script Verification] Code search rate limited, trying file listing...`)
           
           // Try to fetch common entry point files
@@ -314,11 +342,13 @@ export async function POST(request: NextRequest) {
                     })
                     
                     return NextResponse.json({
-                      success: true,
-                      data: {
-                        connected: true,
-                        message: `Tracking script verified in ${repoFullName}/${filePath}`,
-                        repository: repoFullName,
+              t errorText = await searchResponse.text()
+          console.log(`[Script Verification] ❌ Search failed for ${repoFullName}:`, searchResponse.status, errorText.substring(0, 200))
+          continue
+        }
+
+        const searchData = await searchResponse.json()
+        console.log(`[Script Verification] Search results:`, searchData.total_count, 'matches'
                         filePath
                       }
                     })

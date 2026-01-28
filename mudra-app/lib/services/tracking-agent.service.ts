@@ -37,7 +37,7 @@ async function getValidGitHubToken(integration: any): Promise<string> {
   }
   
   // OAuth token - just decrypt
-  return decrypt(integration.accessToken);
+  return decryptToken(integration.accessToken);
 }
 
 /**

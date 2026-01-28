@@ -64,7 +64,7 @@ async function getValidGitHubToken(integration: any): Promise<string> {
     }
   }
   
-  return decrypt(integration.accessToken);
+  return decryptToken(integration.accessToken);
 }
 
 /**

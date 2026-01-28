@@ -6,6 +6,28 @@ import type { Adapter } from "next-auth/adapters";
 import bcrypt from "bcryptjs";
 import { prisma } from '@/lib/prisma';
 
+// Environment variable validation for NextAuth security
+const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET;
+const NEXTAUTH_URL = process.env.NEXTAUTH_URL;
+
+if (!NEXTAUTH_SECRET) {
+  throw new Error(
+    'NEXTAUTH_SECRET environment variable is required. Generate one with: openssl rand -base64 32'
+  );
+}
+
+if (process.env.NODE_ENV === 'production' && NEXTAUTH_SECRET.length < 32) {
+  throw new Error(
+    'NEXTAUTH_SECRET must be at least 32 characters in production for security. Generate a secure secret with: openssl rand -base64 64'
+  );
+}
+
+if (process.env.NODE_ENV === 'production' && !NEXTAUTH_URL) {
+  throw new Error(
+    'NEXTAUTH_URL is required in production. Set it to your full application URL (e.g., https://yourdomain.com)'
+  );
+}
+
 // TypeScript module declarations for NextAuth
 declare module "next-auth" {
   interface Session {
@@ -32,6 +54,7 @@ declare module "next-auth/jwt" {
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
+  secret: NEXTAUTH_SECRET, // Explicitly set the secret for JWT signing
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,

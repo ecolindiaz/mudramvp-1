@@ -146,7 +146,14 @@ export async function POST(request: NextRequest) {
     console.log('[Agent Verification] 📡 Fetching user repositories...')
     let repos
     try {
-      const reposResponse = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+      // Use different endpoint based on integration type
+      const reposUrl = githubIntegration.integrationType === 'installation' && githubIntegration.installationId
+        ? `https://api.github.com/installation/repositories`
+        : 'https://api.github.com/user/repos?per_page=100&sort=updated'
+
+      console.log('[Agent Verification] Using endpoint:', reposUrl)
+
+      const reposResponse = await fetch(reposUrl, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/vnd.github.v3+json',
@@ -164,7 +171,9 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      repos = await reposResponse.json()
+      const responseData = await reposResponse.json()
+      // Installation endpoint returns { repositories: [...] }, OAuth returns [...]
+      repos = responseData.repositories || responseData
       console.log(`[Agent Verification] Found ${repos.length} repositories`)
     } catch (error: any) {
       console.error('[Agent Verification] Error fetching repos:', error)

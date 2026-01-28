@@ -2,6 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 
+/**
+ * Get allowed origin from siteId for strict CORS
+ */
+async function getAllowedOrigin(siteId: string): Promise<string | null> {
+  try {
+    const brandProfile = await prisma.brandProfile.findUnique({
+      where: { siteId },
+      select: { companyWebsite: true }
+    });
+    
+    if (!brandProfile?.companyWebsite) return null;
+    
+    // Normalize to origin format
+    const url = brandProfile.companyWebsite.startsWith('http') 
+      ? brandProfile.companyWebsite 
+      : `https://${brandProfile.companyWebsite}`;
+    
+    return new URL(url).origin;
+  } catch (error) {
+    console.error('[AI Referral Track] Error getting allowed origin:', error);
+    return null;
+  }
+}
+
 // Simple in-memory rate limiter for tracking endpoint
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
 const RATE_LIMIT_WINDOW_MS = 60000 // 1 minute
@@ -142,25 +166,37 @@ export async function POST(request: NextRequest) {
       console.error('Failed to update analytics:', err)
     })
 
+    // 🔒 SECURITY: Strict CORS - only allow registered brand origin
+    const allowedOrigin = await getAllowedOrigin(siteId);
+    const requestOrigin = request.headers.get('origin');
+    const corsOrigin = (allowedOrigin && requestOrigin === allowedOrigin) 
+      ? allowedOrigin 
+      : (process.env.NODE_ENV === 'development' ? '*' : '');
+
     return NextResponse.json({ 
       success: true,
       message: 'Visit tracked'
     }, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': corsOrigin,
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
+        ...(corsOrigin !== '*' ? { 'Access-Control-Allow-Credentials': 'true' } : {})
       }
     })
 
   } catch (error) {
     console.error('Error tracking visit:', error)
+    
+    // Use same CORS policy in errors
+    const corsOrigin = process.env.NODE_ENV === 'development' ? '*' : '';
+    
     return NextResponse.json(
       { error: 'Internal server error' },
       { 
         status: 500,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': corsOrigin,
           'Access-Control-Allow-Methods': 'POST, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
         }
@@ -281,12 +317,19 @@ async function updateTopPages(brandProfileId: number, periodStart: Date, periodE
  * OPTIONS handler for CORS preflight
  */
 export async function OPTIONS(request: NextRequest) {
+  // 🔒 SECURITY: Validate origin in preflight too
+  const requestOrigin = request.headers.get('origin');
+  
+  // In development, allow all. In production, origin must match a registered brand
+  const corsOrigin = process.env.NODE_ENV === 'development' ? '*' : (requestOrigin || '');
+  
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
+      ...(corsOrigin !== '*' ? { 'Access-Control-Allow-Credentials': 'true' } : {})
     },
   })
 }

@@ -180,28 +180,19 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     setVerificationStatus('verifying')
 
     try {
-      // Call the actual verification API
-      const siteIdToVerify = siteIdValue || (typeof window !== 'undefined' ? localStorage.getItem('mudra:siteId') : null)
-
-      if (!siteIdToVerify) {
-        setVerificationStatus('failed')
-        setVerificationMessage('No tracking ID found. Please copy and install the script first.')
-        return
-      }
-
-      const response = await fetch('/api/analytics/script/verify', {
+      // Call the agent-based verification API
+      const response = await fetch('/api/analytics/verify-installation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          brandProfileId: profile.id,
-          siteId: siteIdToVerify
+          brandProfileId: profile.id
         })
       })
       const result = await response.json()
 
-      if (result.success && result.data?.connected) {
+      if (result.success && result.data?.verified) {
         setVerificationStatus('success')
-        setVerificationMessage('Tracking script detected!')
+        setVerificationMessage(`✅ Script found in ${result.data.location}!`)
 
         // Close modal and show loading on widget
         setTimeout(async () => {
@@ -215,12 +206,14 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         }, 800)
       } else {
         setVerificationStatus('failed')
-        setVerificationMessage(result.error?.message || 'Tracking script not detected. Please ensure it is installed correctly.')
+        const filesChecked = result.error?.filesChecked || []
+        const filesMsg = filesChecked.length > 0 ? ` (checked ${filesChecked.length} files)` : ''
+        setVerificationMessage(result.error?.message + filesMsg || 'Tracking script not detected in your GitHub repository.')
       }
     } catch (error) {
       console.error('Verification error:', error)
       setVerificationStatus('failed')
-      setVerificationMessage('Failed to verify. Please try again.')
+      setVerificationMessage('Failed to verify. Please ensure GitHub is connected.')
     }
   }
 

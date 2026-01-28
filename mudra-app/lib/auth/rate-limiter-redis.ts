@@ -45,10 +45,8 @@ async function getUpstashRatelimit(
   if (upstashInitialized) return upstashRatelimit;
   
   try {
-    // Dynamic import to avoid build errors if not installed
-    // @ts-expect-error - Dynamic import of optional dependency
+    // Dynamic import for lazy loading
     const { Ratelimit } = await import('@upstash/ratelimit');
-    // @ts-expect-error - Dynamic import of optional dependency
     const { Redis } = await import('@upstash/redis');
     
     const redis = new Redis({

@@ -1,7 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { mastra } from '@/mastra'
-import { decrypt, refreshGitHubToken } from '@/lib/services/github.encryption'
+import crypto from 'crypto'
+import jwt from 'jsonwebtoken'
+
+// Encryption helpers for token decryption
+const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
+const ALGORITHM = 'aes-256-gcm';
+
+function decrypt(encryptedText: string): string {
+  if (!ENCRYPTION_KEY) {
+    throw new Error('GITHUB_TOKEN_ENCRYPTION_KEY environment variable is required');
+  }
+  const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+async function refreshInstallationToken(installationId: number): Promise<string> {
+  const appId = process.env.GITHUB_APP_ID;
+  const privateKey = process.env.GITHUB_PRIVATE_KEY;
+  
+  if (!appId || !privateKey) {
+    throw new Error('GitHub App credentials not configured');
+  }
+  
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iat: now - 60,
+    exp: now + 600,
+    iss: appId,
+  };
+  
+  const formattedKey = privateKey.replace(/\\n/g, '\n').trim();
+  const appJwt = jwt.sign(payload, formattedKey, { algorithm: 'RS256' });
+  
+  const response = await fetch(
+    `https://api.github.com/app/installations/${installationId}/access_tokens`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${appJwt}`,
+        Accept: 'application/vnd.github+json',
+      },
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error('Failed to refresh installation token');
+  }
+  
+  const data = await response.json();
+  return data.token;
+}
+
+async function getValidGitHubToken(integration: any): Promise<string> {
+  if (integration.integrationType === 'installation' && integration.installationId) {
+    const tokenExpiresAt = integration.tokenExpiresAt;
+    const now = new Date();
+    
+    if (tokenExpiresAt && new Date(tokenExpiresAt).getTime() - now.getTime() < 5 * 60 * 1000) {
+      return await refreshInstallationToken(integration.installationId);
+    }
+    
+    try {
+      return decrypt(integration.accessToken);
+    } catch {
+      return await refreshInstallationToken(integration.installationId);
+    }
+  }
+  
+  return decrypt(integration.accessToken);
+}
 
 /**
  * POST /api/analytics/verify-installation
@@ -81,35 +156,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 3. Decrypt and refresh GitHub token if needed
+    // 3. Get valid GitHub token
     let accessToken: string
     try {
-      // Check if token needs refresh
-      const tokenExpiresAt = githubIntegration.tokenExpiresAt
-      const needsRefresh = !tokenExpiresAt || new Date(tokenExpiresAt) < new Date()
-
-      if (needsRefresh && githubIntegration.refreshToken) {
-        console.log('[Agent Verification] Token needs refresh')
-        const refreshedTokens = await refreshGitHubToken(githubIntegration.refreshToken)
-        
-        // Update stored tokens
-        await prisma.gitHubIntegration.update({
-          where: { id: githubIntegration.id },
-          data: {
-            accessToken: refreshedTokens.encryptedAccessToken,
-            tokenExpiresAt: refreshedTokens.expiresAt,
-            ...(refreshedTokens.encryptedRefreshToken && {
-              refreshToken: refreshedTokens.encryptedRefreshToken,
-            }),
-          },
-        })
-
-        accessToken = refreshedTokens.decryptedAccessToken
-      } else {
-        accessToken = decrypt(githubIntegration.accessToken)
-      }
+      accessToken = await getValidGitHubToken(githubIntegration)
     } catch (error) {
-      console.error('[Agent Verification] Token refresh failed:', error)
+      console.error('[Agent Verification] Token retrieval failed:', error)
       return NextResponse.json(
         { success: false, error: { message: 'GitHub token expired. Please reconnect GitHub.', code: 'TOKEN_EXPIRED' } },
         { status: 401 }

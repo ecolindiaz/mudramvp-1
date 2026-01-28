@@ -52,10 +52,7 @@ Return JSON with:
 export const trackingVerificationAgent = new Agent({
   name: "tracking-verification-agent",
   instructions: VERIFICATION_INSTRUCTIONS,
-  model: {
-    provider: "openai",
-    name: "gpt-4o-mini",
-  },
+  model: "openai/gpt-4o-mini",
   tools: {
     githubSearchTool,
   },

@@ -53,7 +53,7 @@
     "@lexical/selection": "^0.38.2",
     "@lexical/table": "^0.38.2",
     "@lexical/utils": "^0.38.2",
-    "@mastra/core": "^0.24.7-alpha.0",
+    "@mastra/core": "^1.0.4",
     "@mendable/firecrawl-js": "^1.21.1",
     "@prisma/client": "^6.19.2",
     "@radix-ui/react-accordion": "^1.2.11",

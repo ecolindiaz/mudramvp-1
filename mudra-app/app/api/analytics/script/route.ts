@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
         ? profile.companyWebsite 
         : `https://${profile.companyWebsite}`
 
-      console.log('[Script Verification] Checking website:', websiteUrl)
+      console.log('[Script Verification] Checking website:', websiteUrl, 'for siteId:', siteId)
       
       const response = await fetch(websiteUrl, {
         headers: {
@@ -151,9 +151,12 @@ export async function POST(request: NextRequest) {
         signal: AbortSignal.timeout(10000) // 10 second timeout
       })
 
+      console.log('[Script Verification] Response status:', response.status)
+
       if (!response.ok) {
+        console.log('[Script Verification] Failed with status:', response.status)
         return NextResponse.json({
-          success: false,
+          success: true,
           data: {
             connected: false,
             message: `Unable to access website (HTTP ${response.status}). Please ensure your website is publicly accessible.`
@@ -162,20 +165,34 @@ export async function POST(request: NextRequest) {
       }
 
       const html = await response.text()
+      console.log('[Script Verification] HTML length:', html.length, 'characters')
 
-      // Check if script with correct siteId is present
-      const scriptPattern = new RegExp(`data-site-id['"\\s]*[=:]?['"\\s]*${siteId}`, 'i')
-      const hasScript = scriptPattern.test(html)
+      // Check if script with correct siteId is present (more flexible patterns)
+      const patterns = [
+        new RegExp(`data-site-id['"]\\s*[=:]\\s*['"]${siteId}['"]`, 'i'),
+        new RegExp(`data-site-id=['"]${siteId}['"]`, 'i'),
+        new RegExp(`setAttribute\\(['"]data-site-id['"],\\s*['"]${siteId}['"]`, 'i'),
+      ]
+      
+      const hasScript = patterns.some(pattern => pattern.test(html))
 
       // Also check for any Mudra tracking script reference
       const hasMudraScript = html.includes('mudra') && 
                              (html.includes('tracker.js') || html.includes('ai-referral'))
 
+      // Debug: show snippet if Mudra script found
+      if (hasMudraScript && !hasScript) {
+        const scriptMatch = html.match(/(data-site-id['"\s=:]+[\w-]+)/i)
+        console.log('[Script Verification] Found Mudra script but siteId mismatch. Found:', scriptMatch?.[0])
+      }
+
       console.log('[Script Verification] Results:', {
         hasScript,
         hasMudraScript,
-        siteId,
-        websiteUrl
+        expectedSiteId: siteId,
+        websiteUrl,
+        htmlContainsMudra: html.includes('mudra'),
+        htmlContainsTracker: html.includes('tracker.js')
       })
 
       return NextResponse.json({
@@ -193,10 +210,10 @@ export async function POST(request: NextRequest) {
       })
 
     } catch (fetchError: any) {
-      console.error('[Script Verification] Fetch error:', fetchError)
+      console.error('[Script Verification] Fetch error:', fetchError.message, fetchError.cause)
       
       return NextResponse.json({
-        success: false,
+        success: true,
         data: {
           connected: false,
           message: `Unable to verify: ${fetchError.message}. Your website may be blocking automated requests or not publicly accessible.`

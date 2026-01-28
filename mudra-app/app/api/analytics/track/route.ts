@@ -36,6 +36,13 @@ export async function POST(request: NextRequest) {
   try {
     const data = await request.json()
     
+    console.log('[AI Referral Track] Incoming request:', {
+      siteId: data.siteId,
+      aiProvider: data.aiProvider,
+      referrer: data.referrer,
+      path: data.path
+    })
+    
     const {
       siteId,
       referrer,
@@ -48,6 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!siteId || !referrer || !aiProvider || !path) {
+      console.warn('[AI Referral Track] Missing required fields:', { siteId, referrer, aiProvider, path })
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -83,12 +91,14 @@ export async function POST(request: NextRequest) {
 
     if (!validatedBrandProfile) {
       // Invalid siteId - reject request
-      console.warn(`[Security] Invalid siteId attempted: ${siteId}`)
+      console.warn(`[AI Referral Track] Invalid siteId attempted: ${siteId}`)
       return NextResponse.json(
         { error: 'Invalid site ID' },
         { status: 401 }
       )
     }
+
+    console.log('[AI Referral Track] Valid siteId, brandProfileId:', validatedBrandProfile.id)
 
     const brandProfileId = validatedBrandProfile.id
 
@@ -99,7 +109,7 @@ export async function POST(request: NextRequest) {
     const hashedIp = crypto.createHash('sha256').update(ipAddress).digest('hex')
 
     // Store visit in database
-    await prisma.aIReferralVisit.create({
+    const visit = await prisma.aIReferralVisit.create({
       data: {
         brandProfileId,
         siteId,
@@ -113,6 +123,8 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    console.log('[AI Referral Track] Visit stored:', visit.id)
+
     // Update tracking status to 'connected' on first visit
     if (validatedBrandProfile && validatedBrandProfile.trackingStatus !== 'connected') {
       await prisma.brandProfile.update({
@@ -122,6 +134,7 @@ export async function POST(request: NextRequest) {
           trackingInstalledAt: new Date()
         }
       })
+      console.log('[AI Referral Track] Updated trackingStatus to connected')
     }
 
     // Update analytics aggregates (async, don't wait)

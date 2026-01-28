@@ -467,37 +467,118 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Calculate OVERALL aggregate score (all prompts, all providers) - Firegeo methodology
+    // Calculate OVERALL aggregate score using per-provider averaging
+    // This matches the methodology used when storing GeoAnalysisResult.overallScore
+    // Each provider gets a score (with position boost), then we average across providers
     const allTestResults: PromptTestResult[] = []
+    const testsByProvider: Map<string, PromptTestResult[]> = new Map()
+
     for (const item of analyses) {
       if (item.prompt) {
         // Direct structure
-        allTestResults.push({
+        const provider = item.provider || item.model || 'ChatGPT'
+        const test: PromptTestResult = {
           prompt: item.prompt,
           brandMentioned: item.brandMentioned || false,
           brandPosition: item.brandPosition,
           sentiment: item.sentiment,
-          provider: item.provider || item.model || 'ChatGPT',
-          model: item.provider || item.model || 'ChatGPT'
-        })
+          provider,
+          model: provider
+        }
+        allTestResults.push(test)
+
+        if (!testsByProvider.has(provider)) {
+          testsByProvider.set(provider, [])
+        }
+        testsByProvider.get(provider)!.push(test)
       } else if (item.promptTests && item.provider) {
         // Provider-grouped structure
         item.promptTests.forEach((test: any) => {
-          allTestResults.push({
+          const testResult: PromptTestResult = {
             prompt: test.prompt,
             brandMentioned: test.brandMentioned || false,
             brandPosition: test.brandPosition,
             sentiment: test.sentiment,
             provider: item.provider,
             model: item.provider
-          })
+          }
+          allTestResults.push(testResult)
+
+          if (!testsByProvider.has(item.provider)) {
+            testsByProvider.set(item.provider, [])
+          }
+          testsByProvider.get(item.provider)!.push(testResult)
         })
       }
     }
 
-    const overallAggregate = allTestResults.length > 0
-      ? calculateAggregateScore(allTestResults)
-      : null
+    // Calculate per-provider scores then average (matches stored score methodology)
+    let overallAggregate = null
+    if (testsByProvider.size > 0) {
+      const providerScores: number[] = []
+      let totalMentions = 0
+      let totalTests = 0
+      let positionSum = 0
+      let positionCount = 0
+      const sentimentCounts = { positive: 0, neutral: 0, negative: 0 }
+
+      for (const [provider, tests] of testsByProvider) {
+        // Calculate this provider's score with position boost
+        const mentionedTests = tests.filter(t => t.brandMentioned)
+        const mentionRate = mentionedTests.length / tests.length
+
+        // Get average position for this provider
+        const rankedTests = mentionedTests.filter(t =>
+          t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0
+        )
+        const avgPosition = rankedTests.length > 0
+          ? rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length
+          : 0
+
+        // Score formula: mentionRate * 50 + positionBonus * 50
+        let providerScore = mentionRate * 50
+        if (avgPosition > 0) {
+          const positionBonus = Math.max(0, (10 - avgPosition) / 10) * 50
+          providerScore += positionBonus
+        }
+        providerScores.push(providerScore)
+
+        // Accumulate for aggregate metrics
+        totalMentions += mentionedTests.length
+        totalTests += tests.length
+        rankedTests.forEach(t => {
+          positionSum += t.brandPosition || 0
+          positionCount++
+        })
+        tests.forEach(t => {
+          if (t.sentiment === 'positive') sentimentCounts.positive++
+          else if (t.sentiment === 'negative') sentimentCounts.negative++
+          else sentimentCounts.neutral++
+        })
+      }
+
+      // Average the per-provider scores
+      const averagedScore = providerScores.reduce((a, b) => a + b, 0) / providerScores.length
+      const overallMentionRate = totalMentions / totalTests
+      const overallAvgPosition = positionCount > 0 ? positionSum / positionCount : 0
+      const dominantSentiment = sentimentCounts.positive >= sentimentCounts.neutral && sentimentCounts.positive >= sentimentCounts.negative
+        ? 'positive'
+        : sentimentCounts.negative >= sentimentCounts.neutral
+          ? 'negative'
+          : 'neutral'
+
+      overallAggregate = {
+        overallScore: Math.round(averagedScore),
+        mentionRate: overallMentionRate,
+        averagePosition: Math.round(overallAvgPosition * 10) / 10,
+        totalPrompts: totalTests,
+        totalMentions,
+        sentiment: {
+          ...sentimentCounts,
+          dominant: dominantSentiment as 'positive' | 'neutral' | 'negative'
+        }
+      }
+    }
 
     console.log(`✅ Returning ${promptsWithResults.length} prompts with analysis results`)
     console.log(`   Sample prompts:`, promptsWithResults.slice(0, 3).map((p: any) => ({
@@ -507,27 +588,22 @@ export async function GET(request: NextRequest) {
       category: p.category,
       resultsCount: p.results?.length || 0
     })))
-    console.log(`   Overall aggregate score: ${overallAggregate?.overallScore.toFixed(1) || 'N/A'} (Firegeo methodology)`)
+    console.log(`   Overall aggregate score: ${overallAggregate?.overallScore || 'N/A'} (per-provider averaged)`)
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       prompts: promptsWithResults,
       count: promptsWithResults.length,
       hasAnalysis: true,
       analysisDate: latestAnalysis.createdAt,
-      // Overall aggregate metrics (Firegeo methodology for dashboard overview)
+      // Overall aggregate metrics (per-provider averaged - matches stored GeoAnalysisResult.overallScore)
       aggregate: overallAggregate ? {
-        overallScore: Math.round(overallAggregate.overallScore * 10) / 10,
+        overallScore: overallAggregate.overallScore,
         mentionRate: Math.round(overallAggregate.mentionRate * 100), // Convert to percentage
         averagePosition: overallAggregate.averagePosition,
-        totalTests: allTestResults.length,
-        mentionedIn: allTestResults.filter(t => t.brandMentioned).length,
-        sentiment: {
-          positive: overallAggregate.sentiment.positive,
-          neutral: overallAggregate.sentiment.neutral,
-          negative: overallAggregate.sentiment.negative,
-          dominant: overallAggregate.sentiment.dominant
-        }
+        totalTests: overallAggregate.totalPrompts,
+        mentionedIn: overallAggregate.totalMentions,
+        sentiment: overallAggregate.sentiment
       } : null
     })
   } catch (error) {

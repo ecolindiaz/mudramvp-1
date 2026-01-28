@@ -144,24 +144,37 @@ export async function POST(request: NextRequest) {
 
     // 3. Get user's repositories to search
     console.log('[Agent Verification] 📡 Fetching user repositories...')
-    const reposResponse = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/vnd.github.v3+json',
-      },
-    })
+    let repos
+    try {
+      const reposResponse = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+        },
+      })
 
-    if (!reposResponse.ok) {
+      console.log('[Agent Verification] Repos response status:', reposResponse.status)
+
+      if (!reposResponse.ok) {
+        const errorText = await reposResponse.text()
+        console.error('[Agent Verification] GitHub API error:', errorText)
+        return NextResponse.json(
+          { success: false, error: { message: `Failed to fetch GitHub repositories: ${reposResponse.statusText}`, code: 'GITHUB_API_ERROR' } },
+          { status: 500 }
+        )
+      }
+
+      repos = await reposResponse.json()
+      console.log(`[Agent Verification] Found ${repos.length} repositories`)
+    } catch (error: any) {
+      console.error('[Agent Verification] Error fetching repos:', error)
       return NextResponse.json(
-        { success: false, error: { message: 'Failed to fetch GitHub repositories', code: 'GITHUB_API_ERROR' } },
+        { success: false, error: { message: `Error fetching repositories: ${error.message}`, code: 'FETCH_ERROR' } },
         { status: 500 }
       )
     }
 
-    const repos = await reposResponse.json()
-    console.log(`[Agent Verification] Found ${repos.length} repositories`)
-
-    if (repos.length === 0) {
+    if (!repos || repos.length === 0) {
       return NextResponse.json(
         { success: false, error: { message: 'No repositories found in your GitHub account', code: 'NO_REPOS' } },
         { status: 400 }

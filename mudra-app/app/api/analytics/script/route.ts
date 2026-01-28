@@ -294,23 +294,7 @@ export async function POST(request: NextRequest) {
             'src/pages/_app.tsx',
           ]
           
-          console.log(`[Script Verification] Checking ${commonFiles.length} common files...`)/ Rate limited or no access, try alternative method
-          console.log(`[Script Verification] Code search rate limited, trying file listing...`)
-          
-          // Try to fetch common entry point files
-          const commonFiles = [
-            'index.html',
-            'public/index.html',
-            'src/index.html',
-            'app/layout.tsx',
-            'app/layout.js',
-            'pages/_app.tsx',
-            'pages/_app.js',
-            'pages/_document.tsx',
-            'pages/_document.js',
-            'src/app/layout.tsx',
-            'src/pages/_app.tsx',
-          ]
+          console.log(`[Script Verification] Checking ${commonFiles.length} common files...`)
 
           for (const filePath of commonFiles) {
             try {

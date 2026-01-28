@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mudra Tracking Test</title>
+  
+  <!-- 
+    INSTRUCTIONS:
+    1. Get your siteId from dashboard localStorage: localStorage.getItem('mudra:siteId')
+    2. Replace YOUR_SITEID_HERE below with that value
+    3. Run your dev server: npm run dev
+    4. Open this file in browser (File → Open File)
+    5. Check DevTools Console and Network tab
+  -->
+  
+  <script>
+    (function() {
+      var script = document.createElement('script');
+      script.src = 'http://localhost:3000/tracker.js';
+      script.async = true;
+      script.setAttribute('data-site-id', 'YOUR_SITEID_HERE');
+      script.onload = function() {
+        console.log('✅ Tracker script loaded successfully');
+      };
+      script.onerror = function() {
+        console.error('❌ Failed to load tracker script');
+      };
+      document.head.appendChild(script);
+    })();
+  </script>
+  
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .status {
+      padding: 15px;
+      border-radius: 4px;
+      margin: 15px 0;
+    }
+    .success { background: #d4edda; color: #155724; }
+    .warning { background: #fff3cd; color: #856404; }
+    .error { background: #f8d7da; color: #721c24; }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover { background: #0056b3; }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🧪 Mudra AI Referral Tracking Test</h1>
+    
+    <div id="status" class="status warning">
+      ⏳ Initializing...
+    </div>
+    
+    <h2>Test Steps:</h2>
+    <ol>
+      <li>Current referrer: <code id="referrer">none</code></li>
+      <li>
+        <button onclick="simulateChatGPT()">Simulate ChatGPT Referrer</button>
+        <button onclick="simulatePerplexity()">Simulate Perplexity Referrer</button>
+      </li>
+      <li>After clicking button, <strong>reload the page</strong> (F5)</li>
+      <li>Check Console for <code>[Mudra]</code> logs</li>
+      <li>Check Network tab for POST to <code>/api/analytics/track</code></li>
+    </ol>
+    
+    <h2>Diagnostic Info:</h2>
+    <div id="diagnostics"></div>
+    
+    <h2>Instructions:</h2>
+    <ol>
+      <li>Make sure your dev server is running: <code>npm run dev</code></li>
+      <li>Get your siteId from dashboard console: <code>localStorage.getItem('mudra:siteId')</code></li>
+      <li>Edit this file and replace <code>YOUR_SITEID_HERE</code> with your actual siteId</li>
+      <li>Click one of the "Simulate" buttons above</li>
+      <li>Reload the page (F5)</li>
+      <li>The tracker should fire and send data to your API</li>
+    </ol>
+    
+    <div class="status warning">
+      <strong>Note:</strong> You must reload the page AFTER clicking a simulate button for the tracking to fire.
+    </div>
+  </div>
+  
+  <script>
+    // Display current referrer
+    document.getElementById('referrer').textContent = document.referrer || '(empty)';
+    
+    // Simulate ChatGPT referrer
+    function simulateChatGPT() {
+      localStorage.setItem('test_referrer', 'https://chatgpt.com/');
+      alert('ChatGPT referrer simulated! Now RELOAD the page (F5)');
+    }
+    
+    // Simulate Perplexity referrer
+    function simulatePerplexity() {
+      localStorage.setItem('test_referrer', 'https://www.perplexity.ai/');
+      alert('Perplexity referrer simulated! Now RELOAD the page (F5)');
+    }
+    
+    // On page load, check if we have a simulated referrer
+    (function() {
+      var testReferrer = localStorage.getItem('test_referrer');
+      if (testReferrer && !document.referrer) {
+        try {
+          Object.defineProperty(document, 'referrer', {
+            get: function() { return testReferrer; }
+          });
+          console.log('📍 Simulated referrer:', testReferrer);
+          document.getElementById('status').className = 'status success';
+          document.getElementById('status').innerHTML = '✅ Simulated referrer active: ' + testReferrer;
+          
+          // Clear after 10 seconds
+          setTimeout(function() {
+            localStorage.removeItem('test_referrer');
+          }, 10000);
+        } catch (e) {
+          console.error('Failed to set referrer:', e);
+        }
+      } else if (document.referrer) {
+        document.getElementById('status').className = 'status success';
+        document.getElementById('status').innerHTML = '✅ Real referrer detected: ' + document.referrer;
+      } else {
+        document.getElementById('status').className = 'status warning';
+        document.getElementById('status').innerHTML = '⚠️ No referrer detected. Click a button above to simulate.';
+      }
+    })();
+    
+    // Display diagnostic information
+    setTimeout(function() {
+      var script = document.querySelector('script[data-site-id]');
+      var siteId = script ? script.getAttribute('data-site-id') : 'NOT_FOUND';
+      
+      var diagnostics = `
+        <table>
+          <tr><td><strong>Site ID:</strong></td><td><code>${siteId}</code></td></tr>
+          <tr><td><strong>Referrer:</strong></td><td><code>${document.referrer || '(empty)'}</code></td></tr>
+          <tr><td><strong>Current URL:</strong></td><td><code>${window.location.href}</code></td></tr>
+          <tr><td><strong>Tracker loaded:</strong></td><td>${script ? '✅ Yes' : '❌ No'}</td></tr>
+        </table>
+      `;
+      
+      document.getElementById('diagnostics').innerHTML = diagnostics;
+      
+      if (siteId === 'YOUR_SITEID_HERE') {
+        document.getElementById('status').className = 'status error';
+        document.getElementById('status').innerHTML = '❌ You need to replace YOUR_SITEID_HERE with your actual siteId from dashboard!';
+      }
+    }, 1000);
+    
+    // Listen for tracking events (if tracker.js exposes them)
+    window.addEventListener('mudra:track', function(e) {
+      console.log('Tracking event fired:', e.detail);
+      document.getElementById('status').className = 'status success';
+      document.getElementById('status').innerHTML = '✅ Tracking request sent! Check Network tab.';
+    });
+  </script>
+</body>
+</html>

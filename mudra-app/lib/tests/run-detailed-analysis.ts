@@ -128,7 +128,6 @@ async function runDetailedAnalysis(domain: string): Promise<AnalysisOutput> {
       pageType: extraction.page_type,
       scores: score.scores,
       status: score.status,
-      checks: score.checks,
       issues: score.issues,
       interventions: score.interventions
     });

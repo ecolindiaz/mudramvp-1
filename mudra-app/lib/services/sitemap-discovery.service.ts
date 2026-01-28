@@ -388,9 +388,9 @@ function countByType(pages: DiscoveredPage[]): Record<PageType, number> {
 /**
  * Deduplicates pages by URL
  */
-function deduplicatePages(pages: DiscoveredPage[]): DiscoveredPage[] {
+function deduplicatePages<T extends DiscoveredPage>(pages: T[]): T[] {
 	const seen = new Set<string>();
-	const unique: DiscoveredPage[] = [];
+	const unique: T[] = [];
 
 	for (const page of pages) {
 		// Normalize URL for comparison (remove trailing slashes, etc.)

@@ -7,7 +7,9 @@
  */
 
 import * as cheerio from "cheerio";
-import type { CheerioAPI, Element as CheerioElement } from "cheerio";
+
+// Use ReturnType to infer CheerioAPI since direct import doesn't work with bundler moduleResolution
+type CheerioAPI = ReturnType<typeof cheerio.load>;
 import { createHash } from "node:crypto";
 import type {
 	DOMExtraction,
@@ -474,9 +476,9 @@ function extractFAQsFromAccordion($: CheerioAPI): FAQItem[] {
 
 	const faqContainers = $(faqSelectors);
 
-	faqContainers.each((_containerIndex: number, container: CheerioElement) => {
+	faqContainers.each((_containerIndex, container) => {
 		// Pattern: Button with question text + collapsed div with answer
-		$(container).find("button").each((_btnIndex: number, button: CheerioElement) => {
+		$(container).find("button").each((_btnIndex, button) => {
 			// Get question from button's span or direct text
 			const questionEl = $(button).find("span").first();
 			const question = questionEl.length
@@ -509,7 +511,7 @@ function extractFAQsFromAccordion($: CheerioAPI): FAQItem[] {
 	});
 
 	// Also check for accordion-item patterns outside explicit FAQ sections
-	$('[class*="accordion-item"], [class*="collapse-item"]').each((_itemIndex: number, item: CheerioElement) => {
+	$('[class*="accordion-item"], [class*="collapse-item"]').each((_itemIndex, item) => {
 		const header = $(item).find('[class*="header"], [class*="title"], button').first();
 		const content = $(item).find('[class*="content"], [class*="body"], [class*="panel"]').first();
 
@@ -536,7 +538,7 @@ function extractFAQsFromAccordion($: CheerioAPI): FAQItem[] {
 function extractFAQsFromQuestionHeadings($: CheerioAPI): FAQItem[] {
 	const faqs: FAQItem[] = [];
 
-	$("h2, h3, h4").each((_headingIndex: number, heading: CheerioElement) => {
+	$("h2, h3, h4").each((_headingIndex, heading) => {
 		const question = $(heading).text().trim();
 
 		// Must end with ?

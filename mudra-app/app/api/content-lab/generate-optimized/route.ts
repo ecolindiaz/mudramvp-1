@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
       brandContext,
     };
 
-    // Initialize run tracking
+    // Initialize run tracking (in-memory for same-instance polling)
     activeRuns.set(workflowRunId, {
       status: "processing",
       startedAt: new Date(),
@@ -180,12 +180,36 @@ export async function POST(req: NextRequest) {
     // Cleanup old runs periodically
     cleanupOldRuns();
 
-    // Start workflow asynchronously (don't await)
-    const workflow = mastra.getWorkflow("aiContentWorkflow");
-
     // Capture brandProfileId for use in async function
     const brandProfileId = brandProfile.id;
     const userId = authResult.user.id;
+
+    // Create a "generating" campaign in database FIRST for cross-instance polling
+    // This ensures any serverless instance can find the workflow status
+    const pendingCampaign = await prisma.campaign.create({
+      data: {
+        userId,
+        brandProfileId,
+        title: `Generating: ${trackedPrompt?.substring(0, 50) || 'AI Content'}...`,
+        body: '', // Empty until workflow completes
+        type: 'blog',
+        mode: 'geo',
+        status: 'generating', // Special status for in-progress workflows
+        prompt: trackedPrompt || `Prompt ID: ${trackedPromptId}`,
+        icp: icp || undefined,
+        metadata: {
+          workflowRunId,
+          workflowStatus: 'processing',
+          sources: sources,
+          startedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    console.log(`[Workflow ${workflowRunId}] Created pending campaign ${pendingCampaign.id}`);
+
+    // Start workflow asynchronously (don't await)
+    const workflow = mastra.getWorkflow("aiContentWorkflow");
 
     // Execute workflow in background
     (async () => {
@@ -205,21 +229,17 @@ export async function POST(req: NextRequest) {
           const metaDescription = await generateMetaDescription(campaignContent, campaignTitle);
           console.log(`[Workflow ${workflowRunId}] Generated meta description: ${metaDescription}`);
 
-          // Save campaign to database (include workflowRunId for recovery on server restart)
-          const campaign = await prisma.campaign.create({
+          // Update the pending campaign with actual content
+          await prisma.campaign.update({
+            where: { id: pendingCampaign.id },
             data: {
-              userId,
-              brandProfileId,
               title: campaignTitle,
               body: campaignContent,
-              type: 'blog',
-              mode: 'geo',
-              status: 'draft',
+              status: 'draft', // Change from 'generating' to 'draft'
               slug: seoSlug,
-              prompt: trackedPrompt || `Prompt ID: ${trackedPromptId}`,
-              icp: icp || undefined,
               metadata: {
-                workflowRunId, // Store for recovery if server restarts during polling
+                workflowRunId,
+                workflowStatus: 'completed',
                 wordCount: result.result.metadata?.wordCount || 0,
                 sections: result.result.metadata?.sections || [],
                 sources: result.result.metadata?.sources || sources,
@@ -230,12 +250,12 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          console.log(`[Workflow ${workflowRunId}] Campaign ${campaign.id} saved to database`);
+          console.log(`[Workflow ${workflowRunId}] Campaign ${pendingCampaign.id} updated with content`);
 
           activeRuns.set(workflowRunId, {
             status: "completed",
             result: {
-              campaignId: campaign.id,
+              campaignId: pendingCampaign.id,
               content: result.result.content,
               metadata: result.result.metadata,
             },
@@ -243,6 +263,21 @@ export async function POST(req: NextRequest) {
           });
         } else {
           console.error(`[Workflow ${workflowRunId}] Failed:`, result);
+
+          // Update campaign to failed status
+          await prisma.campaign.update({
+            where: { id: pendingCampaign.id },
+            data: {
+              status: 'failed',
+              metadata: {
+                workflowRunId,
+                workflowStatus: 'failed',
+                error: 'Workflow did not complete successfully',
+                failedAt: new Date().toISOString(),
+              },
+            },
+          });
+
           activeRuns.set(workflowRunId, {
             status: "failed",
             error: "Workflow did not complete successfully",
@@ -251,6 +286,25 @@ export async function POST(req: NextRequest) {
         }
       } catch (error: any) {
         console.error(`[Workflow ${workflowRunId}] Error:`, error);
+
+        // Update campaign to failed status
+        try {
+          await prisma.campaign.update({
+            where: { id: pendingCampaign.id },
+            data: {
+              status: 'failed',
+              metadata: {
+                workflowRunId,
+                workflowStatus: 'failed',
+                error: error.message || 'Unknown error occurred',
+                failedAt: new Date().toISOString(),
+              },
+            },
+          });
+        } catch (updateError) {
+          console.error(`[Workflow ${workflowRunId}] Failed to update campaign status:`, updateError);
+        }
+
         activeRuns.set(workflowRunId, {
           status: "failed",
           error: error.message || "Unknown error occurred",
@@ -303,8 +357,8 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // If not in memory (e.g., server restarted/hot-reloaded), check database for completed campaign
-  // This handles the case where the workflow completed but the in-memory state was lost
+  // If not in memory (e.g., different serverless instance), check database
+  // This ensures cross-instance polling works in Vercel serverless
   try {
     const campaign = await prisma.campaign.findFirst({
       where: {
@@ -317,14 +371,36 @@ export async function GET(req: NextRequest) {
         id: true,
         title: true,
         body: true,
+        status: true,
         metadata: true,
       },
     });
 
     if (campaign) {
-      // Campaign was found - workflow completed successfully before server restart
       const metadata = campaign.metadata as Record<string, unknown> | null;
-      console.log(`[Workflow ${workflowRunId}] Recovered from database - campaign ${campaign.id}`);
+      const workflowStatus = metadata?.workflowStatus as string || 'unknown';
+
+      // Check if workflow is still processing
+      if (campaign.status === 'generating' || workflowStatus === 'processing') {
+        return NextResponse.json({
+          success: true,
+          workflowRunId,
+          status: "processing",
+        });
+      }
+
+      // Check if workflow failed
+      if (campaign.status === 'failed' || workflowStatus === 'failed') {
+        return NextResponse.json({
+          success: true,
+          workflowRunId,
+          status: "failed",
+          error: (metadata?.error as string) || "Workflow failed",
+        });
+      }
+
+      // Workflow completed - return the campaign
+      console.log(`[Workflow ${workflowRunId}] Found in database - campaign ${campaign.id} (status: ${campaign.status})`);
 
       return NextResponse.json({
         success: true,
@@ -347,12 +423,12 @@ export async function GET(req: NextRequest) {
     // Fall through to return unknown status
   }
 
-  // Not found in memory or database - could still be processing or truly expired
+  // Not found in memory or database - workflow ID doesn't exist
   return NextResponse.json(
     {
       success: false,
       status: "unknown",
-      error: "Workflow run not found. It may still be processing or has expired.",
+      error: "Workflow run not found. It may have expired.",
     },
     { status: 404 }
   );

@@ -23,6 +23,9 @@
     "app/api/analysis/**/*.ts": {
       "maxDuration": 300
     },
+    "app/api/content-lab/**/*.ts": {
+      "maxDuration": 300
+    },
     "app/api/cron/**/*.ts": {
       "maxDuration": 300
     }

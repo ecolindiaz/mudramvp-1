@@ -168,73 +168,126 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 4. Invoke the tracking verification agent to search all repos
-    console.log('[Agent Verification] 🤖 Invoking AI agent to search repositories...')
+    // 4. Search all repos for the tracking script with siteId
+    console.log('[Agent Verification] 🔍 Searching for siteId in repositories...')
     
-    const agent = await mastra.getAgent('trackingVerificationAgent')
-    
-    // Search each repository  
+    const commonFiles = [
+      'index.html',
+      'public/index.html',
+      'app/layout.tsx',
+      'app/layout.js',
+      'pages/_app.tsx',
+      'pages/_app.js',
+      'pages/_document.tsx',
+      'pages/_document.js',
+      'src/app/layout.tsx',
+      'src/app/layout.js',
+      'src/pages/_app.tsx',
+      'src/pages/_app.js',
+    ]
+
+    // Search each repository
     for (const repo of repos) {
       const repoFullName = repo.full_name
-      console.log(`[Agent Verification] 🔍 Searching ${repoFullName}...`)
+      console.log(`[Agent Verification] 🔍 Checking ${repoFullName}...`)
       
-      const agentResponse = await agent.generate([
-        {
-          role: 'user',
-          content: `Verify that the tracking script with siteId "${brandProfile.siteId}" is installed in repository "${repoFullName}".
-
-Use the GitHub Search tool to:
-1. Search for the siteId in the repository code
-2. Check common entry point files if global search fails
-3. Report the file location where the script is found
-
-GitHub access token: ${accessToken}
-Repository: ${repoFullName}
-SiteId to verify: ${brandProfile.siteId}`,
-        },
-      ])
-
-      console.log(`[Agent Verification] Agent response for ${repoFullName}:`, agentResponse.text)
-
-      // 5. Parse agent response
-      let verificationResult
       try {
-        verificationResult = JSON.parse(agentResponse.text)
-      } catch {
-        // If agent didn't return JSON, try next repo
-        continue
-      }
-
-      // If found in this repo, update database and return success
-      if (verificationResult.verified) {
-        await prisma.brandProfile.update({
-          where: { id: brandProfileId },
-          data: {
-            trackingStatus: 'verified',
-            trackingInstalledAt: new Date(),
+        // Try GitHub Code Search first (faster if it works)
+        const searchQuery = `${brandProfile.siteId} repo:${repoFullName}`
+        const searchUrl = `https://api.github.com/search/code?q=${encodeURIComponent(searchQuery)}`
+        
+        const searchResponse = await fetch(searchUrl, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.github.v3+json',
           },
         })
 
-        return NextResponse.json({
-          success: true,
-          data: {
-            verified: true,
-            location: verificationResult.location,
-            message: `Script found in ${verificationResult.location}`,
-            repository: repoFullName,
-            filesChecked: verificationResult.files_checked || [],
-          },
-        })
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json()
+          
+          if (searchData.total_count > 0) {
+            const foundFile = searchData.items[0]
+            console.log(`[Agent Verification] ✅ Found in ${repoFullName}/${foundFile.path}`)
+            
+            await prisma.brandProfile.update({
+              where: { id: brandProfileId },
+              data: {
+                trackingStatus: 'verified',
+                trackingInstalledAt: new Date(),
+              },
+            })
+
+            return NextResponse.json({
+              success: true,
+              data: {
+                verified: true,
+                location: foundFile.path,
+                message: `Script found in ${foundFile.path}`,
+                repository: repoFullName,
+              },
+            })
+          }
+        }
+
+        // Fallback: Check common entry files
+        console.log(`[Agent Verification] Code search didn't find it, checking common files in ${repoFullName}...`)
+        
+        for (const filePath of commonFiles) {
+          const fileUrl = `https://api.github.com/repos/${repoFullName}/contents/${filePath}`
+          
+          const fileResponse = await fetch(fileUrl, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/vnd.github.v3+json',
+            },
+          })
+
+          if (fileResponse.ok) {
+            const fileData = await fileResponse.json()
+            if (fileData.content) {
+              const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
+              
+              if (content.includes(brandProfile.siteId)) {
+                console.log(`[Agent Verification] ✅ Found in ${repoFullName}/${filePath}`)
+                
+                await prisma.brandProfile.update({
+                  where: { id: brandProfileId },
+                  data: {
+                    trackingStatus: 'verified',
+                    trackingInstalledAt: new Date(),
+                  },
+                })
+
+                return NextResponse.json({
+                  success: true,
+                  data: {
+                    verified: true,
+                    location: filePath,
+                    message: `Script found in ${filePath}`,
+                    repository: repoFullName,
+                  },
+                })
+              }
+            }
+          }
+        }
+        
+        console.log(`[Agent Verification] ❌ Not found in ${repoFullName}`)
+      } catch (error: any) {
+        console.error(`[Agent Verification] Error searching ${repoFullName}:`, error.message)
+        // Continue to next repo
       }
     }
 
     // If we get here, script wasn't found in any repository
+    console.log('[Agent Verification] ❌ Not found in any repository')
     return NextResponse.json({
       success: false,
       error: {
-        message: `Tracking script not found in any of your ${repos.length} repositories. Please ensure the script is installed correctly.`,
+        message: `Tracking script not found in any of your ${repos.length} repositories. Please ensure the script is installed.`,
         code: 'NOT_FOUND',
-        repositoriesSearched: repos.map((r: any) => r.full_name),
+        repositoriesSearched: repos.map((r: any) => r.full_name).slice(0, 10), // Limit to first 10
       },
     })
   } catch (error: any) {

@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runUnifiedAnalysis } from '@/lib/services/unified-analysis.service';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter';
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
 
 // Extended timeout for unified analysis - runs GEO + Technical analysis in parallel
 // GEO: 4 providers × multiple prompts (30-60s)

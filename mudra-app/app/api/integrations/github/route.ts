@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import crypto from 'crypto';
-import { applyRateLimit } from '@/lib/auth/rate-limiter';
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
 import { logGitHubEvent } from '@/lib/services/audit-log.service';
 
 const connectGitHubSchema = z.object({

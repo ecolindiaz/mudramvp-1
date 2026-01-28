@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { applyRateLimit } from '@/lib/auth/rate-limiter'
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 
 /**
  * GET /api/integrations/github/status

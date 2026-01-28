@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { mastra } from "@/mastra";
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter';
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
 import { prisma } from '@/lib/prisma';
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';

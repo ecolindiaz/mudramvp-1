@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
-import { applyRateLimit } from '@/lib/auth/rate-limiter'
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 
 // Mock data for citation gaps analysis
 const mockCitationGapsData = {

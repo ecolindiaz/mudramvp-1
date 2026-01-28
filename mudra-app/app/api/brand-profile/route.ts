@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBrandProfileByUserId, saveBrandProfileForUser } from "@/lib/prisma-brand-profile";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { applyRateLimit } from "@/lib/auth/rate-limiter";
+import { applyRateLimit } from "@/lib/auth/rate-limiter-redis";
 import { logBrandProfileChange } from "@/lib/services/audit-log.service";
 
 const REQUEST_TIMEOUT_MS = Number.parseInt(

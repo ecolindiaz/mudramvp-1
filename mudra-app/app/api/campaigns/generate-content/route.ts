@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { OpenAI } from "openai";
 import { getCombinedSystemPrompt } from "@/lib/prompts/load-system-prompts";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { applyRateLimit } from "@/lib/auth/rate-limiter";
+import { applyRateLimit } from "@/lib/auth/rate-limiter-redis";
 
 export async function POST(req: NextRequest) {
   // Apply rate limiting (AI generation is expensive)

@@ -16,7 +16,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { trackEvent } from '@/lib/services/analytics-event.service';
-import { applyRateLimit, getClientIp } from '@/lib/auth/rate-limiter';
+import { applyRateLimit, getClientIp } from '@/lib/auth/rate-limiter-redis';
 import { 
   validateTrackingOrigin, 
   detectSuspiciousActivity,

@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { triggerAnalysisPipeline, type AnalysisPipelineConfig } from '@/lib/services/analysis-pipeline.service';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter';
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting (analysis is expensive)

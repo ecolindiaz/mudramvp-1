@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter';
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
 import { validateScrapeSnapshot } from "@/lib/analysis/technical/validate";
 import { computeTechnicalScore } from "@/lib/analysis/technical/score";
 import { saveSnapshot, saveScore, ensureCompanyAndSiteForUrl, ensureSiteByUrl } from "@/lib/analysis/technical/repo";

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { queueNlrJob } from "@/lib/jobs/nlr";
-import { rateLimitByKey } from "@/lib/auth/rate-limiter";
+import { rateLimitByKey } from "@/lib/auth/rate-limiter-redis";
 
 function isAdmin(req: NextRequest): boolean {
   // MVP: allow local and protected deployments; replace with real auth later

@@ -1,8 +1,23 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Simple in-memory rate limiter for development
-// In production, consider using Redis via @upstash/ratelimit for distributed systems
+/**
+ * ⚠️ DEPRECATED: This in-memory rate limiter is NOT suitable for production!
+ * 
+ * Use rate-limiter-redis.ts instead for production deployments.
+ * 
+ * This file is kept only for:
+ * - Local development without Redis
+ * - Backward compatibility during migration
+ * 
+ * Security Issues:
+ * - Ineffective in multi-instance deployments
+ * - Incompatible with serverless (Vercel, etc.)
+ * - Rate limits reset on server restart
+ * - Can be bypassed by distributing requests
+ * 
+ * Migration: Import from 'rate-limiter-redis' instead
+ */
 
 interface RateLimitEntry {
     count: number;

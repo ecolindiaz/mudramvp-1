@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
-import { applyRateLimit } from '@/lib/auth/rate-limiter'
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 
 interface CitationData {
   domain: string

@@ -3,7 +3,7 @@ import { OpenAI } from "openai" // Or Anthropic, etc.
 import fs from "fs"
 import path from "path"
 import { requireAuth } from "@/lib/auth/require-auth";
-import { applyRateLimit } from "@/lib/auth/rate-limiter";
+import { applyRateLimit } from "@/lib/auth/rate-limiter-redis";
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 
 // Helper to call LLM with a prompt

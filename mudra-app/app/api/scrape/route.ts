@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scrapeToMarkdown, crawlToMarkdown } from '@/lib/scrapers/firecrawl';
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter';
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting (scraping is expensive)

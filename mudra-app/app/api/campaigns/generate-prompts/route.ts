@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateAndSaveInitialPrompts } from '@/lib/services/prompt-storage.service'
 import { requireAuth, verifyBrandProfileAccess } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter';
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
 import { getBrandProfileByUserId } from '@/lib/prisma-brand-profile';
 
 /**

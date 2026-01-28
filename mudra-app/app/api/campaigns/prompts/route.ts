@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getActivePrompts } from '@/lib/services/prompt-storage.service'
-import { applyRateLimit } from '@/lib/auth/rate-limiter'
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 
 /**
  * GET /api/campaigns/prompts?brandProfileId={id}

@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
-import { applyRateLimit } from '@/lib/auth/rate-limiter'
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 
 // Encryption helpers
 const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;

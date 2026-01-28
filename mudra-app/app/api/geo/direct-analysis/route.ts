@@ -4,7 +4,7 @@ import { runDirectGEOAnalysis, createDirectGEOConfig } from '@/lib/services/dire
 import { getBrandProfile } from '@/lib/prisma-brand-profile';
 import { logGeoAnalysisRun } from '@/lib/services/geo-analysis-log.service';
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter';
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
 
 type ProviderAnalysis = {
   provider: string;

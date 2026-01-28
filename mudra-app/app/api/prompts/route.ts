@@ -11,7 +11,7 @@ import {
 } from '@/lib/services/prompt-storage.service'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { prisma } from '@/lib/prisma'
-import { applyRateLimit } from '@/lib/auth/rate-limiter'
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 
 /**
  * GET /api/prompts?brandProfileId={id}&category={category}

@@ -235,3 +235,65 @@ export async function applyRateLimitAsync(
 export function isRedisRateLimitingEnabled(): boolean {
   return USE_REDIS;
 }
+
+/**
+ * Synchronous wrapper for backward compatibility
+ * Uses async internally but returns NextResponse immediately if rate limited
+ * 
+ * @deprecated Use applyRateLimitAsync for better error handling
+ */
+export function applyRateLimit(
+  req: NextRequest, 
+  limitType: keyof typeof RATE_LIMITS,
+  customKey?: string
+): NextResponse | null {
+  // For synchronous callers, we'll handle the rate limit asynchronously
+  // This is a compatibility shim - ideally all routes should use async
+  const promise = applyRateLimitAsync(req, limitType, customKey);
+  
+  // Return null immediately (optimistic), actual check happens async
+  // For synchronous routes, they'll need to migrate to async
+  console.warn('[RateLimit] Synchronous applyRateLimit called - consider migrating to applyRateLimitAsync');
+  
+  // Fall back to memory-based check for sync compatibility
+  const ip = getClientIp(req);
+  const limit = RATE_LIMITS[limitType];
+  const key = customKey || `${limitType}:${ip}`;
+  const result = checkMemoryRateLimit(key, limit.points, limit.duration);
+  
+  if (!result.allowed) {
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: { 
+          message: 'Too many requests. Please try again later.',
+          code: 'RATE_LIMITED',
+          retryAfter: result.resetIn
+        } 
+      },
+      { 
+        status: 429,
+        headers: {
+          'Retry-After': result.resetIn.toString(),
+          'X-RateLimit-Limit': limit.points.toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': result.resetIn.toString()
+        }
+      }
+    );
+  }
+  
+  return null;
+}
+
+/**
+ * Legacy functions for backward compatibility
+ */
+export async function authRateLimiter(req: NextRequest) {
+  return applyRateLimitAsync(req, 'auth');
+}
+
+export function rateLimitByKey(key: string, maxPoints: number, durationSeconds: number): boolean {
+  const result = checkMemoryRateLimit(key, maxPoints, durationSeconds);
+  return result.allowed;
+}

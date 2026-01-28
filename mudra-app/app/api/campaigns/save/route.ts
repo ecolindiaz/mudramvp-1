@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { applyRateLimit } from "@/lib/auth/rate-limiter";
+import { applyRateLimit } from "@/lib/auth/rate-limiter-redis";
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 
 export async function POST(req: NextRequest) {

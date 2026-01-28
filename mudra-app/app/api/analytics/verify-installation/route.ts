@@ -198,15 +198,28 @@ export async function POST(request: NextRequest) {
       'public/index.html',
       'app/layout.tsx',
       'app/layout.js',
+      'src/app/layout.tsx',
+      'src/app/layout.js',
       'pages/_app.tsx',
       'pages/_app.js',
       'pages/_document.tsx',
       'pages/_document.js',
-      'src/app/layout.tsx',
-      'src/app/layout.js',
       'src/pages/_app.tsx',
       'src/pages/_app.js',
     ]
+
+    // Search patterns - look for Mudra tracking scripts
+    const searchPatterns = [
+      brandProfile.siteId, // New format: site_xxxxx
+      `data-site-id="${brandProfile.siteId}"`, // Script attribute format
+      `data-site-id='${brandProfile.siteId}'`, // Script attribute format (single quotes)
+      'mudra-tracking', // Generic Mudra script ID
+      'app.trymudra.com/tracker.js', // Tracker script URL
+      'https://app.trymudra.com//api/track', // Legacy API endpoint (note double slash)
+      'https://app.trymudra.com/api/track', // Current API endpoint
+    ]
+
+    console.log('[Agent Verification] Searching for patterns:', searchPatterns.slice(0, 2))
 
     // Search each repository
     for (const repo of repos) {
@@ -270,7 +283,10 @@ export async function POST(request: NextRequest) {
             if (fileData.content) {
               const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
               
-              if (content.includes(brandProfile.siteId)) {
+              // Check for any of the search patterns
+              const found = searchPatterns.some(pattern => content.includes(pattern))
+              
+              if (found) {
                 console.log(`[Agent Verification] ✅ Found in ${repoFullName}/${filePath}`)
                 
                 await prisma.brandProfile.update({

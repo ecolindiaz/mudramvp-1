@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
 
 const updatePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
@@ -12,6 +13,10 @@ const updatePasswordSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit password change attempts to prevent brute-force
+    const rateLimited = applyRateLimit(req, 'auth');
+    if (rateLimited) return rateLimited;
+
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {

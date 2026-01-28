@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
 
 const deleteAccountSchema = z.object({
   confirmation: z.literal('DELETE', {
@@ -12,6 +13,10 @@ const deleteAccountSchema = z.object({
 
 export async function DELETE(req: NextRequest) {
   try {
+    // Rate limit account deletion to prevent abuse
+    const rateLimited = applyRateLimit(req, 'auth');
+    if (rateLimited) return rateLimited;
+
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {

@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Update tracking status to 'connected' on first visit
-    if (brandProfile && brandProfile.trackingStatus !== 'connected') {
+    if (validatedBrandProfile && validatedBrandProfile.trackingStatus !== 'connected') {
       await prisma.brandProfile.update({
         where: { id: brandProfileId },
         data: {

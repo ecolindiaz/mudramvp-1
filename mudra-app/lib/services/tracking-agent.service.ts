@@ -6,26 +6,8 @@
 
 import { prisma } from '@/lib/prisma';
 import { getOrCreateTrackingCode, generateTrackingScript } from './tracking-code.service';
-import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-
-// Encryption helpers for token decryption
-const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
-const ALGORITHM = 'aes-256-gcm';
-
-function decrypt(encryptedText: string): string {
-  if (!ENCRYPTION_KEY) {
-    throw new Error('GITHUB_TOKEN_ENCRYPTION_KEY environment variable is required');
-  }
-  const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
-  const iv = Buffer.from(ivHex, 'hex');
-  const authTag = Buffer.from(authTagHex, 'hex');
-  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
-  decipher.setAuthTag(authTag);
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
+import { decryptToken } from '@/lib/crypto/token-encryption';
 
 /**
  * Get a valid GitHub token for API calls
@@ -46,7 +28,7 @@ async function getValidGitHubToken(integration: any): Promise<string> {
     
     // Token still valid, decrypt and return
     try {
-      return decrypt(integration.accessToken);
+      return decryptToken(integration.accessToken);
     } catch {
       // If decryption fails, token might be stored unencrypted (legacy)
       // or it's an installation token that needs refresh

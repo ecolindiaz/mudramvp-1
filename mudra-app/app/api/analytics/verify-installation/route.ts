@@ -1,26 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { mastra } from '@/mastra'
-import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
-
-// Encryption helpers for token decryption
-const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
-const ALGORITHM = 'aes-256-gcm';
-
-function decrypt(encryptedText: string): string {
-  if (!ENCRYPTION_KEY) {
-    throw new Error('GITHUB_TOKEN_ENCRYPTION_KEY environment variable is required');
-  }
-  const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
-  const iv = Buffer.from(ivHex, 'hex');
-  const authTag = Buffer.from(authTagHex, 'hex');
-  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
-  decipher.setAuthTag(authTag);
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
+import { decryptToken } from '@/lib/crypto/token-encryption'
 
 async function refreshInstallationToken(installationId: number): Promise<string> {
   const appId = process.env.GITHUB_APP_ID;
@@ -69,7 +51,7 @@ async function getValidGitHubToken(integration: any): Promise<string> {
     }
     
     try {
-      return decrypt(integration.accessToken);
+      return decryptToken(integration.accessToken);
     } catch {
       return await refreshInstallationToken(integration.installationId);
     }

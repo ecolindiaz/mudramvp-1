@@ -3,24 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
-import crypto from 'crypto'
 import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
-
-// Encryption helpers
-const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
-const ALGORITHM = 'aes-256-gcm';
-
-function encrypt(text: string): string {
-  if (!ENCRYPTION_KEY) {
-    throw new Error('GITHUB_TOKEN_ENCRYPTION_KEY environment variable is required');
-  }
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  const authTag = cipher.getAuthTag();
-  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
-}
+import { encryptToken } from '@/lib/crypto/token-encryption'
 
 /**
  * Manual GitHub App Installation Sync Endpoint
@@ -314,7 +298,7 @@ export async function POST(request: NextRequest) {
 
     // Create or update GitHub integration
     // IMPORTANT: Encrypt the access token before storing
-    const encryptedToken = encrypt(token);
+    const encryptedToken = encryptToken(token);
     
     const integrationData = {
       accessToken: encryptedToken,

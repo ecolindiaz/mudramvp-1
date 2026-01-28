@@ -3,26 +3,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import crypto from 'crypto';
 import { detectFramework, findExistingTargetFile } from '@/lib/services/framework-detector.service';
 import { generateTrackingScript, updateTrackingStatus } from '@/lib/services/tracking-script-generator.service';
 import { injectTrackingScript, validateInjection } from '@/lib/services/tracking-script-injector.service';
 import { logAIModelCall } from '@/lib/services/ai-model-logging.service';
-
-// Encryption helpers
-const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
-const ALGORITHM = 'aes-256-gcm';
-
-function decrypt(encryptedText: string): string {
-  const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
-  const iv = Buffer.from(ivHex, 'hex');
-  const authTag = Buffer.from(authTagHex, 'hex');
-  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
-  decipher.setAuthTag(authTag);
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
+import { decryptToken } from '@/lib/crypto/token-encryption';
 
 const executeAgentSchema = z.object({
   deployedAgentId: z.number(),
@@ -363,7 +348,7 @@ async function createGitHubPR(
     console.log(`[Agent] Creating PR for ${repoName}`);
 
     // Decrypt GitHub token
-    const accessToken = decrypt(githubIntegration.accessToken);
+    const accessToken = decryptToken(githubIntegration.accessToken);
 
     const [owner, repo] = repoName.split('/');
     const branchName = `aeo-geo-optimization-${Date.now()}`;
@@ -572,7 +557,7 @@ async function installTracking(agent: any, task: any) {
       throw new Error('GitHub integration not found');
     }
 
-    const accessToken = decrypt(githubIntegration.accessToken);
+    const accessToken = decryptToken(githubIntegration.accessToken);
 
     // 2. Generate tracking script with siteId
     console.log('[Agent] Generating tracking script...');

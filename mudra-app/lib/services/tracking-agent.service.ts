@@ -335,17 +335,17 @@ function injectTrackingScript(
   framework: string,
   insertionPoint: string
 ): string {
-  // Clean up the script for different frameworks
-  const scriptOnly = trackingScript
-    .replace('<!-- Mudra AI Referral Tracking -->\n', '')
-    .trim();
+  // Extract siteId from the script tag
+  const siteIdMatch = trackingScript.match(/data-site-id="([^"]+)"/);
+  const siteId = siteIdMatch ? siteIdMatch[1] : '';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.trymudra.com';
 
   switch (framework) {
     case 'nextjs-app':
       // For Next.js App Router layout.tsx, add Script component
       if (content.includes('import Script from')) {
         // Script already imported, just add the script
-        return injectNextjsScript(content, scriptOnly);
+        return injectNextjsScript(content, trackingScript);
       } else {
         // Add Script import and inject
         const importStatement = "import Script from 'next/script';\n";
@@ -353,7 +353,7 @@ function injectTrackingScript(
         const endOfImports = content.indexOf('\n', content.indexOf(';', importIndex));
         
         let newContent = content.slice(0, endOfImports + 1) + importStatement + content.slice(endOfImports + 1);
-        return injectNextjsScript(newContent, scriptOnly);
+        return injectNextjsScript(newContent, trackingScript);
       }
 
     case 'nextjs-pages':
@@ -361,7 +361,7 @@ function injectTrackingScript(
       return content.replace(
         '</body>',
         `{/* Mudra AI Referral Tracking */}
-        <script dangerouslySetInnerHTML={{ __html: \`${scriptOnly.replace(/<\/?script>/g, '').trim()}\` }} />
+        <Script src="${baseUrl}/tracker.js" data-site-id="${siteId}" strategy="afterInteractive" />
         </body>`
       );
 
@@ -370,10 +370,11 @@ function injectTrackingScript(
     case 'vue':
     case 'static':
     default:
-      // For HTML files, inject before </body>
+      // For HTML files, inject before </body> with external script
       return content.replace(
         '</body>',
-        `  ${trackingScript}\n  </body>`
+        `  <!-- Mudra AI Referral Tracking -->
+  <script src="${baseUrl}/tracker.js" data-site-id="${siteId}" async></script>\n  </body>`
       );
   }
 }
@@ -381,9 +382,11 @@ function injectTrackingScript(
 /**
  * Inject script into Next.js App Router layout
  */
-function injectNextjsScript(content: string, script: string): string {
-  // Extract just the JS code from the script tag
-  const jsCode = script.replace(/<\/?script>/g, '').trim();
+function injectNextjsScript(content: string, scriptTag: string): string {
+  // Extract siteId from the script tag
+  const siteIdMatch = scriptTag.match(/data-site-id="([^"]+)"/);
+  const siteId = siteIdMatch ? siteIdMatch[1] : '';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.trymudra.com';
   
   // Find the closing of the body or html tag to inject before it
   const bodyCloseRegex = /<\/body>/i;
@@ -392,9 +395,11 @@ function injectNextjsScript(content: string, script: string): string {
   if (bodyCloseRegex.test(content)) {
     return content.replace(
       bodyCloseRegex,
-      `        <Script id="mudra-tracking" strategy="afterInteractive">
-          {\`${jsCode}\`}
-        </Script>
+      `        <Script 
+          src="${baseUrl}/tracker.js"
+          data-site-id="${siteId}"
+          strategy="afterInteractive"
+        />
       </body>`
     );
   }
@@ -410,9 +415,11 @@ function injectNextjsScript(content: string, script: string): string {
     if (lastClosingTag !== -1) {
       const insertPoint = returnIndex + lastClosingTag;
       return content.slice(0, insertPoint) + 
-        `\n        <Script id="mudra-tracking" strategy="afterInteractive">
-          {\`${jsCode}\`}
-        </Script>\n        ` + 
+        `\n        <Script 
+          src="${baseUrl}/tracker.js"
+          data-site-id="${siteId}"
+          strategy="afterInteractive"
+        />\n        ` + 
         content.slice(insertPoint);
     }
   }
@@ -460,9 +467,12 @@ export async function installTrackingViaAgent(
       };
     }
 
-    // Get or create tracking code
-    const trackingCode = await getOrCreateTrackingCode(brandProfileId);
-    const trackingScript = generateTrackingScript(trackingCode.trackingId);
+    // Get or create tracking code (use siteId from brand profile or generate new one)
+    const siteId = brandProfile.siteId || brandProfile.trackingSiteId;
+    if (!siteId) {
+      throw new Error('No siteId found for brand profile. Please generate tracking script first.');
+    }
+    const trackingScript = generateTrackingScript(siteId);
 
     // Detect website structure
     const structure = await detectWebsiteStructure(accessToken, owner, repo, branch);
@@ -472,7 +482,9 @@ export async function installTrackingViaAgent(
     const { content, sha } = await getFileContent(accessToken, owner, repo, structure.targetFile, branch);
 
     // Check if tracking already installed
-    if (content.includes('mudra-tracking') || content.includes(trackingCode.trackingId)) {
+    if (content.includes('mudra-tracking') || 
+        content.includes('/tracker.js') || 
+        content.includes(siteId)) {
       return {
         success: false,
         error: 'Tracking code is already installed in this repository.',
@@ -518,12 +530,17 @@ This PR adds **Mudra AI Referral Tracking** to your website. It will track visit
 - Anonymous visitor data (no PII collected)
 
 ### How it works
-The lightweight script (~1KB) runs after page load and sends a beacon to Mudra's analytics API. It uses \`navigator.sendBeacon\` for zero impact on page performance.
+Loads an external tracking script from Mudra that detects AI referrals from URL parameters and document referrer. The script is cached by browsers and automatically updated with improvements.
+
+### Performance
+- Loads asynchronously (no blocking)
+- ~2KB gzipped
+- Uses \`navigator.sendBeacon\` for reliability
 
 ---
 
 *Generated by Mudra Tracking Agent*  
-Tracking ID: \`${trackingCode.trackingId}\`
+Site ID: \`${siteId}\`
 `,
       branchName,
       branch

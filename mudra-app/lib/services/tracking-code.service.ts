@@ -110,43 +110,15 @@ export async function reactivateTrackingCode(brandProfileId: number): Promise<vo
 
 /**
  * Generate tracking script HTML for embedding
+ * Uses external tracker.js for cleaner, cacheable implementation
  */
-export function generateTrackingScript(trackingId: string): string {
+export function generateTrackingScript(siteId: string): string {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.trymudra.com';
   
+  // Return simple external script tag that loads tracker.js
   return `<!-- Mudra AI Referral Tracking -->
-<script>
-(function() {
-  var trackingId = '${trackingId}';
-  var apiUrl = '${baseUrl}/api/track';
-  
-  // Detect AI platform from referrer
-  function detectAIPlatform(referrer) {
-    if (!referrer) return null;
-    var ref = referrer.toLowerCase();
-    if (ref.includes('chatgpt.com')) return 'chatgpt';
-    if (ref.includes('perplexity.ai')) return 'perplexity';
-    if (ref.includes('gemini.google.com')) return 'gemini';
-    if (ref.includes('claude.ai')) return 'claude';
-    return null;
-  }
-  
-  // Send tracking event
-  function track() {
-    var referrer = document.referrer || '';
-    var aiPlatform = detectAIPlatform(referrer);
-    
-    var data = {
-      trackingId: trackingId,
-      eventType: 'page_view',
-      pageUrl: window.location.href,
-      pageTitle: document.title,
-      referrer: referrer,
-      isAIReferral: !!aiPlatform,
-      aiPlatform: aiPlatform,
-      userAgent: navigator.userAgent,
-      timestamp: new Date().toISOString()
-    };
+<script src="${baseUrl}/tracker.js" data-site-id="${siteId}" async></script>`;
+
     
     // Use sendBeacon for reliability
     if (navigator.sendBeacon) {

@@ -3,6 +3,87 @@ import { prisma } from '@/lib/prisma'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { applyRateLimit } from '@/lib/auth/rate-limiter'
 import crypto from 'crypto'
+import jwt from 'jsonwebtoken'
+
+// Encryption helpers for token decryption
+const ENCRYPTION_KEY = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
+const ALGORITHM = 'aes-256-gcm';
+
+function decrypt(encryptedText: string): string {
+  if (!ENCRYPTION_KEY) {
+    throw new Error('GITHUB_TOKEN_ENCRYPTION_KEY environment variable is required');
+  }
+  const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+/**
+ * Refresh GitHub App installation token
+ */
+async function refreshInstallationToken(installationId: number): Promise<string> {
+  const appId = process.env.GITHUB_APP_ID;
+  const privateKey = process.env.GITHUB_PRIVATE_KEY;
+  
+  if (!appId || !privateKey) {
+    throw new Error('GitHub App credentials not configured');
+  }
+  
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iat: now - 60,
+    exp: now + 600,
+    iss: appId,
+  };
+  
+  const formattedKey = privateKey.replace(/\\n/g, '\n').trim();
+  const appJwt = jwt.sign(payload, formattedKey, { algorithm: 'RS256' });
+  
+  const response = await fetch(
+    `https://api.github.com/app/installations/${installationId}/access_tokens`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${appJwt}`,
+        Accept: 'application/vnd.github+json',
+      },
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error('Failed to refresh installation token');
+  }
+  
+  const data = await response.json();
+  return data.token;
+}
+
+/**
+ * Get a valid GitHub token for API calls
+ */
+async function getValidGitHubToken(integration: any): Promise<string> {
+  if (integration.integrationType === 'installation' && integration.installationId) {
+    const tokenExpiresAt = integration.tokenExpiresAt;
+    const now = new Date();
+    
+    if (tokenExpiresAt && new Date(tokenExpiresAt).getTime() - now.getTime() < 5 * 60 * 1000) {
+      return await refreshInstallationToken(integration.installationId);
+    }
+    
+    try {
+      return decrypt(integration.accessToken);
+    } catch {
+      return await refreshInstallationToken(integration.installationId);
+    }
+  }
+  
+  return decrypt(integration.accessToken);
+}
 
 /**
  * GET /api/analytics/script?brandProfileId={id}
@@ -98,7 +179,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/analytics/script/verify
- * Verifies if tracking script is installed on the user's website
+ * Verifies if tracking script is installed in the user's connected GitHub repo
  */
 export async function POST(request: NextRequest) {
   // Rate limit
@@ -123,103 +204,182 @@ export async function POST(request: NextRequest) {
       return authResult.response;
     }
 
-    // Get the brand profile to fetch website URL
+    // Get the brand profile with GitHub integration
     const profile = await prisma.brandProfile.findUnique({
       where: { id: profileId },
-      select: { companyWebsite: true }
+      include: {
+        user: {
+          include: {
+            githubIntegration: true
+          }
+        }
+      }
     })
 
-    if (!profile?.companyWebsite) {
-      return NextResponse.json({
-        success: false,
-        error: { message: 'Website URL not found in brand profile' }
-      }, { status: 400 })
-    }
-
-    // Fetch the website and check for tracking script
-    try {
-      const websiteUrl = profile.companyWebsite.startsWith('http') 
-        ? profile.companyWebsite 
-        : `https://${profile.companyWebsite}`
-
-      console.log('[Script Verification] Checking website:', websiteUrl, 'for siteId:', siteId)
-      
-      const response = await fetch(websiteUrl, {
-        headers: {
-          'User-Agent': 'MudraBot/1.0 (Tracking Script Verification)'
-        },
-        signal: AbortSignal.timeout(10000) // 10 second timeout
-      })
-
-      console.log('[Script Verification] Response status:', response.status)
-
-      if (!response.ok) {
-        console.log('[Script Verification] Failed with status:', response.status)
-        return NextResponse.json({
-          success: true,
-          data: {
-            connected: false,
-            message: `Unable to access website (HTTP ${response.status}). Please ensure your website is publicly accessible.`
-          }
-        })
-      }
-
-      const html = await response.text()
-      console.log('[Script Verification] HTML length:', html.length, 'characters')
-
-      // Check if script with correct siteId is present (more flexible patterns)
-      const patterns = [
-        new RegExp(`data-site-id['"]\\s*[=:]\\s*['"]${siteId}['"]`, 'i'),
-        new RegExp(`data-site-id=['"]${siteId}['"]`, 'i'),
-        new RegExp(`setAttribute\\(['"]data-site-id['"],\\s*['"]${siteId}['"]`, 'i'),
-      ]
-      
-      const hasScript = patterns.some(pattern => pattern.test(html))
-
-      // Also check for any Mudra tracking script reference
-      const hasMudraScript = html.includes('mudra') && 
-                             (html.includes('tracker.js') || html.includes('ai-referral'))
-
-      // Debug: show snippet if Mudra script found
-      if (hasMudraScript && !hasScript) {
-        const scriptMatch = html.match(/(data-site-id['"\s=:]+[\w-]+)/i)
-        console.log('[Script Verification] Found Mudra script but siteId mismatch. Found:', scriptMatch?.[0])
-      }
-
-      console.log('[Script Verification] Results:', {
-        hasScript,
-        hasMudraScript,
-        expectedSiteId: siteId,
-        websiteUrl,
-        htmlContainsMudra: html.includes('mudra'),
-        htmlContainsTracker: html.includes('tracker.js')
-      })
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          connected: hasScript,
-          message: hasScript
-            ? 'Tracking script detected on your website!'
-            : hasMudraScript
-              ? 'Mudra script found but siteId does not match. Please ensure you copied the latest script from the dashboard.'
-              : 'Tracking script not detected. Please install the script on your website.',
-          websiteUrl,
-          siteId
-        }
-      })
-
-    } catch (fetchError: any) {
-      console.error('[Script Verification] Fetch error:', fetchError.message, fetchError.cause)
-      
+    if (!profile?.user?.githubIntegration) {
       return NextResponse.json({
         success: true,
         data: {
           connected: false,
-          message: `Unable to verify: ${fetchError.message}. Your website may be blocking automated requests or not publicly accessible.`
+          message: 'GitHub not connected. Please connect your GitHub account in Settings to verify the installation.'
         }
       })
     }
+
+    const githubIntegration = profile.user.githubIntegration
+
+    // Get the repository list from the integration
+    const repositories = githubIntegration.repositories as string[] | null
+    
+    if (!repositories || repositories.length === 0) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          connected: false,
+          message: 'No repositories found. Please ensure you have granted access to repositories in your GitHub integration.'
+        }
+      })
+    }
+
+    console.log('[Script Verification] Checking repos:', repositories, 'for siteId:', siteId)
+
+    // Get valid GitHub token
+    const accessToken = await getValidGitHubToken(githubIntegration)
+
+    // Search through each repository for the tracking script
+    for (const repoFullName of repositories) {
+      try {
+        const [owner, repo] = repoFullName.split('/')
+        if (!owner || !repo) continue
+
+        console.log(`[Script Verification] Searching repo: ${repoFullName}`)
+
+        // Search for files containing the siteId using GitHub code search
+        const searchResponse = await fetch(
+          `https://api.github.com/search/code?q=${encodeURIComponent(siteId)}+repo:${owner}/${repo}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          }
+        )
+
+        if (searchResponse.status === 403) {
+          // Rate limited or no access, try alternative method
+          console.log(`[Script Verification] Code search rate limited, trying file listing...`)
+          
+          // Try to fetch common entry point files
+          const commonFiles = [
+            'index.html',
+            'public/index.html',
+            'src/index.html',
+            'app/layout.tsx',
+            'app/layout.js',
+            'pages/_app.tsx',
+            'pages/_app.js',
+            'pages/_document.tsx',
+            'pages/_document.js',
+            'src/app/layout.tsx',
+            'src/pages/_app.tsx',
+          ]
+
+          for (const filePath of commonFiles) {
+            try {
+              const fileResponse = await fetch(
+                `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    Accept: 'application/vnd.github.v3+json',
+                  },
+                }
+              )
+
+              if (fileResponse.ok) {
+                const fileData = await fileResponse.json()
+                if (fileData.content) {
+                  const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
+                  
+                  if (content.includes(siteId)) {
+                    console.log(`[Script Verification] ✅ Found siteId in ${repoFullName}/${filePath}`)
+                    
+                    // Update tracking status in database
+                    await prisma.brandProfile.update({
+                      where: { id: profileId },
+                      data: {
+                        trackingStatus: 'connected',
+                        trackingInstalledAt: new Date()
+                      }
+                    })
+                    
+                    return NextResponse.json({
+                      success: true,
+                      data: {
+                        connected: true,
+                        message: `Tracking script verified in ${repoFullName}/${filePath}`,
+                        repository: repoFullName,
+                        filePath
+                      }
+                    })
+                  }
+                }
+              }
+            } catch (fileError) {
+              // File doesn't exist, continue to next
+              continue
+            }
+          }
+          continue
+        }
+
+        if (!searchResponse.ok) {
+          console.log(`[Script Verification] Search failed for ${repoFullName}:`, searchResponse.status)
+          continue
+        }
+
+        const searchData = await searchResponse.json()
+        
+        if (searchData.total_count > 0) {
+          console.log(`[Script Verification] ✅ Found siteId in ${repoFullName}`)
+          
+          // Update tracking status in database
+          await prisma.brandProfile.update({
+            where: { id: profileId },
+            data: {
+              trackingStatus: 'connected',
+              trackingInstalledAt: new Date()
+            }
+          })
+          
+          const matchedFile = searchData.items?.[0]?.path || 'unknown file'
+          
+          return NextResponse.json({
+            success: true,
+            data: {
+              connected: true,
+              message: `Tracking script verified in ${repoFullName}/${matchedFile}`,
+              repository: repoFullName,
+              filePath: matchedFile
+            }
+          })
+        }
+
+      } catch (repoError: any) {
+        console.error(`[Script Verification] Error checking repo ${repoFullName}:`, repoError.message)
+        continue
+      }
+    }
+
+    // If we get here, script was not found in any repo
+    return NextResponse.json({
+      success: true,
+      data: {
+        connected: false,
+        message: `Tracking script with siteId "${siteId}" not found in your connected repositories. Please ensure the PR was merged and the correct script is installed.`,
+        repositoriesChecked: repositories
+      }
+    })
 
   } catch (error) {
     console.error('Error verifying tracking script:', error)

@@ -546,20 +546,12 @@ Site ID: \`${siteId}\`
       branch
     );
 
-    // Update tracking code status
-    await prisma.trackingCode.update({
-      where: { id: trackingCode.id },
-      data: {
-        updatedAt: new Date(),
-      },
-    });
-
     // Update brand profile tracking status
     await prisma.brandProfile.update({
       where: { id: brandProfileId },
       data: {
         trackingStatus: 'pending',
-        trackingSiteId: trackingCode.trackingId,
+        trackingSiteId: siteId,
       },
     });
 

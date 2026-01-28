@@ -104,15 +104,25 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => (b.visits as number) - (a.visits as number))
       .slice(0, 10)
 
-    // Check if tracking is connected (has any visits ever)
+    // Check if tracking is connected (has visits OR verification successful)
     const hasVisits = await prisma.aIReferralVisit.count({
       where: { brandProfileId: profileId }
     })
 
+    // Also check if tracking status is 'verified' or 'connected'
+    const brandProfile = await prisma.brandProfile.findUnique({
+      where: { id: profileId },
+      select: { trackingStatus: true }
+    })
+
+    const isConnected = hasVisits > 0 || 
+                       brandProfile?.trackingStatus === 'verified' || 
+                       brandProfile?.trackingStatus === 'connected'
+
     return NextResponse.json({
       success: true,
       data: {
-        connected: hasVisits > 0,
+        connected: isConnected,
         traffic: totals.totalVisits,
         previous: previousTotals.totalVisits,
         growth: Math.round(growth * 10) / 10,

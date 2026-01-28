@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/analytics/script/verify
- * Verifies if tracking script is installed and receiving data
+ * Verifies if tracking script is installed on the user's website
  */
 export async function POST(request: NextRequest) {
   // Rate limit
@@ -123,29 +123,86 @@ export async function POST(request: NextRequest) {
       return authResult.response;
     }
 
-    // Check if we've received any tracking data for this site
-    const recentVisits = await prisma.aIReferralVisit.count({
-      where: {
-        brandProfileId: parseInt(brandProfileId),
+    // Get the brand profile to fetch website URL
+    const profile = await prisma.brandProfile.findUnique({
+      where: { id: profileId },
+      select: { companyWebsite: true }
+    })
+
+    if (!profile?.companyWebsite) {
+      return NextResponse.json({
+        success: false,
+        error: { message: 'Website URL not found in brand profile' }
+      }, { status: 400 })
+    }
+
+    // Fetch the website and check for tracking script
+    try {
+      const websiteUrl = profile.companyWebsite.startsWith('http') 
+        ? profile.companyWebsite 
+        : `https://${profile.companyWebsite}`
+
+      console.log('[Script Verification] Checking website:', websiteUrl)
+      
+      const response = await fetch(websiteUrl, {
+        headers: {
+          'User-Agent': 'MudraBot/1.0 (Tracking Script Verification)'
+        },
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      })
+
+      if (!response.ok) {
+        return NextResponse.json({
+          success: false,
+          data: {
+            connected: false,
+            message: `Unable to access website (HTTP ${response.status}). Please ensure your website is publicly accessible.`
+          }
+        })
+      }
+
+      const html = await response.text()
+
+      // Check if script with correct siteId is present
+      const scriptPattern = new RegExp(`data-site-id['"\\s]*[=:]?['"\\s]*${siteId}`, 'i')
+      const hasScript = scriptPattern.test(html)
+
+      // Also check for any Mudra tracking script reference
+      const hasMudraScript = html.includes('mudra') && 
+                             (html.includes('tracker.js') || html.includes('ai-referral'))
+
+      console.log('[Script Verification] Results:', {
+        hasScript,
+        hasMudraScript,
         siteId,
-        timestamp: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+        websiteUrl
+      })
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          connected: hasScript,
+          message: hasScript
+            ? 'Tracking script detected on your website!'
+            : hasMudraScript
+              ? 'Mudra script found but siteId does not match. Please ensure you copied the latest script from the dashboard.'
+              : 'Tracking script not detected. Please install the script on your website.',
+          websiteUrl,
+          siteId
         }
-      }
-    })
+      })
 
-    const isConnected = recentVisits > 0
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        connected: isConnected,
-        visits: recentVisits,
-        message: isConnected 
-          ? 'Tracking script is active and receiving data'
-          : 'No tracking data received yet. Please ensure the script is properly installed.'
-      }
-    })
+    } catch (fetchError: any) {
+      console.error('[Script Verification] Fetch error:', fetchError)
+      
+      return NextResponse.json({
+        success: false,
+        data: {
+          connected: false,
+          message: `Unable to verify: ${fetchError.message}. Your website may be blocking automated requests or not publicly accessible.`
+        }
+      })
+    }
 
   } catch (error) {
     console.error('Error verifying tracking script:', error)

@@ -44,7 +44,6 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   )
 
   // Weekly report via Company/Site not currently used
-  const report: { summaryJson?: NlrSummaryJson; summaryMarkdown?: string } | null = null
   const nlrReport = analysisResultsData?.report || null
   const isLoading = isLoadingAnalysis
   const error = analysisError
@@ -54,7 +53,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     const handleRefresh = () => {
       if (refreshAnalysis) refreshAnalysis()
     }
-    
+
     window.addEventListener('mudra:nlr-refresh', handleRefresh)
     window.addEventListener('mudra:analysis-complete', handleRefresh)
     window.addEventListener('mudra:website-analyzed', handleRefresh)
@@ -65,18 +64,15 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     }
   }, [refreshAnalysis])
 
-  // Build summary from WeeklyReport (preferred) or NaturalLanguageReport (fallback)
-  const summaryJson = (report?.summaryJson || null) as NlrSummaryJson | null
-  const summaryFromModel = (report?.summaryMarkdown || '')
-    .replace(/^```(md|markdown)?/gi, '')
-    .replace(/```$/g, '')
-    .trim()
-  
+  // Build summary from NaturalLanguageReport (WeeklyReport via Company/Site not currently used)
+  const summaryJson = null as NlrSummaryJson | null
+  const summaryFromModel = ''
+
   // Fallback: Use NaturalLanguageReport text if no WeeklyReport
   const nlrReportText = nlrReport?.reportText || ''
   const nlrMetadata = nlrReport?.metadata ? (typeof nlrReport.metadata === 'string' ? JSON.parse(nlrReport.metadata) : nlrReport.metadata) : null
   const nlrSummary = nlrMetadata?.summary || nlrReportText
-  
+
   const whatsChanged = summaryJson?.sections?.whats_changed ?? []
   const highlights = summaryJson?.sections?.highlights ?? []
 
@@ -139,7 +135,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     }
 
     // Use highlights for additional context
-    const bullets = (highlights?.length ? highlights : whatsChanged.map(w => w.label)).slice(0, 2)
+    const bullets = (highlights?.length ? highlights : whatsChanged.map((w: { label: string }) => w.label)).slice(0, 2)
     if (bullets.length > 0 && parts.length < 3) {
       parts.push(bullets.join(' '))
     }

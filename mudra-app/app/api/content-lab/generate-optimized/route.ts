@@ -313,12 +313,13 @@ export async function POST(req: NextRequest) {
       }
     })();
 
-    // Return immediately with run ID for polling
+    // Return immediately with run ID and campaign ID for polling
     return NextResponse.json({
       success: true,
       workflowRunId,
+      campaignId: pendingCampaign.id,
       status: "processing",
-      message: "AI content generation started. Poll /api/content-lab/generate-optimized/[workflowRunId] for status.",
+      message: "AI content generation started. Poll /api/content-lab/generate-optimized with campaignId for status.",
     });
   } catch (error: any) {
     console.error("[API /content-lab/generate-optimized] Error:", error);
@@ -336,55 +337,76 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const workflowRunId = searchParams.get("workflowRunId");
+  const campaignId = searchParams.get("campaignId");
 
-  if (!workflowRunId) {
+  if (!workflowRunId && !campaignId) {
     return NextResponse.json(
-      { success: false, error: "workflowRunId query parameter is required" },
+      { success: false, error: "workflowRunId or campaignId query parameter is required" },
       { status: 400 }
     );
   }
 
-  // First check in-memory store
-  const runState = activeRuns.get(workflowRunId);
+  // First check in-memory store (only if workflowRunId provided)
+  if (workflowRunId) {
+    const runState = activeRuns.get(workflowRunId);
 
-  if (runState) {
-    return NextResponse.json({
-      success: true,
-      workflowRunId,
-      status: runState.status,
-      result: runState.result,
-      error: runState.error,
-    });
+    if (runState) {
+      return NextResponse.json({
+        success: true,
+        workflowRunId,
+        status: runState.status,
+        result: runState.result,
+        error: runState.error,
+      });
+    }
   }
 
   // If not in memory (e.g., different serverless instance), check database
   // This ensures cross-instance polling works in Vercel serverless
   try {
-    const campaign = await prisma.campaign.findFirst({
-      where: {
-        metadata: {
-          path: ['workflowRunId'],
-          equals: workflowRunId,
+    // Prefer campaignId lookup (reliable primary key) over JSON metadata query
+    let campaign;
+    if (campaignId) {
+      campaign = await prisma.campaign.findUnique({
+        where: { id: campaignId },
+        select: {
+          id: true,
+          title: true,
+          body: true,
+          status: true,
+          metadata: true,
         },
-      },
-      select: {
-        id: true,
-        title: true,
-        body: true,
-        status: true,
-        metadata: true,
-      },
-    });
+      });
+    } else if (workflowRunId) {
+      campaign = await prisma.campaign.findFirst({
+        where: {
+          metadata: {
+            path: ['workflowRunId'],
+            equals: workflowRunId,
+          },
+        },
+        select: {
+          id: true,
+          title: true,
+          body: true,
+          status: true,
+          metadata: true,
+        },
+      });
+    }
 
     if (campaign) {
       const metadata = campaign.metadata as Record<string, unknown> | null;
       const workflowStatus = metadata?.workflowStatus as string || 'unknown';
+      // Use workflowRunId from metadata if we queried by campaignId
+      const resolvedWorkflowRunId = workflowRunId || (metadata?.workflowRunId as string) || null;
 
       // Check if workflow is still processing
       if (campaign.status === 'generating' || workflowStatus === 'processing') {
         return NextResponse.json({
           success: true,
-          workflowRunId,
+          workflowRunId: resolvedWorkflowRunId,
+          campaignId: campaign.id,
           status: "processing",
         });
       }
@@ -393,18 +415,20 @@ export async function GET(req: NextRequest) {
       if (campaign.status === 'failed' || workflowStatus === 'failed') {
         return NextResponse.json({
           success: true,
-          workflowRunId,
+          workflowRunId: resolvedWorkflowRunId,
+          campaignId: campaign.id,
           status: "failed",
           error: (metadata?.error as string) || "Workflow failed",
         });
       }
 
       // Workflow completed - return the campaign
-      console.log(`[Workflow ${workflowRunId}] Found in database - campaign ${campaign.id} (status: ${campaign.status})`);
+      console.log(`[Workflow ${resolvedWorkflowRunId || campaignId}] Found in database - campaign ${campaign.id} (status: ${campaign.status})`);
 
       return NextResponse.json({
         success: true,
-        workflowRunId,
+        workflowRunId: resolvedWorkflowRunId,
+        campaignId: campaign.id,
         status: "completed",
         result: {
           campaignId: campaign.id,

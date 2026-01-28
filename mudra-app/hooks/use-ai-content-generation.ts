@@ -60,6 +60,7 @@ const STORAGE_KEY = 'mudra_generating_content';
 
 interface StoredGeneration {
   workflowRunId: string;
+  campaignId?: string;
   promptText: string;
   startedAt: number;
 }
@@ -138,12 +139,15 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
     setProgress(["Resuming generation..."]);
     setCurrentStep(3); // Show middle step since we don't know exact progress
 
-    // Start polling for completion
+    // Start polling for completion - prefer campaignId for reliable lookups
     pollCountRef.current = 0;
     pollIntervalRef.current = setInterval(async () => {
       try {
+        const queryParam = stored.campaignId
+          ? `campaignId=${stored.campaignId}`
+          : `workflowRunId=${stored.workflowRunId}`;
         const response = await fetch(
-          `/api/content-lab/generate-optimized?workflowRunId=${stored.workflowRunId}`
+          `/api/content-lab/generate-optimized?${queryParam}`
         );
         const data = await response.json();
 
@@ -245,10 +249,14 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
   }, []);
 
   const pollForStatus = useCallback(
-    async (workflowRunId: string) => {
+    async (workflowRunId: string, campaignId?: string) => {
       try {
+        // Prefer campaignId for reliable primary key lookups across serverless instances
+        const queryParam = campaignId
+          ? `campaignId=${campaignId}`
+          : `workflowRunId=${workflowRunId}`;
         const response = await fetch(
-          `/api/content-lab/generate-optimized?workflowRunId=${workflowRunId}`
+          `/api/content-lab/generate-optimized?${queryParam}`
         );
         const data = await response.json();
 
@@ -346,11 +354,13 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
         }
 
         const workflowRunId = data.workflowRunId;
+        const campaignId = data.campaignId;
         setWorkflowRunId(workflowRunId);
 
         // Save to localStorage for resume on refresh
         setStoredGeneration({
           workflowRunId,
+          campaignId,
           promptText: trackedPrompt,
           startedAt: Date.now(),
         });
@@ -359,10 +369,10 @@ export function useAIContentGeneration(): UseAIContentGenerationReturn {
         const stopSimulatedProgress = simulateProgress();
         progressCleanupRef.current = stopSimulatedProgress;
 
-        // Start polling for completion
+        // Start polling for completion - use campaignId for reliable lookups
         pollCountRef.current = 0;
         pollIntervalRef.current = setInterval(async () => {
-          const isDone = await pollForStatus(workflowRunId);
+          const isDone = await pollForStatus(workflowRunId, campaignId);
           if (isDone) {
             if (progressCleanupRef.current) {
               progressCleanupRef.current();

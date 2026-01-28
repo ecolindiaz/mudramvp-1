@@ -8,6 +8,11 @@ import { runUnifiedAnalysis } from '@/lib/services/unified-analysis.service';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 import { applyRateLimit } from '@/lib/auth/rate-limiter';
 
+// Extended timeout for unified analysis - runs GEO + Technical analysis in parallel
+// GEO: 4 providers × multiple prompts (30-60s)
+// Technical: page discovery + scraping + DOM extraction (40-80s)
+export const maxDuration = 300; // 5 minutes
+
 export async function POST(request: NextRequest) {
   // Apply rate limiting (analysis is expensive)
   const rateLimited = applyRateLimit(request, 'analysis');

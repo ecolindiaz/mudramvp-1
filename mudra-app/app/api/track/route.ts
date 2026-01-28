@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       // Block unauthorized origins in production
       if (process.env.NODE_ENV === 'production') {
         await logAuditEvent({
-          action: 'UNAUTHORIZED_ORIGIN',
+          action: 'UNAUTHORIZED_ACCESS_ATTEMPT',
           resourceType: 'tracking',
           resourceId: trackingId,
           metadata: {

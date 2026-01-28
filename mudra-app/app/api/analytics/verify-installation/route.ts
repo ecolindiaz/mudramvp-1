@@ -125,38 +125,12 @@ export async function POST(request: NextRequest) {
 
     if (!githubIntegration) {
       return NextResponse.json(
-        { success: false, error: { message: 'GitHub not connected', code: 'GITHUB_NOT_CONNECTED' } },
+        { success: false, error: { message: 'GitHub not connected. Please connect GitHub in Settings → Integrations.', code: 'GITHUB_NOT_CONNECTED' } },
         { status: 400 }
       )
     }
 
-    // 2. Get agent schedule to find repository
-    const agentSchedule = await prisma.agentSchedule.findFirst({
-      where: {
-        brandProfileId,
-        agentType: 'ai_referral_tracking',
-        isEnabled: true,
-      },
-    })
-
-    if (!agentSchedule?.config) {
-      return NextResponse.json(
-        { success: false, error: { message: 'No repository configured for tracking', code: 'NO_REPO_CONFIGURED' } },
-        { status: 400 }
-      )
-    }
-
-    const config = agentSchedule.config as { githubRepo?: string }
-    const repoFullName = config.githubRepo
-
-    if (!repoFullName) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Repository not configured' } },
-        { status: 400 }
-      )
-    }
-
-    // 3. Get valid GitHub token
+    // 2. Get valid GitHub token
     let accessToken: string
     try {
       accessToken = await getValidGitHubToken(githubIntegration)
@@ -168,15 +142,46 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 4. Invoke the tracking verification agent
-    console.log('[Agent Verification] 🤖 Invoking AI agent to verify installation...')
+    // 3. Get user's repositories to search
+    console.log('[Agent Verification] 📡 Fetching user repositories...')
+    const reposResponse = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    })
+
+    if (!reposResponse.ok) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Failed to fetch GitHub repositories', code: 'GITHUB_API_ERROR' } },
+        { status: 500 }
+      )
+    }
+
+    const repos = await reposResponse.json()
+    console.log(`[Agent Verification] Found ${repos.length} repositories`)
+
+    if (repos.length === 0) {
+      return NextResponse.json(
+        { success: false, error: { message: 'No repositories found in your GitHub account', code: 'NO_REPOS' } },
+        { status: 400 }
+      )
+    }
+
+    // 4. Invoke the tracking verification agent to search all repos
+    console.log('[Agent Verification] 🤖 Invoking AI agent to search repositories...')
     
     const agent = await mastra.getAgent('trackingVerificationAgent')
     
-    const agentResponse = await agent.generate([
-      {
-        role: 'user',
-        content: `Verify that the tracking script with siteId "${brandProfile.siteId}" is installed in repository "${repoFullName}".
+    // Search each repository  
+    for (const repo of repos) {
+      const repoFullName = repo.full_name
+      console.log(`[Agent Verification] 🔍 Searching ${repoFullName}...`)
+      
+      const agentResponse = await agent.generate([
+        {
+          role: 'user',
+          content: `Verify that the tracking script with siteId "${brandProfile.siteId}" is installed in repository "${repoFullName}".
 
 Use the GitHub Search tool to:
 1. Search for the siteId in the repository code
@@ -186,55 +191,52 @@ Use the GitHub Search tool to:
 GitHub access token: ${accessToken}
 Repository: ${repoFullName}
 SiteId to verify: ${brandProfile.siteId}`,
-      },
-    ])
+        },
+      ])
 
-    console.log('[Agent Verification] Agent response:', agentResponse.text)
+      console.log(`[Agent Verification] Agent response for ${repoFullName}:`, agentResponse.text)
 
-    // 5. Parse agent response (it should return structured JSON)
-    let verificationResult
-    try {
-      verificationResult = JSON.parse(agentResponse.text)
-    } catch {
-      // If agent didn't return JSON, treat as failure
-      verificationResult = {
-        verified: false,
-        location: null,
-        message: 'Agent verification failed - could not parse response',
-        files_checked: [],
+      // 5. Parse agent response
+      let verificationResult
+      try {
+        verificationResult = JSON.parse(agentResponse.text)
+      } catch {
+        // If agent didn't return JSON, try next repo
+        continue
+      }
+
+      // If found in this repo, update database and return success
+      if (verificationResult.verified) {
+        await prisma.brandProfile.update({
+          where: { id: brandProfileId },
+          data: {
+            trackingStatus: 'verified',
+            trackingInstalledAt: new Date(),
+          },
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            verified: true,
+            location: verificationResult.location,
+            message: `Script found in ${verificationResult.location}`,
+            repository: repoFullName,
+            filesChecked: verificationResult.files_checked || [],
+          },
+        })
       }
     }
 
-    // 6. Update tracking status based on result
-    if (verificationResult.verified) {
-      await prisma.brandProfile.update({
-        where: { id: brandProfileId },
-        data: {
-          trackingStatus: 'verified',
-          trackingInstalledAt: new Date(),
-        },
-      })
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          verified: true,
-          location: verificationResult.location,
-          message: `✅ ${verificationResult.message}`,
-          repository: repoFullName,
-          filesChecked: verificationResult.files_checked,
-        },
-      })
-    } else {
-      return NextResponse.json({
-        success: false,
-        error: {
-          message: verificationResult.message,
-          code: 'NOT_FOUND',
-          filesChecked: verificationResult.files_checked,
-        },
-      })
-    }
+    // If we get here, script wasn't found in any repository
+    return NextResponse.json({
+      success: false,
+      error: {
+        message: `Tracking script not found in any of your ${repos.length} repositories. Please ensure the script is installed correctly.`,
+        code: 'NOT_FOUND',
+        repositoriesSearched: repos.map((r: any) => r.full_name),
+      },
+    })
   } catch (error: any) {
     console.error('[Agent Verification] Error:', error)
     return NextResponse.json(

@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
           const metaDescription = await generateMetaDescription(campaignContent, campaignTitle);
           console.log(`[Workflow ${workflowRunId}] Generated meta description: ${metaDescription}`);
 
-          // Save campaign to database
+          // Save campaign to database (include workflowRunId for recovery on server restart)
           const campaign = await prisma.campaign.create({
             data: {
               userId,
@@ -219,6 +219,7 @@ export async function POST(req: NextRequest) {
               prompt: trackedPrompt || `Prompt ID: ${trackedPromptId}`,
               icp: icp || undefined,
               metadata: {
+                workflowRunId, // Store for recovery if server restarts during polling
                 wordCount: result.result.metadata?.wordCount || 0,
                 sections: result.result.metadata?.sections || [],
                 sources: result.result.metadata?.sources || sources,
@@ -302,8 +303,51 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // If not in memory (e.g., server recompiled), the workflow state is lost
-  // Not found - could still be processing or truly expired
+  // If not in memory (e.g., server restarted/hot-reloaded), check database for completed campaign
+  // This handles the case where the workflow completed but the in-memory state was lost
+  try {
+    const campaign = await prisma.campaign.findFirst({
+      where: {
+        metadata: {
+          path: ['workflowRunId'],
+          equals: workflowRunId,
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        metadata: true,
+      },
+    });
+
+    if (campaign) {
+      // Campaign was found - workflow completed successfully before server restart
+      const metadata = campaign.metadata as Record<string, unknown> | null;
+      console.log(`[Workflow ${workflowRunId}] Recovered from database - campaign ${campaign.id}`);
+
+      return NextResponse.json({
+        success: true,
+        workflowRunId,
+        status: "completed",
+        result: {
+          campaignId: campaign.id,
+          content: campaign.body,
+          metadata: {
+            title: campaign.title,
+            wordCount: metadata?.wordCount || 0,
+            sections: metadata?.sections || [],
+            sources: metadata?.sources || [],
+          },
+        },
+      });
+    }
+  } catch (dbError) {
+    console.error(`[Workflow ${workflowRunId}] Database lookup failed:`, dbError);
+    // Fall through to return unknown status
+  }
+
+  // Not found in memory or database - could still be processing or truly expired
   return NextResponse.json(
     {
       success: false,

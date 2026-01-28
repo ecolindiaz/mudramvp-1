@@ -13,7 +13,6 @@ import {
   IconInfoCircle
 } from "@tabler/icons-react"
 import { FileText } from "lucide-react"
-import { useNlr } from '@/hooks/use-nlr'
 import type { NlrSummaryJson } from '@/types/nlr'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
@@ -33,22 +32,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   void timeRange
   void selectedModel
 
-  // Get siteId from localStorage and fetch companyId
-  const siteId = typeof window !== 'undefined' ? localStorage.getItem('mudra:siteId') : null
-  const { data: companyData } = useSWR(
-    siteId ? `/api/site/company?siteId=${siteId}` : null,
-    async (url: string) => {
-      const res = await fetch(url)
-      if (!res.ok) throw new Error('Failed to fetch company')
-      return res.json()
-    }
-  )
-  
-  const companyId = companyData?.data?.companyId || null
-  const { report: weeklyReport, isLoading: isLoadingWeekly, error: weeklyError, refresh } = useNlr(companyId)
-
-  // Also fetch from NaturalLanguageReport table via analysis results endpoint
-  // This is where onboarding/unified analysis stores reports
+  // Fetch NaturalLanguageReport via analysis results endpoint (uses BrandProfile)
   const brandProfileId = typeof window !== 'undefined' ? localStorage.getItem('mudra:brandProfileId') : null
   const { data: analysisResultsData, isLoading: isLoadingAnalysis, error: analysisError, mutate: refreshAnalysis } = useSWR(
     brandProfileId ? `/api/analysis/results?brandProfileId=${brandProfileId}` : null,
@@ -59,16 +43,15 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     }
   )
 
-  // Use weekly report if available, otherwise fallback to NaturalLanguageReport from analysis
-  const report = weeklyReport || null
+  // Weekly report via Company/Site not currently used
+  const report: { summaryJson?: NlrSummaryJson; summaryMarkdown?: string } | null = null
   const nlrReport = analysisResultsData?.report || null
-  const isLoading = isLoadingWeekly || isLoadingAnalysis
-  const error = weeklyError || analysisError
+  const isLoading = isLoadingAnalysis
+  const error = analysisError
 
   // Listen for refresh events from Generate Report button
   React.useEffect(() => {
     const handleRefresh = () => {
-      if (refresh) refresh()
       if (refreshAnalysis) refreshAnalysis()
     }
     
@@ -80,7 +63,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
       window.removeEventListener('mudra:analysis-complete', handleRefresh)
       window.removeEventListener('mudra:website-analyzed', handleRefresh)
     }
-  }, [refresh, refreshAnalysis])
+  }, [refreshAnalysis])
 
   // Build summary from WeeklyReport (preferred) or NaturalLanguageReport (fallback)
   const summaryJson = (report?.summaryJson || null) as NlrSummaryJson | null

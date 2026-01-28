@@ -69,6 +69,27 @@
   }
   
   /**
+   * Check URL parameters for AI source
+   */
+  function getAIProviderFromURL() {
+    try {
+      var urlParams = new URLSearchParams(window.location.search);
+      var source = urlParams.get('source') || urlParams.get('ref') || urlParams.get('utm_source');
+      
+      if (source) {
+        var lowerSource = source.toLowerCase();
+        if (lowerSource.includes('chatgpt') || lowerSource.includes('openai')) return 'chatgpt';
+        if (lowerSource.includes('perplexity')) return 'perplexity';
+        if (lowerSource.includes('claude')) return 'claude';
+        if (lowerSource.includes('gemini') || lowerSource.includes('bard')) return 'gemini';
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+    return null;
+  }
+  
+  /**
    * Generate session ID
    */
   function getSessionId() {
@@ -87,10 +108,14 @@
    * Send tracking data to API
    */
   function trackVisit(data) {
+    console.log('[Mudra] Sending tracking data to:', API_ENDPOINT);
+    console.log('[Mudra] Data:', JSON.stringify(data, null, 2));
+    
     // Use sendBeacon for reliability (works even when page unloads)
     if (navigator.sendBeacon) {
       var blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-      navigator.sendBeacon(API_ENDPOINT, blob);
+      var sent = navigator.sendBeacon(API_ENDPOINT, blob);
+      console.log('[Mudra] Beacon sent:', sent);
     } else {
       // Fallback to fetch
       fetch(API_ENDPOINT, {
@@ -98,8 +123,16 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
         keepalive: true
-      }).catch(function(err) {
-        console.warn('[Mudra] Tracking failed:', err);
+      })
+      .then(function(response) {
+        console.log('[Mudra] Tracking response:', response.status, response.statusText);
+        return response.json();
+      })
+      .then(function(result) {
+        console.log('[Mudra] Tracking result:', result);
+      })
+      .catch(function(err) {
+        console.error('[Mudra] Tracking failed:', err);
       });
     }
   }
@@ -111,14 +144,22 @@
     var referrer = document.referrer;
     var aiProvider = getAIProvider(referrer);
     
+    // If no referrer detected, check URL parameters
+    if (!aiProvider) {
+      aiProvider = getAIProviderFromURL();
+    }
+    
     // Only track if from AI source
     if (!aiProvider) {
+      console.log('[Mudra] No AI referrer detected');
       return;
     }
     
+    console.log('[Mudra] AI referrer detected:', aiProvider, 'from', referrer || 'URL parameter');
+    
     var trackingData = {
       siteId: siteId,
-      referrer: referrer,
+      referrer: referrer || window.location.href, // Use full URL if no referrer
       aiProvider: aiProvider,
       path: window.location.pathname,
       userAgent: navigator.userAgent,
@@ -135,7 +176,8 @@
           height: window.innerHeight
         },
         language: navigator.language,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        urlParams: window.location.search // Store URL parameters for debugging
       }
     };
     

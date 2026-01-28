@@ -251,7 +251,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   const [hasAiTrafficHistory, setHasAiTrafficHistory] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [isInstallingTracking, setIsInstallingTracking] = useState(false)
-  const [loadingAiReferral, setLoadingAiReferral] = useState(false)
+  const [loadingAiReferral, setLoadingAiReferral] = useState(true) // Start as true to prevent flash
   const [loadingReferralModels, setLoadingReferralModels] = useState(false)
 
   // Handle auto-install tracking script via GitHub agent (uses /api/tracking/install - same as TrackingCodeManager)
@@ -553,10 +553,12 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   const fetchAiReferralTraffic = async () => {
     if (!profile.id) {
       console.log('📊 Skipping AI referral fetch - no profile ID')
+      setLoadingAiReferral(false)
       return
     }
 
     try {
+      setLoadingAiReferral(true)
       const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&days=7`)
       
       if (!response.ok) {
@@ -591,6 +593,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       setAiReferralPrevious(0)
       setHasAiTrafficHistory(false)
       setIsTrackingConnected(false)
+    } finally {
+      setLoadingAiReferral(false)
     }
   }
 

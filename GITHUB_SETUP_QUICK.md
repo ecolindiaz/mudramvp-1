@@ -103,7 +103,7 @@ npm install jsonwebtoken @types/jsonwebtoken
 ### No repositories show in dropdown
 - Make sure you selected repositories during installation
 - Try uninstalling and reinstalling the app
-- Check `/api/github/repos` endpoint directly
+- Check `/api/integrations/github/repositories` endpoint directly
 
 ---
 

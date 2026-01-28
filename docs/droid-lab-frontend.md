@@ -112,7 +112,7 @@ Frontend wiring:
 ### 5.5 GitHub Integration
 1. Add backend endpoints to:
    - Kick off OAuth / GitHub App install (`/api/github/connect`).
-   - List repos (`/api/github/repos?brandProfileId=...`).
+   - List repos (`/api/integrations/github/repositories`).
    - List branches (`/api/github/repos/{id}/branches`).
 2. Replace `mockRepos` + `mockBranches` with API data + skeleton states.
 3. Store tokens via Better Auth / Supabase secrets. Never expose PATs to client.

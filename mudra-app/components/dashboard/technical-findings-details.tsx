@@ -49,6 +49,7 @@ interface PageFindings {
       semanticTags: { passed: boolean; found: string[] };
       imageAlt: { passed: boolean; total: number; withAlt: number };
       ariaLabels: { passed: boolean; count: number };
+      contentQuality: { passed: boolean; wordCount: number; paragraphCount: number };
     };
   };
   schema: {
@@ -244,6 +245,11 @@ function PageAccordionItem({ page }: { page: PageFindings }) {
                 label="ARIA labels for accessibility" 
                 passed={page.semantic.checks.ariaLabels.passed}
                 details={`Found ${page.semantic.checks.ariaLabels.count} ARIA labels`}
+              />
+              <CheckItem 
+                label="Content quality" 
+                passed={page.semantic.checks.contentQuality.passed}
+                details={`${page.semantic.checks.contentQuality.wordCount} words, ${page.semantic.checks.contentQuality.paragraphCount} paragraphs`}
               />
             </div>
           </div>

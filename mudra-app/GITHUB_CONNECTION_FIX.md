@@ -50,7 +50,7 @@ Added "Sync Existing Installation" button that:
 6. UI updates to show "Connected as @username"
 
 ### 3. Enhanced Repository Fetching ✅
-**File:** `app/api/github/repos/route.ts`
+**File:** `app/api/integrations/github/repositories/route.ts`
 
 Updated to support both OAuth and GitHub App installations:
 - Detects integration type (oauth vs installation)
@@ -142,7 +142,7 @@ NEXT_PUBLIC_GITHUB_APP_NAME=mudra-content-optimizer
 | `/api/integrations/github` | POST | Create integration (used by callback) |
 | `/api/integrations/github` | DELETE | Disconnect GitHub |
 | `/api/integrations/github/sync` | POST | **Manual sync installations** |
-| `/api/github/repos` | GET | Fetch accessible repositories |
+| `/api/integrations/github/repositories` | GET | Fetch accessible repositories |
 | `/api/auth/github/installation/callback` | GET | Handle GitHub App installation callback |
 
 ## Future Improvements

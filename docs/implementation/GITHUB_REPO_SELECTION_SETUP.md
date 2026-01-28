@@ -198,7 +198,7 @@ User clicks "Install"
 
 ### Repository Filtering in API
 
-The `/api/github/repos` endpoint will automatically fetch only repositories that are:
+The `/api/integrations/github/repositories` endpoint will automatically fetch only repositories that are:
 1. Part of the GitHub App installation
 2. Where user has push access
 

@@ -207,7 +207,7 @@ GET /api/integrations/github
 → { connected: true }
 
 // 3. System fetches repos
-GET /api/github/repos
+GET /api/integrations/github/repositories
 → { repos: [{ fullName: "user/repo", defaultBranch: "main" }] }
 
 // 4. System deploys agent
@@ -242,7 +242,7 @@ POST /api/agents/execute
 
 **Solution:** Updated `handleAutoInstall()` to:
 1. Check GitHub connection status
-2. Fetch accessible repositories via `/api/github/repos`
+2. Fetch accessible repositories via `/api/integrations/github/repositories`
 3. Use first repository with push access
 4. Pass correct `fullName` (e.g., "username/repo") to deploy endpoint
 
@@ -255,7 +255,7 @@ POST /api/agents/execute
 githubRepoName: profile.companyWebsite || 'your-repo'
 
 // AFTER ✅
-const reposResult = await fetch('/api/github/repos')
+const reposResult = await fetch('/api/integrations/github/repositories')
 const selectedRepo = reposResult.data.repos[0]
 githubRepoName: selectedRepo.fullName // "username/repo-name"
 ```

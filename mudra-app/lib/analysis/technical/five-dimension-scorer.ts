@@ -64,9 +64,10 @@ const HEADINGS_WEIGHTS = {
  * Individual check weights within semantic dimension
  */
 const SEMANTIC_WEIGHTS = {
-	S1_main_content: 5,
-	S2_page_structure: 5,
-	S3_sections: 5,
+	S1_main_content: 4,
+	S2_page_structure: 4,
+	S3_sections: 4,
+	S4_content_quality: 3, // NEW: Content depth and readability
 } as const;
 
 /**
@@ -349,13 +350,38 @@ export function scoreSemantic(extraction: DOMExtraction): DimensionScore {
 		passedCount++;
 	}
 
+	// S4 - Content Quality (NEW: uses content snapshot data)
+	const { content_snapshot } = extraction.extraction;
+	const hasSubstantialContent = content_snapshot.word_count >= 300;
+	const hasGoodStructure = content_snapshot.paragraph_count >= 3;
+	const s4Passed = hasSubstantialContent && hasGoodStructure;
+	
+	let s4Rationale: string;
+	if (!hasSubstantialContent) {
+		s4Rationale = `Thin content (${content_snapshot.word_count} words, need 300+)`;
+	} else if (!hasGoodStructure) {
+		s4Rationale = `Poor paragraph structure (${content_snapshot.paragraph_count} paragraphs, need 3+)`;
+	} else {
+		s4Rationale = `Good content depth (${content_snapshot.word_count} words, ${content_snapshot.paragraph_count} paragraphs)`;
+	}
+	
+	checks.S4_content_quality = createCheckResult(
+		s4Passed,
+		SEMANTIC_WEIGHTS.S4_content_quality,
+		s4Rationale
+	);
+	if (s4Passed) {
+		totalScore += SEMANTIC_WEIGHTS.S4_content_quality;
+		passedCount++;
+	}
+
 	return {
 		dimension: "semantic",
 		score: totalScore,
 		max_score: DIMENSION_WEIGHTS.semantic,
 		checks,
 		passed_count: passedCount,
-		total_count: 3,
+		total_count: 4,
 	};
 }
 
@@ -475,6 +501,22 @@ export function scoreFaq(extraction: DOMExtraction): DimensionScore {
 			rationale: "FAQ content exists but no FAQPage schema - opportunity to add structured data",
 		};
 	}
+	
+	// Add content quality check for FAQ answers
+	if (faqCount > 0) {
+		const allFaqs = faqs.all_faqs;
+		const avgAnswerLength = allFaqs.reduce((sum, faq) => sum + faq.answer_length, 0) / allFaqs.length;
+		const hasSubstantiveAnswers = avgAnswerLength >= 100;
+		
+		checks.FAQ_answer_quality = {
+			passed: hasSubstantiveAnswers,
+			points: 0,
+			max_points: 0,
+			rationale: hasSubstantiveAnswers
+				? `Good FAQ depth (avg ${Math.round(avgAnswerLength)} chars per answer)`
+				: `FAQ answers too brief (avg ${Math.round(avgAnswerLength)} chars, recommend 100+)`,
+		};
+	}
 
 	return {
 		dimension: "faq",
@@ -543,6 +585,19 @@ function generateIssues(
 	}
 	if (!semanticScore.checks.S3_sections?.passed) {
 		issues.push(createIssue("S3_sections", "semantic", "low", "Insufficient semantic HTML elements", pageUrl));
+	}
+	if (!semanticScore.checks.S4_content_quality?.passed) {
+		const wordCount = extraction.extraction.content_snapshot.word_count;
+		const severity: IssueSeverity = wordCount < 150 ? "high" : "medium";
+		issues.push(
+			createIssue(
+				"S4_content_quality",
+				"semantic",
+				severity,
+				`Thin or poorly structured content (${wordCount} words)`,
+				pageUrl
+			)
+		);
 	}
 
 	// Schema issues

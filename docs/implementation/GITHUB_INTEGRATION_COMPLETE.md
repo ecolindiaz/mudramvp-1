@@ -25,7 +25,7 @@ Agent Runs → github.service.ts → Fetch Config → Create PR
 ## Implementation Components
 
 ### 1. GitHub Repository API
-**File:** `app/api/github/repos/route.ts`
+**File:** `app/api/integrations/github/repositories/route.ts`
 
 **Purpose:** Fetch user's GitHub repositories with write access
 
@@ -34,8 +34,9 @@ Agent Runs → github.service.ts → Fetch Config → Create PR
 - Fetches repos from GitHub API with push permissions
 - Returns simplified repo data: name, full_name, default_branch, permissions
 - Filters to only writable repositories
+- Includes rate limiting for API protection
 
-**Endpoint:** `GET /api/github/repos`
+**Endpoint:** `GET /api/integrations/github/repositories`
 
 **Response:**
 ```json
@@ -297,7 +298,7 @@ NEXTAUTH_SECRET=<from openssl rand -base64 32>
 ## Related Files
 
 **API Routes:**
-- `app/api/github/repos/route.ts` - Fetch repositories
+- `app/api/integrations/github/repositories/route.ts` - Fetch repositories
 - `app/api/integrations/github/route.ts` - OAuth management
 - `app/api/agents/deployed/route.ts` - Agent persistence
 

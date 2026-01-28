@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import { decryptToken } from '@/lib/crypto/token-encryption'
 
 /**

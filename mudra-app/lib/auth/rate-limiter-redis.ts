@@ -38,7 +38,7 @@ let upstashInitialized = false;
 async function getUpstashRatelimit(
   limiterType: 'sliding' | 'fixed',
   tokens: number,
-  window: string
+  durationSeconds: number
 ): Promise<UpstashRatelimit | null> {
   if (!USE_REDIS) return null;
   
@@ -57,8 +57,8 @@ async function getUpstashRatelimit(
     upstashRatelimit = new Ratelimit({
       redis,
       limiter: limiterType === 'sliding' 
-        ? Ratelimit.slidingWindow(tokens, window)
-        : Ratelimit.fixedWindow(tokens, window),
+        ? Ratelimit.slidingWindow(tokens, `${durationSeconds} s` as any)
+        : Ratelimit.fixedWindow(tokens, `${durationSeconds} s` as any),
       analytics: true,
       prefix: 'mudra:ratelimit',
     });
@@ -141,13 +141,13 @@ export function getClientIp(req: NextRequest): string {
  * Rate limit configurations
  */
 export const RATE_LIMITS = {
-  auth: { points: 5, duration: 15 * 60, window: '15 m' },
-  analysis: { points: 10, duration: 60, window: '1 m' },
-  aiGeneration: { points: 5, duration: 60, window: '1 m' },
-  scrape: { points: 5, duration: 60, window: '1 m' },
-  standard: { points: 60, duration: 60, window: '1 m' },
-  track: { points: 100, duration: 60, window: '1 m' },
-  webhook: { points: 30, duration: 60, window: '1 m' },
+  auth: { points: 5, duration: 15 * 60 },        // 15 minutes
+  analysis: { points: 10, duration: 60 },        // 1 minute
+  aiGeneration: { points: 5, duration: 60 },     // 1 minute
+  scrape: { points: 5, duration: 60 },           // 1 minute
+  standard: { points: 60, duration: 60 },        // 1 minute
+  track: { points: 100, duration: 60 },          // 1 minute
+  webhook: { points: 30, duration: 60 },         // 1 minute
 } as const;
 
 /**
@@ -164,7 +164,7 @@ export async function applyRateLimitAsync(
     const key = customKey || `${limitType}:${ip}`;
     
     // Try Redis first
-    const redis = await getUpstashRatelimit('sliding', limit.points, limit.window);
+    const redis = await getUpstashRatelimit('sliding', limit.points, limit.duration);
     
     if (redis) {
       const result = await redis.limit(key);

@@ -504,7 +504,7 @@ export function scoreFaq(extraction: DOMExtraction): DimensionScore {
 	
 	// Add content quality check for FAQ answers
 	if (faqCount > 0) {
-		const allFaqs = faqs.all_faqs;
+		const allFaqs = faqs.combined_faqs;
 		const avgAnswerLength = allFaqs.reduce((sum, faq) => sum + faq.answer_length, 0) / allFaqs.length;
 		const hasSubstantiveAnswers = avgAnswerLength >= 100;
 		

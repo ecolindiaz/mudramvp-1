@@ -11,7 +11,7 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, CheckSquare, Loader2 } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, CheckSquare, Loader2, Pencil } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
@@ -387,6 +387,13 @@ function TrackedPromptsPageInner() {
   const [runAnalysisOnAdd, setRunAnalysisOnAdd] = useState(false) // BUG-3: Option to run immediate analysis
   const [showAll, setShowAll] = useState(false)
   
+  // Edit dialog state
+  const [editOpen, setEditOpen] = useState(false)
+  const [editingPrompt, setEditingPrompt] = useState<TrackedPrompt | null>(null)
+  const [editPromptText, setEditPromptText] = useState("")
+  const [editIntent, setEditIntent] = useState<string>("Organic")
+  const [isEditing, setIsEditing] = useState(false)
+  
   // Filter states
   const [selectedModel, setSelectedModel] = useState<string>("all")
   const [selectedIntent, setSelectedIntent] = useState<string>("all")
@@ -710,6 +717,81 @@ function TrackedPromptsPageInner() {
     }
   }
 
+  const handleEditPrompt = async () => {
+    const text = editPromptText.trim()
+    
+    if (!text) {
+      setErrorMessage('Please enter a prompt')
+      return
+    }
+    
+    if (text.length > MAX_PROMPT_LENGTH) {
+      setErrorMessage(`Prompt cannot exceed ${MAX_PROMPT_LENGTH} characters`)
+      return
+    }
+
+    if (!editingPrompt) {
+      setErrorMessage('No prompt selected for editing')
+      return
+    }
+
+    setIsEditing(true)
+    setErrorMessage(null)
+
+    try {
+      const response = await fetch('/api/prompts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          promptId: parseInt(editingPrompt.id),
+          text: text,
+          category: editIntent,
+        }),
+      })
+
+      const result = await response.json()
+      console.log('📥 Edit prompt response:', { status: response.status, result })
+
+      if (response.ok && result.success) {
+        console.log('✅ Prompt edited successfully')
+
+        // Close dialog and reset form
+        setEditOpen(false)
+        setEditingPrompt(null)
+        setEditPromptText("")
+        setEditIntent("Organic")
+        setErrorMessage(null)
+
+        // Update the prompt in local state
+        setData((prev) => prev.map(p => 
+          p.id === editingPrompt.id 
+            ? { ...p, prompt: text, intent: editIntent }
+            : p
+        ))
+
+        // Optionally refresh from server to ensure consistency
+        await fetchPrompts()
+      } else {
+        const errorMsg = result.error?.message || result.error || 'Failed to edit prompt'
+        setErrorMessage(errorMsg)
+        console.error('❌ Edit failed:', result)
+      }
+    } catch (error) {
+      console.error('❌ Error editing prompt:', error)
+      setErrorMessage('Failed to edit prompt. Please try again.')
+    } finally {
+      setIsEditing(false)
+    }
+  }
+
+  const openEditDialog = (prompt: TrackedPrompt) => {
+    setEditingPrompt(prompt)
+    setEditPromptText(prompt.prompt)
+    setEditIntent(prompt.intent || "Organic")
+    setErrorMessage(null)
+    setEditOpen(true)
+  }
+
   return (
     <SidebarProvider
       className="bg-dark-grey"
@@ -760,11 +842,26 @@ function TrackedPromptsPageInner() {
                   >
                     {showAll ? "Collapse" : "All Prompts"}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 rounded-lg bg-white/5 text-white hover:bg-white/10 border-white/10 gap-1.5"
+                    onClick={() => {
+                      const selectedRows = table.getSelectedRowModel().rows
+                      if (selectedRows.length === 1) {
+                        openEditDialog(selectedRows[0].original)
+                      }
+                    }}
+                    disabled={isLoading || table.getSelectedRowModel().rows.length !== 1}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit Prompt
+                  </Button>
                   <Button 
                     size="sm" 
                     className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5" 
                     onClick={() => setAddOpen(true)}
-                    disabled={isLoading}
+                    disabled={isLoading || data.length >= 50}
                   >
                     <Plus className="h-4 w-4" />
                     Add Prompt
@@ -1125,6 +1222,111 @@ function TrackedPromptsPageInner() {
                           </>
                         ) : (
                           runAnalysisOnAdd ? 'Add & Analyze' : 'Add Prompt'
+                        )}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                {/* Edit Prompt Dialog */}
+                <Dialog open={editOpen} onOpenChange={(open) => {
+                  setEditOpen(open)
+                  if (!open) {
+                    setEditingPrompt(null)
+                    setEditPromptText("")
+                    setEditIntent("Organic")
+                    setErrorMessage(null)
+                  }
+                }}>
+                  <DialogContent className="sm:max-w-md rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl">Edit Prompt</DialogTitle>
+                      <DialogDescription>
+                        Update the prompt text or category.
+                      </DialogDescription>
+                    </DialogHeader>
+                    {errorMessage && (
+                      <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
+                        <p className="text-sm text-red-400">{errorMessage}</p>
+                      </div>
+                    )}
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="edit-prompt">Prompt</Label>
+                          <span className={cn(
+                            "text-xs",
+                            editPromptText.length > MAX_PROMPT_LENGTH ? "text-red-400" : "text-muted-foreground"
+                          )}>
+                            {editPromptText.length}/{MAX_PROMPT_LENGTH}
+                          </span>
+                        </div>
+                        <Textarea 
+                          id="edit-prompt"
+                          value={editPromptText} 
+                          onChange={(e) => setEditPromptText(e.target.value)} 
+                          placeholder="Type your prompt..." 
+                          className={cn(
+                            "min-h-[90px] rounded-lg border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none",
+                            editPromptText.length > MAX_PROMPT_LENGTH && "border-red-500/50"
+                          )}
+                          disabled={isEditing}
+                          maxLength={MAX_PROMPT_LENGTH + 50}
+                        />
+                        {editPromptText.length > MAX_PROMPT_LENGTH && (
+                          <p className="text-xs text-red-400">
+                            Prompt is too long. Please shorten it to {MAX_PROMPT_LENGTH} characters or less.
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-intent">Intent</Label>
+                        <Select 
+                          value={editIntent} 
+                          onValueChange={(v) => {
+                            setEditIntent(v ?? "Organic")
+                          }}
+                          disabled={isEditing}
+                        >
+                          <SelectTrigger id="edit-intent" className="w-full rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 outline-none border-white/10">
+                            <SelectValue placeholder="Select intent" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg">
+                            <SelectItem value="How-to Guides">How-to</SelectItem>
+                            <SelectItem value="Organic">Organic</SelectItem>
+                            <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
+                            <SelectItem value="Competitor">Competitor</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-3">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setEditOpen(false)
+                          setEditingPrompt(null)
+                          setEditPromptText("")
+                          setEditIntent("Organic")
+                          setErrorMessage(null)
+                        }} 
+                        className="h-9 rounded-lg"
+                        disabled={isEditing}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleEditPrompt} 
+                        className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
+                        disabled={isEditing || !editPromptText.trim() || editPromptText.length > MAX_PROMPT_LENGTH}
+                      >
+                        {isEditing ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save Changes'
                         )}
                       </Button>
                     </div>

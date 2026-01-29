@@ -3,11 +3,237 @@ import { prisma } from '@/lib/prisma'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 
+type CitationType = 'Blog' | 'Listicle' | 'Docs' | 'News' | 'Academic' | 'Wiki' | 'Forum' | 'Video' | 'Product' | 'Review' | 'Social' | 'Other'
+
 interface CitationData {
   domain: string
   count: number
   percentage: number
   urls: string[]
+  type: CitationType
+}
+
+/**
+ * Categorize a citation based on URL patterns
+ * Order matters - more specific patterns should come first
+ */
+function categorizeCitationByUrl(url: string): CitationType {
+  const urlLower = url.toLowerCase()
+
+  // Extract domain for domain-specific matching
+  let domain = ''
+  try {
+    domain = new URL(url).hostname.replace(/^www\./, '').toLowerCase()
+  } catch {
+    // If URL parsing fails, try regex extraction
+    const match = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/]+)/)
+    domain = match ? match[1].toLowerCase() : ''
+  }
+
+  // Wikipedia / Wiki sources
+  if (
+    domain.includes('wikipedia.org') ||
+    domain.includes('wikimedia.org') ||
+    domain.includes('wiktionary.org') ||
+    domain.includes('wikihow.com') ||
+    urlLower.includes('/wiki/')
+  ) {
+    return 'Wiki'
+  }
+
+  // Forum / Community / Q&A sites
+  if (
+    domain.includes('stackoverflow.com') ||
+    domain.includes('stackexchange.com') ||
+    domain.includes('reddit.com') ||
+    domain.includes('quora.com') ||
+    domain.includes('discourse.') ||
+    domain.includes('community.') ||
+    domain.includes('forum.') ||
+    domain.includes('forums.') ||
+    domain.includes('discuss.') ||
+    domain.includes('support.') ||
+    domain.includes('answers.') ||
+    domain.includes('ask.') ||
+    urlLower.includes('/forum') ||
+    urlLower.includes('/community') ||
+    urlLower.includes('/discussions') ||
+    urlLower.includes('/questions/')
+  ) {
+    return 'Forum'
+  }
+
+  // Video platforms
+  if (
+    domain.includes('youtube.com') ||
+    domain.includes('youtu.be') ||
+    domain.includes('vimeo.com') ||
+    domain.includes('dailymotion.com') ||
+    domain.includes('twitch.tv') ||
+    domain.includes('tiktok.com') ||
+    urlLower.includes('/video') ||
+    urlLower.includes('/watch')
+  ) {
+    return 'Video'
+  }
+
+  // Social Media
+  if (
+    domain.includes('twitter.com') ||
+    domain.includes('x.com') ||
+    domain.includes('linkedin.com') ||
+    domain.includes('facebook.com') ||
+    domain.includes('instagram.com') ||
+    domain.includes('threads.net') ||
+    domain.includes('mastodon.') ||
+    domain.includes('bsky.app')
+  ) {
+    return 'Social'
+  }
+
+  // Review sites (before Listicle since some overlap)
+  if (
+    domain.includes('trustpilot.com') ||
+    domain.includes('yelp.com') ||
+    domain.includes('glassdoor.com') ||
+    domain.includes('producthunt.com') ||
+    domain.includes('alternativeto.net') ||
+    urlLower.includes('/reviews') ||
+    urlLower.includes('/review/')
+  ) {
+    return 'Review'
+  }
+
+  // Academic sources
+  if (
+    domain.endsWith('.edu') ||
+    domain.includes('arxiv.org') ||
+    domain.includes('scholar.google') ||
+    domain.includes('researchgate.net') ||
+    domain.includes('ncbi.nlm.nih.gov') ||
+    domain.includes('pubmed.') ||
+    domain.includes('ieee.org') ||
+    domain.includes('acm.org') ||
+    domain.includes('jstor.org') ||
+    domain.includes('sciencedirect.com') ||
+    domain.includes('springer.com') ||
+    domain.includes('nature.com') ||
+    domain.includes('plos.org') ||
+    domain.includes('semanticscholar.org') ||
+    domain.includes('academia.edu')
+  ) {
+    return 'Academic'
+  }
+
+  // Documentation (check after academic since some overlap with .edu)
+  if (
+    urlLower.includes('/docs') ||
+    urlLower.includes('/documentation') ||
+    urlLower.includes('/api/') ||
+    urlLower.includes('/reference') ||
+    urlLower.includes('/guide') ||
+    urlLower.includes('/manual') ||
+    urlLower.includes('/handbook') ||
+    urlLower.includes('/tutorial') ||
+    domain.startsWith('docs.') ||
+    domain.startsWith('developer.') ||
+    domain.startsWith('developers.') ||
+    domain.startsWith('api.') ||
+    domain.includes('readthedocs.') ||
+    domain.includes('gitbook.io')
+  ) {
+    return 'Docs'
+  }
+
+  // News / Media outlets
+  if (
+    domain.includes('techcrunch.com') ||
+    domain.includes('theverge.com') ||
+    domain.includes('wired.com') ||
+    domain.includes('arstechnica.com') ||
+    domain.includes('reuters.com') ||
+    domain.includes('bloomberg.com') ||
+    domain.includes('forbes.com') ||
+    domain.includes('businessinsider.com') ||
+    domain.includes('cnn.com') ||
+    domain.includes('bbc.com') ||
+    domain.includes('bbc.co.uk') ||
+    domain.includes('nytimes.com') ||
+    domain.includes('wsj.com') ||
+    domain.includes('theguardian.com') ||
+    domain.includes('washingtonpost.com') ||
+    domain.includes('cnbc.com') ||
+    domain.includes('ft.com') ||
+    domain.includes('venturebeat.com') ||
+    domain.includes('zdnet.com') ||
+    domain.includes('cnet.com') ||
+    domain.includes('engadget.com') ||
+    domain.includes('mashable.com') ||
+    domain.includes('gizmodo.com') ||
+    domain.includes('thenextweb.com') ||
+    domain.includes('hackernews.') ||
+    domain.startsWith('news.') ||
+    urlLower.includes('/news/')
+  ) {
+    return 'News'
+  }
+
+  // Listicle / Comparison sites
+  if (
+    domain.includes('g2.com') ||
+    domain.includes('capterra.com') ||
+    domain.includes('trustradius.com') ||
+    domain.includes('softwareadvice.com') ||
+    domain.includes('getapp.com') ||
+    domain.includes('sourceforge.net') ||
+    urlLower.includes('/top-') ||
+    urlLower.includes('/best-') ||
+    urlLower.includes('-alternatives') ||
+    urlLower.includes('-vs-') ||
+    urlLower.includes('/compare') ||
+    urlLower.includes('/comparison') ||
+    urlLower.includes('/alternatives')
+  ) {
+    return 'Listicle'
+  }
+
+  // Blog patterns
+  if (
+    domain.includes('medium.com') ||
+    domain.includes('substack.com') ||
+    domain.includes('dev.to') ||
+    domain.includes('hashnode.dev') ||
+    domain.includes('blogger.com') ||
+    domain.includes('wordpress.com') ||
+    domain.includes('ghost.io') ||
+    domain.startsWith('blog.') ||
+    domain.startsWith('blogs.') ||
+    urlLower.includes('/blog') ||
+    urlLower.includes('/article') ||
+    urlLower.includes('/post/') ||
+    urlLower.includes('/posts/')
+  ) {
+    return 'Blog'
+  }
+
+  // Product / Official company pages (broader catch for company sites)
+  // This includes official product pages, landing pages, and company homepages
+  if (
+    urlLower.includes('/product') ||
+    urlLower.includes('/pricing') ||
+    urlLower.includes('/features') ||
+    urlLower.includes('/solutions') ||
+    urlLower.includes('/platform') ||
+    urlLower.includes('/about') ||
+    urlLower.includes('/company') ||
+    // Check if it's a root domain or simple path (likely a product/company page)
+    /^https?:\/\/[^\/]+\/?$/.test(url) ||
+    /^https?:\/\/[^\/]+\/[^\/]+\/?$/.test(url)
+  ) {
+    return 'Product'
+  }
+
+  return 'Other'
 }
 
 /**
@@ -105,7 +331,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Aggregate citations from all analyses
-    const citationMap = new Map<string, { count: number; urls: Set<string> }>()
+    const citationMap = new Map<string, {
+      count: number
+      urls: Set<string>
+      typeCounts: Map<CitationType, number>
+    }>()
     let totalCitationCount = 0
 
     for (const result of geoResults) {
@@ -157,9 +387,18 @@ export async function GET(request: NextRequest) {
               const domain = urlObj.hostname.replace(/^www\./, '')
 
               if (domain) {
-                const existing = citationMap.get(domain) || { count: 0, urls: new Set<string>() }
+                const existing = citationMap.get(domain) || {
+                  count: 0,
+                  urls: new Set<string>(),
+                  typeCounts: new Map<CitationType, number>()
+                }
                 existing.count++
                 existing.urls.add(rawUrl)
+
+                // Track citation type for this URL
+                const citationType = categorizeCitationByUrl(rawUrl)
+                existing.typeCounts.set(citationType, (existing.typeCounts.get(citationType) || 0) + 1)
+
                 citationMap.set(domain, existing)
                 totalCitationCount++
               }
@@ -184,14 +423,27 @@ export async function GET(request: NextRequest) {
 
     // Convert to array and calculate percentages
     const citations: CitationData[] = Array.from(citationMap.entries())
-      .map(([domain, data]) => ({
-        domain,
-        count: data.count,
-        percentage: totalCitationCount > 0 
-          ? Math.round((data.count / totalCitationCount) * 100) 
-          : 0,
-        urls: Array.from(data.urls).slice(0, 5) // Include up to 5 sample URLs
-      }))
+      .map(([domain, data]) => {
+        // Determine the dominant citation type for this domain
+        let dominantType: CitationType = 'Other'
+        let maxTypeCount = 0
+        for (const [type, count] of data.typeCounts) {
+          if (count > maxTypeCount) {
+            maxTypeCount = count
+            dominantType = type
+          }
+        }
+
+        return {
+          domain,
+          count: data.count,
+          percentage: totalCitationCount > 0
+            ? Math.round((data.count / totalCitationCount) * 100)
+            : 0,
+          urls: Array.from(data.urls).slice(0, 5), // Include up to 5 sample URLs
+          type: dominantType
+        }
+      })
       .sort((a, b) => b.count - a.count)
       .slice(0, limit)
 

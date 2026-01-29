@@ -13,17 +13,53 @@ import {
   IconInfoCircle,
   IconCheck
 } from "@tabler/icons-react"
-import { FileText, ArrowUpRight, Maximize2 } from "lucide-react"
+import { FileText, ArrowUpRight, Maximize2, ListOrdered, BookOpen, Newspaper, GraduationCap, Globe, MessageSquare, PlayCircle, Building2, Star, Share2, BookMarked } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { toast } from "react-hot-toast"
 import type { NlrSummaryJson } from '@/types/nlr'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 import { useBrandProfile } from "@/components/brand-profile-context"
+import { ExpansionModal, type ExpansionModalColumn } from "./expansion-modal"
 
 interface NaturalLanguageReportProps {
   className?: string
   timeRange: TimeRange
   selectedModel: AIModel | "all"
+}
+
+// Citation type icon helper - matches the Sources table in tracked prompts
+type CitationType = 'Blog' | 'Listicle' | 'Docs' | 'News' | 'Academic' | 'Wiki' | 'Forum' | 'Video' | 'Product' | 'Review' | 'Social' | 'Other'
+
+function CitationTypeIcon({ type }: { type: CitationType }) {
+  const iconClass = 'h-3.5 w-3.5'
+  switch (type) {
+    case 'Blog':
+      return <FileText className={iconClass} />
+    case 'Listicle':
+      return <ListOrdered className={iconClass} />
+    case 'Docs':
+      return <BookOpen className={iconClass} />
+    case 'News':
+      return <Newspaper className={iconClass} />
+    case 'Academic':
+      return <GraduationCap className={iconClass} />
+    case 'Wiki':
+      return <BookMarked className={iconClass} />
+    case 'Forum':
+      return <MessageSquare className={iconClass} />
+    case 'Video':
+      return <PlayCircle className={iconClass} />
+    case 'Product':
+      return <Building2 className={iconClass} />
+    case 'Review':
+      return <Star className={iconClass} />
+    case 'Social':
+      return <Share2 className={iconClass} />
+    case 'Other':
+    default:
+      return <Globe className={iconClass} />
+  }
 }
 
 
@@ -290,11 +326,12 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   )
 
   // Transform citation data for display
-  const citations: Array<{ domain: string; used: number }> = React.useMemo(() => {
+  const citations: Array<{ domain: string; used: number; type: string }> = React.useMemo(() => {
     if (!citationsData?.citations) return []
     return citationsData.citations.map((c: any) => ({
       domain: c.domain,
-      used: c.percentage
+      used: c.percentage,
+      type: c.type || 'Other'
     }))
   }, [citationsData])
 
@@ -830,22 +867,24 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
               </button>
             </div>
             <div className="divide-y divide-white/[0.06]">
-              <div className="grid grid-cols-[1fr_auto] items-center px-5 py-2.5 text-xs text-white/50">
+              <div className="grid grid-cols-[1fr_100px_130px] items-center px-5 py-2.5 text-xs text-white/50">
                 <span>Source</span>
-                <span>Mention rate</span>
+                <span className="text-center">Type</span>
+                <span className="text-right">Mention rate</span>
               </div>
               {isLoadingCitations ? (
                 <div className="divide-y divide-white/[0.06]">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <div
                       key={i}
-                      className="grid grid-cols-[1fr_auto] items-center px-5 py-3.5"
+                      className="grid grid-cols-[1fr_100px_130px] items-center px-5 py-3.5"
                     >
                       <div className="flex items-center gap-2.5">
                         <span className="block size-6 rounded bg-white/10 animate-pulse" />
                         <span className="block h-4 w-32 rounded bg-white/10 animate-pulse" />
                       </div>
-                      <span className="block h-4 w-10 rounded bg-white/10 animate-pulse" />
+                      <span className="block h-6 w-16 mx-auto rounded bg-white/10 animate-pulse" />
+                      <span className="block h-4 w-10 ml-auto rounded bg-white/10 animate-pulse" />
                     </div>
                   ))}
                 </div>
@@ -856,14 +895,20 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                 </div>
               ) : (
                 citations.map((c, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_auto] items-center px-5 py-3.5 hover:bg-white/[0.02] transition-colors">
+                  <div key={idx} className="grid grid-cols-[1fr_100px_130px] items-center px-5 py-3.5 hover:bg-white/[0.02] transition-colors">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80">
                         {c.domain[0].toUpperCase()}
                       </span>
                       <span className="truncate text-sm text-white/90">{c.domain}</span>
                     </div>
-                    <div className="text-sm tabular-nums text-white/70 font-medium">{c.used}%</div>
+                    <div className="flex justify-center">
+                      <Badge className="inline-flex items-center gap-1.5 h-6 px-2 text-[11px] rounded-md bg-white/95 text-black font-medium shadow-sm">
+                        <CitationTypeIcon type={c.type as CitationType} />
+                        {c.type}
+                      </Badge>
+                    </div>
+                    <div className="text-sm tabular-nums text-white/70 font-medium text-right">{c.used}%</div>
                   </div>
                 ))
               )}
@@ -998,6 +1043,121 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Competitor Rankings Expansion Modal */}
+      <ExpansionModal
+        open={showCompetitorRankingsModal}
+        onOpenChange={setShowCompetitorRankingsModal}
+        title="Competitor Rankings"
+        description="How often competitors are mentioned across all AI responses"
+        data={competitorRankings}
+        isLoading={isLoadingCompetitors}
+        searchKey="name"
+        searchPlaceholder="Search competitors..."
+        emptyMessage="No competitor data available yet."
+        emptySubMessage="Run an analysis to see competitor rankings."
+        columns={[
+          {
+            key: "rank",
+            header: "#",
+            width: "50px",
+            render: (_, idx) => (
+              <span className="text-white/50 tabular-nums">{idx + 1}</span>
+            ),
+          },
+          {
+            key: "name",
+            header: "Company",
+            width: "1fr",
+            sortable: true,
+            render: (item) => {
+              const logoUrl = `https://logo.clearbit.com/${item.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`
+              return (
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <img
+                    src={logoUrl}
+                    alt={item.name}
+                    className="size-6 rounded object-contain bg-white/5"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                      target.nextElementSibling?.classList.remove('hidden')
+                    }}
+                  />
+                  <span
+                    className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80 hidden"
+                  >
+                    {item.name[0]?.toUpperCase() || '?'}
+                  </span>
+                  <span className="truncate text-white/90">{item.name}</span>
+                </div>
+              )
+            },
+          },
+          {
+            key: "sov",
+            header: "SOV %",
+            width: "80px",
+            align: "right",
+            sortable: true,
+            render: (item) => (
+              <span className="tabular-nums text-white/70 font-medium">{item.sov}%</span>
+            ),
+          },
+        ] as ExpansionModalColumn<{ name: string; sov: number }>[]}
+      />
+
+      {/* Citations Expansion Modal */}
+      <ExpansionModal
+        open={showCitationsModal}
+        onOpenChange={setShowCitationsModal}
+        title="Citations"
+        description="Top sources AI cites from your industry"
+        data={citations}
+        isLoading={isLoadingCitations}
+        searchKey="domain"
+        searchPlaceholder="Search sources..."
+        emptyMessage="No citation data available yet."
+        emptySubMessage="Run an analysis to see citation sources."
+        columns={[
+          {
+            key: "domain",
+            header: "Source",
+            width: "1fr",
+            sortable: true,
+            render: (item) => (
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80">
+                  {item.domain[0].toUpperCase()}
+                </span>
+                <span className="truncate text-white/90">{item.domain}</span>
+              </div>
+            ),
+          },
+          {
+            key: "type",
+            header: "Type",
+            width: "100px",
+            sortable: true,
+            render: (item) => (
+              <Badge className="inline-flex items-center gap-1.5 h-6 px-2 text-[11px] rounded-md bg-white/95 text-black font-medium shadow-sm w-fit">
+                <CitationTypeIcon type={item.type as CitationType} />
+                {item.type}
+              </Badge>
+            ),
+          },
+          {
+            key: "used",
+            header: "Mention rate",
+            width: "100px",
+            align: "right",
+            sortable: true,
+            render: (item) => (
+              <span className="tabular-nums text-white/70 font-medium">{item.used}%</span>
+            ),
+          },
+        ] as ExpansionModalColumn<{ domain: string; used: number; type: string }>[]}
+      />
     </div>
   )
 }

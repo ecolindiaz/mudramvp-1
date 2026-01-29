@@ -51,6 +51,16 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     }
   )
 
+  // Fetch recent prompts/chats with results
+  const { data: promptsData, isLoading: isLoadingPrompts, mutate: refreshPrompts } = useSWR(
+    brandProfileId ? `/api/prompts/with-results?brandProfileId=${brandProfileId}` : null,
+    async (url: string) => {
+      const res = await fetch(url)
+      if (!res.ok) return null
+      return res.json()
+    }
+  )
+
   // Weekly report via Company/Site not currently used
   const nlrReport = analysisResultsData?.report || null
   const isLoading = isLoadingAnalysis
@@ -60,6 +70,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   React.useEffect(() => {
     const handleRefresh = () => {
       if (refreshAnalysis) refreshAnalysis()
+      if (refreshPrompts) refreshPrompts()
     }
 
     window.addEventListener('mudra:nlr-refresh', handleRefresh)
@@ -70,7 +81,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
       window.removeEventListener('mudra:analysis-complete', handleRefresh)
       window.removeEventListener('mudra:website-analyzed', handleRefresh)
     }
-  }, [refreshAnalysis])
+  }, [refreshAnalysis, refreshPrompts])
 
   // Build summary from NaturalLanguageReport (WeeklyReport via Company/Site not currently used)
   const summaryJson = null as NlrSummaryJson | null
@@ -305,8 +316,54 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     }
   }, [refreshCompetitors])
 
-  // Recent chats data (will be connected to backend)
-  const recentChats: Array<{ id: string; promptId: string; question: string; timestamp: string; model: string }> = []
+  // Recent chats data - derived from prompts with analysis results
+  const recentChats = React.useMemo(() => {
+    if (!promptsData?.prompts || !promptsData.hasAnalysis) return []
+
+    // Filter prompts that have results (were actually run)
+    const promptsWithResults = promptsData.prompts.filter(
+      (p: any) => p.results && p.results.length > 0
+    )
+
+    // Sort by most recent (using updatedAt or createdAt)
+    const sorted = [...promptsWithResults].sort((a: any, b: any) => {
+      const dateA = new Date(a.updatedAt || a.createdAt).getTime()
+      const dateB = new Date(b.updatedAt || b.createdAt).getTime()
+      return dateB - dateA
+    })
+
+    // Take the 3 most recent and transform to expected format
+    return sorted.slice(0, 3).map((prompt: any) => {
+      // Get the primary model from results
+      const primaryModel = prompt.results?.[0]?.model || prompt.model || 'ChatGPT'
+
+      // Format timestamp
+      const date = new Date(prompt.updatedAt || prompt.createdAt)
+      const now = new Date()
+      const diffMs = now.getTime() - date.getTime()
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+      let timestamp: string
+      if (diffHours < 1) {
+        timestamp = 'Just now'
+      } else if (diffHours < 24) {
+        timestamp = `${diffHours}h ago`
+      } else if (diffDays < 7) {
+        timestamp = `${diffDays}d ago`
+      } else {
+        timestamp = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      }
+
+      return {
+        id: String(prompt.id),
+        promptId: String(prompt.id),
+        question: prompt.text,
+        timestamp,
+        model: primaryModel
+      }
+    })
+  }, [promptsData])
 
   const handleChatClick = (promptId: string) => {
     // Navigate to tracked prompt detail page
@@ -618,7 +675,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                 </Tooltip>
               </div>
               <div className="p-4">
-                {isLoading ? (
+                {isLoadingPrompts ? (
                   <div className="grid grid-cols-3 gap-3">
                     {[1, 2, 3].map((i) => (
                       <div

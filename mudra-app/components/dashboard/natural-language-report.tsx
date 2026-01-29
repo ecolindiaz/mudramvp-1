@@ -583,18 +583,21 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             {/* Competitor Rankings Table - Share of Voice */}
             <div className="rounded-lg border border-white/[0.04] bg-transparent overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
-                <div className="text-sm font-medium text-white/50">Competitor Rankings</div>
+                <div>
+                  <div className="text-sm font-medium text-white/90">Competitor Rankings</div>
+                  <div className="text-xs text-white/60">Share of Voice</div>
+                </div>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex">
                       <IconInfoCircle className="size-4 text-white/60" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent sideOffset={8}>Share of Voice: How often competitors are mentioned across all AI responses.</TooltipContent>
+                  <TooltipContent sideOffset={8}>How often competitors are mentioned across all AI responses.</TooltipContent>
                 </Tooltip>
               </div>
               <div className="divide-y divide-white/[0.06]">
-                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 text-xs text-white/60">
+                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2 text-xs text-white/60">
                   <span className="w-6">#</span>
                   <span>Company</span>
                   <span>SOV %</span>
@@ -635,7 +638,6 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                               alt={competitor.name}
                               className="size-5 rounded object-contain bg-white/5"
                               onError={(e) => {
-                                // Fallback to letter avatar on error
                                 const target = e.target as HTMLImageElement
                                 target.style.display = 'none'
                                 target.nextElementSibling?.classList.remove('hidden')

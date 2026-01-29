@@ -288,6 +288,21 @@ function SortableIssueCard({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {/* PR Badge - always visible when PR exists */}
+      {issue.prUrl && (
+        <a 
+          href={issue.prUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="flex items-center gap-1.5 ml-7 mb-2 px-2 py-1 rounded-md bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 transition-colors w-fit"
+        >
+          <IconGitPullRequest className="w-3.5 h-3.5" />
+          <span className="text-[11px] font-medium">PR #{issue.prNumber}</span>
+          <IconExternalLink className="w-3 h-3 opacity-60" />
+        </a>
+      )}
       <div className="flex items-center justify-between pl-7">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]">

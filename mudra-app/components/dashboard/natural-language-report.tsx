@@ -10,9 +10,11 @@ import type { AIModel } from "./model-selector"
 import {
   IconDownload,
   IconCopy,
-  IconInfoCircle
+  IconInfoCircle,
+  IconCheck
 } from "@tabler/icons-react"
 import { FileText } from "lucide-react"
+import { toast } from "react-hot-toast"
 import type { NlrSummaryJson } from '@/types/nlr'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
@@ -30,6 +32,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   const { profile } = useBrandProfile()
   const [showReportHistory, setShowReportHistory] = React.useState(false)
   const [isMounted, setIsMounted] = React.useState(false)
+  const [copied, setCopied] = React.useState(false)
 
   // Ensure consistent hydration - only use profile.id after mount
   React.useEffect(() => {
@@ -51,9 +54,19 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     }
   )
 
-  // Fetch recent prompts/chats with results
+  // Fetch recent prompts/chats with results (includes aggregate metrics)
   const { data: promptsData, isLoading: isLoadingPrompts, mutate: refreshPrompts } = useSWR(
     brandProfileId ? `/api/prompts/with-results?brandProfileId=${brandProfileId}` : null,
+    async (url: string) => {
+      const res = await fetch(url)
+      if (!res.ok) return null
+      return res.json()
+    }
+  )
+
+  // Fetch technical score for report export
+  const { data: technicalData } = useSWR(
+    brandProfileId ? `/api/analysis/technical-history?brandProfileId=${brandProfileId}&limit=1` : null,
     async (url: string) => {
       const res = await fetch(url)
       if (!res.ok) return null
@@ -348,13 +361,15 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
       // Format timestamp - use static date format to avoid hydration mismatch
       const date = new Date(prompt.updatedAt || prompt.createdAt)
-      const timestamp = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 
       return {
         id: String(prompt.id),
         promptId: String(prompt.id),
         question: prompt.text,
-        timestamp,
+        timestamp: dateStr,
+        time: timeStr,
         model: primaryModel
       }
     })
@@ -363,6 +378,118 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   const handleChatClick = (promptId: string) => {
     // Navigate to tracked prompt detail page
     router.push(`/dashboard/tracked-prompts/${promptId}`)
+  }
+
+  // Build the full report as markdown
+  const buildFullReport = (): string => {
+    const brandName = profile?.companyName || profile?.companyWebsite || 'Your Brand'
+    const date = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+
+    // Get metrics from promptsData aggregate
+    const aiVisibility = promptsData?.aggregate?.overallScore
+      ? `${Math.round(promptsData.aggregate.overallScore)}%`
+      : '—'
+    const avgPosition = promptsData?.aggregate?.averagePosition
+      ? `#${promptsData.aggregate.averagePosition.toFixed(1)}`
+      : '—'
+    const technicalScore = technicalData?.data?.[0]?.overallScore
+      ? `${technicalData.data[0].overallScore}%`
+      : '—'
+
+    let report = `# AI Visibility Report for ${brandName}\n`
+    report += `*Generated on ${date}*\n\n`
+
+    // Overview Metrics
+    report += `## Overview Metrics\n\n`
+    report += `| Metric | Value |\n`
+    report += `|--------|-------|\n`
+    report += `| AI Visibility | ${aiVisibility} |\n`
+    report += `| Avg Position | ${avgPosition} |\n`
+    report += `| Technical Score | ${technicalScore} |\n\n`
+
+    // Summary
+    if (summary) {
+      report += `## Summary\n\n`
+      report += `${summary}\n\n`
+    }
+
+    // Competitor Rankings
+    if (competitorRankings.length > 0) {
+      report += `## Competitor Rankings (Share of Voice)\n\n`
+      report += `| Rank | Company | SOV % |\n`
+      report += `|------|---------|-------|\n`
+      competitorRankings.forEach((comp, idx) => {
+        report += `| ${idx + 1} | ${comp.name} | ${comp.sov}% |\n`
+      })
+      report += `\n`
+    }
+
+    // Citations
+    if (citations.length > 0) {
+      report += `## Top Citations\n\n`
+      report += `| Source | Mention Rate |\n`
+      report += `|--------|-------------|\n`
+      citations.forEach((c) => {
+        report += `| ${c.domain} | ${c.used}% |\n`
+      })
+      report += `\n`
+    }
+
+    // Recent Chats
+    if (recentChats.length > 0) {
+      report += `## Recent AI Conversations\n\n`
+      recentChats.forEach((chat) => {
+        report += `- **${chat.model}** (${chat.timestamp}): "${chat.question}"\n`
+      })
+      report += `\n`
+    }
+
+    report += `---\n`
+    report += `*Report generated by trymudra.com*\n`
+
+    return report
+  }
+
+  const handleCopy = async () => {
+    try {
+      const report = buildFullReport()
+      await navigator.clipboard.writeText(report)
+      setCopied(true)
+      toast.success('Report copied to clipboard')
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      console.error('Failed to copy:', error)
+      toast.error('Failed to copy report')
+    }
+  }
+
+  const handleDownload = () => {
+    try {
+      const report = buildFullReport()
+      const brandName = profile?.companyName || profile?.companyWebsite || 'report'
+      const date = new Date().toISOString().split('T')[0]
+      const filename = `${brandName.toLowerCase().replace(/\s+/g, '-')}-ai-visibility-report-${date}.md`
+
+      const blob = new Blob([report], { type: 'text/markdown' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      toast.success('Report downloaded')
+    } catch (error) {
+      console.error('Failed to download:', error)
+      toast.error('Failed to download report')
+    }
   }
 
   // Report history data (will be connected to backend)
@@ -478,10 +605,21 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
           </Tooltip>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-white/80 hover:text-white">
-            <IconCopy className="size-3.5 mr-1" /> Copy
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-white/80 hover:text-white"
+            onClick={handleCopy}
+          >
+            {copied ? <IconCheck className="size-3.5 mr-1" /> : <IconCopy className="size-3.5 mr-1" />}
+            {copied ? 'Copied' : 'Copy'}
           </Button>
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-white/80 hover:text-white">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-white/80 hover:text-white"
+            onClick={handleDownload}
+          >
             <IconDownload className="size-3.5 mr-1" /> Download
           </Button>
         </div>
@@ -491,7 +629,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
         {/* Summary */}
         <div className="rounded-xl bg-[#161616] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-            <div className="text-sm font-medium text-white/90">Summary</div>
+            <div className="text-base font-medium text-white/90">Summary</div>
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-flex">
@@ -514,15 +652,15 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                 </div>
               ) : error ? (
                 <div className="py-12 text-center">
-                  <p className="text-sm text-white/60">Failed to load report. Please try again.</p>
+                  <p className="text-base text-white/60">Failed to load report. Please try again.</p>
                 </div>
               ) : !summary ? (
                 <div className="py-12 text-center">
-                  <p className="text-sm text-white/60">No report available yet.</p>
-                  <p className="text-xs text-white/40 mt-1">Generate a report to see your AI visibility summary.</p>
+                  <p className="text-base text-white/60">No report available yet.</p>
+                  <p className="text-sm text-white/40 mt-2">Generate a report to see your AI visibility summary.</p>
                 </div>
               ) : (
-                <p className="text-sm leading-relaxed text-white/85">
+                <p className="text-base leading-7 text-white/85">
                   {summary}
                 </p>
               )}
@@ -545,7 +683,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             {/* Competitor Rankings Table - Share of Voice */}
             <div className="rounded-xl bg-[#161616] overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-                <div className="text-sm font-medium text-white/90">Competitor Rankings</div>
+                <div className="text-base font-medium text-white/90">Competitor Rankings</div>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex">
@@ -627,7 +765,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
           {/* Citations list */}
           <div className="rounded-xl bg-[#161616] overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-              <div className="text-sm font-medium text-white/90">Citations</div>
+              <div className="text-base font-medium text-white/90">Citations</div>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="inline-flex">
@@ -682,7 +820,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
           <div className="rounded-xl bg-[#161616] overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
               <div className="flex items-center gap-2">
-                <div className="text-sm font-medium text-white/90">Recent Chats</div>
+                <div className="text-base font-medium text-white/90">Recent Chats</div>
               </div>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -723,13 +861,16 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                       onClick={() => handleChatClick(chat.promptId)}
                       className="p-5 rounded-xl border border-white/[0.04] hover:border-white/[0.06] hover:bg-white/[0.01] transition-all cursor-pointer"
                     >
-                      <div className="flex items-center gap-3 mb-3">
-                        <img
-                          src={getModelIcon(chat.model)}
-                          alt={chat.model}
-                          className="size-6 object-contain"
-                        />
-                        <span className="text-xs text-white/50">{chat.timestamp}</span>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={getModelIcon(chat.model)}
+                            alt={chat.model}
+                            className="size-6 object-contain"
+                          />
+                          <span className="text-xs text-white/50">{chat.timestamp}</span>
+                        </div>
+                        <span className="text-xs text-white/40">{chat.time}</span>
                       </div>
                       <p className="text-base text-white/85 leading-relaxed line-clamp-3">
                         {chat.question}

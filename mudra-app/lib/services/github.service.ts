@@ -131,25 +131,38 @@ export async function createOptimizationPR(input: CreateOptimizationPRInput): Pr
   // Get valid (decrypted and refreshed if needed) access token
   const accessToken = await getValidGitHubToken(githubIntegration)
 
-  // Get repository information from agent schedule config
+  // Get repository information - try multiple sources
+  let repoName: string | undefined
+  let baseBranch = 'main'
+
+  // 1. Try to get from agent schedule config (if content_optimizer is configured)
   const agentSchedule = await prisma.agentSchedule.findFirst({
     where: {
       brandProfileId,
-      agentType: 'content_optimizer',
       isEnabled: true,
     },
+    orderBy: { createdAt: 'desc' }
   })
 
-  if (!agentSchedule || !agentSchedule.config) {
-    throw new Error('Agent not configured with repository. Please configure the Content Optimizer agent with your repository details.')
+  if (agentSchedule?.config) {
+    const config = agentSchedule.config as any
+    if (config.githubRepo) {
+      repoName = config.githubRepo
+      baseBranch = config.githubBranch || 'main'
+    }
   }
 
-  const config = agentSchedule.config as any
-  const repoName = config.githubRepo
-  const baseBranch = config.githubBranch || 'main'
+  // 2. Fall back to first repository from GitHub integration
+  if (!repoName && githubIntegration.repositories) {
+    const repos = githubIntegration.repositories as string[]
+    if (repos.length > 0) {
+      repoName = repos[0]
+      console.log(`[GitHub] Using first available repo from integration: ${repoName}`)
+    }
+  }
 
   if (!repoName) {
-    throw new Error('GitHub repository not configured for Content Optimizer agent')
+    throw new Error('No GitHub repository configured. Please go to Settings → Integrations and ensure a repository is connected.')
   }
 
   // Parse owner/repo

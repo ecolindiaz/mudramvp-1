@@ -96,12 +96,21 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   const highlights = summaryJson?.sections?.highlights ?? []
 
   // Helper to format score delta in "previous → current (+X% ↑)" format
+  // Returns "-" when no previous data (first run after onboarding) or no change
   function formatScoreDelta(change: { previous?: number | null; current?: number | null; relative?: number | null; direction?: string | null; formatted?: string } | null | undefined): string {
-    if (!change) return "N/A"
+    if (!change) return "-"
+
+    // No previous data (first run after onboarding) - show dash
+    if (change.previous == null) return "-"
+
+    // No change in scores - show dash
+    if (change.previous === change.current) return "-"
+
     // Use pre-formatted string if available
     if (change.formatted) return change.formatted
-    // Otherwise build it
-    const prev = change.previous ?? 0
+
+    // Otherwise build the delta format
+    const prev = change.previous
     const curr = change.current ?? 0
     const pct = change.relative != null ? Math.round(change.relative * 100) : Math.round(((curr - prev) / (prev || 1)) * 100)
     const arrow = change.direction === "up" ? "↑" : change.direction === "down" ? "↓" : ""
@@ -253,7 +262,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   // Note: brandProfileId is already defined above (line ~51)
 
   // Fetch real citation data from aggregated prompt results
-  const { data: citationsData } = useSWR(
+  const { data: citationsData, isLoading: isLoadingCitations } = useSWR(
     brandProfileId ? `/api/analytics/citations?brandProfileId=${brandProfileId}&limit=5&days=30` : null,
     async (url: string) => {
       const res = await fetch(url)
@@ -615,26 +624,46 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             </div>
           </div>
           
-          {/* Citations list - Only show when we have real data */}
-          {citations.length > 0 && (
-            <div className="rounded-xl bg-[#161616] overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-                <div className="text-sm font-medium text-white/90">Citations</div>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <IconInfoCircle className="size-4 text-white/60" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent sideOffset={8}>Top sources AI cites from your industry.</TooltipContent>
-                </Tooltip>
+          {/* Citations list */}
+          <div className="rounded-xl bg-[#161616] overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <div className="text-sm font-medium text-white/90">Citations</div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <IconInfoCircle className="size-4 text-white/60" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={8}>Top sources AI cites from your industry.</TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="divide-y divide-white/[0.06]">
+              <div className="grid grid-cols-[1fr_auto] items-center px-5 py-2.5 text-xs text-white/50">
+                <span>Source</span>
+                <span>Mention rate</span>
               </div>
-              <div className="divide-y divide-white/[0.06]">
-                <div className="grid grid-cols-[1fr_auto] items-center px-5 py-2.5 text-xs text-white/50">
-                  <span>Source</span>
-                  <span>Mention rate</span>
+              {isLoadingCitations ? (
+                <div className="divide-y divide-white/[0.06]">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div
+                      key={i}
+                      className="grid grid-cols-[1fr_auto] items-center px-5 py-3.5"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="block size-6 rounded bg-white/10 animate-pulse" />
+                        <span className="block h-4 w-32 rounded bg-white/10 animate-pulse" />
+                      </div>
+                      <span className="block h-4 w-10 rounded bg-white/10 animate-pulse" />
+                    </div>
+                  ))}
                 </div>
-                {citations.map((c, idx) => (
+              ) : citations.length === 0 ? (
+                <div className="px-5 py-16 text-center">
+                  <p className="text-sm text-white/60">No citation data available yet.</p>
+                  <p className="text-xs text-white/40 mt-1">Run an analysis to see citation sources.</p>
+                </div>
+              ) : (
+                citations.map((c, idx) => (
                   <div key={idx} className="grid grid-cols-[1fr_auto] items-center px-5 py-3.5 hover:bg-white/[0.02] transition-colors">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80">
@@ -644,10 +673,10 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                     </div>
                     <div className="text-sm tabular-nums text-white/70 font-medium">{c.used}%</div>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
-          )}
+          </div>
           
           {/* Recent Chats - right column */}
           <div className="rounded-xl bg-[#161616] overflow-hidden">
@@ -666,42 +695,43 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             </div>
             <div className="p-4">
               {!isMounted || isLoadingPrompts ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   {[1, 2, 3, 4].map((i) => (
                     <div
                       key={i}
-                      className="p-3 rounded-lg border border-white/[0.04] bg-white/[0.01]"
+                      className="p-5 rounded-xl border border-white/[0.04] bg-white/[0.01]"
                     >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="size-4 rounded bg-white/10 animate-pulse" />
-                        <span className="block h-2 w-16 rounded bg-white/10 animate-pulse" />
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="size-6 rounded-md bg-white/10 animate-pulse" />
+                        <span className="block h-3 w-20 rounded bg-white/10 animate-pulse" />
                       </div>
-                      <span className="block h-3 w-full rounded bg-white/10 animate-pulse" />
+                      <span className="block h-4 w-full rounded bg-white/10 animate-pulse mb-2" />
+                      <span className="block h-4 w-3/4 rounded bg-white/10 animate-pulse" />
                     </div>
                   ))}
                 </div>
               ) : recentChats.length === 0 ? (
-                <div className="py-8 text-center">
-                  <p className="text-sm text-white/60">No recent chats available yet.</p>
-                  <p className="text-xs text-white/40 mt-1">Recent chat responses will appear here once analyzed.</p>
+                <div className="py-10 text-center">
+                  <p className="text-base text-white/60">No recent chats available yet.</p>
+                  <p className="text-sm text-white/40 mt-2">Recent chat responses will appear here once analyzed.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   {recentChats.map((chat) => (
                     <div
                       key={chat.id}
                       onClick={() => handleChatClick(chat.promptId)}
-                      className="p-3 rounded-lg border border-white/[0.04] hover:border-white/[0.08] hover:bg-white/[0.02] transition-all cursor-pointer"
+                      className="p-5 rounded-xl border border-white/[0.04] hover:border-white/[0.06] hover:bg-white/[0.01] transition-all cursor-pointer"
                     >
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-3 mb-3">
                         <img
                           src={getModelIcon(chat.model)}
                           alt={chat.model}
-                          className="size-4 object-contain"
+                          className="size-6 object-contain"
                         />
-                        <span className="text-[10px] text-white/40">{chat.timestamp}</span>
+                        <span className="text-xs text-white/50">{chat.timestamp}</span>
                       </div>
-                      <p className="text-sm text-white/85 leading-relaxed line-clamp-2">
+                      <p className="text-base text-white/85 leading-relaxed line-clamp-3">
                         {chat.question}
                       </p>
                     </div>

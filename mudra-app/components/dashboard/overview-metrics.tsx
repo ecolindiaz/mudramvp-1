@@ -674,11 +674,13 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
           ) : (
             <div className="flex items-end justify-between">
               <span className="text-[24px] font-medium text-white">{aiVisibilityScore}%</span>
-              {aiVisibilityDelta !== 0 && (
+              {aiVisibilityDelta !== 0 ? (
                 <span className={`text-xs flex items-center gap-0.5 ${aiVisibilityDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {aiVisibilityDelta > 0 ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
                   {Math.abs(aiVisibilityDelta)}%
                 </span>
+              ) : (
+                <span className="text-sm font-medium text-white/40">—</span>
               )}
             </div>
           )}
@@ -687,40 +689,35 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         {/* Expanded Chart */}
         {aiVisibilityExpanded && !loadingAIVisibility && (
           <div className="mt-4 pt-4 border-t border-white/[0.06]">
-            <div className="h-[80px] flex items-end gap-1">
-              {(aiVisibilityHistory.length >= 2
-                ? aiVisibilityHistory
-                : [
-                    hasAiHistory && aiVisibilityPrevious !== null ? Math.max(5, aiVisibilityPrevious * 0.7) : 15,
-                    hasAiHistory && aiVisibilityPrevious !== null ? Math.max(8, aiVisibilityPrevious * 0.85) : 25,
-                    hasAiHistory && aiVisibilityPrevious !== null ? aiVisibilityPrevious : 35,
-                    Math.max(10, aiVisibilityScore * 0.9),
-                    aiVisibilityScore
-                  ]
-              ).map((value, i) => (
-                <div
-                  key={i}
-                  className="flex-1 bg-white/10 rounded-sm transition-all"
-                  style={{ height: `${Math.max(8, value * 0.8)}%` }}
-                />
-              ))}
-            </div>
-            <div className="flex justify-between mt-2">
-              <div className="flex flex-col">
-                <span className="text-[11px] text-white/50 tabular-nums">
-                  {aiVisibilityHistory.length >= 2
-                    ? `${Math.round(aiVisibilityHistory[0])}%`
-                    : hasAiHistory && aiVisibilityPrevious !== null
-                      ? `${Math.round(aiVisibilityPrevious * 0.7)}%`
-                      : '15%'}
-                </span>
-                <span className="text-[10px] text-white/30">Previous</span>
+            {aiVisibilityHistory.length >= 2 ? (
+              <>
+                <div className="h-[80px] flex items-end gap-1">
+                  {aiVisibilityHistory.map((value, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 bg-white/10 rounded-sm transition-all"
+                      style={{ height: `${Math.max(8, value * 0.8)}%` }}
+                    />
+                  ))}
+                </div>
+                <div className="flex justify-between mt-2">
+                  <div className="flex flex-col">
+                    <span className="text-[11px] text-white/50 tabular-nums">
+                      {`${Math.round(aiVisibilityHistory[0])}%`}
+                    </span>
+                    <span className="text-[10px] text-white/30">First</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[11px] text-white/50 tabular-nums">{aiVisibilityScore}%</span>
+                    <span className="text-[10px] text-white/30">Now</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="h-[80px] flex items-center justify-center">
+                <span className="text-xs text-white/40">Run more analyses to see trends</span>
               </div>
-              <div className="flex flex-col items-end">
-                <span className="text-[11px] text-white/50 tabular-nums">{aiVisibilityScore}%</span>
-                <span className="text-[10px] text-white/30">Now</span>
-              </div>
-            </div>
+            )}
           </div>
         )}
         
@@ -760,11 +757,13 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
               <span className="text-[24px] font-medium text-white">
                 {averagePosition > 0 ? `#${averagePosition.toFixed(1)}` : '—'}
               </span>
-              {hasPositionHistory && averagePositionPrevious !== null && averagePosition > 0 && averagePositionPrevious > 0 && (
+              {hasPositionHistory && averagePositionPrevious !== null && averagePosition > 0 && averagePositionPrevious > 0 && averagePosition !== averagePositionPrevious ? (
                 <span className={`text-xs flex items-center gap-0.5 ${averagePosition < averagePositionPrevious ? 'text-emerald-400' : 'text-red-400'}`}>
                   {averagePosition < averagePositionPrevious ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
                   {Math.abs(Math.round(((averagePositionPrevious - averagePosition) / averagePositionPrevious) * 100))}%
                 </span>
+              ) : (
+                <span className="text-sm font-medium text-white/40">—</span>
               )}
             </div>
           )}
@@ -807,12 +806,14 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
           ) : (
             <div className="flex items-end justify-between">
               <span className="text-[24px] font-medium text-white">{isGeneratingScore ? '—' : `${technicalScore}%`}</span>
-              {hasHistoricalData && previousScore !== null && !isGeneratingScore && (
+              {!isGeneratingScore && hasHistoricalData && previousScore !== null && technicalScore !== previousScore ? (
                 <span className={`text-xs flex items-center gap-0.5 ${technicalScore > previousScore ? 'text-emerald-400' : 'text-red-400'}`}>
                   {technicalScore > previousScore ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
                   {Math.abs(Math.round(((technicalScore - previousScore) / previousScore) * 100))}%
                 </span>
-              )}
+              ) : !isGeneratingScore ? (
+                <span className="text-sm font-medium text-white/40">—</span>
+              ) : null}
             </div>
           )}
         </div>
@@ -820,40 +821,35 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         {/* Expanded Chart */}
         {technicalScoreExpanded && !loadingTechnical && !isGeneratingScore && (
           <div className="mt-4 pt-4 border-t border-white/[0.06]">
-            <div className="h-[80px] flex items-end gap-1">
-              {(technicalScoreHistory.length >= 2
-                ? technicalScoreHistory
-                : [
-                    hasHistoricalData && previousScore !== null ? Math.max(5, previousScore * 0.7) : 20,
-                    hasHistoricalData && previousScore !== null ? Math.max(8, previousScore * 0.85) : 30,
-                    hasHistoricalData && previousScore !== null ? previousScore : 40,
-                    Math.max(10, technicalScore * 0.95),
-                    technicalScore
-                  ]
-              ).map((value, i) => (
-                <div
-                  key={i}
-                  className="flex-1 bg-white/10 rounded-sm transition-all"
-                  style={{ height: `${Math.max(8, value * 0.8)}%` }}
-                />
-              ))}
-            </div>
-            <div className="flex justify-between mt-2">
-              <div className="flex flex-col">
-                <span className="text-[11px] text-white/50 tabular-nums">
-                  {technicalScoreHistory.length >= 2
-                    ? `${Math.round(technicalScoreHistory[0])}%`
-                    : hasHistoricalData && previousScore !== null
-                      ? `${Math.round(previousScore * 0.7)}%`
-                      : '20%'}
-                </span>
-                <span className="text-[10px] text-white/30">Previous</span>
+            {technicalScoreHistory.length >= 2 ? (
+              <>
+                <div className="h-[80px] flex items-end gap-1">
+                  {technicalScoreHistory.map((value, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 bg-white/10 rounded-sm transition-all"
+                      style={{ height: `${Math.max(8, value * 0.8)}%` }}
+                    />
+                  ))}
+                </div>
+                <div className="flex justify-between mt-2">
+                  <div className="flex flex-col">
+                    <span className="text-[11px] text-white/50 tabular-nums">
+                      {`${Math.round(technicalScoreHistory[0])}%`}
+                    </span>
+                    <span className="text-[10px] text-white/30">First</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[11px] text-white/50 tabular-nums">{technicalScore}%</span>
+                    <span className="text-[10px] text-white/30">Now</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="h-[80px] flex items-center justify-center">
+                <span className="text-xs text-white/40">Run more analyses to see trends</span>
               </div>
-              <div className="flex flex-col items-end">
-                <span className="text-[11px] text-white/50 tabular-nums">{technicalScore}%</span>
-                <span className="text-[10px] text-white/30">Now</span>
-              </div>
-            </div>
+            )}
           </div>
         )}
         
@@ -891,11 +887,13 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
           ) : isTrackingConnected ? (
             <div className="flex items-end justify-between">
               <span className="text-[24px] font-medium text-white">{aiReferralTraffic.toLocaleString()}</span>
-              {aiReferralDelta !== 0 && (
+              {aiReferralDelta !== 0 ? (
                 <span className={`text-xs flex items-center gap-0.5 ${aiReferralDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {aiReferralDelta > 0 ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
                   {Math.abs(aiReferralDelta)}%
                 </span>
+              ) : (
+                <span className="text-sm font-medium text-white/40">—</span>
               )}
             </div>
           ) : isConnecting ? (

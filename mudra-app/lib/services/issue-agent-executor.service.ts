@@ -64,7 +64,8 @@ export function getAgentForIssue(agentType: string): ReturnType<typeof mastra.ge
   }
   
   try {
-    return mastra.getAgent(agentName)
+    // Cast to any to allow dynamic agent lookup
+    return mastra.getAgent(agentName as Parameters<typeof mastra.getAgent>[0])
   } catch (error) {
     console.error(`[IssueExecutor] Failed to get agent ${agentName}:`, error)
     return null
@@ -291,7 +292,7 @@ export async function retryIssueExecution(issueId: number): Promise<ExecutionRes
       usedE2bSandbox: false,
       e2bSandboxId: null,
       e2bExecutionMs: null,
-      e2bValidationResult: null
+      e2bValidationResult: undefined
     }
   })
   

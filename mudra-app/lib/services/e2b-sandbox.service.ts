@@ -10,7 +10,7 @@
  * - Generated code testing
  */
 
-import { CodeInterpreter } from '@e2b/code-interpreter'
+import { Sandbox } from '@e2b/code-interpreter'
 
 const E2B_TIMEOUT_MS = 30000 // 30 second timeout
 
@@ -45,13 +45,13 @@ export interface CodeExecutionResult {
  * Generic sandbox wrapper with timeout and lifecycle management
  */
 export async function withSandbox<T>(
-  fn: (sandbox: CodeInterpreter) => Promise<T>
+  fn: (sandbox: Sandbox) => Promise<T>
 ): Promise<SandboxResult<T>> {
   const startTime = Date.now()
-  let sandbox: CodeInterpreter | null = null
+  let sandbox: Sandbox | null = null
   
   try {
-    sandbox = await CodeInterpreter.create()
+    sandbox = await Sandbox.create()
     
     const data = await Promise.race([
       fn(sandbox),
@@ -93,7 +93,7 @@ export async function validateSchemaInSandbox(
 ): Promise<SandboxResult<SchemaValidationResult>> {
   return withSandbox(async (sandbox) => {
     // Install required package
-    await sandbox.notebook.execCell('!pip install pyld -q')
+    await sandbox.runCode('!pip install pyld -q')
     
     // Escape the schema for Python string
     const escapedSchema = jsonLdSchema
@@ -101,7 +101,7 @@ export async function validateSchemaInSandbox(
       .replace(/'/g, "\\'")
       .replace(/\n/g, '\\n')
     
-    const result = await sandbox.notebook.execCell(`
+    const result = await sandbox.runCode(`
 import json
 from pyld import jsonld
 
@@ -134,7 +134,7 @@ except Exception as e:
 print(json.dumps(result))
     `)
     
-    const output = result.logs?.[0]?.text || result.text || ''
+    const output = result.logs?.stdout?.join('') || ''
     
     try {
       return JSON.parse(output.trim())
@@ -158,7 +158,7 @@ export async function testGeneratedCode(
   return withSandbox(async (sandbox) => {
     if (language === 'javascript') {
       // For JavaScript, we'll run it through Node
-      const result = await sandbox.notebook.execCell(`
+      const result = await sandbox.runCode(`
 import subprocess
 import json
 
@@ -172,13 +172,13 @@ result = subprocess.run(['node', '/tmp/test.js'], capture_output=True, text=True
 print(json.dumps({"output": result.stdout + result.stderr, "exitCode": result.returncode}))
       `)
       
-      const output = result.logs?.[0]?.text || result.text || ''
+      const output = result.logs?.stdout?.join('') || ''
       return JSON.parse(output.trim())
     } else {
       // Python code runs directly
-      const result = await sandbox.notebook.execCell(code)
+      const result = await sandbox.runCode(code)
       return {
-        output: result.logs?.map(l => l.text).join('\n') || result.text || '',
+        output: result.logs?.stdout?.join('\n') || '',
         exitCode: result.error ? 1 : 0
       }
     }
@@ -193,7 +193,7 @@ export async function validateHtmlStructure(
 ): Promise<SandboxResult<HtmlAnalysisResult>> {
   return withSandbox(async (sandbox) => {
     // Install beautifulsoup4
-    await sandbox.notebook.execCell('!pip install beautifulsoup4 -q')
+    await sandbox.runCode('!pip install beautifulsoup4 -q')
     
     // Escape HTML for Python
     const escapedHtml = html
@@ -201,7 +201,7 @@ export async function validateHtmlStructure(
       .replace(/'/g, "\\'")
       .replace(/\n/g, '\\n')
     
-    const result = await sandbox.notebook.execCell(`
+    const result = await sandbox.runCode(`
 import json
 from bs4 import BeautifulSoup
 
@@ -253,7 +253,7 @@ print(json.dumps({
 }))
     `)
     
-    const output = result.logs?.[0]?.text || result.text || ''
+    const output = result.logs?.stdout?.join('') || ''
     
     try {
       return JSON.parse(output.trim())

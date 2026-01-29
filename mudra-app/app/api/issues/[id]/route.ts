@@ -45,12 +45,9 @@ export async function GET(
         brandProfileId: brandProfile.id,
       },
       include: {
-        agentTasks: {
-          orderBy: { createdAt: 'desc' },
-          take: 5
-        },
+        agentTask: true,
         deployedAgent: {
-          select: { id: true, name: true, status: true }
+          select: { id: true, agentName: true, status: true }
         }
       }
     })

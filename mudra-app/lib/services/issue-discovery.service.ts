@@ -146,6 +146,9 @@ async function discoverTechnicalIssues(
     return []
   }
 
+  // Extract metadata from JSON field
+  const metadata = (technicalAnalysis.metadata || {}) as Record<string, unknown>
+
   const tierDescriptions = tiers.map(t => `- ${t.toUpperCase()}: ${getTierDescription(t)}`).join('\n')
 
   const prompt = `You are an expert at identifying technical SEO and AI-optimization issues.
@@ -157,14 +160,14 @@ WEBSITE ANALYSIS:
 - Technical Score: ${currentScore}/100
 
 CURRENT TECHNICAL STATE:
-- Has Schema Markup: ${technicalAnalysis.hasSchemaMarkup}
-- Schema Types Found: ${JSON.stringify(technicalAnalysis.schemaTypes || [])}
-- Has FAQ Schema: ${technicalAnalysis.hasFaqSchema}
-- Has Sitemap: ${technicalAnalysis.hasSitemap}
-- Has Robots.txt: ${technicalAnalysis.hasRobotsTxt}
-- Page Speed Score: ${technicalAnalysis.pageSpeedScore || 'Unknown'}
-- Heading Structure Valid: ${technicalAnalysis.headingStructureValid}
-- Meta Description Present: ${technicalAnalysis.hasMetaDescription}
+- Has Schema Markup: ${metadata.hasSchemaMarkup ?? 'Unknown'}
+- Schema Types Found: ${JSON.stringify(metadata.schemaTypes || [])}
+- Has FAQ Schema: ${metadata.hasFaqSchema ?? 'Unknown'}
+- Has Sitemap: ${metadata.hasSitemap ?? 'Unknown'}
+- Has Robots.txt: ${metadata.hasRobotsTxt ?? 'Unknown'}
+- Page Speed Score: ${metadata.pageSpeedScore || technicalAnalysis.performanceScore || 'Unknown'}
+- Heading Structure Valid: ${metadata.headingStructureValid ?? 'Unknown'}
+- Meta Description Present: ${metadata.hasMetaDescription ?? 'Unknown'}
 
 ALLOWED TIERS (based on current score):
 ${tierDescriptions}
@@ -268,8 +271,7 @@ async function discoverAIVisibilityIssues(
   // Check if llms.txt exists
   const policyFile = await prisma.policyFile.findFirst({
     where: { 
-      brandProfileId,
-      fileType: 'llms_txt'
+      brand_profile_id: brandProfileId
     }
   })
 
@@ -285,8 +287,8 @@ WEBSITE CONTEXT:
 
 AI VISIBILITY STATE:
 - AI Visibility Score: ${currentScore}/100
-- llms.txt exists: ${policyFile ? 'Yes' : 'No'}
-- llms.txt content length: ${policyFile?.content?.length || 0} chars
+- llms.txt exists: ${policyFile?.llms_txt_exists ? 'Yes' : 'No'}
+- llms.txt content length: ${policyFile?.llms_txt_content?.length || 0} chars
 - Overall GEO Score: ${geoAnalysis?.overallScore || 'Not analyzed'}
 
 ALLOWED TIERS:
@@ -377,22 +379,22 @@ async function discoverConversationOpportunities(
   const opportunities = await prisma.conversationOpportunity.findMany({
     where: {
       brandProfileId,
-      status: 'active'
+      status: 'new'
     },
     orderBy: { relevanceScore: 'desc' },
     take: 5
   })
 
   return opportunities.map(opp => ({
-    title: `Engage: ${opp.title?.slice(0, 50) || 'Conversation Opportunity'}`,
-    description: `${opp.platform} opportunity with relevance score ${opp.relevanceScore}. ${opp.summary || ''}`,
-    priority: opp.relevanceScore >= 80 ? 'high' : opp.relevanceScore >= 50 ? 'medium' : 'low' as IssuePriority,
+    title: `Engage: ${opp.postTitle?.slice(0, 50) || 'Conversation Opportunity'}`,
+    description: `${opp.platform} opportunity with relevance score ${opp.relevanceScore || 0}. ${opp.conversationSnapshot || ''}`,
+    priority: (opp.relevanceScore || 0) >= 80 ? 'high' : (opp.relevanceScore || 0) >= 50 ? 'medium' : 'low' as IssuePriority,
     agentType: 'conversation_engagement',
     estimatedImpact: 'Brand visibility boost',
-    affectedUrl: opp.url || undefined,
+    affectedUrl: opp.postUrl || undefined,
     category: 'conversation' as const,
     discoveryTier: 'fundamental' as const,
-    discoveredFromScore: opp.relevanceScore
+    discoveredFromScore: opp.relevanceScore ?? undefined
   }))
 }
 

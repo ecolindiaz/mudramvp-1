@@ -95,17 +95,36 @@ const MergedIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
+const FailedIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>
+    <path d="M12 9v4"/>
+    <path d="M12 17h.01"/>
+  </svg>
+)
+
+const DismissedIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="10"/>
+    <path d="m15 9-6 6"/>
+    <path d="m9 9 6 6"/>
+  </svg>
+)
+
 // Issue type definition
 interface Issue {
   id: number
   title: string
   description?: string | null
   type: "bug" | "improvement" | "feature"
-  status: "identified" | "in_progress" | "completed" | "merged"
+  status: "identified" | "in_progress" | "completed" | "merged" | "failed" | "dismissed"
   priority: "low" | "medium" | "high" | "critical"
   order: number
   createdAt: string
   updatedAt: string
+  agentType?: string | null
+  prUrl?: string | null
+  prNumber?: number | null
 }
 
 interface IssueStats {
@@ -142,6 +161,8 @@ const statusConfig = {
   in_progress: { icon: InProgressIcon, color: "text-amber-400", bg: "bg-amber-400/10" },
   completed: { icon: CompletedIcon, color: "text-white", bg: "bg-white/10" },
   merged: { icon: MergedIcon, color: "text-sky-400", bg: "bg-sky-400/10" },
+  failed: { icon: FailedIcon, color: "text-red-400", bg: "bg-red-400/10" },
+  dismissed: { icon: DismissedIcon, color: "text-white/40", bg: "bg-white/5" },
 }
 
 const priorityConfig = {

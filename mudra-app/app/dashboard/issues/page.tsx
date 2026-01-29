@@ -783,7 +783,8 @@ function IssuesPageInner() {
       const response = await fetch("/api/issues")
       const data = await response.json()
       if (data.success) {
-        setIssues(data.data)
+        // API returns { issues, grouped, counts } - extract the issues array
+        setIssues(data.data.issues || data.data)
       }
     } catch (error) {
       console.error("Failed to fetch issues:", error)

@@ -112,6 +112,84 @@ export interface CompetitorAnalysis {
 }
 
 /**
+ * Validate brand mention using regex with word boundaries
+ * More reliable than LLM for simple yes/no detection
+ */
+function validateBrandMention(text: string, brandName: string): boolean {
+  // Escape special regex characters in brand name
+  const escapedBrand = brandName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  
+  // Create word boundary regex (case-insensitive)
+  const pattern = new RegExp(`\\b${escapedBrand}\\b`, 'i');
+  
+  // Clean text: remove URLs, code blocks, file paths that might cause false positives
+  const cleanedText = text
+    .replace(/https?:\/\/[^\s]+/g, '')
+    .replace(/www\.[^\s]+/g, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`[^`]+`/g, '');
+  
+  return pattern.test(cleanedText);
+}
+
+/**
+ * Filter competitors to only include valid company names
+ * Removes sentence fragments, action phrases, and generic descriptions
+ */
+function filterValidCompetitors(competitors: string[], brandName: string): string[] {
+  if (!competitors || !Array.isArray(competitors)) return [];
+  
+  const brandLower = brandName.toLowerCase();
+  
+  return competitors.filter(comp => {
+    if (!comp || typeof comp !== 'string') return false;
+    
+    const compLower = comp.toLowerCase().trim();
+    
+    // Exclude the brand itself
+    if (compLower === brandLower || compLower.includes(brandLower)) return false;
+    
+    // Exclude if too short or too long (company names are typically 2-40 chars)
+    if (comp.length < 2 || comp.length > 40) return false;
+    
+    // Exclude if starts with common non-company patterns
+    const invalidStarts = [
+      'others ', 'other ', 'posts ', 'reach out', 'sign up', 'check out',
+      'learn more', 'get started', 'the ', 'a ', 'an ', 'some ', 'many ',
+      'leading ', 'top ', 'best ', 'great ', 'amazing ', 'excellent ',
+      'consider ', 'explore ', 'visit ', 'contact ', 'try ', 'use '
+    ];
+    if (invalidStarts.some(start => compLower.startsWith(start))) return false;
+    
+    // Exclude if contains action verbs suggesting it's a phrase
+    const actionPatterns = [
+      ' share ', ' highlight', ' recommend', ' suggest', ' contact ',
+      ' directly', ' their team', ' your ', ' to your ', ' can help',
+      ' sign up', ' check out', ' learn more', ' get started',
+      ' might ', ' should ', ' could ', ' would ', ' will '
+    ];
+    if (actionPatterns.some(pattern => compLower.includes(pattern))) return false;
+    
+    // Exclude if too many spaces (likely a sentence fragment, not a company name)
+    const spaceCount = (comp.match(/\s/g) || []).length;
+    if (spaceCount > 4) return false;
+    
+    // Exclude if ends with punctuation suggesting a phrase
+    if (/[.!?:]$/.test(comp)) return false;
+    
+    // Exclude if all lowercase (most company names have caps)
+    // Allow exceptions for known lowercase brands like "npm", "github", etc.
+    const knownLowercaseBrands = ['npm', 'github', 'gitlab', 'docker', 'kubernetes', 'redis', 'mongodb'];
+    if (comp === compLower && !knownLowercaseBrands.includes(compLower)) {
+      // Check if it has at least one capital letter
+      if (!/[A-Z]/.test(comp) && comp.length > 5) return false;
+    }
+    
+    return true;
+  });
+}
+
+/**
  * Generate contextual prompts for GEO testing using sophisticated prompt generation
  * Returns array of objects with text and category for intent weighting
  */
@@ -579,27 +657,11 @@ Extract the following information:
      * Brand does: "CRM software for sales teams" | Response mentions: "Salesforce, HubSpot, Stripe, AWS, Mailchimp" → Only include CRM tools: ["Salesforce", "HubSpot"]
      * Brand does: "Startup accelerator" | Response: "Top 5: 1. Y Combinator, 2. Techstars, 3. Stripe, 4. AWS, 5. MassChallenge" → Only accelerators: ["Techstars", "MassChallenge"]
      * Brand does: "No-code website builder" | Response mentions: "Webflow, Wix, Shopify, Stripe" → Only website builders: ["Webflow", "Wix"] (exclude Shopify if e-commerce focused, exclude Stripe)
-   - Look for patterns like "1st", "2nd", "3rd", "#1", "first place", "ranked 1", etc.
-   - Extract ONLY the number (1, 2, 3, etc.)
-   - If no explicit position/ranking is found, return null
-   - Examples:
-     * "### 1st: Y Combinator" → 1
-     * "2nd Place: Y Combinator" → 2  
-     * "#3: Y Combinator" → 3
-     * "Y Combinator is mentioned but no ranking" → null
-
-3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
-   - Extract ALL proper company names that are competitors, alternatives, or mentioned alongside the brand
-   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
-   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "a16z", "Entrepreneurs First", "Boost VC")
-   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
-   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
-   - Return empty array [] if no competitors are mentioned
-   - Examples:
-     * From "Top 5 accelerators: 1. Y Combinator, 2. Techstars, 3. 500 Global, 4. Seedcamp, 5. MassChallenge"
-       → competitorsMentioned should be: ["Techstars", "500 Global", "Seedcamp", "MassChallenge"]
-     * From "Top 7: 1. YC, 2. Techstars, 3. 500 Global, 4. a16z Speedrun, 5. Antler, 6. Entrepreneurs First, 7. Boost VC"
-       → competitorsMentioned should be: ["Techstars", "500 Global", "a16z Speedrun", "Antler", "Entrepreneurs First", "Boost VC"]
+   - **CRITICAL**: Only return actual COMPANY/BRAND NAMES. Never include:
+     * Sentence fragments like "Others share enthusiasm" or "Posts highlight..."
+     * Action phrases like "Reach out directly" or "Sign up now"
+     * Generic descriptions like "leading platform" or "top tool"
+     * Marketing copy or testimonials
 
 4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
    - Extract numerical positions for each competitor mentioned
@@ -811,14 +873,48 @@ Return ONLY a valid JSON object with these exact keys:
       }
     });
 
+    // POST-PROCESSING VALIDATION
+    // 1. Validate brand mention using regex (more reliable than LLM)
+    const regexBrandMentioned = validateBrandMention(text, config.brandName);
+    const llmBrandMentioned = analysis.brandMentioned || false;
+    
+    if (llmBrandMentioned !== regexBrandMentioned) {
+      console.warn(`[OpenAI] Brand mention mismatch - LLM: ${llmBrandMentioned}, Regex: ${regexBrandMentioned}. Using regex result.`);
+    }
+    
+    // 2. Filter competitors to only include valid company names
+    const rawCompetitors = analysis.competitorsMentioned || [];
+    const validatedCompetitors = filterValidCompetitors(rawCompetitors, config.brandName);
+    
+    if (rawCompetitors.length !== validatedCompetitors.length) {
+      const filtered = rawCompetitors.filter((c: string) => !validatedCompetitors.includes(c));
+      console.warn(`[OpenAI] Filtered ${filtered.length} invalid competitors:`, filtered.slice(0, 5));
+    }
+    
+    // 3. Filter positions to only include validated competitors
+    const validatedPositions: Record<string, number> = {};
+    validatedCompetitors.forEach(comp => {
+      if (mergedPositions[comp]) {
+        validatedPositions[comp] = mergedPositions[comp];
+      }
+    });
+    
+    // 4. Filter sentiments to only include validated competitors
+    const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+    validatedCompetitors.forEach(comp => {
+      if (analysis.competitorSentiments?.[comp]) {
+        validatedSentiments[comp] = analysis.competitorSentiments[comp];
+      }
+    });
+
     return {
       prompt,
       response: text,
-      brandMentioned: analysis.brandMentioned || false,
+      brandMentioned: regexBrandMentioned, // Use regex validation
       brandPosition: analysis.brandPosition,
-      competitors: analysis.competitorsMentioned || [],
-      competitorPositions: mergedPositions,
-      competitorSentiments: analysis.competitorSentiments || {},
+      competitors: validatedCompetitors, // Use validated competitors
+      competitorPositions: validatedPositions,
+      competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
       citations: uniqueCitations.length > 0 ? uniqueCitations : undefined,
@@ -954,15 +1050,11 @@ Extract the following information:
      * Brand does: "CRM software for sales teams" | Response mentions: "Salesforce, HubSpot, Stripe, AWS, Mailchimp" → Only include CRM tools: ["Salesforce", "HubSpot"]
      * Brand does: "Startup accelerator" | Response: "Top 5: 1. Y Combinator, 2. Techstars, 3. Stripe, 4. AWS, 5. MassChallenge" → Only accelerators: ["Techstars", "MassChallenge"]
      * Brand does: "No-code website builder" | Response mentions: "Webflow, Wix, Shopify, Stripe" → Only website builders: ["Webflow", "Wix"] (exclude Shopify if e-commerce focused, exclude Stripe)
-   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "a16z", "Entrepreneurs First", "Boost VC")
-   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
-   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
-   - Return empty array [] if no competitors are mentioned
-   - Examples:
-     * From "Top 5 accelerators: 1. Y Combinator, 2. Techstars, 3. 500 Global, 4. Seedcamp, 5. MassChallenge"
-       → competitorsMentioned should be: ["Techstars", "500 Global", "Seedcamp", "MassChallenge"]
-     * From "Top 7: 1. YC, 2. Techstars, 3. 500 Global, 4. a16z Speedrun, 5. Antler, 6. Entrepreneurs First, 7. Boost VC"
-       → competitorsMentioned should be: ["Techstars", "500 Global", "a16z Speedrun", "Antler", "Entrepreneurs First", "Boost VC"]
+   - **CRITICAL**: Only return actual COMPANY/BRAND NAMES. Never include:
+     * Sentence fragments like "Others share enthusiasm" or "Posts highlight..."
+     * Action phrases like "Reach out directly" or "Sign up now"
+     * Generic descriptions like "leading platform" or "top tool"
+     * Marketing copy or testimonials
 
 4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
    - Extract numerical positions for each competitor mentioned
@@ -994,6 +1086,7 @@ Extract the following information:
    - "negative" if critical or dismissive
 
 7. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
+</task>
 
 Return ONLY a valid JSON object with these exact keys:
 {
@@ -1005,7 +1098,7 @@ Return ONLY a valid JSON object with these exact keys:
   "sentiment": "positive" | "neutral" | "negative",
   "confidence": number,
   "explanation": "brief reasoning"
-}`;
+}\`;
 
     const analysisResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -1152,14 +1245,48 @@ Return ONLY a valid JSON object with these exact keys:
       }
     });
 
+    // POST-PROCESSING VALIDATION (same as OpenAI)
+    // 1. Validate brand mention using regex
+    const regexBrandMentioned = validateBrandMention(text, config.brandName);
+    const llmBrandMentioned = analysis.brandMentioned || false;
+    
+    if (llmBrandMentioned !== regexBrandMentioned) {
+      console.warn(`[Perplexity] Brand mention mismatch - LLM: ${llmBrandMentioned}, Regex: ${regexBrandMentioned}. Using regex result.`);
+    }
+    
+    // 2. Filter competitors to only include valid company names
+    const rawCompetitors = analysis.competitorsMentioned || [];
+    const validatedCompetitors = filterValidCompetitors(rawCompetitors, config.brandName);
+    
+    if (rawCompetitors.length !== validatedCompetitors.length) {
+      const filtered = rawCompetitors.filter((c: string) => !validatedCompetitors.includes(c));
+      console.warn(`[Perplexity] Filtered ${filtered.length} invalid competitors:`, filtered.slice(0, 5));
+    }
+    
+    // 3. Filter positions to only include validated competitors
+    const validatedPositions: Record<string, number> = {};
+    validatedCompetitors.forEach(comp => {
+      if (mergedPositions[comp]) {
+        validatedPositions[comp] = mergedPositions[comp];
+      }
+    });
+    
+    // 4. Filter sentiments to only include validated competitors
+    const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+    validatedCompetitors.forEach(comp => {
+      if (analysis.competitorSentiments?.[comp]) {
+        validatedSentiments[comp] = analysis.competitorSentiments[comp];
+      }
+    });
+
     return {
       prompt,
       response: text,
-      brandMentioned: analysis.brandMentioned || false,
+      brandMentioned: regexBrandMentioned, // Use regex validation
       brandPosition: analysis.brandPosition,
-      competitors: analysis.competitorsMentioned || [],
-      competitorPositions: mergedPositions,
-      competitorSentiments: analysis.competitorSentiments || {},
+      competitors: validatedCompetitors, // Use validated competitors
+      competitorPositions: validatedPositions,
+      competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
       citations: citations.length > 0 ? citations : undefined,
@@ -1335,14 +1462,48 @@ async function analyzeWithAnthropic(
     const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
     const mergedPositions = mergePositions(analysis.competitorPositions || {}, regexPositions, analysis.competitorsMentioned || []);
 
+    // POST-PROCESSING VALIDATION (same as OpenAI/Perplexity)
+    // 1. Validate brand mention using regex
+    const regexBrandMentioned = validateBrandMention(text, config.brandName);
+    const llmBrandMentioned = analysis.brandMentioned || false;
+    
+    if (llmBrandMentioned !== regexBrandMentioned) {
+      console.warn(`[Anthropic] Brand mention mismatch - LLM: ${llmBrandMentioned}, Regex: ${regexBrandMentioned}. Using regex result.`);
+    }
+    
+    // 2. Filter competitors to only include valid company names
+    const rawCompetitors = analysis.competitorsMentioned || [];
+    const validatedCompetitors = filterValidCompetitors(rawCompetitors, config.brandName);
+    
+    if (rawCompetitors.length !== validatedCompetitors.length) {
+      const filtered = rawCompetitors.filter((c: string) => !validatedCompetitors.includes(c));
+      console.warn(`[Anthropic] Filtered ${filtered.length} invalid competitors:`, filtered.slice(0, 5));
+    }
+    
+    // 3. Filter positions to only include validated competitors
+    const validatedPositions: Record<string, number> = {};
+    validatedCompetitors.forEach(comp => {
+      if (mergedPositions[comp]) {
+        validatedPositions[comp] = mergedPositions[comp];
+      }
+    });
+    
+    // 4. Filter sentiments to only include validated competitors
+    const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+    validatedCompetitors.forEach(comp => {
+      if (analysis.competitorSentiments?.[comp]) {
+        validatedSentiments[comp] = analysis.competitorSentiments[comp];
+      }
+    });
+
     return {
       prompt,
       response: text,
-      brandMentioned: analysis.brandMentioned || false,
+      brandMentioned: regexBrandMentioned, // Use regex validation
       brandPosition: analysis.brandPosition,
-      competitors: analysis.competitorsMentioned || [],
-      competitorPositions: mergedPositions,
-      competitorSentiments: analysis.competitorSentiments || {},
+      competitors: validatedCompetitors, // Use validated competitors
+      competitorPositions: validatedPositions,
+      competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
       citations: citations.length > 0 ? citations : undefined,

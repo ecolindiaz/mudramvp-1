@@ -22,6 +22,7 @@ export interface PromptTestResult {
   confidence?: number;
   provider?: string;
   model?: string;
+  competitors?: string[]; // Competitors mentioned in response
 }
 
 export interface AggregateVisibilityScore {
@@ -109,6 +110,7 @@ function calculateWeightedScore(tests: PromptTestResult[]): {
 
 /**
  * Calculate score for a specific category
+ * NEW: If brand is mentioned with NO competitors, score is 100% (ranking irrelevant)
  */
 function calculateCategoryScore(categoryTests: PromptTestResult[]): {
   score: number;
@@ -122,24 +124,66 @@ function calculateCategoryScore(categoryTests: PromptTestResult[]): {
   const mentions = categoryTests.filter(t => t.brandMentioned).length;
   const mentionRate = mentions / categoryTests.length;
 
-  // Position-based scoring for this category
-  const rankedTests = categoryTests.filter(t => 
+  // NEW: Check for brand-only mentions (no competitors)
+  // If brand mentioned with no competitors → 100% visibility for that test
+  const brandOnlyTests = categoryTests.filter(t => 
     t.brandMentioned && 
-    t.brandPosition !== undefined && 
-    t.brandPosition !== null && 
-    t.brandPosition > 0
+    (!t.competitors || t.competitors.length === 0)
   );
-
-  let positionBonus = 0;
-  if (rankedTests.length > 0) {
-    const avgPosition = rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length;
-    positionBonus = Math.max(0, (10 - avgPosition) / 10) * 50;
+  
+  // Tests where brand competes with others
+  const competitiveTests = categoryTests.filter(t =>
+    t.brandMentioned && 
+    t.competitors && 
+    t.competitors.length > 0
+  );
+  
+  // Calculate weighted average:
+  // - Brand-only mentions get 100 points each
+  // - Competitive mentions use position-based scoring
+  
+  let totalScore = 0;
+  const mentionedTests = categoryTests.filter(t => t.brandMentioned);
+  
+  if (mentionedTests.length > 0) {
+    // Brand-only tests: 100% each
+    totalScore += brandOnlyTests.length * 100;
+    
+    // Competitive tests: position-based scoring
+    if (competitiveTests.length > 0) {
+      const rankedCompetitiveTests = competitiveTests.filter(t => 
+        t.brandPosition !== undefined && 
+        t.brandPosition !== null && 
+        t.brandPosition > 0
+      );
+      
+      for (const test of competitiveTests) {
+        if (test.brandPosition && test.brandPosition > 0) {
+          // Position-based score: #1 = 100, #2 = 90, #3 = 80, etc.
+          const positionScore = Math.max(0, 110 - (test.brandPosition * 10));
+          totalScore += positionScore;
+        } else {
+          // Mentioned but no position → 50 points (mentioned, not ranked)
+          totalScore += 50;
+        }
+      }
+    }
+    
+    // Calculate final score as average across all mentioned tests
+    // Also factor in non-mentions (they get 0)
+    const avgMentionScore = totalScore / mentionedTests.length;
+    const score = mentionRate * avgMentionScore;
+    
+    return {
+      score: Math.round(score),
+      mentions,
+      total: categoryTests.length,
+    };
   }
 
-  const score = mentionRate * 50 + positionBonus;
-
+  // No mentions at all
   return {
-    score: Math.round(score),
+    score: 0,
     mentions,
     total: categoryTests.length,
   };

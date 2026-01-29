@@ -74,9 +74,15 @@ export async function POST(
         data: {
           issueId,
           status: 'completed',
+          // PR-creating agents
           prUrl: result.prUrl,
           prNumber: result.prNumber,
           generatedContent: result.generatedContent,
+          // Conversation agents
+          conversationUrl: result.conversationUrl,
+          engagementGuidance: result.engagementGuidance,
+          suggestedResponse: result.suggestedResponse,
+          // E2B validation
           e2bValidation: result.e2bValidation ? {
             valid: result.e2bValidation.data?.valid,
             executionMs: result.e2bValidation.executionMs,

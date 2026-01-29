@@ -3,6 +3,10 @@
  * 
  * Orchestrates agent execution for issue resolution.
  * Handles E2B validation and GitHub PR creation.
+ * 
+ * Two execution paths:
+ * 1. Technical Issues → Generate code → E2B validate → Create GitHub PR
+ * 2. Conversation Issues → Return Reddit/social links with engagement guidance
  */
 
 import { prisma } from '@/lib/prisma'
@@ -13,6 +17,7 @@ import {
   type SandboxResult,
   type SchemaValidationResult
 } from './e2b-sandbox.service'
+import { createOptimizationPR } from './github.service'
 
 // Agent type to Mastra agent name mapping
 const ISSUE_AGENT_MAP: Record<string, string> = {
@@ -44,13 +49,46 @@ const ISSUE_AGENT_MAP: Record<string, string> = {
   'social_opportunity': 'conversationRadarAgent',
 }
 
+// Issue types that create PRs vs those that return links/content
+const PR_CREATING_TYPES = [
+  'schema_markup', 'schema_architect', 'json_ld_generation', 'structured_data',
+  'heading_hierarchy', 'content_structure', 'faq_sections',
+  'site_config', 'robots_txt', 'sitemap', 'meta_optimization',
+  'llms_txt', 'llms_txt_missing', 'llms_txt_optimizer',
+  'citation_signals', 'ai_content_optimizer', 'authority_building', 'brand_messaging'
+]
+
+const CONVERSATION_TYPES = [
+  'conversation_engagement', 'reddit_opportunity', 'social_opportunity'
+]
+
 export interface ExecutionResult {
   success: boolean
+  // For PR-creating agents
   prUrl?: string
   prNumber?: number
   generatedContent?: string
+  // For conversation agents
+  conversationUrl?: string
+  engagementGuidance?: string
+  suggestedResponse?: string
+  // Common
   error?: string
   e2bValidation?: SandboxResult<SchemaValidationResult>
+}
+
+/**
+ * Check if issue type creates PRs
+ */
+export function createsPullRequest(agentType: string): boolean {
+  return PR_CREATING_TYPES.includes(agentType)
+}
+
+/**
+ * Check if issue type is conversation-based
+ */
+export function isConversationType(agentType: string): boolean {
+  return CONVERSATION_TYPES.includes(agentType)
 }
 
 /**
@@ -140,6 +178,60 @@ function extractGeneratedContent(responseText: string): string {
   
   // Return full text if no code block found
   return responseText
+}
+
+/**
+ * Extract engagement guidance from conversation agent response
+ */
+function extractEngagementGuidance(responseText: string): { 
+  guidance: string
+  suggestedResponse?: string 
+} {
+  // Look for structured sections in the response
+  const guidanceMatch = responseText.match(/(?:suggested angle|engagement guidance|how to engage|strategy)[:\s]*([\s\S]*?)(?=\n\n|suggested response|$)/i)
+  const responseMatch = responseText.match(/(?:suggested response|draft response|example reply)[:\s]*([\s\S]*?)(?=\n\n|$)/i)
+  
+  return {
+    guidance: guidanceMatch?.[1]?.trim() || responseText.slice(0, 500),
+    suggestedResponse: responseMatch?.[1]?.trim()
+  }
+}
+
+/**
+ * Get the appropriate file path for each agent type
+ */
+function getFilePathForAgentType(agentType: string): string {
+  const FILE_PATHS: Record<string, string> = {
+    // Schema markup goes in head or page
+    'schema_markup': 'index.html',
+    'schema_architect': 'index.html',
+    'json_ld_generation': 'index.html',
+    'structured_data': 'index.html',
+    
+    // Content structure
+    'heading_hierarchy': 'index.html',
+    'content_structure': 'index.html',
+    'faq_sections': 'faq.html',
+    
+    // Site config files
+    'site_config': 'public/',
+    'robots_txt': 'public/robots.txt',
+    'sitemap': 'public/sitemap.xml',
+    'meta_optimization': 'index.html',
+    
+    // AI visibility files
+    'llms_txt': 'public/llms.txt',
+    'llms_txt_missing': 'public/llms.txt',
+    'llms_txt_optimizer': 'public/llms.txt',
+    
+    // Content optimization
+    'citation_signals': 'content/',
+    'ai_content_optimizer': 'content/',
+    'authority_building': 'content/',
+    'brand_messaging': 'content/',
+  }
+  
+  return FILE_PATHS[agentType] || 'optimizations/'
 }
 
 /**
@@ -238,21 +330,93 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
       console.log(`[IssueExecutor] E2B validation passed in ${e2bValidation.executionMs}ms`)
     }
     
-    // 7. TODO: Create GitHub PR (placeholder for now)
-    // This would integrate with the existing GitHub service
-    const prUrl = undefined // await createOptimizationPR(...)
-    const prNumber = undefined
+    // 7. Handle based on issue type
+    let prUrl: string | undefined
+    let prNumber: number | undefined
+    let conversationUrl: string | undefined
+    let engagementGuidance: string | undefined
+    let suggestedResponse: string | undefined
     
-    // 8. Update issue status
-    await prisma.issue.update({
-      where: { id: issueId },
-      data: {
-        status: 'completed',
-        prUrl,
-        prNumber,
-        prStatus: prUrl ? 'open' : undefined
+    if (isConversationType(agentType)) {
+      // CONVERSATION TYPE: Extract URL and engagement guidance from agent response
+      console.log(`[IssueExecutor] Processing conversation issue ${issueId}`)
+      
+      // The conversation URL should already be in the issue's affectedUrl
+      conversationUrl = issue.affectedUrl || undefined
+      
+      // Extract engagement guidance from agent response
+      const guidance = extractEngagementGuidance(responseText)
+      engagementGuidance = guidance.guidance
+      suggestedResponse = guidance.suggestedResponse
+      
+      // Update issue with conversation output
+      await prisma.issue.update({
+        where: { id: issueId },
+        data: {
+          status: 'completed',
+          // Store the guidance in a JSON field or description
+          description: `${issue.description || ''}\n\n---\n**Engagement Guidance:**\n${engagementGuidance}\n\n**Suggested Response:**\n${suggestedResponse || 'See guidance above'}`
+        }
+      })
+      
+    } else if (createsPullRequest(agentType)) {
+      // PR-CREATING TYPE: Create GitHub PR with the generated content
+      console.log(`[IssueExecutor] Creating PR for issue ${issueId}`)
+      
+      try {
+        const prResult = await createOptimizationPR({
+          brandProfileId: issue.brandProfileId,
+          pageUrl: issue.affectedUrl || issue.brandProfile.companyWebsite || '/',
+          improvements: [{
+            type: agentType,
+            description: issue.title,
+            code: generatedContent,
+            impact: issue.estimatedImpact || 'medium',
+            filePath: getFilePathForAgentType(agentType)
+          }],
+          title: `[Mudra] ${issue.title}`,
+          description: `## Issue
+${issue.description || issue.title}
+
+## Generated by
+Mudra AI Agent: ${agentType}
+
+## Estimated Impact
+${issue.estimatedImpact || 'Improved AI visibility'}
+
+${e2bValidation ? `## E2B Validation
+✅ Validated in ${e2bValidation.executionMs}ms` : ''}
+`
+        })
+        
+        prUrl = prResult.prUrl
+        prNumber = prResult.prNumber
+        
+        console.log(`[IssueExecutor] PR created: ${prUrl}`)
+        
+      } catch (prError) {
+        // PR creation failed but content was generated - still mark as completed
+        console.error(`[IssueExecutor] PR creation failed:`, prError)
+        // Don't throw - the content is still valid, user just needs to connect GitHub
       }
-    })
+      
+      // Update issue with PR info
+      await prisma.issue.update({
+        where: { id: issueId },
+        data: {
+          status: prUrl ? 'completed' : 'completed', // Still completed even without PR
+          prUrl,
+          prNumber,
+          prStatus: prUrl ? 'open' : undefined
+        }
+      })
+    } else {
+      // Generic completion for unknown types
+      await prisma.issue.update({
+        where: { id: issueId },
+        data: { status: 'completed' }
+      })
+    }
     
     console.log(`[IssueExecutor] Issue ${issueId} completed successfully`)
     
@@ -261,16 +425,19 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
       prUrl,
       prNumber,
       generatedContent,
+      conversationUrl,
+      engagementGuidance,
+      suggestedResponse,
       e2bValidation
     }
     
   } catch (error) {
     console.error(`[IssueExecutor] Error executing issue ${issueId}:`, error)
     
-    // Reset status to identified on failure
+    // Mark as failed instead of resetting to identified
     await prisma.issue.update({
       where: { id: issueId },
-      data: { status: 'identified' }
+      data: { status: 'failed' }
     })
     
     return {

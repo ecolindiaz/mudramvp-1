@@ -53,11 +53,12 @@ CATEGORY GUIDANCE
 2) Competitor
    - Goal: Queries that compare or seek alternatives to COMPETITORS, which should provoke mention/citation of COMPANY_NAME.
    - Patterns to use with COMPETITORS:
-     - “[Competitor] alternatives”
-     - “[Competitor] vs [category] tools for [IDEAL_CUSTOMER]”
-     - “Cheaper than [Competitor] for [use case]”
-     - “Best [category] tools like [Competitor]”
-     - “Is [Competitor] good for [IDEAL_CUSTOMER]?” (neutral tone)
+     - "[Competitor] alternatives for [IDEAL_CUSTOMER]/[use case]/[INDUSTRY]"
+     - "[Competitor] vs [category] tools for [IDEAL_CUSTOMER]"
+     - "Cheaper than [Competitor] for [use case]"
+     - "Best [category] tools like [Competitor]"
+     - "Is [Competitor] good for [IDEAL_CUSTOMER]?" (neutral tone)
+   - CRITICAL: Never create bare competitor-only queries (e.g., just "[Competitor] alternatives"). Always include contextual qualifiers: IDEAL_CUSTOMER, use case, industry, budget constraints, or category.
    - Vary phrasing across all competitors. Do not include COMPANY_NAME unless it’s a neutral vs-query.
 
 3) How-to Guides

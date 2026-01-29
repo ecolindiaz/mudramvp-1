@@ -548,7 +548,8 @@ async function analyzeWithOpenAI(
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
 
 BRAND NAME: ${config.brandName}
-COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
+WHAT "${config.brandName}" DOES: ${config.description || config.keyProducts?.join(', ') || 'Not specified'}
+KNOWN DIRECT COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
 
 RESPONSE TEXT:
 "${text}"
@@ -558,6 +559,26 @@ Extract the following information:
 1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
 
 2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given?
+   - Look for patterns like "1st", "2nd", "3rd", "#1", "first place", "ranked 1", etc.
+   - Extract ONLY the number (1, 2, 3, etc.)
+   - If no explicit position/ranking is found, return null
+   - Examples:
+     * "### 1st: Y Combinator" → 1
+     * "2nd Place: Y Combinator" → 2  
+     * "#3: Y Combinator" → 3
+     * "Y Combinator is mentioned but no ranking" → null
+
+3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
+   - Extract ONLY companies that offer services/products SIMILAR to what "${config.brandName}" does: ${config.description || config.keyProducts?.join(', ') || 'similar services'}
+   - A company is a competitor if they provide COMPARABLE services/products that solve similar customer problems
+   - EXCLUDE companies with completely different service offerings (e.g., if analyzing an accelerator, exclude payment processors, hosting providers, design tools)
+   - EXCLUDE companies mentioned only as integration partners, tool mentions, or passing examples
+   - Prioritize companies from the known competitors list: ${config.competitors?.join(', ') || 'None'}
+   - Return empty array [] if no relevant competitors are mentioned
+   - Examples:
+     * Brand does: "CRM software for sales teams" | Response mentions: "Salesforce, HubSpot, Stripe, AWS, Mailchimp" → Only include CRM tools: ["Salesforce", "HubSpot"]
+     * Brand does: "Startup accelerator" | Response: "Top 5: 1. Y Combinator, 2. Techstars, 3. Stripe, 4. AWS, 5. MassChallenge" → Only accelerators: ["Techstars", "MassChallenge"]
+     * Brand does: "No-code website builder" | Response mentions: "Webflow, Wix, Shopify, Stripe" → Only website builders: ["Webflow", "Wix"] (exclude Shopify if e-commerce focused, exclude Stripe)
    - Look for patterns like "1st", "2nd", "3rd", "#1", "first place", "ranked 1", etc.
    - Extract ONLY the number (1, 2, 3, etc.)
    - If no explicit position/ranking is found, return null
@@ -901,11 +922,13 @@ async function analyzeWithPerplexity(
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
 
 BRAND NAME: ${config.brandName}
-COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
+WHAT "${config.brandName}" DOES: ${config.description || config.keyProducts?.join(', ') || 'Not specified'}
+KNOWN DIRECT COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
 
 RESPONSE TEXT:
 "${text}"
 
+<task>
 Extract the following information:
 
 1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
@@ -921,8 +944,16 @@ Extract the following information:
      * "Y Combinator is mentioned but no ranking" → null
 
 3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
-   - Extract ALL proper company names that are competitors, alternatives, or mentioned alongside the brand
-   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
+   - Extract ONLY companies that offer services/products SIMILAR to what "${config.brandName}" does: ${config.description || config.keyProducts?.join(', ') || 'similar services'}
+   - A company is a competitor if they provide COMPARABLE services/products that solve similar customer problems
+   - EXCLUDE companies with completely different service offerings (e.g., if analyzing an accelerator, exclude payment processors, hosting providers, design tools)
+   - EXCLUDE companies mentioned only as integration partners, tool mentions, or passing examples
+   - Prioritize companies from the known competitors list: ${config.competitors?.join(', ') || 'None'}
+   - Return empty array [] if no relevant competitors are mentioned
+   - Examples:
+     * Brand does: "CRM software for sales teams" | Response mentions: "Salesforce, HubSpot, Stripe, AWS, Mailchimp" → Only include CRM tools: ["Salesforce", "HubSpot"]
+     * Brand does: "Startup accelerator" | Response: "Top 5: 1. Y Combinator, 2. Techstars, 3. Stripe, 4. AWS, 5. MassChallenge" → Only accelerators: ["Techstars", "MassChallenge"]
+     * Brand does: "No-code website builder" | Response mentions: "Webflow, Wix, Shopify, Stripe" → Only website builders: ["Webflow", "Wix"] (exclude Shopify if e-commerce focused, exclude Stripe)
    - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "a16z", "Entrepreneurs First", "Boost VC")
    - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
    - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names

@@ -663,7 +663,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
               </Tooltip>
             </div>
             <div className="p-4">
-              {isLoadingPrompts ? (
+              {!isMounted || isLoadingPrompts ? (
                 <div className="grid grid-cols-2 gap-3">
                   {[1, 2, 3, 4].map((i) => (
                     <div

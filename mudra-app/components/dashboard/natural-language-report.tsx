@@ -332,28 +332,14 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
       return dateB - dateA
     })
 
-    // Take the 3 most recent and transform to expected format
-    return sorted.slice(0, 3).map((prompt: any) => {
+    // Take the 4 most recent and transform to expected format
+    return sorted.slice(0, 4).map((prompt: any) => {
       // Get the primary model from results
       const primaryModel = prompt.results?.[0]?.model || prompt.model || 'ChatGPT'
 
-      // Format timestamp
+      // Format timestamp - use static date format to avoid hydration mismatch
       const date = new Date(prompt.updatedAt || prompt.createdAt)
-      const now = new Date()
-      const diffMs = now.getTime() - date.getTime()
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-      let timestamp: string
-      if (diffHours < 1) {
-        timestamp = 'Just now'
-      } else if (diffHours < 24) {
-        timestamp = `${diffHours}h ago`
-      } else if (diffDays < 7) {
-        timestamp = `${diffDays}d ago`
-      } else {
-        timestamp = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      }
+      const timestamp = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
       return {
         id: String(prompt.id),
@@ -497,86 +483,48 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
         {/* KPIs removed (already shown above) */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2">
-            <div className="rounded-lg border border-white/[0.04] bg-transparent p-5">
-              <div className="mb-2 text-sm font-medium text-white/50">
-                <span>Summary</span>
-              </div>
-
-              {isLoading ? (
-                <div className="space-y-2">
-                  <div className="h-4 w-full bg-white/10 animate-pulse rounded" />
-                  <div className="h-4 w-11/12 bg-white/10 animate-pulse rounded" />
-                  <div className="h-4 w-10/12 bg-white/10 animate-pulse rounded" />
-                  <div className="h-4 w-full bg-white/10 animate-pulse rounded" />
-                  <div className="h-4 w-9/12 bg-white/10 animate-pulse rounded" />
-                </div>
-              ) : error ? (
-                <div className="py-12 text-center">
-                  <p className="text-sm text-white/60">Failed to load report. Please try again.</p>
-                </div>
-              ) : !summary ? (
-                <div className="py-12 text-center">
-                  <p className="text-sm text-white/60">No report available yet.</p>
-                  <p className="text-xs text-white/40 mt-1">Generate a report to see your AI visibility summary.</p>
-                </div>
-              ) : (
-                <p className="text-sm leading-relaxed text-white/85">
-                  {summary}
-                </p>
-              )}
-
-              <div className="mt-3 flex justify-end items-center">
-                <div className="rounded-md border border-white/[0.04] px-2 py-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto px-0 text-white/60 hover:text-white hover:bg-transparent text-xs font-normal"
-                    onClick={() => setShowReportHistory(true)}
-                  >
-                    <FileText className="size-3.5 mr-1.5" /> History
-                  </Button>
-                </div>
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Summary */}
+          <div className="rounded-lg border border-white/[0.04] bg-transparent p-5">
+            <div className="mb-2 text-sm font-medium text-white/50">
+              <span>Summary</span>
             </div>
 
-            {/* Citations list - Only show when we have real data */}
-            {citations.length > 0 && (
-              <div className="mt-5 rounded-lg border border-white/[0.04] bg-transparent overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
-                  <div>
-                    <div className="text-sm font-medium text-white/90">Citations</div>
-                    <div className="text-xs text-white/60">Sources across active models</div>
-                  </div>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex">
-                        <IconInfoCircle className="size-4 text-white/60" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent sideOffset={8}>Top sources AI cites from your industry.</TooltipContent>
-                  </Tooltip>
-                </div>
-                <div className="divide-y divide-white/[0.06]">
-                  <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2 text-xs text-white/60">
-                    <span>Source</span>
-                    <span>Rate of mention</span>
-                  </div>
-                  {citations.map((c, idx) => (
-                    <div key={idx} className="grid grid-cols-[1fr_auto] items-center px-4 py-3 hover:bg-white/[0.02] transition-colors">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80">
-                          {c.domain[0].toUpperCase()}
-                        </span>
-                        <span className="truncate text-sm text-white/85">{c.domain}</span>
-                      </div>
-                      <div className="text-sm tabular-nums text-white/80">{c.used}%</div>
-                    </div>
-                  ))}
-                </div>
+            {isLoading ? (
+              <div className="space-y-2">
+                <div className="h-4 w-full bg-white/10 animate-pulse rounded" />
+                <div className="h-4 w-11/12 bg-white/10 animate-pulse rounded" />
+                <div className="h-4 w-10/12 bg-white/10 animate-pulse rounded" />
+                <div className="h-4 w-full bg-white/10 animate-pulse rounded" />
+                <div className="h-4 w-9/12 bg-white/10 animate-pulse rounded" />
               </div>
+            ) : error ? (
+              <div className="py-12 text-center">
+                <p className="text-sm text-white/60">Failed to load report. Please try again.</p>
+              </div>
+            ) : !summary ? (
+              <div className="py-12 text-center">
+                <p className="text-sm text-white/60">No report available yet.</p>
+                <p className="text-xs text-white/40 mt-1">Generate a report to see your AI visibility summary.</p>
+              </div>
+            ) : (
+              <p className="text-sm leading-relaxed text-white/85">
+                {summary}
+              </p>
             )}
+
+            <div className="mt-3 flex justify-end items-center">
+              <div className="rounded-md border border-white/[0.04] px-2 py-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 text-white/60 hover:text-white hover:bg-transparent text-xs font-normal"
+                  onClick={() => setShowReportHistory(true)}
+                >
+                  <FileText className="size-3.5 mr-1.5" /> History
+                </Button>
+              </div>
+            </div>
           </div>
           
           <div className="flex flex-col gap-5">
@@ -660,77 +608,104 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                 )}
               </div>
             </div>
-            
-            {/* Recent Chats Widget - Horizontal Grid */}
+          </div>
+          
+          {/* Citations list - Only show when we have real data */}
+          {citations.length > 0 && (
             <div className="rounded-lg border border-white/[0.04] bg-transparent overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
-                <div className="flex items-center gap-2">
-                  <div className="text-sm font-medium text-white/50">Recent Chats</div>
+                <div>
+                  <div className="text-sm font-medium text-white/90">Citations</div>
+                  <div className="text-xs text-white/60">Sources across active models</div>
                 </div>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex">
-                      <IconInfoCircle className="size-4 text-white/60 hover:text-white/90 transition-colors cursor-default" />
+                      <IconInfoCircle className="size-4 text-white/60" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>Recent AI model queries and their results</TooltipContent>
+                  <TooltipContent sideOffset={8}>Top sources AI cites from your industry.</TooltipContent>
                 </Tooltip>
               </div>
-              <div className="p-4">
-                {isLoadingPrompts ? (
-                  <div className="grid grid-cols-3 gap-3">
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="rounded-lg border border-white/[0.04] bg-transparent p-4 min-h-[125px] flex flex-col"
-                      >
-                        <div className="flex items-start gap-2.5 mb-3 flex-1">
-                          <span className="size-5 rounded bg-white/10 animate-pulse flex-shrink-0" />
-                          <div className="flex-1 space-y-2">
-                            <span className="block h-3 w-full rounded bg-white/10 animate-pulse" />
-                            <span className="block h-3 w-5/6 rounded bg-white/10 animate-pulse" />
-                            <span className="block h-3 w-4/6 rounded bg-white/10 animate-pulse" />
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-end pt-2 mt-auto border-t border-white/[0.03]">
-                          <span className="block h-2 w-16 rounded bg-white/10 animate-pulse" />
-                        </div>
-                      </div>
-                    ))}
+              <div className="divide-y divide-white/[0.06]">
+                <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2 text-xs text-white/60">
+                  <span>Source</span>
+                  <span>Rate of mention</span>
+                </div>
+                {citations.map((c, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr_auto] items-center px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80">
+                        {c.domain[0].toUpperCase()}
+                      </span>
+                      <span className="truncate text-sm text-white/85">{c.domain}</span>
+                    </div>
+                    <div className="text-sm tabular-nums text-white/80">{c.used}%</div>
                   </div>
-                ) : recentChats.length === 0 ? (
-                  <div className="py-8 text-center">
-                    <p className="text-sm text-white/60">No recent chats available yet.</p>
-                    <p className="text-xs text-white/40 mt-1">Recent chat responses will appear here once analyzed.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 gap-3">
-                    {recentChats.map((chat) => (
-                      <div
-                        key={chat.id}
-                        onClick={() => handleChatClick(chat.promptId)}
-                        className="rounded-lg border border-white/[0.04] bg-transparent p-4 hover:bg-white/[0.02] hover:border-white/[0.12] transition-all cursor-pointer min-h-[125px] flex flex-col"
-                      >
-                        <div className="flex items-start gap-2.5 mb-3 flex-1">
-                          <div className="flex items-center justify-center size-5 flex-shrink-0 mt-0.5">
-                            <img
-                              src={getModelIcon(chat.model)}
-                              alt={chat.model}
-                              className="size-5 object-contain"
-                            />
-                          </div>
-                          <p className="text-sm text-white/90 leading-relaxed line-clamp-3 flex-1">
-                            {chat.question}
-                          </p>
-                        </div>
-                        <div className="flex items-center justify-end pt-2 mt-auto border-t border-white/[0.03]">
-                          <span className="text-[10px] text-white/50">{chat.timestamp}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                ))}
               </div>
+            </div>
+          )}
+          
+          {/* Recent Chats - right column */}
+          <div className="rounded-lg border border-white/[0.04] bg-transparent overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-medium text-white/50">Recent Chats</div>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <IconInfoCircle className="size-4 text-white/60 hover:text-white/90 transition-colors cursor-default" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Recent AI model queries and their results</TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="p-4">
+              {isLoadingPrompts ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="p-3 rounded-lg border border-white/[0.04] bg-white/[0.01]"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="size-4 rounded bg-white/10 animate-pulse" />
+                        <span className="block h-2 w-16 rounded bg-white/10 animate-pulse" />
+                      </div>
+                      <span className="block h-3 w-full rounded bg-white/10 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              ) : recentChats.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-sm text-white/60">No recent chats available yet.</p>
+                  <p className="text-xs text-white/40 mt-1">Recent chat responses will appear here once analyzed.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {recentChats.map((chat) => (
+                    <div
+                      key={chat.id}
+                      onClick={() => handleChatClick(chat.promptId)}
+                      className="p-3 rounded-lg border border-white/[0.04] hover:border-white/[0.08] hover:bg-white/[0.02] transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <img
+                          src={getModelIcon(chat.model)}
+                          alt={chat.model}
+                          className="size-4 object-contain"
+                        />
+                        <span className="text-[10px] text-white/40">{chat.timestamp}</span>
+                      </div>
+                      <p className="text-sm text-white/85 leading-relaxed line-clamp-2">
+                        {chat.question}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

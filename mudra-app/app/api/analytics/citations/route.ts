@@ -12,14 +12,23 @@ interface CitationData {
 
 /**
  * GET /api/analytics/citations
- * 
+ *
  * Aggregates citation data from all GEO analysis results for a brand profile.
  * Extracts and counts domains cited across all AI provider responses.
- * 
+ *
+ * Data sources captured:
+ * - test.citations: Inline URL citations from AI response text (all providers)
+ * - test.sources: ALL URLs from web search results (OpenAI Responses API)
+ *
+ * This ensures we capture both explicitly cited URLs AND all sources the AI
+ * models found during their web searches, giving a complete picture of what
+ * sources AI models are pulling data from.
+ *
  * Query params:
  * - brandProfileId: The brand profile ID to fetch citations for
  * - limit: Maximum number of top citations to return (default: 10)
  * - days: Number of days to look back (default: 30)
+ * - model: Optional filter for specific AI model (chatgpt, claude, perplexity, gemini, google-aio)
  */
 export async function GET(request: NextRequest) {
   // Rate limit
@@ -121,38 +130,53 @@ export async function GET(request: NextRequest) {
         const promptTests = Array.isArray(analysisObj.promptTests) ? analysisObj.promptTests : []
 
         for (const test of promptTests) {
+          // Collect all citation URLs from both 'citations' and 'sources' arrays
+          // - citations: inline URL citations from the AI response text
+          // - sources: ALL URLs retrieved during web search (OpenAI Responses API)
           const citations = Array.isArray(test.citations) ? test.citations : []
-          
-          for (const citation of citations) {
-            // Extract domain from URL
-            let domain = ''
-            let url = ''
-            
-            if (typeof citation === 'string') {
-              url = citation
-            } else if (citation.url) {
-              url = citation.url
-            } else if (citation.link) {
-              url = citation.link
-            }
-            
-            if (url) {
-              try {
-                const urlObj = new URL(url)
-                domain = urlObj.hostname.replace(/^www\./, '')
-                
-                if (domain) {
-                  const existing = citationMap.get(domain) || { count: 0, urls: new Set<string>() }
-                  existing.count++
-                  existing.urls.add(url)
-                  citationMap.set(domain, existing)
-                  totalCitationCount++
-                }
-              } catch (error) {
-                // Invalid URL, skip
-                console.warn('Invalid citation URL:', url)
+          const sources = Array.isArray(test.sources) ? test.sources : []
+
+          // Track URLs we've already processed to avoid double-counting
+          const processedUrls = new Set<string>()
+
+          // Helper to extract URL from citation/source object
+          const extractUrl = (item: any): string => {
+            if (typeof item === 'string') return item
+            if (item?.url) return item.url
+            if (item?.link) return item.link
+            return ''
+          }
+
+          // Helper to process a URL and add to citationMap
+          const processUrl = (rawUrl: string) => {
+            if (!rawUrl || processedUrls.has(rawUrl)) return
+            processedUrls.add(rawUrl)
+
+            try {
+              const urlObj = new URL(rawUrl)
+              const domain = urlObj.hostname.replace(/^www\./, '')
+
+              if (domain) {
+                const existing = citationMap.get(domain) || { count: 0, urls: new Set<string>() }
+                existing.count++
+                existing.urls.add(rawUrl)
+                citationMap.set(domain, existing)
+                totalCitationCount++
               }
+            } catch (error) {
+              // Invalid URL, skip
+              console.warn('Invalid citation URL:', rawUrl)
             }
+          }
+
+          // Process inline citations first (these are what the AI explicitly cited)
+          for (const citation of citations) {
+            processUrl(extractUrl(citation))
+          }
+
+          // Process sources (all URLs from web search - OpenAI's full search results)
+          for (const source of sources) {
+            processUrl(extractUrl(source))
           }
         }
       }

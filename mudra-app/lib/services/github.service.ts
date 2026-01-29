@@ -10,7 +10,11 @@ async function refreshInstallationToken(installationId: number): Promise<string>
   const privateKey = process.env.GITHUB_PRIVATE_KEY;
   
   if (!appId || !privateKey) {
-    throw new Error('GitHub App credentials not configured');
+    console.error('[GitHubService] Missing credentials:', { 
+      hasAppId: !!appId, 
+      hasPrivateKey: !!privateKey 
+    });
+    throw new Error('GitHub App credentials not configured. Set GITHUB_APP_ID and GITHUB_PRIVATE_KEY in Vercel.');
   }
   
   const now = Math.floor(Date.now() / 1000);
@@ -20,26 +24,42 @@ async function refreshInstallationToken(installationId: number): Promise<string>
     iss: appId,
   };
   
-  const formattedKey = privateKey.replace(/\\n/g, '\n').trim();
-  const appJwt = jwt.sign(payload, formattedKey, { algorithm: 'RS256' });
-  
-  const response = await fetch(
-    `https://api.github.com/app/installations/${installationId}/access_tokens`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${appJwt}`,
-        Accept: 'application/vnd.github+json',
-      },
+  try {
+    const formattedKey = privateKey.replace(/\\n/g, '\n').trim();
+    const appJwt = jwt.sign(payload, formattedKey, { algorithm: 'RS256' });
+    
+    const response = await fetch(
+      `https://api.github.com/app/installations/${installationId}/access_tokens`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${appJwt}`,
+          Accept: 'application/vnd.github+json',
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error('[GitHubService] Token refresh failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorBody,
+        installationId
+      });
+      throw new Error(`Failed to refresh installation token: ${response.status} - ${errorBody}`);
     }
-  );
-  
-  if (!response.ok) {
-    throw new Error('Failed to refresh installation token');
+    
+    const data = await response.json();
+    return data.token;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Failed to refresh')) {
+      throw error; // Re-throw our custom error
+    }
+    // JWT signing error (likely bad private key format)
+    console.error('[GitHubService] JWT signing failed:', error);
+    throw new Error(`GitHub token refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
-  
-  const data = await response.json();
-  return data.token;
 }
 
 /**

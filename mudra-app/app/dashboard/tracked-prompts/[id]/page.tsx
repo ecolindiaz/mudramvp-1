@@ -233,7 +233,7 @@ type ChatHistoryEntry = {
   position: number
   extraMentions: number
   fullResponse: string
-  responseCitations?: { domain: string; type?: 'Example' | 'Listicle' | 'Blog Post' | 'Case Study' | 'Docs' | 'Other' }[]
+  responseCitations?: { url: string; domain: string; title?: string; type?: 'Example' | 'Listicle' | 'Blog Post' | 'Case Study' | 'Docs' | 'Other' }[]
 }
 
 // Helper to map provider names from API to UI format
@@ -511,11 +511,52 @@ function TrackedPromptDeepViewInner() {
       const hoursAgo = Math.floor((now.getTime() - analysisDate.getTime()) / (1000 * 60 * 60))
       const timeAgo = hoursAgo < 24 ? `${hoursAgo} hr. ago` : `${Math.floor(hoursAgo / 24)} days ago`
       
-      // Extract citations from API response
-      const responseCitations = (result.citations || []).map((citation: any) => ({
-        domain: extractDomain(citation.url),
-        type: mapCitationType(citation.title || '')
-      }))
+      // Extract citations from API response AND response text - deduplicated by normalized URL
+      // This matches the logic used in citation-extraction.service.ts for the Sources tab
+      const seenUrls = new Set<string>()
+      const normalizeUrl = (url: string): string => {
+        try {
+          const parsed = new URL(url)
+          // Normalize: lowercase host, remove trailing slash, remove common tracking params
+          return `${parsed.protocol}//${parsed.host.toLowerCase()}${parsed.pathname.replace(/\/$/, '')}`
+        } catch {
+          return url.toLowerCase().replace(/\/$/, '')
+        }
+      }
+
+      // Start with explicit citations from API
+      const allCitations: Array<{ url: string; title?: string }> = (result.citations || [])
+        .filter((c: any) => c.url)
+        .map((c: any) => ({ url: c.url, title: c.title }))
+
+      // Also extract URLs from response text (matching Sources tab logic)
+      const responseText = result.response || ''
+      const urlPattern = /https?:\/\/[^\s\)\]\}\,<>"']+/g
+      const urlsInResponse = responseText.match(urlPattern) || []
+      for (const url of urlsInResponse) {
+        const cleanUrl = url.replace(/[.,;:!?]+$/, '')
+        // Skip if already in explicit citations
+        if (!allCitations.some(c => c.url === cleanUrl)) {
+          allCitations.push({ url: cleanUrl })
+        }
+      }
+
+      // Deduplicate by normalized URL
+      const responseCitations = allCitations
+        .filter((citation) => {
+          const url = citation.url || ''
+          if (!url) return false
+          const normalizedUrl = normalizeUrl(url)
+          if (seenUrls.has(normalizedUrl)) return false
+          seenUrls.add(normalizedUrl)
+          return true
+        })
+        .map((citation) => ({
+          url: citation.url,
+          domain: extractDomain(citation.url),
+          title: citation.title || '',
+          type: mapCitationType(citation.title || '')
+        }))
       
       return {
         id: `chat_${index}`,
@@ -1625,242 +1666,44 @@ function TrackedPromptDeepViewInner() {
                                     {/* Full Response */}
                                     <ResponseRenderer responseText={chat.fullResponse || 'No response available'} />
 
-                                    {/* Citations */}
+                                    {/* Citations - Compact list with URL preview */}
                                     <div>
-                                      <div className="text-xs text-white/40 mb-3">Citations</div>
-                                      <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto pr-1">
-                                        {(chat.responseCitations && chat.responseCitations.length > 0 ? chat.responseCitations : citationSources).map((c, index) => (
-                                          <Dialog key={`${(c as any).domain}-${(c as any).citationType ?? (c as any).type ?? ''}-${index}`}>
-                                            <DialogTrigger asChild>
-                                              <button className="inline-flex items-center gap-2 rounded-md bg-white/[0.05] hover:bg-white/[0.08] px-3 py-1.5 text-[13px] text-white/70 hover:text-white/90 transition-colors">
-                                                <span>{(c as any).domain}</span>
-                                                {((c as any).citationType ?? (c as any).type) && (
-                                                  <span className="text-white/40">·</span>
-                                                )}
-                                                {((c as any).citationType ?? (c as any).type) && (
-                                                  <span className="text-white/50">{(c as any).citationType ?? (c as any).type}</span>
-                                                )}
-                                              </button>
-                                            </DialogTrigger>
-                                            <DialogContent className="sm:max-w-4xl md:max-w-4xl rounded-xl border border-white/[0.03] bg-dark-grey p-0 max-h-[90vh] overflow-y-auto">
-                                              <DialogHeader>
-                                                <DialogTitle className="sr-only">Source Details</DialogTitle>
-                                              </DialogHeader>
-                                              <div className="p-6 space-y-6">
-                                                {/* Header with domain info */}
-                                                <div className="flex items-center justify-between">
-                                                  <div className="flex items-center gap-3">
-                                                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.05]">
-                                                      <Globe className="h-5 w-5 text-white/50" />
-                                                    </div>
-                                                    <div>
-                                                      <div className="text-sm font-medium text-white/90">{(c as any).domain}</div>
-                                                      <a href={`https://${(c as any).domain}`} target="_blank" rel="noreferrer" className="text-xs text-white/40 hover:text-white/60 transition-colors">
-                                                        Visit domain →
-                                                      </a>
-                                                    </div>
-                                                  </div>
-                                                  <div className="flex items-center gap-1 text-[13px]">
-                                                    {(['7d','14d','30d'] as const).map((r) => (
-                                                      <button
-                                                        key={r}
-                                                        type="button"
-                                                        onClick={() => setSourcesRange(r)}
-                                                        className={cn(
-                                                          "px-2 py-1 rounded transition-colors",
-                                                          sourcesRange === r 
-                                                            ? "text-white bg-white/[0.06]" 
-                                                            : "text-white/40 hover:text-white/60"
-                                                        )}
-                                                        aria-label={`Filter URLs ${r}`}
-                                                      >
-                                                        {r}
-                                                      </button>
-                                                    ))}
-                                                  </div>
-                                                </div>
-
-                                                {/* Citation Frequency stat */}
-                                                <div className="rounded-lg border border-white/[0.03] bg-white/[0.02] p-4">
-                                                  <div className="text-xs text-white/40 mb-1.5">Citation Frequency</div>
-                                                  <div className="text-2xl font-semibold text-white/90">
-                                                    {(() => {
-                                                      const src = sortedCitationSources.find((s) => s.domain === (c as any).domain)
-                                                      return Math.round(((src?.frequency || 0) / Math.max(1, totalCitationFrequency)) * 100)
-                                                    })()}%
-                                                  </div>
-                                                  <div className="text-xs text-white/40 mt-1">How often this source appears in responses</div>
-                                                </div>
-
-                                                {/* View selector */}
-                                                <div className="flex items-center gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/[0.03] w-fit">
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => setSourceDialogView('sources')}
-                                                    className={cn(
-                                                      "px-3 py-1.5 rounded-md text-[13px] font-medium transition-all",
-                                                      sourceDialogView === 'sources'
-                                                        ? "bg-white text-black"
-                                                        : "text-white/60 hover:text-white/80"
-                                                    )}
-                                                  >
-                                                    Sources
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => setSourceDialogView('prompt')}
-                                                    className={cn(
-                                                      "px-3 py-1.5 rounded-md text-[13px] font-medium transition-all",
-                                                      sourceDialogView === 'prompt'
-                                                        ? "bg-white text-black"
-                                                        : "text-white/60 hover:text-white/80"
-                                                    )}
-                                                  >
-                                                    This prompt
-                                                  </button>
-                                                </div>
-
-                                                {/* Chats by source (conditional) */}
-                                                {sourceDialogView !== 'sources' && (() => {
-                                                  const domain = (c as any).domain
-                                                  const platformMatches = (chat: ChatHistoryEntry) => selectedPlatform === 'all' || providerKey(chat.provider) === selectedPlatform
-                                                  const domainMatches = (chat: ChatHistoryEntry) => (chat.responseCitations || []).some((x) => (x as any).domain === domain)
-                                                  const chatsForDomain = recentChats.filter((x) => platformMatches(x) && domainMatches(x))
-                                                  const visibleChatsLocal = chatsForDomain.slice(0, sourceChatsVisibleCount)
-                                                  const remainingLocal = Math.max(0, chatsForDomain.length - visibleChatsLocal.length)
-                                                  return (
-                                                    <div className="rounded-lg border border-white/[0.03] bg-white/[0.02] overflow-hidden">
-                                                      <div className="max-h-[30vh] overflow-y-auto">
-                                                        <Table className="w-full">
-                                                          <TableHeader className="sticky top-0 z-10 bg-white/[0.03]">
-                                                            <TableRow className="hover:bg-transparent border-b border-white/[0.03]">
-                                                              <TableHead className="w-[160px] text-[13px] font-medium text-white/50 px-4 h-10">Platform</TableHead>
-                                                              <TableHead className="text-[13px] font-medium text-white/50 h-10">Response</TableHead>
-                                                              <TableHead className="w-[80px] text-center text-[13px] font-medium text-white/50 px-2 h-10">Citations</TableHead>
-                                                              <TableHead className="w-[100px] text-center text-[13px] font-medium text-white/50 px-2 h-10">Date</TableHead>
-                                                            </TableRow>
-                                                          </TableHeader>
-                                                          <TableBody>
-                                                            {visibleChatsLocal.map((chat) => {
-                                                              const responseText = (chat.fullResponse || '').split('\n').filter(Boolean).join(' ')
-                                                              const words = responseText.split(/\s+/).filter(Boolean)
-                                                              const previewText = words.slice(0, 3).join(' ')
-                                                              const hasMore = words.length > 3
-                                                              return (
-                                                              <TableRow key={chat.id} className="hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 transition-colors">
-                                                                <TableCell className="px-4 py-3">
-                                                                  <span className="text-[13px] text-white/80">{getProviderDisplay(chat.provider)}</span>
-                                                                </TableCell>
-                                                                <TableCell className="py-3 max-w-[200px]">
-                                                                  <span
-                                                                    title={responseText}
-                                                                    className="text-[13px] text-white/60 cursor-help truncate block"
-                                                                  >
-                                                                    {previewText}{hasMore && '...'}
-                                                                  </span>
-                                                                </TableCell>
-                                                                <TableCell className="text-center text-[13px] text-white/60 px-2 py-3">
-                                                                  {Math.max(1, (chat.responseCitations || []).filter((y) => (y as any).domain === domain).length)}
-                                                                </TableCell>
-                                                                <TableCell className="text-center text-[13px] text-white/50 px-2 py-3">{chat.date}</TableCell>
-                                                              </TableRow>
-                                                              )
-                                                            })}
-                                                            {visibleChatsLocal.length === 0 && (
-                                                              <TableRow>
-                                                                <TableCell colSpan={4} className="text-center text-white/40 h-16 text-[13px]">
-                                                                  No chats found for this source.
-                                                                </TableCell>
-                                                              </TableRow>
-                                                            )}
-                                                          </TableBody>
-                                                        </Table>
-                                                      </div>
-                                                      {chatsForDomain.length > 0 && (
-                                                        <div className="flex items-center justify-between px-4 py-2.5 border-t border-white/[0.03] text-[13px]">
-                                                          <button
-                                                            type="button"
-                                                            onClick={() => setSourceChatsVisibleCount(Math.min(sourceChatsVisibleCount + INITIAL_VISIBLE, chatsForDomain.length))}
-                                                            disabled={remainingLocal <= 0}
-                                                            className={cn(
-                                                              "text-white/50 hover:text-white/80 transition-colors",
-                                                              remainingLocal <= 0 && "opacity-40 cursor-not-allowed"
-                                                            )}
-                                                          >
-                                                            {remainingLocal > 0 ? `Show ${Math.min(INITIAL_VISIBLE, remainingLocal)} more` : 'All shown'}
-                                                          </button>
-                                                          <span className="text-white/40">{visibleChatsLocal.length} of {chatsForDomain.length}</span>
-                                                        </div>
-                                                      )}
-                                                    </div>
-                                                  )
-                                                })()}
-
-                                                {/* URLs table */}
-                                                {sourceDialogView === 'sources' && (
-                                                  <div className="rounded-lg border border-white/[0.03] bg-white/[0.02] overflow-hidden">
-                                                    <div className="max-h-[40vh] overflow-y-auto">
-                                                      <Table className="w-full">
-                                                        <TableHeader className="sticky top-0 z-10 bg-white/[0.03]">
-                                                          <TableRow className="hover:bg-transparent border-b border-white/[0.03]">
-                                                            <TableHead className="text-[13px] font-medium text-white/50 px-4 h-10">URL</TableHead>
-                                                            <TableHead className="w-[140px] text-center text-[13px] font-medium text-white/50 px-3 h-10">Type</TableHead>
-                                                            <TableHead className="w-[100px] text-center text-[13px] font-medium text-white/50 px-3 h-10">Mentioned</TableHead>
-                                                          </TableRow>
-                                                        </TableHeader>
-                                                        <TableBody>
-                                                          {(() => {
-                                                            const domain = (c as any).domain
-                                                            const sourceData = sortedCitationSources.find(s => s.domain === domain)
-                                                            const urls = sourceData?.urls || []
-
-                                                            if (urls.length === 0) {
-                                                              return (
-                                                                <TableRow>
-                                                                  <TableCell colSpan={3} className="text-center py-10">
-                                                                    <div className="text-[13px] text-white/40">No URLs tracked for this domain yet</div>
-                                                                  </TableCell>
-                                                                </TableRow>
-                                                              )
-                                                            }
-
-                                                            return urls.map((item: { url: string; title?: string; citationType: string; brandMentioned: boolean }, idx: number) => (
-                                                              <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 transition-colors">
-                                                                <TableCell className="px-4 py-3">
-                                                                  <a href={item.url} target="_blank" rel="noreferrer" className="text-[13px] text-white/70 hover:text-white/90 transition-colors">
-                                                                    {extractDomain(item.url)}
-                                                                  </a>
-                                                                </TableCell>
-                                                                <TableCell className="text-center py-3">
-                                                                  <span className="inline-flex items-center gap-1.5 text-[12px] text-white/60">
-                                                                    <ContentTypeIcon type={mapContentType(item.citationType)} />
-                                                                    {mapContentType(item.citationType)}
-                                                                  </span>
-                                                                </TableCell>
-                                                                <TableCell className="text-center py-3">
-                                                                  {item.brandMentioned ? (
-                                                                    <span className="inline-flex items-center gap-1 text-[12px] text-emerald-400">
-                                                                      <CheckCircle className="h-3 w-3" />Yes
-                                                                    </span>
-                                                                  ) : (
-                                                                    <span className="inline-flex items-center gap-1 text-[12px] text-white/40">
-                                                                      <XCircle className="h-3 w-3" />No
-                                                                    </span>
-                                                                  )}
-                                                                </TableCell>
-                                                              </TableRow>
-                                                            ))
-                                                          })()}
-                                                        </TableBody>
-                                                      </Table>
-                                                    </div>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            </DialogContent>
-                                          </Dialog>
-                                        ))}
-                                      </div>
+                                      <div className="text-xs text-white/40 mb-2">Citations ({(chat.responseCitations || []).length} sources)</div>
+                                      {(chat.responseCitations && chat.responseCitations.length > 0) ? (
+                                        <div className="flex flex-wrap gap-2">
+                                          {chat.responseCitations.map((citation, index) => {
+                                            // Create short URL preview: domain + truncated path
+                                            const getShortUrl = (url: string) => {
+                                              try {
+                                                const parsed = new URL(url)
+                                                const path = parsed.pathname.length > 20
+                                                  ? parsed.pathname.slice(0, 20) + '...'
+                                                  : parsed.pathname
+                                                return `${parsed.host}${path === '/' ? '' : path}`
+                                              } catch {
+                                                return url.slice(0, 35) + (url.length > 35 ? '...' : '')
+                                              }
+                                            }
+                                            return (
+                                              <a
+                                                key={`${citation.url}-${index}`}
+                                                href={citation.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                title={citation.url}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.06] text-[11px] text-white/50 hover:text-white/70 transition-colors"
+                                              >
+                                                <ExternalLink className="h-3 w-3 flex-shrink-0 text-white/40" />
+                                                <span className="truncate max-w-[200px]">{getShortUrl(citation.url)}</span>
+                                              </a>
+                                            )
+                                          })}
+                                        </div>
+                                      ) : (
+                                        <div className="text-[13px] text-white/40 italic">
+                                          No citations captured for this response
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 </DialogContent>

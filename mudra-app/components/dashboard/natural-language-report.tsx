@@ -16,6 +16,7 @@ import { FileText } from "lucide-react"
 import type { NlrSummaryJson } from '@/types/nlr'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
+import { useBrandProfile } from "@/components/brand-profile-context"
 
 interface NaturalLanguageReportProps {
   className?: string
@@ -26,14 +27,15 @@ interface NaturalLanguageReportProps {
 
 export function NaturalLanguageReport({ className, timeRange, selectedModel }: NaturalLanguageReportProps) {
   const router = useRouter()
+  const { profile } = useBrandProfile()
   const [showReportHistory, setShowReportHistory] = React.useState(false)
 
   // Suppress unused variable warnings for now; wiring into real data later
   void timeRange
   void selectedModel
 
-  // Fetch NaturalLanguageReport via analysis results endpoint (uses BrandProfile)
-  const brandProfileId = typeof window !== 'undefined' ? localStorage.getItem('mudra:brandProfileId') : null
+  // Get brandProfileId from context
+  const brandProfileId = profile?.id > 0 ? String(profile.id) : null
   const { data: analysisResultsData, isLoading: isLoadingAnalysis, error: analysisError, mutate: refreshAnalysis } = useSWR(
     brandProfileId ? `/api/analysis/results?brandProfileId=${brandProfileId}` : null,
     async (url: string) => {

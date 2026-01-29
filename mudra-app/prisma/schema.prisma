@@ -102,16 +102,52 @@ model Issue {
   brandProfileId Int
   title          String
   description    String?
-  type           String       @default("bug") // bug, improvement, feature
+  type           String       @default("improvement") // bug, improvement, feature
   status         String       @default("identified") // identified, in_progress, completed, merged
   priority       String       @default("medium") // low, medium, high, critical
   order          Int          @default(0) // For ordering within a column
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-  brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  
+  // Category & Discovery
+  category           String?      // "technical_structure", "ai_visibility", "conversation"
+  discoveryTier      String?      // "fundamental", "intermediate", "advanced", "polish"
+  minScoreRequired   Int          @default(0)
+  discoveredFromScore Float?
+  
+  // Agent & Execution
+  deployedAgentId    Int?
+  agentTaskId        Int?
+  agentType          String?      // "schema_markup", "llms_txt", "citation_signals", etc.
+  
+  // GitHub PR Tracking
+  prUrl              String?
+  prNumber           Int?
+  prStatus           String?      // "open", "merged", "closed"
+  
+  // Issue Context
+  sourceAnalysis     String?      // "technical_analysis", "geo_analysis", "conversation_radar"
+  affectedUrl        String?      // Specific page URL if applicable
+  estimatedImpact    String?      // "+5-8 points", "High visibility boost"
+  
+  // E2B Sandbox Execution Tracking
+  usedE2bSandbox     Boolean      @default(false)
+  e2bSandboxId       String?
+  e2bExecutionMs     Int?
+  e2bValidationResult Json?
+  
+  // Deduplication
+  issueHash          String?      @unique
+
+  // Relations
+  brandProfile       BrandProfile  @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  deployedAgent      DeployedAgent? @relation(fields: [deployedAgentId], references: [id])
+  agentTask          AgentTask?    @relation(fields: [agentTaskId], references: [id])
 
   @@index([brandProfileId])
   @@index([brandProfileId, status])
+  @@index([brandProfileId, category])
+  @@index([category, discoveryTier])
   @@map("issues")
 }
 
@@ -414,6 +450,7 @@ model DeployedAgent {
   updatedAt        DateTime            @updatedAt
   optimizations    AgentOptimization[]
   tasks            AgentTask[]
+  issues           Issue[]
   brandProfile     BrandProfile        @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
 
   @@index([brandProfileId])
@@ -434,6 +471,7 @@ model AgentTask {
   completedAt     DateTime?
   createdAt       DateTime      @default(now())
   deployedAgent   DeployedAgent @relation(fields: [deployedAgentId], references: [id], onDelete: Cascade)
+  issues          Issue[]
 
   @@index([deployedAgentId])
   @@index([deployedAgentId, status])

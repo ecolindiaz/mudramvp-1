@@ -44,6 +44,15 @@ export async function GET(
         id: issueId,
         brandProfileId: brandProfile.id,
       },
+      include: {
+        agentTasks: {
+          orderBy: { createdAt: 'desc' },
+          take: 5
+        },
+        deployedAgent: {
+          select: { id: true, name: true, status: true }
+        }
+      }
     })
 
     if (!issue) {
@@ -88,7 +97,7 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { title, description, type, status, priority, order } = body
+    const { title, description, type, status, priority, order, dismissedAt, prUrl, prNumber, prStatus } = body
 
     // Get brand profile for user
     const brandProfile = await prisma.brandProfile.findFirst({
@@ -117,16 +126,28 @@ export async function PATCH(
       )
     }
 
+    // Build update data with new fields
+    const updateData: Record<string, unknown> = {}
+    if (title !== undefined) updateData.title = title
+    if (description !== undefined) updateData.description = description
+    if (type !== undefined) updateData.type = type
+    if (status !== undefined) updateData.status = status
+    if (priority !== undefined) updateData.priority = priority
+    if (order !== undefined) updateData.order = order
+    if (prUrl !== undefined) updateData.prUrl = prUrl
+    if (prNumber !== undefined) updateData.prNumber = prNumber
+    if (prStatus !== undefined) updateData.prStatus = prStatus
+    
+    // Handle dismissedAt - set automatically when status changes to dismissed
+    if (status === 'dismissed' && !dismissedAt) {
+      updateData.dismissedAt = new Date()
+    } else if (dismissedAt !== undefined) {
+      updateData.dismissedAt = dismissedAt
+    }
+
     const issue = await prisma.issue.update({
       where: { id: issueId },
-      data: {
-        ...(title !== undefined && { title }),
-        ...(description !== undefined && { description }),
-        ...(type !== undefined && { type }),
-        ...(status !== undefined && { status }),
-        ...(priority !== undefined && { priority }),
-        ...(order !== undefined && { order }),
-      },
+      data: updateData,
     })
 
     return NextResponse.json({ success: true, data: issue })

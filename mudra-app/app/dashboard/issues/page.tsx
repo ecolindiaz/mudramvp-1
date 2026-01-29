@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { BrandProfileProvider } from "@/components/brand-profile-context"
-import { IconPlus, IconTrash, IconEdit, IconLoader2 } from "@tabler/icons-react"
+import { IconPlus, IconTrash, IconEdit, IconLoader2, IconSparkles, IconPlayerPlay, IconRotate, IconExternalLink, IconRobot, IconGitPullRequest } from "@tabler/icons-react"
 import {
   Dialog,
   DialogContent,
@@ -53,6 +53,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+import { toast } from "sonner"
 
 // Custom status icons
 const IdentifiedIcon = ({ className }: { className?: string }) => (
@@ -155,10 +156,16 @@ function SortableIssueCard({
   issue,
   onEdit,
   onDelete,
+  onDeploy,
+  onRetry,
+  isDeploying,
 }: {
   issue: Issue
   onEdit: (issue: Issue) => void
   onDelete: (issue: Issue) => void
+  onDeploy?: (issueId: number) => void
+  onRetry?: (issueId: number) => void
+  isDeploying?: boolean
 }) {
   const {
     attributes,
@@ -207,6 +214,42 @@ function SortableIssueCard({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-[#1a1a1a] border-white/10">
+            {/* Deploy Agent - for identified issues with agentType */}
+            {issue.status === "identified" && (issue as unknown as { agentType?: string }).agentType && onDeploy && (
+              <DropdownMenuItem 
+                onClick={(e) => { e.stopPropagation(); onDeploy(issue.id); }}
+                className="text-emerald-400 hover:bg-emerald-400/10 cursor-pointer"
+                disabled={isDeploying}
+              >
+                {isDeploying ? (
+                  <IconLoader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <IconPlayerPlay className="w-4 h-4 mr-2" />
+                )}
+                Deploy Agent
+              </DropdownMenuItem>
+            )}
+            {/* Retry - for failed issues */}
+            {issue.status === "failed" && onRetry && (
+              <DropdownMenuItem 
+                onClick={(e) => { e.stopPropagation(); onRetry(issue.id); }}
+                className="text-amber-400 hover:bg-amber-400/10 cursor-pointer"
+                disabled={isDeploying}
+              >
+                <IconRotate className="w-4 h-4 mr-2" />
+                Retry
+              </DropdownMenuItem>
+            )}
+            {/* View PR - for completed issues with PR */}
+            {(issue as unknown as { prUrl?: string }).prUrl && (
+              <DropdownMenuItem 
+                onClick={(e) => { e.stopPropagation(); window.open((issue as unknown as { prUrl: string }).prUrl, "_blank"); }}
+                className="text-sky-400 hover:bg-sky-400/10 cursor-pointer"
+              >
+                <IconGitPullRequest className="w-4 h-4 mr-2" />
+                View PR
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem 
               onClick={(e) => { e.stopPropagation(); onEdit(issue); }}
               className="text-white/80 hover:bg-white/10 cursor-pointer"
@@ -618,6 +661,9 @@ function IssueColumnWithHandlers({
   onAddClick,
   onEdit,
   onDelete,
+  onDeploy,
+  onRetry,
+  deployingId,
 }: {
   title: string
   issues: Issue[]
@@ -625,6 +671,9 @@ function IssueColumnWithHandlers({
   onAddClick: (status: string) => void
   onEdit: (issue: Issue) => void
   onDelete: (issue: Issue) => void
+  onDeploy?: (issueId: number) => void
+  onRetry?: (issueId: number) => void
+  deployingId?: number | null
 }) {
   const config = statusConfig[status]
   const StatusIcon = config.icon
@@ -658,7 +707,10 @@ function IssueColumnWithHandlers({
               key={issue.id} 
               issue={issue} 
               onEdit={onEdit} 
-              onDelete={onDelete} 
+              onDelete={onDelete}
+              onDeploy={onDeploy}
+              onRetry={onRetry}
+              isDeploying={deployingId === issue.id}
             />
           ))}
           {issues.length === 0 && (
@@ -690,6 +742,10 @@ function IssuesPageInner() {
   
   // Drag state
   const [activeId, setActiveId] = React.useState<number | null>(null)
+  
+  // Agent deployment state
+  const [isDiscovering, setIsDiscovering] = React.useState(false)
+  const [deployingId, setDeployingId] = React.useState<number | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -740,6 +796,82 @@ function IssuesPageInner() {
       fetchStats()
     }
   }, [viewMode, fetchStats])
+
+  // Discover new issues using AI
+  const handleDiscoverIssues = async () => {
+    setIsDiscovering(true)
+    try {
+      const response = await fetch("/api/issues", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "discover" }),
+      })
+      const result = await response.json()
+      if (result.success) {
+        toast.success("Issues discovered", {
+          description: `Found ${result.data.discovered?.length || 0} new issues`,
+        })
+        await fetchIssues()
+      } else {
+        toast.error("Discovery failed", { description: result.error?.message })
+      }
+    } catch (error) {
+      console.error("Failed to discover issues:", error)
+      toast.error("Discovery failed")
+    } finally {
+      setIsDiscovering(false)
+    }
+  }
+
+  // Deploy agent for an issue
+  const handleDeployAgent = async (issueId: number) => {
+    setDeployingId(issueId)
+    try {
+      const response = await fetch(`/api/issues/${issueId}/deploy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      const result = await response.json()
+      if (result.success) {
+        toast.success("Agent deployed", {
+          description: result.data.prUrl ? `PR #${result.data.prNumber} created` : "Issue resolved",
+        })
+        await fetchIssues()
+      } else {
+        toast.error("Deployment failed", { description: result.error?.message })
+      }
+    } catch (error) {
+      console.error("Failed to deploy agent:", error)
+      toast.error("Deployment failed")
+    } finally {
+      setDeployingId(null)
+    }
+  }
+
+  // Retry failed agent execution
+  const handleRetryAgent = async (issueId: number) => {
+    setDeployingId(issueId)
+    try {
+      const response = await fetch(`/api/issues/${issueId}/retry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      const result = await response.json()
+      if (result.success) {
+        toast.success("Retry successful", {
+          description: result.data.prUrl ? `PR #${result.data.prNumber} created` : "Issue resolved",
+        })
+        await fetchIssues()
+      } else {
+        toast.error("Retry failed", { description: result.error?.message })
+      }
+    } catch (error) {
+      console.error("Failed to retry:", error)
+      toast.error("Retry failed")
+    } finally {
+      setDeployingId(null)
+    }
+  }
 
   // Create or update issue
   const handleSaveIssue = async (data: Partial<Issue>) => {
@@ -893,6 +1025,20 @@ function IssuesPageInner() {
                   <h1 className="text-2xl font-bold tracking-tight text-white">Issues</h1>
                   <p className="text-sm text-white/60 mt-1">Track and manage issues across your brand</p>
                 </div>
+                <div className="flex gap-2">
+                <Button
+                  onClick={handleDiscoverIssues}
+                  disabled={isDiscovering}
+                  variant="outline"
+                  className="border-white/10 text-white hover:bg-white/10"
+                >
+                  {isDiscovering ? (
+                    <IconLoader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <IconSparkles className="w-4 h-4 mr-2" />
+                  )}
+                  {isDiscovering ? "Discovering..." : "Discover Issues"}
+                </Button>
                 <Button
                   onClick={() => handleAddClick("identified")}
                   className="bg-white text-black hover:bg-white/90"
@@ -900,6 +1046,7 @@ function IssuesPageInner() {
                   <IconPlus className="w-4 h-4 mr-2" />
                   New Issue
                 </Button>
+              </div>
               </div>
             </div>
 
@@ -1014,6 +1161,9 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onEdit={handleEditClick}
                         onDelete={handleDeleteClick}
+                        onDeploy={handleDeployAgent}
+                        onRetry={handleRetryAgent}
+                        deployingId={deployingId}
                       />
                       <IssueColumnWithHandlers
                         title="In Progress"
@@ -1022,6 +1172,9 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onEdit={handleEditClick}
                         onDelete={handleDeleteClick}
+                        onDeploy={handleDeployAgent}
+                        onRetry={handleRetryAgent}
+                        deployingId={deployingId}
                       />
                       <IssueColumnWithHandlers
                         title="Completed"
@@ -1030,6 +1183,9 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onEdit={handleEditClick}
                         onDelete={handleDeleteClick}
+                        onDeploy={handleDeployAgent}
+                        onRetry={handleRetryAgent}
+                        deployingId={deployingId}
                       />
                       <IssueColumnWithHandlers
                         title="Merged"
@@ -1038,6 +1194,9 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onEdit={handleEditClick}
                         onDelete={handleDeleteClick}
+                        onDeploy={handleDeployAgent}
+                        onRetry={handleRetryAgent}
+                        deployingId={deployingId}
                       />
                     </div>
                   </div>

@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { BrandProfileProvider } from "@/components/brand-profile-context"
-import { IconPlus, IconTrash, IconEdit, IconLoader2, IconSparkles, IconPlayerPlay, IconRotate, IconExternalLink, IconRobot, IconGitPullRequest } from "@tabler/icons-react"
+import { IconPlus, IconTrash, IconEdit, IconLoader2, IconSparkles, IconPlayerPlay, IconRotate, IconExternalLink, IconRobot, IconGitPullRequest, IconCode, IconCopy, IconCheck } from "@tabler/icons-react"
 import {
   Dialog,
   DialogContent,
@@ -125,6 +125,8 @@ interface Issue {
   agentType?: string | null
   prUrl?: string | null
   prNumber?: number | null
+  generatedOutput?: string | null
+  outputType?: string | null
 }
 
 interface IssueStats {
@@ -179,6 +181,7 @@ function SortableIssueCard({
   onDelete,
   onDeploy,
   onRetry,
+  onViewOutput,
   isDeploying,
 }: {
   issue: Issue
@@ -186,6 +189,7 @@ function SortableIssueCard({
   onDelete: (issue: Issue) => void
   onDeploy?: (issueId: number) => void
   onRetry?: (issueId: number) => void
+  onViewOutput?: (issue: Issue) => void
   isDeploying?: boolean
 }) {
   const {
@@ -302,6 +306,17 @@ function SortableIssueCard({
           <span className="text-[11px] font-medium">PR #{issue.prNumber}</span>
           <IconExternalLink className="w-3 h-3 opacity-60" />
         </a>
+      )}
+      {/* Generated Output Badge - for issues with output but no PR */}
+      {!issue.prUrl && issue.generatedOutput && (
+        <button 
+          onClick={(e) => { e.stopPropagation(); onViewOutput?.(issue); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="flex items-center gap-1.5 ml-7 mb-2 px-2 py-1 rounded-md bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors w-fit"
+        >
+          <IconCode className="w-3.5 h-3.5" />
+          <span className="text-[11px] font-medium">View Output</span>
+        </button>
       )}
       <div className="flex items-center justify-between pl-7">
         <div className="flex items-center gap-2">
@@ -699,6 +714,7 @@ function IssueColumnWithHandlers({
   onDelete,
   onDeploy,
   onRetry,
+  onViewOutput,
   deployingId,
 }: {
   title: string
@@ -709,6 +725,7 @@ function IssueColumnWithHandlers({
   onDelete: (issue: Issue) => void
   onDeploy?: (issueId: number) => void
   onRetry?: (issueId: number) => void
+  onViewOutput?: (issue: Issue) => void
   deployingId?: number | null
 }) {
   const config = statusConfig[status]
@@ -746,6 +763,7 @@ function IssueColumnWithHandlers({
               onDelete={onDelete}
               onDeploy={onDeploy}
               onRetry={onRetry}
+              onViewOutput={onViewOutput}
               isDeploying={deployingId === issue.id}
             />
           ))}
@@ -772,9 +790,12 @@ function IssuesPageInner() {
   // Dialog states
   const [issueDialogOpen, setIssueDialogOpen] = React.useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
+  const [outputDialogOpen, setOutputDialogOpen] = React.useState(false)
   const [editingIssue, setEditingIssue] = React.useState<Issue | null>(null)
   const [deletingIssue, setDeletingIssue] = React.useState<Issue | null>(null)
+  const [viewingOutputIssue, setViewingOutputIssue] = React.useState<Issue | null>(null)
   const [defaultStatus, setDefaultStatus] = React.useState<string>("identified")
+  const [copiedOutput, setCopiedOutput] = React.useState(false)
   
   // Drag state
   const [activeId, setActiveId] = React.useState<number | null>(null)
@@ -907,6 +928,23 @@ function IssuesPageInner() {
       toast.error("Retry failed")
     } finally {
       setDeployingId(null)
+    }
+  }
+
+  // View generated output for an issue
+  const handleViewOutput = (issue: Issue) => {
+    setViewingOutputIssue(issue)
+    setOutputDialogOpen(true)
+    setCopiedOutput(false)
+  }
+
+  // Copy generated output to clipboard
+  const handleCopyOutput = async () => {
+    if (viewingOutputIssue?.generatedOutput) {
+      await navigator.clipboard.writeText(viewingOutputIssue.generatedOutput)
+      setCopiedOutput(true)
+      toast.success("Copied to clipboard")
+      setTimeout(() => setCopiedOutput(false), 2000)
     }
   }
 
@@ -1200,6 +1238,7 @@ function IssuesPageInner() {
                         onDelete={handleDeleteClick}
                         onDeploy={handleDeployAgent}
                         onRetry={handleRetryAgent}
+                        onViewOutput={handleViewOutput}
                         deployingId={deployingId}
                       />
                       <IssueColumnWithHandlers
@@ -1211,6 +1250,7 @@ function IssuesPageInner() {
                         onDelete={handleDeleteClick}
                         onDeploy={handleDeployAgent}
                         onRetry={handleRetryAgent}
+                        onViewOutput={handleViewOutput}
                         deployingId={deployingId}
                       />
                       <IssueColumnWithHandlers
@@ -1222,6 +1262,7 @@ function IssuesPageInner() {
                         onDelete={handleDeleteClick}
                         onDeploy={handleDeployAgent}
                         onRetry={handleRetryAgent}
+                        onViewOutput={handleViewOutput}
                         deployingId={deployingId}
                       />
                       <IssueColumnWithHandlers
@@ -1233,6 +1274,7 @@ function IssuesPageInner() {
                         onDelete={handleDeleteClick}
                         onDeploy={handleDeployAgent}
                         onRetry={handleRetryAgent}
+                        onViewOutput={handleViewOutput}
                         deployingId={deployingId}
                       />
                     </div>
@@ -1268,6 +1310,66 @@ function IssuesPageInner() {
         onConfirm={handleDeleteIssue}
         isLoading={isSaving}
       />
+      
+      {/* View Generated Output Dialog */}
+      <Dialog open={outputDialogOpen} onOpenChange={setOutputDialogOpen}>
+        <DialogContent className="bg-zinc-900 border-white/10 text-white max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <IconCode className="w-5 h-5 text-purple-400" />
+              Generated Output
+            </DialogTitle>
+            <DialogDescription className="text-white/50">
+              {viewingOutputIssue?.title}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-auto">
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyOutput}
+                className="absolute top-2 right-2 text-white/60 hover:text-white hover:bg-white/10"
+              >
+                {copiedOutput ? (
+                  <IconCheck className="w-4 h-4 text-green-400" />
+                ) : (
+                  <IconCopy className="w-4 h-4" />
+                )}
+              </Button>
+              <pre className="bg-black/30 border border-white/10 rounded-lg p-4 text-sm text-white/80 overflow-auto max-h-[50vh] whitespace-pre-wrap">
+                {viewingOutputIssue?.generatedOutput || "No output available"}
+              </pre>
+            </div>
+            
+            {viewingOutputIssue?.outputType && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-xs text-white/40">Type:</span>
+                <span className="text-xs px-2 py-0.5 rounded bg-purple-500/10 text-purple-400">
+                  {viewingOutputIssue.outputType}
+                </span>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter className="mt-4">
+            <Button
+              variant="ghost"
+              onClick={() => setOutputDialogOpen(false)}
+              className="text-white/60 hover:text-white hover:bg-white/10"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={handleCopyOutput}
+              className="bg-purple-600 text-white hover:bg-purple-700"
+            >
+              {copiedOutput ? "Copied!" : "Copy to Clipboard"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   )
 }

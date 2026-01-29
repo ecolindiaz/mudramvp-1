@@ -136,6 +136,10 @@ model Issue {
   e2bExecutionMs     Int?
   e2bValidationResult Json?
   
+  // Agent Output Storage
+  generatedOutput    String?      @db.Text  // Stores agent-generated content when PR creation fails
+  outputType         String?      // "code", "content", "guidance"
+  
   // Deduplication
   issueHash          String?      @unique
 

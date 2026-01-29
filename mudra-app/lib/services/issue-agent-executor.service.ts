@@ -354,6 +354,8 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
         where: { id: issueId },
         data: {
           status: 'completed',
+          generatedOutput: generatedContent, // Save raw agent output
+          outputType: 'guidance',
           // Store the guidance in a JSON field or description
           description: `${issue.description || ''}\n\n---\n**Engagement Guidance:**\n${engagementGuidance}\n\n**Suggested Response:**\n${suggestedResponse || 'See guidance above'}`
         }
@@ -395,19 +397,22 @@ ${e2bValidation ? `## E2B Validation
         console.log(`[IssueExecutor] PR created: ${prUrl}`)
         
       } catch (prError) {
-        // PR creation failed but content was generated - still mark as completed
+        // PR creation failed but content was generated - save content and mark as completed
         console.error(`[IssueExecutor] PR creation failed:`, prError)
-        // Don't throw - the content is still valid, user just needs to connect GitHub
+        console.log(`[IssueExecutor] Saving generated content to issue for manual use`)
+        // Content is saved below - user can copy it manually
       }
       
-      // Update issue with PR info
+      // Update issue with PR info AND generated content (for cases where PR fails)
       await prisma.issue.update({
         where: { id: issueId },
         data: {
           status: prUrl ? 'completed' : 'completed', // Still completed even without PR
           prUrl,
           prNumber,
-          prStatus: prUrl ? 'open' : undefined
+          prStatus: prUrl ? 'open' : undefined,
+          generatedOutput: generatedContent, // Always save the generated content
+          outputType: 'code'
         }
       })
     } else {

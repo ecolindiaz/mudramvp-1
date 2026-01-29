@@ -13,7 +13,7 @@ import {
   IconInfoCircle,
   IconCheck
 } from "@tabler/icons-react"
-import { FileText, ArrowUpRight } from "lucide-react"
+import { FileText, ArrowUpRight, Maximize2 } from "lucide-react"
 import { toast } from "react-hot-toast"
 import type { NlrSummaryJson } from '@/types/nlr'
 import useSWR from 'swr'
@@ -33,6 +33,8 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   const [showReportHistory, setShowReportHistory] = React.useState(false)
   const [isMounted, setIsMounted] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
+  const [showCompetitorRankingsModal, setShowCompetitorRankingsModal] = React.useState(false)
+  const [showCitationsModal, setShowCitationsModal] = React.useState(false)
 
   // Ensure consistent hydration - only use profile.id after mount
   React.useEffect(() => {
@@ -719,97 +721,113 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
             {/* Competitor Rankings Table - Share of Voice */}
             <div className="rounded-xl bg-[#161616] overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-                <div className="text-base font-medium text-white/90">Competitor Rankings</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-base font-medium text-white/90">Competitor Rankings</div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <IconInfoCircle className="size-4 text-white/60" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent sideOffset={8}>How often competitors are mentioned across all AI responses.</TooltipContent>
+                  </Tooltip>
+                </div>
+                <button
+                  onClick={() => setShowCompetitorRankingsModal(true)}
+                  className="text-white/40 hover:text-white/70 transition-colors"
+                >
+                  <Maximize2 className="size-4" />
+                </button>
+              </div>
+              <div className="divide-y divide-white/[0.06]">
+                  <div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-2.5 text-xs text-white/50">
+                    <span className="w-6">#</span>
+                    <span>Company</span>
+                    <span>SOV %</span>
+                  </div>
+                  {isLoadingCompetitors ? (
+                    <div className="divide-y divide-white/[0.06]">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div
+                          key={i}
+                          className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-3.5"
+                        >
+                          <div className="w-6">
+                            <span className="block h-4 w-4 rounded bg-white/10 animate-pulse" />
+                          </div>
+                          <div className="flex items-center gap-2.5">
+                            <span className="block size-6 rounded bg-white/10 animate-pulse" />
+                            <span className="block h-4 w-24 rounded bg-white/10 animate-pulse" />
+                          </div>
+                          <span className="block h-4 w-12 rounded bg-white/10 animate-pulse" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : competitorRankings.length === 0 ? (
+                    <div className="px-5 py-16 text-center">
+                      <p className="text-sm text-white/60">No competitor data available yet.</p>
+                      <p className="text-xs text-white/40 mt-1">Run an analysis to see competitor rankings.</p>
+                    </div>
+                  ) : (
+                    competitorRankings.map((competitor, idx) => {
+                      const logoUrl = getCompanyLogoUrl(competitor.name)
+                      return (
+                        <div
+                          key={idx}
+                          className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.02]"
+                        >
+                          <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {logoUrl ? (
+                              <img
+                                src={logoUrl}
+                                alt={competitor.name}
+                                className="size-6 rounded object-contain bg-white/5"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement
+                                  target.style.display = 'none'
+                                  target.nextElementSibling?.classList.remove('hidden')
+                                }}
+                              />
+                            ) : null}
+                            <span
+                              className={`inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80 ${logoUrl ? 'hidden' : ''}`}
+                            >
+                              {competitor.name[0]?.toUpperCase() || '?'}
+                            </span>
+                            <span className="text-sm truncate text-white/90">
+                              {competitor.name}
+                            </span>
+                          </div>
+                          <div className="text-sm tabular-nums text-white/70 font-medium">{competitor.sov}%</div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+            </div>
+          </div>
+
+          {/* Citations list */}
+          <div className="rounded-xl bg-[#161616] overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <div className="text-base font-medium text-white/90">Citations</div>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex">
                       <IconInfoCircle className="size-4 text-white/60" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent sideOffset={8}>How often competitors are mentioned across all AI responses.</TooltipContent>
+                  <TooltipContent sideOffset={8}>Top sources AI cites from your industry.</TooltipContent>
                 </Tooltip>
               </div>
-              <div className="divide-y divide-white/[0.06]">
-                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-2.5 text-xs text-white/50">
-                  <span className="w-6">#</span>
-                  <span>Company</span>
-                  <span>SOV %</span>
-                </div>
-                {isLoadingCompetitors ? (
-                  <div className="divide-y divide-white/[0.06]">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <div
-                        key={i}
-                        className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-3.5"
-                      >
-                        <div className="w-6">
-                          <span className="block h-4 w-4 rounded bg-white/10 animate-pulse" />
-                        </div>
-                        <div className="flex items-center gap-2.5">
-                          <span className="block size-6 rounded bg-white/10 animate-pulse" />
-                          <span className="block h-4 w-24 rounded bg-white/10 animate-pulse" />
-                        </div>
-                        <span className="block h-4 w-12 rounded bg-white/10 animate-pulse" />
-                      </div>
-                    ))}
-                  </div>
-                ) : competitorRankings.length === 0 ? (
-                  <div className="px-5 py-16 text-center">
-                    <p className="text-sm text-white/60">No competitor data available yet.</p>
-                    <p className="text-xs text-white/40 mt-1">Run an analysis to see competitor rankings.</p>
-                  </div>
-                ) : (
-                  competitorRankings.map((competitor, idx) => {
-                    const logoUrl = getCompanyLogoUrl(competitor.name)
-                    return (
-                      <div
-                        key={idx}
-                        className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.02]"
-                      >
-                        <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {logoUrl ? (
-                            <img
-                              src={logoUrl}
-                              alt={competitor.name}
-                              className="size-6 rounded object-contain bg-white/5"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement
-                                target.style.display = 'none'
-                                target.nextElementSibling?.classList.remove('hidden')
-                              }}
-                            />
-                          ) : null}
-                          <span
-                            className={`inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80 ${logoUrl ? 'hidden' : ''}`}
-                          >
-                            {competitor.name[0]?.toUpperCase() || '?'}
-                          </span>
-                          <span className="text-sm truncate text-white/90">
-                            {competitor.name}
-                          </span>
-                        </div>
-                        <div className="text-sm tabular-nums text-white/70 font-medium">{competitor.sov}%</div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-          
-          {/* Citations list */}
-          <div className="rounded-xl bg-[#161616] overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-              <div className="text-base font-medium text-white/90">Citations</div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex">
-                    <IconInfoCircle className="size-4 text-white/60" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent sideOffset={8}>Top sources AI cites from your industry.</TooltipContent>
-              </Tooltip>
+              <button
+                onClick={() => setShowCitationsModal(true)}
+                className="text-white/40 hover:text-white/70 transition-colors"
+              >
+                <Maximize2 className="size-4" />
+              </button>
             </div>
             <div className="divide-y divide-white/[0.06]">
               <div className="grid grid-cols-[1fr_auto] items-center px-5 py-2.5 text-xs text-white/50">

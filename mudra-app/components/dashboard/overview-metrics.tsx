@@ -228,6 +228,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
   const [aiVisibilityPrevious, setAiVisibilityPrevious] = useState<number | null>(null)
   const [hasAiHistory, setHasAiHistory] = useState(false)
   const [aiVisibilityHistory, setAiVisibilityHistory] = useState<number[]>([])
+  // Track the number of analysis runs (used to sync chart data points)
+  const [analysisRunCount, setAnalysisRunCount] = useState(0)
   
   // Additional Firegeo aggregate metrics
   const [mentionRate, setMentionRate] = useState(0) // Percentage
@@ -434,7 +436,9 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
           // Store full history for chart (reversed so oldest is first)
           const historyScores = historyResult.data.map((h: { overallScore: number }) => h.overallScore || 0).reverse()
           setAiVisibilityHistory(historyScores)
-          console.log('📊 AI Visibility history stored:', historyScores)
+          // Track the number of analysis runs for syncing with technical chart
+          setAnalysisRunCount(historyResult.data.length)
+          console.log('📊 AI Visibility history stored:', historyScores, 'Run count:', historyResult.data.length)
 
           // Use previous run's score for comparison
           const previous = historyResult.data[1]
@@ -464,6 +468,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         } else {
           setHasAiHistory(false)
           setAiVisibilityPrevious(null)
+          // Set run count for single record or empty
+          setAnalysisRunCount(historyResult.data?.length || 0)
         }
       }
     } catch (error) {
@@ -472,6 +478,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       setHasAiHistory(false)
       setAiVisibilityPrevious(null)
       setAiVisibilityScore(0)
+      setAnalysisRunCount(0)
     } finally {
       setLoadingAIVisibility(false)
     }
@@ -643,10 +650,10 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     }
   }, [profile.id, selectedModel])
 
-  // Listen for website analysis completion
+  // Listen for analysis completion events
   useEffect(() => {
-    const handleWebsiteAnalyzed = async () => {
-      console.log('🔄 Website analyzed, refreshing all metrics')
+    const handleAnalysisComplete = async () => {
+      console.log('🔄 Analysis complete, refreshing all metrics')
       // Refresh all metrics from database
       await Promise.all([
         fetchAiVisibilityHistory(),
@@ -656,8 +663,12 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       ])
     }
 
-    window.addEventListener('mudra:website-analyzed', handleWebsiteAnalyzed)
-    return () => window.removeEventListener('mudra:website-analyzed', handleWebsiteAnalyzed)
+    window.addEventListener('mudra:website-analyzed', handleAnalysisComplete)
+    window.addEventListener('mudra:analysis-complete', handleAnalysisComplete)
+    return () => {
+      window.removeEventListener('mudra:website-analyzed', handleAnalysisComplete)
+      window.removeEventListener('mudra:analysis-complete', handleAnalysisComplete)
+    }
   }, [profile.id])
 
   // Calculate deltas for display
@@ -849,10 +860,17 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         {/* Expanded Chart */}
         {technicalScoreExpanded && !loadingTechnical && !isGeneratingScore && (
           <div className="mt-4 pt-4 border-t border-white/[0.06]">
-            {technicalScoreHistory.length >= 2 ? (
+            {(() => {
+              // Sync technical history with GEO analysis run count to ensure both charts match
+              // This handles cases where technical records may exist without corresponding GEO records
+              const syncedHistory = analysisRunCount > 0 && technicalScoreHistory.length > analysisRunCount
+                ? technicalScoreHistory.slice(-analysisRunCount)  // Take the most recent N records
+                : technicalScoreHistory
+
+              return syncedHistory.length >= 2 ? (
               <>
                 <div className="h-[80px] flex items-end gap-1">
-                  {technicalScoreHistory.map((value, i) => (
+                  {syncedHistory.map((value, i) => (
                     <div
                       key={i}
                       className="flex-1 bg-white/10 rounded-sm transition-all"
@@ -863,7 +881,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
                 <div className="flex justify-between mt-2">
                   <div className="flex flex-col">
                     <span className="text-[11px] text-white/50 tabular-nums">
-                      {`${Math.round(technicalScoreHistory[0])}%`}
+                      {`${Math.round(syncedHistory[0])}%`}
                     </span>
                     <span className="text-[10px] text-white/30">First</span>
                   </div>
@@ -877,10 +895,11 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
               <div className="h-[80px] flex items-center justify-center">
                 <span className="text-xs text-white/40">Run more analyses to see trends</span>
               </div>
-            )}
+            )
+            })()}
           </div>
         )}
-        
+
         {!technicalScoreExpanded && (
           <div className="mt-auto pt-3 border-t border-white/[0.06]">
             {loadingTechnical ? (

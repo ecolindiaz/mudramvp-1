@@ -344,6 +344,10 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   const recentChats = React.useMemo(() => {
     if (!promptsData?.prompts || !promptsData.hasAnalysis) return []
 
+    // Use the analysis date (when analysis was run) for timestamp display
+    // This is more accurate than prompt creation dates
+    const analysisDate = promptsData.analysisDate ? new Date(promptsData.analysisDate) : null
+
     // Filter prompts that have results (were actually run)
     let promptsWithResults = promptsData.prompts.filter(
       (p: any) => p.results && p.results.length > 0
@@ -390,8 +394,9 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
         primaryModel = modelLabels[selectedModel] || selectedModel
       }
 
-      // Format timestamp - use static date format to avoid hydration mismatch
-      const date = new Date(prompt.updatedAt || prompt.createdAt)
+      // Use the analysis date (when analysis was run) instead of prompt creation date
+      // This ensures Recent Chats shows when the analysis actually ran
+      const date = analysisDate || new Date(prompt.updatedAt || prompt.createdAt)
       const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 

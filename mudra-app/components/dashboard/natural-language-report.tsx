@@ -29,13 +29,19 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   const router = useRouter()
   const { profile } = useBrandProfile()
   const [showReportHistory, setShowReportHistory] = React.useState(false)
+  const [isMounted, setIsMounted] = React.useState(false)
+
+  // Ensure consistent hydration - only use profile.id after mount
+  React.useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // Suppress unused variable warnings for now; wiring into real data later
   void timeRange
   void selectedModel
 
-  // Get brandProfileId from context
-  const brandProfileId = profile?.id > 0 ? String(profile.id) : null
+  // Get brandProfileId from context (only after mount to avoid hydration mismatch)
+  const brandProfileId = isMounted && profile?.id > 0 ? String(profile.id) : null
   const { data: analysisResultsData, isLoading: isLoadingAnalysis, error: analysisError, mutate: refreshAnalysis } = useSWR(
     brandProfileId ? `/api/analysis/results?brandProfileId=${brandProfileId}` : null,
     async (url: string) => {
@@ -310,6 +316,80 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   // Report history data (will be connected to backend)
   const reportHistory: Array<{ id: string; title: string; date: string }> = []
 
+  // Company name to domain mapping for logo fetching
+  const getCompanyDomain = (companyName: string): string | null => {
+    const name = companyName.toLowerCase().trim()
+
+    // Common mappings for tech companies
+    const domainMap: Record<string, string> = {
+      'netlify': 'netlify.com',
+      'render': 'render.com',
+      'railway': 'railway.app',
+      'aws': 'aws.amazon.com',
+      'aws amplify': 'aws.amazon.com',
+      'amazon web services': 'aws.amazon.com',
+      'microsoft azure': 'azure.microsoft.com',
+      'azure': 'azure.microsoft.com',
+      'google cloud': 'cloud.google.com',
+      'google cloud platform': 'cloud.google.com',
+      'gcp': 'cloud.google.com',
+      'digitalocean': 'digitalocean.com',
+      'heroku': 'heroku.com',
+      'cloudflare': 'cloudflare.com',
+      'cloudflare pages': 'cloudflare.com',
+      'firebase': 'firebase.google.com',
+      'github pages': 'github.com',
+      'github': 'github.com',
+      'gitlab': 'gitlab.com',
+      'fly.io': 'fly.io',
+      'flyio': 'fly.io',
+      'supabase': 'supabase.com',
+      'planetscale': 'planetscale.com',
+      'vercel': 'vercel.com',
+      'coolify': 'coolify.io',
+      'northflank': 'northflank.com',
+      'salesforce': 'salesforce.com',
+      'hubspot': 'hubspot.com',
+      'stripe': 'stripe.com',
+      'twilio': 'twilio.com',
+      'auth0': 'auth0.com',
+      'okta': 'okta.com',
+      'datadog': 'datadoghq.com',
+      'new relic': 'newrelic.com',
+      'sentry': 'sentry.io',
+      'mongodb': 'mongodb.com',
+      'redis': 'redis.io',
+      'elastic': 'elastic.co',
+      'elasticsearch': 'elastic.co',
+      'docker': 'docker.com',
+      'kubernetes': 'kubernetes.io',
+    }
+
+    // Check direct mapping
+    if (domainMap[name]) return domainMap[name]
+
+    // Check partial match
+    for (const [key, domain] of Object.entries(domainMap)) {
+      if (name.includes(key) || key.includes(name)) return domain
+    }
+
+    // Try to guess domain from company name (e.g., "Acme Inc" -> "acme.com")
+    const simpleName = name.replace(/\s+(inc|llc|corp|ltd|co|io|ai|labs?)\.?$/i, '').replace(/\s+/g, '')
+    if (simpleName.length > 2) {
+      return `${simpleName}.com`
+    }
+
+    return null
+  }
+
+  // Get company logo URL using Clearbit with Google favicon fallback
+  const getCompanyLogoUrl = (companyName: string): string | null => {
+    const domain = getCompanyDomain(companyName)
+    if (!domain) return null
+    // Use Clearbit Logo API (high quality logos)
+    return `https://logo.clearbit.com/${domain}`
+  }
+
   // Model logo mapping - using public folder
   const getModelIcon = (model: string) => {
     const modelLower = model.toLowerCase()
@@ -483,20 +563,41 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                     <p className="text-xs text-white/40 mt-1">Run an analysis to see competitor rankings.</p>
                   </div>
                 ) : (
-                  competitorRankings.map((competitor, idx) => (
-                    <div
-                      key={idx}
-                      className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.02]"
-                    >
-                      <div className="w-6 text-sm text-white/60 tabular-nums">{idx + 1}</div>
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm truncate text-white/85">
-                          {competitor.name}
-                        </span>
+                  competitorRankings.map((competitor, idx) => {
+                    const logoUrl = getCompanyLogoUrl(competitor.name)
+                    return (
+                      <div
+                        key={idx}
+                        className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.02]"
+                      >
+                        <div className="w-6 text-sm text-white/60 tabular-nums">{idx + 1}</div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {logoUrl ? (
+                            <img
+                              src={logoUrl}
+                              alt={competitor.name}
+                              className="size-5 rounded object-contain bg-white/5"
+                              onError={(e) => {
+                                // Fallback to letter avatar on error
+                                const target = e.target as HTMLImageElement
+                                target.style.display = 'none'
+                                target.nextElementSibling?.classList.remove('hidden')
+                              }}
+                            />
+                          ) : null}
+                          <span
+                            className={`inline-flex items-center justify-center size-5 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80 ${logoUrl ? 'hidden' : ''}`}
+                          >
+                            {competitor.name[0]?.toUpperCase() || '?'}
+                          </span>
+                          <span className="text-sm truncate text-white/85">
+                            {competitor.name}
+                          </span>
+                        </div>
+                        <div className="text-sm tabular-nums text-white/80">{competitor.sov}%</div>
                       </div>
-                      <div className="text-sm tabular-nums text-white/80">{competitor.sov}%</div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </div>

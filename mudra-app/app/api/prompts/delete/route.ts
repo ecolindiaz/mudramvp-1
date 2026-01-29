@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 
 export async function POST(request: NextRequest) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json()
     const { promptId, brandProfileId } = body
@@ -13,6 +19,12 @@ export async function POST(request: NextRequest) {
         { success: false, error: { message: 'Missing promptId or brandProfileId' } },
         { status: 400 }
       )
+    }
+
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
     // First verify the prompt belongs to this brand profile

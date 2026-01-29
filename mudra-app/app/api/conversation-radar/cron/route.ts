@@ -6,8 +6,17 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateCronSecretFromRequest } from '@/lib/auth/require-auth';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // Validate CRON_SECRET to prevent unauthorized execution
+  const cronAuth = validateCronSecretFromRequest(request);
+  if (!cronAuth.success) {
+    return NextResponse.json(
+      { success: false, error: { message: cronAuth.error } },
+      { status: cronAuth.status }
+    );
+  }
   try {
     // Get all active brand profiles with prompts
     const activeBrands = await prisma.brandProfile.findMany({

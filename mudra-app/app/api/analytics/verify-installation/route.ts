@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { mastra } from '@/mastra'
 import jwt from 'jsonwebtoken'
 import { decryptToken } from '@/lib/crypto/token-encryption'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 
 async function refreshInstallationToken(installationId: number): Promise<string> {
   const appId = process.env.GITHUB_APP_ID;
@@ -65,6 +67,10 @@ async function getValidGitHubToken(integration: any): Promise<string> {
  * Agent-based verification of tracking script installation
  */
 export async function POST(request: NextRequest) {
+  // Apply rate limiting (AI agent verification is expensive)
+  const rateLimited = applyRateLimit(request, 'aiGeneration');
+  if (rateLimited) return rateLimited;
+
   try {
     const { brandProfileId } = await request.json()
 
@@ -73,6 +79,12 @@ export async function POST(request: NextRequest) {
         { success: false, error: { message: 'Missing brandProfileId' } },
         { status: 400 }
       )
+    }
+
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
     console.log('[Agent Verification] Starting for brandProfileId:', brandProfileId)

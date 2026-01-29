@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { runSinglePromptAnalysis } from '../../../../lib/services/single-prompt-analysis.service'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 
 // Validation constants
 const MAX_PROMPT_LENGTH = 500
@@ -9,6 +11,10 @@ const MAX_ACTIVE_PROMPTS = 50
 const VALID_CATEGORIES = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific']
 
 export async function POST(request: NextRequest) {
+  // Apply rate limiting
+  const rateLimited = applyRateLimit(request, 'standard');
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json()
     const { promptText, category, brandProfileId, runAnalysis } = body
@@ -58,6 +64,12 @@ export async function POST(request: NextRequest) {
         { success: false, error: { message: 'Invalid brandProfileId', code: 'VALIDATION_ERROR' } },
         { status: 400 }
       )
+    }
+
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
     // === BUG-1 FIX: Atomic check-and-insert using transaction with serializable isolation ===

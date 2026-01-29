@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
     const days = parseInt(searchParams.get('days') || '7')
+    const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
 
     if (!brandProfileId) {
       return NextResponse.json(
@@ -82,14 +83,38 @@ export async function GET(request: NextRequest) {
 
     const previousTotals = previousAnalytics.reduce((acc, day) => ({
       totalVisits: acc.totalVisits + day.totalVisits,
+      chatgptVisits: acc.chatgptVisits + day.chatgptVisits,
+      perplexityVisits: acc.perplexityVisits + day.perplexityVisits,
+      claudeVisits: acc.claudeVisits + day.claudeVisits,
+      geminiVisits: acc.geminiVisits + day.geminiVisits,
     }), {
       totalVisits: 0,
+      chatgptVisits: 0,
+      perplexityVisits: 0,
+      claudeVisits: 0,
+      geminiVisits: 0,
     })
 
+    // Get model-specific traffic if filter is applied
+    const getModelTraffic = (data: typeof totals, model: string | null): number => {
+      if (!model || model === 'all') return data.totalVisits
+      switch (model) {
+        case 'chatgpt': return data.chatgptVisits
+        case 'claude': return data.claudeVisits
+        case 'perplexity': return data.perplexityVisits
+        case 'gemini': return data.geminiVisits
+        case 'google-aio': return 0 // Not tracked separately yet
+        default: return data.totalVisits
+      }
+    }
+
+    const currentTraffic = getModelTraffic(totals, modelFilter)
+    const previousTraffic = getModelTraffic(previousTotals as any, modelFilter)
+
     // Calculate growth percentage
-    const growth = previousTotals.totalVisits > 0
-      ? ((totals.totalVisits - previousTotals.totalVisits) / previousTotals.totalVisits) * 100
-      : totals.totalVisits > 0 ? 100 : 0
+    const growth = previousTraffic > 0
+      ? ((currentTraffic - previousTraffic) / previousTraffic) * 100
+      : currentTraffic > 0 ? 100 : 0
 
     // Get top pages (aggregate from all days)
     const allTopPages = analytics
@@ -123,8 +148,8 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         connected: isConnected,
-        traffic: totals.totalVisits,
-        previous: previousTotals.totalVisits,
+        traffic: currentTraffic,
+        previous: previousTraffic,
         growth: Math.round(growth * 10) / 10,
         breakdown: {
           chatgpt: totals.chatgptVisits,
@@ -134,7 +159,8 @@ export async function GET(request: NextRequest) {
         },
         topPages,
         lastUpdated: analytics[0]?.updatedAt || new Date(),
-        periodDays: days
+        periodDays: days,
+        filteredByModel: modelFilter || null
       }
     })
 

@@ -15,13 +15,12 @@ import { toast } from "react-hot-toast"
 interface OverviewMetricsProps {
   showAll?: boolean
   timeRange: TimeRange
-  selectedModel: AIModel
+  selectedModel: AIModel | "all"
 }
 
 export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: OverviewMetricsProps) {
   // Suppress unused variable warnings for future use
   void timeRange
-  void selectedModel
 
   const { profile } = useBrandProfile()
   
@@ -360,13 +359,16 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
     try {
       setLoadingAIVisibility(true)
-      
+
+      // Build URL with optional model filter
+      const modelParam = selectedModel !== 'all' ? `&model=${selectedModel}` : ''
+
       // Fetch current aggregate score (Firegeo methodology) with timeout
       const controller1 = new AbortController()
       const timeoutId1 = setTimeout(() => controller1.abort(), 10000)
-      
+
       const currentResponse = await fetch(
-        `/api/prompts/with-results?brandProfileId=${profile.id}`,
+        `/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}`,
         { signal: controller1.signal }
       )
       clearTimeout(timeoutId1)
@@ -387,58 +389,82 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
           avgPosition: currentResult.aggregate.averagePosition,
           tests: currentResult.aggregate.totalTests
         })
-      }
-
-      // Fetch historical data for comparison with timeout
-      const controller2 = new AbortController()
-      const timeoutId2 = setTimeout(() => controller2.abort(), 10000)
-      
-      const historyResponse = await fetch(
-        `/api/analysis/geo-history?brandProfileId=${profile.id}&limit=5`,
-        { signal: controller2.signal }
-      )
-      clearTimeout(timeoutId2)
-      
-      if (!historyResponse.ok) {
-        throw new Error(`HTTP ${historyResponse.status}: ${historyResponse.statusText}`)
-      }
-      
-      const historyResult = await historyResponse.json()
-      
-      if (historyResult.success && historyResult.data && historyResult.data.length > 1) {
-        // Store full history for chart (reversed so oldest is first)
-        const historyScores = historyResult.data.map((h: { overallScore: number }) => h.overallScore || 0).reverse()
-        setAiVisibilityHistory(historyScores)
-        console.log('📊 AI Visibility history stored:', historyScores)
-
-        // Use previous run's score for comparison
-        const previous = historyResult.data[1]
-        setAiVisibilityPrevious(previous.overallScore || 0)
-        setHasAiHistory(true)
-        console.log('📊 AI Visibility previous score:', previous.overallScore)
-        
-        // Fetch previous run's average position
-        const prevController = new AbortController()
-        const prevTimeoutId = setTimeout(() => prevController.abort(), 10000)
-        
-        const prevPromptResponse = await fetch(
-          `/api/prompts/with-results?brandProfileId=${profile.id}&runId=${previous.id}`,
-          { signal: prevController.signal }
-        )
-        clearTimeout(prevTimeoutId)
-        
-        if (prevPromptResponse.ok) {
-          const prevPromptResult = await prevPromptResponse.json()
-          if (prevPromptResult.success && prevPromptResult.aggregate) {
-            const prevAvgPos = prevPromptResult.aggregate.averagePosition
-            setAveragePositionPrevious(prevAvgPos)
-            setHasPositionHistory(prevAvgPos > 0)
-            console.log('📊 Average Position previous value:', prevAvgPos)
-          }
-        }
       } else {
+        // No data for this model filter - reset to 0
+        console.log('📊 No AI Visibility data for selected model, resetting to 0')
+        setAiVisibilityScore(0)
+        setMentionRate(0)
+        setAveragePosition(0)
+        setTotalTests(0)
         setHasAiHistory(false)
         setAiVisibilityPrevious(null)
+        setAiVisibilityHistory([])
+        setAveragePositionPrevious(null)
+        setHasPositionHistory(false)
+        // Skip history fetching since there's no current data
+        return
+      }
+
+      // Only fetch historical data when viewing all models (we don't have per-model history)
+      if (selectedModel !== 'all') {
+        // When filtering by a specific model, we don't have historical comparison data
+        setHasAiHistory(false)
+        setAiVisibilityPrevious(null)
+        setAiVisibilityHistory([])
+        setAveragePositionPrevious(null)
+        setHasPositionHistory(false)
+      } else {
+        // Fetch historical data for comparison with timeout
+        const controller2 = new AbortController()
+        const timeoutId2 = setTimeout(() => controller2.abort(), 10000)
+
+        const historyResponse = await fetch(
+          `/api/analysis/geo-history?brandProfileId=${profile.id}&limit=5`,
+          { signal: controller2.signal }
+        )
+        clearTimeout(timeoutId2)
+
+        if (!historyResponse.ok) {
+          throw new Error(`HTTP ${historyResponse.status}: ${historyResponse.statusText}`)
+        }
+
+        const historyResult = await historyResponse.json()
+
+        if (historyResult.success && historyResult.data && historyResult.data.length > 1) {
+          // Store full history for chart (reversed so oldest is first)
+          const historyScores = historyResult.data.map((h: { overallScore: number }) => h.overallScore || 0).reverse()
+          setAiVisibilityHistory(historyScores)
+          console.log('📊 AI Visibility history stored:', historyScores)
+
+          // Use previous run's score for comparison
+          const previous = historyResult.data[1]
+          setAiVisibilityPrevious(previous.overallScore || 0)
+          setHasAiHistory(true)
+          console.log('📊 AI Visibility previous score:', previous.overallScore)
+
+          // Fetch previous run's average position
+          const prevController = new AbortController()
+          const prevTimeoutId = setTimeout(() => prevController.abort(), 10000)
+
+          const prevPromptResponse = await fetch(
+            `/api/prompts/with-results?brandProfileId=${profile.id}&runId=${previous.id}`,
+            { signal: prevController.signal }
+          )
+          clearTimeout(prevTimeoutId)
+
+          if (prevPromptResponse.ok) {
+            const prevPromptResult = await prevPromptResponse.json()
+            if (prevPromptResult.success && prevPromptResult.aggregate) {
+              const prevAvgPos = prevPromptResult.aggregate.averagePosition
+              setAveragePositionPrevious(prevAvgPos)
+              setHasPositionHistory(prevAvgPos > 0)
+              console.log('📊 Average Position previous value:', prevAvgPos)
+            }
+          }
+        } else {
+          setHasAiHistory(false)
+          setAiVisibilityPrevious(null)
+        }
       }
     } catch (error) {
       console.error('Error fetching AI visibility history:', error)
@@ -559,7 +585,9 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
 
     try {
       setLoadingAiReferral(true)
-      const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&days=7`)
+      // Build URL with optional model filter
+      const modelParam = selectedModel !== 'all' ? `&model=${selectedModel}` : ''
+      const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&days=7${modelParam}`)
       
       if (!response.ok) {
         throw new Error(`API responded with status ${response.status}`)
@@ -598,7 +626,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
     }
   }
 
-  // Initial data fetch
+  // Initial data fetch - re-fetch when model filter changes
   useEffect(() => {
     if (profile.id) {
       fetchAiVisibilityHistory()
@@ -613,7 +641,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       setLoadingTechnical(false)
       setLoadingTraffic(false)
     }
-  }, [profile.id])
+  }, [profile.id, selectedModel])
 
   // Listen for website analysis completion
   useEffect(() => {

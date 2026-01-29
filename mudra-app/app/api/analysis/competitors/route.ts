@@ -33,6 +33,18 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
     const limit = parseInt(searchParams.get('limit') || '5')
+    const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
+
+    // Helper to normalize model names for comparison
+    const normalizeModelName = (name: string): string => {
+      const lower = name.toLowerCase().trim()
+      if (lower.includes('chatgpt') || lower.includes('openai') || lower.includes('gpt')) return 'chatgpt'
+      if (lower.includes('claude') || lower.includes('anthropic')) return 'claude'
+      if (lower.includes('perplexity')) return 'perplexity'
+      if (lower.includes('gemini')) return 'gemini'
+      if (lower.includes('google') && lower.includes('aio')) return 'google-aio'
+      return lower
+    }
 
     // Require authentication and verify brand profile access
     const authResult = await requireAuthWithBrandAccess(brandProfileId)
@@ -102,6 +114,13 @@ export async function GET(request: NextRequest) {
         const promptTests = providerAnalysis.promptTests || providerAnalysis.tests || []
         const provider = providerAnalysis.provider || 'unknown'
 
+        // Skip this provider if model filter is specified and doesn't match
+        if (modelFilter && modelFilter !== 'all') {
+          const normalizedProvider = normalizeModelName(provider)
+          const targetModel = normalizeModelName(modelFilter)
+          if (normalizedProvider !== targetModel) continue
+        }
+
         for (const test of promptTests) {
           // Get competitors mentioned in this test
           const competitors = test.competitors || test.competitorsMentioned || []
@@ -138,44 +157,47 @@ export async function GET(request: NextRequest) {
       }
 
       // Also check summary.competitorData if it exists
-      let summaryData: any = {}
-      if (typeof analysis.summary === 'string') {
-        try {
-          summaryData = JSON.parse(analysis.summary)
-        } catch {
-          summaryData = {}
+      // Skip this when filtering by model since summary data doesn't have per-provider breakdown
+      if (!modelFilter || modelFilter === 'all') {
+        let summaryData: any = {}
+        if (typeof analysis.summary === 'string') {
+          try {
+            summaryData = JSON.parse(analysis.summary)
+          } catch {
+            summaryData = {}
+          }
+        } else if (analysis.summary) {
+          summaryData = analysis.summary
         }
-      } else if (analysis.summary) {
-        summaryData = analysis.summary
-      }
 
-      const competitorData = summaryData.competitorData || summaryData.competitorComparison || []
-      if (Array.isArray(competitorData)) {
-        for (const comp of competitorData) {
-          if (!comp.name) continue
-          
-          const normalizedName = comp.name.trim()
-          const lowerName = normalizedName.toLowerCase()
+        const competitorData = summaryData.competitorData || summaryData.competitorComparison || []
+        if (Array.isArray(competitorData)) {
+          for (const comp of competitorData) {
+            if (!comp.name) continue
 
-          // Skip user's brand
-          if (lowerName === userBrandName || 
-              lowerName.includes(userBrandName) || 
-              userBrandName.includes(lowerName)) {
-            continue
-          }
+            const normalizedName = comp.name.trim()
+            const lowerName = normalizedName.toLowerCase()
 
-          // Add mentions based on mentionCount
-          const mentionCount = comp.mentionCount || 1
-          if (!competitorMentionMap.has(normalizedName)) {
-            competitorMentionMap.set(normalizedName, [])
-          }
+            // Skip user's brand
+            if (lowerName === userBrandName ||
+                lowerName.includes(userBrandName) ||
+                userBrandName.includes(lowerName)) {
+              continue
+            }
 
-          for (let i = 0; i < mentionCount; i++) {
-            competitorMentionMap.get(normalizedName)!.push({
-              name: normalizedName,
-              position: comp.averagePosition || null,
-              sentiment: 'neutral'
-            })
+            // Add mentions based on mentionCount
+            const mentionCount = comp.mentionCount || 1
+            if (!competitorMentionMap.has(normalizedName)) {
+              competitorMentionMap.set(normalizedName, [])
+            }
+
+            for (let i = 0; i < mentionCount; i++) {
+              competitorMentionMap.get(normalizedName)!.push({
+                name: normalizedName,
+                position: comp.averagePosition || null,
+                sentiment: 'neutral'
+              })
+            }
           }
         }
       }

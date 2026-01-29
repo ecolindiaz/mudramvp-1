@@ -31,6 +31,18 @@ export async function GET(request: NextRequest) {
     const brandProfileIdParam = searchParams.get('brandProfileId')
     const limitParam = searchParams.get('limit')
     const daysParam = searchParams.get('days')
+    const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
+
+    // Helper to normalize model names for comparison
+    const normalizeModelName = (name: string): string => {
+      const lower = name.toLowerCase().trim()
+      if (lower.includes('chatgpt') || lower.includes('openai') || lower.includes('gpt')) return 'chatgpt'
+      if (lower.includes('claude') || lower.includes('anthropic')) return 'claude'
+      if (lower.includes('perplexity')) return 'perplexity'
+      if (lower.includes('gemini')) return 'gemini'
+      if (lower.includes('google') && lower.includes('aio')) return 'google-aio'
+      return lower
+    }
 
     if (!brandProfileIdParam) {
       return NextResponse.json(
@@ -95,10 +107,19 @@ export async function GET(request: NextRequest) {
       
       for (const analysis of analyses) {
         if (!analysis || typeof analysis !== 'object') continue;
-        
+
         const analysisObj = analysis as any;
+
+        // Skip this provider if model filter is specified and doesn't match
+        if (modelFilter && modelFilter !== 'all') {
+          const provider = analysisObj.provider || ''
+          const normalizedProvider = normalizeModelName(provider)
+          const targetModel = normalizeModelName(modelFilter)
+          if (normalizedProvider !== targetModel) continue
+        }
+
         const promptTests = Array.isArray(analysisObj.promptTests) ? analysisObj.promptTests : []
-        
+
         for (const test of promptTests) {
           const citations = Array.isArray(test.citations) ? test.citations : []
           

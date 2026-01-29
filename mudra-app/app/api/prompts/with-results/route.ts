@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
+    const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
 
     if (!brandProfileId) {
       return NextResponse.json(
@@ -258,9 +259,43 @@ export async function GET(request: NextRequest) {
 
     // Step 3: Extract unique prompt texts from the analyses JSON
     const analysesRaw = latestAnalysis.analyses
-    const analyses: any[] = typeof analysesRaw === 'string' 
-      ? JSON.parse(analysesRaw) 
+    let analyses: any[] = typeof analysesRaw === 'string'
+      ? JSON.parse(analysesRaw)
       : (Array.isArray(analysesRaw) ? analysesRaw : [])
+
+    // Filter by model if specified (normalize model names for comparison)
+    const normalizeModelName = (name: string): string => {
+      const lower = name.toLowerCase().trim()
+      // Map various model name formats to our standard names
+      if (lower.includes('chatgpt') || lower.includes('openai') || lower.includes('gpt')) return 'chatgpt'
+      if (lower.includes('claude') || lower.includes('anthropic')) return 'claude'
+      if (lower.includes('perplexity')) return 'perplexity'
+      if (lower.includes('gemini')) return 'gemini'
+      if (lower.includes('google') && lower.includes('aio')) return 'google-aio'
+      return lower
+    }
+
+    if (modelFilter && modelFilter !== 'all') {
+      const targetModel = normalizeModelName(modelFilter)
+      console.log(`🔍 Filtering analyses by model: ${modelFilter} (normalized: ${targetModel})`)
+
+      // Filter analyses to only include the specified model
+      analyses = analyses.filter((item: any) => {
+        // Direct prompt result structure
+        if (item.prompt) {
+          const itemModel = normalizeModelName(item.provider || item.model || '')
+          return itemModel === targetModel
+        }
+        // Provider-grouped structure - check if provider matches
+        if (item.provider) {
+          const itemModel = normalizeModelName(item.provider)
+          return itemModel === targetModel
+        }
+        return false
+      })
+
+      console.log(`   Filtered to ${analyses.length} analyses for model: ${targetModel}`)
+    }
     const uniquePromptTexts = new Set<string>()
     
     // Handle both structures: 

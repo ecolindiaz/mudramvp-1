@@ -13,7 +13,7 @@ import {
   IconInfoCircle,
   IconCheck
 } from "@tabler/icons-react"
-import { FileText } from "lucide-react"
+import { FileText, ArrowUpRight } from "lucide-react"
 import { toast } from "react-hot-toast"
 import type { NlrSummaryJson } from '@/types/nlr'
 import useSWR from 'swr'
@@ -23,7 +23,7 @@ import { useBrandProfile } from "@/components/brand-profile-context"
 interface NaturalLanguageReportProps {
   className?: string
   timeRange: TimeRange
-  selectedModel: AIModel
+  selectedModel: AIModel | "all"
 }
 
 
@@ -39,9 +39,11 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     setIsMounted(true)
   }, [])
 
-  // Suppress unused variable warnings for now; wiring into real data later
+  // Suppress unused variable warnings for now
   void timeRange
-  void selectedModel
+
+  // Build model filter param for API calls
+  const modelParam = selectedModel !== 'all' ? `&model=${selectedModel}` : ''
 
   // Get brandProfileId from context (only after mount to avoid hydration mismatch)
   const brandProfileId = isMounted && profile?.id > 0 ? String(profile.id) : null
@@ -56,7 +58,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
   // Fetch recent prompts/chats with results (includes aggregate metrics)
   const { data: promptsData, isLoading: isLoadingPrompts, mutate: refreshPrompts } = useSWR(
-    brandProfileId ? `/api/prompts/with-results?brandProfileId=${brandProfileId}` : null,
+    brandProfileId ? `/api/prompts/with-results?brandProfileId=${brandProfileId}${modelParam}` : null,
     async (url: string) => {
       const res = await fetch(url)
       if (!res.ok) return null
@@ -276,7 +278,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
   // Fetch real citation data from aggregated prompt results
   const { data: citationsData, isLoading: isLoadingCitations } = useSWR(
-    brandProfileId ? `/api/analytics/citations?brandProfileId=${brandProfileId}&limit=5&days=30` : null,
+    brandProfileId ? `/api/analytics/citations?brandProfileId=${brandProfileId}&limit=5&days=30${modelParam}` : null,
     async (url: string) => {
       const res = await fetch(url)
       if (!res.ok) return null
@@ -302,7 +304,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   // - Ranks by SOV (highest first)
   // - Returns Top 5 competitors
   const { data: competitorsData, mutate: refreshCompetitors, isLoading: isLoadingCompetitors } = useSWR(
-    brandProfileId ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&limit=5` : null,
+    brandProfileId ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&limit=5${modelParam}` : null,
     async (url: string) => {
       const res = await fetch(url)
       if (!res.ok) return null
@@ -343,9 +345,27 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     if (!promptsData?.prompts || !promptsData.hasAnalysis) return []
 
     // Filter prompts that have results (were actually run)
-    const promptsWithResults = promptsData.prompts.filter(
+    let promptsWithResults = promptsData.prompts.filter(
       (p: any) => p.results && p.results.length > 0
     )
+
+    // If a specific model is selected, filter to only show chats from that model
+    if (selectedModel !== 'all') {
+      const normalizeModel = (name: string) => {
+        const lower = name.toLowerCase().trim()
+        if (lower.includes('chatgpt') || lower.includes('openai') || lower.includes('gpt')) return 'chatgpt'
+        if (lower.includes('claude') || lower.includes('anthropic')) return 'claude'
+        if (lower.includes('perplexity')) return 'perplexity'
+        if (lower.includes('gemini')) return 'gemini'
+        if (lower.includes('google') && lower.includes('aio')) return 'google-aio'
+        return lower
+      }
+
+      promptsWithResults = promptsWithResults.filter((p: any) => {
+        // Check if any result matches the selected model
+        return p.results.some((r: any) => normalizeModel(r.model || '') === selectedModel)
+      })
+    }
 
     // Sort by most recent (using updatedAt or createdAt)
     const sorted = [...promptsWithResults].sort((a: any, b: any) => {
@@ -356,8 +376,19 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
     // Take the 4 most recent and transform to expected format
     return sorted.slice(0, 4).map((prompt: any) => {
-      // Get the primary model from results
-      const primaryModel = prompt.results?.[0]?.model || prompt.model || 'ChatGPT'
+      // Get the primary model from results (or filtered model if specific model selected)
+      let primaryModel = prompt.results?.[0]?.model || prompt.model || 'ChatGPT'
+      if (selectedModel !== 'all') {
+        // If filtering by model, use that model name for display
+        const modelLabels: Record<string, string> = {
+          chatgpt: 'ChatGPT',
+          claude: 'Claude',
+          perplexity: 'Perplexity',
+          gemini: 'Gemini',
+          'google-aio': 'Google AIO'
+        }
+        primaryModel = modelLabels[selectedModel] || selectedModel
+      }
 
       // Format timestamp - use static date format to avoid hydration mismatch
       const date = new Date(prompt.updatedAt || prompt.createdAt)
@@ -373,7 +404,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
         model: primaryModel
       }
     })
-  }, [promptsData])
+  }, [promptsData, selectedModel])
 
   const handleChatClick = (promptId: string) => {
     // Navigate to tracked prompt detail page
@@ -859,7 +890,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                     <div
                       key={chat.id}
                       onClick={() => handleChatClick(chat.promptId)}
-                      className="p-5 rounded-xl border border-white/[0.04] hover:border-white/[0.06] hover:bg-white/[0.01] transition-all cursor-pointer"
+                      className="relative p-5 rounded-xl border border-white/[0.04] hover:border-white/[0.06] hover:bg-white/[0.01] transition-all cursor-pointer group"
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
@@ -872,9 +903,10 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                         </div>
                         <span className="text-xs text-white/40">{chat.time}</span>
                       </div>
-                      <p className="text-base text-white/85 leading-relaxed line-clamp-3">
+                      <p className="text-base text-white/85 leading-relaxed line-clamp-3 pr-6">
                         {chat.question}
                       </p>
+                      <ArrowUpRight className="absolute bottom-4 right-4 size-4 text-white/20 group-hover:text-white/50 transition-colors" />
                     </div>
                   ))}
                 </div>

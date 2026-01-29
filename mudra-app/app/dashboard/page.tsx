@@ -34,7 +34,6 @@ function DashboardPageInner() {
   const { profile } = useBrandProfile()
   const [timeRange] = React.useState<TimeRange>("7d")
   const [selectedPlatform, setSelectedPlatform] = React.useState<PlatformFilter>("all")
-  const selectedModel: AIModel = selectedPlatform === "all" ? "chatgpt" : selectedPlatform
   
   // Analysis cooldown state
   const [canRunAnalysis, setCanRunAnalysis] = React.useState(false)
@@ -224,17 +223,17 @@ function DashboardPageInner() {
             <div className="flex flex-1 flex-col pt-6 pb-8">
               {/* Overview Metrics */}
               <div>
-                <OverviewMetrics 
+                <OverviewMetrics
                   timeRange={timeRange}
-                  selectedModel={selectedModel}
+                  selectedModel={selectedPlatform}
                 />
               </div>
 
               {/* Natural Language Report */}
               <div className="px-4 lg:px-6 pt-6">
-                <NaturalLanguageReport 
+                <NaturalLanguageReport
                   timeRange={timeRange}
-                  selectedModel={selectedModel}
+                  selectedModel={selectedPlatform}
                 />
               </div>
             </div>

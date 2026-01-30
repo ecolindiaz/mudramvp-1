@@ -84,6 +84,89 @@ async function getValidGitHubToken(integration: any): Promise<string> {
   return decryptToken(integration.accessToken);
 }
 
+/**
+ * Intelligently insert generated code into existing file
+ * Handles different file types: HTML, TSX/JSX, etc.
+ */
+function insertCodeIntoFile(existingContent: string, newCode: string, filePath: string): string {
+  const isHtml = filePath.endsWith('.html')
+  const isTsx = filePath.endsWith('.tsx') || filePath.endsWith('.jsx')
+  const isLayout = filePath.includes('layout') || filePath.includes('_app') || filePath.includes('_document')
+  
+  // Check if this is JSON-LD schema markup
+  const isJsonLd = newCode.includes('application/ld+json') || newCode.includes('@context')
+  
+  if (isHtml) {
+    // For HTML files, insert JSON-LD before </head> or at the start of <head>
+    if (isJsonLd) {
+      // Extract just the script tag if we have a full HTML document
+      let scriptTag = newCode
+      const scriptMatch = newCode.match(/<script type="application\/ld\+json">[\s\S]*?<\/script>/i)
+      if (scriptMatch) {
+        scriptTag = scriptMatch[0]
+      } else if (newCode.includes('@context')) {
+        // Wrap JSON in script tag
+        scriptTag = `<script type="application/ld+json">\n${newCode}\n</script>`
+      }
+      
+      // Insert before </head>
+      if (existingContent.includes('</head>')) {
+        return existingContent.replace('</head>', `    ${scriptTag}\n</head>`)
+      }
+      // Insert after <head> if no closing tag
+      if (existingContent.includes('<head>')) {
+        return existingContent.replace('<head>', `<head>\n    ${scriptTag}`)
+      }
+    }
+    
+    // For other HTML improvements, insert before </body>
+    if (existingContent.includes('</body>')) {
+      return existingContent.replace('</body>', `\n${newCode}\n</body>`)
+    }
+    
+    // Fallback: append to end
+    return existingContent + '\n\n<!-- Mudra GEO Optimization -->\n' + newCode
+  }
+  
+  if (isTsx && isLayout) {
+    // For Next.js/React layouts, we need to add schema as a Script component or in Head
+    if (isJsonLd) {
+      // Extract the JSON from the code
+      let jsonContent = newCode
+      const jsonMatch = newCode.match(/\{[\s\S]*"@context"[\s\S]*\}/m)
+      if (jsonMatch) {
+        jsonContent = jsonMatch[0]
+      }
+      
+      // Create a React-compatible script injection
+      const schemaComponent = `
+{/* Mudra GEO: Structured Data */}
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: JSON.stringify(${jsonContent}) }}
+/>
+`
+      
+      // Try to insert before </Head> in Next.js
+      if (existingContent.includes('</Head>')) {
+        return existingContent.replace('</Head>', `${schemaComponent}</Head>`)
+      }
+      
+      // Try to insert in the return statement before the first closing tag
+      if (existingContent.includes('return (')) {
+        // Find the first element in the return and add after opening tag
+        return existingContent.replace(
+          /return\s*\(\s*(<\w+[^>]*>)/,
+          `return (\n${schemaComponent}\n$1`
+        )
+      }
+    }
+  }
+  
+  // Default fallback: append as comment with the code
+  return existingContent + `\n\n{/* Mudra GEO Optimization - Please integrate manually:\n${newCode}\n*/}`
+}
+
 interface CreateOptimizationPRInput {
   brandProfileId: number
   pageUrl: string
@@ -239,10 +322,65 @@ ${imp.code}
       throw new Error(`Failed to create branch: ${error.message || createBranchResponse.statusText}`)
     }
 
-    // Step 3: Create/update file(s) with improvements
-    // We'll create a single optimization file with all improvements
-    const optimizationFileName = `geo-optimizations/${pageSlug}-${Date.now()}.html`
-    const fileContent = `<!--
+    // Step 3: Determine the target file to modify
+    // For schema markup and structured data, we need to add to the HTML head
+    const improvement = improvements[0] // Primary improvement
+    let targetFilePath = improvement.filePath || 'index.html'
+    
+    // Normalize common file paths for different frameworks
+    const commonTargetFiles = [
+      'index.html',
+      'public/index.html',
+      'src/index.html',
+      'app/layout.tsx',
+      'app/layout.js',
+      'pages/_app.tsx',
+      'pages/_app.js',
+      'pages/_document.tsx',
+      'pages/_document.js',
+    ]
+
+    // Try to find an existing file to modify
+    let existingFileSha: string | undefined
+    let existingFileContent: string | undefined
+    
+    for (const candidatePath of [targetFilePath, ...commonTargetFiles]) {
+      try {
+        const fileResponse = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents/${candidatePath}?ref=${baseBranch}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          }
+        )
+        
+        if (fileResponse.ok) {
+          const fileData = await fileResponse.json()
+          existingFileSha = fileData.sha
+          existingFileContent = Buffer.from(fileData.content, 'base64').toString('utf-8')
+          targetFilePath = candidatePath
+          console.log(`[GitHub] Found existing file to modify: ${targetFilePath}`)
+          break
+        }
+      } catch {
+        // File doesn't exist, continue checking
+      }
+    }
+
+    let fileContent: string
+    let commitMessage: string
+
+    if (existingFileContent && existingFileSha) {
+      // SMART INSERT: Modify existing file
+      fileContent = insertCodeIntoFile(existingFileContent, improvement.code, targetFilePath)
+      commitMessage = `Add GEO optimization: ${improvement.description}`
+      console.log(`[GitHub] Modifying existing file: ${targetFilePath}`)
+    } else {
+      // FALLBACK: Create new suggestion file if no target found
+      targetFilePath = `geo-optimizations/${pageSlug}-${Date.now()}.html`
+      fileContent = `<!--
   GEO Optimization Suggestions for: ${pageUrl}
   Generated by Mudra Content Optimizer Agent
   
@@ -259,10 +397,13 @@ ${improvements.map((imp, idx) => `
 ${imp.code}
 `).join('\n')}
 `
+      commitMessage = `Add GEO optimizations for ${pageUrl}`
+      console.log(`[GitHub] No target file found, creating suggestion file: ${targetFilePath}`)
+    }
 
-    console.log(`[GitHub] Creating file ${optimizationFileName}`)
+    console.log(`[GitHub] Creating/updating file ${targetFilePath}`)
     const createFileResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${optimizationFileName}`,
+      `https://api.github.com/repos/${owner}/${repo}/contents/${targetFilePath}`,
       {
         method: 'PUT',
         headers: {
@@ -271,9 +412,10 @@ ${imp.code}
           Accept: 'application/vnd.github.v3+json',
         },
         body: JSON.stringify({
-          message: `Add GEO optimizations for ${pageUrl}`,
+          message: commitMessage,
           content: Buffer.from(fileContent).toString('base64'),
           branch: branchName,
+          ...(existingFileSha ? { sha: existingFileSha } : {}),
         }),
       }
     )

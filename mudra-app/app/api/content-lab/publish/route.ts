@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 import { getBrandProfileByUserId } from '@/lib/prisma-brand-profile';
 import { isBlogSetupComplete } from '@/lib/services/blog-setup.service';
 import { prisma } from '@/lib/prisma';
@@ -21,7 +21,7 @@ export const maxDuration = 120; // 2 minutes for agent + PR creation
 
 export async function POST(req: NextRequest) {
   // Apply rate limiting (expensive operation)
-  const rateLimited = applyRateLimit(req, 'aiGeneration');
+  const rateLimited = await applyRateLimitAsync(req, 'aiGeneration');
   if (rateLimited) return rateLimited;
 
   // Require authentication

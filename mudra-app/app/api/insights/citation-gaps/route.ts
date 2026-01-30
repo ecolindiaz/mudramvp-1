@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 
 // Mock data for citation gaps analysis
 const mockCitationGapsData = {
@@ -109,7 +109,7 @@ const mockCitationGapsData = {
 // GET /api/insights/citation-gaps - Get citation gaps analysis
 export async function GET(request: NextRequest) {
   // Rate limit
-  const rateLimited = applyRateLimit(request, 'standard');
+  const rateLimited = await applyRateLimitAsync(request, 'standard');
   if (rateLimited) return rateLimited;
 
   try {
@@ -181,7 +181,7 @@ export async function GET(request: NextRequest) {
 // POST /api/insights/citation-gaps - Trigger citation gaps analysis
 export async function POST(request: NextRequest) {
   // Rate limit
-  const rateLimited = applyRateLimit(request, 'standard');
+  const rateLimited = await applyRateLimitAsync(request, 'standard');
   if (rateLimited) return rateLimited;
 
   try {

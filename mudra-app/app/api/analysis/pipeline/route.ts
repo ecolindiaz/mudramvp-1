@@ -6,11 +6,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { triggerAnalysisPipeline, type AnalysisPipelineConfig } from '@/lib/services/analysis-pipeline.service';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting (analysis is expensive)
-  const rateLimited = applyRateLimit(request, 'analysis');
+  const rateLimited = await applyRateLimitAsync(request, 'analysis');
   if (rateLimited) return rateLimited;
 
   console.log('[Pipeline API] 🔵 Request received');

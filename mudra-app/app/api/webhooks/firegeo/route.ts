@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
 interface FiregeoWebhookEvent {
   id: string;
@@ -11,7 +11,7 @@ interface FiregeoWebhookEvent {
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting to webhooks
-  const rateLimited = applyRateLimit(request, 'webhook');
+  const rateLimited = await applyRateLimitAsync(request, 'webhook');
   if (rateLimited) return rateLimited;
 
   try {

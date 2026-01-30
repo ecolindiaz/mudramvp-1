@@ -7,12 +7,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { applyRateLimit } from "@/lib/auth/rate-limiter-redis";
+import { applyRateLimitAsync } from "@/lib/auth/rate-limiter-redis";
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 
 export async function POST(req: NextRequest) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(req, 'standard');
+  const rateLimited = await applyRateLimitAsync(req, 'standard');
   if (rateLimited) return rateLimited;
 
   // Require authentication
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(req, 'standard');
+  const rateLimited = await applyRateLimitAsync(req, 'standard');
   if (rateLimited) return rateLimited;
 
   // Require authentication

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateSophisticatedPrompts } from '@/lib/services/prompt-generation.service'
 import { createCustomPrompt } from '@/lib/services/prompt-storage.service'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 
 /**
  * POST /api/prompts/generate
@@ -10,7 +10,7 @@ import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
  */
 export async function POST(request: NextRequest) {
   // Apply rate limiting (AI generation is expensive)
-  const rateLimited = applyRateLimit(request, 'aiGeneration');
+  const rateLimited = await applyRateLimitAsync(request, 'aiGeneration');
   if (rateLimited) return rateLimited;
 
   try {

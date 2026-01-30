@@ -11,7 +11,7 @@ import {
 } from '@/lib/services/prompt-storage.service'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { prisma } from '@/lib/prisma'
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 
 /**
  * GET /api/prompts?brandProfileId={id}&category={category}
@@ -19,7 +19,7 @@ import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
  */
 export async function GET(request: NextRequest) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(request, 'standard');
+  const rateLimited = await applyRateLimitAsync(request, 'standard');
   if (rateLimited) return rateLimited;
 
   try {
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(request, 'standard');
+  const rateLimited = await applyRateLimitAsync(request, 'standard');
   if (rateLimited) return rateLimited;
 
   try {
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(request, 'standard');
+  const rateLimited = await applyRateLimitAsync(request, 'standard');
   if (rateLimited) return rateLimited;
 
   try {
@@ -208,7 +208,7 @@ export async function PATCH(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(request, 'standard');
+  const rateLimited = await applyRateLimitAsync(request, 'standard');
   if (rateLimited) return rateLimited;
 
   try {

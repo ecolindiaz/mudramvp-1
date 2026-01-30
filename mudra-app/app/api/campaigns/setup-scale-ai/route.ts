@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
 /**
  * POST /api/campaigns/setup-scale-ai
@@ -10,7 +10,7 @@ import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
  */
 export async function POST(request: NextRequest) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(request, 'standard');
+  const rateLimited = await applyRateLimitAsync(request, 'standard');
   if (rateLimited) return rateLimited;
 
   // Require authentication

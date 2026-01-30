@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 import { decryptToken } from '@/lib/crypto/token-encryption';
 
 /**
@@ -13,7 +13,7 @@ import { decryptToken } from '@/lib/crypto/token-encryption';
  */
 export async function GET(req: NextRequest) {
   // Rate limit
-  const rateLimited = applyRateLimit(req, 'standard');
+  const rateLimited = await applyRateLimitAsync(req, 'standard');
   if (rateLimited) return rateLimited;
 
   try {

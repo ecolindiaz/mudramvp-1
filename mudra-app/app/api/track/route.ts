@@ -16,7 +16,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { trackEvent } from '@/lib/services/analytics-event.service';
-import { applyRateLimit, getClientIp } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync, getClientIp } from '@/lib/auth/rate-limiter-redis';
 import { 
   validateTrackingOrigin, 
   detectSuspiciousActivity,
@@ -56,7 +56,7 @@ async function getAllowedOrigin(trackingId: string): Promise<string | null> {
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting (high volume but still needs protection)
-  const rateLimited = applyRateLimit(request, 'track');
+  const rateLimited = await applyRateLimitAsync(request, 'track');
   if (rateLimited) return rateLimited;
 
   try {

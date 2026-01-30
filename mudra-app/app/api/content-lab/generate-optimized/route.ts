@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { mastra } from "@/mastra";
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 import { prisma } from '@/lib/prisma';
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
@@ -116,7 +116,7 @@ Return ONLY the meta description text, nothing else. Keep it under 150 character
 
 export async function POST(req: NextRequest) {
   // Rate limit first - expensive AI operations
-  const rateLimited = applyRateLimit(req, 'aiGeneration');
+  const rateLimited = await applyRateLimitAsync(req, 'aiGeneration');
   if (rateLimited) return rateLimited;
 
   // Require authentication

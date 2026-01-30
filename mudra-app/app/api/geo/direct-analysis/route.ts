@@ -4,7 +4,7 @@ import { runDirectGEOAnalysis, createDirectGEOConfig } from '@/lib/services/dire
 import { getBrandProfile } from '@/lib/prisma-brand-profile';
 import { logGeoAnalysisRun } from '@/lib/services/geo-analysis-log.service';
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
 type ProviderAnalysis = {
   provider: string;
@@ -94,7 +94,7 @@ type FiregeoAnalysis = {
 
 export async function POST(request: NextRequest) {
   // Rate limit first - expensive AI operations
-  const rateLimited = applyRateLimit(request, 'aiGeneration');
+  const rateLimited = await applyRateLimitAsync(request, 'aiGeneration');
   if (rateLimited) return rateLimited;
 
   // Require authentication

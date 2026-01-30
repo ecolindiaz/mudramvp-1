@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scrapeCompanyPage, type ScrapeResult } from '@/lib/scrapers/enhanced-geo-scraper';
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting (scraping is expensive)
-  const rateLimited = applyRateLimit(request, 'scrape');
+  const rateLimited = await applyRateLimitAsync(request, 'scrape');
   if (rateLimited) return rateLimited;
 
   try {

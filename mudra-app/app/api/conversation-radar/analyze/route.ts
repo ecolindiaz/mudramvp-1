@@ -6,11 +6,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
 export async function POST(req: NextRequest) {
   // Rate limit first - expensive AI operations
-  const rateLimited = applyRateLimit(req, 'aiGeneration');
+  const rateLimited = await applyRateLimitAsync(req, 'aiGeneration');
   if (rateLimited) return rateLimited;
 
   // Require authentication

@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/analysis/technical/repo";
 import type { NextRequest } from "next/server";
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
 export async function GET(req: NextRequest) {
   // Rate limit
-  const rateLimited = applyRateLimit(req, 'standard');
+  const rateLimited = await applyRateLimitAsync(req, 'standard');
   if (rateLimited) return rateLimited;
 
   // Require authentication

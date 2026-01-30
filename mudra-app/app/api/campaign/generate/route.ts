@@ -3,7 +3,7 @@ import { OpenAI } from "openai" // Or Anthropic, etc.
 import fs from "fs"
 import path from "path"
 import { requireAuth } from "@/lib/auth/require-auth";
-import { applyRateLimit } from "@/lib/auth/rate-limiter-redis";
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 
 // Helper to call LLM with a prompt
@@ -38,7 +38,7 @@ function getRelevantGrowthStrategies(channel: string): any[] {
 }
 
 export async function POST(req: NextRequest) {  // Apply rate limiting (AI generation is expensive)
-  const rateLimited = applyRateLimit(req, 'aiGeneration');
+  const rateLimited = await applyRateLimitAsync(req, 'aiGeneration');
   if (rateLimited) return rateLimited;
 
   // Require authentication

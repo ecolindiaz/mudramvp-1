@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 import { decryptToken } from '@/lib/crypto/token-encryption'
 
 export interface GitHubPullRequest {
@@ -30,7 +30,7 @@ export interface GitHubPullRequest {
  */
 export async function GET(request: NextRequest) {
   // Rate limit
-  const rateLimited = applyRateLimit(request, 'standard')
+  const rateLimited = await applyRateLimitAsync(request, 'standard')
   if (rateLimited) return rateLimited
 
   try {

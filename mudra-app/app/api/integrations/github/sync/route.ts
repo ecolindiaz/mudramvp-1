@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 import { encryptToken } from '@/lib/crypto/token-encryption'
 
 /**
@@ -17,7 +17,7 @@ import { encryptToken } from '@/lib/crypto/token-encryption'
  */
 export async function POST(request: NextRequest) {
   // Rate limit
-  const rateLimited = applyRateLimit(request, 'standard');
+  const rateLimited = await applyRateLimitAsync(request, 'standard');
   if (rateLimited) return rateLimited;
 
   try {

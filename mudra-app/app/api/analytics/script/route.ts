@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import { decryptToken } from '@/lib/crypto/token-encryption'
@@ -74,7 +74,7 @@ async function getValidGitHubToken(integration: any): Promise<string> {
  */
 export async function GET(request: NextRequest) {
   // Rate limit
-  const rateLimited = applyRateLimit(request, 'standard');
+  const rateLimited = await applyRateLimitAsync(request, 'standard');
   if (rateLimited) return rateLimited;
 
   try {
@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   // Rate limit
-  const rateLimited = applyRateLimit(request, 'standard');
+  const rateLimited = await applyRateLimitAsync(request, 'standard');
   if (rateLimited) return rateLimited;
 
   try {

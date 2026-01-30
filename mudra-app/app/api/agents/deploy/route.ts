@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
 const deployAgentSchema = z.object({
   agentType: z.string().min(1),
@@ -17,7 +17,7 @@ const deployAgentSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     // Rate limit agent deployments to prevent spam
-    const rateLimited = applyRateLimit(req, 'auth');
+    const rateLimited = await applyRateLimitAsync(req, 'auth');
     if (rateLimited) return rateLimited;
 
     const session = await getServerSession(authOptions);

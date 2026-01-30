@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBrandProfileByUserId, saveBrandProfileForUser } from "@/lib/prisma-brand-profile";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { applyRateLimit } from "@/lib/auth/rate-limiter-redis";
+import { applyRateLimitAsync } from "@/lib/auth/rate-limiter-redis";
 import { logBrandProfileChange } from "@/lib/services/audit-log.service";
 
 const REQUEST_TIMEOUT_MS = Number.parseInt(
@@ -34,7 +34,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutLabel: st
 
 export async function GET(request: NextRequest) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(request, 'standard');
+  const rateLimited = await applyRateLimitAsync(request, 'standard');
   if (rateLimited) return rateLimited;
 
   try {
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(req: NextRequest) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(req, 'standard');
+  const rateLimited = await applyRateLimitAsync(req, 'standard');
   if (rateLimited) return rateLimited;
 
   try {

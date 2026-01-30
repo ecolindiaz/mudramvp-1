@@ -8,14 +8,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { applyRateLimit } from "@/lib/auth/rate-limiter-redis";
+import { applyRateLimitAsync } from "@/lib/auth/rate-limiter-redis";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(req, 'standard');
+  const rateLimited = await applyRateLimitAsync(req, 'standard');
   if (rateLimited) return rateLimited;
 
   // Require authentication
@@ -61,7 +61,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(req, 'standard');
+  const rateLimited = await applyRateLimitAsync(req, 'standard');
   if (rateLimited) return rateLimited;
 
   // Require authentication
@@ -121,7 +121,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Apply rate limiting
-  const rateLimited = applyRateLimit(req, 'standard');
+  const rateLimited = await applyRateLimitAsync(req, 'standard');
   if (rateLimited) return rateLimited;
 
   // Require authentication

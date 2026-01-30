@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runUnifiedAnalysis } from '@/lib/services/unified-analysis.service';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
 // Extended timeout for unified analysis - runs GEO + Technical analysis in parallel
 // GEO: 4 providers × multiple prompts (30-60s)
@@ -15,7 +15,7 @@ export const maxDuration = 300; // 5 minutes
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting (analysis is expensive)
-  const rateLimited = applyRateLimit(request, 'analysis');
+  const rateLimited = await applyRateLimitAsync(request, 'analysis');
   if (rateLimited) return rateLimited;
 
   try {

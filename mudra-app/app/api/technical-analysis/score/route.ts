@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAuth } from '@/lib/auth/require-auth';
-import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 import { validateScrapeSnapshot } from "@/lib/analysis/technical/validate";
 import { computeTechnicalScore } from "@/lib/analysis/technical/score";
 import { saveSnapshot, saveScore, ensureCompanyAndSiteForUrl, ensureSiteByUrl } from "@/lib/analysis/technical/repo";
@@ -9,7 +9,7 @@ import type { ScrapeSnapshot } from "@/lib/analysis/technical/types";
 
 export async function POST(req: NextRequest) {
   // Rate limit
-  const rateLimited = applyRateLimit(req, 'standard');
+  const rateLimited = await applyRateLimitAsync(req, 'standard');
   if (rateLimited) return rateLimited;
 
   // Require authentication

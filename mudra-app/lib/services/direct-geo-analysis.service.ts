@@ -139,6 +139,47 @@ function filterValidCompetitors(competitors: string[], brandName: string): strin
     if (compLower === brandLower || compLower.includes(brandLower)) return false;
     if (comp.length < 2 || comp.length > 40) return false;
     
+    // CRITICAL: Filter out generic category terms that are NOT company names
+    const genericTerms = [
+      // Career/Job related generic terms
+      'networking', 'internships', 'internships and co', 'career fairs', 'career services',
+      'job portals', 'online job portals', 'job boards', 'resume builders',
+      'professional certifications', 'coding competitions', 'hackathons',
+      'coding competitions and hackathons', 'technical blogs', 'portfolios',
+      'technical blogs and portfolios', 'alumni networks', 'mentorship',
+      'career advising', 'career coaching', 'mock interviews', 'interview prep',
+      'company career pages', 'recruitment agencies', 'virtual career summit',
+      // Education related
+      'online courses', 'bootcamps', 'workshops', 'webinars', 'tutorials',
+      'certification programs', 'degree programs', 'moocs', 'scholarships',
+      // Tech generic terms
+      'open source', 'software solutions', 'cloud services', 'web development',
+      'mobile development', 'data science', 'machine learning', 'ai tools',
+      // Generic phrases that look like categories
+      'industry events', 'meetups', 'conferences', 'summits', 'forums',
+      'communities', 'professional organizations', 'associations', 'groups',
+      'platforms', 'resources', 'tools', 'services', 'solutions',
+    ];
+    if (genericTerms.includes(compLower)) return false;
+    
+    // Filter out generic terms that start with common category indicators
+    const categoryStarts = [
+      'online ', 'virtual ', 'professional ', 'technical ', 'coding ',
+      'career ', 'job ', 'industry ', 'software ', 'tech ', 'digital ',
+    ];
+    for (const start of categoryStarts) {
+      if (compLower.startsWith(start)) {
+        // Check if the rest looks like a generic term
+        const rest = compLower.slice(start.length);
+        const genericRest = [
+          'courses', 'events', 'services', 'platforms', 'resources', 'tools',
+          'communities', 'networks', 'groups', 'forums', 'boards', 'fairs',
+          'certifications', 'workshops', 'bootcamps', 'programs', 'portals',
+        ];
+        if (genericRest.includes(rest)) return false;
+      }
+    }
+    
     const invalidStarts = [
       'others ', 'other ', 'posts ', 'reach out', 'sign up', 'check out',
       'learn more', 'get started', 'the ', 'a ', 'an ', 'some ', 'many ',
@@ -696,12 +737,18 @@ Return ONLY a valid JSON object with these exact keys:
       }
     });
 
+    // CRITICAL: Validate brand mention using regex (not just LLM analysis)
+    const regexBrandMentioned = validateBrandMention(text, config.brandName);
+    
+    // CRITICAL: Filter out generic terms that aren't real companies
+    const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
+
     return {
       prompt,
       response: text,
-      brandMentioned: analysis.brandMentioned || false,
+      brandMentioned: regexBrandMentioned,
       brandPosition: analysis.brandPosition,
-      competitors: analysis.competitorsMentioned || [],
+      competitors: validatedCompetitors,
       competitorPositions: mergedPositions,
       competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',
@@ -996,12 +1043,18 @@ Return ONLY a valid JSON object with these exact keys:
       }
     });
 
+    // CRITICAL: Validate brand mention using regex (not just LLM analysis)
+    const regexBrandMentioned = validateBrandMention(text, config.brandName);
+    
+    // CRITICAL: Filter out generic terms that aren't real companies
+    const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
+
     return {
       prompt,
       response: text,
-      brandMentioned: analysis.brandMentioned || false,
+      brandMentioned: regexBrandMentioned,
       brandPosition: analysis.brandPosition,
-      competitors: analysis.competitorsMentioned || [],
+      competitors: validatedCompetitors,
       competitorPositions: mergedPositions,
       competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',

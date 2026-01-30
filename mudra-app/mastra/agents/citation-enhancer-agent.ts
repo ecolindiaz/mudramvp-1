@@ -179,5 +179,5 @@ When enhancing content:
 export const citationEnhancerAgent = new Agent({
   name: "citation-enhancer-agent",
   instructions: CITATION_ENHANCER_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5-20250514",
+  model: "anthropic/claude-sonnet-4-5-20250929",
 });

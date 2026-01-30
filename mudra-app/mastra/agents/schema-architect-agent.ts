@@ -164,5 +164,5 @@ Example:
 export const schemaArchitectAgent = new Agent({
   name: "schema-architect-agent",
   instructions: SCHEMA_ARCHITECT_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5-20250514",
+  model: "anthropic/claude-sonnet-4-5-20250929",
 });

@@ -52,7 +52,7 @@ Return JSON with:
 export const trackingVerificationAgent = new Agent({
   name: "tracking-verification-agent",
   instructions: VERIFICATION_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5-20250514",
+  model: "anthropic/claude-sonnet-4-5-20250929",
   tools: {
     githubSearchTool,
   },

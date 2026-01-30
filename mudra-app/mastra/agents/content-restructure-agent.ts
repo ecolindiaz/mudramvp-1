@@ -175,5 +175,5 @@ When restructuring content:
 export const contentRestructureAgent = new Agent({
   name: "content-restructure-agent",
   instructions: CONTENT_RESTRUCTURE_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5-20250514",
+  model: "anthropic/claude-sonnet-4-5-20250929",
 });

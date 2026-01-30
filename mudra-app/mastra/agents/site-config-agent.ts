@@ -197,5 +197,5 @@ When generating configs:
 export const siteConfigAgent = new Agent({
   name: "site-config-agent",
   instructions: SITE_CONFIG_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5-20250514",
+  model: "anthropic/claude-sonnet-4-5-20250929",
 });

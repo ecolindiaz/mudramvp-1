@@ -259,7 +259,7 @@ Is this code in the right place? Should it be moved? Any improvements needed?
 Respond with a JSON object containing: reasoning, suggestedFile, improvedCode (optional), additionalWarnings (array).`
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5-20250514',
+    model: 'claude-sonnet-4-5-20250929',
     max_tokens: 1000,
     messages: [
       { role: 'user', content: `${systemPrompt}\n\n${userPrompt}` }

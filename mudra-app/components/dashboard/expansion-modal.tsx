@@ -29,8 +29,10 @@ interface ExpansionModalProps<T> {
   searchPlaceholder?: string
   searchKey?: keyof T
   onExport?: () => void
+  onRowClick?: (item: T, index: number) => void
   className?: string
   maxHeight?: string
+  initialLimit?: number
 }
 
 type SortDirection = "asc" | "desc" | null
@@ -48,12 +50,15 @@ export function ExpansionModal<T extends Record<string, unknown>>({
   searchPlaceholder = "Search...",
   searchKey,
   onExport,
+  onRowClick,
   className,
   maxHeight = "60vh",
+  initialLimit = 10,
 }: ExpansionModalProps<T>) {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sortColumn, setSortColumn] = React.useState<string | null>(null)
   const [sortDirection, setSortDirection] = React.useState<SortDirection>(null)
+  const [isExpanded, setIsExpanded] = React.useState(false)
 
   const handleSort = (columnKey: string) => {
     if (sortColumn === columnKey) {
@@ -108,6 +113,14 @@ export function ExpansionModal<T extends Record<string, unknown>>({
     return result
   }, [data, searchQuery, searchKey, sortColumn, sortDirection])
 
+  // Apply limit unless expanded
+  const displayData = React.useMemo(() => {
+    if (isExpanded || searchQuery) return filteredData
+    return filteredData.slice(0, initialLimit)
+  }, [filteredData, isExpanded, initialLimit, searchQuery])
+
+  const hasMoreItems = filteredData.length > initialLimit && !isExpanded && !searchQuery
+
   const getSortIcon = (columnKey: string) => {
     if (sortColumn !== columnKey) {
       return <ArrowUpDown className="size-3 text-white/30" />
@@ -117,6 +130,14 @@ export function ExpansionModal<T extends Record<string, unknown>>({
     }
     return <ChevronDown className="size-3 text-white/70" />
   }
+
+  // Reset expanded state when modal closes
+  React.useEffect(() => {
+    if (!open) {
+      setIsExpanded(false)
+      setSearchQuery("")
+    }
+  }, [open])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -167,7 +188,10 @@ export function ExpansionModal<T extends Record<string, unknown>>({
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-white/40">
-                {filteredData.length} {filteredData.length === 1 ? "item" : "items"}
+                {isExpanded || searchQuery
+                  ? `${filteredData.length} ${filteredData.length === 1 ? "item" : "items"}`
+                  : `Showing ${displayData.length} of ${filteredData.length}`
+                }
               </span>
               {onExport && (
                 <Button
@@ -225,7 +249,7 @@ export function ExpansionModal<T extends Record<string, unknown>>({
               <>
                 {/* Table Header */}
                 <div
-                  className="grid items-center gap-4 px-6 py-3 border-b border-white/[0.06] bg-white/[0.01] sticky top-0"
+                  className="grid items-center gap-4 px-6 py-3 border-b border-white/[0.06] bg-[#161616] sticky top-0 z-10"
                   style={{
                     gridTemplateColumns: columns
                       .map((c) => c.width || "1fr")
@@ -253,15 +277,19 @@ export function ExpansionModal<T extends Record<string, unknown>>({
 
                 {/* Table Body */}
                 <div className="divide-y divide-white/[0.06]">
-                  {filteredData.map((item, idx) => (
+                  {displayData.map((item, idx) => (
                     <div
                       key={idx}
-                      className="grid items-center gap-4 px-6 py-3.5 hover:bg-white/[0.02] transition-colors"
+                      className={cn(
+                        "grid items-center gap-4 px-6 py-3.5 hover:bg-white/[0.02] transition-colors",
+                        onRowClick && "cursor-pointer"
+                      )}
                       style={{
                         gridTemplateColumns: columns
                           .map((c) => c.width || "1fr")
                           .join(" "),
                       }}
+                      onClick={() => onRowClick?.(item, idx)}
                     >
                       {columns.map((col) => (
                         <div
@@ -280,6 +308,21 @@ export function ExpansionModal<T extends Record<string, unknown>>({
                     </div>
                   ))}
                 </div>
+
+                {/* Show more button */}
+                {hasMoreItems && (
+                  <div className="flex justify-center py-4 border-t border-white/[0.06]">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsExpanded(true)}
+                      className="h-8 px-4 text-white/60 hover:text-white hover:bg-white/[0.06] text-xs font-medium rounded-lg transition-all gap-1.5"
+                    >
+                      Show all {filteredData.length} items
+                      <ChevronDown className="size-3.5" />
+                    </Button>
+                  </div>
+                )}
               </>
             )}
           </div>

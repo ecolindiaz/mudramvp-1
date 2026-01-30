@@ -288,21 +288,37 @@ export function categorizeCitation(url: string, title?: string): CitationType {
 
 /**
  * Extract citations from a single AI response
+ *
+ * Data sources captured (matching /api/analytics/citations logic):
+ * - citations: Inline URL citations from AI response text (all providers)
+ * - sources: ALL URLs from web search results (OpenAI Responses API)
+ * - URLs embedded in response text
  */
 export function extractCitationsFromResponse(
   response: string,
   citations: any[] = [],
   provider: string,
-  timestamp: Date = new Date()
+  timestamp: Date = new Date(),
+  sources: any[] = []
 ): ExtractedCitation[] {
   const extractedCitations: ExtractedCitation[] = []
-  
+  const processedUrls = new Set<string>()
+
+  // Helper to extract URL from citation/source object
+  const extractUrl = (item: any): string => {
+    if (typeof item === 'string') return item
+    if (item?.url) return item.url
+    if (item?.link) return item.link
+    return ''
+  }
+
   // Process explicit citations from API
   if (citations && Array.isArray(citations)) {
     for (const citation of citations) {
-      const url = citation.url || citation.link || ''
-      if (!url) continue
-      
+      const url = extractUrl(citation)
+      if (!url || processedUrls.has(url)) continue
+      processedUrls.add(url)
+
       extractedCitations.push({
         url,
         domain: extractDomain(url),
@@ -313,18 +329,37 @@ export function extractCitationsFromResponse(
       })
     }
   }
-  
+
+  // Process sources (web search results) - matches /api/analytics/citations behavior
+  if (sources && Array.isArray(sources)) {
+    for (const source of sources) {
+      const url = extractUrl(source)
+      if (!url || processedUrls.has(url)) continue
+      processedUrls.add(url)
+
+      extractedCitations.push({
+        url,
+        domain: extractDomain(url),
+        title: source.title || source.name,
+        citationType: categorizeCitation(url, source.title),
+        provider,
+        timestamp
+      })
+    }
+  }
+
   // Also extract URLs from response text (for providers that embed citations)
   const urlPattern = /https?:\/\/[^\s\)\]\}\,<>"']+/g
   const urlsInResponse = response.match(urlPattern) || []
-  
+
   for (const url of urlsInResponse) {
     // Clean up URL (remove trailing punctuation)
     const cleanUrl = url.replace(/[.,;:!?]+$/, '')
-    
-    // Skip if already extracted from explicit citations
-    if (extractedCitations.some(c => c.url === cleanUrl)) continue
-    
+
+    // Skip if already extracted
+    if (processedUrls.has(cleanUrl)) continue
+    processedUrls.add(cleanUrl)
+
     extractedCitations.push({
       url: cleanUrl,
       domain: extractDomain(cleanUrl),
@@ -333,7 +368,7 @@ export function extractCitationsFromResponse(
       timestamp
     })
   }
-  
+
   return extractedCitations
 }
 
@@ -360,7 +395,8 @@ export function aggregateCitationsForPrompt(
       result.response || '',
       result.citations || [],
       result.provider || result.model || 'Unknown',
-      result.timestamp ? new Date(result.timestamp) : new Date()
+      result.timestamp ? new Date(result.timestamp) : new Date(),
+      result.sources || []  // Include web search results to match /api/analytics/citations behavior
     )
     
     totalCitations += citations.length

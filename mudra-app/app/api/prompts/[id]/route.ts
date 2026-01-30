@@ -60,17 +60,21 @@ export async function GET(
       )
     }
 
-    // Step 2: Get the latest GEO analysis result for this brand
-    const latestAnalysis = await prisma.geoAnalysisResult.findFirst({
+    // Step 2: Get all GEO analysis results for this brand within date range
+    const days = dateRange === '7d' ? 7 : dateRange === '14d' ? 14 : 30
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+
+    const allAnalysisResults = await prisma.geoAnalysisResult.findMany({
       where: {
-        brandProfileId: profileId
+        brandProfileId: profileId,
+        createdAt: { gte: startDate }
       },
       orderBy: {
         createdAt: 'desc'
       }
     })
 
-    if (!latestAnalysis || !latestAnalysis.analyses) {
+    if (!allAnalysisResults || allAnalysisResults.length === 0) {
       // Prompt exists but no analysis yet
       return NextResponse.json({
         success: true,
@@ -87,13 +91,28 @@ export async function GET(
       })
     }
 
-    // Step 3: Extract analysis results for this specific prompt
-    const analysesRaw = latestAnalysis.analyses
-    const analyses: any[] = typeof analysesRaw === 'string'
-      ? JSON.parse(analysesRaw)
-      : (Array.isArray(analysesRaw) ? analysesRaw : [])
+    // Use the most recent analysis for metadata
+    const latestAnalysis = allAnalysisResults[0]
 
-    console.log(`🔍 Prompt detail: Looking for prompt ${promptId} in ${analyses.length} analysis results`)
+    // Step 3: Extract analysis results for this specific prompt from ALL analysis runs
+    const allAnalyses: Array<{ data: any; runId: number; runDate: Date }> = []
+
+    for (const analysisResult of allAnalysisResults) {
+      const analysesRaw = analysisResult.analyses
+      const analyses: any[] = typeof analysesRaw === 'string'
+        ? JSON.parse(analysesRaw)
+        : (Array.isArray(analysesRaw) ? analysesRaw : [])
+
+      for (const analysis of analyses) {
+        allAnalyses.push({
+          data: analysis,
+          runId: analysisResult.id,
+          runDate: analysisResult.createdAt
+        })
+      }
+    }
+
+    console.log(`🔍 Prompt detail: Looking for prompt ${promptId} in ${allAnalyses.length} analysis results from ${allAnalysisResults.length} runs`)
 
     const normalizeText = (text: string): string => {
       return text
@@ -106,11 +125,11 @@ export async function GET(
     const normalizedPromptText = normalizeText(prompt.text)
     console.log(`   Normalized prompt text: "${normalizedPromptText.substring(0, 50)}..."`)
 
-    // Collect all test results for this prompt across all providers
+    // Collect all test results for this prompt across all providers and all analysis runs
     const promptTestResults: any[] = []
     const allCompetitorMentions = new Set<string>()
-    
-    for (const item of analyses) {
+
+    for (const { data: item, runId, runDate } of allAnalyses) {
       let matchingTest: any = null
       let providerName: string | null = null
 
@@ -137,7 +156,7 @@ export async function GET(
         const competitorPositions = matchingTest.competitorPositions || {}
         const citations = matchingTest.citations || []
         const sources = matchingTest.sources || []
-        
+
         promptTestResults.push({
           provider: providerName,
           model: providerName,
@@ -149,7 +168,9 @@ export async function GET(
           competitorPositions: competitorPositions,
           citations: citations,
           sources: sources,
-          timestamp: matchingTest.timestamp || latestAnalysis.createdAt
+          timestamp: matchingTest.timestamp || runDate,
+          analysisRunId: runId,
+          analysisRunDate: runDate
         })
 
         // Collect competitor mentions
@@ -304,7 +325,9 @@ export async function GET(
       competitorsMentioned: result.competitorsMentioned,
       competitorPositions: result.competitorPositions, // Include positions data
       competitorSentiments: result.competitorSentiments, // Include sentiment data per competitor
-      citations: result.citations || [] // Include citations from live search APIs
+      citations: result.citations || [], // Include citations from live search APIs
+      analysisRunId: result.analysisRunId,
+      analysisRunDate: result.analysisRunDate
     }))
 
     // Step 8: Get visibility history time-series data

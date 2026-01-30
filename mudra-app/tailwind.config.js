@@ -12,7 +12,7 @@ module.exports = {
         'fade-scale-in': {
           '0%': {
             opacity: '0',
-            transform: 'translate(-50%, -50%) scale(0.98)'
+            transform: 'translate(-50%, -50%) scale(0.95)'
           },
           '100%': {
             opacity: '1',
@@ -26,7 +26,7 @@ module.exports = {
           },
           '100%': {
             opacity: '0',
-            transform: 'translate(-50%, -50%) scale(0.98)'
+            transform: 'translate(-50%, -50%) scale(0.95)'
           },
         },
         'fade-in': {
@@ -37,12 +37,22 @@ module.exports = {
           '0%': { opacity: '1' },
           '100%': { opacity: '0' },
         },
+        'slide-in-right': {
+          '0%': { transform: 'translateX(100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+        'slide-out-right': {
+          '0%': { transform: 'translateX(0)', opacity: '1' },
+          '100%': { transform: 'translateX(100%)', opacity: '0' },
+        },
       },
       animation: {
-        'fade-scale-in': 'fade-scale-in 150ms ease-out',
-        'fade-scale-out': 'fade-scale-out 130ms ease-in',
-        'fade-in': 'fade-in 150ms ease-out',
-        'fade-out': 'fade-out 120ms ease-in',
+        'fade-scale-in': 'fade-scale-in 200ms cubic-bezier(0.32, 0.72, 0, 1)',
+        'fade-scale-out': 'fade-scale-out 150ms cubic-bezier(0.32, 0.72, 0, 1)',
+        'fade-in': 'fade-in 200ms ease-out',
+        'fade-out': 'fade-out 150ms ease-in',
+        'slide-in-right': 'slide-in-right 300ms cubic-bezier(0.32, 0.72, 0, 1)',
+        'slide-out-right': 'slide-out-right 200ms cubic-bezier(0.32, 0.72, 0, 1)',
       },
       colors: {
         // Core theme tokens mapped to CSS variables

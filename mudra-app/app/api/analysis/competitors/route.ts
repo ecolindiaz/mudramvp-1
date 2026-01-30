@@ -19,20 +19,21 @@ interface AggregatedCompetitor {
 }
 
 /**
- * GET /api/analysis/competitors?brandProfileId={id}
- * 
+ * GET /api/analysis/competitors?brandProfileId={id}&limit={n}
+ *
  * Returns aggregated competitor data with proper Share of Voice calculation:
  * - Aggregates across ALL analysis runs (all tracked prompts)
  * - SOV % = (competitor mentions ÷ total competitor mentions) × 100
  * - Ranked by SOV (highest first)
- * - Returns Top 5 competitors
+ * - Returns top N competitors if limit is specified, otherwise ALL competitors
  * - Excludes the user's brand from the competitor list
  */
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
-    const limit = parseInt(searchParams.get('limit') || '5')
+    const limitParam = searchParams.get('limit')
+    const limit = limitParam ? parseInt(limitParam) : null // null means no limit (return all)
     const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
 
     // Helper to normalize model names for comparison
@@ -243,10 +244,9 @@ export async function GET(request: NextRequest) {
       })
     })
 
-    // Sort by SOV (highest first) and take top N
-    const topCompetitors = aggregatedCompetitors
-      .sort((a, b) => b.shareOfVoice - a.shareOfVoice)
-      .slice(0, limit)
+    // Sort by SOV (highest first) and optionally limit results
+    const sortedCompetitors = aggregatedCompetitors.sort((a, b) => b.shareOfVoice - a.shareOfVoice)
+    const topCompetitors = limit !== null ? sortedCompetitors.slice(0, limit) : sortedCompetitors
 
     return NextResponse.json({
       success: true,

@@ -16,9 +16,10 @@ interface OverviewMetricsProps {
   showAll?: boolean
   timeRange: TimeRange
   selectedModel: AIModel | "all"
+  days?: number
 }
 
-export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: OverviewMetricsProps) {
+export function OverviewMetrics({ showAll = false, timeRange, selectedModel, days = 30 }: OverviewMetricsProps) {
   // Suppress unused variable warnings for future use
   void timeRange
 
@@ -370,7 +371,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       const timeoutId1 = setTimeout(() => controller1.abort(), 10000)
 
       const currentResponse = await fetch(
-        `/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}`,
+        `/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}&days=${days}`,
         { signal: controller1.signal }
       )
       clearTimeout(timeoutId1)
@@ -421,7 +422,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
         const timeoutId2 = setTimeout(() => controller2.abort(), 10000)
 
         const historyResponse = await fetch(
-          `/api/analysis/geo-history?brandProfileId=${profile.id}&limit=5`,
+          `/api/analysis/geo-history?brandProfileId=${profile.id}&limit=5&days=${days}`,
           { signal: controller2.signal }
         )
         clearTimeout(timeoutId2)
@@ -496,7 +497,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       const timeoutId = setTimeout(() => controller.abort('Request timeout'), 10000) // 10s timeout
       
       const response = await fetch(
-        `/api/analysis/technical-history?brandProfileId=${profile.id}&limit=5`,
+        `/api/analysis/technical-history?brandProfileId=${profile.id}&limit=5&days=${days}`,
         { signal: controller.signal }
       )
       clearTimeout(timeoutId)
@@ -594,7 +595,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       setLoadingAiReferral(true)
       // Build URL with optional model filter
       const modelParam = selectedModel !== 'all' ? `&model=${selectedModel}` : ''
-      const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&days=7${modelParam}`)
+      const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&days=${days}${modelParam}`)
       
       if (!response.ok) {
         throw new Error(`API responded with status ${response.status}`)
@@ -648,7 +649,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel }: O
       setLoadingTechnical(false)
       setLoadingTraffic(false)
     }
-  }, [profile.id, selectedModel])
+  }, [profile.id, selectedModel, days])
 
   // Listen for analysis completion events
   useEffect(() => {

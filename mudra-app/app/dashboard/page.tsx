@@ -30,10 +30,19 @@ const platformOptions = [
   { value: "google-aio" as PlatformFilter, label: "Google AIO", icon: "/google-logo.svg" },
 ]
 
+const timeRangeOptions = [
+  { value: "7d" as TimeRange, label: "Last 7 days" },
+  { value: "15d" as TimeRange, label: "Last 15 days" },
+  { value: "1m" as TimeRange, label: "Last month" },
+]
+
 function DashboardPageInner() {
   const { profile } = useBrandProfile()
-  const [timeRange] = React.useState<TimeRange>("7d")
+  const [timeRange, setTimeRange] = React.useState<TimeRange>("1m")
   const [selectedPlatform, setSelectedPlatform] = React.useState<PlatformFilter>("all")
+
+  // Calculate days from timeRange for API calls
+  const days = timeRange === '7d' ? 7 : timeRange === '15d' ? 15 : 30
   
   // Analysis cooldown state
   const [canRunAnalysis, setCanRunAnalysis] = React.useState(false)
@@ -190,6 +199,24 @@ function DashboardPageInner() {
                     </SelectContent>
                   </Select>
 
+                  {/* Time Range Filter */}
+                  <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
+                    <SelectTrigger className="w-[140px] h-9 !bg-[#161616] hover:!bg-[#1c1c1c] !border-0 text-white rounded-lg transition-all duration-200 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
+                      <SelectValue placeholder="Last month" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#161616] border-0 duration-200">
+                      {timeRangeOptions.map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}
+                          className="focus:bg-white/[0.08] hover:bg-white/[0.05] outline-none text-white transition-colors duration-150"
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
                   {/* Countdown Badge */}
                   {!canRunAnalysis && nextAnalysisTime && (
                     <CountdownBadge targetMs={nextAnalysisTime} />
@@ -226,6 +253,7 @@ function DashboardPageInner() {
                 <OverviewMetrics
                   timeRange={timeRange}
                   selectedModel={selectedPlatform}
+                  days={days}
                 />
               </div>
 
@@ -234,6 +262,7 @@ function DashboardPageInner() {
                 <NaturalLanguageReport
                   timeRange={timeRange}
                   selectedModel={selectedPlatform}
+                  days={days}
                 />
               </div>
             </div>

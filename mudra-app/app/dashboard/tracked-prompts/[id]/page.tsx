@@ -498,19 +498,21 @@ function TrackedPromptDeepViewInner() {
     if (!promptData?.testResults || promptData.testResults.length === 0) {
       return [] // Return empty array - empty states will be shown by the UI
     }
-    
-    return promptData.testResults.map((result: any, index: number) => {
+
+    const chats = promptData.testResults.map((result: any, index: number) => {
       const provider = mapProviderName(result.provider || result.model)
-      const snippet = result.response 
+      const snippet = result.response
         ? result.response.substring(0, 100) + (result.response.length > 100 ? '…' : '')
         : 'No response available'
-      
-      // Calculate time ago (using analysisDate)
-      const analysisDate = promptData.analysisDate ? new Date(promptData.analysisDate) : new Date()
+
+      // Use analysisRunDate from each result (for historical data), fallback to promptData.analysisDate
+      const analysisDate = result.analysisRunDate
+        ? new Date(result.analysisRunDate)
+        : (promptData.analysisDate ? new Date(promptData.analysisDate) : new Date())
       const now = new Date()
       const hoursAgo = Math.floor((now.getTime() - analysisDate.getTime()) / (1000 * 60 * 60))
       const timeAgo = hoursAgo < 24 ? `${hoursAgo} hr. ago` : `${Math.floor(hoursAgo / 24)} days ago`
-      
+
       // Extract citations from API response AND response text - deduplicated by normalized URL
       // This matches the logic used in citation-extraction.service.ts for the Sources tab
       const seenUrls = new Set<string>()
@@ -557,7 +559,7 @@ function TrackedPromptDeepViewInner() {
           title: citation.title || '',
           type: mapCitationType(citation.title || '')
         }))
-      
+
       return {
         id: `chat_${index}`,
         provider,
@@ -565,14 +567,19 @@ function TrackedPromptDeepViewInner() {
         rank: index + 1,
         timeAgo,
         avgPosition: result.position || 0,
-        date: analysisDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+        date: analysisDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
         mentioned: result.mentioned || false,
         position: result.position || 0,
         extraMentions: result.competitorsMentioned?.length || 0,
         fullResponse: result.response || 'No response available',
-        responseCitations
+        responseCitations,
+        // Store the raw date for sorting
+        _sortDate: analysisDate.getTime()
       }
     })
+
+    // Sort by date descending (newest first), then by provider for consistency within same date
+    return chats.sort((a: any, b: any) => b._sortDate - a._sortDate)
   }, [promptData])
   
   const filteredChats = recentChats.filter((c) => selectedPlatform === 'all' || providerKey(c.provider) === selectedPlatform)

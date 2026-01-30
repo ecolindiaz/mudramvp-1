@@ -5,12 +5,33 @@ import { applyRateLimit } from '@/lib/auth/rate-limiter-redis'
 
 type CitationType = 'Blog' | 'Listicle' | 'Docs' | 'News' | 'Academic' | 'Wiki' | 'Forum' | 'Video' | 'Product' | 'Review' | 'Social' | 'Other'
 
+interface PromptCitation {
+  promptId: number | null
+  promptText: string
+  provider: string
+}
+
+type SourceType = 'citation' | 'search_result'
+
+interface UrlWithPrompts {
+  url: string
+  prompts: PromptCitation[]
+  totalPrompts: number // Total prompts before truncation
+}
+
 interface CitationData {
   domain: string
   count: number
   percentage: number
   urls: string[]
+  totalUrls: number // Total URLs before truncation
+  urlsWithPrompts: UrlWithPrompts[] // NEW: URLs with their specific prompts
   type: CitationType
+  prompts: PromptCitation[] // Domain-level prompts (for backwards compat)
+  totalPrompts: number // Total prompts before truncation
+  sourceType: SourceType // Tracks whether this came from inline citations or web search results
+  citationCount: number // Count of inline citations
+  searchResultCount: number // Count of search result URLs
 }
 
 /**
@@ -252,7 +273,7 @@ function categorizeCitationByUrl(url: string): CitationType {
  *
  * Query params:
  * - brandProfileId: The brand profile ID to fetch citations for
- * - limit: Maximum number of top citations to return (default: 10)
+ * - limit: Maximum number of top citations to return (optional, returns ALL if not specified)
  * - days: Number of days to look back (default: 30)
  * - model: Optional filter for specific AI model (chatgpt, claude, perplexity, gemini, google-aio)
  */
@@ -293,7 +314,7 @@ export async function GET(request: NextRequest) {
     if (!authResult.success) {
       return authResult.response;
     }
-    const limit = limitParam ? parseInt(limitParam, 10) : 10
+    const limit = limitParam ? parseInt(limitParam, 10) : null // null means no limit (return all)
     const days = daysParam ? parseInt(daysParam, 10) : 30
 
     // Calculate date range
@@ -318,6 +339,17 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // Fetch all Prompts for this brand to map promptText -> promptId
+    const prompts = await prisma.prompt.findMany({
+      where: { brandProfileId },
+      select: { id: true, text: true }
+    })
+    const promptTextToId = new Map<string, number>()
+    for (const p of prompts) {
+      // Use lowercase trimmed text as key for fuzzy matching
+      promptTextToId.set(p.text.toLowerCase().trim(), p.id)
+    }
+
     if (geoResults.length === 0) {
       return NextResponse.json({
         success: true,
@@ -334,16 +366,20 @@ export async function GET(request: NextRequest) {
     const citationMap = new Map<string, {
       count: number
       urls: Set<string>
+      urlPrompts: Map<string, Map<string, PromptCitation>> // NEW: url -> (promptKey -> prompt)
       typeCounts: Map<CitationType, number>
+      prompts: Map<string, PromptCitation> // key: "promptText|provider" to dedupe (domain-level)
+      citationCount: number // Count of inline citations
+      searchResultCount: number // Count of search result URLs
     }>()
     let totalCitationCount = 0
 
     for (const result of geoResults) {
       const analysesRaw = result.analyses;
-      const analyses: any[] = typeof analysesRaw === 'string' 
-        ? JSON.parse(analysesRaw) 
+      const analyses: any[] = typeof analysesRaw === 'string'
+        ? JSON.parse(analysesRaw)
         : (Array.isArray(analysesRaw) ? analysesRaw : []);
-      
+
       for (const analysis of analyses) {
         if (!analysis || typeof analysis !== 'object') continue;
 
@@ -366,6 +402,10 @@ export async function GET(request: NextRequest) {
           const citations = Array.isArray(test.citations) ? test.citations : []
           const sources = Array.isArray(test.sources) ? test.sources : []
 
+          // Get prompt text and provider for this test
+          const promptText = test.prompt || test.query || ''
+          const provider = analysisObj.provider || 'Unknown'
+
           // Track URLs we've already processed to avoid double-counting
           const processedUrls = new Set<string>()
 
@@ -378,7 +418,7 @@ export async function GET(request: NextRequest) {
           }
 
           // Helper to process a URL and add to citationMap
-          const processUrl = (rawUrl: string) => {
+          const processUrl = (rawUrl: string, sourceType: SourceType) => {
             if (!rawUrl || processedUrls.has(rawUrl)) return
             processedUrls.add(rawUrl)
 
@@ -390,14 +430,46 @@ export async function GET(request: NextRequest) {
                 const existing = citationMap.get(domain) || {
                   count: 0,
                   urls: new Set<string>(),
-                  typeCounts: new Map<CitationType, number>()
+                  urlPrompts: new Map<string, Map<string, PromptCitation>>(),
+                  typeCounts: new Map<CitationType, number>(),
+                  prompts: new Map<string, PromptCitation>(),
+                  citationCount: 0,
+                  searchResultCount: 0
                 }
                 existing.count++
                 existing.urls.add(rawUrl)
 
+                // Track source type counts
+                if (sourceType === 'citation') {
+                  existing.citationCount++
+                } else {
+                  existing.searchResultCount++
+                }
+
                 // Track citation type for this URL
                 const citationType = categorizeCitationByUrl(rawUrl)
                 existing.typeCounts.set(citationType, (existing.typeCounts.get(citationType) || 0) + 1)
+
+                // Track which prompt cited this domain (dedupe by prompt+provider)
+                if (promptText) {
+                  const promptKey = `${promptText}|${provider}`
+                  const promptId = promptTextToId.get(promptText.toLowerCase().trim()) || null
+                  const promptData: PromptCitation = { promptId, promptText, provider }
+
+                  // Add to domain-level prompts (for backwards compat)
+                  if (!existing.prompts.has(promptKey)) {
+                    existing.prompts.set(promptKey, promptData)
+                  }
+
+                  // NEW: Add to URL-specific prompts
+                  if (!existing.urlPrompts.has(rawUrl)) {
+                    existing.urlPrompts.set(rawUrl, new Map<string, PromptCitation>())
+                  }
+                  const urlPromptsMap = existing.urlPrompts.get(rawUrl)!
+                  if (!urlPromptsMap.has(promptKey)) {
+                    urlPromptsMap.set(promptKey, promptData)
+                  }
+                }
 
                 citationMap.set(domain, existing)
                 totalCitationCount++
@@ -410,19 +482,19 @@ export async function GET(request: NextRequest) {
 
           // Process inline citations first (these are what the AI explicitly cited)
           for (const citation of citations) {
-            processUrl(extractUrl(citation))
+            processUrl(extractUrl(citation), 'citation')
           }
 
           // Process sources (all URLs from web search - OpenAI's full search results)
           for (const source of sources) {
-            processUrl(extractUrl(source))
+            processUrl(extractUrl(source), 'search_result')
           }
         }
       }
     }
 
     // Convert to array and calculate percentages
-    const citations: CitationData[] = Array.from(citationMap.entries())
+    const citationsResult: CitationData[] = Array.from(citationMap.entries())
       .map(([domain, data]) => {
         // Determine the dominant citation type for this domain
         let dominantType: CitationType = 'Other'
@@ -434,23 +506,52 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        // Determine the dominant source type (citation vs search_result)
+        const sourceType: SourceType = data.citationCount >= data.searchResultCount
+          ? 'citation'
+          : 'search_result'
+
+        // Build urlsWithPrompts array - each URL with its specific citing prompts
+        const allUrls = Array.from(data.urls)
+        const urlsArray = allUrls.slice(0, 10)
+        const urlsWithPrompts: UrlWithPrompts[] = urlsArray.map(url => {
+          const urlPromptsMap = data.urlPrompts.get(url)
+          const allUrlPrompts = urlPromptsMap ? Array.from(urlPromptsMap.values()) : []
+          return {
+            url,
+            prompts: allUrlPrompts.slice(0, 10),
+            totalPrompts: allUrlPrompts.length
+          }
+        })
+
+        const allDomainPrompts = Array.from(data.prompts.values())
+
         return {
           domain,
           count: data.count,
           percentage: totalCitationCount > 0
             ? Math.round((data.count / totalCitationCount) * 100)
             : 0,
-          urls: Array.from(data.urls).slice(0, 5), // Include up to 5 sample URLs
-          type: dominantType
+          urls: urlsArray,
+          totalUrls: allUrls.length, // Total before truncation
+          urlsWithPrompts, // NEW: URLs with their specific prompts
+          type: dominantType,
+          prompts: allDomainPrompts.slice(0, 10), // Domain-level prompts (backwards compat)
+          totalPrompts: allDomainPrompts.length, // Total before truncation
+          sourceType,
+          citationCount: data.citationCount,
+          searchResultCount: data.searchResultCount
         }
       })
       .sort((a, b) => b.count - a.count)
-      .slice(0, limit)
+
+    // Only slice if limit is specified
+    const finalCitations = limit !== null ? citationsResult.slice(0, limit) : citationsResult
 
     return NextResponse.json({
       success: true,
       data: {
-        citations,
+        citations: finalCitations,
         totalCitations: totalCitationCount,
         totalAnalyses: geoResults.length,
         periodDays: days,
@@ -461,12 +562,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching citation analytics:', error)
     return NextResponse.json(
-      { 
-        success: false, 
-        error: { 
+      {
+        success: false,
+        error: {
           message: 'Failed to fetch citation analytics',
           details: error instanceof Error ? error.message : 'Unknown error'
-        } 
+        }
       },
       { status: 500 }
     )

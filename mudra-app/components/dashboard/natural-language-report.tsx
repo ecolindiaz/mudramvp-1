@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
 import {
@@ -13,7 +14,7 @@ import {
   IconInfoCircle,
   IconCheck
 } from "@tabler/icons-react"
-import { FileText, ArrowUpRight, Maximize2, ListOrdered, BookOpen, Newspaper, GraduationCap, Globe, MessageSquare, PlayCircle, Building2, Star, Share2, BookMarked } from "lucide-react"
+import { FileText, ArrowUpRight, ListOrdered, BookOpen, Newspaper, GraduationCap, Globe, MessageSquare, PlayCircle, Building2, Star, Share2, BookMarked, ExternalLink, X, ChevronRight, Expand } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "react-hot-toast"
 import type { NlrSummaryJson } from '@/types/nlr'
@@ -26,6 +27,7 @@ interface NaturalLanguageReportProps {
   className?: string
   timeRange: TimeRange
   selectedModel: AIModel | "all"
+  days?: number
 }
 
 // Citation type icon helper - matches the Sources table in tracked prompts
@@ -63,7 +65,7 @@ function CitationTypeIcon({ type }: { type: CitationType }) {
 }
 
 
-export function NaturalLanguageReport({ className, timeRange, selectedModel }: NaturalLanguageReportProps) {
+export function NaturalLanguageReport({ className, timeRange, selectedModel, days = 30 }: NaturalLanguageReportProps) {
   const router = useRouter()
   const { profile } = useBrandProfile()
   const [showReportHistory, setShowReportHistory] = React.useState(false)
@@ -71,6 +73,24 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   const [copied, setCopied] = React.useState(false)
   const [showCompetitorRankingsModal, setShowCompetitorRankingsModal] = React.useState(false)
   const [showCitationsModal, setShowCitationsModal] = React.useState(false)
+  // State for the URLs modal (first level - shows URLs for a domain)
+  const [selectedSource, setSelectedSource] = React.useState<{
+    domain: string;
+    urls: string[];
+    totalUrls: number;
+    urlsWithPrompts: Array<{ url: string; prompts: Array<{ promptId: number | null; promptText: string; provider: string }>; totalPrompts: number }>;
+    type: string;
+    prompts: Array<{ promptId: number | null; promptText: string; provider: string }>; // Domain-level (fallback)
+    totalPrompts: number;
+  } | null>(null)
+
+  // State for the prompts sheet (second level - shows prompts for a specific URL)
+  const [selectedUrl, setSelectedUrl] = React.useState<{
+    url: string;
+    domain: string;
+    prompts: Array<{ promptId: number | null; promptText: string; provider: string }>;
+    totalPrompts: number;
+  } | null>(null)
 
   // Ensure consistent hydration - only use profile.id after mount
   React.useEffect(() => {
@@ -96,7 +116,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
   // Fetch recent prompts/chats with results (includes aggregate metrics)
   const { data: promptsData, isLoading: isLoadingPrompts, mutate: refreshPrompts } = useSWR(
-    brandProfileId ? `/api/prompts/with-results?brandProfileId=${brandProfileId}${modelParam}` : null,
+    brandProfileId ? `/api/prompts/with-results?brandProfileId=${brandProfileId}${modelParam}&days=${days}` : null,
     async (url: string) => {
       const res = await fetch(url)
       if (!res.ok) return null
@@ -314,9 +334,9 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   
   // Note: brandProfileId is already defined above (line ~51)
 
-  // Fetch real citation data from aggregated prompt results
+  // Fetch real citation data from aggregated prompt results (preview - top 5)
   const { data: citationsData, isLoading: isLoadingCitations } = useSWR(
-    brandProfileId ? `/api/analytics/citations?brandProfileId=${brandProfileId}&limit=5&days=30${modelParam}` : null,
+    brandProfileId ? `/api/analytics/citations?brandProfileId=${brandProfileId}&limit=5&days=${days}${modelParam}` : null,
     async (url: string) => {
       const res = await fetch(url)
       if (!res.ok) return null
@@ -325,15 +345,90 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     }
   )
 
-  // Transform citation data for display
-  const citations: Array<{ domain: string; used: number; type: string }> = React.useMemo(() => {
+  // Fetch ALL citations for expansion modal (no limit)
+  const { data: allCitationsData, isLoading: isLoadingAllCitations } = useSWR(
+    showCitationsModal && brandProfileId
+      ? `/api/analytics/citations?brandProfileId=${brandProfileId}&days=${days}${modelParam}`
+      : null,
+    async (url: string) => {
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const json = await res.json()
+      return json.data
+    }
+  )
+
+  // Transform citation data for display (including URLs and prompts for drill-down)
+  const citations: Array<{
+    domain: string;
+    used: number;
+    type: string;
+    urls: string[];
+    totalUrls: number;
+    urlsWithPrompts: Array<{ url: string; prompts: Array<{ promptId: number | null; promptText: string; provider: string }>; totalPrompts: number }>;
+    prompts: Array<{ promptId: number | null; promptText: string; provider: string }>;
+    totalPrompts: number;
+  }> = React.useMemo(() => {
     if (!citationsData?.citations) return []
     return citationsData.citations.map((c: any) => ({
       domain: c.domain,
       used: c.percentage,
-      type: c.type || 'Other'
+      type: c.type || 'Other',
+      urls: c.urls || [],
+      totalUrls: c.totalUrls || c.urls?.length || 0,
+      urlsWithPrompts: (c.urlsWithPrompts || []).map((u: any) => ({
+        url: u.url,
+        prompts: (u.prompts || []).map((p: any) => ({
+          promptId: p.promptId || null,
+          promptText: p.promptText,
+          provider: p.provider
+        })),
+        totalPrompts: u.totalPrompts || u.prompts?.length || 0
+      })),
+      prompts: (c.prompts || []).map((p: any) => ({
+        promptId: p.promptId || null,
+        promptText: p.promptText,
+        provider: p.provider
+      })),
+      totalPrompts: c.totalPrompts || c.prompts?.length || 0
     }))
   }, [citationsData])
+
+  // Transform ALL citation data for expansion modal
+  const allCitations: Array<{
+    domain: string;
+    used: number;
+    type: string;
+    urls: string[];
+    totalUrls: number;
+    urlsWithPrompts: Array<{ url: string; prompts: Array<{ promptId: number | null; promptText: string; provider: string }>; totalPrompts: number }>;
+    prompts: Array<{ promptId: number | null; promptText: string; provider: string }>;
+    totalPrompts: number;
+  }> = React.useMemo(() => {
+    if (!allCitationsData?.citations) return []
+    return allCitationsData.citations.map((c: any) => ({
+      domain: c.domain,
+      used: c.percentage,
+      type: c.type || 'Other',
+      urls: c.urls || [],
+      totalUrls: c.totalUrls || c.urls?.length || 0,
+      urlsWithPrompts: (c.urlsWithPrompts || []).map((u: any) => ({
+        url: u.url,
+        prompts: (u.prompts || []).map((p: any) => ({
+          promptId: p.promptId || null,
+          promptText: p.promptText,
+          provider: p.provider
+        })),
+        totalPrompts: u.totalPrompts || u.prompts?.length || 0
+      })),
+      prompts: (c.prompts || []).map((p: any) => ({
+        promptId: p.promptId || null,
+        promptText: p.promptText,
+        provider: p.provider
+      })),
+      totalPrompts: c.totalPrompts || c.prompts?.length || 0
+    }))
+  }, [allCitationsData])
 
   // Fetch aggregated competitor rankings with proper SOV calculation
   // Uses the new /api/analysis/competitors endpoint that:
@@ -341,9 +436,9 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
   // - SOV % = (competitor mentions ÷ total competitor mentions) × 100
   // - Excludes the user's brand from competitors
   // - Ranks by SOV (highest first)
-  // - Returns Top 5 competitors
+  // - Returns Top 5 competitors for preview
   const { data: competitorsData, mutate: refreshCompetitors, isLoading: isLoadingCompetitors } = useSWR(
-    brandProfileId ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&limit=5${modelParam}` : null,
+    brandProfileId ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&limit=5&days=${days}${modelParam}` : null,
     async (url: string) => {
       const res = await fetch(url)
       if (!res.ok) return null
@@ -352,17 +447,40 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
     }
   )
 
-  // Transform competitor data for display
+  // Fetch ALL competitors for expansion modal (no limit)
+  const { data: allCompetitorsData, isLoading: isLoadingAllCompetitors } = useSWR(
+    showCompetitorRankingsModal && brandProfileId
+      ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&days=${days}${modelParam}`
+      : null,
+    async (url: string) => {
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const json = await res.json()
+      return json.data
+    }
+  )
+
+  // Transform competitor data for display (preview - top 5)
   // Note: User's brand is already excluded by the API
   // Data is already sorted by SOV (highest first) by the API
   const competitorRankings: Array<{ name: string; sov: number }> = React.useMemo(() => {
     if (!competitorsData?.competitors) return []
-    
+
     return competitorsData.competitors.map((comp: any) => ({
       name: comp.name || '',
       sov: comp.shareOfVoice || 0 // SOV % already calculated by API
     }))
   }, [competitorsData])
+
+  // Transform ALL competitor data for expansion modal
+  const allCompetitorRankings: Array<{ name: string; sov: number }> = React.useMemo(() => {
+    if (!allCompetitorsData?.competitors) return []
+
+    return allCompetitorsData.competitors.map((comp: any) => ({
+      name: comp.name || '',
+      sov: comp.shareOfVoice || 0
+    }))
+  }, [allCompetitorsData])
 
   // Listen for analysis completion to refresh competitor data
   React.useEffect(() => {
@@ -702,55 +820,67 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Summary */}
-        <div className="rounded-xl bg-[#161616] overflow-hidden flex flex-col">
+        <div className="rounded-xl bg-[#161616] overflow-hidden flex flex-col border border-white/[0.04]">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-            <div className="text-base font-medium text-white/90">Summary</div>
+            <div className="text-base font-medium text-white">Summary</div>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex">
-                  <IconInfoCircle className="size-4 text-white/60" />
+                <span className="inline-flex items-center justify-center size-7 rounded-lg hover:bg-white/[0.04] transition-colors cursor-default">
+                  <IconInfoCircle className="size-4 text-white/50 hover:text-white/80 transition-colors" />
                 </span>
               </TooltipTrigger>
               <TooltipContent sideOffset={8}>AI-generated summary of your brand visibility.</TooltipContent>
             </Tooltip>
           </div>
 
-          <div className="p-5 flex-1 flex flex-col">
+          <div className="p-5 flex-1 flex flex-col min-h-[200px]">
             <div className="flex-1">
               {isLoading ? (
-                <div className="space-y-2">
-                  <div className="h-4 w-full bg-white/10 animate-pulse rounded" />
-                  <div className="h-4 w-11/12 bg-white/10 animate-pulse rounded" />
-                  <div className="h-4 w-10/12 bg-white/10 animate-pulse rounded" />
-                  <div className="h-4 w-full bg-white/10 animate-pulse rounded" />
-                  <div className="h-4 w-9/12 bg-white/10 animate-pulse rounded" />
+                <div className="space-y-3">
+                  <div className="h-4 w-full bg-white/[0.06] animate-pulse rounded-md" />
+                  <div className="h-4 w-11/12 bg-white/[0.06] animate-pulse rounded-md" />
+                  <div className="h-4 w-10/12 bg-white/[0.06] animate-pulse rounded-md" />
+                  <div className="h-4 w-full bg-white/[0.06] animate-pulse rounded-md" />
+                  <div className="h-4 w-9/12 bg-white/[0.06] animate-pulse rounded-md" />
                 </div>
               ) : error ? (
-                <div className="py-12 text-center">
-                  <p className="text-base text-white/60">Failed to load report. Please try again.</p>
+                <div className="flex flex-col items-center justify-center py-10">
+                  <div className="flex items-center justify-center size-12 rounded-full bg-red-500/10 border border-red-500/20 mb-3">
+                    <IconInfoCircle className="size-5 text-red-400" />
+                  </div>
+                  <p className="text-sm font-medium text-white/70">Failed to load report</p>
+                  <p className="text-xs text-white/40 mt-1">Please try again later</p>
                 </div>
               ) : !summary ? (
-                <div className="py-12 text-center">
-                  <p className="text-base text-white/60">No report available yet.</p>
-                  <p className="text-sm text-white/40 mt-2">Generate a report to see your AI visibility summary.</p>
+                <div className="flex flex-col items-center justify-center py-10">
+                  <div className="flex items-center justify-center size-12 rounded-full bg-white/[0.04] border border-white/[0.06] mb-3">
+                    <FileText className="size-5 text-white/40" />
+                  </div>
+                  <p className="text-sm font-medium text-white/70">No report available yet</p>
+                  <p className="text-xs text-white/40 mt-1">Generate a report to see your AI visibility summary</p>
                 </div>
               ) : (
-                <p className="text-base leading-7 text-white/85">
-                  {summary}
-                </p>
+                <div className="relative">
+                  <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-white/50 to-transparent" />
+                  <p className="text-[15px] leading-7 text-white/85 pl-4">
+                    {summary}
+                  </p>
+                </div>
               )}
             </div>
 
-            <div className="flex justify-end mt-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-white/50 hover:text-white hover:bg-white/[0.04] text-xs"
-                onClick={() => setShowReportHistory(true)}
-              >
-                <FileText className="size-3.5 mr-1.5" /> History
-              </Button>
-            </div>
+          </div>
+          <div className="flex justify-end px-5 py-3 border-t border-white/[0.06]">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="group h-8 px-3.5 text-white/60 hover:text-white hover:bg-white/[0.08] text-xs font-medium rounded-lg transition-all gap-1.5"
+              onClick={() => setShowReportHistory(true)}
+            >
+              <FileText className="size-3.5" />
+              View History
+              <ChevronRight className="size-3 text-white/40 group-hover:text-white/60 group-hover:translate-x-0.5 transition-all" />
+            </Button>
           </div>
         </div>
           
@@ -770,11 +900,11 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                   </Tooltip>
                 </div>
                 <button
-                  onClick={() => setShowCompetitorRankingsModal(true)}
-                  className="text-white/40 hover:text-white/70 transition-colors"
-                >
-                  <Maximize2 className="size-4" />
-                </button>
+                onClick={() => setShowCompetitorRankingsModal(true)}
+                className="flex items-center justify-center size-7 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all"
+              >
+                <Expand className="size-4" />
+              </button>
               </div>
               <div className="divide-y divide-white/[0.06]">
                   <div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-2.5 text-xs text-white/50">
@@ -802,11 +932,11 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                     </div>
                   ) : competitorRankings.length === 0 ? (
                     <div className="px-5 py-16 text-center">
-                      <p className="text-sm text-white/60">No competitor data available yet.</p>
-                      <p className="text-xs text-white/40 mt-1">Run an analysis to see competitor rankings.</p>
+                      <p className="text-sm text-white/60">No competitor data found for the selected time range.</p>
+                      <p className="text-xs text-white/40 mt-1">Try selecting a longer period or run a new analysis.</p>
                     </div>
                   ) : (
-                    competitorRankings.map((competitor, idx) => {
+                    competitorRankings.slice(0, 5).map((competitor, idx) => {
                       const logoUrl = getCompanyLogoUrl(competitor.name)
                       return (
                         <div
@@ -861,9 +991,9 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
               </div>
               <button
                 onClick={() => setShowCitationsModal(true)}
-                className="text-white/40 hover:text-white/70 transition-colors"
+                className="flex items-center justify-center size-7 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all"
               >
-                <Maximize2 className="size-4" />
+                <Expand className="size-4" />
               </button>
             </div>
             <div className="divide-y divide-white/[0.06]">
@@ -890,12 +1020,26 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                 </div>
               ) : citations.length === 0 ? (
                 <div className="px-5 py-16 text-center">
-                  <p className="text-sm text-white/60">No citation data available yet.</p>
-                  <p className="text-xs text-white/40 mt-1">Run an analysis to see citation sources.</p>
+                  <p className="text-sm text-white/60">No citation data found for the selected time range.</p>
+                  <p className="text-xs text-white/40 mt-1">Try selecting a longer period or run a new analysis.</p>
                 </div>
               ) : (
-                citations.map((c, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_100px_130px] items-center px-5 py-3.5 hover:bg-white/[0.02] transition-colors">
+                citations.slice(0, 5).map((c, idx) => (
+                  <div
+                    key={idx}
+                    className="grid grid-cols-[1fr_100px_130px] items-center px-5 py-3.5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                    onClick={() => {
+                      setSelectedSource({
+                        domain: c.domain,
+                        urls: c.urls || [],
+                        totalUrls: c.totalUrls || 0,
+                        urlsWithPrompts: c.urlsWithPrompts || [],
+                        type: c.type,
+                        prompts: c.prompts || [],
+                        totalPrompts: c.totalPrompts || 0
+                      })
+                    }}
+                  >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80">
                         {c.domain[0].toUpperCase()}
@@ -1044,18 +1188,18 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
         </DialogContent>
       </Dialog>
 
-      {/* Competitor Rankings Expansion Modal */}
+      {/* Competitor Rankings Expansion Modal - shows ALL competitors */}
       <ExpansionModal
         open={showCompetitorRankingsModal}
         onOpenChange={setShowCompetitorRankingsModal}
         title="Competitor Rankings"
         description="How often competitors are mentioned across all AI responses"
-        data={competitorRankings}
-        isLoading={isLoadingCompetitors}
+        data={(allCompetitorRankings.length > 0 ? allCompetitorRankings : competitorRankings).slice(0, 20)}
+        isLoading={isLoadingAllCompetitors || (showCompetitorRankingsModal && allCompetitorRankings.length === 0 && isLoadingCompetitors)}
         searchKey="name"
         searchPlaceholder="Search competitors..."
-        emptyMessage="No competitor data available yet."
-        emptySubMessage="Run an analysis to see competitor rankings."
+        emptyMessage="No competitor data found for the selected time range."
+        emptySubMessage="Try selecting a longer period or run a new analysis."
         columns={[
           {
             key: "rank",
@@ -1107,18 +1251,31 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
         ] as ExpansionModalColumn<{ name: string; sov: number }>[]}
       />
 
-      {/* Citations Expansion Modal */}
+      {/* Citations Expansion Modal - shows ALL citations */}
       <ExpansionModal
         open={showCitationsModal}
         onOpenChange={setShowCitationsModal}
         title="Citations"
         description="Top sources AI cites from your industry"
-        data={citations}
-        isLoading={isLoadingCitations}
+        data={(allCitations.length > 0 ? allCitations : citations).slice(0, 20)}
+        isLoading={isLoadingAllCitations || (showCitationsModal && allCitations.length === 0 && isLoadingCitations)}
         searchKey="domain"
         searchPlaceholder="Search sources..."
-        emptyMessage="No citation data available yet."
-        emptySubMessage="Run an analysis to see citation sources."
+        emptyMessage="No citation data found for the selected time range."
+        emptySubMessage="Try selecting a longer period or run a new analysis."
+        onRowClick={(item) => {
+          // Close the ExpansionModal first to avoid stacked modals
+          setShowCitationsModal(false)
+          setSelectedSource({
+            domain: item.domain,
+            urls: item.urls || [],
+            totalUrls: item.totalUrls || 0,
+            urlsWithPrompts: item.urlsWithPrompts || [],
+            type: item.type,
+            prompts: item.prompts || [],
+            totalPrompts: item.totalPrompts || 0
+          })
+        }}
         columns={[
           {
             key: "domain",
@@ -1131,6 +1288,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
                   {item.domain[0].toUpperCase()}
                 </span>
                 <span className="truncate text-white/90">{item.domain}</span>
+                <ChevronRight className="size-3.5 text-white/30 ml-auto flex-shrink-0" />
               </div>
             ),
           },
@@ -1156,8 +1314,277 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel }: N
               <span className="tabular-nums text-white/70 font-medium">{item.used}%</span>
             ),
           },
-        ] as ExpansionModalColumn<{ domain: string; used: number; type: string }>[]}
+        ] as ExpansionModalColumn<{ domain: string; used: number; type: string; urls: string[]; totalUrls: number; urlsWithPrompts: Array<{ url: string; prompts: Array<{ promptId: number | null; promptText: string; provider: string }>; totalPrompts: number }>; prompts: Array<{ promptId: number | null; promptText: string; provider: string }>; totalPrompts: number }>[]}
       />
+
+      {/* Source URLs Modal - popup showing URLs for a domain */}
+      <Dialog open={!!selectedSource} onOpenChange={(open) => { if (!open) setSelectedSource(null) }}>
+        <DialogContent 
+          showCloseButton={false}
+          className="!max-w-3xl bg-[#161616] border-white/[0.08] p-0 !rounded-2xl overflow-hidden"
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>URLs for {selectedSource?.domain}</DialogTitle>
+            <DialogDescription>List of URLs captured from this source</DialogDescription>
+          </DialogHeader>
+          {selectedSource && (
+            <div className="flex flex-col max-h-[70vh]">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <span className="inline-flex items-center justify-center size-8 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs font-medium text-white/90 flex-shrink-0">
+                    {selectedSource.domain[0].toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-[15px] font-semibold text-white truncate">{selectedSource.domain}</h2>
+                    <p className="text-xs text-white/50 mt-0.5">Click a URL to see related prompts</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedSource(null)}
+                  className="flex items-center justify-center size-7 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/[0.06] transition-colors"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+
+              {/* Toolbar */}
+              <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06] bg-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <Badge className="inline-flex items-center gap-1.5 h-6 px-2 text-[11px] rounded-md bg-white/95 text-black font-medium">
+                    <CitationTypeIcon type={selectedSource.type as CitationType} />
+                    {selectedSource.type}
+                  </Badge>
+                </div>
+                <span className="text-xs text-white/40">
+                  {selectedSource.totalUrls > selectedSource.urls.length
+                    ? `Showing ${selectedSource.urls.length} of ${selectedSource.totalUrls} sources`
+                    : `${selectedSource.urls.length} ${selectedSource.urls.length === 1 ? 'source' : 'sources'}`
+                  }
+                </span>
+              </div>
+
+              {/* URLs List */}
+              <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent" style={{ maxHeight: '45vh' }}>
+                {selectedSource.urls.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="flex items-center justify-center size-10 rounded-full bg-white/[0.04] border border-white/[0.06] mb-2.5">
+                      <Globe className="size-4 text-white/40" />
+                    </div>
+                    <p className="text-sm text-white/60">No URLs tracked</p>
+                    <p className="text-xs text-white/40 mt-0.5">URLs will appear after analysis</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-white/[0.06]">
+                    {selectedSource.urls.map((url, idx) => {
+                      let displayPath = url
+                      try {
+                        const urlObj = new URL(url)
+                        displayPath = urlObj.pathname || '/'
+                        if (displayPath === '/') displayPath = urlObj.hostname
+                        // Cap at 50 chars for consistent row heights
+                        if (displayPath.length > 50) {
+                          displayPath = displayPath.slice(0, 47) + '...'
+                        }
+                      } catch {
+                        if (displayPath.length > 50) {
+                          displayPath = displayPath.slice(0, 47) + '...'
+                        }
+                      }
+
+                      // Get prompt count for this specific URL
+                      const urlData = selectedSource.urlsWithPrompts?.find(u => u.url === url)
+                      const promptCount = urlData?.prompts?.length || 0
+                      const totalPromptCount = urlData?.totalPrompts || promptCount
+
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-3 px-5 py-3 hover:bg-white/[0.03] transition-colors cursor-pointer group overflow-hidden"
+                          onClick={() => {
+                            // Find the URL-specific prompts from urlsWithPrompts
+                            const urlPrompts = urlData?.prompts || []
+                            // Fallback to domain-level prompts if no URL-specific prompts found
+                            const promptsToShow = urlPrompts.length > 0 ? urlPrompts : selectedSource.prompts
+                            const totalPromptsForUrl = urlPrompts.length > 0 ? totalPromptCount : selectedSource.totalPrompts
+                            setSelectedUrl({
+                              url,
+                              domain: selectedSource.domain,
+                              prompts: promptsToShow,
+                              totalPrompts: totalPromptsForUrl
+                            })
+                          }}
+                        >
+                          <span className="text-white/30 text-[11px] w-5 text-center flex-shrink-0 tabular-nums">{idx + 1}</span>
+                          <span
+                            className="flex-1 min-w-0 text-[13px] text-white/70 group-hover:text-white truncate transition-colors"
+                            title={url}
+                          >
+                            {displayPath}
+                          </span>
+                          {totalPromptCount > 0 && (
+                            <span className="text-[11px] text-white/40 flex-shrink-0 tabular-nums whitespace-nowrap">
+                              {totalPromptCount} {totalPromptCount === 1 ? 'prompt' : 'prompts'}
+                            </span>
+                          )}
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center size-7 rounded-md text-white/40 hover:text-white hover:bg-white/[0.08] transition-all flex-shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="size-3.5" />
+                          </a>
+                          <ChevronRight className="size-3.5 text-white/20 group-hover:text-white/50 transition-colors flex-shrink-0" />
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end px-5 py-3 border-t border-white/[0.06]">
+                <Button
+                  onClick={() => setSelectedSource(null)}
+                  className="h-8 px-4 bg-white text-black hover:bg-white/90 rounded-lg text-[13px] font-medium"
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Prompts Sheet - slides in from right when URL is clicked */}
+      <Sheet open={!!selectedUrl} onOpenChange={(open) => { if (!open) setSelectedUrl(null) }}>
+        <SheetContent
+          side="right"
+          className="!w-[576px] !max-w-[90vw] bg-[#161616] border-l border-white/[0.08] p-0 gap-0 [&>button]:hidden rounded-l-2xl"
+        >
+          <SheetTitle className="sr-only">Prompts citing {selectedUrl?.url}</SheetTitle>
+          <SheetDescription className="sr-only">List of prompts that cited this URL</SheetDescription>
+          {selectedUrl && (
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <button
+                    onClick={() => setSelectedUrl(null)}
+                    className="flex items-center justify-center size-8 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white/50 hover:text-white hover:bg-white/[0.1] transition-colors flex-shrink-0"
+                  >
+                    <ArrowUpRight className="size-3.5 rotate-[-135deg]" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-[15px] font-semibold text-white">Prompts</h2>
+                    <p className="text-xs text-white/50 mt-0.5 truncate" title={selectedUrl.url}>
+                      {(() => {
+                        try {
+                          const urlObj = new URL(selectedUrl.url)
+                          return urlObj.pathname || '/'
+                        } catch {
+                          return selectedUrl.url
+                        }
+                      })()}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedUrl(null)}
+                  className="flex items-center justify-center size-7 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/[0.06] transition-colors"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+
+              {/* Toolbar */}
+              <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06] bg-white/[0.01]">
+                <span className="text-xs text-white/50">Citing this source</span>
+                <span className="text-xs text-white/40">
+                  {selectedUrl.totalPrompts > selectedUrl.prompts.length
+                    ? `Showing ${selectedUrl.prompts.length} of ${selectedUrl.totalPrompts} prompts`
+                    : `${selectedUrl.prompts.length} ${selectedUrl.prompts.length === 1 ? 'prompt' : 'prompts'}`
+                  }
+                </span>
+              </div>
+
+              {/* Prompts List */}
+              <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                {selectedUrl.prompts.length > 0 ? (
+                  <div className="divide-y divide-white/[0.06]">
+                    {selectedUrl.prompts.map((prompt, idx) => {
+                      const getProviderIcon = (provider: string) => {
+                        const p = provider.toLowerCase()
+                        if (p.includes('chatgpt') || p.includes('openai') || p.includes('gpt')) return '/openai_dark.svg'
+                        if (p.includes('claude') || p.includes('anthropic')) return '/claude-ai-icon.svg'
+                        if (p.includes('perplexity')) return '/perplexity (2).svg'
+                        if (p.includes('gemini')) return '/gemini (3).svg'
+                        if (p.includes('google')) return '/google-logo.svg'
+                        return null
+                      }
+                      const providerIcon = getProviderIcon(prompt.provider)
+                      const isClickable = prompt.promptId !== null
+
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex items-start gap-3 px-5 py-3 hover:bg-white/[0.03] transition-colors ${isClickable ? 'cursor-pointer' : ''} group`}
+                          onClick={() => {
+                            if (isClickable && prompt.promptId) {
+                              router.push(`/dashboard/tracked-prompts/${prompt.promptId}`)
+                            }
+                          }}
+                        >
+                          <span className="text-white/30 text-[11px] w-5 text-center flex-shrink-0 pt-0.5 tabular-nums">{idx + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className={`text-[13px] text-white/70 group-hover:text-white leading-relaxed transition-colors ${isClickable ? 'group-hover:underline underline-offset-2' : ''}`}
+                              title={prompt.promptText}
+                            >
+                              {prompt.promptText}
+                            </p>
+                            <div className="flex items-center gap-1.5 mt-2">
+                              {providerIcon && (
+                                <img src={providerIcon} alt="" className="size-3.5" />
+                              )}
+                              <span className="text-[11px] text-white/40">
+                                {prompt.provider.replace(/openai|anthropic/gi, '').trim() || prompt.provider}
+                              </span>
+                            </div>
+                          </div>
+                          {isClickable && (
+                            <ChevronRight className="size-3.5 text-white/20 group-hover:text-white/50 flex-shrink-0 transition-colors mt-0.5" />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full py-12">
+                    <div className="flex items-center justify-center size-10 rounded-full bg-white/[0.04] border border-white/[0.06] mb-2.5">
+                      <MessageSquare className="size-4 text-white/40" />
+                    </div>
+                    <p className="text-sm text-white/60">No prompts yet</p>
+                    <p className="text-xs text-white/40 mt-0.5">Prompts citing this source will appear here</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end px-5 py-3 border-t border-white/[0.06]">
+                <Button
+                  onClick={() => setSelectedUrl(null)}
+                  className="h-8 px-4 bg-white text-black hover:bg-white/90 rounded-lg text-[13px] font-medium"
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

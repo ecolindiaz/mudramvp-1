@@ -729,7 +729,14 @@ Return ONLY a valid JSON object with these exact keys:
     let analysis;
     try {
       // Remove markdown code blocks if present
-      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+      let cleanedText = analysisText.trim();
+      // Check for and remove markdown code blocks (using split with hex escape)
+      const backtickTriple = '\x60\x60\x60'; // ```
+      const parts = cleanedText.split(backtickTriple);
+      if (parts.length >= 3) {
+        // Extract content between first ``` and last ```
+        cleanedText = parts.slice(1, -1).join(backtickTriple).replace(/^json\n?/, '').trim();
+      }
       analysis = JSON.parse(cleanedText);
     } catch (parseError) {
       console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
@@ -1122,7 +1129,15 @@ Return ONLY a valid JSON object with these exact keys:
     // Parse JSON
     let analysis;
     try {
-      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+      // Remove markdown code blocks if present
+      let cleanedText = analysisText.trim();
+      // Check for and remove markdown code blocks (using split with hex escape)
+      const backtickTriple = '\x60\x60\x60'; // ```
+      const parts = cleanedText.split(backtickTriple);
+      if (parts.length >= 3) {
+        // Extract content between first ``` and last ```
+        cleanedText = parts.slice(1, -1).join(backtickTriple).replace(/^json\n?/, '').trim();
+      }
       analysis = JSON.parse(cleanedText);
     } catch (parseError) {
       console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
@@ -1451,7 +1466,15 @@ async function analyzeWithAnthropic(
     const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
     let analysis;
     try {
-      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+      // Remove markdown code blocks if present
+      let cleanedText = analysisText.trim();
+      // Check for and remove markdown code blocks (using split with hex escape)
+      const backtickTriple = '\x60\x60\x60'; // ```
+      const parts = cleanedText.split(backtickTriple);
+      if (parts.length >= 3) {
+        // Extract content between first ``` and last ```
+        cleanedText = parts.slice(1, -1).join(backtickTriple).replace(/^json\n?/, '').trim();
+      }
       analysis = JSON.parse(cleanedText);
     } catch (parseError) {
       console.warn('[Anthropic] Failed to parse analysis, using fallback');
@@ -1662,7 +1685,15 @@ async function analyzeWithGoogle(
     const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
     let analysis;
     try {
-      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+      // Remove markdown code blocks if present
+      let cleanedText = analysisText.trim();
+      // Check for and remove markdown code blocks (using split with hex escape)
+      const backtickTriple = '\x60\x60\x60'; // ```
+      const parts = cleanedText.split(backtickTriple);
+      if (parts.length >= 3) {
+        // Extract content between first ``` and last ```
+        cleanedText = parts.slice(1, -1).join(backtickTriple).replace(/^json\n?/, '').trim();
+      }
       analysis = JSON.parse(cleanedText);
     } catch (parseError) {
       console.warn('[Google] Failed to parse analysis, using fallback');

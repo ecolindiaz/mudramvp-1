@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { mastra } from "@/mastra";
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 import { requireAuth } from '@/lib/auth/require-auth';
@@ -6,6 +7,10 @@ import { applyRateLimit } from '@/lib/auth/rate-limiter-redis';
 import { prisma } from '@/lib/prisma';
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
+
+// Required for Vercel serverless - allow long-running workflows
+// 300s = 5 minutes, the max allowed on Pro plan
+export const maxDuration = 300;
 
 // Store active workflow runs for status polling
 const activeRuns = new Map<string, {
@@ -208,19 +213,23 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Workflow ${workflowRunId}] Created pending campaign ${pendingCampaign.id}`);
 
-    // Start workflow asynchronously (don't await)
+    // Get workflow reference
     const workflow = mastra.getWorkflow("aiContentWorkflow");
 
-    // Execute workflow in background
-    (async () => {
+    // Define the background workflow execution function
+    const runWorkflowInBackground = async () => {
       try {
         console.log(`[Workflow ${workflowRunId}] Starting AI content generation...`);
+        const workflowStartTime = Date.now();
 
         const run = await workflow.createRunAsync();
         const result = await run.start({ inputData: workflowInput });
 
+        const workflowDuration = Math.round((Date.now() - workflowStartTime) / 1000);
+        console.log(`[Workflow ${workflowRunId}] Workflow completed in ${workflowDuration}s`);
+
         if (result.status === "success" && result.result) {
-          console.log(`[Workflow ${workflowRunId}] Completed successfully`);
+          console.log(`[Workflow ${workflowRunId}] Completed successfully in ${workflowDuration}s`);
 
           // Generate SEO-optimized slug and meta description
           const campaignTitle = result.result.metadata?.title || 'Untitled Campaign';
@@ -311,7 +320,11 @@ export async function POST(req: NextRequest) {
           startedAt: activeRuns.get(workflowRunId)!.startedAt,
         });
       }
-    })();
+    };
+
+    // Use Next.js after() to run workflow in background AFTER response is sent
+    // This ensures Vercel keeps the function alive for up to maxDuration (300s)
+    after(runWorkflowInBackground);
 
     // Return immediately with run ID and campaign ID for polling
     return NextResponse.json({

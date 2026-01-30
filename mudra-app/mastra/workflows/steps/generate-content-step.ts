@@ -8,6 +8,19 @@ import { gapAnalysisOutputSchema } from "../../agents/gap-analysis-agent";
 import { researchOutputSchema } from "../../agents/schemas/research-schema";
 import { logAIModelCall, estimateAICost } from "@/lib/services/ai-model-logging.service";
 
+// Timeout helper for long-running operations
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMsg)), timeoutMs)
+    ),
+  ]);
+};
+
+// Step timeout: 90 seconds (content generation can be slow for long articles)
+const CONTENT_GENERATION_TIMEOUT_MS = 90000;
+
 const inputSchema = z.object({
   trackedPrompt: z.string(),
   scrapedSources: z.array(
@@ -83,8 +96,9 @@ export const generateContentStep = createStep({
     const startTime = Date.now();
     let response;
     try {
-      response = await contentGeneratorAgent.generate(
-      `Generate an AI-optimized article for:
+      response = await withTimeout(
+        contentGeneratorAgent.generate(
+          `Generate an AI-optimized article for:
 
 ## Tracked Prompt
 "${trackedPrompt}"
@@ -148,12 +162,16 @@ ${research.additionalSources.map((s) => `- ${s.keyInsight} — [${s.title}](${s.
 - This signals to AI models that the content is current and trustworthy
 
 Generate a complete, comprehensive, GEO-optimized article that meets the 1,200-1,600 word requirement AND includes proper source citations.`,
-      {
-        output: contentOutputSchema,
-      }
-    );
+          {
+            output: contentOutputSchema,
+          }
+        ),
+        CONTENT_GENERATION_TIMEOUT_MS,
+        `Content generation timed out after ${CONTENT_GENERATION_TIMEOUT_MS / 1000}s`
+      );
 
     const latencyMs = Date.now() - startTime;
+    console.log(`[GenerateContent] Content generation completed in ${latencyMs / 1000}s`);
     
     // Estimate tokens (Mastra doesn't expose usage directly, so we estimate)
     const promptText = `Generate an AI-optimized article for: "${trackedPrompt}"`;

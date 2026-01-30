@@ -50,7 +50,8 @@ Return JSON with:
 }`;
 
 export const trackingVerificationAgent = new Agent({
-  name: "tracking-verification-agent",
+  id: "tracking-verification-agent",
+  name: "Tracking Verification Agent",
   instructions: VERIFICATION_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5-20250929",
   tools: {

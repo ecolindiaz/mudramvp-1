@@ -1,5 +1,5 @@
-import { firecrawlScraperTool, ScrapeOutput } from "./firecrawl-scraper";
-import { RuntimeContext } from "@mastra/core/runtime-context";
+import { firecrawlScraperTool, ScrapeOutput, ScrapeInput } from "./firecrawl-scraper";
+import { getFirecrawlClient } from "./firecrawl-client";
 
 export interface BatchScrapeResult {
   successful: ScrapeOutput[];
@@ -9,13 +9,53 @@ export interface BatchScrapeResult {
 }
 
 /**
+ * Scrapes a single URL directly using Firecrawl client
+ */
+async function scrapeUrl(url: string): Promise<ScrapeOutput> {
+  try {
+    const firecrawl = getFirecrawlClient();
+    const result = await firecrawl.scrapeUrl(url, {
+      formats: ["markdown"],
+      onlyMainContent: true,
+      timeout: 30000,
+    });
+
+    if (!result.success) {
+      return {
+        url,
+        markdown: "",
+        links: [],
+        success: false,
+        error: result.error || "Scrape failed",
+      };
+    }
+
+    return {
+      url,
+      title: result.metadata?.title,
+      markdown: result.markdown || "",
+      links: result.links || [],
+      success: true,
+      statusCode: result.metadata?.statusCode,
+    };
+  } catch (error) {
+    return {
+      url,
+      markdown: "",
+      links: [],
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
  * Scrapes multiple URLs in batches of 2 (to respect rate limits)
  */
 export async function scrapeInBatches(
   urls: string[],
   batchSize: number = 2
 ): Promise<BatchScrapeResult> {
-  const runtimeContext = new RuntimeContext();
   const results: ScrapeOutput[] = [];
 
   // Process in batches
@@ -27,12 +67,7 @@ export async function scrapeInBatches(
     );
 
     const batchResults = await Promise.all(
-      batch.map((url) =>
-        firecrawlScraperTool.execute({
-          context: { url },
-          runtimeContext,
-        })
-      )
+      batch.map((url) => scrapeUrl(url))
     );
 
     results.push(...batchResults);

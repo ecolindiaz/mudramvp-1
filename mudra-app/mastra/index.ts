@@ -1,4 +1,6 @@
 import { Mastra } from "@mastra/core/mastra";
+import { Observability, SamplingStrategyType } from "@mastra/observability";
+import { PosthogExporter } from "@mastra/posthog";
 
 // Agents
 import { gapAnalysisAgent } from "./agents/gap-analysis-agent";
@@ -20,6 +22,22 @@ import { githubSearchTool } from "./tools/github-search";
 
 // Workflows
 import { aiContentWorkflow } from "./workflows/ai-content-workflow";
+
+// Observability configuration with PostHog
+const observability = new Observability({
+  configs: {
+    posthog: {
+      serviceName: "mudra-app",
+      sampling: { type: SamplingStrategyType.ALWAYS },
+      exporters: [
+        new PosthogExporter({
+          apiKey: process.env.POSTHOG_API_KEY,
+          serverless: true, // Required for Vercel deployment
+        }),
+      ],
+    },
+  },
+});
 
 // @ts-ignore - Mastra types may not include tools in config, but it works at runtime
 export const mastra = new Mastra({
@@ -47,4 +65,5 @@ export const mastra = new Mastra({
   workflows: {
     aiContentWorkflow,
   },
+  observability, // AI Tracing with PostHog
 });

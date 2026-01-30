@@ -110,7 +110,8 @@ Example: "Best AI Tools for 2026" → "best-ai-tools-2026"
 7. Include schema.org Article markup in the post if tech stack supports it`;
 
 export const blogPostPublisherAgent = new Agent({
-  name: "blog-post-publisher-agent",
+  id: "blog-post-publisher-agent",
+  name: "Blog Post Publisher Agent",
   instructions: BLOG_POST_PUBLISHER_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5-20250929",
 });

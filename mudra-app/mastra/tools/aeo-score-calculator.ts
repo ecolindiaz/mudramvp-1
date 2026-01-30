@@ -1,4 +1,4 @@
-import { createTool } from '@mastra/core';
+import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
 /**
@@ -57,8 +57,8 @@ export const calculateAeoScoreTool = createTool({
       percentile: z.number(),
     }),
   }),
-  execute: async ({ context }) => {
-    const { analysisData } = context;
+  execute: async (inputData) => {
+    const { analysisData } = inputData;
     
     // Calculate total score
     const totalScore = 

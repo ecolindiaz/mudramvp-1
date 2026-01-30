@@ -1,4 +1,4 @@
-import { createTool } from '@mastra/core';
+import { createTool } from '@mastra/core/tools';
 import CodeInterpreter from '@e2b/code-interpreter';
 import { z } from 'zod';
 
@@ -70,7 +70,8 @@ export const analyzeCompetitorCitationsTool = createTool({
       timeToImplement: z.string(),
     })),
   }),
-  execute: async ({ context }, input) => {
+  execute: async (inputData) => {
+    const { competitorUrls, topic, includeContentGaps } = inputData;
     const sandbox = await CodeInterpreter.create();
     
     try {

@@ -1,4 +1,4 @@
-import { createTool } from '@mastra/core';
+import { createTool } from '@mastra/core/tools';
 import CodeInterpreter from '@e2b/code-interpreter';
 import { z } from 'zod';
 
@@ -63,8 +63,8 @@ export const searchAiCitationsTool = createTool({
     }),
     recommendations: z.array(z.string()),
   }),
-  execute: async ({ context }) => {
-    const { topic, aiSystems, limit, includeMetrics } = context;
+  execute: async (inputData) => {
+    const { topic, aiSystems, limit, includeMetrics } = inputData;
     const sandbox = await CodeInterpreter.create();
     
     try {

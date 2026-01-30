@@ -57,7 +57,7 @@ ${gapAnalysis.recommendedSearchQueries.slice(0, 3).map((q, i) => `${i + 1}. ${q}
 Use the search tool to find authoritative sources, statistics, and expert quotes.
 IMPORTANT: Run a MAXIMUM of 3 searches to stay within time limits.`,
           {
-            output: researchOutputSchema,
+            structuredOutput: { schema: researchOutputSchema },
             maxSteps: 6, // Reduced from 10 to limit tool calls
           }
         ),

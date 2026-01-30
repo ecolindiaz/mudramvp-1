@@ -1,4 +1,4 @@
-import { createTool } from '@mastra/core';
+import { createTool } from '@mastra/core/tools';
 import CodeInterpreter from '@e2b/code-interpreter';
 import { z } from 'zod';
 
@@ -62,8 +62,8 @@ export const monitorRedditThreadsTool = createTool({
     })),
     bestPractices: z.array(z.string()),
   }),
-  execute: async ({ context }) => {
-    const { keywords, subreddits, minUpvotes, timeRange, limit } = context;
+  execute: async (inputData) => {
+    const { keywords, subreddits, minUpvotes, timeRange, limit } = inputData;
     const sandbox = await CodeInterpreter.create();
     
     try {

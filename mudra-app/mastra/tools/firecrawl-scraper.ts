@@ -26,8 +26,8 @@ export const firecrawlScraperTool = createTool({
   description: "Scrapes a URL and returns markdown content using Firecrawl v2",
   inputSchema,
   outputSchema,
-  execute: async ({ context }): Promise<ScrapeOutput> => {
-    const { url } = context;
+  execute: async (inputData): Promise<ScrapeOutput> => {
+    const { url } = inputData;
 
     try {
       const firecrawl = getFirecrawlClient();

@@ -1,4 +1,4 @@
-import { createTool } from "@mastra/core";
+import { createTool } from '@mastra/core/tools';
 import { z } from "zod";
 
 /**
@@ -21,8 +21,8 @@ export const githubSearchTool = createTool({
     filesChecked: z.array(z.string()).describe("List of files that were checked"),
   }),
   
-  execute: async ({ context }) => {
-    const { repo, query, accessToken, searchType } = context;
+  execute: async (inputData) => {
+    const { repo, query, accessToken, searchType } = inputData;
     
     try {
       if (searchType === "code_search") {

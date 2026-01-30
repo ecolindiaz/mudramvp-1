@@ -1,4 +1,4 @@
-import { createTool } from '@mastra/core';
+import { createTool } from '@mastra/core/tools';
 import CodeInterpreter from '@e2b/code-interpreter';
 import { z } from 'zod';
 
@@ -70,8 +70,8 @@ export const generateSchemaMarkupTool = createTool({
     }),
     recommendations: z.array(z.string()).describe('Best practices for this schema type'),
   }),
-  execute: async ({ context }) => {
-    const input = context;
+  execute: async (inputData) => {
+    const input = inputData;
     const sandbox = await CodeInterpreter.create();
     
     try {

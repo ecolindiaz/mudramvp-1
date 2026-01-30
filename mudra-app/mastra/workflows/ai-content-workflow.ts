@@ -29,7 +29,7 @@ export const aiContentWorkflow = createWorkflow({
 
   // Step 3: Analyze gaps
   .map(async ({ inputData, getInitData }) => {
-    const initData = getInitData();
+    const initData = getInitData<any>();
     return {
       trackedPrompt: initData.trackedPrompt,
       scrapedSources: inputData.scrapedSources,
@@ -39,7 +39,7 @@ export const aiContentWorkflow = createWorkflow({
 
   // Step 4: Enrich with research
   .map(async ({ inputData, getInitData }) => {
-    const initData = getInitData();
+    const initData = getInitData<any>();
     return {
       trackedPrompt: initData.trackedPrompt,
       gapAnalysis: inputData,
@@ -49,7 +49,7 @@ export const aiContentWorkflow = createWorkflow({
 
   // Step 5: Generate content
   .map(async ({ inputData, getInitData, getStepResult }) => {
-    const initData = getInitData();
+    const initData = getInitData<any>();
     const scrapeResult = getStepResult(scrapeSourcesStep);
     const gapResult = getStepResult(analyzeGapsStep);
 
@@ -65,7 +65,7 @@ export const aiContentWorkflow = createWorkflow({
 
   // Final output mapping
   .map(async ({ inputData, getInitData, getStepResult }) => {
-    const initData = getInitData();
+    const initData = getInitData<any>();
     const scrapeResult = getStepResult(scrapeSourcesStep);
     const researchResult = getStepResult(enrichResearchStep);
 

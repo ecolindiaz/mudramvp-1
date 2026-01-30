@@ -162,7 +162,8 @@ Example:
 **Notes:** Update the logo URL to your actual logo path.`;
 
 export const schemaArchitectAgent = new Agent({
-  name: "schema-architect-agent",
+  id: "schema-architect-agent",
+  name: "Schema Architect Agent",
   instructions: SCHEMA_ARCHITECT_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5-20250929",
 });

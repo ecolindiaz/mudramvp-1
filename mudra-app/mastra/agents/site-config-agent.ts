@@ -195,7 +195,8 @@ When generating configs:
 5. Note any customization needed`;
 
 export const siteConfigAgent = new Agent({
-  name: "site-config-agent",
+  id: "site-config-agent",
+  name: "Site Config Agent",
   instructions: SITE_CONFIG_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5-20250929",
 });

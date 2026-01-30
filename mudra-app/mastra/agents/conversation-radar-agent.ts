@@ -1,4 +1,4 @@
-import { Agent } from '@mastra/core';
+import { Agent } from '@mastra/core/agent';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 import { logAIModelCall, estimateAICost } from '@/lib/services/ai-model-logging.service';
@@ -238,7 +238,8 @@ Remember: The goal is to find conversations where the brand can genuinely help p
  * @see https://mastra.ai/models/providers/openai
  */
 export const conversationRadarAgent = new Agent({
-  name: 'Conversation Radar',
+  id: 'conversation-radar-agent',
+  name: 'Conversation Radar Agent',
   instructions: CONVERSATION_RADAR_INSTRUCTIONS,
   model: openai('gpt-5.1'),
 });
@@ -275,7 +276,7 @@ export async function analyzeOpportunityWithAgent(
   try {
     // Generate structured output
     const response = await conversationRadarAgent.generate(prompt, {
-      output: opportunityAnalysisSchema,
+      structuredOutput: { schema: opportunityAnalysisSchema },
     });
     
     if (!response.object) {

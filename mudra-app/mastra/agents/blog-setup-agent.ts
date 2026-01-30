@@ -113,7 +113,8 @@ You must provide:
 7. Include helpful comments in the code`;
 
 export const blogSetupAgent = new Agent({
-  name: "blog-setup-agent",
+  id: "blog-setup-agent",
+  name: "Blog Setup Agent",
   instructions: BLOG_SETUP_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5-20250929",
 });

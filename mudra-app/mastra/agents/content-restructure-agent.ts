@@ -173,7 +173,8 @@ When restructuring content:
 5. Suggest additional improvements`;
 
 export const contentRestructureAgent = new Agent({
-  name: "content-restructure-agent",
+  id: "content-restructure-agent",
+  name: "Content Restructure Agent",
   instructions: CONTENT_RESTRUCTURE_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5-20250929",
 });

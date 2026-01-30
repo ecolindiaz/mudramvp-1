@@ -32,7 +32,8 @@ Provide your analysis as structured JSON with arrays for each gap category.
 Also suggest up to 5 specific search queries that would help fill the identified gaps.`;
 
 export const gapAnalysisAgent = new Agent({
-  name: "gap-analysis-agent",
+  id: "gap-analysis-agent",
+  name: "Gap Analysis Agent",
   instructions: GAP_ANALYSIS_INSTRUCTIONS,
   model: "openai/gpt-5.1", // GPT-5.1: 400K context, $1/1M input, $10/1M output
 });

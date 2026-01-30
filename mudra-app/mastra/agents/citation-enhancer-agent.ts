@@ -177,7 +177,8 @@ When enhancing content:
 5. Format for AI consumption (lists, tables, direct answers)`;
 
 export const citationEnhancerAgent = new Agent({
-  name: "citation-enhancer-agent",
+  id: "citation-enhancer-agent",
+  name: "Citation Enhancer Agent",
   instructions: CITATION_ENHANCER_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5-20250929",
 });

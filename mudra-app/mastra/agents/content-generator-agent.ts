@@ -75,7 +75,8 @@ ${STRUCTURE_PROMPT || "[Content Structure guidelines will be loaded at runtime]"
 Return the full markdown article along with metadata including title, metaDescription (150-160 chars), actual word count, sections, and author info.`;
 
 export const contentGeneratorAgent = new Agent({
-  name: "content-generator-agent",
+  id: "content-generator-agent",
+  name: "Content Generator Agent",
   instructions: CONTENT_GENERATOR_INSTRUCTIONS,
   model: "openai/gpt-5.1", // GPT-5.1: 400K context, $1/1M input, $10/1M output
 });

@@ -1,4 +1,4 @@
-import { Agent } from '@mastra/core';
+import { Agent } from '@mastra/core/agent';
 import { openai } from '@ai-sdk/openai';
 import { searchAiCitationsTool } from '../tools/citation-tracker';
 import { monitorRedditThreadsTool } from '../tools/reddit-monitor';
@@ -25,6 +25,7 @@ import { analyzeCompetitorCitationsTool } from '../tools/competitor-analyzer';
  * - Authority building
  */
 export const growthScoutAgent = new Agent({
+  id: 'growth-scout',
   name: 'Growth Opportunity Scout',
   instructions: `
 You are a growth hacking and competitive intelligence expert specializing in AI-driven discovery.

@@ -1,4 +1,4 @@
-import { createTool } from '@mastra/core';
+import { createTool } from '@mastra/core/tools';
 import CodeInterpreter from '@e2b/code-interpreter';
 import { z } from 'zod';
 
@@ -82,8 +82,8 @@ export const analyzeCodebaseTool = createTool({
       score: z.number().min(0).max(10),
     }),
   }),
-  execute: async ({ context }) => {
-    const { url, htmlContent, fileType } = context;
+  execute: async (inputData) => {
+    const { url, htmlContent, fileType } = inputData;
     const sandbox = await CodeInterpreter.create();
     
     try {

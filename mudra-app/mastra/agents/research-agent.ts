@@ -48,7 +48,8 @@ Each quote MUST include:
 Array of content recommendations based on research findings`;
 
 export const researchAgent = new Agent({
-  name: "research-agent",
+  id: "research-agent",
+  name: "Research Agent",
   instructions: RESEARCH_INSTRUCTIONS,
   model: "openai/gpt-5.1", // GPT-5.1: 400K context, $1/1M input, $10/1M output
   tools: { firecrawlSearchTool },

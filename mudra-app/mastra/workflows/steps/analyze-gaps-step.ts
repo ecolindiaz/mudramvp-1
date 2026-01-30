@@ -61,7 +61,7 @@ ${combinedContent}
 
 Identify all content, data, format, and depth gaps. Suggest up to 3 search queries to fill the gaps.`,
           {
-            output: gapAnalysisOutputSchema,
+            structuredOutput: { schema: gapAnalysisOutputSchema },
           }
         ),
         GAP_ANALYSIS_TIMEOUT_MS,

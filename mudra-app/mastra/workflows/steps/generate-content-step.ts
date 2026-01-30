@@ -163,7 +163,7 @@ ${research.additionalSources.map((s) => `- ${s.keyInsight} — [${s.title}](${s.
 
 Generate a complete, comprehensive, GEO-optimized article that meets the 1,200-1,600 word requirement AND includes proper source citations.`,
           {
-            output: contentOutputSchema,
+            structuredOutput: { schema: contentOutputSchema },
           }
         ),
         CONTENT_GENERATION_TIMEOUT_MS,

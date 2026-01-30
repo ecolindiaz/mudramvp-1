@@ -131,7 +131,8 @@ Provide:
 4. Expected impact on AI visibility`;
 
 export const llmsTxtAgent = new Agent({
-  name: "llms-txt-agent",
+  id: "llms-txt-agent",
+  name: "LLMs.txt Agent",
   instructions: LLMS_TXT_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5-20250929",
 });

@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
         console.log(`[Workflow ${workflowRunId}] Starting AI content generation...`);
         const workflowStartTime = Date.now();
 
-        const run = await workflow.createRunAsync();
+        const run = await workflow.createRun();
         const result = await run.start({ inputData: workflowInput });
 
         const workflowDuration = Math.round((Date.now() - workflowStartTime) / 1000);

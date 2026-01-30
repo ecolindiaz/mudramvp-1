@@ -1,4 +1,4 @@
-import { Agent } from '@mastra/core';
+import { Agent } from '@mastra/core/agent';
 import { openai } from '@ai-sdk/openai';
 import { analyzeCodebaseTool } from '../tools/codebase-analyzer';
 import { generateSchemaMarkupTool } from '../tools/schema-generator';
@@ -25,6 +25,7 @@ import { calculateAeoScoreTool } from '../tools/aeo-score-calculator';
  * - Bing Chat
  */
 export const aeoGeoOptimizerAgent = new Agent({
+  id: 'aeo-geo-optimizer',
   name: 'AEO/GEO Optimizer',
   instructions: `
 You are an expert Answer Engine Optimization (AEO) and Generative Engine Optimization (GEO) consultant.

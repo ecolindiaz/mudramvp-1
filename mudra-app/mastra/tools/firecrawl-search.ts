@@ -63,8 +63,8 @@ export const firecrawlSearchTool = createTool({
     "Searches the web and returns results using Firecrawl v2 Search API",
   inputSchema,
   outputSchema,
-  execute: async ({ context }): Promise<SearchOutput> => {
-    const { query, limit = 5, maxAgeMonths = DEFAULT_MAX_AGE_MONTHS } = context;
+  execute: async (inputData): Promise<SearchOutput> => {
+    const { query, limit = 5, maxAgeMonths = DEFAULT_MAX_AGE_MONTHS } = inputData;
 
     try {
       const firecrawl = getFirecrawlClient();

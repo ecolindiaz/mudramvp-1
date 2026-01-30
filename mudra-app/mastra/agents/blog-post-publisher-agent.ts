@@ -112,7 +112,7 @@ Example: "Best AI Tools for 2026" → "best-ai-tools-2026"
 export const blogPostPublisherAgent = new Agent({
   name: "blog-post-publisher-agent",
   instructions: BLOG_POST_PUBLISHER_INSTRUCTIONS,
-  model: "openai/gpt-4o",
+  model: "anthropic/claude-sonnet-4-5-20250514",
 });
 
 export default blogPostPublisherAgent;

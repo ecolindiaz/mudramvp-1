@@ -115,7 +115,7 @@ You must provide:
 export const blogSetupAgent = new Agent({
   name: "blog-setup-agent",
   instructions: BLOG_SETUP_INSTRUCTIONS,
-  model: "openai/gpt-4o",
+  model: "anthropic/claude-sonnet-4-5-20250514",
 });
 
 export default blogSetupAgent;

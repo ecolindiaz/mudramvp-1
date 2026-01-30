@@ -179,5 +179,5 @@ When enhancing content:
 export const citationEnhancerAgent = new Agent({
   name: "citation-enhancer-agent",
   instructions: CITATION_ENHANCER_INSTRUCTIONS,
-  model: "openai/gpt-4o",
+  model: "anthropic/claude-sonnet-4-5-20250514",
 });

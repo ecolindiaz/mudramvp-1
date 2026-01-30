@@ -5,10 +5,10 @@
  * Ensures code is placed in the most appropriate location.
  */
 
-import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
 export interface ReviewResult {
@@ -254,25 +254,31 @@ ${existingWarnings.map(w => `- ${w}`).join('\n') || 'None'}
 ${input.generatedCode.slice(0, 2000)}
 \`\`\`
 
-Is this code in the right place? Should it be moved? Any improvements needed?`
+Is this code in the right place? Should it be moved? Any improvements needed?
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini', // Use mini for cost efficiency
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ],
-    response_format: { type: 'json_object' },
+Respond with a JSON object containing: reasoning, suggestedFile, improvedCode (optional), additionalWarnings (array).`
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5-20250514',
     max_tokens: 1000,
-    temperature: 0.3
+    messages: [
+      { role: 'user', content: `${systemPrompt}\n\n${userPrompt}` }
+    ]
   })
 
-  const content = response.choices[0]?.message?.content
+  const textBlock = response.content.find(block => block.type === 'text')
+  const content = textBlock?.type === 'text' ? textBlock.text : null
   if (!content) {
     throw new Error('No response from AI review')
   }
 
-  const result = JSON.parse(content)
+  // Extract JSON from the response (Claude may wrap it in markdown)
+  const jsonMatch = content.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) {
+    throw new Error('No JSON found in AI review response')
+  }
+  
+  const result = JSON.parse(jsonMatch[0])
   
   return {
     reasoning: result.reasoning || 'AI review completed',

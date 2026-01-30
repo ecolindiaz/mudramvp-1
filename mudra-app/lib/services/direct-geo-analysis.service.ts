@@ -8,10 +8,6 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Retry helper with exponential backoff for rate limits and transient errors
- * @param fn Function to retry
- * @param maxRetries Maximum number of retry attempts (default: 3)
- * @param initialDelay Initial delay in ms (default: 1000)
- * @returns Result of the function or throws error after max retries
  */
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
@@ -43,7 +39,7 @@ async function retryWithBackoff<T>(
     }
   }
   
-  throw new Error('Max retries exceeded'); // Should never reach here
+  throw new Error('Max retries exceeded');
 }
 
 // Types for direct GEO analysis
@@ -113,16 +109,11 @@ export interface CompetitorAnalysis {
 
 /**
  * Validate brand mention using regex with word boundaries
- * More reliable than LLM for simple yes/no detection
  */
 function validateBrandMention(text: string, brandName: string): boolean {
-  // Escape special regex characters in brand name
   const escapedBrand = brandName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  
-  // Create word boundary regex (case-insensitive)
   const pattern = new RegExp(`\\b${escapedBrand}\\b`, 'i');
   
-  // Clean text: remove URLs, code blocks, file paths that might cause false positives
   const cleanedText = text
     .replace(/https?:\/\/[^\s]+/g, '')
     .replace(/www\.[^\s]+/g, '')
@@ -134,7 +125,6 @@ function validateBrandMention(text: string, brandName: string): boolean {
 
 /**
  * Filter competitors to only include valid company names
- * Removes sentence fragments, action phrases, and generic descriptions
  */
 function filterValidCompetitors(competitors: string[], brandName: string): string[] {
   if (!competitors || !Array.isArray(competitors)) return [];
@@ -146,13 +136,9 @@ function filterValidCompetitors(competitors: string[], brandName: string): strin
     
     const compLower = comp.toLowerCase().trim();
     
-    // Exclude the brand itself
     if (compLower === brandLower || compLower.includes(brandLower)) return false;
-    
-    // Exclude if too short or too long (company names are typically 2-40 chars)
     if (comp.length < 2 || comp.length > 40) return false;
     
-    // Exclude if starts with common non-company patterns
     const invalidStarts = [
       'others ', 'other ', 'posts ', 'reach out', 'sign up', 'check out',
       'learn more', 'get started', 'the ', 'a ', 'an ', 'some ', 'many ',
@@ -161,7 +147,6 @@ function filterValidCompetitors(competitors: string[], brandName: string): strin
     ];
     if (invalidStarts.some(start => compLower.startsWith(start))) return false;
     
-    // Exclude if contains action verbs suggesting it's a phrase
     const actionPatterns = [
       ' share ', ' highlight', ' recommend', ' suggest', ' contact ',
       ' directly', ' their team', ' your ', ' to your ', ' can help',
@@ -170,18 +155,13 @@ function filterValidCompetitors(competitors: string[], brandName: string): strin
     ];
     if (actionPatterns.some(pattern => compLower.includes(pattern))) return false;
     
-    // Exclude if too many spaces (likely a sentence fragment, not a company name)
     const spaceCount = (comp.match(/\s/g) || []).length;
     if (spaceCount > 4) return false;
     
-    // Exclude if ends with punctuation suggesting a phrase
     if (/[.!?:]$/.test(comp)) return false;
     
-    // Exclude if all lowercase (most company names have caps)
-    // Allow exceptions for known lowercase brands like "npm", "github", etc.
     const knownLowercaseBrands = ['npm', 'github', 'gitlab', 'docker', 'kubernetes', 'redis', 'mongodb'];
     if (comp === compLower && !knownLowercaseBrands.includes(compLower)) {
-      // Check if it has at least one capital letter
       if (!/[A-Z]/.test(comp) && comp.length > 5) return false;
     }
     
@@ -320,47 +300,6 @@ export async function analyzePromptWithProvider(
 }
 
 /**
- * Extract brand position from bullet lists (•, -, *)
- * Handles responses like "• Appen\n• Scale AI\n• iMerit" where Scale AI is position 2
- */
-function extractBrandPositionFromBulletList(text: string, brandName: string): number | null {
-  const lines = text.split('\n');
-  let bulletPosition = 0;
-  const brandLower = brandName.toLowerCase();
-
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-
-    // Detect section headers (reset bullet count)
-    if (trimmedLine.match(/^#{1,3}\s+/) || trimmedLine.match(/^[A-Z][^:]*:$/)) {
-      bulletPosition = 0;
-      continue;
-    }
-
-    // Match bullet list items: • Company, - Company, * Company
-    // Allow lowercase start for brands like "iMerit"
-    const bulletMatch = trimmedLine.match(/^[•\-\*]\s+\*?\*?([A-Za-z][A-Za-z0-9\s&\.]+)/);
-
-    if (bulletMatch) {
-      bulletPosition++;
-      let company = bulletMatch[1].trim();
-
-      // Clean up company name: remove trailing punctuation, markdown, descriptions
-      company = company.replace(/[:\*]+$/, '').trim();
-      company = company.replace(/\s+[-—–].*$/, '').trim();
-      company = company.replace(/\s{2,}.*$/, '').trim();
-
-      // Check if this is the brand
-      if (company.toLowerCase() === brandLower) {
-        return bulletPosition;
-      }
-    }
-  }
-
-  return null;
-}
-
-/**
  * Extract competitor positions using regex patterns (more reliable than LLM for structured lists)
  */
 function extractCompetitorPositionsWithRegex(text: string, brandName: string): Record<string, number> {
@@ -460,59 +399,12 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
       }
     }
   }
-
-  // Method 5: Bullet lists (•, -, *) - extract position from order within section
-  // This handles responses like "• Appen\n• Scale AI\n• iMerit"
-  if (Object.keys(positions).length < 3) {
-    const lines = text.split('\n');
-    let bulletPosition = 0;
-    let lastWasHeader = false;
-
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-
-      // Detect section headers (reset bullet count)
-      if (trimmedLine.match(/^#{1,3}\s+/) || trimmedLine.match(/^[A-Z][^:]*:$/)) {
-        bulletPosition = 0;
-        lastWasHeader = true;
-        continue;
-      }
-
-      // Match bullet list items: • Company, - Company, * Company
-      // Allow lowercase start for brands like "iMerit"
-      const bulletMatch = trimmedLine.match(/^[•\-\*]\s+\*?\*?([A-Za-z][A-Za-z0-9\s&\.]+)/);
-
-      if (bulletMatch) {
-        bulletPosition++;
-        let company = bulletMatch[1].trim();
-
-        // Clean up company name: remove trailing punctuation, markdown, descriptions
-        company = company.replace(/[:\*]+$/, '').trim();
-        company = company.replace(/\s+[-—–].*$/, '').trim();
-        company = company.replace(/\s{2,}.*$/, '').trim();
-
-        if (company && company.length > 2 && company.length < 50) {
-          // Check if this is the brand (for brand position detection)
-          if (company.toLowerCase() === brandName.toLowerCase()) {
-            // Brand found at this position - will be used by caller
-          } else if (!positions[company]) {
-            positions[company] = bulletPosition;
-          }
-        }
-      } else if (trimmedLine === '' && !lastWasHeader) {
-        // Empty line might indicate end of a list section
-        // But don't reset if we just had a header
-      }
-
-      lastWasHeader = false;
-    }
-  }
-
+  
   return positions;
 }
 
 /**
- * Analyze with OpenAI using Responses API with web_search tool
+ * Analyze with OpenAI
  */
 async function analyzeWithOpenAI(
   prompt: string,
@@ -523,111 +415,54 @@ async function analyzeWithOpenAI(
     throw new Error('OpenAI API key required for analysis');
   }
 
-  const apiKey = config.apiKeys.openai.trim();
+  const apiKey = config.apiKeys.openai;
   const openai = new OpenAI({
-    apiKey: apiKey,
+    apiKey: apiKey.trim(),
   });
 
+  // System prompt for consistent ranking behavior
+  const systemPrompt = `You are an expert advisor providing rankings and recommendations.
+
+When asked about tools, services, or companies:
+1. Provide specific rankings with positions (1st, 2nd, etc.)
+2. Be objective and factual
+3. Focus on quality, features, and user satisfaction
+4. Include brief explanations for rankings
+5. If you don't have enough information about a specific company, mention that
+
+Be helpful and comprehensive in your response.`;
+
   try {
-    // Use OpenAI Responses API with web_search tool for real-time data
-    // No system prompt - let the model respond naturally to simulate real user searches
-    const response = await retryWithBackoff(async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-      
-      try {
-        const res = await fetch('https://api.openai.com/v1/responses', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            tools: [
-              {
-                type: 'web_search',
-                search_context_size: 'high',
-              },
-            ],
-            tool_choice: { type: 'web_search' }, // Force web search
-            input: prompt, // Direct prompt without system instructions
-            include: ['web_search_call.action.sources'],
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        
-        if (!res.ok) {
-          const errorText = await res.text();
-          const error = new Error(`OpenAI Responses API error: ${res.status} - ${errorText.substring(0, 200)}`);
-          (error as any).status = res.status;
-          throw error;
-        }
-        
-        return res;
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
-          const timeoutError = new Error('Request timeout after 60 seconds');
-          (timeoutError as any).code = 'ETIMEDOUT';
-          throw timeoutError;
-        }
-        throw err;
-      }
+    // Get the provider's response
+    // Note: OpenAI's web_search tool is not yet in stable API
+    // Using GPT-4o for best quality responses
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o', // Using GPT-4o for better quality
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 1200,
     });
 
-    const data = await response.json();
+    const text = response.choices[0]?.message?.content || '';
     
-    // Extract response text, sources, and citations
-    let text = '';
-    const citations: Citation[] = [];
-    const sources: Citation[] = [];
-    
-    for (const item of data.output || []) {
-      // Get sources from web_search_call
-      if (item.type === 'web_search_call' && item.action?.sources) {
-        for (const s of item.action.sources) {
-          sources.push({
-            url: s.url?.replace(/\?utm_source=openai$/, '') || '',
-            title: s.title || '',
-          });
-        }
-      }
-      
-      // Get response text and citations from message
-      if (item.type === 'message') {
-        for (const c of item.content || []) {
-          if (c.type === 'output_text') {
-            text += c.text || '';
-            // Extract inline citations from annotations
-            for (const a of c.annotations || []) {
-              if (a.type === 'url_citation') {
-                citations.push({
-                  title: a.title || '',
-                  url: a.url?.replace(/\?utm_source=openai$/, '') || '',
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    // Deduplicate citations and sources
-    const uniqueCitations = Array.from(
-      new Map(citations.map(c => [c.url, c])).values()
-    );
-    const uniqueSources = Array.from(
-      new Map(sources.map(s => [s.url, s])).values()
-    );
+    // Citations not available in standard OpenAI API yet
+    // Will be added when web_search tool becomes available in stable API
+    const citations: Citation[] | undefined = undefined;
 
     // Analyze the response for brand mentions and sentiment using AI
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
 
 BRAND NAME: ${config.brandName}
-WHAT "${config.brandName}" DOES: ${config.description || config.keyProducts?.join(', ') || 'Not specified'}
-KNOWN DIRECT COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
+COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
 
 RESPONSE TEXT:
 "${text}"
@@ -647,21 +482,17 @@ Extract the following information:
      * "Y Combinator is mentioned but no ranking" → null
 
 3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
-   - Extract ONLY companies that offer services/products SIMILAR to what "${config.brandName}" does: ${config.description || config.keyProducts?.join(', ') || 'similar services'}
-   - A company is a competitor if they provide COMPARABLE services/products that solve similar customer problems
-   - EXCLUDE companies with completely different service offerings (e.g., if analyzing an accelerator, exclude payment processors, hosting providers, design tools)
-   - EXCLUDE companies mentioned only as integration partners, tool mentions, or passing examples
-   - Prioritize companies from the known competitors list: ${config.competitors?.join(', ') || 'None'}
-   - Return empty array [] if no relevant competitors are mentioned
+   - Extract ALL proper company names that are competitors, alternatives, or mentioned alongside the brand
+   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
+   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "a16z", "Entrepreneurs First", "Boost VC")
+   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
+   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
+   - Return empty array [] if no competitors are mentioned
    - Examples:
-     * Brand does: "CRM software for sales teams" | Response mentions: "Salesforce, HubSpot, Stripe, AWS, Mailchimp" → Only include CRM tools: ["Salesforce", "HubSpot"]
-     * Brand does: "Startup accelerator" | Response: "Top 5: 1. Y Combinator, 2. Techstars, 3. Stripe, 4. AWS, 5. MassChallenge" → Only accelerators: ["Techstars", "MassChallenge"]
-     * Brand does: "No-code website builder" | Response mentions: "Webflow, Wix, Shopify, Stripe" → Only website builders: ["Webflow", "Wix"] (exclude Shopify if e-commerce focused, exclude Stripe)
-   - **CRITICAL**: Only return actual COMPANY/BRAND NAMES. Never include:
-     * Sentence fragments like "Others share enthusiasm" or "Posts highlight..."
-     * Action phrases like "Reach out directly" or "Sign up now"
-     * Generic descriptions like "leading platform" or "top tool"
-     * Marketing copy or testimonials
+     * From "Top 5 accelerators: 1. Y Combinator, 2. Techstars, 3. 500 Global, 4. Seedcamp, 5. MassChallenge"
+       → competitorsMentioned should be: ["Techstars", "500 Global", "Seedcamp", "MassChallenge"]
+     * From "Top 7: 1. YC, 2. Techstars, 3. 500 Global, 4. a16z Speedrun, 5. Antler, 6. Entrepreneurs First, 7. Boost VC"
+       → competitorsMentioned should be: ["Techstars", "500 Global", "a16z Speedrun", "Antler", "Entrepreneurs First", "Boost VC"]
 
 4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
    - Extract numerical positions for each competitor mentioned
@@ -729,14 +560,7 @@ Return ONLY a valid JSON object with these exact keys:
     let analysis;
     try {
       // Remove markdown code blocks if present
-      let cleanedText = analysisText.trim();
-      // Check for and remove markdown code blocks (using split with hex escape)
-      const backtickTriple = '\x60\x60\x60'; // ```
-      const parts = cleanedText.split(backtickTriple);
-      if (parts.length >= 3) {
-        // Extract content between first ``` and last ```
-        cleanedText = parts.slice(1, -1).join(backtickTriple).replace(/^json\n?/, '').trim();
-      }
+      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
       analysis = JSON.parse(cleanedText);
     } catch (parseError) {
       console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
@@ -767,23 +591,15 @@ Return ONLY a valid JSON object with these exact keys:
       const positionPatterns = [
         new RegExp(`(?:^|\\n)(?:###?\\s*)?([1-9]\\d?)(?:st|nd|rd|th)(?:\\s*[Pp]lace)?:?\\s*\\*?\\*?${config.brandName}`, 'i'),
         new RegExp(`#([1-9]\\d?):\\s*${config.brandName}`, 'i'),
-        // More specific: "Brand is ranked #2" or "Brand ranked #2"
-        new RegExp(`${config.brandName}(?:\\s+is)?\\s+(?:ranked?|position(?:ed)?)\\s*#?([1-9]\\d?)`, 'i'),
-        // Numbered list: "2. Scale AI" or "## 2. Scale AI"
-        new RegExp(`(?:^|\\n)\\s*(?:#{1,3}\\s*)?(\\d+)\\.\\s+\\*?\\*?${config.brandName}\\b`, 'im'),
+        new RegExp(`(?:ranked?|position)\\s*#?([1-9]\\d?).*${config.brandName}`, 'i'),
       ];
-
+      
       for (const pattern of positionPatterns) {
         const match = text.match(pattern);
         if (match) {
           brandPosition = parseInt(match[1], 10);
           break;
         }
-      }
-
-      // If no position found, try bullet list detection
-      if (!brandPosition) {
-        brandPosition = extractBrandPositionFromBulletList(text, config.brandName);
       }
       
       // Heuristic sentiment analysis
@@ -880,52 +696,17 @@ Return ONLY a valid JSON object with these exact keys:
       }
     });
 
-    // POST-PROCESSING VALIDATION
-    // 1. Validate brand mention using regex (more reliable than LLM)
-    const regexBrandMentioned = validateBrandMention(text, config.brandName);
-    const llmBrandMentioned = analysis.brandMentioned || false;
-    
-    if (llmBrandMentioned !== regexBrandMentioned) {
-      console.warn(`[OpenAI] Brand mention mismatch - LLM: ${llmBrandMentioned}, Regex: ${regexBrandMentioned}. Using regex result.`);
-    }
-    
-    // 2. Filter competitors to only include valid company names
-    const rawCompetitors = analysis.competitorsMentioned || [];
-    const validatedCompetitors = filterValidCompetitors(rawCompetitors, config.brandName);
-    
-    if (rawCompetitors.length !== validatedCompetitors.length) {
-      const filtered = rawCompetitors.filter((c: string) => !validatedCompetitors.includes(c));
-      console.warn(`[OpenAI] Filtered ${filtered.length} invalid competitors:`, filtered.slice(0, 5));
-    }
-    
-    // 3. Filter positions to only include validated competitors
-    const validatedPositions: Record<string, number> = {};
-    validatedCompetitors.forEach(comp => {
-      if (mergedPositions[comp]) {
-        validatedPositions[comp] = mergedPositions[comp];
-      }
-    });
-    
-    // 4. Filter sentiments to only include validated competitors
-    const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
-    validatedCompetitors.forEach(comp => {
-      if (analysis.competitorSentiments?.[comp]) {
-        validatedSentiments[comp] = analysis.competitorSentiments[comp];
-      }
-    });
-
     return {
       prompt,
       response: text,
-      brandMentioned: regexBrandMentioned, // Use regex validation
+      brandMentioned: analysis.brandMentioned || false,
       brandPosition: analysis.brandPosition,
-      competitors: validatedCompetitors, // Use validated competitors
-      competitorPositions: validatedPositions,
-      competitorSentiments: validatedSentiments,
+      competitors: analysis.competitorsMentioned || [],
+      competitorPositions: mergedPositions,
+      competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations: uniqueCitations.length > 0 ? uniqueCitations : undefined,
-      sources: uniqueSources.length > 0 ? uniqueSources : undefined,
+      citations,
     };
   } catch (error) {
     console.error(`Error analyzing with OpenAI:`, error);
@@ -961,38 +742,16 @@ async function analyzeWithPerplexity(
     // Reference: https://docs.perplexity.ai/guides/model-cards
     console.log('[Perplexity] Testing prompt:', prompt.substring(0, 60) + '...');
     
-    const response: any = await retryWithBackoff(async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-      
-      try {
-        const res = await perplexity.chat.completions.create(
-          {
-            model: 'sonar-pro', // Pro model with enhanced search and citations
-            messages: [
-              {
-                role: 'user',
-                content: prompt,
-              },
-            ],
-            temperature: 0.2,
-            max_tokens: 1200,
-          },
-          {
-            signal: controller.signal as any,
-          } as any
-        );
-        clearTimeout(timeoutId);
-        return res;
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
-          const timeoutError = new Error('Request timeout after 60 seconds');
-          (timeoutError as any).code = 'ETIMEDOUT';
-          throw timeoutError;
-        }
-        throw err;
-      }
+    const response: any = await perplexity.chat.completions.create({
+      model: 'sonar-pro', // Pro model with enhanced search and citations
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.2,
+      max_tokens: 1200,
     });
 
     const text = response.choices[0]?.message?.content || '';
@@ -1025,13 +784,11 @@ async function analyzeWithPerplexity(
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
 
 BRAND NAME: ${config.brandName}
-WHAT "${config.brandName}" DOES: ${config.description || config.keyProducts?.join(', ') || 'Not specified'}
-KNOWN DIRECT COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
+COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
 
 RESPONSE TEXT:
 "${text}"
 
-<task>
 Extract the following information:
 
 1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
@@ -1047,21 +804,17 @@ Extract the following information:
      * "Y Combinator is mentioned but no ranking" → null
 
 3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
-   - Extract ONLY companies that offer services/products SIMILAR to what "${config.brandName}" does: ${config.description || config.keyProducts?.join(', ') || 'similar services'}
-   - A company is a competitor if they provide COMPARABLE services/products that solve similar customer problems
-   - EXCLUDE companies with completely different service offerings (e.g., if analyzing an accelerator, exclude payment processors, hosting providers, design tools)
-   - EXCLUDE companies mentioned only as integration partners, tool mentions, or passing examples
-   - Prioritize companies from the known competitors list: ${config.competitors?.join(', ') || 'None'}
-   - Return empty array [] if no relevant competitors are mentioned
+   - Extract ALL proper company names that are competitors, alternatives, or mentioned alongside the brand
+   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
+   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "a16z", "Entrepreneurs First", "Boost VC")
+   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
+   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
+   - Return empty array [] if no competitors are mentioned
    - Examples:
-     * Brand does: "CRM software for sales teams" | Response mentions: "Salesforce, HubSpot, Stripe, AWS, Mailchimp" → Only include CRM tools: ["Salesforce", "HubSpot"]
-     * Brand does: "Startup accelerator" | Response: "Top 5: 1. Y Combinator, 2. Techstars, 3. Stripe, 4. AWS, 5. MassChallenge" → Only accelerators: ["Techstars", "MassChallenge"]
-     * Brand does: "No-code website builder" | Response mentions: "Webflow, Wix, Shopify, Stripe" → Only website builders: ["Webflow", "Wix"] (exclude Shopify if e-commerce focused, exclude Stripe)
-   - **CRITICAL**: Only return actual COMPANY/BRAND NAMES. Never include:
-     * Sentence fragments like "Others share enthusiasm" or "Posts highlight..."
-     * Action phrases like "Reach out directly" or "Sign up now"
-     * Generic descriptions like "leading platform" or "top tool"
-     * Marketing copy or testimonials
+     * From "Top 5 accelerators: 1. Y Combinator, 2. Techstars, 3. 500 Global, 4. Seedcamp, 5. MassChallenge"
+       → competitorsMentioned should be: ["Techstars", "500 Global", "Seedcamp", "MassChallenge"]
+     * From "Top 7: 1. YC, 2. Techstars, 3. 500 Global, 4. a16z Speedrun, 5. Antler, 6. Entrepreneurs First, 7. Boost VC"
+       → competitorsMentioned should be: ["Techstars", "500 Global", "a16z Speedrun", "Antler", "Entrepreneurs First", "Boost VC"]
 
 4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
    - Extract numerical positions for each competitor mentioned
@@ -1093,7 +846,6 @@ Extract the following information:
    - "negative" if critical or dismissive
 
 7. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
-</task>
 
 Return ONLY a valid JSON object with these exact keys:
 {
@@ -1105,7 +857,7 @@ Return ONLY a valid JSON object with these exact keys:
   "sentiment": "positive" | "neutral" | "negative",
   "confidence": number,
   "explanation": "brief reasoning"
-}\`;
+}`;
 
     const analysisResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -1129,15 +881,7 @@ Return ONLY a valid JSON object with these exact keys:
     // Parse JSON
     let analysis;
     try {
-      // Remove markdown code blocks if present
-      let cleanedText = analysisText.trim();
-      // Check for and remove markdown code blocks (using split with hex escape)
-      const backtickTriple = '\x60\x60\x60'; // ```
-      const parts = cleanedText.split(backtickTriple);
-      if (parts.length >= 3) {
-        // Extract content between first ``` and last ```
-        cleanedText = parts.slice(1, -1).join(backtickTriple).replace(/^json\n?/, '').trim();
-      }
+      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
       analysis = JSON.parse(cleanedText);
     } catch (parseError) {
       console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
@@ -1167,10 +911,7 @@ Return ONLY a valid JSON object with these exact keys:
       const positionPatterns = [
         new RegExp(`(?:^|\\n)(?:###?\\s*)?([1-9]\\d?)(?:st|nd|rd|th)(?:\\s*[Pp]lace)?:?\\s*\\*?\\*?${config.brandName}`, 'i'),
         new RegExp(`#([1-9]\\d?):\\s*${config.brandName}`, 'i'),
-        // More specific: "Brand is ranked #2" or "Brand ranked #2"
-        new RegExp(`${config.brandName}(?:\\s+is)?\\s+(?:ranked?|position(?:ed)?)\\s*#?([1-9]\\d?)`, 'i'),
-        // Numbered list: "2. Scale AI" or "## 2. Scale AI"
-        new RegExp(`(?:^|\\n)\\s*(?:#{1,3}\\s*)?(\\d+)\\.\\s+\\*?\\*?${config.brandName}\\b`, 'im'),
+        new RegExp(`(?:ranked?|position)\\s*#?([1-9]\\d?).*${config.brandName}`, 'i'),
       ];
 
       for (const pattern of positionPatterns) {
@@ -1179,11 +920,6 @@ Return ONLY a valid JSON object with these exact keys:
           brandPosition = parseInt(match[1], 10);
           break;
         }
-      }
-
-      // If no position found, try bullet list detection
-      if (!brandPosition) {
-        brandPosition = extractBrandPositionFromBulletList(text, config.brandName);
       }
 
       const sentiment: 'positive' | 'neutral' | 'negative' = brandMentioned ? 'neutral' : 'neutral';
@@ -1260,48 +996,14 @@ Return ONLY a valid JSON object with these exact keys:
       }
     });
 
-    // POST-PROCESSING VALIDATION (same as OpenAI)
-    // 1. Validate brand mention using regex
-    const regexBrandMentioned = validateBrandMention(text, config.brandName);
-    const llmBrandMentioned = analysis.brandMentioned || false;
-    
-    if (llmBrandMentioned !== regexBrandMentioned) {
-      console.warn(`[Perplexity] Brand mention mismatch - LLM: ${llmBrandMentioned}, Regex: ${regexBrandMentioned}. Using regex result.`);
-    }
-    
-    // 2. Filter competitors to only include valid company names
-    const rawCompetitors = analysis.competitorsMentioned || [];
-    const validatedCompetitors = filterValidCompetitors(rawCompetitors, config.brandName);
-    
-    if (rawCompetitors.length !== validatedCompetitors.length) {
-      const filtered = rawCompetitors.filter((c: string) => !validatedCompetitors.includes(c));
-      console.warn(`[Perplexity] Filtered ${filtered.length} invalid competitors:`, filtered.slice(0, 5));
-    }
-    
-    // 3. Filter positions to only include validated competitors
-    const validatedPositions: Record<string, number> = {};
-    validatedCompetitors.forEach(comp => {
-      if (mergedPositions[comp]) {
-        validatedPositions[comp] = mergedPositions[comp];
-      }
-    });
-    
-    // 4. Filter sentiments to only include validated competitors
-    const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
-    validatedCompetitors.forEach(comp => {
-      if (analysis.competitorSentiments?.[comp]) {
-        validatedSentiments[comp] = analysis.competitorSentiments[comp];
-      }
-    });
-
     return {
       prompt,
       response: text,
-      brandMentioned: regexBrandMentioned, // Use regex validation
+      brandMentioned: analysis.brandMentioned || false,
       brandPosition: analysis.brandPosition,
-      competitors: validatedCompetitors, // Use validated competitors
-      competitorPositions: validatedPositions,
-      competitorSentiments: validatedSentiments,
+      competitors: analysis.competitorsMentioned || [],
+      competitorPositions: mergedPositions,
+      competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
       citations: citations.length > 0 ? citations : undefined,
@@ -1321,7 +1023,6 @@ Return ONLY a valid JSON object with these exact keys:
 
 /**
  * Analyze with Anthropic (Claude)
- * Uses Claude with web search tool for grounded responses
  */
 async function analyzeWithAnthropic(
   prompt: string,
@@ -1332,8 +1033,6 @@ async function analyzeWithAnthropic(
   }
 
   const apiKey = config.apiKeys.anthropic;
-  console.log('[Anthropic] API Key configured:', apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4));
-
   const anthropic = new Anthropic({
     apiKey: apiKey.trim(),
   });
@@ -1341,11 +1040,9 @@ async function analyzeWithAnthropic(
   try {
     console.log('[Anthropic] Testing prompt:', prompt.substring(0, 60) + '...');
 
-    // Use Claude with web_search tool for grounded, real-time responses
-    // Reference: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool
     const response = await retryWithBackoff(async () => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       
       try {
         const res = await anthropic.messages.create(
@@ -1363,11 +1060,11 @@ async function analyzeWithAnthropic(
                 type: 'web_search_20250305',
                 name: 'web_search',
                 max_uses: 5,
-              } as any, // Type assertion needed as SDK types may lag behind API
+              } as any,
             ],
           },
           {
-            signal: controller.signal as any, // SDK may not have full signal support yet
+            signal: controller.signal as any,
           }
         );
         clearTimeout(timeoutId);
@@ -1379,7 +1076,6 @@ async function analyzeWithAnthropic(
           (timeoutError as any).code = 'ETIMEDOUT';
           throw timeoutError;
         }
-        // Normalize error object to include status
         if (err.status) {
           (err as any).status = err.status;
         }
@@ -1387,15 +1083,13 @@ async function analyzeWithAnthropic(
       }
     });
 
-    // Extract text and citations from response
-    // Response includes: text blocks, server_tool_use (search queries), web_search_tool_result (results)
     let text = '';
     const citations: Citation[] = [];
+    const sources: Citation[] = [];
 
     for (const block of response.content) {
       if (block.type === 'text') {
         text += block.text;
-        // Extract citations from text blocks (they appear inline with cited_text)
         const textBlock = block as any;
         if (textBlock.citations && Array.isArray(textBlock.citations)) {
           for (const citation of textBlock.citations) {
@@ -1410,19 +1104,17 @@ async function analyzeWithAnthropic(
           }
         }
       }
-      // Also extract URLs from web_search_tool_result blocks
       if (block.type === 'web_search_tool_result') {
         const resultBlock = block as any;
         if (resultBlock.content && Array.isArray(resultBlock.content)) {
           for (const result of resultBlock.content) {
             if (result.type === 'web_search_result' && result.url) {
-              // Only add if not already in citations
-              const existingUrls = citations.map(c => c.url);
+              const existingUrls = sources.map(c => c.url);
               if (!existingUrls.includes(result.url)) {
-                citations.push({
+                sources.push({
                   url: result.url,
                   title: result.title,
-                  position: citations.length + 1,
+                  position: sources.length + 1,
                 });
               }
             }
@@ -1432,9 +1124,7 @@ async function analyzeWithAnthropic(
     }
 
     console.log('[Anthropic] Response received:', text.substring(0, 100) + '...');
-    console.log(`[Anthropic] Extracted ${citations.length} citations from web search`);
 
-    // Analyze the response using OpenAI for consistency
     if (!config.apiKeys.openai) {
       throw new Error('OpenAI API key required for analyzing Anthropic responses');
     }
@@ -1443,15 +1133,41 @@ async function analyzeWithAnthropic(
       apiKey: config.apiKeys.openai.trim(),
     });
 
-    // Use the same analysis prompt as other providers
-    const analysisPrompt = createAnalysisPrompt(text, config.brandName, config.competitors);
+    const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
+
+BRAND NAME: ${config.brandName}
+COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
+
+RESPONSE TEXT:
+"${text}"
+
+Extract the following information:
+
+1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
+2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position
+3. **competitorsMentioned**: Array of OTHER company/brand names mentioned (EXCLUDING "${config.brandName}")
+4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
+5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
+6. **sentiment**: Overall sentiment toward "${config.brandName}" ("positive" | "neutral" | "negative")
+7. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
+
+Return ONLY a valid JSON object with these exact keys:
+{
+  "brandMentioned": boolean,
+  "brandPosition": number or null,
+  "competitorsMentioned": string[],
+  "competitorPositions": { [key: string]: number },
+  "competitorSentiments": { [key: string]: "positive" | "neutral" | "negative" },
+  "sentiment": "positive" | "neutral" | "negative",
+  "confidence": number
+}`;
 
     const analysisResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully for both the brand and competitors. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
+          content: 'You are an expert at analyzing AI responses for brand visibility. Respond ONLY with valid JSON.',
         },
         {
           role: 'user',
@@ -1466,111 +1182,74 @@ async function analyzeWithAnthropic(
     const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
     let analysis;
     try {
-      // Remove markdown code blocks if present
-      let cleanedText = analysisText.trim();
-      // Check for and remove markdown code blocks (using split with hex escape)
-      const backtickTriple = '\x60\x60\x60'; // ```
-      const parts = cleanedText.split(backtickTriple);
-      if (parts.length >= 3) {
-        // Extract content between first ``` and last ```
-        cleanedText = parts.slice(1, -1).join(backtickTriple).replace(/^json\n?/, '').trim();
-      }
+      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
       analysis = JSON.parse(cleanedText);
     } catch (parseError) {
-      console.warn('[Anthropic] Failed to parse analysis, using fallback');
-      analysis = createFallbackAnalysis(text, config.brandName);
+      console.warn('[Anthropic] Failed to parse analysis');
+      analysis = {
+        brandMentioned: validateBrandMention(text, config.brandName),
+        brandPosition: null,
+        competitorsMentioned: [],
+        competitorPositions: {},
+        competitorSentiments: {},
+        sentiment: 'neutral',
+        confidence: 0.5,
+      };
     }
 
-    // Extract positions with regex for better accuracy
     const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
-    const mergedPositions = mergePositions(analysis.competitorPositions || {}, regexPositions, analysis.competitorsMentioned || []);
+    const mergedPositions = { ...(analysis.competitorPositions || {}) };
+    
+    (analysis.competitorsMentioned || []).forEach((competitor: string) => {
+      const regexMatch = Object.keys(regexPositions).find(
+        regexComp => regexComp.toLowerCase() === competitor.toLowerCase() ||
+                     regexComp.includes(competitor) ||
+                     competitor.includes(regexComp)
+      );
+      
+      if (regexMatch && !mergedPositions[competitor]) {
+        mergedPositions[competitor] = regexPositions[regexMatch];
+      }
+    });
+    
+    Object.entries(regexPositions).forEach(([company, position]) => {
+      const alreadyMentioned = (analysis.competitorsMentioned || []).some(
+        (comp: string) => comp.toLowerCase() === company.toLowerCase()
+      );
+      
+      if (!alreadyMentioned) {
+        analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
+        mergedPositions[company] = position;
+      }
+    });
 
-    // POST-PROCESSING VALIDATION (same as OpenAI/Perplexity)
-    // 1. Validate brand mention using regex
     const regexBrandMentioned = validateBrandMention(text, config.brandName);
-    const llmBrandMentioned = analysis.brandMentioned || false;
-    
-    if (llmBrandMentioned !== regexBrandMentioned) {
-      console.warn(`[Anthropic] Brand mention mismatch - LLM: ${llmBrandMentioned}, Regex: ${regexBrandMentioned}. Using regex result.`);
-    }
-    
-    // 2. Filter competitors to only include valid company names
-    const rawCompetitors = analysis.competitorsMentioned || [];
-    const validatedCompetitors = filterValidCompetitors(rawCompetitors, config.brandName);
-    
-    if (rawCompetitors.length !== validatedCompetitors.length) {
-      const filtered = rawCompetitors.filter((c: string) => !validatedCompetitors.includes(c));
-      console.warn(`[Anthropic] Filtered ${filtered.length} invalid competitors:`, filtered.slice(0, 5));
-    }
-    
-    // 3. Filter positions to only include validated competitors
-    const validatedPositions: Record<string, number> = {};
-    validatedCompetitors.forEach(comp => {
-      if (mergedPositions[comp]) {
-        validatedPositions[comp] = mergedPositions[comp];
-      }
-    });
-    
-    // 4. Filter sentiments to only include validated competitors
-    const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
-    validatedCompetitors.forEach(comp => {
-      if (analysis.competitorSentiments?.[comp]) {
-        validatedSentiments[comp] = analysis.competitorSentiments[comp];
-      }
-    });
+    const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
 
     return {
       prompt,
       response: text,
-      brandMentioned: regexBrandMentioned, // Use regex validation
+      brandMentioned: regexBrandMentioned,
       brandPosition: analysis.brandPosition,
-      competitors: validatedCompetitors, // Use validated competitors
-      competitorPositions: validatedPositions,
-      competitorSentiments: validatedSentiments,
+      competitors: validatedCompetitors,
+      competitorPositions: mergedPositions,
+      competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
       citations: citations.length > 0 ? citations : undefined,
+      sources: sources.length > 0 ? sources : undefined,
     };
   } catch (error: any) {
-    // Enhanced error logging with specific error identification
-    console.error(`❌ [Anthropic] Error during analysis:`);
-    console.error(`   Message: ${error.message || 'Unknown error'}`);
-    console.error(`   Status: ${error.status || 'N/A'}`);
-    console.error(`   Type: ${error.type || error.error?.type || 'N/A'}`);
-
+    console.error(`❌ [Anthropic] Error:`, error.message || error);
     if (error.status === 405) {
-      console.error(`   ⚠️  HTTP 405 Method Not Allowed - Check web_search tool configuration`);
-      throw new Error(`Anthropic API error: Method Not Allowed (405). Ensure web_search_20250305 tool type is used and web search is enabled in Console.`);
+      throw new Error(`Anthropic API error: Method Not Allowed (405). Ensure web_search is enabled.`);
     }
-
-    if (error.status === 401) {
-      throw new Error(`Anthropic API authentication failed. Please check your API key.`);
-    }
-
-    if (error.status === 429) {
-      throw new Error(`Anthropic API rate limit exceeded. Please try again later.`);
-    }
-
-    if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
-      throw new Error(`Anthropic API request timeout. The request took longer than 60 seconds.`);
-    }
-
-    if (error.status === 400) {
-      // Check for web search specific errors
-      const errorMessage = error.message || '';
-      if (errorMessage.includes('web_search') || errorMessage.includes('tool')) {
-        console.error(`   ⚠️  Web search tool error - may need to enable in Anthropic Console`);
-        throw new Error(`Anthropic web search error: ${errorMessage}. Ensure web search is enabled in your Anthropic Console settings.`);
-      }
-    }
-
-    throw new Error(`Anthropic API error: ${error.message || 'Unknown error'}`);
+    throw error;
   }
 }
 
 /**
  * Analyze with Google (Gemini)
- * Uses Gemini with grounding/search for real-time information
  */
 async function analyzeWithGoogle(
   prompt: string,
@@ -1581,33 +1260,25 @@ async function analyzeWithGoogle(
   }
 
   const apiKey = config.apiKeys.google;
-  console.log('[Google] API Key configured:', apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4));
-
   const genAI = new GoogleGenerativeAI(apiKey.trim());
   
   try {
     console.log('[Google] Testing prompt:', prompt.substring(0, 60) + '...');
     
-    // Use Gemini 3 Flash with Google Search grounding
-    // Reference: https://ai.google.dev/gemini-api/docs/gemini-3
-    // Reference: https://ai.google.dev/gemini-api/docs/grounding
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview', // Gemini 3 Flash - free tier model with grounding support
-      // Google Search grounding - using proper format per SDK documentation
+      model: 'gemini-3-flash-preview',
       tools: [
         {
           googleSearch: {},
         },
-      ] as any, // Type assertion needed as SDK types may not be fully up to date
+      ] as any,
     });
 
     const result = await retryWithBackoff(async () => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
 
       try {
-        // Note: Gemini SDK may not fully support AbortSignal yet
-        // Timeout will still trigger abort, but may not cancel in-flight requests
         const res = await model.generateContent(prompt);
         clearTimeout(timeoutId);
         return res;
@@ -1618,19 +1289,18 @@ async function analyzeWithGoogle(
           (timeoutError as any).code = 'ETIMEDOUT';
           throw timeoutError;
         }
-        // Normalize error status
         if (err.status || err.statusCode) {
           (err as any).status = err.status || err.statusCode;
         }
         throw err;
       }
     });
+    
     const response = result.response;
     const text = response.text();
     
     console.log('[Google] Response received:', text.substring(0, 100) + '...');
     
-    // Extract citations from grounding metadata
     const citations: Citation[] = [];
     const groundingMetadata = (response as any).candidates?.[0]?.groundingMetadata;
 
@@ -1644,17 +1314,13 @@ async function analyzeWithGoogle(
           });
         }
       });
-      console.log(`[Google] Extracted ${citations.length} citations from grounding`);
     }
 
-    // Also check for search queries used
     const searchQueries: string[] = [];
     if (groundingMetadata?.webSearchQueries) {
       searchQueries.push(...groundingMetadata.webSearchQueries);
-      console.log(`[Google] Used search queries:`, searchQueries);
     }
 
-    // Analyze the response using OpenAI for consistency
     if (!config.apiKeys.openai) {
       throw new Error('OpenAI API key required for analyzing Google responses');
     }
@@ -1663,14 +1329,41 @@ async function analyzeWithGoogle(
       apiKey: config.apiKeys.openai.trim(),
     });
 
-    const analysisPrompt = createAnalysisPrompt(text, config.brandName, config.competitors);
+    const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
+
+BRAND NAME: ${config.brandName}
+COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
+
+RESPONSE TEXT:
+"${text}"
+
+Extract the following information:
+
+1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
+2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position
+3. **competitorsMentioned**: Array of OTHER company/brand names mentioned (EXCLUDING "${config.brandName}")
+4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
+5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
+6. **sentiment**: Overall sentiment toward "${config.brandName}" ("positive" | "neutral" | "negative")
+7. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
+
+Return ONLY a valid JSON object with these exact keys:
+{
+  "brandMentioned": boolean,
+  "brandPosition": number or null,
+  "competitorsMentioned": string[],
+  "competitorPositions": { [key: string]: number },
+  "competitorSentiments": { [key: string]: "positive" | "neutral" | "negative" },
+  "sentiment": "positive" | "neutral" | "negative",
+  "confidence": number
+}`;
 
     const analysisResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully for both the brand and competitors. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
+          content: 'You are an expert at analyzing AI responses for brand visibility. Respond ONLY with valid JSON.',
         },
         {
           role: 'user',
@@ -1685,31 +1378,56 @@ async function analyzeWithGoogle(
     const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
     let analysis;
     try {
-      // Remove markdown code blocks if present
-      let cleanedText = analysisText.trim();
-      // Check for and remove markdown code blocks (using split with hex escape)
-      const backtickTriple = '\x60\x60\x60'; // ```
-      const parts = cleanedText.split(backtickTriple);
-      if (parts.length >= 3) {
-        // Extract content between first ``` and last ```
-        cleanedText = parts.slice(1, -1).join(backtickTriple).replace(/^json\n?/, '').trim();
-      }
+      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
       analysis = JSON.parse(cleanedText);
     } catch (parseError) {
-      console.warn('[Google] Failed to parse analysis, using fallback');
-      analysis = createFallbackAnalysis(text, config.brandName);
+      console.warn('[Google] Failed to parse analysis');
+      analysis = {
+        brandMentioned: validateBrandMention(text, config.brandName),
+        brandPosition: null,
+        competitorsMentioned: [],
+        competitorPositions: {},
+        competitorSentiments: {},
+        sentiment: 'neutral',
+        confidence: 0.5,
+      };
     }
 
-    // Extract positions with regex for better accuracy
     const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
-    const mergedPositions = mergePositions(analysis.competitorPositions || {}, regexPositions, analysis.competitorsMentioned || []);
+    const mergedPositions = { ...(analysis.competitorPositions || {}) };
+    
+    (analysis.competitorsMentioned || []).forEach((competitor: string) => {
+      const regexMatch = Object.keys(regexPositions).find(
+        regexComp => regexComp.toLowerCase() === competitor.toLowerCase() ||
+                     regexComp.includes(competitor) ||
+                     competitor.includes(regexComp)
+      );
+      
+      if (regexMatch && !mergedPositions[competitor]) {
+        mergedPositions[competitor] = regexPositions[regexMatch];
+      }
+    });
+    
+    Object.entries(regexPositions).forEach(([company, position]) => {
+      const alreadyMentioned = (analysis.competitorsMentioned || []).some(
+        (comp: string) => comp.toLowerCase() === company.toLowerCase()
+      );
+      
+      if (!alreadyMentioned) {
+        analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
+        mergedPositions[company] = position;
+      }
+    });
+
+    const regexBrandMentioned = validateBrandMention(text, config.brandName);
+    const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
 
     return {
       prompt,
       response: text,
-      brandMentioned: analysis.brandMentioned || false,
+      brandMentioned: regexBrandMentioned,
       brandPosition: analysis.brandPosition,
-      competitors: analysis.competitorsMentioned || [],
+      competitors: validatedCompetitors,
       competitorPositions: mergedPositions,
       competitorSentiments: analysis.competitorSentiments || {},
       sentiment: analysis.sentiment || 'neutral',
@@ -1718,124 +1436,9 @@ async function analyzeWithGoogle(
       searchQueries: searchQueries.length > 0 ? searchQueries : undefined,
     };
   } catch (error: any) {
-    // Enhanced error logging with specific error identification
-    console.error(`❌ [Google] Error during analysis:`);
-    console.error(`   Message: ${error.message || 'Unknown error'}`);
-    console.error(`   Status: ${error.status || error.statusCode || 'N/A'}`);
-    
-    if (error.message?.includes('API key')) {
-      throw new Error(`Google API authentication failed. Please check your API key.`);
-    }
-    
-    if (error.status === 405 || error.statusCode === 405) {
-      console.error(`   ⚠️  HTTP 405 Method Not Allowed - Invalid API configuration`);
-      throw new Error(`Google Gemini API error: Method Not Allowed (405). This may indicate googleSearch tool is not available or configured incorrectly.`);
-    }
-    
-    if (error.status === 429 || error.statusCode === 429) {
-      throw new Error(`Google API rate limit exceeded. Please try again later.`);
-    }
-    
-    if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
-      throw new Error(`Google Gemini API request timeout. The request took longer than 60 seconds.`);
-    }
-    
-    if (error.message?.includes('grounding') || error.message?.includes('googleSearch')) {
-      console.error(`   ⚠️  Google Search grounding may not be available in your region or API setup`);
-      throw new Error(`Google Gemini grounding error: ${error.message}. Consider using standard Gemini model without googleSearch.`);
-    }
-    
-    throw new Error(`Google Gemini API error: ${error.message || 'Unknown error'}`);
+    console.error(`❌ [Google] Error:`, error.message || error);
+    throw error;
   }
-}
-
-/**
- * Create analysis prompt for brand visibility extraction (shared across providers)
- */
-function createAnalysisPrompt(text: string, brandName: string, competitors?: string[]): string {
-  return `Analyze this AI-generated response to determine brand visibility:
-
-BRAND NAME: ${brandName}
-COMPETITORS: ${competitors?.join(', ') || 'None specified'}
-
-RESPONSE TEXT:
-"${text}"
-
-Extract the following information:
-
-1. **brandMentioned**: Is "${brandName}" mentioned anywhere in the response? (true/false)
-2. **brandPosition**: What numerical ranking/position is "${brandName}" given? (number or null)
-3. **competitorsMentioned**: Array of OTHER company/brand names mentioned (EXCLUDING "${brandName}")
-4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
-5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
-6. **sentiment**: Overall sentiment toward "${brandName}" ("positive" | "neutral" | "negative")
-7. **confidence**: How confident are you in this analysis? (0.0 to 1.0)
-
-Return ONLY a valid JSON object with these exact keys:
-{
-  "brandMentioned": boolean,
-  "brandPosition": number or null,
-  "competitorsMentioned": string[],
-  "competitorPositions": { [key: string]: number },
-  "competitorSentiments": { [key: string]: "positive" | "neutral" | "negative" },
-  "sentiment": "positive" | "neutral" | "negative",
-  "confidence": number
-}`;
-}
-
-/**
- * Create fallback analysis when LLM parsing fails
- */
-function createFallbackAnalysis(text: string, brandName: string): any {
-  const brandNameLower = brandName.toLowerCase();
-  const textLower = text.toLowerCase();
-  const brandMentioned = textLower.includes(brandNameLower);
-  
-  return {
-    brandMentioned,
-    brandPosition: null,
-    competitorsMentioned: [],
-    competitorPositions: {},
-    competitorSentiments: {},
-    sentiment: 'neutral',
-    confidence: 0.5,
-  };
-}
-
-/**
- * Merge LLM-extracted positions with regex-extracted positions
- */
-function mergePositions(
-  llmPositions: Record<string, number>,
-  regexPositions: Record<string, number>,
-  competitors: string[]
-): Record<string, number> {
-  const merged = { ...llmPositions };
-  
-  competitors.forEach((competitor) => {
-    const regexMatch = Object.keys(regexPositions).find(
-      regexComp => regexComp.toLowerCase() === competitor.toLowerCase() ||
-                   regexComp.includes(competitor) ||
-                   competitor.includes(regexComp)
-    );
-    
-    if (regexMatch && !merged[competitor]) {
-      merged[competitor] = regexPositions[regexMatch];
-    }
-  });
-  
-  // Add regex-found competitors that LLM missed
-  Object.entries(regexPositions).forEach(([company, position]) => {
-    const alreadyMentioned = competitors.some(
-      (comp) => comp.toLowerCase() === company.toLowerCase()
-    );
-    
-    if (!alreadyMentioned && !merged[company]) {
-      merged[company] = position;
-    }
-  });
-  
-  return merged;
 }
 
 /**
@@ -2007,6 +1610,7 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
         default: return p.charAt(0).toUpperCase() + p.slice(1)
       }
     }
+    
     return {
       provider: providerDisplayName(provider),
       promptTests,

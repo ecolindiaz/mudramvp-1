@@ -9,6 +9,7 @@
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 import crypto from 'crypto'
+import { createInitialBlogSetupIssue } from './blog-setup.service'
 
 // Types
 export type IssueCategory = 'technical_structure' | 'ai_visibility' | 'conversation'
@@ -467,6 +468,17 @@ async function upsertDiscoveredIssues(
  */
 export async function discoverIssues(brandProfileId: number): Promise<DiscoveryResult> {
   console.log(`[IssueDiscovery] Starting discovery for brand ${brandProfileId}`)
+
+  // 0. Always ensure blog setup issue exists (fundamental for content publishing)
+  try {
+    const blogSetupResult = await createInitialBlogSetupIssue(brandProfileId)
+    if (blogSetupResult.created) {
+      console.log(`[IssueDiscovery] Created blog setup issue for brand ${brandProfileId}`)
+    }
+  } catch (error) {
+    console.error(`[IssueDiscovery] Failed to create blog setup issue:`, error)
+    // Continue with other discovery - don't fail the whole process
+  }
 
   // 1. Get current scores
   const [technicalScore, aiVisibilityScore] = await Promise.all([

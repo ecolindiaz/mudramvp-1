@@ -179,6 +179,7 @@ interface CreateOptimizationPRInput {
   }>
   title: string
   description: string
+  issueTitle?: string // Used for branch naming - more descriptive than pageUrl
 }
 
 interface PRResult {
@@ -191,7 +192,7 @@ interface PRResult {
  * This properly creates a branch, commits files, then opens a PR
  */
 export async function createOptimizationPR(input: CreateOptimizationPRInput): Promise<PRResult> {
-  const { brandProfileId, pageUrl, improvements, title, description } = input
+  const { brandProfileId, pageUrl, improvements, title, description, issueTitle } = input
 
   // Get brand profile to access GitHub integration
   const brandProfile = await prisma.brandProfile.findUnique({
@@ -255,9 +256,15 @@ export async function createOptimizationPR(input: CreateOptimizationPRInput): Pr
     throw new Error(`Invalid repository format: ${repoName}. Expected format: owner/repo`)
   }
 
-  // Create a new branch name with sanitized page info
-  const pageSlug = pageUrl.replace(/[^a-z0-9]/gi, '-').slice(0, 30)
-  const branchName = `geo-optimization-${pageSlug}-${Date.now()}`
+  // Create a new branch name - prefer issue title for better readability
+  const slugSource = issueTitle || pageUrl
+  const branchSlug = slugSource
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')  // Replace non-alphanumeric with dashes
+    .replace(/^-|-$/g, '')         // Remove leading/trailing dashes
+    .slice(0, 40)                  // Limit length
+  const branchName = `mudra/${branchSlug}-${Date.now().toString(36)}`
+  console.log(`[GitHub] Branch name: ${branchName} (from: ${issueTitle ? 'issueTitle' : 'pageUrl'})`)
 
   // Prepare PR body with all improvements
   const prBody = `${description}
@@ -327,45 +334,80 @@ ${imp.code}
     const improvement = improvements[0] // Primary improvement
     let targetFilePath = improvement.filePath || 'index.html'
     
-    // Normalize common file paths for different frameworks
+    // Expanded list of common file paths for different frameworks
+    // Ordered by likelihood/preference
     const commonTargetFiles = [
+      // Static HTML (most common for simple sites)
       'index.html',
       'public/index.html',
       'src/index.html',
+      // Next.js App Router
       'app/layout.tsx',
+      'app/layout.jsx',
       'app/layout.js',
+      'src/app/layout.tsx',
+      'src/app/layout.jsx',
+      'src/app/layout.js',
+      // Next.js Pages Router
       'pages/_app.tsx',
+      'pages/_app.jsx',
       'pages/_app.js',
       'pages/_document.tsx',
+      'pages/_document.jsx',
       'pages/_document.js',
+      'src/pages/_app.tsx',
+      'src/pages/_document.tsx',
+      // Astro
+      'src/layouts/Layout.astro',
+      'src/layouts/BaseLayout.astro',
+      // Vue/Nuxt
+      'index.vue',
+      'app.vue',
+      // React (Create React App)
+      'public/index.html',
     ]
+
+    // Remove duplicates while preserving order
+    const allPaths = [...new Set([targetFilePath, ...commonTargetFiles])]
 
     // Try to find an existing file to modify
     let existingFileSha: string | undefined
     let existingFileContent: string | undefined
     
-    for (const candidatePath of [targetFilePath, ...commonTargetFiles]) {
+    console.log(`[GitHub] Searching for target file in ${owner}/${repo}...`)
+    console.log(`[GitHub] Checking ${allPaths.length} possible paths: ${allPaths.slice(0, 5).join(', ')}...`)
+    
+    for (const candidatePath of allPaths) {
       try {
-        const fileResponse = await fetch(
-          `https://api.github.com/repos/${owner}/${repo}/contents/${candidatePath}?ref=${baseBranch}`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              Accept: 'application/vnd.github.v3+json',
-            },
-          }
-        )
+        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${candidatePath}?ref=${baseBranch}`
+        const fileResponse = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        })
         
         if (fileResponse.ok) {
           const fileData = await fileResponse.json()
-          existingFileSha = fileData.sha
-          existingFileContent = Buffer.from(fileData.content, 'base64').toString('utf-8')
-          targetFilePath = candidatePath
-          console.log(`[GitHub] Found existing file to modify: ${targetFilePath}`)
-          break
+          // Ensure it's a file, not a directory
+          if (fileData.type === 'file') {
+            existingFileSha = fileData.sha
+            existingFileContent = Buffer.from(fileData.content, 'base64').toString('utf-8')
+            targetFilePath = candidatePath
+            console.log(`[GitHub] ✅ Found existing file to modify: ${targetFilePath}`)
+            break
+          } else {
+            console.log(`[GitHub] ⚠️ ${candidatePath} is a ${fileData.type}, skipping`)
+          }
+        } else {
+          // Log the status for debugging (404 = file not found, which is normal)
+          if (fileResponse.status !== 404) {
+            console.log(`[GitHub] ⚠️ ${candidatePath}: ${fileResponse.status} ${fileResponse.statusText}`)
+          }
         }
-      } catch {
-        // File doesn't exist, continue checking
+      } catch (fetchError) {
+        // Network error or parsing issue
+        console.log(`[GitHub] ⚠️ Error checking ${candidatePath}:`, fetchError instanceof Error ? fetchError.message : fetchError)
       }
     }
 
@@ -379,7 +421,9 @@ ${imp.code}
       console.log(`[GitHub] Modifying existing file: ${targetFilePath}`)
     } else {
       // FALLBACK: Create new suggestion file if no target found
-      targetFilePath = `geo-optimizations/${pageSlug}-${Date.now()}.html`
+      console.log(`[GitHub] ❌ No existing file found in any of the ${allPaths.length} checked paths`)
+      console.log(`[GitHub] Creating suggestion file instead...`)
+      targetFilePath = `geo-optimizations/${branchSlug}-${Date.now()}.html`
       fileContent = `<!--
   GEO Optimization Suggestions for: ${pageUrl}
   Generated by Mudra Content Optimizer Agent

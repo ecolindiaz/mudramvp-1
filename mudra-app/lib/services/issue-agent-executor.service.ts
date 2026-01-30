@@ -394,7 +394,8 @@ ${issue.estimatedImpact || 'Improved AI visibility'}
 
 ${e2bValidation ? `## E2B Validation
 ✅ Validated in ${e2bValidation.executionMs}ms` : ''}
-`
+`,
+          issueTitle: issue.title // Use issue title for branch naming
         })
         
         prUrl = prResult.prUrl

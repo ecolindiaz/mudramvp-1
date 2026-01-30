@@ -206,39 +206,59 @@ function extractEngagementGuidance(responseText: string): {
 
 /**
  * Get the appropriate file path for each agent type
+ * 
+ * File placement logic:
+ * - Global content (Organization schema, WebSite schema) → layout.tsx
+ * - Page-specific content (Product, FAQ, Article schema) → page.tsx
+ * - Meta optimization → page.tsx (each page has its own meta)
+ * - Config files (robots, sitemap, llms.txt) → public/
+ * - Content restructuring → page.tsx
+ * - Navigation → page.tsx (NOT layout - nav is page content)
  */
 function getFilePathForAgentType(agentType: string): string {
   const FILE_PATHS: Record<string, string> = {
-    // Schema markup goes in head or page
-    'schema_markup': 'index.html',
-    'schema_architect': 'index.html',
-    'json_ld_generation': 'index.html',
-    'structured_data': 'index.html',
+    // Schema markup - depends on schema type (Organization goes to layout, others to page)
+    // Default to page.tsx, GitHub service will analyze content for Organization/WebSite
+    'schema_markup': 'app/page.tsx',
+    'schema_architect': 'app/page.tsx',
+    'json_ld_generation': 'app/page.tsx',
+    'structured_data': 'app/page.tsx',
     
-    // Content structure
-    'heading_hierarchy': 'index.html',
-    'content_structure': 'index.html',
-    'faq_sections': 'faq.html',
+    // Content structure - always page-specific
+    'heading_hierarchy': 'app/page.tsx',
+    'content_structure': 'app/page.tsx',
+    'faq_sections': 'app/page.tsx',
     
-    // Site config files
-    'site_config': 'public/',
+    // Meta optimization - page-specific (each page can have unique meta)
+    'meta_optimization': 'app/page.tsx',
+    
+    // Site config files - these are standalone files in public/
+    'site_config': 'public/robots.txt',
     'robots_txt': 'public/robots.txt',
     'sitemap': 'public/sitemap.xml',
-    'meta_optimization': 'index.html',
     
-    // AI visibility files
+    // AI visibility files - standalone files
     'llms_txt': 'public/llms.txt',
     'llms_txt_missing': 'public/llms.txt',
     'llms_txt_optimizer': 'public/llms.txt',
     
-    // Content optimization
-    'citation_signals': 'content/',
-    'ai_content_optimizer': 'content/',
-    'authority_building': 'content/',
-    'brand_messaging': 'content/',
+    // Content optimization - page-specific
+    'citation_signals': 'app/page.tsx',
+    'ai_content_optimizer': 'app/page.tsx',
+    'authority_building': 'app/page.tsx',
+    'brand_messaging': 'app/page.tsx',
+    
+    // Navigation - ALWAYS page-specific, NEVER layout
+    'navigation': 'app/page.tsx',
+    'nav_optimization': 'app/page.tsx',
+    
+    // Blog setup - creates new blog directory structure
+    'blog_setup': 'app/blog/page.tsx',
+    'blog_page_missing': 'app/blog/page.tsx',
+    'blog_post_publish': 'app/blog/[slug]/page.tsx',
   }
   
-  return FILE_PATHS[agentType] || 'optimizations/'
+  return FILE_PATHS[agentType] || 'app/page.tsx'
 }
 
 /**

@@ -162,6 +162,326 @@ function hasExistingOptimization(content: string, newCode: string, contentType: 
 }
 
 /**
+ * Repo structure cache to avoid repeated API calls
+ */
+interface RepoStructure {
+  framework: 'nextjs-app' | 'nextjs-pages' | 'astro' | 'nuxt' | 'react' | 'html' | 'unknown'
+  hasAppDir: boolean
+  hasPagesDir: boolean
+  hasSrcDir: boolean
+  pageFiles: string[]  // All page/route files found
+  layoutFiles: string[]  // All layout files found
+  timestamp: number
+}
+
+const repoStructureCache = new Map<string, RepoStructure>()
+const CACHE_TTL = 5 * 60 * 1000  // 5 minutes
+
+/**
+ * Fetch and analyze repo structure
+ */
+async function getRepoStructure(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  branch: string
+): Promise<RepoStructure> {
+  const cacheKey = `${owner}/${repo}/${branch}`
+  const cached = repoStructureCache.get(cacheKey)
+  
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log(`[GitHub] Using cached repo structure for ${cacheKey}`)
+    return cached
+  }
+  
+  console.log(`[GitHub] Fetching repo tree for ${owner}/${repo}...`)
+  
+  try {
+    // Get the default branch SHA
+    const refResponse = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      }
+    )
+    
+    if (!refResponse.ok) {
+      console.log(`[GitHub] Failed to get branch ref: ${refResponse.status}`)
+      return createFallbackStructure()
+    }
+    
+    const refData = await refResponse.json()
+    const sha = refData.object.sha
+    
+    // Fetch the tree recursively (limited to reasonable size)
+    const treeResponse = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      }
+    )
+    
+    if (!treeResponse.ok) {
+      console.log(`[GitHub] Failed to get tree: ${treeResponse.status}`)
+      return createFallbackStructure()
+    }
+    
+    const treeData = await treeResponse.json()
+    
+    // Check if tree is truncated (very large repo)
+    if (treeData.truncated) {
+      console.log(`[GitHub] Tree truncated - large repo detected. Using heuristic detection.`)
+      // For large repos, we'll do targeted checks instead
+      return await detectStructureFromTargetedChecks(accessToken, owner, repo, branch)
+    }
+    
+    const files = treeData.tree.filter((item: any) => item.type === 'blob').map((item: any) => item.path)
+    
+    const structure = analyzeRepoFiles(files)
+    structure.timestamp = Date.now()
+    
+    repoStructureCache.set(cacheKey, structure)
+    console.log(`[GitHub] Detected framework: ${structure.framework}, pages: ${structure.pageFiles.length}`)
+    
+    return structure
+    
+  } catch (error) {
+    console.error(`[GitHub] Error fetching repo structure:`, error)
+    return createFallbackStructure()
+  }
+}
+
+/**
+ * For large repos, do targeted checks instead of full tree
+ */
+async function detectStructureFromTargetedChecks(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  branch: string
+): Promise<RepoStructure> {
+  const checkPaths = ['app', 'src/app', 'pages', 'src/pages', 'src']
+  
+  let hasAppDir = false
+  let hasPagesDir = false
+  let hasSrcDir = false
+  
+  for (const path of checkPaths) {
+    try {
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        }
+      )
+      
+      if (response.ok) {
+        if (path.includes('app')) hasAppDir = true
+        if (path.includes('pages')) hasPagesDir = true
+        if (path === 'src') hasSrcDir = true
+      }
+    } catch {
+      // Ignore errors, just means path doesn't exist
+    }
+  }
+  
+  const framework = hasAppDir ? 'nextjs-app' : hasPagesDir ? 'nextjs-pages' : 'unknown'
+  
+  return {
+    framework,
+    hasAppDir,
+    hasPagesDir,
+    hasSrcDir,
+    pageFiles: [],  // Can't enumerate in large repos
+    layoutFiles: [],
+    timestamp: Date.now()
+  }
+}
+
+/**
+ * Analyze file list to determine repo structure
+ */
+function analyzeRepoFiles(files: string[]): RepoStructure {
+  const hasAppDir = files.some(f => f.startsWith('app/') || f.startsWith('src/app/'))
+  const hasPagesDir = files.some(f => f.startsWith('pages/') || f.startsWith('src/pages/'))
+  const hasSrcDir = files.some(f => f.startsWith('src/'))
+  
+  // Find all page files
+  const pageFiles = files.filter(f => {
+    // Next.js App Router
+    if (f.match(/app\/.*\/page\.(tsx?|jsx?)$/) || f.match(/app\/page\.(tsx?|jsx?)$/)) return true
+    // Next.js Pages Router
+    if (f.match(/pages\/.*\.(tsx?|jsx?)$/) && !f.includes('_app') && !f.includes('_document')) return true
+    // Astro
+    if (f.match(/src\/pages\/.*\.astro$/)) return true
+    // Static HTML
+    if (f.endsWith('.html') && !f.includes('node_modules')) return true
+    return false
+  })
+  
+  // Find all layout files
+  const layoutFiles = files.filter(f => {
+    if (f.match(/app\/.*\/layout\.(tsx?|jsx?)$/) || f.match(/app\/layout\.(tsx?|jsx?)$/)) return true
+    if (f.includes('_app.') || f.includes('_document.')) return true
+    if (f.match(/layouts\/.*\.(tsx?|jsx?|astro)$/)) return true
+    return false
+  })
+  
+  // Determine framework
+  let framework: RepoStructure['framework'] = 'unknown'
+  if (hasAppDir && files.some(f => f.includes('next.config'))) {
+    framework = 'nextjs-app'
+  } else if (hasPagesDir && files.some(f => f.includes('next.config'))) {
+    framework = 'nextjs-pages'
+  } else if (files.some(f => f.includes('astro.config'))) {
+    framework = 'astro'
+  } else if (files.some(f => f.includes('nuxt.config'))) {
+    framework = 'nuxt'
+  } else if (files.some(f => f.includes('package.json'))) {
+    framework = 'react'  // Generic React/Node project
+  } else if (files.some(f => f.endsWith('.html'))) {
+    framework = 'html'
+  }
+  
+  return {
+    framework,
+    hasAppDir,
+    hasPagesDir,
+    hasSrcDir,
+    pageFiles,
+    layoutFiles,
+    timestamp: 0
+  }
+}
+
+function createFallbackStructure(): RepoStructure {
+  return {
+    framework: 'unknown',
+    hasAppDir: false,
+    hasPagesDir: false,
+    hasSrcDir: false,
+    pageFiles: [],
+    layoutFiles: [],
+    timestamp: Date.now()
+  }
+}
+
+/**
+ * Map a URL path to the best file in the repo
+ * E.g., /pricing → app/pricing/page.tsx or pages/pricing.tsx
+ */
+function mapUrlToFile(
+  urlPath: string,
+  structure: RepoStructure,
+  contentType: ContentType,
+  isGlobalContent: boolean
+): string[] {
+  // Clean up URL path
+  let cleanPath = urlPath
+    .replace(/^https?:\/\/[^/]+/, '')  // Remove domain
+    .replace(/^\//, '')                 // Remove leading slash
+    .replace(/\/$/, '')                 // Remove trailing slash
+    .replace(/\.[^/.]+$/, '')           // Remove file extension
+  
+  if (!cleanPath || cleanPath === '') cleanPath = ''  // Homepage
+  
+  console.log(`[GitHub] Mapping URL "${urlPath}" → path "${cleanPath}" (framework: ${structure.framework})`)
+  
+  // For global content, always use layout/document files
+  if (isGlobalContent) {
+    return getGlobalFiles(structure)
+  }
+  
+  // For page-specific content, find the matching page file
+  const candidates: string[] = []
+  
+  if (structure.framework === 'nextjs-app') {
+    const prefix = structure.hasSrcDir ? 'src/app' : 'app'
+    
+    if (cleanPath === '') {
+      // Homepage
+      candidates.push(`${prefix}/page.tsx`, `${prefix}/page.jsx`)
+    } else {
+      // Specific page - check if it exists in pageFiles
+      const matchingPages = structure.pageFiles.filter(f => 
+        f.includes(`/${cleanPath}/page.`) || f.endsWith(`/${cleanPath}/page.tsx`) || f.endsWith(`/${cleanPath}/page.jsx`)
+      )
+      candidates.push(...matchingPages)
+      
+      // Fallback: construct expected path
+      candidates.push(`${prefix}/${cleanPath}/page.tsx`, `${prefix}/${cleanPath}/page.jsx`)
+    }
+    
+    // Always include root page as fallback
+    candidates.push(`${prefix}/page.tsx`)
+    
+  } else if (structure.framework === 'nextjs-pages') {
+    const prefix = structure.hasSrcDir ? 'src/pages' : 'pages'
+    
+    if (cleanPath === '') {
+      candidates.push(`${prefix}/index.tsx`, `${prefix}/index.jsx`)
+    } else {
+      const matchingPages = structure.pageFiles.filter(f => 
+        f.includes(`/${cleanPath}.`) || f.endsWith(`/${cleanPath}/index.tsx`)
+      )
+      candidates.push(...matchingPages)
+      candidates.push(`${prefix}/${cleanPath}.tsx`, `${prefix}/${cleanPath}/index.tsx`)
+    }
+    
+    candidates.push(`${prefix}/index.tsx`)
+    
+  } else if (structure.framework === 'astro') {
+    if (cleanPath === '') {
+      candidates.push('src/pages/index.astro')
+    } else {
+      candidates.push(`src/pages/${cleanPath}.astro`, `src/pages/${cleanPath}/index.astro`)
+    }
+    
+  } else {
+    // Static HTML or unknown
+    if (cleanPath === '') {
+      candidates.push('index.html', 'public/index.html')
+    } else {
+      candidates.push(`${cleanPath}.html`, `${cleanPath}/index.html`, 'index.html')
+    }
+  }
+  
+  return [...new Set(candidates)]
+}
+
+/**
+ * Get global/layout files for site-wide content
+ */
+function getGlobalFiles(structure: RepoStructure): string[] {
+  const files: string[] = []
+  
+  if (structure.framework === 'nextjs-app') {
+    const prefix = structure.hasSrcDir ? 'src/app' : 'app'
+    files.push(`${prefix}/layout.tsx`, `${prefix}/layout.jsx`)
+  } else if (structure.framework === 'nextjs-pages') {
+    const prefix = structure.hasSrcDir ? 'src/pages' : 'pages'
+    files.push(`${prefix}/_document.tsx`, `${prefix}/_app.tsx`)
+  } else if (structure.framework === 'astro') {
+    // Find layout files from cache
+    files.push(...structure.layoutFiles.filter(f => f.includes('Layout')))
+    files.push('src/layouts/Layout.astro')
+  } else {
+    files.push('index.html', 'public/index.html')
+  }
+  
+  return files
+}
+
+/**
  * Convert HTML to JSX-compatible format
  */
 function htmlToJsx(html: string): string {
@@ -924,46 +1244,68 @@ ${imp.code}
       throw new Error(`Failed to create branch: ${error.message || createBranchResponse.statusText}`)
     }
 
-    // Step 3: Determine the target file to modify
-    // For schema markup and structured data, we need to add to the HTML head
+    // Step 3: SMART file detection based on repo structure and issue context
     const improvement = improvements[0] // Primary improvement
-    let targetFilePath = improvement.filePath || 'index.html'
+    const requestedFilePath = improvement.filePath || 'app/page.tsx'
+    let targetFilePath = requestedFilePath
     
-    // Expanded list of common file paths for different frameworks
-    // Ordered by likelihood/preference
-    const commonTargetFiles = [
-      // Static HTML (most common for simple sites)
-      'index.html',
-      'public/index.html',
-      'src/index.html',
-      // Next.js App Router
-      'app/layout.tsx',
-      'app/layout.jsx',
-      'app/layout.js',
-      'src/app/layout.tsx',
-      'src/app/layout.jsx',
-      'src/app/layout.js',
-      // Next.js Pages Router
-      'pages/_app.tsx',
-      'pages/_app.jsx',
-      'pages/_app.js',
-      'pages/_document.tsx',
-      'pages/_document.jsx',
-      'pages/_document.js',
-      'src/pages/_app.tsx',
-      'src/pages/_document.tsx',
-      // Astro
-      'src/layouts/Layout.astro',
-      'src/layouts/BaseLayout.astro',
-      // Vue/Nuxt
-      'index.vue',
-      'app.vue',
-      // React (Create React App)
-      'public/index.html',
-    ]
-
+    // Detect content type to determine appropriate file placement
+    const contentType = detectContentType(improvement.code)
+    
+    // Smarter global detection - only truly site-wide content goes in layout
+    const isGlobalContent = contentType === 'json-ld' && 
+      (improvement.code.includes('"Organization"') || improvement.code.includes('"WebSite"'))
+    
+    // Check if it's a standalone file type that should be created new
+    const isStandaloneFile = requestedFilePath.includes('public/') || 
+      requestedFilePath.endsWith('.txt') ||
+      requestedFilePath.endsWith('.xml') ||
+      requestedFilePath === 'robots.txt' ||
+      requestedFilePath === 'sitemap.xml' ||
+      requestedFilePath === 'llms.txt'
+    
+    console.log(`[GitHub] Content type: ${contentType}, isGlobal: ${isGlobalContent}, isStandalone: ${isStandaloneFile}`)
+    console.log(`[GitHub] Requested file path: ${requestedFilePath}`)
+    
+    // Get repo structure to understand the project layout
+    const repoStructure = await getRepoStructure(accessToken, owner, repo, baseBranch)
+    console.log(`[GitHub] Repo structure: framework=${repoStructure.framework}, hasAppDir=${repoStructure.hasAppDir}, pages=${repoStructure.pageFiles.length}`)
+    
+    // Build file search list based on content type, URL, and repo structure
+    let searchPaths: string[]
+    
+    if (isStandaloneFile) {
+      // Standalone files - only look for the exact path
+      searchPaths = [requestedFilePath]
+    } else {
+      // Use smart URL-to-file mapping based on repo structure
+      const urlBasedPaths = mapUrlToFile(pageUrl, repoStructure, contentType, isGlobalContent)
+      
+      // Combine: requested path first, then URL-based paths, then fallbacks
+      searchPaths = [
+        requestedFilePath,
+        ...urlBasedPaths,
+        // Fallbacks based on detected framework
+        ...(repoStructure.framework === 'nextjs-app' 
+          ? ['app/page.tsx', 'src/app/page.tsx'] 
+          : []),
+        ...(repoStructure.framework === 'nextjs-pages' 
+          ? ['pages/index.tsx', 'src/pages/index.tsx'] 
+          : []),
+        'index.html',
+        'public/index.html',
+      ]
+      
+      // For global content, add layout files at the beginning (after requested)
+      if (isGlobalContent) {
+        const layoutPaths = getGlobalFiles(repoStructure)
+        // Insert layout paths right after requestedFilePath
+        searchPaths = [requestedFilePath, ...layoutPaths, ...searchPaths.slice(1)]
+      }
+    }
+    
     // Remove duplicates while preserving order
-    const allPaths = [...new Set([targetFilePath, ...commonTargetFiles])]
+    const allPaths = [...new Set(searchPaths)]
 
     // Try to find an existing file to modify
     let existingFileSha: string | undefined

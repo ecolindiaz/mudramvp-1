@@ -24,20 +24,35 @@ import { githubSearchTool } from "./tools/github-search";
 import { aiContentWorkflow } from "./workflows/ai-content-workflow";
 
 // Observability configuration with PostHog
-const observability = new Observability({
-  configs: {
-    posthog: {
-      serviceName: "mudra-app",
-      sampling: { type: SamplingStrategyType.ALWAYS },
-      exporters: [
-        new PosthogExporter({
-          apiKey: process.env.POSTHOG_API_KEY,
-          serverless: true, // Required for Vercel deployment
-        }),
-      ],
-    },
-  },
-});
+// Note: Requires POSTHOG_API_KEY environment variable
+const posthogApiKey = process.env.POSTHOG_API_KEY;
+
+// Only create observability if API key is provided
+const observability = posthogApiKey 
+  ? new Observability({
+      configs: {
+        // Key "posthog" becomes the config name automatically
+        posthog: {
+          serviceName: "mudra-app",
+          sampling: { type: SamplingStrategyType.ALWAYS },
+          exporters: [
+            new PosthogExporter({
+              apiKey: posthogApiKey,
+              host: process.env.POSTHOG_HOST, // Optional: defaults to US region
+              serverless: true, // Required for Vercel deployment
+            }),
+          ],
+        },
+      },
+    })
+  : undefined;
+
+// Log observability status at startup
+if (posthogApiKey) {
+  console.log('[Mastra] PostHog observability enabled');
+} else {
+  console.warn('[Mastra] PostHog observability disabled - POSTHOG_API_KEY not set');
+}
 
 // @ts-ignore - Mastra types may not include tools in config, but it works at runtime
 export const mastra = new Mastra({

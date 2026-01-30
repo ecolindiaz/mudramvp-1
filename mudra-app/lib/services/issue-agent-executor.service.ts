@@ -104,13 +104,18 @@ export function isConversationType(agentType: string): boolean {
 export function getAgentForIssue(agentType: string): ReturnType<typeof mastra.getAgent> | null {
   const agentName = ISSUE_AGENT_MAP[agentType]
   if (!agentName) {
-    console.warn(`[IssueExecutor] No agent mapping for type: ${agentType}`)
+    console.warn(`[IssueExecutor] No agent mapping for type: "${agentType}"`)
+    console.warn(`[IssueExecutor] Available types: ${Object.keys(ISSUE_AGENT_MAP).join(', ')}`)
     return null
   }
   
+  console.log(`[IssueExecutor] Mapped "${agentType}" -> agent "${agentName}"`)
+  
   try {
     // Cast to any to allow dynamic agent lookup
-    return mastra.getAgent(agentName as Parameters<typeof mastra.getAgent>[0])
+    const agent = mastra.getAgent(agentName as Parameters<typeof mastra.getAgent>[0])
+    console.log(`[IssueExecutor] Successfully retrieved agent: ${agentName}`)
+    return agent
   } catch (error) {
     console.error(`[IssueExecutor] Failed to get agent ${agentName}:`, error)
     return null
@@ -301,37 +306,58 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
   try {
     // 3. Get appropriate agent
     const agentType = issue.agentType || 'schema_markup'
+    const agentStartTime = Date.now()
+    
+    console.log(`[IssueExecutor] Looking up agent for type: "${agentType}"`)
+    console.log(`[IssueExecutor] Agent mapping exists: ${!!ISSUE_AGENT_MAP[agentType]}`)
+    
     const agent = getAgentForIssue(agentType)
     
     if (!agent) {
+      console.error(`[IssueExecutor] Agent lookup failed for type: "${agentType}"`)
+      console.error(`[IssueExecutor] Available mappings: ${Object.keys(ISSUE_AGENT_MAP).join(', ')}`)
       throw new Error(`No agent available for type: ${agentType}`)
     }
     
     console.log(`[IssueExecutor] Using agent for type: ${agentType}`)
+    console.log(`[IssueExecutor] Issue details: title="${issue.title}", url="${issue.affectedUrl}"`)
     
     // 4. Build prompt and execute agent
+    console.log(`[IssueExecutor] Building agent prompt...`)
     const prompt = await buildAgentPrompt({
       ...issue,
       brandProfile: issue.brandProfile
     })
+    console.log(`[IssueExecutor] Prompt length: ${prompt.length} chars`)
+    console.log(`[IssueExecutor] Prompt preview: ${prompt.substring(0, 200)}...`)
     
+    console.log(`[IssueExecutor] Calling agent.generate()...`)
+    const generateStartTime = Date.now()
     const response = await agent.generate(prompt)
+    const generateDuration = Date.now() - generateStartTime
+    console.log(`[IssueExecutor] Agent.generate() completed in ${generateDuration}ms`)
+    
     const responseText = response.text || ''
     
     if (!responseText) {
+      console.error(`[IssueExecutor] Agent returned empty response object:`, JSON.stringify(response).substring(0, 500))
       throw new Error('Agent returned empty response')
     }
     
     console.log(`[IssueExecutor] Agent response length: ${responseText.length}`)
+    console.log(`[IssueExecutor] Response preview: ${responseText.substring(0, 300)}...`)
     
     // 5. Extract generated content
+    console.log(`[IssueExecutor] Extracting generated content...`)
     const generatedContent = extractGeneratedContent(responseText)
+    console.log(`[IssueExecutor] Extracted content length: ${generatedContent.length}`)
     
     // 6. Validate with E2B if needed
     let e2bValidation: SandboxResult<SchemaValidationResult> | undefined
     
     if (requiresE2bValidation(agentType)) {
       console.log(`[IssueExecutor] Running E2B validation for ${agentType}`)
+      const e2bStartTime = Date.now()
       
       e2bValidation = await validateSchemaInSandbox(generatedContent)
       
@@ -497,7 +523,9 @@ ${reviewResult?.reasoning ? `\n**Placement:** ${reviewResult.reasoning}` : ''}
       })
     }
     
-    console.log(`[IssueExecutor] Issue ${issueId} completed successfully`)
+    const totalDuration = Date.now() - agentStartTime
+    console.log(`[IssueExecutor] Issue ${issueId} completed successfully in ${totalDuration}ms`)
+    console.log(`[IssueExecutor] Result summary: prUrl=${prUrl || 'none'}, contentLength=${generatedContent?.length || 0}`)
     
     return {
       success: true,
@@ -511,7 +539,13 @@ ${reviewResult?.reasoning ? `\n**Placement:** ${reviewResult.reasoning}` : ''}
     }
     
   } catch (error) {
-    console.error(`[IssueExecutor] Error executing issue ${issueId}:`, error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    
+    console.error(`[IssueExecutor] Error executing issue ${issueId}:`, errorMessage)
+    if (errorStack) {
+      console.error(`[IssueExecutor] Stack trace:`, errorStack)
+    }
     
     // Mark as failed instead of resetting to identified
     await prisma.issue.update({
@@ -521,7 +555,7 @@ ${reviewResult?.reasoning ? `\n**Placement:** ${reviewResult.reasoning}` : ''}
     
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: errorMessage
     }
   }
 }

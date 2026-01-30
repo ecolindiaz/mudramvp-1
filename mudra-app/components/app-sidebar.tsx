@@ -3,7 +3,7 @@
 import * as React from "react"
 import { forwardRef } from "react"
 import { IconSearch, IconCreditCard, IconLogout, IconNotification, IconUserCircle, IconQuestionMark, IconCalendar, IconFileText, IconExternalLink } from "@tabler/icons-react"
-import { User, Link as LinkIcon } from "lucide-react"
+import { User, Link as LinkIcon, Radio } from "lucide-react"
 import type { LucideProps } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -270,9 +270,9 @@ const data = {
           icon: ContentLabIcon,
         },
         {
-          title: "Agent Lab",
-          url: "/dashboard/agents-lab",
-          icon: AgentLabIcon,
+          title: "Conversation Radar",
+          url: "/dashboard/conversation-radar",
+          icon: Radio,
         },
       ]
     },

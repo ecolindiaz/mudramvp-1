@@ -239,21 +239,6 @@ function SortableIssueCard({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-[#1a1a1a] border-white/10">
-            {/* Deploy Agent - for identified issues with agentType */}
-            {issue.status === "identified" && (issue as unknown as { agentType?: string }).agentType && onDeploy && (
-              <DropdownMenuItem 
-                onClick={(e) => { e.stopPropagation(); onDeploy(issue.id); }}
-                className="text-emerald-400 hover:bg-emerald-400/10 cursor-pointer"
-                disabled={isDeploying}
-              >
-                {isDeploying ? (
-                  <IconLoader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <IconPlayerPlay className="w-4 h-4 mr-2" />
-                )}
-                Deploy Agent
-              </DropdownMenuItem>
-            )}
             {/* Retry - for failed issues */}
             {issue.status === "failed" && onRetry && (
               <DropdownMenuItem 
@@ -316,6 +301,27 @@ function SortableIssueCard({
         >
           <IconCode className="w-3.5 h-3.5" />
           <span className="text-[11px] font-medium">View Output</span>
+        </button>
+      )}
+      {/* Deploy Agent Button - visible for identified issues with agentType */}
+      {issue.status === "identified" && issue.agentType && onDeploy && (
+        <button 
+          onClick={(e) => { e.stopPropagation(); onDeploy(issue.id); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          disabled={isDeploying}
+          className="flex items-center gap-1.5 ml-7 mb-2 px-3 py-1.5 rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors w-fit disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isDeploying ? (
+            <>
+              <IconLoader2 className="w-3.5 h-3.5 animate-spin" />
+              <span className="text-[11px] font-medium">Deploying...</span>
+            </>
+          ) : (
+            <>
+              <IconRobot className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-medium">Deploy Agent</span>
+            </>
+          )}
         </button>
       )}
       <div className="flex items-center justify-between pl-7">
@@ -884,6 +890,16 @@ function IssuesPageInner() {
   // Deploy agent for an issue
   const handleDeployAgent = async (issueId: number) => {
     setDeployingId(issueId)
+    
+    // Immediately move issue to in_progress in UI for visual feedback
+    setIssues(prev => prev.map(issue => 
+      issue.id === issueId ? { ...issue, status: "in_progress" as const } : issue
+    ))
+    
+    toast.info("Agent deploying...", {
+      description: "Your issue is being processed. This may take a moment.",
+    })
+    
     try {
       const response = await fetch(`/api/issues/${issueId}/deploy`, {
         method: "POST",
@@ -891,16 +907,19 @@ function IssuesPageInner() {
       })
       const result = await response.json()
       if (result.success) {
-        toast.success("Agent deployed", {
-          description: result.data.prUrl ? `PR #${result.data.prNumber} created` : "Issue resolved",
+        toast.success("Agent completed", {
+          description: result.data.prUrl ? `PR #${result.data.prNumber} created` : "Issue resolved successfully",
         })
-        await fetchIssues()
+        // Give a moment before refreshing to let user see the transition
+        setTimeout(() => fetchIssues(), 500)
       } else {
         toast.error("Deployment failed", { description: result.error?.message })
+        await fetchIssues() // Refresh to get actual status
       }
     } catch (error) {
       console.error("Failed to deploy agent:", error)
       toast.error("Deployment failed")
+      await fetchIssues() // Refresh to get actual status
     } finally {
       setDeployingId(null)
     }

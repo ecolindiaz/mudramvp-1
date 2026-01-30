@@ -65,7 +65,13 @@ export async function POST(
       )
     }
 
-    // Execute the agent
+    // Immediately set to in_progress before starting agent execution
+    await prisma.issue.update({
+      where: { id: issueId },
+      data: { status: 'in_progress' }
+    })
+
+    // Execute the agent (this may take a while)
     const result = await executeIssueAgent(issueId)
 
     if (result.success) {

@@ -100,6 +100,22 @@ function CampaignCanvasPageInner({
   const [activeTab, setActiveTab] = React.useState("copy")
   const [metaDescription, setMetaDescription] = React.useState("")
   const [editMode, setEditMode] = React.useState(false)
+  
+  // Blog setup status
+  const [blogSetupStatus, setBlogSetupStatus] = React.useState<{
+    canPublish: boolean
+    setupStatus: 'not_started' | 'pr_open' | 'ready'
+    message: string
+    actionRequired?: string
+    prUrl?: string
+  } | null>(null)
+  const [publishing, setPublishing] = React.useState(false)
+  const [publishResult, setPublishResult] = React.useState<{
+    success: boolean
+    prUrl?: string
+    message?: string
+    error?: string
+  } | null>(null)
 
   const [title, setTitle] = React.useState("")
   const [body, setBody] = React.useState("")
@@ -190,6 +206,31 @@ function CampaignCanvasPageInner({
   }
 
   // Initialize from URL params and load generated content
+  React.useEffect(() => {
+    // Fetch blog setup status
+    const fetchBlogStatus = async () => {
+      try {
+        const response = await fetch('/api/content-lab/blog-status')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success) {
+            setBlogSetupStatus({
+              canPublish: data.canPublish,
+              setupStatus: data.setupStatus,
+              message: data.message,
+              actionRequired: data.actionRequired,
+              prUrl: data.prUrl,
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch blog status:', error)
+      }
+    }
+    fetchBlogStatus()
+  }, [])
+
+  // Load campaign content
   React.useEffect(() => {
     const loadContent = async () => {
       setIsLoading(true)
@@ -343,27 +384,85 @@ function CampaignCanvasPageInner({
                   <h1 className="text-2xl font-bold tracking-tight text-white">Campaign Canvas</h1>
                 </div>
                 <div className="flex items-center gap-2">
+                  {/* Publish Button - Only enabled when blog setup is complete */}
                   <Button 
                     onClick={async () => {
-                      setPublished(true)
-                      // Update campaign status to published
-                      try {
-                        await fetch(`/api/campaigns/${id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ status: "published" })
-                        })
-                        console.log("✅ Campaign published")
-                      } catch (error) {
-                        console.error("Failed to publish campaign:", error)
+                      if (!blogSetupStatus?.canPublish) {
+                        // Show message about needing to set up blog first
+                        alert(blogSetupStatus?.actionRequired || 'Please set up your blog first')
+                        return
                       }
-                    }} 
+                      
+                      setPublishing(true)
+                      setPublishResult(null)
+                      
+                      try {
+                        const response = await fetch('/api/content-lab/publish', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ campaignId: id })
+                        })
+                        
+                        const data = await response.json()
+                        
+                        if (data.success) {
+                          setPublished(true)
+                          setPublishResult({
+                            success: true,
+                            prUrl: data.prUrl,
+                            message: data.message
+                          })
+                        } else {
+                          setPublishResult({
+                            success: false,
+                            error: data.error || 'Failed to publish'
+                          })
+                        }
+                      } catch (error) {
+                        console.error('Failed to publish:', error)
+                        setPublishResult({
+                          success: false,
+                          error: 'Failed to publish campaign'
+                        })
+                      } finally {
+                        setPublishing(false)
+                      }
+                    }}
+                    disabled={publishing || published || !blogSetupStatus?.canPublish}
                     variant="outline" 
                     size="sm" 
-                    className={`h-9 px-4 rounded-md gap-2 text-xs font-medium transition-all duration-200 ${published ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-white/5 text-white hover:bg-white/10 border-white/[0.04]"}`}
+                    title={blogSetupStatus?.canPublish ? 'Publish to your website' : blogSetupStatus?.actionRequired || 'Set up blog first'}
+                    className={`h-9 px-4 rounded-md gap-2 text-xs font-medium transition-all duration-200 ${
+                      published 
+                        ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" 
+                        : blogSetupStatus?.canPublish
+                          ? "bg-white/5 text-white hover:bg-white/10 border-white/[0.04]"
+                          : "bg-white/5 text-white/50 border-white/[0.04] cursor-not-allowed opacity-60"
+                    }`}
                   >
-                    <CheckCircle2 className="size-3.5" />{published ? 'Published' : 'Publish'}
+                    {publishing ? (
+                      <><Loader2 className="size-3.5 animate-spin" />Publishing...</>
+                    ) : published ? (
+                      <><CheckCircle2 className="size-3.5" />Published</>
+                    ) : blogSetupStatus?.canPublish ? (
+                      <><CheckCircle2 className="size-3.5" />Publish</>
+                    ) : (
+                      <><CheckCircle2 className="size-3.5" />Publish (Setup Required)</>
+                    )}
                   </Button>
+                  
+                  {/* Show publish result message */}
+                  {publishResult && (
+                    <div className={`text-xs ${publishResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {publishResult.success ? (
+                        publishResult.prUrl ? (
+                          <a href={publishResult.prUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                            PR Created →
+                          </a>
+                        ) : publishResult.message
+                      ) : publishResult.error}
+                    </div>
+                  )}
                   
                   <Button onClick={handleSave} disabled={saving} variant="outline" size="sm" className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.04] text-xs font-medium gap-2 disabled:opacity-50">
                     <Save className="size-3.5" />{saving ? 'Saving…' : 'Save'}

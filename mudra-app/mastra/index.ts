@@ -10,6 +10,8 @@ import { llmsTxtAgent } from "./agents/llms-txt-agent";
 import { siteConfigAgent } from "./agents/site-config-agent";
 import { contentRestructureAgent } from "./agents/content-restructure-agent";
 import { citationEnhancerAgent } from "./agents/citation-enhancer-agent";
+import { blogSetupAgent } from "./agents/blog-setup-agent";
+import { blogPostPublisherAgent } from "./agents/blog-post-publisher-agent";
 
 // Tools
 import { firecrawlScraperTool } from "./tools/firecrawl-scraper";
@@ -32,6 +34,9 @@ export const mastra = new Mastra({
     siteConfigAgent,
     contentRestructureAgent,
     citationEnhancerAgent,
+    // Blog Publishing Agents
+    blogSetupAgent,
+    blogPostPublisherAgent,
   },
   // @ts-ignore - tools config works at runtime
   tools: {

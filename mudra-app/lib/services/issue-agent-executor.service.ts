@@ -43,6 +43,11 @@ const ISSUE_AGENT_MAP: Record<string, string> = {
   'authority_building': 'citationEnhancerAgent',
   'brand_messaging': 'citationEnhancerAgent',
   
+  // Blog Publishing
+  'blog_setup': 'blogSetupAgent',
+  'blog_page_missing': 'blogSetupAgent',
+  'blog_post_publish': 'blogPostPublisherAgent',
+  
   // Conversations (uses existing agent)
   'conversation_engagement': 'conversationRadarAgent',
   'reddit_opportunity': 'conversationRadarAgent',
@@ -55,7 +60,8 @@ const PR_CREATING_TYPES = [
   'heading_hierarchy', 'content_structure', 'faq_sections',
   'site_config', 'robots_txt', 'sitemap', 'meta_optimization',
   'llms_txt', 'llms_txt_missing', 'llms_txt_optimizer',
-  'citation_signals', 'ai_content_optimizer', 'authority_building', 'brand_messaging'
+  'citation_signals', 'ai_content_optimizer', 'authority_building', 'brand_messaging',
+  'blog_setup', 'blog_page_missing', 'blog_post_publish'
 ]
 
 const CONVERSATION_TYPES = [

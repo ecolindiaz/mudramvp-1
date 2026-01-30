@@ -479,6 +479,198 @@ export async function getGitHubIntegrationStatus(userId: string) {
 }
 
 /**
+ * Input for creating a blog post PR
+ */
+interface CreateBlogPostPRInput {
+  brandProfileId: number
+  title: string
+  body: string
+  branch: string
+  files: Array<{
+    path: string
+    content: string
+  }>
+}
+
+/**
+ * Create a GitHub PR with blog post files
+ * Creates new files in the repository (doesn't modify existing files)
+ */
+export async function createBlogPostPR(input: CreateBlogPostPRInput): Promise<PRResult> {
+  const { brandProfileId, title, body, branch, files } = input
+
+  // Get brand profile to access GitHub integration
+  const brandProfile = await prisma.brandProfile.findUnique({
+    where: { id: brandProfileId },
+    include: {
+      user: {
+        include: {
+          githubIntegration: true,
+        },
+      },
+    },
+  })
+
+  if (!brandProfile || !brandProfile.user?.githubIntegration) {
+    throw new Error('GitHub integration not found. Please connect your GitHub account in Settings → Integrations.')
+  }
+
+  const githubIntegration = brandProfile.user.githubIntegration
+
+  // Get valid access token
+  const accessToken = await getValidGitHubToken(githubIntegration)
+
+  // Get repository information
+  let repoName: string | undefined
+  let baseBranch = 'main'
+
+  // Try to get from agent schedule config
+  const agentSchedule = await prisma.agentSchedule.findFirst({
+    where: {
+      brandProfileId,
+      isEnabled: true,
+    },
+    orderBy: { createdAt: 'desc' }
+  })
+
+  if (agentSchedule?.config) {
+    const config = agentSchedule.config as Record<string, unknown>
+    if (config.githubRepo) {
+      repoName = config.githubRepo as string
+      baseBranch = (config.githubBranch as string) || 'main'
+    }
+  }
+
+  // Fall back to first repository from GitHub integration
+  if (!repoName && githubIntegration.repositories) {
+    const repos = githubIntegration.repositories as string[]
+    if (repos.length > 0) {
+      repoName = repos[0]
+      console.log(`[GitHub] Using first available repo from integration: ${repoName}`)
+    }
+  }
+
+  if (!repoName) {
+    throw new Error('No GitHub repository configured. Please go to Settings → Integrations and ensure a repository is connected.')
+  }
+
+  // Parse owner/repo
+  const [owner, repo] = repoName.split('/')
+
+  if (!owner || !repo) {
+    throw new Error(`Invalid repository format: ${repoName}. Expected format: owner/repo`)
+  }
+
+  try {
+    // Step 1: Get the SHA of the base branch
+    console.log(`[GitHub] Getting ref for ${owner}/${repo}:${baseBranch}`)
+    const refResponse = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${baseBranch}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      }
+    )
+
+    if (!refResponse.ok) {
+      const error = await refResponse.json()
+      throw new Error(`Failed to get base branch: ${error.message || refResponse.statusText}`)
+    }
+
+    const refData = await refResponse.json()
+    const baseSha = refData.object.sha
+
+    // Step 2: Create a new branch from base
+    console.log(`[GitHub] Creating branch ${branch} from ${baseSha}`)
+    const createBranchResponse = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/git/refs`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/vnd.github.v3+json',
+        },
+        body: JSON.stringify({
+          ref: `refs/heads/${branch}`,
+          sha: baseSha,
+        }),
+      }
+    )
+
+    if (!createBranchResponse.ok) {
+      const error = await createBranchResponse.json()
+      throw new Error(`Failed to create branch: ${error.message || createBranchResponse.statusText}`)
+    }
+
+    // Step 3: Create each file in the branch
+    for (const file of files) {
+      console.log(`[GitHub] Creating file ${file.path}`)
+      const createFileResponse = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/${file.path}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/vnd.github.v3+json',
+          },
+          body: JSON.stringify({
+            message: `Add ${file.path}`,
+            content: Buffer.from(file.content).toString('base64'),
+            branch: branch,
+          }),
+        }
+      )
+
+      if (!createFileResponse.ok) {
+        const error = await createFileResponse.json()
+        console.error(`[GitHub] Failed to create file ${file.path}:`, error)
+        // Continue with other files even if one fails
+      }
+    }
+
+    // Step 4: Create the PR
+    console.log(`[GitHub] Creating PR from ${branch} to ${baseBranch}`)
+    const prResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/vnd.github.v3+json',
+      },
+      body: JSON.stringify({
+        title,
+        body,
+        head: branch,
+        base: baseBranch,
+      }),
+    })
+
+    if (!prResponse.ok) {
+      const error = await prResponse.json()
+      throw new Error(`GitHub API error: ${error.message || prResponse.statusText}`)
+    }
+
+    const pr = await prResponse.json()
+    console.log(`[GitHub] Blog post PR created successfully: ${pr.html_url}`)
+
+    return {
+      prUrl: pr.html_url,
+      prNumber: pr.number,
+    }
+  } catch (error) {
+    console.error('[GitHub] Error creating blog post PR:', error)
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error(`Failed to create blog post PR: ${String(error)}`)
+  }
+}
+
+/**
  * Save GitHub integration for a user
  */
 export async function saveGitHubIntegration(data: {

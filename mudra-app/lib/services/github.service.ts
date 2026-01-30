@@ -758,7 +758,7 @@ ${headContent}
 <body>
   <main>
     <h1>Welcome to ${brandProfile.companyName || 'Our Website'}</h1>
-    <p>${brandProfile.description || 'Your content goes here.'}</p>
+    <p>${brandProfile.companyDescription || 'Your content goes here.'}</p>
 ${bodyContent}
   </main>
 </body>

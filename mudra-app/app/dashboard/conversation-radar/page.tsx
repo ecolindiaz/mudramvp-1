@@ -315,7 +315,7 @@ function ConversationRadarPageInner() {
                     accentColor={card.accentColor}
                     info={card.info}
                     icon={card.icon}
-                    sparklineData={[]}
+                    sparkline={[]}
                   />
                 ))}
               </div>

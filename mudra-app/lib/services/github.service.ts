@@ -179,6 +179,135 @@ function htmlToJsx(html: string): string {
 }
 
 /**
+ * Parse HTML meta tags and convert to Next.js metadata object format
+ */
+function parseMetaTagsToNextJsMetadata(htmlCode: string): { metadataCode: string; fields: string[] } {
+  const fields: string[] = [];
+  
+  // Extract title
+  const titleMatch = htmlCode.match(/<title>([^<]+)<\/title>/i);
+  if (titleMatch) {
+    fields.push(`  title: "${titleMatch[1].replace(/"/g, '\\"')}",`);
+  }
+  
+  // Extract meta name="description"
+  const descMatch = htmlCode.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i);
+  if (descMatch) {
+    fields.push(`  description: "${descMatch[1].replace(/"/g, '\\"')}",`);
+  }
+  
+  // Extract canonical URL
+  const canonicalMatch = htmlCode.match(/<link\s+rel=["']canonical["']\s+href=["']([^"']+)["']/i);
+  
+  // Extract Open Graph tags
+  const ogTags: string[] = [];
+  const ogMatches = htmlCode.matchAll(/<meta\s+property=["'](og:[^"']+)["']\s+content=["']([^"']+)["']/gi);
+  for (const match of ogMatches) {
+    const prop = match[1].replace('og:', '');
+    const value = match[2];
+    if (prop === 'title') ogTags.push(`    title: "${value.replace(/"/g, '\\"')}",`);
+    else if (prop === 'description') ogTags.push(`    description: "${value.replace(/"/g, '\\"')}",`);
+    else if (prop === 'url') ogTags.push(`    url: "${value}",`);
+    else if (prop === 'type') ogTags.push(`    type: "${value}",`);
+    else if (prop === 'image') ogTags.push(`    images: ["${value}"],`);
+    else if (prop === 'site_name') ogTags.push(`    siteName: "${value.replace(/"/g, '\\"')}",`);
+  }
+  
+  if (ogTags.length > 0) {
+    fields.push(`  openGraph: {\n${ogTags.join('\n')}\n  },`);
+  }
+  
+  // Extract Twitter tags
+  const twitterTags: string[] = [];
+  const twitterMatches = htmlCode.matchAll(/<meta\s+name=["'](twitter:[^"']+)["']\s+content=["']([^"']+)["']/gi);
+  for (const match of twitterMatches) {
+    const prop = match[1].replace('twitter:', '');
+    const value = match[2];
+    if (prop === 'card') twitterTags.push(`    card: "${value}",`);
+    else if (prop === 'title') twitterTags.push(`    title: "${value.replace(/"/g, '\\"')}",`);
+    else if (prop === 'description') twitterTags.push(`    description: "${value.replace(/"/g, '\\"')}",`);
+    else if (prop === 'image') twitterTags.push(`    images: ["${value}"],`);
+    else if (prop === 'site') twitterTags.push(`    site: "${value}",`);
+    else if (prop === 'creator') twitterTags.push(`    creator: "${value}",`);
+  }
+  
+  if (twitterTags.length > 0) {
+    fields.push(`  twitter: {\n${twitterTags.join('\n')}\n  },`);
+  }
+  
+  // Extract author
+  const authorMatch = htmlCode.match(/<meta\s+name=["']author["']\s+content=["']([^"']+)["']/i);
+  if (authorMatch) {
+    fields.push(`  authors: [{ name: "${authorMatch[1].replace(/"/g, '\\"')}" }],`);
+  }
+  
+  // Extract keywords
+  const keywordsMatch = htmlCode.match(/<meta\s+name=["']keywords["']\s+content=["']([^"']+)["']/i);
+  if (keywordsMatch) {
+    const keywords = keywordsMatch[1].split(',').map(k => `"${k.trim()}"`).join(', ');
+    fields.push(`  keywords: [${keywords}],`);
+  }
+  
+  // Add alternates with canonical if found
+  if (canonicalMatch) {
+    fields.push(`  alternates: {\n    canonical: "${canonicalMatch[1]}",\n  },`);
+  }
+  
+  const metadataCode = fields.length > 0 ? `{\n${fields.join('\n')}\n}` : '';
+  return { metadataCode, fields };
+}
+
+/**
+ * Merge new metadata fields into existing metadata export
+ */
+function mergeNextJsMetadata(existingContent: string, newMetadataFields: string[]): string {
+  // Find the existing metadata export
+  const metadataMatch = existingContent.match(/export\s+const\s+metadata:\s*Metadata\s*=\s*\{/);
+  
+  if (!metadataMatch) {
+    // No existing metadata, we'll add it
+    return existingContent;
+  }
+  
+  // Find where the metadata object starts
+  const metadataStart = existingContent.indexOf(metadataMatch[0]);
+  const openBraceIndex = existingContent.indexOf('{', metadataStart);
+  
+  // Find the matching closing brace
+  let braceCount = 1;
+  let i = openBraceIndex + 1;
+  while (braceCount > 0 && i < existingContent.length) {
+    if (existingContent[i] === '{') braceCount++;
+    if (existingContent[i] === '}') braceCount--;
+    i++;
+  }
+  const metadataEnd = i;
+  
+  // Get the existing metadata content
+  const existingMetadata = existingContent.slice(openBraceIndex, metadataEnd);
+  
+  // Filter out fields that already exist
+  const fieldsToAdd: string[] = [];
+  for (const field of newMetadataFields) {
+    const fieldName = field.match(/^\s*(\w+):/)?.[1];
+    if (fieldName && !existingMetadata.includes(`${fieldName}:`)) {
+      fieldsToAdd.push(field);
+    }
+  }
+  
+  if (fieldsToAdd.length === 0) {
+    console.log('[GitHub] All metadata fields already exist, skipping insertion');
+    return existingContent;
+  }
+  
+  // Insert the new fields after the opening brace
+  const insertPoint = openBraceIndex + 1;
+  const newFieldsStr = `\n  // Mudra GEO: Enhanced Metadata\n${fieldsToAdd.join('\n')}\n`;
+  
+  return existingContent.slice(0, insertPoint) + newFieldsStr + existingContent.slice(insertPoint);
+}
+
+/**
  * Intelligently insert generated code into existing file
  * Uses framework-specific injection patterns
  */
@@ -292,16 +421,33 @@ function insertCodeIntoFile(existingContent: string, newCode: string, filePath: 
       }
       
       case 'meta-tags': {
-        // For Next.js App Router, meta tags go in metadata export or Head
-        // Add as a comment suggestion since metadata is typically exported
-        const metaComment = `{/* Mudra GEO: Add these to your metadata export:\n${cleanCode}\n*/}`;
+        // For Next.js App Router, convert HTML meta tags to Next.js metadata format
+        const { metadataCode, fields } = parseMetaTagsToNextJsMetadata(cleanCode);
         
-        // If there's already a metadata export, add as comment
-        if (existingContent.includes('export const metadata')) {
-          return existingContent.replace(
-            'export const metadata',
-            `${metaComment}\nexport const metadata`
-          );
+        if (fields.length > 0 && existingContent.includes('export const metadata')) {
+          // Merge new fields into existing metadata export
+          console.log(`[GitHub] Merging ${fields.length} metadata fields into existing export`);
+          return mergeNextJsMetadata(existingContent, fields);
+        }
+        
+        // If no existing metadata export, create one
+        if (fields.length > 0 && !existingContent.includes('export const metadata')) {
+          // Add the Metadata import if not present
+          let content = existingContent;
+          if (!content.includes("import type { Metadata }") && !content.includes("import { Metadata }")) {
+            content = content.replace(
+              /^(import .* from ['"]next)/m,
+              "import type { Metadata } from 'next';\n$1"
+            );
+          }
+          
+          // Add the metadata export before the default export
+          const metadataExport = `\n// Mudra GEO: Enhanced Metadata\nexport const metadata: Metadata = ${metadataCode};\n`;
+          
+          if (content.includes('export default')) {
+            content = content.replace('export default', `${metadataExport}\nexport default`);
+            return content;
+          }
         }
         break;
       }
@@ -309,15 +455,20 @@ function insertCodeIntoFile(existingContent: string, newCode: string, filePath: 
       case 'nav-links':
       case 'faq-section':
       case 'generic-html': {
-        // Convert to JSX and insert before {children}
+        // Convert to JSX and insert in the layout
+        // Don't wrap in extra div - insert the content directly
         const component = `
         {/* Mudra GEO: Content Enhancement */}
-        <div className="mudra-geo-content">
-          ${jsxCode}
-        </div>`;
+        ${jsxCode}`;
         
+        // For navigation, insert before main content
         if (existingContent.includes('{children}')) {
           return existingContent.replace('{children}', `${component}\n        {children}`);
+        }
+        
+        // Or insert before </body>
+        if (existingContent.includes('</body>')) {
+          return existingContent.replace('</body>', `${component}\n      </body>`);
         }
         break;
       }

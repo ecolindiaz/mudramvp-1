@@ -94,15 +94,16 @@ export async function POST(
         })
         .catch(async (error) => {
           console.error(`[Deploy] Issue ${issueId} failed:`, error)
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           await prisma.issue.update({
             where: { id: issueId },
             data: { 
               status: 'identified',  // Reset to allow retry
-              metadata: {
-                ...(issue.metadata as object || {}),
-                lastError: error instanceof Error ? error.message : 'Unknown error',
+              // Store error in generatedOutput field as fallback (no metadata field on Issue model)
+              generatedOutput: JSON.stringify({
+                error: errorMessage,
                 lastAttempt: new Date().toISOString()
-              }
+              })
             }
           })
         })

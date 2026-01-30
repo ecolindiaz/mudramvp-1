@@ -417,6 +417,19 @@ function insertCodeIntoFile(existingContent: string, newCode: string, filePath: 
         if (existingContent.includes('{children}')) {
           return existingContent.replace('{children}', `${schemaScript}\n        {children}`);
         }
+        
+        // Insert before </html>
+        if (existingContent.includes('</html>')) {
+          return existingContent.replace('</html>', `${schemaScript}\n      </html>`);
+        }
+        
+        // Last resort: find return statement and insert
+        const returnMatch = existingContent.match(/return\s*\(\s*<(\w+)[^>]*>/);
+        if (returnMatch) {
+          return existingContent.replace(returnMatch[0], `${returnMatch[0]}\n        ${schemaScript}`);
+        }
+        
+        // Fall through to ultimate fallback
         break;
       }
       
@@ -431,24 +444,42 @@ function insertCodeIntoFile(existingContent: string, newCode: string, filePath: 
         }
         
         // If no existing metadata export, create one
-        if (fields.length > 0 && !existingContent.includes('export const metadata')) {
+        if (fields.length > 0) {
           // Add the Metadata import if not present
           let content = existingContent;
           if (!content.includes("import type { Metadata }") && !content.includes("import { Metadata }")) {
-            content = content.replace(
-              /^(import .* from ['"]next)/m,
-              "import type { Metadata } from 'next';\n$1"
-            );
+            // Try to add after existing next imports, or at the top
+            if (content.match(/^import .* from ['"]next/m)) {
+              content = content.replace(
+                /^(import .* from ['"]next[^'"\n]*['"];?\n)/m,
+                "$1import type { Metadata } from 'next';\n"
+              );
+            } else {
+              content = "import type { Metadata } from 'next';\n" + content;
+            }
           }
           
-          // Add the metadata export before the default export
+          // Add the metadata export
           const metadataExport = `\n// Mudra GEO: Enhanced Metadata\nexport const metadata: Metadata = ${metadataCode};\n`;
           
+          // Insert before export default, or before the first function/component
           if (content.includes('export default')) {
-            content = content.replace('export default', `${metadataExport}\nexport default`);
-            return content;
+            return content.replace('export default', `${metadataExport}\nexport default`);
           }
+          
+          // Insert at end of imports section
+          const lastImportMatch = content.match(/^import .+$/gm);
+          if (lastImportMatch) {
+            const lastImport = lastImportMatch[lastImportMatch.length - 1];
+            const insertPoint = content.lastIndexOf(lastImport) + lastImport.length;
+            return content.slice(0, insertPoint) + '\n' + metadataExport + content.slice(insertPoint);
+          }
+          
+          // Fallback: add at top after any existing content
+          return metadataExport + content;
         }
+        
+        // If we couldn't parse meta tags, fall through to generic handling
         break;
       }
       
@@ -470,6 +501,19 @@ function insertCodeIntoFile(existingContent: string, newCode: string, filePath: 
         if (existingContent.includes('</body>')) {
           return existingContent.replace('</body>', `${component}\n      </body>`);
         }
+        
+        // Or insert before </html>
+        if (existingContent.includes('</html>')) {
+          return existingContent.replace('</html>', `${component}\n      </html>`);
+        }
+        
+        // Insert in return statement
+        const returnMatch = existingContent.match(/return\s*\(\s*<(\w+)[^>]*>/);
+        if (returnMatch) {
+          return existingContent.replace(returnMatch[0], `${returnMatch[0]}\n        ${component}`);
+        }
+        
+        // Fall through to ultimate fallback
         break;
       }
     }
@@ -509,11 +553,35 @@ function insertCodeIntoFile(existingContent: string, newCode: string, filePath: 
       if (content.includes('</body>')) {
         return content.replace('</body>', `${scriptComponent}\n      </body>`);
       }
+      
+      // Insert before </html>
+      if (content.includes('</html>')) {
+        return content.replace('</html>', `${scriptComponent}\n      </html>`);
+      }
+      
+      // Insert in return statement
+      const returnMatch = content.match(/return\s*\(\s*<(\w+)[^>]*>/);
+      if (returnMatch) {
+        return content.replace(returnMatch[0], `${returnMatch[0]}\n        ${scriptComponent}`);
+      }
     }
     
     // For other content types, insert in the component
+    const jsxCodePages = htmlToJsx(cleanCode);
+    
     if (existingContent.includes('</Head>')) {
-      return existingContent.replace('</Head>', `        {/* Mudra GEO */}\n        ${jsxCode}\n      </Head>`);
+      return existingContent.replace('</Head>', `        {/* Mudra GEO */}\n        ${jsxCodePages}\n      </Head>`);
+    }
+    
+    // Insert before </body>
+    if (existingContent.includes('</body>')) {
+      return existingContent.replace('</body>', `        {/* Mudra GEO */}\n        ${jsxCodePages}\n      </body>`);
+    }
+    
+    // Insert in return statement  
+    const pagesReturnMatch = existingContent.match(/return\s*\(\s*<(\w+)[^>]*>/);
+    if (pagesReturnMatch) {
+      return existingContent.replace(pagesReturnMatch[0], `${pagesReturnMatch[0]}\n        {/* Mudra GEO */}\n        ${jsxCodePages}`);
     }
   }
   
@@ -536,6 +604,14 @@ function insertCodeIntoFile(existingContent: string, newCode: string, filePath: 
           `\n      {/* Mudra GEO */}\n      ${jsxCode}\n      ` + 
           existingContent.slice(tagEnd);
       }
+    }
+    
+    // Fallback: insert before closing tag
+    const lastJsxClose = existingContent.lastIndexOf('</');
+    if (lastJsxClose > 0) {
+      return existingContent.slice(0, lastJsxClose) +
+        `\n      {/* Mudra GEO */}\n      ${jsxCode}\n      ` +
+        existingContent.slice(lastJsxClose);
     }
   }
   
@@ -574,15 +650,15 @@ function insertCodeIntoFile(existingContent: string, newCode: string, filePath: 
   }
   
   // ==================================
-  // ULTIMATE FALLBACK: Actually insert the code, don't leave a comment
+  // ULTIMATE FALLBACK: Actually insert the code directly
   // ==================================
   console.log(`[GitHub] Using fallback insertion for ${framework}/${contentType}`);
   
-  // For JSX/TSX files, wrap in JSX fragment
+  // For JSX/TSX files, convert and insert
   if (filePath.endsWith('.tsx') || filePath.endsWith('.jsx')) {
     const jsxCode = htmlToJsx(cleanCode);
     
-    // Find the return statement and insert after the opening tag
+    // Strategy 1: Find the return statement and insert after the opening tag
     const returnMatch = existingContent.match(/return\s*\(\s*<(\w+)/);
     if (returnMatch) {
       const componentTag = returnMatch[1];
@@ -591,27 +667,99 @@ function insertCodeIntoFile(existingContent: string, newCode: string, filePath: 
       if (match) {
         return existingContent.replace(
           match[0],
-          `${match[0]}\n      {/* Mudra GEO Optimization */}\n      ${jsxCode}`
+          `${match[0]}\n      {/* Mudra GEO */}\n      ${jsxCode}`
         );
       }
     }
     
-    // If we still can't insert, add before the export
-    if (existingContent.includes('export default')) {
+    // Strategy 2: Insert before {children}
+    if (existingContent.includes('{children}')) {
       return existingContent.replace(
-        'export default',
-        `// Mudra GEO Optimization - Add this to your component:\nconst MudraGeoContent = () => (\n  <>\n    ${jsxCode}\n  </>\n);\n\nexport default`
+        '{children}',
+        `{/* Mudra GEO */}\n        ${jsxCode}\n        {children}`
       );
+    }
+    
+    // Strategy 3: Insert before </body>
+    if (existingContent.includes('</body>')) {
+      return existingContent.replace(
+        '</body>',
+        `{/* Mudra GEO */}\n        ${jsxCode}\n      </body>`
+      );
+    }
+    
+    // Strategy 4: Insert before closing html tag
+    if (existingContent.includes('</html>')) {
+      return existingContent.replace(
+        '</html>',
+        `{/* Mudra GEO */}\n        ${jsxCode}\n      </html>`
+      );
+    }
+    
+    // Strategy 5: Insert before export default as an inline component
+    if (existingContent.includes('export default')) {
+      // Find the default export and wrap the content
+      const exportMatch = existingContent.match(/export default function (\w+)/);
+      if (exportMatch) {
+        const funcName = exportMatch[1];
+        // Insert at the start of the function body
+        const funcBodyMatch = existingContent.match(new RegExp(`export default function ${funcName}[^{]*\\{`));
+        if (funcBodyMatch) {
+          const insertPoint = existingContent.indexOf(funcBodyMatch[0]) + funcBodyMatch[0].length;
+          return existingContent.slice(0, insertPoint) +
+            `\n  // Mudra GEO Content\n  const mudraGeoContent = (\n    <>\n      ${jsxCode}\n    </>\n  );\n` +
+            existingContent.slice(insertPoint);
+        }
+      }
+    }
+    
+    // Strategy 6: Append before final closing brace/tag
+    const lastClosingTag = existingContent.lastIndexOf('</');
+    if (lastClosingTag > 0) {
+      return existingContent.slice(0, lastClosingTag) +
+        `{/* Mudra GEO */}\n      ${jsxCode}\n      ` +
+        existingContent.slice(lastClosingTag);
     }
   }
   
-  // For HTML-like files, append with proper structure
-  if (filePath.endsWith('.html') || filePath.endsWith('.astro') || filePath.endsWith('.vue')) {
-    return existingContent + `\n\n<!-- Mudra GEO Optimization -->\n${cleanCode}`;
+  // For HTML files, find the best insertion point
+  if (filePath.endsWith('.html')) {
+    // For JSON-LD and meta content, insert in head
+    if (contentType === 'json-ld' || contentType === 'meta-tags') {
+      if (existingContent.includes('</head>')) {
+        return existingContent.replace('</head>', `  <!-- Mudra GEO -->\n  ${cleanCode}\n</head>`);
+      }
+    }
+    // For visible content, insert before </body>
+    if (existingContent.includes('</body>')) {
+      return existingContent.replace('</body>', `\n<!-- Mudra GEO -->\n${cleanCode}\n</body>`);
+    }
+    // Append at end
+    return existingContent + `\n\n<!-- Mudra GEO -->\n${cleanCode}`;
   }
   
-  // Absolute fallback for any other file type - still insert the code
-  return existingContent + `\n\n/* Mudra GEO Optimization */\n${cleanCode}`;
+  // For Astro files
+  if (filePath.endsWith('.astro')) {
+    if (existingContent.includes('</head>')) {
+      return existingContent.replace('</head>', `  <!-- Mudra GEO -->\n  ${cleanCode}\n</head>`);
+    }
+    if (existingContent.includes('</body>')) {
+      return existingContent.replace('</body>', `\n<!-- Mudra GEO -->\n${cleanCode}\n</body>`);
+    }
+    return existingContent + `\n\n<!-- Mudra GEO -->\n${cleanCode}`;
+  }
+  
+  // For Vue files
+  if (filePath.endsWith('.vue')) {
+    if (existingContent.includes('</template>')) {
+      return existingContent.replace('</template>', `\n  <!-- Mudra GEO -->\n  ${cleanCode}\n</template>`);
+    }
+    return existingContent + `\n\n<!-- Mudra GEO -->\n${cleanCode}`;
+  }
+  
+  // Absolute fallback - just append the code
+  console.log(`[GitHub] Absolute fallback - appending code to end of file`);
+  return existingContent + `\n\n/* Mudra GEO */\n${cleanCode}`;
 }
 
 interface CreateOptimizationPRInput {

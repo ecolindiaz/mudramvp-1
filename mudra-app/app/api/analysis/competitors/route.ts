@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { quickValidateName } from '@/lib/services/competitor-validation.service'
 
 interface CompetitorMention {
   name: string
@@ -8,6 +9,144 @@ interface CompetitorMention {
   sentiment: 'positive' | 'neutral' | 'negative'
   promptId?: string
   provider?: string
+}
+
+// Known technology companies whitelist for instant verification
+const KNOWN_COMPANIES = new Set([
+  // Cloud & Hosting
+  'aws', 'amazon web services', 'google cloud', 'gcp', 'azure', 'microsoft azure',
+  'vercel', 'netlify', 'heroku', 'railway', 'render', 'fly.io', 'digitalocean',
+  'cloudflare', 'cloudflare pages', 'cloudflare workers', 'fastly', 'akamai',
+  'firebase', 'firebase hosting', 'supabase', 'planetscale', 'neon',
+  'aws amplify', 'aws lambda', 'aws cloudfront', 'github pages',
+  'digitalocean app platform', 'northflank', 'coolify', 'dokku', 'caprover',
+
+  // DevOps & CI/CD
+  'github', 'gitlab', 'bitbucket', 'jenkins', 'circleci', 'travis ci',
+  'github actions', 'gitlab ci/cd', 'teamcity', 'bamboo', 'harness',
+  'docker', 'kubernetes', 'terraform', 'pulumi', 'ansible',
+
+  // Monitoring & Observability
+  'datadog', 'new relic', 'sentry', 'splunk', 'elastic', 'grafana',
+  'prometheus', 'dynatrace', 'logrocket', 'fullstory', 'hotjar',
+  'pagerduty', 'opsgenie', 'statuspage', 'raygun', 'bugsnag', 'speedcurve',
+  'debugbear', 'elastic apm', 'splunk observability cloud',
+
+  // Databases
+  'mongodb', 'postgresql', 'mysql', 'redis', 'elasticsearch',
+  'cockroachdb', 'fauna', 'dynamodb', 'cassandra', 'snowflake',
+
+  // Frameworks & Tools
+  'next.js', 'nuxt', 'gatsby', 'remix', 'astro', 'svelte', 'vue',
+  'react', 'angular', 'webpack', 'vite', 'turbopack', 'esbuild',
+
+  // AI & ML
+  'openai', 'anthropic', 'hugging face', 'replicate', 'modal',
+  'langchain', 'pinecone', 'weaviate', 'cohere', 'stability ai',
+  'bolt.new', 'lovable', 'copilotkit', 'botpress', 'v0', 'cursor',
+
+  // E-commerce & CMS
+  'shopify', 'stripe', 'square', 'paypal', 'contentful', 'sanity',
+  'strapi', 'wordpress', 'webflow', 'wix', 'squarespace',
+  'salesforce commerce cloud', 'bigcommerce',
+
+  // CDN & Performance
+  'bunny.net', 'amazon cloudfront', 'keycdn', 'stackpath',
+
+  // Other tech
+  'twilio', 'sendgrid', 'mailgun', 'postmark', 'slack', 'discord',
+  'auth0', 'okta', 'clerk', 'segment', 'amplitude', 'mixpanel',
+  'launchdarkly', 'split', 'optimizely', 'algolia', 'typesense',
+  'retool', 'bubble', 'airtable', 'notion', 'coda', 'zapier',
+  'dokploy', 'zeabur', 'koyeb', 'adaptable', 'cyclic', 'deta',
+  'qovery', 'porter', 'kuberns', 'gartner peer insights',
+  'google search console', 'g2',
+])
+
+/**
+ * Filter out invalid competitor names (sentences, generic terms, etc.)
+ * This is applied at query time to clean up existing bad data in the database.
+ * Uses both whitelist matching and pattern-based validation.
+ */
+function isValidCompetitorName(name: string): boolean {
+  if (!name || typeof name !== 'string') return false
+
+  const compLower = name.toLowerCase().trim()
+
+  // Fast path: check known companies whitelist first
+  if (KNOWN_COMPANIES.has(compLower)) {
+    return true
+  }
+
+  // Check if any known company is a close match
+  for (const known of KNOWN_COMPANIES) {
+    if (compLower === known || known.includes(compLower) || compLower.includes(known)) {
+      return true
+    }
+  }
+
+  // Use the validation service for pattern-based checks
+  if (!quickValidateName(name)) {
+    return false
+  }
+
+  // Additional pattern checks for this API
+
+  // Length check: company names are typically 2-35 characters
+  if (name.length < 2 || name.length > 35) return false
+
+  // Filter out generic single words that aren't company names
+  const genericSingleWords = [
+    'for', 'the', 'and', 'but', 'framework', 'built', 'platform', 'service',
+    'tool', 'tools', 'solution', 'solutions', 'system', 'systems', 'app',
+    'application', 'software', 'cloud', 'server', 'servers', 'hosting',
+    'enterprise', 'startup', 'startups', 'company', 'companies', 'product',
+    'products', 'website', 'websites', 'web', 'mobile', 'desktop', 'api',
+  ]
+  if (genericSingleWords.includes(compLower)) return false
+
+  // Sentence starters that indicate this is a phrase, not a company name
+  const invalidStarts = [
+    'others ', 'other ', 'posts ', 'reach out', 'sign up', 'check out',
+    'learn more', 'get started', 'the ', 'a ', 'an ', 'some ', 'many ',
+    'leading ', 'top ', 'best ', 'great ', 'amazing ', 'excellent ',
+    'consider ', 'explore ', 'visit ', 'contact ', 'try ', 'use ',
+    'as ', 'like ', 'such ', 'for ', 'with ', 'and ', 'or ', 'but ',
+    'if ', 'when ', 'while ', 'although ', 'because ', 'since ',
+    'however ', 'therefore ', 'thus ', 'hence ', 'also ', 'even ',
+    'this ', 'that ', 'these ', 'those ', 'it ', 'they ', 'we ', 'you ',
+    'i ', 'my ', 'our ', 'your ', 'their ', 'its ', 'his ', 'her ',
+    'more ', 'less ', 'most ', 'least ', 'very ', 'quite ', 'rather ',
+    'exceptional ', 'excellent ', 'enterprise', 'platform ',
+  ]
+  if (invalidStarts.some(start => compLower.startsWith(start))) return false
+
+  // Verb patterns that indicate this is a sentence, not a company name
+  const verbPatterns = [
+    ' is ', ' are ', ' was ', ' were ', ' has ', ' have ', ' had ',
+    ' does ', ' do ', ' did ', ' can ', ' may ', ' must ', ' will ',
+    ' being ', ' been ', ' having ', ' doing ', ' would ', ' could ',
+    ' should ', ' might ', ' shall ',
+    ' that ', ' which ', ' who ', ' whom ', ' whose ', ' where ',
+    ' because ', ' since ', ' although ', ' though ', ' while ',
+    ' share ', ' highlight', ' recommend', ' suggest', ' contact ',
+    ' directly', ' their team', ' your ', ' to your ', ' can help',
+    ' sign up', ' check out', ' learn more', ' get started',
+    ' want ', ' need ', ' require ', ' prefer ',
+  ]
+  if (verbPatterns.some(pattern => compLower.includes(pattern))) return false
+
+  // Max 3 spaces (4 words) - company names rarely have more
+  const spaceCount = (name.match(/\s/g) || []).length
+  if (spaceCount > 3) return false
+
+  // Ends with punctuation (sentences, not company names)
+  if (/[.!?:,;]$/.test(name)) return false
+
+  // Contains lowercase-only words longer than 15 chars (likely description)
+  if (name === compLower && name.length > 15 && !/[A-Z0-9.]/.test(name)) return false
+
+  return true
 }
 
 interface AggregatedCompetitor {
@@ -94,7 +233,44 @@ export async function GET(request: NextRequest) {
     }
 
     // Aggregate all competitor mentions across all analyses
+    // Use lowercase key for deduplication, but track display names
     const competitorMentionMap = new Map<string, CompetitorMention[]>()
+    const competitorDisplayNames = new Map<string, Map<string, number>>() // lowerKey -> { displayName -> count }
+
+    // Helper to add a competitor mention with case-insensitive deduplication
+    const addCompetitorMention = (
+      rawName: string,
+      position: number | null,
+      sentiment: 'positive' | 'neutral' | 'negative',
+      provider?: string
+    ) => {
+      const trimmedName = rawName.trim()
+
+      // CRITICAL: Filter out invalid competitor names (sentences, generic terms, etc.)
+      // This cleans up bad data that was stored before the improved filter was added
+      if (!isValidCompetitorName(trimmedName)) {
+        return // Skip this entry
+      }
+
+      const lowerKey = trimmedName.toLowerCase()
+
+      // Get or create the mentions array using lowercase key
+      if (!competitorMentionMap.has(lowerKey)) {
+        competitorMentionMap.set(lowerKey, [])
+        competitorDisplayNames.set(lowerKey, new Map())
+      }
+
+      // Track display name frequency to pick the most common casing
+      const displayCounts = competitorDisplayNames.get(lowerKey)!
+      displayCounts.set(trimmedName, (displayCounts.get(trimmedName) || 0) + 1)
+
+      competitorMentionMap.get(lowerKey)!.push({
+        name: trimmedName,
+        position,
+        sentiment,
+        provider
+      })
+    }
 
     for (const analysis of geoAnalyses) {
       // Parse analyses if it's a string
@@ -131,28 +307,22 @@ export async function GET(request: NextRequest) {
           for (const competitorName of competitors) {
             if (!competitorName || typeof competitorName !== 'string') continue
 
-            // Normalize the competitor name
-            const normalizedName = competitorName.trim()
-            const lowerName = normalizedName.toLowerCase()
+            const trimmedName = competitorName.trim()
+            const lowerName = trimmedName.toLowerCase()
 
             // Skip if this is the user's brand
-            if (lowerName === userBrandName || 
-                lowerName.includes(userBrandName) || 
+            if (lowerName === userBrandName ||
+                lowerName.includes(userBrandName) ||
                 userBrandName.includes(lowerName)) {
               continue
             }
 
-            // Get or create the mentions array for this competitor
-            if (!competitorMentionMap.has(normalizedName)) {
-              competitorMentionMap.set(normalizedName, [])
-            }
-
-            competitorMentionMap.get(normalizedName)!.push({
-              name: normalizedName,
-              position: positions[competitorName] || positions[normalizedName] || null,
-              sentiment: sentiments[competitorName] || sentiments[normalizedName] || 'neutral',
+            addCompetitorMention(
+              trimmedName,
+              positions[competitorName] || positions[trimmedName] || null,
+              sentiments[competitorName] || sentiments[trimmedName] || 'neutral',
               provider
-            })
+            )
           }
         }
       }
@@ -176,8 +346,8 @@ export async function GET(request: NextRequest) {
           for (const comp of competitorData) {
             if (!comp.name) continue
 
-            const normalizedName = comp.name.trim()
-            const lowerName = normalizedName.toLowerCase()
+            const trimmedName = comp.name.trim()
+            const lowerName = trimmedName.toLowerCase()
 
             // Skip user's brand
             if (lowerName === userBrandName ||
@@ -188,20 +358,32 @@ export async function GET(request: NextRequest) {
 
             // Add mentions based on mentionCount
             const mentionCount = comp.mentionCount || 1
-            if (!competitorMentionMap.has(normalizedName)) {
-              competitorMentionMap.set(normalizedName, [])
-            }
-
             for (let i = 0; i < mentionCount; i++) {
-              competitorMentionMap.get(normalizedName)!.push({
-                name: normalizedName,
-                position: comp.averagePosition || null,
-                sentiment: 'neutral'
-              })
+              addCompetitorMention(
+                trimmedName,
+                comp.averagePosition || null,
+                'neutral'
+              )
             }
           }
         }
       }
+    }
+
+    // Helper to get the best display name (most frequently used casing)
+    const getBestDisplayName = (lowerKey: string): string => {
+      const displayCounts = competitorDisplayNames.get(lowerKey)
+      if (!displayCounts || displayCounts.size === 0) return lowerKey
+
+      let bestName = lowerKey
+      let maxCount = 0
+      displayCounts.forEach((count, name) => {
+        if (count > maxCount) {
+          maxCount = count
+          bestName = name
+        }
+      })
+      return bestName
     }
 
     // Calculate total mentions across all competitors
@@ -213,12 +395,15 @@ export async function GET(request: NextRequest) {
     // Calculate aggregated stats for each competitor
     const aggregatedCompetitors: AggregatedCompetitor[] = []
 
-    competitorMentionMap.forEach((mentions, name) => {
+    competitorMentionMap.forEach((mentions, lowerKey) => {
       const mentionCount = mentions.length
 
+      // Get the best display name (most frequently used casing)
+      const displayName = getBestDisplayName(lowerKey)
+
       // Calculate SOV: (competitor mentions ÷ all competitor mentions) × 100
-      const shareOfVoice = totalMentions > 0 
-        ? (mentionCount / totalMentions) * 100 
+      const shareOfVoice = totalMentions > 0
+        ? (mentionCount / totalMentions) * 100
         : 0
 
       // Calculate average position (only from mentions with positions)
@@ -236,7 +421,7 @@ export async function GET(request: NextRequest) {
         .sort(([, a], [, b]) => b - a)[0][0] as 'positive' | 'neutral' | 'negative'
 
       aggregatedCompetitors.push({
-        name,
+        name: displayName,
         mentionCount,
         shareOfVoice: Math.round(shareOfVoice * 10) / 10, // Round to 1 decimal
         averagePosition: Math.round(averagePosition * 10) / 10,

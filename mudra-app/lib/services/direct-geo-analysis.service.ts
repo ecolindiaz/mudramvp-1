@@ -1,4 +1,5 @@
 import { generateSophisticatedPrompts, profileToBrandInfo, type GeneratedPrompts } from './prompt-generation.service';
+import { validateCompetitors, type ValidatedCompetitor } from './competitor-validation.service';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -71,6 +72,7 @@ export interface DirectGEOResult {
   overallScore: number;
   analyses: ProviderAnalysis[];
   competitorComparison: CompetitorAnalysis[];
+  validatedCompetitors?: ValidatedCompetitor[]; // AI-validated competitors with confidence scores
   recommendations: string[];
   timestamp: Date;
 }
@@ -184,20 +186,36 @@ function filterValidCompetitors(competitors: string[], brandName: string): strin
       'others ', 'other ', 'posts ', 'reach out', 'sign up', 'check out',
       'learn more', 'get started', 'the ', 'a ', 'an ', 'some ', 'many ',
       'leading ', 'top ', 'best ', 'great ', 'amazing ', 'excellent ',
-      'consider ', 'explore ', 'visit ', 'contact ', 'try ', 'use '
+      'consider ', 'explore ', 'visit ', 'contact ', 'try ', 'use ',
+      // Sentence starters that indicate this is a phrase, not a company name
+      'as ', 'like ', 'such ', 'for ', 'with ', 'and ', 'or ', 'but ',
+      'if ', 'when ', 'while ', 'although ', 'because ', 'since ',
+      'however ', 'therefore ', 'thus ', 'hence ', 'also ', 'even ',
+      'this ', 'that ', 'these ', 'those ', 'it ', 'they ', 'we ', 'you ',
+      'i ', 'my ', 'our ', 'your ', 'their ', 'its ', 'his ', 'her ',
     ];
     if (invalidStarts.some(start => compLower.startsWith(start))) return false;
-    
+
     const actionPatterns = [
       ' share ', ' highlight', ' recommend', ' suggest', ' contact ',
       ' directly', ' their team', ' your ', ' to your ', ' can help',
       ' sign up', ' check out', ' learn more', ' get started',
-      ' might ', ' should ', ' could ', ' would ', ' will '
+      ' might ', ' should ', ' could ', ' would ', ' will ',
+      // Verb patterns that indicate this is a sentence, not a company name
+      ' is ', ' are ', ' was ', ' were ', ' has ', ' have ', ' had ',
+      ' does ', ' do ', ' did ', ' can ', ' may ', ' must ',
+      ' being ', ' been ', ' having ', ' doing ',
+      // Common sentence connectors
+      ' that ', ' which ', ' who ', ' whom ', ' whose ', ' where ',
+      ' because ', ' since ', ' although ', ' though ', ' while ',
     ];
     if (actionPatterns.some(pattern => compLower.includes(pattern))) return false;
-    
+
+    // Max 3 spaces (4 words) - company names rarely have more
+    // Examples that pass: "The Home Depot", "JPMorgan Chase & Co"
+    // Examples that fail: "As amazon is the best"
     const spaceCount = (comp.match(/\s/g) || []).length;
-    if (spaceCount > 4) return false;
+    if (spaceCount > 3) return false;
     
     if (/[.!?:]$/.test(comp)) return false;
     
@@ -1677,40 +1695,86 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
   // Wait for all providers to complete (providers also run in parallel!)
   const analysesResults = await Promise.all(providerAnalysisPromises);
   analyses.push(...analysesResults);
-  
-  // Calculate competitor comparison
-  const allCompetitorMentions = analyses.flatMap(a => 
+
+  // Collect all AI responses for validation pipeline
+  const allResponses = analyses.flatMap(a =>
+    a.promptTests.map(t => t.response)
+  ).join('\n\n---\n\n');
+
+  // Collect all competitor mentions (raw, before validation)
+  const allCompetitorMentions = analyses.flatMap(a =>
     a.promptTests.flatMap(t => t.competitors)
   );
-  
-  const competitorStats = config.competitors?.map(comp => {
-    const mentions = allCompetitorMentions.filter(mention => 
-      mention.toLowerCase().includes(comp.toLowerCase())
+
+  // Run multi-stage competitor validation pipeline
+  console.log('\n🔬 Running AI competitor validation pipeline...');
+  let validatedCompetitors: ValidatedCompetitor[] = [];
+
+  try {
+    validatedCompetitors = await validateCompetitors(
+      allResponses,
+      config.brandName,
+      allCompetitorMentions
+    );
+
+    console.log(`✅ Validated ${validatedCompetitors.length} competitors with AI pipeline`);
+
+    // Update prompt tests to only include validated competitors
+    const validatedNameSet = new Set(validatedCompetitors.map(c => c.name.toLowerCase()));
+
+    for (const analysis of analyses) {
+      for (const test of analysis.promptTests) {
+        // Filter competitors to only validated ones
+        test.competitors = test.competitors.filter(c =>
+          validatedNameSet.has(c.toLowerCase())
+        );
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Competitor validation pipeline failed, using regex-filtered results:', error);
+    // Fall back to existing competitors (already regex-filtered)
+  }
+
+  // Recalculate competitor comparison with validated data
+  const validatedMentions = analyses.flatMap(a =>
+    a.promptTests.flatMap(t => t.competitors)
+  );
+
+  // Build competitor stats from validated competitors
+  const competitorStats: CompetitorAnalysis[] = validatedCompetitors.map(vc => {
+    const mentions = validatedMentions.filter(mention =>
+      mention.toLowerCase() === vc.name.toLowerCase()
     ).length;
-    
+
     return {
-      name: comp,
+      name: vc.name,
       mentionCount: mentions,
       averagePosition: 0, // Could be calculated if we tracked competitor positions
-      shareOfVoice: mentions / allCompetitorMentions.length,
+      shareOfVoice: validatedMentions.length > 0 ? mentions / validatedMentions.length : 0,
     };
-  }) || [];
-  
+  }).filter(c => c.mentionCount > 0);
+
+  // Sort by share of voice
+  competitorStats.sort((a, b) => b.shareOfVoice - a.shareOfVoice);
+
   // Calculate overall score
   const overallScore = Math.round(
     analyses.reduce((sum, a) => sum + a.brandVisibilityScore, 0) / analyses.length
   );
-  
+
   // Generate recommendations
   const recommendations = generateRecommendations(config, analyses);
-  
+
   console.log(`✅ Analysis complete! Overall score: ${overallScore}/100`);
-  
+  console.log(`   Validated competitors: ${validatedCompetitors.length}`);
+  console.log(`   High confidence: ${validatedCompetitors.filter(c => c.confidence === 'high').length}`);
+
   return {
     brandName: config.brandName,
     overallScore,
     analyses,
     competitorComparison: competitorStats,
+    validatedCompetitors,
     recommendations,
     timestamp: new Date(),
   };

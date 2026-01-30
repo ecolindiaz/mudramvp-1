@@ -376,10 +376,9 @@ function ConversationRadarPageInner() {
               ) : filteredOpportunities.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20">
                   <BrowserWindowEmpty 
-                    title={viewFilter === "active" ? "No Active Opportunities" : "No Opportunities Found"}
-                    description={viewFilter === "active" 
-                      ? "Run the radar to discover new conversation opportunities about your brand."
-                      : "Click 'Run Radar' to search for conversations about your brand."
+                    text={viewFilter === "active" 
+                      ? "No active opportunities. Run the radar to discover conversations about your brand."
+                      : "No opportunities found. Click 'Run Radar' to search for conversations."
                     }
                   />
                   <Button

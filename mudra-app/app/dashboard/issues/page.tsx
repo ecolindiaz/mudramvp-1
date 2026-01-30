@@ -1069,12 +1069,17 @@ function IssuesPageInner() {
       const result = await response.json()
       if (result.success) {
         await fetchIssues()
-        setDeleteDialogOpen(false)
-        setDeletingIssue(null)
+        toast.success("Issue deleted successfully")
+      } else {
+        toast.error("Failed to delete issue")
       }
     } catch (error) {
       console.error("Failed to delete issue:", error)
+      toast.error("Failed to delete issue")
     } finally {
+      // Always close the dialog and reset state
+      setDeleteDialogOpen(false)
+      setDeletingIssue(null)
       setIsSaving(false)
     }
   }
@@ -1389,7 +1394,13 @@ function IssuesPageInner() {
       />
       <DeleteDialog
         open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open)
+          if (!open) {
+            // Clear the deleting issue when dialog is closed by any means
+            setDeletingIssue(null)
+          }
+        }}
         issue={deletingIssue}
         onConfirm={handleDeleteIssue}
         isLoading={isSaving}

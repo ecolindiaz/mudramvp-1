@@ -86,24 +86,22 @@ export async function withSandbox<T>(
 
 /**
  * Validate JSON-LD schema markup in sandbox
- * Uses Python pyld library for JSON-LD expansion/validation
+ * Uses Python for JSON syntax validation (skips remote context fetching)
  */
 export async function validateSchemaInSandbox(
   jsonLdSchema: string
 ): Promise<SandboxResult<SchemaValidationResult>> {
   return withSandbox(async (sandbox) => {
-    // Install required package
-    await sandbox.runCode('!pip install pyld -q')
-    
     // Escape the schema for Python string
     const escapedSchema = jsonLdSchema
       .replace(/\\/g, '\\\\')
       .replace(/'/g, "\\'")
       .replace(/\n/g, '\\n')
     
+    // Validate JSON-LD structure without fetching remote contexts
+    // E2B sandboxes have limited internet access, so we skip expansion
     const result = await sandbox.runCode(`
 import json
-from pyld import jsonld
 
 schema_str = '''${escapedSchema}'''
 errors = []
@@ -112,19 +110,44 @@ warnings = []
 try:
     parsed = json.loads(schema_str)
     
-    # Check for required fields
+    # Check for required JSON-LD fields
     if '@context' not in parsed:
         errors.append("Missing @context field")
+    elif parsed.get('@context') not in ['https://schema.org', 'http://schema.org', 'https://schema.org/']:
+        warnings.append(f"Non-standard @context: {parsed.get('@context')}")
+    
     if '@type' not in parsed:
         errors.append("Missing @type field")
     
-    # Try to expand the JSON-LD
-    try:
-        expanded = jsonld.expand(parsed)
-        result = {"valid": len(errors) == 0, "errors": errors, "warnings": warnings, "expanded": expanded}
-    except Exception as e:
-        errors.append(f"JSON-LD expansion error: {str(e)}")
-        result = {"valid": False, "errors": errors, "warnings": warnings}
+    # Validate common schema.org types
+    valid_types = [
+        'Organization', 'LocalBusiness', 'Product', 'Service', 'FAQPage',
+        'Article', 'BlogPosting', 'WebPage', 'WebSite', 'Person', 'Event',
+        'HowTo', 'Recipe', 'Review', 'AggregateRating', 'BreadcrumbList',
+        'ItemList', 'SoftwareApplication', 'MobileApplication', 'Course',
+        'JobPosting', 'Offer', 'Place', 'Restaurant', 'Store', 'Brand'
+    ]
+    schema_type = parsed.get('@type', '')
+    if schema_type and schema_type not in valid_types:
+        warnings.append(f"Uncommon @type: {schema_type} (may still be valid)")
+    
+    # Check for common properties based on type
+    if schema_type == 'Organization':
+        if 'name' not in parsed:
+            warnings.append("Organization should have 'name' property")
+    elif schema_type == 'Product':
+        if 'name' not in parsed:
+            warnings.append("Product should have 'name' property")
+    elif schema_type == 'FAQPage':
+        if 'mainEntity' not in parsed:
+            warnings.append("FAQPage should have 'mainEntity' property")
+    
+    result = {
+        "valid": len(errors) == 0, 
+        "errors": errors, 
+        "warnings": warnings,
+        "parsed": parsed
+    }
         
 except json.JSONDecodeError as e:
     result = {"valid": False, "errors": [f"JSON parse error: {str(e)}"], "warnings": []}

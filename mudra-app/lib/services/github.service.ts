@@ -85,86 +85,382 @@ async function getValidGitHubToken(integration: any): Promise<string> {
 }
 
 /**
+ * Detect content type from the generated code
+ */
+type ContentType = 'json-ld' | 'meta-tags' | 'nav-links' | 'faq-section' | 'generic-html' | 'generic-jsx';
+
+function detectContentType(code: string): ContentType {
+  if (code.includes('application/ld+json') || code.includes('"@context"') || code.includes("'@context'")) {
+    return 'json-ld';
+  }
+  if (code.includes('<meta ') || code.includes('og:') || code.includes('twitter:')) {
+    return 'meta-tags';
+  }
+  if (code.includes('<nav') || (code.includes('<a href') && code.includes('<ul'))) {
+    return 'nav-links';
+  }
+  if (code.toLowerCase().includes('faq') || code.includes('itemtype="https://schema.org/FAQPage"')) {
+    return 'faq-section';
+  }
+  if (code.includes('<') && code.includes('>')) {
+    return 'generic-html';
+  }
+  return 'generic-jsx';
+}
+
+/**
+ * Detect framework from file path and content
+ */
+type FrameworkType = 'nextjs-app' | 'nextjs-pages' | 'react' | 'html' | 'astro' | 'vue';
+
+function detectFramework(filePath: string, content: string): FrameworkType {
+  if (filePath.includes('app/layout')) return 'nextjs-app';
+  if (filePath.includes('pages/_app') || filePath.includes('pages/_document')) return 'nextjs-pages';
+  if (filePath.endsWith('.astro')) return 'astro';
+  if (filePath.endsWith('.vue')) return 'vue';
+  if (filePath.endsWith('.tsx') || filePath.endsWith('.jsx')) {
+    if (content.includes('next/head') || content.includes('next/script')) return 'nextjs-app';
+    return 'react';
+  }
+  return 'html';
+}
+
+/**
+ * Check if similar optimization already exists in the file
+ */
+function hasExistingOptimization(content: string, newCode: string, contentType: ContentType): boolean {
+  // Check for Mudra markers
+  if (content.includes('Mudra GEO') || content.includes('mudra-geo')) {
+    console.log('[GitHub] Found existing Mudra optimization marker');
+    return true;
+  }
+  
+  // Check for specific schema types already present
+  if (contentType === 'json-ld') {
+    const schemaTypes = ['Organization', 'Product', 'FAQPage', 'Article', 'WebSite', 'BreadcrumbList'];
+    for (const schemaType of schemaTypes) {
+      if (newCode.includes(`"@type":"${schemaType}"`) || newCode.includes(`"@type": "${schemaType}"`)) {
+        // Check if this schema type already exists in the file
+        if (content.includes(`"@type":"${schemaType}"`) || content.includes(`"@type": "${schemaType}"`)) {
+          console.log(`[GitHub] Schema type ${schemaType} already exists`);
+          return true;
+        }
+      }
+    }
+  }
+  
+  // Check for meta tag duplicates
+  if (contentType === 'meta-tags') {
+    const metaPropertyMatch = newCode.match(/property="([^"]+)"/);
+    if (metaPropertyMatch && content.includes(`property="${metaPropertyMatch[1]}"`)) {
+      console.log(`[GitHub] Meta property ${metaPropertyMatch[1]} already exists`);
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Convert HTML to JSX-compatible format
+ */
+function htmlToJsx(html: string): string {
+  return html
+    .replace(/class=/g, 'className=')
+    .replace(/for=/g, 'htmlFor=')
+    .replace(/<!--[\s\S]*?-->/g, '') // Remove HTML comments
+    .replace(/(<\w+[^>]*)\s*>/g, (match, tag) => {
+      // Self-closing tags
+      if (tag.match(/<(meta|link|img|br|hr|input)/i)) {
+        return tag + ' />';
+      }
+      return match;
+    });
+}
+
+/**
  * Intelligently insert generated code into existing file
- * Handles different file types: HTML, TSX/JSX, etc.
+ * Uses framework-specific injection patterns
  */
 function insertCodeIntoFile(existingContent: string, newCode: string, filePath: string): string {
-  const isHtml = filePath.endsWith('.html')
-  const isTsx = filePath.endsWith('.tsx') || filePath.endsWith('.jsx')
-  const isLayout = filePath.includes('layout') || filePath.includes('_app') || filePath.includes('_document')
+  const contentType = detectContentType(newCode);
+  const framework = detectFramework(filePath, existingContent);
   
-  // Check if this is JSON-LD schema markup
-  const isJsonLd = newCode.includes('application/ld+json') || newCode.includes('@context')
+  console.log(`[GitHub] Inserting ${contentType} into ${framework} file: ${filePath}`);
   
-  if (isHtml) {
-    // For HTML files, insert JSON-LD before </head> or at the start of <head>
-    if (isJsonLd) {
-      // Extract just the script tag if we have a full HTML document
-      let scriptTag = newCode
-      const scriptMatch = newCode.match(/<script type="application\/ld\+json">[\s\S]*?<\/script>/i)
-      if (scriptMatch) {
-        scriptTag = scriptMatch[0]
-      } else if (newCode.includes('@context')) {
-        // Wrap JSON in script tag
-        scriptTag = `<script type="application/ld+json">\n${newCode}\n</script>`
+  // Check for existing optimizations
+  if (hasExistingOptimization(existingContent, newCode, contentType)) {
+    console.log('[GitHub] Similar optimization already exists, updating instead of adding');
+    // For now, still add - but we could implement update logic here
+  }
+  
+  // Clean up the code - remove instruction comments
+  let cleanCode = newCode
+    .replace(/<!--\s*Add this to.*?-->\n?/gi, '')
+    .replace(/<!--\s*Example of.*?-->\n?/gi, '')
+    .replace(/<!--\s*Instructions:.*?-->\n?/gi, '')
+    .trim();
+  
+  // ==================================
+  // HTML FILES
+  // ==================================
+  if (framework === 'html') {
+    switch (contentType) {
+      case 'json-ld': {
+        // Extract or wrap in script tag
+        let scriptTag = cleanCode;
+        if (!cleanCode.includes('<script')) {
+          const jsonMatch = cleanCode.match(/\{[\s\S]*"@context"[\s\S]*\}/);
+          if (jsonMatch) {
+            scriptTag = `<script type="application/ld+json">\n${jsonMatch[0]}\n</script>`;
+          }
+        }
+        // Insert before </head>
+        if (existingContent.includes('</head>')) {
+          return existingContent.replace('</head>', `  <!-- Mudra GEO: Structured Data -->\n  ${scriptTag}\n</head>`);
+        }
+        break;
       }
       
-      // Insert before </head>
-      if (existingContent.includes('</head>')) {
-        return existingContent.replace('</head>', `    ${scriptTag}\n</head>`)
+      case 'meta-tags': {
+        // Insert in <head> section
+        if (existingContent.includes('</head>')) {
+          return existingContent.replace('</head>', `  <!-- Mudra GEO: Meta Tags -->\n  ${cleanCode}\n</head>`);
+        }
+        break;
       }
-      // Insert after <head> if no closing tag
-      if (existingContent.includes('<head>')) {
-        return existingContent.replace('<head>', `<head>\n    ${scriptTag}`)
+      
+      case 'nav-links':
+      case 'faq-section':
+      case 'generic-html': {
+        // Insert before </body> - these are visible content
+        if (existingContent.includes('</body>')) {
+          return existingContent.replace('</body>', `\n<!-- Mudra GEO: Content Enhancement -->\n${cleanCode}\n</body>`);
+        }
+        // Or before </main> if it exists
+        if (existingContent.includes('</main>')) {
+          return existingContent.replace('</main>', `\n<!-- Mudra GEO: Content Enhancement -->\n${cleanCode}\n</main>`);
+        }
+        break;
       }
     }
     
-    // For other HTML improvements, insert before </body>
+    // HTML fallback: append before </body> or at end
     if (existingContent.includes('</body>')) {
-      return existingContent.replace('</body>', `\n${newCode}\n</body>`)
+      return existingContent.replace('</body>', `\n<!-- Mudra GEO Optimization -->\n${cleanCode}\n</body>`);
+    }
+    return existingContent + `\n\n<!-- Mudra GEO Optimization -->\n${cleanCode}`;
+  }
+  
+  // ==================================
+  // NEXT.JS APP ROUTER (app/layout.tsx)
+  // ==================================
+  if (framework === 'nextjs-app') {
+    const jsxCode = htmlToJsx(cleanCode);
+    
+    switch (contentType) {
+      case 'json-ld': {
+        // Extract JSON and create a script with dangerouslySetInnerHTML
+        let jsonContent = cleanCode;
+        const jsonMatch = cleanCode.match(/\{[\s\S]*"@context"[\s\S]*\}/);
+        if (jsonMatch) {
+          jsonContent = jsonMatch[0];
+        }
+        
+        const schemaScript = `
+        {/* Mudra GEO: Structured Data */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: \`${jsonContent.replace(/`/g, '\\`')}\` }}
+        />`;
+        
+        // Try to insert before </head> if using Head component
+        if (existingContent.includes('</Head>')) {
+          return existingContent.replace('</Head>', `${schemaScript}\n      </Head>`);
+        }
+        
+        // Insert before </body> in the layout
+        if (existingContent.includes('</body>')) {
+          return existingContent.replace('</body>', `${schemaScript}\n      </body>`);
+        }
+        
+        // Insert before {children} as a sibling
+        if (existingContent.includes('{children}')) {
+          return existingContent.replace('{children}', `${schemaScript}\n        {children}`);
+        }
+        break;
+      }
+      
+      case 'meta-tags': {
+        // For Next.js App Router, meta tags go in metadata export or Head
+        // Add as a comment suggestion since metadata is typically exported
+        const metaComment = `{/* Mudra GEO: Add these to your metadata export:\n${cleanCode}\n*/}`;
+        
+        // If there's already a metadata export, add as comment
+        if (existingContent.includes('export const metadata')) {
+          return existingContent.replace(
+            'export const metadata',
+            `${metaComment}\nexport const metadata`
+          );
+        }
+        break;
+      }
+      
+      case 'nav-links':
+      case 'faq-section':
+      case 'generic-html': {
+        // Convert to JSX and insert before {children}
+        const component = `
+        {/* Mudra GEO: Content Enhancement */}
+        <div className="mudra-geo-content">
+          ${jsxCode}
+        </div>`;
+        
+        if (existingContent.includes('{children}')) {
+          return existingContent.replace('{children}', `${component}\n        {children}`);
+        }
+        break;
+      }
+    }
+  }
+  
+  // ==================================
+  // NEXT.JS PAGES ROUTER
+  // ==================================
+  if (framework === 'nextjs-pages') {
+    const jsxCode = htmlToJsx(cleanCode);
+    
+    if (contentType === 'json-ld') {
+      let jsonContent = cleanCode;
+      const jsonMatch = cleanCode.match(/\{[\s\S]*"@context"[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonContent = jsonMatch[0];
+      }
+      
+      // Check if Script is imported
+      let content = existingContent;
+      if (!content.includes("from 'next/script'")) {
+        content = content.replace(
+          /^(import .* from ['"]next)/m,
+          "import Script from 'next/script';\n$1"
+        );
+      }
+      
+      const scriptComponent = `
+        {/* Mudra GEO: Structured Data */}
+        <Script
+          id="mudra-schema"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: \`${jsonContent.replace(/`/g, '\\`')}\` }}
+        />`;
+      
+      // Insert before </body>
+      if (content.includes('</body>')) {
+        return content.replace('</body>', `${scriptComponent}\n      </body>`);
+      }
     }
     
-    // Fallback: append to end
-    return existingContent + '\n\n<!-- Mudra GEO Optimization -->\n' + newCode
+    // For other content types, insert in the component
+    if (existingContent.includes('</Head>')) {
+      return existingContent.replace('</Head>', `        {/* Mudra GEO */}\n        ${jsxCode}\n      </Head>`);
+    }
   }
   
-  if (isTsx && isLayout) {
-    // For Next.js/React layouts, we need to add schema as a Script component or in Head
-    if (isJsonLd) {
-      // Extract the JSON from the code
-      let jsonContent = newCode
-      const jsonMatch = newCode.match(/\{[\s\S]*"@context"[\s\S]*\}/m)
-      if (jsonMatch) {
-        jsonContent = jsonMatch[0]
-      }
+  // ==================================
+  // REACT (generic)
+  // ==================================
+  if (framework === 'react') {
+    const jsxCode = htmlToJsx(cleanCode);
+    
+    // Try to insert in the return statement
+    const returnMatch = existingContent.match(/return\s*\(\s*/);
+    if (returnMatch) {
+      const insertPoint = existingContent.indexOf(returnMatch[0]) + returnMatch[0].length;
+      const afterReturn = existingContent.slice(insertPoint);
+      const firstTag = afterReturn.match(/<\w+[^>]*>/);
       
-      // Create a React-compatible script injection
-      const schemaComponent = `
-{/* Mudra GEO: Structured Data */}
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{ __html: JSON.stringify(${jsonContent}) }}
-/>
-`
-      
-      // Try to insert before </Head> in Next.js
-      if (existingContent.includes('</Head>')) {
-        return existingContent.replace('</Head>', `${schemaComponent}</Head>`)
-      }
-      
-      // Try to insert in the return statement before the first closing tag
-      if (existingContent.includes('return (')) {
-        // Find the first element in the return and add after opening tag
-        return existingContent.replace(
-          /return\s*\(\s*(<\w+[^>]*>)/,
-          `return (\n${schemaComponent}\n$1`
-        )
+      if (firstTag) {
+        const tagEnd = insertPoint + afterReturn.indexOf(firstTag[0]) + firstTag[0].length;
+        return existingContent.slice(0, tagEnd) + 
+          `\n      {/* Mudra GEO */}\n      ${jsxCode}\n      ` + 
+          existingContent.slice(tagEnd);
       }
     }
   }
   
-  // Default fallback: append as comment with the code
-  return existingContent + `\n\n{/* Mudra GEO Optimization - Please integrate manually:\n${newCode}\n*/}`
+  // ==================================
+  // ASTRO
+  // ==================================
+  if (framework === 'astro') {
+    // Astro uses HTML-like syntax
+    if (contentType === 'json-ld') {
+      let scriptTag = cleanCode;
+      if (!cleanCode.includes('<script')) {
+        const jsonMatch = cleanCode.match(/\{[\s\S]*"@context"[\s\S]*\}/);
+        if (jsonMatch) {
+          scriptTag = `<script type="application/ld+json">\n${jsonMatch[0]}\n</script>`;
+        }
+      }
+      if (existingContent.includes('</head>')) {
+        return existingContent.replace('</head>', `  <!-- Mudra GEO: Structured Data -->\n  ${scriptTag}\n</head>`);
+      }
+    }
+    
+    // Insert before </body> for other content
+    if (existingContent.includes('</body>')) {
+      return existingContent.replace('</body>', `\n<!-- Mudra GEO -->\n${cleanCode}\n</body>`);
+    }
+  }
+  
+  // ==================================
+  // VUE
+  // ==================================
+  if (framework === 'vue') {
+    // Insert in template section
+    if (existingContent.includes('</template>')) {
+      return existingContent.replace('</template>', `\n  <!-- Mudra GEO -->\n  ${cleanCode}\n</template>`);
+    }
+  }
+  
+  // ==================================
+  // ULTIMATE FALLBACK: Actually insert the code, don't leave a comment
+  // ==================================
+  console.log(`[GitHub] Using fallback insertion for ${framework}/${contentType}`);
+  
+  // For JSX/TSX files, wrap in JSX fragment
+  if (filePath.endsWith('.tsx') || filePath.endsWith('.jsx')) {
+    const jsxCode = htmlToJsx(cleanCode);
+    
+    // Find the return statement and insert after the opening tag
+    const returnMatch = existingContent.match(/return\s*\(\s*<(\w+)/);
+    if (returnMatch) {
+      const componentTag = returnMatch[1];
+      const tagPattern = new RegExp(`return\\s*\\(\\s*<${componentTag}[^>]*>`);
+      const match = existingContent.match(tagPattern);
+      if (match) {
+        return existingContent.replace(
+          match[0],
+          `${match[0]}\n      {/* Mudra GEO Optimization */}\n      ${jsxCode}`
+        );
+      }
+    }
+    
+    // If we still can't insert, add before the export
+    if (existingContent.includes('export default')) {
+      return existingContent.replace(
+        'export default',
+        `// Mudra GEO Optimization - Add this to your component:\nconst MudraGeoContent = () => (\n  <>\n    ${jsxCode}\n  </>\n);\n\nexport default`
+      );
+    }
+  }
+  
+  // For HTML-like files, append with proper structure
+  if (filePath.endsWith('.html') || filePath.endsWith('.astro') || filePath.endsWith('.vue')) {
+    return existingContent + `\n\n<!-- Mudra GEO Optimization -->\n${cleanCode}`;
+  }
+  
+  // Absolute fallback for any other file type - still insert the code
+  return existingContent + `\n\n/* Mudra GEO Optimization */\n${cleanCode}`;
 }
 
 interface CreateOptimizationPRInput {
@@ -420,29 +716,56 @@ ${imp.code}
       commitMessage = `Add GEO optimization: ${improvement.description}`
       console.log(`[GitHub] Modifying existing file: ${targetFilePath}`)
     } else {
-      // FALLBACK: Create new suggestion file if no target found
+      // NO EXISTING FILE: Create index.html with the optimization code
       console.log(`[GitHub] ❌ No existing file found in any of the ${allPaths.length} checked paths`)
-      console.log(`[GitHub] Creating suggestion file instead...`)
-      targetFilePath = `geo-optimizations/${branchSlug}-${Date.now()}.html`
-      fileContent = `<!--
-  GEO Optimization Suggestions for: ${pageUrl}
-  Generated by Mudra Content Optimizer Agent
-  
-  Instructions: Copy the relevant code snippets below into your page
--->
-
-${improvements.map((imp, idx) => `
-<!-- ================================================== -->
-<!-- Improvement ${idx + 1}: ${imp.description} -->
-<!-- Impact: ${imp.impact.toUpperCase()} -->
-<!-- Target File: ${imp.filePath || 'index.html'} -->
-<!-- ================================================== -->
-
-${imp.code}
-`).join('\n')}
+      console.log(`[GitHub] Creating index.html with optimization content...`)
+      
+      // Determine the content type to create appropriate file
+      const contentType = detectContentType(improvement.code)
+      
+      // Create a proper HTML file (not a suggestion file)
+      targetFilePath = 'index.html'
+      
+      // Build a minimal but valid HTML document with the optimization
+      let optimizationContent = improvement.code
+      
+      // If it's JSON-LD, wrap it properly
+      if (contentType === 'json-ld') {
+        const jsonMatch = improvement.code.match(/\{[\s\S]*"@context"[\s\S]*\}/)
+        if (jsonMatch && !improvement.code.includes('<script')) {
+          optimizationContent = `<script type="application/ld+json">\n${jsonMatch[0]}\n  </script>`
+        }
+      }
+      
+      // Determine where to insert based on content type
+      let headContent = ''
+      let bodyContent = ''
+      
+      if (contentType === 'json-ld' || contentType === 'meta-tags') {
+        headContent = `  <!-- Mudra GEO: ${improvement.description} -->\n  ${optimizationContent}`
+      } else {
+        bodyContent = `  <!-- Mudra GEO: ${improvement.description} -->\n  ${optimizationContent}`
+      }
+      
+      fileContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${brandProfile.companyName || 'Website'}</title>
+${headContent}
+</head>
+<body>
+  <main>
+    <h1>Welcome to ${brandProfile.companyName || 'Our Website'}</h1>
+    <p>${brandProfile.description || 'Your content goes here.'}</p>
+${bodyContent}
+  </main>
+</body>
+</html>
 `
-      commitMessage = `Add GEO optimizations for ${pageUrl}`
-      console.log(`[GitHub] No target file found, creating suggestion file: ${targetFilePath}`)
+      commitMessage = `Create index.html with GEO optimization: ${improvement.description}`
+      console.log(`[GitHub] Created new index.html with ${contentType} content`)
     }
 
     console.log(`[GitHub] Creating/updating file ${targetFilePath}`)

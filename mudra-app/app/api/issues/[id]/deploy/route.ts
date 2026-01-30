@@ -2,6 +2,12 @@
  * Issue Deploy API
  * 
  * POST /api/issues/[id]/deploy - Deploy an agent to resolve this issue
+ * 
+ * Uses async execution pattern:
+ * 1. Immediately mark issue as in_progress
+ * 2. Start agent execution without waiting
+ * 3. Return immediately with status 'processing'
+ * 4. Client polls /api/issues/[id] to check completion
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -9,6 +15,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { executeIssueAgent } from '@/lib/services/issue-agent-executor.service'
+
+// Extend timeout for Vercel Pro (max 300s)
+export const maxDuration = 300
 
 export async function POST(
   request: NextRequest,
@@ -71,7 +80,45 @@ export async function POST(
       data: { status: 'in_progress' }
     })
 
-    // Execute the agent (this may take a while)
+    // Check if we should run async (fire-and-forget) or sync (wait for result)
+    // Async mode returns immediately - client polls for completion
+    const asyncMode = request.headers.get('x-async-mode') === 'true'
+
+    if (asyncMode) {
+      // Fire and forget - execute in background
+      // Note: On Vercel, the function continues running even after response is sent
+      executeIssueAgent(issueId)
+        .then(async (result) => {
+          // Agent completed - status already updated in executeIssueAgent
+          console.log(`[Deploy] Issue ${issueId} completed:`, result.success ? 'success' : 'failed')
+        })
+        .catch(async (error) => {
+          console.error(`[Deploy] Issue ${issueId} failed:`, error)
+          await prisma.issue.update({
+            where: { id: issueId },
+            data: { 
+              status: 'identified',  // Reset to allow retry
+              metadata: {
+                ...(issue.metadata as object || {}),
+                lastError: error instanceof Error ? error.message : 'Unknown error',
+                lastAttempt: new Date().toISOString()
+              }
+            }
+          })
+        })
+
+      // Return immediately with processing status
+      return NextResponse.json({
+        success: true,
+        data: {
+          issueId,
+          status: 'processing',
+          message: 'Agent execution started. Poll the issue status for updates.'
+        }
+      })
+    }
+
+    // Sync mode - wait for result (may timeout on Vercel Free tier)
     const result = await executeIssueAgent(issueId)
 
     if (result.success) {

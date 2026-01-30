@@ -887,7 +887,7 @@ function IssuesPageInner() {
     }
   }
 
-  // Deploy agent for an issue
+  // Deploy agent for an issue (async with polling)
   const handleDeployAgent = async (issueId: number) => {
     setDeployingId(issueId)
     
@@ -897,32 +897,97 @@ function IssuesPageInner() {
     ))
     
     toast.info("Agent deploying...", {
-      description: "Your issue is being processed. This may take a moment.",
+      description: "Your issue is being processed. This may take a minute.",
     })
     
     try {
+      // Use async mode to avoid timeout
       const response = await fetch(`/api/issues/${issueId}/deploy`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-async-mode": "true"  // Enable fire-and-forget mode
+        },
       })
       const result = await response.json()
-      if (result.success) {
+      
+      if (result.success && result.data.status === 'processing') {
+        // Start polling for completion
+        pollIssueStatus(issueId)
+      } else if (result.success && result.data.status === 'completed') {
+        // Sync mode completed (rare, for fast operations)
         toast.success("Agent completed", {
           description: result.data.prUrl ? `PR #${result.data.prNumber} created` : "Issue resolved successfully",
         })
-        // Give a moment before refreshing to let user see the transition
         setTimeout(() => fetchIssues(), 500)
+        setDeployingId(null)
       } else {
         toast.error("Deployment failed", { description: result.error?.message })
-        await fetchIssues() // Refresh to get actual status
+        await fetchIssues()
+        setDeployingId(null)
       }
     } catch (error) {
       console.error("Failed to deploy agent:", error)
       toast.error("Deployment failed")
-      await fetchIssues() // Refresh to get actual status
-    } finally {
+      await fetchIssues()
       setDeployingId(null)
     }
+  }
+
+  // Poll for issue completion status
+  const pollIssueStatus = async (issueId: number) => {
+    const maxAttempts = 60  // Max 5 minutes (5s intervals)
+    let attempts = 0
+    
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/issues/${issueId}`)
+        const result = await response.json()
+        
+        if (result.success) {
+          const issue = result.data
+          
+          // Update local state
+          setIssues(prev => prev.map(i => 
+            i.id === issueId ? { ...i, ...issue } : i
+          ))
+          
+          if (issue.status === 'resolved') {
+            toast.success("Agent completed", {
+              description: issue.prUrl ? `PR created` : "Issue resolved successfully",
+            })
+            setDeployingId(null)
+            return  // Stop polling
+          } else if (issue.status === 'identified') {
+            // Reset to identified means it failed
+            toast.error("Agent failed", {
+              description: "Check the issue details for error information.",
+            })
+            setDeployingId(null)
+            return  // Stop polling
+          }
+        }
+        
+        attempts++
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 5000)  // Poll every 5 seconds
+        } else {
+          toast.warning("Agent taking longer than expected", {
+            description: "The issue is still processing. Please check back later.",
+          })
+          setDeployingId(null)
+        }
+      } catch (error) {
+        console.error("Error polling issue status:", error)
+        attempts++
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 5000)
+        }
+      }
+    }
+    
+    // Start polling after a short delay
+    setTimeout(poll, 3000)
   }
 
   // Retry failed agent execution

@@ -66,6 +66,12 @@ export function CompanyForm() {
     servicesProducts: data.servicesProducts.length > 0 ? data.servicesProducts : [""],
     companyICP: data.companyICP.length > 0 ? data.companyICP : [""]
   })
+  const [customIndustry, setCustomIndustry] = useState(
+    data.companyIndustry && ![
+      "Technology", "Healthcare", "Finance", "Education", "E-commerce", "Manufacturing",
+      "Real Estate", "Marketing", "Consulting", "SaaS", "AI/ML", "Other"
+    ].includes(data.companyIndustry) ? data.companyIndustry : ""
+  )
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -76,10 +82,15 @@ export function CompanyForm() {
 
   const handleNext = async () => {
     try {
+      // Determine final industry value - use custom if "Other" selected
+      const finalIndustry = formData.companyIndustry === "Other" && customIndustry.trim()
+        ? customIndustry.trim()
+        : formData.companyIndustry
+      
       // Save form data to onboarding context
       updateData({
         companyDescription: formData.companyDescription,
-        companyIndustry: formData.companyIndustry,
+        companyIndustry: finalIndustry,
         servicesProducts: formData.servicesProducts.filter(s => s.trim() !== ""),
         companyICP: formData.companyICP.filter(s => s.trim() !== "")
       })
@@ -95,6 +106,7 @@ export function CompanyForm() {
   const isFormValid =
     !!formData.companyDescription &&
     !!formData.companyIndustry &&
+    (formData.companyIndustry !== "Other" || customIndustry.trim() !== "") &&
     formData.servicesProducts.some((s) => s.trim() !== "")
 
   const industries = [
@@ -142,6 +154,14 @@ export function CompanyForm() {
               ))}
             </SelectContent>
           </Select>
+          {formData.companyIndustry === "Other" && (
+            <Input
+              placeholder="Enter your industry"
+              value={customIndustry}
+              onChange={(e) => setCustomIndustry(e.target.value)}
+              className="w-full bg-black border-white/20 text-white placeholder:text-white/50 mt-2"
+            />
+          )}
         </div>
 
         <div className="space-y-2">

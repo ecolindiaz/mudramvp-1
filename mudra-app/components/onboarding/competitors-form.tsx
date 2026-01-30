@@ -48,7 +48,8 @@ export function CompetitorsForm() {
     }
   }
 
-  const isFormValid = competitors.filter(c => c.trim() !== "").length >= 1
+  // Allow proceeding without competitors - they're optional
+  const isFormValid = true
 
   return (
     <Card className="w-full max-w-md mx-auto bg-black border border-white/20 shadow-lg">

@@ -18,6 +18,7 @@ import {
   type SchemaValidationResult
 } from './e2b-sandbox.service'
 import { createOptimizationPR } from './github.service'
+import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
 
 // Agent type to Mastra agent name mapping
 const ISSUE_AGENT_MAP: Record<string, string> = {
@@ -372,15 +373,57 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
       console.log(`[IssueExecutor] Creating PR for issue ${issueId}`)
       
       try {
+        // STEP 1: Review the generated content before creating PR
+        console.log(`[IssueExecutor] Running AI review on generated content...`)
+        const defaultFilePath = getFilePathForAgentType(agentType)
+        
+        let reviewResult: ReviewResult | null = null
+        let finalCode = generatedContent
+        let finalFilePath = defaultFilePath
+        
+        try {
+          reviewResult = await reviewGeneratedContent({
+            generatedCode: generatedContent,
+            issueTitle: issue.title,
+            issueDescription: issue.description || '',
+            agentType,
+            targetFile: defaultFilePath,
+            companyName: issue.brandProfile.companyName || '',
+            websiteUrl: issue.brandProfile.companyWebsite || ''
+          })
+          
+          // Apply review suggestions
+          if (reviewResult.warnings.length > 0) {
+            console.log(`[IssueExecutor] PR Review warnings: ${reviewResult.warnings.join(', ')}`)
+          }
+          
+          if (reviewResult.suggestedFile && reviewResult.suggestedFile !== defaultFilePath) {
+            console.log(`[IssueExecutor] Review suggests different file: ${reviewResult.suggestedFile} (was: ${defaultFilePath})`)
+            finalFilePath = reviewResult.suggestedFile
+          }
+          
+          if (reviewResult.improvedCode) {
+            console.log(`[IssueExecutor] Review provided improved code`)
+            finalCode = reviewResult.improvedCode
+          }
+          
+          console.log(`[IssueExecutor] Review reasoning: ${reviewResult.reasoning}`)
+          
+        } catch (reviewError) {
+          console.error(`[IssueExecutor] PR review failed, using defaults:`, reviewError)
+          // Continue with defaults if review fails
+        }
+        
+        // STEP 2: Create the PR with reviewed/improved content
         const prResult = await createOptimizationPR({
           brandProfileId: issue.brandProfileId,
           pageUrl: issue.affectedUrl || issue.brandProfile.companyWebsite || '/',
           improvements: [{
             type: agentType,
             description: issue.title,
-            code: generatedContent,
+            code: finalCode,
             impact: issue.estimatedImpact || 'medium',
-            filePath: getFilePathForAgentType(agentType)
+            filePath: finalFilePath
           }],
           title: `[Mudra] ${issue.title}`,
           description: `## Issue
@@ -394,6 +437,10 @@ ${issue.estimatedImpact || 'Improved AI visibility'}
 
 ${e2bValidation ? `## E2B Validation
 ✅ Validated in ${e2bValidation.executionMs}ms` : ''}
+
+${reviewResult?.warnings.length ? `## Pre-PR Review Notes
+${reviewResult.warnings.map(w => `- ⚠️ ${w}`).join('\n')}` : ''}
+${reviewResult?.reasoning ? `\n**Placement:** ${reviewResult.reasoning}` : ''}
 `,
           issueTitle: issue.title // Use issue title for branch naming
         })

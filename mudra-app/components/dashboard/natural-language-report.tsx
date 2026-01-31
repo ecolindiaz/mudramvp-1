@@ -73,6 +73,8 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
   const [copied, setCopied] = React.useState(false)
   const [showCompetitorRankingsModal, setShowCompetitorRankingsModal] = React.useState(false)
   const [showCitationsModal, setShowCitationsModal] = React.useState(false)
+  const [isCompetitorRankingsExpanded, setIsCompetitorRankingsExpanded] = React.useState(false)
+  const [isCitationsExpanded, setIsCitationsExpanded] = React.useState(false)
   // State for the URLs modal (first level - shows URLs for a domain)
   const [selectedSource, setSelectedSource] = React.useState<{
     domain: string;
@@ -936,40 +938,52 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                       <p className="text-xs text-white/40 mt-1">Try selecting a longer period or run a new analysis.</p>
                     </div>
                   ) : (
-                    competitorRankings.slice(0, 5).map((competitor, idx) => {
-                      const logoUrl = getCompanyLogoUrl(competitor.name)
-                      return (
-                        <div
-                          key={idx}
-                          className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.02]"
-                        >
-                          <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            {logoUrl ? (
-                              <img
-                                src={logoUrl}
-                                alt={competitor.name}
-                                className="size-6 rounded object-contain bg-white/5"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement
-                                  target.style.display = 'none'
-                                  target.nextElementSibling?.classList.remove('hidden')
-                                }}
-                              />
-                            ) : null}
-                            <span
-                              className={`inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80 ${logoUrl ? 'hidden' : ''}`}
-                            >
-                              {competitor.name[0]?.toUpperCase() || '?'}
-                            </span>
-                            <span className="text-sm truncate text-white/90">
-                              {competitor.name}
-                            </span>
+                    <>
+                      {(isCompetitorRankingsExpanded ? competitorRankings : competitorRankings.slice(0, 5)).map((competitor, idx) => {
+                        const logoUrl = getCompanyLogoUrl(competitor.name)
+                        return (
+                          <div
+                            key={idx}
+                            className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.02]"
+                          >
+                            <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {logoUrl ? (
+                                <img
+                                  src={logoUrl}
+                                  alt={competitor.name}
+                                  className="size-6 rounded object-contain bg-white/5"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.style.display = 'none'
+                                    target.nextElementSibling?.classList.remove('hidden')
+                                  }}
+                                />
+                              ) : null}
+                              <span
+                                className={`inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80 ${logoUrl ? 'hidden' : ''}`}
+                              >
+                                {competitor.name[0]?.toUpperCase() || '?'}
+                              </span>
+                              <span className="text-sm truncate text-white/90">
+                                {competitor.name}
+                              </span>
+                            </div>
+                            <div className="text-sm tabular-nums text-white/70 font-medium">{competitor.sov}%</div>
                           </div>
-                          <div className="text-sm tabular-nums text-white/70 font-medium">{competitor.sov}%</div>
+                        )
+                      })}
+                      {competitorRankings.length > 5 && (
+                        <div className="flex justify-end px-5 py-3 border-t border-white/[0.06]">
+                          <button
+                            onClick={() => setIsCompetitorRankingsExpanded(!isCompetitorRankingsExpanded)}
+                            className="px-3 py-1.5 text-sm text-black bg-white hover:bg-white/90 rounded-lg transition-colors font-medium"
+                          >
+                            {isCompetitorRankingsExpanded ? 'Show less' : `Show all ${competitorRankings.length} items`}
+                          </button>
                         </div>
-                      )
-                    })
+                      )}
+                    </>
                   )}
                 </div>
             </div>
@@ -1024,37 +1038,49 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                   <p className="text-xs text-white/40 mt-1">Try selecting a longer period or run a new analysis.</p>
                 </div>
               ) : (
-                citations.slice(0, 5).map((c, idx) => (
-                  <div
-                    key={idx}
-                    className="grid grid-cols-[1fr_100px_130px] items-center px-5 py-3.5 hover:bg-white/[0.02] transition-colors cursor-pointer"
-                    onClick={() => {
-                      setSelectedSource({
-                        domain: c.domain,
-                        urls: c.urls || [],
-                        totalUrls: c.totalUrls || 0,
-                        urlsWithPrompts: c.urlsWithPrompts || [],
-                        type: c.type,
-                        prompts: c.prompts || [],
-                        totalPrompts: c.totalPrompts || 0
-                      })
-                    }}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80">
-                        {c.domain[0].toUpperCase()}
-                      </span>
-                      <span className="truncate text-sm text-white/90">{c.domain}</span>
+                <>
+                  {(isCitationsExpanded ? citations : citations.slice(0, 5)).map((c, idx) => (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-[1fr_100px_130px] items-center px-5 py-3.5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                      onClick={() => {
+                        setSelectedSource({
+                          domain: c.domain,
+                          urls: c.urls || [],
+                          totalUrls: c.totalUrls || 0,
+                          urlsWithPrompts: c.urlsWithPrompts || [],
+                          type: c.type,
+                          prompts: c.prompts || [],
+                          totalPrompts: c.totalPrompts || 0
+                        })
+                      }}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80">
+                          {c.domain[0].toUpperCase()}
+                        </span>
+                        <span className="truncate text-sm text-white/90">{c.domain}</span>
+                      </div>
+                      <div className="flex justify-center">
+                        <Badge className="inline-flex items-center gap-1.5 h-6 px-2 text-[11px] rounded-md bg-white/95 text-black font-medium shadow-sm">
+                          <CitationTypeIcon type={c.type as CitationType} />
+                          {c.type}
+                        </Badge>
+                      </div>
+                      <div className="text-sm tabular-nums text-white/70 font-medium text-right">{c.used}%</div>
                     </div>
-                    <div className="flex justify-center">
-                      <Badge className="inline-flex items-center gap-1.5 h-6 px-2 text-[11px] rounded-md bg-white/95 text-black font-medium shadow-sm">
-                        <CitationTypeIcon type={c.type as CitationType} />
-                        {c.type}
-                      </Badge>
+                  ))}
+                  {citations.length > 5 && (
+                    <div className="flex justify-end px-5 py-3 border-t border-white/[0.06]">
+                      <button
+                        onClick={() => setIsCitationsExpanded(!isCitationsExpanded)}
+                        className="px-3 py-1.5 text-sm text-black bg-white hover:bg-white/90 rounded-lg transition-colors font-medium"
+                      >
+                        {isCitationsExpanded ? 'Show less' : `Show all ${citations.length} items`}
+                      </button>
                     </div>
-                    <div className="text-sm tabular-nums text-white/70 font-medium text-right">{c.used}%</div>
-                  </div>
-                ))
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -1195,6 +1221,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
         title="Competitor Rankings"
         description="How often competitors are mentioned across all AI responses"
         data={(allCompetitorRankings.length > 0 ? allCompetitorRankings : competitorRankings).slice(0, 20)}
+        initialLimit={5}
         isLoading={isLoadingAllCompetitors || (showCompetitorRankingsModal && allCompetitorRankings.length === 0 && isLoadingCompetitors)}
         searchKey="name"
         searchPlaceholder="Search competitors..."
@@ -1258,6 +1285,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
         title="Citations"
         description="Top sources AI cites from your industry"
         data={(allCitations.length > 0 ? allCitations : citations).slice(0, 20)}
+        initialLimit={5}
         isLoading={isLoadingAllCitations || (showCitationsModal && allCitations.length === 0 && isLoadingCitations)}
         searchKey="domain"
         searchPlaceholder="Search sources..."

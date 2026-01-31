@@ -126,7 +126,7 @@ export function AccountForm() {
   const isAccountCreated = userId !== null && generatedPassword !== ""
 
   return (
-    <Card className="w-full max-w-md mx-auto bg-black border border-white/20 shadow-lg">
+    <Card className="w-full max-w-[480px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
       <CardHeader className="text-center pb-6">
         <CardTitle className="text-2xl font-semibold text-white">
           {isAccountCreated ? "Account Created! 🎉" : "Create Your Account"}

@@ -119,7 +119,7 @@ export function ExpansionModal<T extends Record<string, unknown>>({
     return filteredData.slice(0, initialLimit)
   }, [filteredData, isExpanded, initialLimit, searchQuery])
 
-  const hasMoreItems = filteredData.length > initialLimit && !isExpanded && !searchQuery
+  const hasMoreItems = filteredData.length > initialLimit
 
   const getSortIcon = (columnKey: string) => {
     if (sortColumn !== columnKey) {
@@ -309,17 +309,17 @@ export function ExpansionModal<T extends Record<string, unknown>>({
                   ))}
                 </div>
 
-                {/* Show more button */}
+                {/* Show more/less button */}
                 {hasMoreItems && (
                   <div className="flex justify-center py-4 border-t border-white/[0.06]">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setIsExpanded(true)}
-                      className="h-8 px-4 text-white/60 hover:text-white hover:bg-white/[0.06] text-xs font-medium rounded-lg transition-all gap-1.5"
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      className="h-8 px-4 bg-white text-black hover:bg-white text-xs font-medium rounded-lg transition-all gap-1.5"
                     >
-                      Show all {filteredData.length} items
-                      <ChevronDown className="size-3.5" />
+                      {isExpanded ? 'Show less' : `Show all ${filteredData.length} items`}
+                      {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
                     </Button>
                   </div>
                 )}
@@ -327,15 +327,7 @@ export function ExpansionModal<T extends Record<string, unknown>>({
             )}
           </div>
 
-          {/* Footer */}
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/[0.06]">
-            <Button
-              onClick={() => onOpenChange(false)}
-              className="h-9 px-4 bg-white text-black hover:bg-white/90 rounded-lg font-medium"
-            >
-              Done
-            </Button>
-          </div>
+
         </div>
       </DialogContent>
     </Dialog>

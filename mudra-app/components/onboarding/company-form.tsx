@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -41,37 +41,135 @@ function MultiRowInput({
             value={v}
             onChange={(e) => update(i, e.target.value)}
             placeholder={placeholder}
-            className="flex-1 bg-black border-white/20 text-white placeholder:text-white/50"
+            className="flex-1 bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20"
           />
           {rows.length > 1 && (
-            <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-lg" onClick={() => removeRow(i)}>
+            <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-lg border-white/[0.08] hover:bg-white/[0.04]" onClick={() => removeRow(i)}>
               <X className="size-4" />
             </Button>
           )}
         </div>
       ))}
-      <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg gap-2" onClick={addRow}>
+      <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg gap-2 border-white/[0.08] hover:bg-white/[0.04]" onClick={addRow}>
         <Plus className="size-4" /> Add another
       </Button>
     </div>
   )
 }
 
+// Predefined industries list
+const INDUSTRIES = [
+  "Technology", "Healthcare", "Finance", "Education", "E-commerce", "Manufacturing",
+  "Real Estate", "Marketing", "Consulting", "SaaS", "AI/ML", "Other"
+] as const
+
+// Match extracted industry to predefined list
+function matchIndustry(extractedIndustry: string): { matched: string; isCustom: boolean } {
+  if (!extractedIndustry) return { matched: "", isCustom: false }
+
+  const normalized = extractedIndustry.toLowerCase().trim()
+
+  // Direct match
+  const directMatch = INDUSTRIES.find(ind => ind.toLowerCase() === normalized)
+  if (directMatch) return { matched: directMatch, isCustom: false }
+
+  // Partial match / keyword matching
+  const keywordMap: Record<string, typeof INDUSTRIES[number]> = {
+    'tech': 'Technology',
+    'software': 'Technology',
+    'it': 'Technology',
+    'health': 'Healthcare',
+    'medical': 'Healthcare',
+    'pharma': 'Healthcare',
+    'fintech': 'Finance',
+    'banking': 'Finance',
+    'financial': 'Finance',
+    'insurance': 'Finance',
+    'edtech': 'Education',
+    'learning': 'Education',
+    'ecommerce': 'E-commerce',
+    'retail': 'E-commerce',
+    'shop': 'E-commerce',
+    'manufacturing': 'Manufacturing',
+    'industrial': 'Manufacturing',
+    'real estate': 'Real Estate',
+    'property': 'Real Estate',
+    'marketing': 'Marketing',
+    'advertising': 'Marketing',
+    'agency': 'Marketing',
+    'consulting': 'Consulting',
+    'advisory': 'Consulting',
+    'saas': 'SaaS',
+    'cloud': 'SaaS',
+    'ai': 'AI/ML',
+    'artificial intelligence': 'AI/ML',
+    'machine learning': 'AI/ML',
+    'ml': 'AI/ML',
+  }
+
+  for (const [keyword, industry] of Object.entries(keywordMap)) {
+    if (normalized.includes(keyword)) {
+      return { matched: industry, isCustom: false }
+    }
+  }
+
+  // No match found - use "Other" with custom value
+  return { matched: "Other", isCustom: true }
+}
+
 export function CompanyForm() {
   const router = useRouter()
   const { data, updateData } = useOnboarding()
+
+  // Initialize form with empty values - we'll sync from context in useEffect
   const [formData, setFormData] = useState({
-    companyDescription: data.companyDescription,
-    companyIndustry: data.companyIndustry,
-    servicesProducts: data.servicesProducts.length > 0 ? data.servicesProducts : [""],
-    companyICP: data.companyICP.length > 0 ? data.companyICP : [""]
+    companyDescription: "",
+    companyIndustry: "",
+    servicesProducts: [""],
+    companyICP: [""]
   })
-  const [customIndustry, setCustomIndustry] = useState(
-    data.companyIndustry && ![
-      "Technology", "Healthcare", "Finance", "Education", "E-commerce", "Manufacturing",
-      "Real Estate", "Marketing", "Consulting", "SaaS", "AI/ML", "Other"
-    ].includes(data.companyIndustry) ? data.companyIndustry : ""
-  )
+  const [customIndustry, setCustomIndustry] = useState("")
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Sync form data from context (extraction data or previously saved data)
+  useEffect(() => {
+    // Skip if already initialized with data
+    if (isInitialized) return
+
+    const extracted = data.extractedCompanyInfo
+    const hasExistingUserData = data.companyDescription || data.companyIndustry || data.servicesProducts.length > 0
+
+    // Priority 1: Use existing user-entered data from context
+    if (hasExistingUserData) {
+      setFormData({
+        companyDescription: data.companyDescription,
+        companyIndustry: data.companyIndustry,
+        servicesProducts: data.servicesProducts.length > 0 ? data.servicesProducts : [""],
+        companyICP: data.companyICP.length > 0 ? data.companyICP : [""]
+      })
+      if (data.companyIndustry && !INDUSTRIES.includes(data.companyIndustry as any)) {
+        setCustomIndustry(data.companyIndustry)
+      }
+      setIsInitialized(true)
+      return
+    }
+
+    // Priority 2: Use extracted data if available
+    if (extracted && data.extractionStatus === 'completed') {
+      const industryMatch = matchIndustry(extracted.industry)
+      setFormData({
+        companyDescription: extracted.companyDescription || "",
+        companyIndustry: industryMatch.matched,
+        servicesProducts: extracted.servicesProducts.length > 0 ? extracted.servicesProducts : [""],
+        companyICP: extracted.idealCustomerProfiles.length > 0 ? extracted.idealCustomerProfiles : [""]
+      })
+      if (industryMatch.isCustom) {
+        setCustomIndustry(extracted.industry)
+      }
+      setIsInitialized(true)
+      console.log("📝 Company form populated with extracted data")
+    }
+  }, [data.extractedCompanyInfo, data.extractionStatus, data.companyDescription, data.companyIndustry, data.servicesProducts, data.companyICP, isInitialized])
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -109,13 +207,8 @@ export function CompanyForm() {
     (formData.companyIndustry !== "Other" || customIndustry.trim() !== "") &&
     formData.servicesProducts.some((s) => s.trim() !== "")
 
-  const industries = [
-    "Technology", "Healthcare", "Finance", "Education", "E-commerce", "Manufacturing", 
-    "Real Estate", "Marketing", "Consulting", "SaaS", "AI/ML", "Other"
-  ]
-
   return (
-    <Card className="w-full max-w-md mx-auto bg-black border border-white/20 shadow-lg">
+    <Card className="w-full max-w-[480px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
       <CardHeader className="text-center pb-6">
         <CardTitle className="text-2xl font-semibold text-white">
           Company Profile
@@ -134,7 +227,7 @@ export function CompanyForm() {
             placeholder="Describe what your company does..."
             value={formData.companyDescription}
             onChange={(e) => handleInputChange("companyDescription", e.target.value)}
-            className="w-full bg-black border-white/20 text-white placeholder:text-white/50 min-h-[80px]"
+            className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20 min-h-[80px]"
           />
         </div>
 
@@ -143,12 +236,12 @@ export function CompanyForm() {
             Company Industry
           </Label>
           <Select value={formData.companyIndustry} onValueChange={(value) => handleInputChange("companyIndustry", value)}>
-            <SelectTrigger className="w-full bg-black border-white/20 text-white">
+            <SelectTrigger className="w-full bg-white/[0.03] border-white/[0.06] text-white rounded-lg">
               <SelectValue placeholder="Select your industry" />
             </SelectTrigger>
-            <SelectContent className="bg-black border-white/20">
-              {industries.map((industry) => (
-                <SelectItem key={industry} value={industry} className="text-white hover:bg-white/10">
+            <SelectContent className="bg-[#161616] border-white/[0.06]">
+              {INDUSTRIES.map((industry) => (
+                <SelectItem key={industry} value={industry} className="text-white hover:bg-white/[0.06] focus:bg-white/[0.06]">
                   {industry}
                 </SelectItem>
               ))}
@@ -159,7 +252,7 @@ export function CompanyForm() {
               placeholder="Enter your industry"
               value={customIndustry}
               onChange={(e) => setCustomIndustry(e.target.value)}
-              className="w-full bg-black border-white/20 text-white placeholder:text-white/50 mt-2"
+              className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20 mt-2"
             />
           )}
         </div>
@@ -186,7 +279,7 @@ export function CompanyForm() {
           <button
             type="button"
             onClick={() => router.push("/welcome/profile")}
-            className="h-9 rounded-lg border border-white/20 px-4 text-white/80 hover:text-white"
+            className="h-9 rounded-lg border border-white/[0.08] bg-transparent px-4 text-white/70 hover:text-white hover:bg-white/[0.04] transition-colors"
           >
             Back
           </button>
@@ -194,7 +287,7 @@ export function CompanyForm() {
             type="button"
             onClick={handleNext}
             disabled={!isFormValid}
-            className="flex-1 h-9 bg-white text-black border border-white hover:bg-white/90 shadow-none disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
+            className="flex-1 h-10 bg-white text-black border border-white hover:bg-white/90 shadow-none rounded-lg disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
           >
             <div className="flex items-center justify-center gap-2">
               Next

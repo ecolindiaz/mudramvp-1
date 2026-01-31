@@ -134,7 +134,7 @@ export function PromptsForm() {
   const currentStage = getCurrentStage()
 
   return (
-    <Card className="w-full max-w-md mx-auto bg-black border border-white/20 shadow-lg">
+    <Card className="w-full max-w-[480px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
       <CardHeader className="text-center pb-6">
         <CardTitle className="text-2xl font-semibold text-white">
           {hasError ? "Analysis Failed" : 
@@ -165,35 +165,40 @@ export function PromptsForm() {
             </>
           ) : isAnalysisComplete ? (
             <>
-              <CheckCircle className="w-16 h-16 mx-auto text-green-400" />
+              <div className="relative inline-block">
+                <CheckCircle className="w-16 h-16 mx-auto text-emerald-400" />
+                <div className="absolute inset-0 animate-ping">
+                  <CheckCircle className="w-16 h-16 mx-auto text-emerald-400/30" />
+                </div>
+              </div>
               <div className="space-y-2">
                 <p className="text-2xl font-bold text-white">Analysis Complete!</p>
                 <p className="text-white/70 text-sm">Your brand analysis is ready</p>
                 <div className="grid grid-cols-3 gap-2 text-xs mt-4">
-                  <div className="bg-white/10 rounded-lg p-3">
+                  <div className="bg-white/[0.04] border border-white/[0.06] rounded-xl p-3">
                     <div className="flex items-center gap-1 text-white/60 mb-1">
                       <Target className="w-3 h-3" />
                       AI Visibility
                     </div>
-                    <div className="text-white font-medium">
+                    <div className="text-emerald-400 font-medium">
                       {progress.geoAnalysis === 'completed' ? '✓' : '○'}
                     </div>
                   </div>
-                  <div className="bg-white/10 rounded-lg p-3">
+                  <div className="bg-white/[0.04] border border-white/[0.06] rounded-xl p-3">
                     <div className="flex items-center gap-1 text-white/60 mb-1">
                       <Code className="w-3 h-3" />
                       Technical
                     </div>
-                    <div className="text-white font-medium">
+                    <div className="text-emerald-400 font-medium">
                       {progress.technicalStructure === 'completed' ? '✓' : '○'}
                     </div>
                   </div>
-                  <div className="bg-white/10 rounded-lg p-3">
+                  <div className="bg-white/[0.04] border border-white/[0.06] rounded-xl p-3">
                     <div className="flex items-center gap-1 text-white/60 mb-1">
                       <BarChart3 className="w-3 h-3" />
                       Report
                     </div>
-                    <div className="text-white font-medium">
+                    <div className="text-emerald-400 font-medium">
                       {progress.report === 'completed' ? '✓' : '○'}
                     </div>
                   </div>
@@ -203,17 +208,23 @@ export function PromptsForm() {
           ) : (
             <>
               <div className="relative">
-                <Sparkles className="w-16 h-16 mx-auto text-white animate-pulse" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <div className="w-20 h-20 border-2 border-white/10 rounded-full"></div>
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-20 h-20 border-2 border-white/10 border-t-white rounded-full animate-spin"></div>
+                </div>
+                <Sparkles className="w-10 h-10 mx-auto text-white animate-pulse relative z-10 mt-[20px]" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-3 h-3 bg-white rounded-full shadow-[0_0_16px_rgba(255,255,255,0.5)]"></div>
                 </div>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3 mt-4">
                 <p className="text-4xl font-bold text-white">{Math.round(currentProgress)}%</p>
-                <p className="text-white/70 text-sm">{currentStage}</p>
-                <div className="w-full bg-white/20 rounded-full h-2">
+                <p className="text-white/60 text-sm">{currentStage}</p>
+                <div className="w-full bg-white/[0.08] rounded-full h-1.5 overflow-hidden">
                   <div 
-                    className="bg-white h-2 rounded-full transition-all duration-300 ease-out"
+                    className="bg-white h-1.5 rounded-full transition-all duration-500 ease-out shadow-[0_0_8px_rgba(255,255,255,0.4)]"
                     style={{ width: `${currentProgress}%` }}
                   ></div>
                 </div>
@@ -226,7 +237,7 @@ export function PromptsForm() {
           <Button
             type="button"
             onClick={handleFinish}
-            className="w-full h-9 bg-white text-black border border-white hover:bg-white/90 shadow-none disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
+            className="w-full h-10 bg-white text-black border border-white hover:bg-white/90 shadow-none rounded-lg disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
           >
             <div className="flex items-center justify-center gap-2">
               {isAnalysisComplete ? "View Dashboard" : "Continue to Dashboard"}

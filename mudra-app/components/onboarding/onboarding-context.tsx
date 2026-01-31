@@ -3,31 +3,46 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react"
 import { useBrandProfile } from "../brand-profile-context"
 
+// Extracted company info from website
+export interface ExtractedCompanyInfo {
+  companyDescription: string
+  industry: string
+  servicesProducts: string[]
+  idealCustomerProfiles: string[]
+  competitorUrls: string[]
+}
+
+export type ExtractionStatus = 'idle' | 'extracting' | 'completed' | 'failed'
+
 interface OnboardingData {
   // Account data
   userId: number | null
   username: string
-  
+
   // Welcome form data
   companyName: string
   companyWebsite: string
   companySocialMedia: string
-  
+
   // Profile form data
   userName: string
   userRole: string
-  
+
   // Company form data
   companyDescription: string
   companyIndustry: string
   servicesProducts: string[]
   companyICP: string[]
-  
+
   // Competitors form data
   competitors: string[]
-  
+
   // Visibility form data (knowledge base files)
   knowledgeBaseFiles: File[]
+
+  // Extracted company info from website
+  extractedCompanyInfo: ExtractedCompanyInfo | null
+  extractionStatus: ExtractionStatus
 }
 
 const defaultOnboardingData: OnboardingData = {
@@ -44,6 +59,8 @@ const defaultOnboardingData: OnboardingData = {
   companyICP: [],
   competitors: [],
   knowledgeBaseFiles: [],
+  extractedCompanyInfo: null,
+  extractionStatus: 'idle',
 }
 
 interface OnboardingContextType {
@@ -82,7 +99,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const updateData = (updates: Partial<OnboardingData>) => {
+  const updateData = useCallback((updates: Partial<OnboardingData>) => {
     setData(prev => {
       const newData = { ...prev, ...updates }
       // Save to localStorage whenever data updates
@@ -91,7 +108,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       }
       return newData
     })
-  }
+  }, [])
 
   const saveToProfile = useCallback(async () => {
     // Convert onboarding data to brand profile format

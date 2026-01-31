@@ -15,16 +15,19 @@
    - [Map](#map)
    - [Search](#search)
    - [Batch Scrape](#batch-scrape)
-5. [Advanced Features](#advanced-features)
+5. [New Features](#new-features)
+   - [Agent](#agent)
+   - [Models](#models)
+6. [Advanced Features](#advanced-features)
    - [LLM Extract (JSON Mode)](#llm-extract-json-mode)
    - [Fast Scraping (Caching)](#fast-scraping-caching)
    - [Change Tracking](#change-tracking)
    - [Stealth Mode](#stealth-mode)
    - [Proxies](#proxies)
    - [Document Parsing](#document-parsing)
-6. [API Reference](#api-reference)
-7. [Rate Limits](#rate-limits)
-8. [Migration Guide: v1 to v2](#migration-guide-v1-to-v2)
+7. [API Reference](#api-reference)
+8. [Rate Limits](#rate-limits)
+9. [Migration Guide: v1 to v2](#migration-guide-v1-to-v2)
 
 ---
 
@@ -581,6 +584,313 @@ results = firecrawl.batch_scrape(urls, formats=[{
 
 ---
 
+## New Features
+
+### Agent
+
+> **Research Preview**: Agent is in early access. Expect rough edges. It will get significantly better over time.
+
+Firecrawl `/agent` is a magic API that searches, navigates, and gathers data from the widest range of websites, finding data in hard-to-reach places and uncovering data in ways no other API can. **Think of `/agent` as deep research for data, wherever it is!**
+
+#### Key Capabilities
+
+| Feature | Description |
+|---------|-------------|
+| **No URLs Required** | Just describe what you need via `prompt` parameter. URLs are optional |
+| **Deep Web Search** | Autonomously searches and navigates deep into sites to find your data |
+| **Reliable and Accurate** | Works with a wide variety of queries and use cases |
+| **Faster** | Processes multiple sources in parallel for quicker results |
+
+#### Basic Usage
+
+The only required parameter is `prompt`. Simply describe what data you want to extract.
+
+**Python (with Pydantic schema):**
+```python
+from firecrawl import FirecrawlApp
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+app = FirecrawlApp(api_key="fc-YOUR_API_KEY")
+
+class Founder(BaseModel):
+    name: str = Field(description="Full name of the founder")
+    role: Optional[str] = Field(None, description="Role or position")
+    background: Optional[str] = Field(None, description="Professional background")
+
+class FoundersSchema(BaseModel):
+    founders: List[Founder] = Field(description="List of founders")
+
+result = app.agent(
+    prompt="Find the founders of Firecrawl",
+    schema=FoundersSchema,
+    model="spark-1-mini"
+)
+print(result.data)
+```
+
+**JavaScript (with Zod schema):**
+```javascript
+import Firecrawl from '@mendable/firecrawl-js';
+import { z } from 'zod';
+
+const app = new Firecrawl({ apiKey: "fc-YOUR_API_KEY" });
+
+const FounderSchema = z.object({
+    name: z.string(),
+    role: z.string().optional(),
+    background: z.string().optional()
+});
+
+const FoundersSchema = z.object({
+    founders: z.array(FounderSchema)
+});
+
+const result = await app.agent({
+    prompt: "Find the founders of Firecrawl",
+    schema: FoundersSchema,
+    model: "spark-1-mini"
+});
+console.log(result.data);
+```
+
+**cURL:**
+```bash
+curl -X POST https://api.firecrawl.dev/v2/agent \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer fc-YOUR_API_KEY' \
+  -d '{
+    "prompt": "Find the founders of Firecrawl",
+    "model": "spark-1-mini"
+  }'
+```
+
+#### Response Example
+
+```json
+{
+  "success": true,
+  "status": "completed",
+  "data": {
+    "founders": [
+      {
+        "name": "Eric Ciarla",
+        "role": "Co-founder",
+        "background": "Previously at Mendable"
+      },
+      {
+        "name": "Nicolas Camara",
+        "role": "Co-founder",
+        "background": "Previously at Mendable"
+      },
+      {
+        "name": "Caleb Peffer",
+        "role": "Co-founder",
+        "background": "Previously at Mendable"
+      }
+    ]
+  },
+  "expiresAt": "2024-12-15T00:00:00.000Z",
+  "creditsUsed": 15
+}
+```
+
+#### Providing URLs (Optional)
+
+You can optionally provide URLs to focus the agent on specific pages:
+
+```python
+result = app.agent(
+    urls=["https://docs.firecrawl.dev", "https://firecrawl.dev/pricing"],
+    prompt="Compare the features and pricing information from these pages"
+)
+print(result.data)
+```
+
+#### Async Job Handling
+
+Agent jobs run asynchronously. Use `start_agent` to get a Job ID immediately, then poll with `get_agent_status`:
+
+**Python:**
+```python
+# Start an agent job
+agent_job = app.start_agent(
+    prompt="Find the founders of Firecrawl"
+)
+
+# Check the status
+status = app.get_agent_status(agent_job.id)
+print(status)
+# status='completed'
+# success=True
+# data={ ... }
+# expires_at=datetime.datetime(...)
+# credits_used=15
+```
+
+**JavaScript:**
+```javascript
+// Start an agent job
+const agentJob = await app.startAgent({
+    prompt: "Find the founders of Firecrawl"
+});
+
+// Check the status
+const status = await app.getAgentStatus(agentJob.id);
+console.log(status);
+```
+
+#### Job Status States
+
+| Status | Description |
+|--------|-------------|
+| `processing` | The agent is still working on your request |
+| `completed` | Extraction finished successfully |
+| `failed` | An error occurred during extraction |
+
+> Job results are available via the API for **24 hours** after completion.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `prompt` | string | **Yes** | Natural language description of the data you want to extract (max 10,000 characters) |
+| `model` | string | No | Model to use: `spark-1-mini` (default) or `spark-1-pro` |
+| `urls` | array | No | Optional list of URLs to focus the extraction |
+| `schema` | object | No | Optional JSON schema for structured output |
+| `maxCredits` | number | No | Maximum credits to spend. If limit is reached, job fails and no data is returned (credits consumed are still charged) |
+
+#### Agent vs Extract Comparison
+
+| Feature | Agent (New) | Extract |
+|---------|-------------|---------|
+| URLs Required | No | Yes |
+| Speed | Faster | Standard |
+| Cost | Lower | Standard |
+| Reliability | Higher | Standard |
+| Query Flexibility | High | Moderate |
+
+#### Example Use Cases
+
+- **Research**: "Find the top 5 AI startups and their funding amounts"
+- **Competitive Analysis**: "Compare pricing plans between Slack and Microsoft Teams"
+- **Data Gathering**: "Extract contact information from company websites"
+- **Content Summarization**: "Summarize the latest blog posts about web scraping"
+
+#### Pricing
+
+Agent uses **dynamic billing** that scales with the complexity of your data extraction request:
+
+- **Simple extractions** (contact info from a single page) use fewer credits
+- **Complex research tasks** (competitive analysis across multiple domains) use more credits
+- **5 free daily runs** for all users to explore Agent's capabilities
+- **Parallel Agents**: 10 credits per cell with Spark-1 Fast
+
+**Managing costs:**
+- Set a `maxCredits` parameter to limit spending
+- Use specific prompts (often use fewer credits)
+- Monitor usage through the dashboard
+
+---
+
+### Models
+
+Firecrawl Agent offers two models optimized for different use cases.
+
+#### Available Models
+
+| Model | Cost | Accuracy | Best For |
+|-------|------|----------|----------|
+| `spark-1-mini` | **60% cheaper** | Standard | Most tasks (default) |
+| `spark-1-pro` | Standard | Higher | Complex research, critical extraction |
+
+#### Spark 1 Mini (Default)
+
+`spark-1-mini` is the efficient model, ideal for straightforward data extraction tasks.
+
+**Use Mini when:**
+- Extracting simple data points (contact info, pricing, etc.)
+- Working with well-structured websites
+- Cost efficiency is a priority
+- Running high-volume extraction jobs
+
+**Example use cases:**
+- Extracting product prices from e-commerce sites
+- Gathering contact information from company pages
+- Pulling basic metadata from articles
+- Simple data point lookups
+
+#### Spark 1 Pro
+
+`spark-1-pro` is the flagship model, designed for maximum accuracy on complex extraction tasks.
+
+**Use Pro when:**
+- Performing complex competitive analysis
+- Extracting data that requires deep reasoning
+- Accuracy is critical for your use case
+- Dealing with ambiguous or hard-to-find data
+
+**Example use cases:**
+- Multi-domain competitive analysis
+- Complex research tasks requiring reasoning
+- Extracting nuanced information from multiple sources
+- Critical business intelligence gathering
+
+#### Specifying a Model
+
+```python
+from firecrawl import FirecrawlApp
+
+app = FirecrawlApp(api_key="fc-YOUR_API_KEY")
+
+# Using Spark 1 Mini (default - can be omitted)
+result = app.agent(
+    prompt="Find the pricing of Firecrawl",
+    model="spark-1-mini"
+)
+
+# Using Spark 1 Pro for complex tasks
+result = app.agent(
+    prompt="Compare all enterprise features and pricing across Firecrawl, Apify, and ScrapingBee",
+    model="spark-1-pro"
+)
+print(result.data)
+```
+
+#### Model Comparison
+
+| Feature | Spark 1 Mini | Spark 1 Pro |
+|---------|--------------|-------------|
+| **Cost** | 60% cheaper | Standard |
+| **Accuracy** | Standard | Higher |
+| **Speed** | Fast | Fast |
+| **Best for** | Most tasks | Complex tasks |
+| **Reasoning** | Standard | Advanced |
+| **Multi-domain** | Good | Excellent |
+
+#### Choosing the Right Model
+
+```
+                    ┌─────────────────────────────────┐
+                    │   What type of task?            │
+                    └─────────────────────────────────┘
+                                   │
+                    ┌──────────────┴──────────────┐
+                    ▼                             ▼
+          ┌─────────────────┐           ┌─────────────────┐
+          │  Simple/Direct  │           │ Complex/Research│
+          │  extraction     │           │ multi-domain    │
+          └─────────────────┘           └─────────────────┘
+                    │                             │
+                    ▼                             ▼
+          ┌─────────────────┐           ┌─────────────────┐
+          │  spark-1-mini   │           │  spark-1-pro    │
+          │  (60% cheaper)  │           │  (higher acc.)  │
+          └─────────────────┘           └─────────────────┘
+```
+
+---
+
 ## Advanced Features
 
 ### LLM Extract (JSON Mode)
@@ -889,6 +1199,8 @@ Authorization: Bearer fc-YOUR-API-KEY
 | `/search` | POST | Search the web |
 | `/batch/scrape` | POST | Start a batch scrape job |
 | `/batch/scrape/{id}` | GET | Get batch scrape status |
+| `/agent` | POST | Start an agent job (autonomous data extraction) |
+| `/agent/{id}` | GET | Get agent job status |
 
 ### HTTP Status Codes
 

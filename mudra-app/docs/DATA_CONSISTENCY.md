@@ -10,6 +10,8 @@ All visibility metrics now use the **Firegeo formula** consistently across:
 - Visibility History Chart
 - Competitor Table
 
+**Important**: Both List View and Deep View now use **ALL** analysis runs to calculate visibility scores (averaged across all runs). This ensures users see the same visibility percentage when clicking from the list into the detail view.
+
 ---
 
 ## Firegeo Visibility Formula
@@ -207,19 +209,20 @@ const avgDayScore = null  // Chart skips this point
 |-----------|--------------|---------|
 | List View visibility | First provider only | Ignored other AI models |
 | List View position | First provider only | Not representative |
+| List View data source | Latest run only | Didn't match Deep View |
 | Deep View visibility | Mention rate (%) | Different from list view |
 | Chart | Mention rate (%) | Caused 0%/100% spikes |
 | Competitors table | Mention rate (%) | Inconsistent with chart |
 
 ### Current Implementation (After Fix)
 
-| Component | Formula Used | Result |
-|-----------|--------------|--------|
-| List View visibility | Firegeo aggregate | Consistent |
-| List View position | Average across all | Accurate |
-| Deep View visibility | Firegeo | Matches list view |
-| Chart | Firegeo daily average | Smooth trends |
-| Competitors table | Firegeo | Matches chart |
+| Component | Formula Used | Data Source | Result |
+|-----------|--------------|-------------|--------|
+| List View visibility | Firegeo aggregate | ALL runs | Consistent |
+| List View position | Average across all | ALL runs | Accurate |
+| Deep View visibility | Firegeo | ALL runs (date range) | Matches list view |
+| Chart | Firegeo daily average | ALL runs | Smooth trends |
+| Competitors table | Firegeo | ALL runs | Matches chart |
 
 ---
 

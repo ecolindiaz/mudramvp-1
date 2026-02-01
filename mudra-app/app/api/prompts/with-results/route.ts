@@ -10,7 +10,8 @@ import {
 
 /**
  * GET /api/prompts/with-results?brandProfileId={id}
- * Get prompts used in the latest analysis run with their results
+ * Get prompts with their visibility scores averaged across ALL analysis runs
+ * This ensures consistency with the Deep View (prompt detail page)
  * Includes both aggregate metrics (Firegeo-style) and per-prompt scores (Mudra-style)
  */
 export async function GET(request: NextRequest) {
@@ -71,11 +72,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Step 1: Get the latest GEO analysis result first (primary source of truth)
-    // This is the fallback when AnalysisRun is in mock mode
-    let latestAnalysis = null
+    // Step 1: Get ALL GEO analysis results (to average visibility across all runs)
+    // This ensures List View matches Deep View which also uses all runs
+    let allAnalysisResults: any[] = []
+    let latestAnalysis: any = null
     try {
-      latestAnalysis = await prisma.geoAnalysisResult.findFirst({
+      allAnalysisResults = await prisma.geoAnalysisResult.findMany({
         where: {
           brandProfileId: profileId
         },
@@ -83,13 +85,15 @@ export async function GET(request: NextRequest) {
           createdAt: 'desc'
         }
       })
-      if (latestAnalysis) {
-        console.log(`✅ Found GeoAnalysisResult for brand profile ${profileId} (created: ${latestAnalysis.createdAt})`)
+      if (allAnalysisResults.length > 0) {
+        latestAnalysis = allAnalysisResults[0] // Keep reference to latest for metadata
+        console.log(`✅ Found ${allAnalysisResults.length} GeoAnalysisResult(s) for brand profile ${profileId} (latest: ${latestAnalysis.createdAt})`)
       }
     } catch (error: any) {
       // If table doesn't exist, just continue without analysis
       if (error.code === 'P2021' || error.message?.includes('does not exist')) {
         console.log(`⚠️ GEO analysis results table not found, skipping analysis query`)
+        allAnalysisResults = []
         latestAnalysis = null
       } else {
         throw error
@@ -122,11 +126,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Step 3: Use GeoAnalysisResult as fallback when AnalysisRun is missing/mock
-    // This handles the case where AnalysisRun is in mock mode but GeoAnalysisResult exists
-    if (!latestAnalysisRun && latestAnalysis && latestAnalysis.analyses) {
-      console.log(`ℹ️ No completed AnalysisRun found, but GeoAnalysisResult exists - proceeding with GeoAnalysisResult as source of truth`)
-      // Continue processing with latestAnalysis (skip the early return below)
+    // Step 3: Use GeoAnalysisResults as fallback when AnalysisRun is missing/mock
+    // This handles the case where AnalysisRun is in mock mode but GeoAnalysisResults exist
+    if (!latestAnalysisRun && allAnalysisResults.length > 0) {
+      console.log(`ℹ️ No completed AnalysisRun found, but ${allAnalysisResults.length} GeoAnalysisResult(s) exist - proceeding with GeoAnalysisResults as source of truth`)
+      // Continue processing with allAnalysisResults (skip the early return below)
     }
 
     // Helper function to get and return prompts without results
@@ -203,10 +207,10 @@ export async function GET(request: NextRequest) {
       return promptsWithoutResults
     }
 
-    // Only return early if BOTH latestAnalysisRun AND latestAnalysis are missing
-    // (latestAnalysis from GeoAnalysisResult serves as fallback when AnalysisRun is in mock mode)
-    if (!latestAnalysisRun && (!latestAnalysis || !latestAnalysis.analyses)) {
-      console.log(`No completed analysis runs AND no GeoAnalysisResult found for brand profile ${profileId}, returning prompts without results`)
+    // Only return early if BOTH latestAnalysisRun AND allAnalysisResults are missing
+    // (allAnalysisResults from GeoAnalysisResult serves as fallback when AnalysisRun is in mock mode)
+    if (!latestAnalysisRun && allAnalysisResults.length === 0) {
+      console.log(`No completed analysis runs AND no GeoAnalysisResults found for brand profile ${profileId}, returning prompts without results`)
       
       const promptsWithoutResults = await getPromptsWithoutResults()
       
@@ -229,27 +233,27 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // At this point, we have latestAnalysis from GeoAnalysisResult (queried earlier)
-    // No need to query again - it was already fetched in Step 1
+    // At this point, we have allAnalysisResults from GeoAnalysisResult (queried earlier)
+    // No need to query again - they were already fetched in Step 1
 
     // If no GEO analysis data, return prompts without results
-    if (!latestAnalysis || !latestAnalysis.analyses) {
+    if (allAnalysisResults.length === 0) {
       console.log(`No GEO analysis results found for brand profile ${profileId}, returning prompts without results`)
-      
+
       const promptsWithoutResults = await getPromptsWithoutResults()
-      
+
       if (promptsWithoutResults === null) {
-        return NextResponse.json({ 
-          success: true, 
+        return NextResponse.json({
+          success: true,
           prompts: [],
           count: 0,
           hasAnalysis: false,
           message: 'Prompt table not available. Please restart the server.'
         })
       }
-      
-      return NextResponse.json({ 
-        success: true, 
+
+      return NextResponse.json({
+        success: true,
         prompts: promptsWithoutResults,
         count: promptsWithoutResults.length,
         hasAnalysis: false,
@@ -257,11 +261,20 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Step 3: Extract unique prompt texts from the analyses JSON
-    const analysesRaw = latestAnalysis.analyses
-    let analyses: any[] = typeof analysesRaw === 'string'
-      ? JSON.parse(analysesRaw)
-      : (Array.isArray(analysesRaw) ? analysesRaw : [])
+    // Step 3: Extract analyses from ALL GeoAnalysisResults (not just latest)
+    // This ensures visibility is averaged across all runs, matching Deep View
+    let allAnalyses: any[] = []
+    for (const analysisResult of allAnalysisResults) {
+      const analysesRaw = analysisResult.analyses
+      const parsedAnalyses: any[] = typeof analysesRaw === 'string'
+        ? JSON.parse(analysesRaw)
+        : (Array.isArray(analysesRaw) ? analysesRaw : [])
+      allAnalyses.push(...parsedAnalyses)
+    }
+    console.log(`📊 Collected ${allAnalyses.length} total analyses from ${allAnalysisResults.length} run(s)`)
+
+    // Use allAnalyses for all calculations (but filter if model specified)
+    let analyses: any[] = allAnalyses
 
     // Filter by model if specified (normalize model names for comparison)
     const normalizeModelName = (name: string): string => {

@@ -120,7 +120,7 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
   }
 
   return (
-    <div ref={containerRef} className="rounded-lg border border-white/[0.03] bg-white/[0.02] overflow-hidden">
+    <div ref={containerRef} className="rounded-lg border border-white/[0.03] bg-white/[0.02] overflow-hidden w-full max-w-full">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.04]">
         <div className="flex items-center gap-3">
           <span className="text-xs text-white/40">Response</span>
@@ -144,7 +144,7 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
         </button>
       </div>
       <div className={cn(
-        "px-5 py-4 text-[13px] text-white/60 leading-[1.7] overflow-y-auto overflow-x-auto max-w-full transition-all",
+        "px-5 py-4 text-[13px] text-white/60 leading-[1.7] overflow-auto w-full max-w-full transition-all",
         isExpanded ? "max-h-[400px]" : "max-h-[200px]"
       )}>
         <ReactMarkdown
@@ -192,7 +192,7 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
               )
             },
             pre: ({ children }) => (
-              <pre className="bg-white/[0.04] border border-white/[0.08] rounded-lg my-4 p-4 overflow-x-auto">{children}</pre>
+              <pre className="bg-white/[0.04] border border-white/[0.08] rounded-lg my-4 p-4 overflow-x-auto max-w-full">{children}</pre>
             ),
             blockquote: ({ children }) => (
               <blockquote className="border-l-2 border-white/20 pl-4 my-4 text-white/50 italic">{children}</blockquote>

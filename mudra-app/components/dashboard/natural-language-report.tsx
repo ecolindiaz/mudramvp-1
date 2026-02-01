@@ -22,6 +22,7 @@ import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 import { useBrandProfile } from "@/components/brand-profile-context"
 import { ExpansionModal, type ExpansionModalColumn } from "./expansion-modal"
+import { CompanyLogo, DomainLogo } from "@/components/ui/company-logo"
 
 interface NaturalLanguageReportProps {
   className?: string
@@ -940,7 +941,6 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                   ) : (
                     <>
                       {(isCompetitorRankingsExpanded ? competitorRankings : competitorRankings.slice(0, 5)).map((competitor, idx) => {
-                        const logoUrl = getCompanyLogoUrl(competitor.name)
                         return (
                           <div
                             key={idx}
@@ -948,23 +948,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                           >
                             <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
                             <div className="flex items-center gap-2.5 min-w-0">
-                              {logoUrl ? (
-                                <img
-                                  src={logoUrl}
-                                  alt={competitor.name}
-                                  className="size-6 rounded object-contain bg-white/5"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement
-                                    target.style.display = 'none'
-                                    target.nextElementSibling?.classList.remove('hidden')
-                                  }}
-                                />
-                              ) : null}
-                              <span
-                                className={`inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80 ${logoUrl ? 'hidden' : ''}`}
-                              >
-                                {competitor.name[0]?.toUpperCase() || '?'}
-                              </span>
+                              <CompanyLogo company={competitor.name} size={24} />
                               <span className="text-sm truncate text-white/90">
                                 {competitor.name}
                               </span>
@@ -1056,9 +1040,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                       }}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80">
-                          {c.domain[0].toUpperCase()}
-                        </span>
+                        <DomainLogo domain={c.domain} size={24} />
                         <span className="truncate text-sm text-white/90">{c.domain}</span>
                       </div>
                       <div className="flex justify-center">
@@ -1242,24 +1224,9 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
             width: "1fr",
             sortable: true,
             render: (item) => {
-              const logoUrl = `https://logo.clearbit.com/${item.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`
               return (
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <img
-                    src={logoUrl}
-                    alt={item.name}
-                    className="size-6 rounded object-contain bg-white/5"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement
-                      target.style.display = 'none'
-                      target.nextElementSibling?.classList.remove('hidden')
-                    }}
-                  />
-                  <span
-                    className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80 hidden"
-                  >
-                    {item.name[0]?.toUpperCase() || '?'}
-                  </span>
+                  <CompanyLogo company={item.name} size={24} />
                   <span className="truncate text-white/90">{item.name}</span>
                 </div>
               )
@@ -1312,9 +1279,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
             sortable: true,
             render: (item) => (
               <div className="flex items-center gap-2.5 min-w-0">
-                <span className="inline-flex items-center justify-center size-6 rounded bg-white/5 border border-white/[0.04] text-[10px] text-white/80">
-                  {item.domain[0].toUpperCase()}
-                </span>
+                <DomainLogo domain={item.domain} size={24} />
                 <span className="truncate text-white/90">{item.domain}</span>
                 <ChevronRight className="size-3.5 text-white/30 ml-auto flex-shrink-0" />
               </div>
@@ -1360,9 +1325,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <span className="inline-flex items-center justify-center size-8 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs font-medium text-white/90 flex-shrink-0">
-                    {selectedSource.domain[0].toUpperCase()}
-                  </span>
+                  <DomainLogo domain={selectedSource.domain} size={32} className="rounded-lg" />
                   <div className="min-w-0 flex-1">
                     <h2 className="text-[15px] font-semibold text-white truncate">{selectedSource.domain}</h2>
                     <p className="text-xs text-white/50 mt-0.5">Click a URL to see related prompts</p>

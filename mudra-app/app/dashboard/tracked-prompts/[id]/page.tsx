@@ -26,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { useParams } from "next/navigation"
 import { useEffect } from "react"
+import { CompanyLogo, DomainLogo } from "@/components/ui/company-logo"
 
 // Model icon mapping - helper function to get icon based on model name
 const getModelIcon = (model: string): string | null => {
@@ -1176,7 +1177,10 @@ function TrackedPromptDeepViewInner() {
                                     {index}
                                   </TableCell>
                                   <TableCell className="text-white/90 px-4 py-3.5 align-middle">
-                                    {row.isYou ? `${row.company} (You)` : row.company}
+                                    <div className="flex items-center gap-2">
+                                      <CompanyLogo company={row.company} size={20} />
+                                      <span>{row.isYou ? `${row.company} (You)` : row.company}</span>
+                                    </div>
                                   </TableCell>
                                   <TableCell className="text-center px-4 py-3.5 align-middle">
                                     <div className="flex items-center justify-center gap-2">
@@ -1290,8 +1294,11 @@ function TrackedPromptDeepViewInner() {
                                     <TableCell className="w-[56px] text-center text-white/40 group-hover:text-white/60 px-2 transition-colors">
                                       {idx + 1}
                                     </TableCell>
-                                    <TableCell className="w-[50%] text-white/80 group-hover:text-white/95 truncate pl-2 pr-4 max-w-0 transition-colors">
-                                      <span className="truncate">{row.domain}</span>
+                                    <TableCell className="w-[50%] text-white/80 group-hover:text-white/95 pl-2 pr-4 max-w-0 transition-colors">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <DomainLogo domain={row.domain} size={18} />
+                                        <span className="truncate">{row.domain}</span>
+                                      </div>
                                     </TableCell>
                                     <TableCell className="text-center px-2">
                                       <div className="flex items-center justify-center">

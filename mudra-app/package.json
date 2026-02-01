@@ -120,6 +120,7 @@
     "react-hook-form": "^7.56.4",
     "react-hot-toast": "^2.5.2",
     "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.0",
     "react-server-dom-webpack": "^19.0.0",
     "reaviz": "^16.0.4",
     "recharts": "^2.15.4",

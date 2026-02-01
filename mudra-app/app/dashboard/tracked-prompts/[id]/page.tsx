@@ -2,6 +2,8 @@
 
 import Link from "next/link"
 import React, { useMemo, useState, useRef } from "react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { ArrowLeft, TrendingUp, Target, Award, MessageSquare, MessageSquareText, Building2, GraduationCap, Globe, Clock, Maximize2, Tag, ChevronRight, CheckCircle, ChevronDown, ChevronUp, XCircle, ExternalLink, FileText, ListOrdered, BookOpen, HelpCircle, Copy, Check } from "lucide-react"
 import Image from "next/image"
 import { Card, CardContent } from "@/components/ui/card"
@@ -110,63 +112,11 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
   const handleToggleExpand = () => {
     const wasExpanded = isExpanded
     setIsExpanded(!isExpanded)
-    // Scroll to top of response when expanding
     if (!wasExpanded && containerRef.current) {
       setTimeout(() => {
         containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
       }, 50)
     }
-  }
-
-  // Simple markdown-like formatting
-  const formatResponse = (text: string) => {
-    return text.split('\n').map((line, i) => {
-      const trimmed = line.trim()
-      if (!trimmed) return null
-
-      // Headers
-      if (trimmed.startsWith('### ')) {
-        return <h4 key={i} className="text-[14px] font-semibold text-white/90 mt-3 mb-1">{trimmed.slice(4)}</h4>
-      }
-      if (trimmed.startsWith('## ')) {
-        return <h3 key={i} className="text-[15px] font-semibold text-white/90 mt-4 mb-1.5">{trimmed.slice(3)}</h3>
-      }
-      if (trimmed.startsWith('# ')) {
-        return <h2 key={i} className="text-[16px] font-bold text-white/95 mt-4 mb-2">{trimmed.slice(2)}</h2>
-      }
-
-      // Bullet points
-      if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('* ')) {
-        return (
-          <div key={i} className="flex gap-2 mb-1 ml-2">
-            <span className="text-white/40">•</span>
-            <span>{trimmed.slice(2)}</span>
-          </div>
-        )
-      }
-
-      // Numbered lists
-      const numberedMatch = trimmed.match(/^(\d+)\.\s+(.+)/)
-      if (numberedMatch) {
-        return (
-          <div key={i} className="flex gap-2 mb-1 ml-2">
-            <span className="text-white/50 min-w-[1.2rem]">{numberedMatch[1]}.</span>
-            <span>{numberedMatch[2]}</span>
-          </div>
-        )
-      }
-
-      // Bold text within paragraphs
-      const parts = trimmed.split(/(\*\*[^*]+\*\*)/g)
-      const formattedParts = parts.map((part, j) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={j} className="text-white/90 font-medium">{part.slice(2, -2)}</strong>
-        }
-        return part
-      })
-
-      return <p key={i} className="mb-2 last:mb-0">{formattedParts}</p>
-    })
   }
 
   return (
@@ -194,10 +144,89 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
         </button>
       </div>
       <div className={cn(
-        "px-4 py-3 text-[13px] text-white/60 leading-relaxed overflow-y-auto transition-all",
+        "px-5 py-4 text-[13px] text-white/60 leading-[1.7] overflow-y-auto transition-all",
         isExpanded ? "max-h-[400px]" : "max-h-[200px]"
       )}>
-        {formatResponse(responseText)}
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            h1: ({ children }) => (
+              <h1 className="text-[16px] font-bold text-white/95 mt-5 mb-3 first:mt-0">{children}</h1>
+            ),
+            h2: ({ children }) => (
+              <h2 className="text-[15px] font-semibold text-white/90 mt-5 mb-2.5 first:mt-0">{children}</h2>
+            ),
+            h3: ({ children }) => (
+              <h3 className="text-[14px] font-semibold text-white/90 mt-4 mb-2 first:mt-0">{children}</h3>
+            ),
+            h4: ({ children }) => (
+              <h4 className="text-[13px] font-semibold text-white/90 mt-3 mb-1.5">{children}</h4>
+            ),
+            p: ({ children }) => (
+              <p className="mb-3 text-white/60 leading-[1.7] last:mb-0">{children}</p>
+            ),
+            ul: ({ children }) => (
+              <ul className="my-3 ml-4 space-y-2 list-disc list-outside">{children}</ul>
+            ),
+            ol: ({ children }) => (
+              <ol className="my-3 ml-4 space-y-2 list-decimal list-outside">{children}</ol>
+            ),
+            li: ({ children }) => (
+              <li className="text-white/60 leading-[1.6] pl-1">{children}</li>
+            ),
+            strong: ({ children }) => (
+              <strong className="text-white/90 font-medium">{children}</strong>
+            ),
+            em: ({ children }) => (
+              <em className="text-white/70 italic">{children}</em>
+            ),
+            code: ({ children, className }) => {
+              const isBlock = className?.includes('language-')
+              if (isBlock) {
+                return (
+                  <code className="block text-[12px] text-emerald-400/90">{children}</code>
+                )
+              }
+              return (
+                <code className="text-emerald-400/80 bg-white/[0.06] px-1.5 py-0.5 rounded text-[12px]">{children}</code>
+              )
+            },
+            pre: ({ children }) => (
+              <pre className="bg-white/[0.04] border border-white/[0.08] rounded-lg my-4 p-4 overflow-x-auto">{children}</pre>
+            ),
+            blockquote: ({ children }) => (
+              <blockquote className="border-l-2 border-white/20 pl-4 my-4 text-white/50 italic">{children}</blockquote>
+            ),
+            a: ({ href, children }) => (
+              <a href={href} className="text-emerald-400/80 hover:text-emerald-400 transition-colors" target="_blank" rel="noopener noreferrer">{children}</a>
+            ),
+            hr: () => (
+              <hr className="border-white/[0.08] my-5" />
+            ),
+            table: ({ children }) => (
+              <div className="my-4 overflow-x-auto rounded-lg border border-white/[0.08]">
+                <table className="w-full text-[12px]">{children}</table>
+              </div>
+            ),
+            thead: ({ children }) => (
+              <thead className="bg-white/[0.04] border-b border-white/[0.08]">{children}</thead>
+            ),
+            tbody: ({ children }) => (
+              <tbody className="divide-y divide-white/[0.06]">{children}</tbody>
+            ),
+            tr: ({ children }) => (
+              <tr className="hover:bg-white/[0.02] transition-colors">{children}</tr>
+            ),
+            th: ({ children }) => (
+              <th className="text-left text-white/80 font-medium px-3 py-2.5">{children}</th>
+            ),
+            td: ({ children }) => (
+              <td className="text-white/60 px-3 py-2.5">{children}</td>
+            ),
+          }}
+        >
+          {responseText}
+        </ReactMarkdown>
       </div>
       {isLongResponse && (
         <button
@@ -514,7 +543,7 @@ function TrackedPromptDeepViewInner() {
       const hoursAgo = Math.floor((now.getTime() - analysisDate.getTime()) / (1000 * 60 * 60))
       const timeAgo = hoursAgo < 24 ? `${hoursAgo} hr. ago` : `${Math.floor(hoursAgo / 24)} days ago`
 
-      // Extract citations from API response AND response text - deduplicated by normalized URL
+      // Extract citations from API response, web search sources, AND response text - deduplicated by normalized URL
       // This matches the logic used in citation-extraction.service.ts for the Sources tab
       const seenUrls = new Set<string>()
       const normalizeUrl = (url: string): string => {
@@ -532,7 +561,15 @@ function TrackedPromptDeepViewInner() {
         .filter((c: any) => c.url)
         .map((c: any) => ({ url: c.url, title: c.title }))
 
-      // Also extract URLs from response text (matching Sources tab logic)
+      // Include sources from web search APIs (OpenAI Responses API, Gemini grounding, etc.)
+      for (const source of (result.sources || [])) {
+        const url = source?.url || source?.link || (typeof source === 'string' ? source : '')
+        if (url && !allCitations.some(c => c.url === url)) {
+          allCitations.push({ url, title: source?.title })
+        }
+      }
+
+      // Also extract URLs from response text
       const responseText = result.response || ''
       const urlPattern = /https?:\/\/[^\s\)\]\}\,<>"']+/g
       const urlsInResponse = responseText.match(urlPattern) || []
@@ -652,14 +689,22 @@ function TrackedPromptDeepViewInner() {
   }, [promptData, competitorsData, profile?.companyName])
 
   // Dynamic competitor series config (including "You" with special color)
+  // Deduplicate by key to avoid React key collisions in chart tooltips
   const competitorSeries = useMemo(() => {
-    return competitorsDataWithYou.map((c, idx) => ({
-      key: toSeriesKey(c.company),
-      label: c.company,
-      color: c.isYou ? YOU_COLOR : COMPETITOR_COLORS[(idx - 1) % COMPETITOR_COLORS.length],
-      visibility: c.visibility,
-      isYou: c.isYou
-    }))
+    const seenKeys = new Set<string>()
+    return competitorsDataWithYou
+      .map((c, idx) => ({
+        key: toSeriesKey(c.company),
+        label: c.company,
+        color: c.isYou ? YOU_COLOR : COMPETITOR_COLORS[(idx - 1) % COMPETITOR_COLORS.length],
+        visibility: c.visibility,
+        isYou: c.isYou
+      }))
+      .filter(s => {
+        if (seenKeys.has(s.key)) return false
+        seenKeys.add(s.key)
+        return true
+      })
   }, [competitorsDataWithYou])
 
   const computedChartConfig = useMemo(() => {

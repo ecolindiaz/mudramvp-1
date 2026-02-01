@@ -11,7 +11,7 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, CheckSquare, Loader2, Pencil } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, CheckSquare, Loader2, Pencil, Leaf, Swords, BookOpen, Building2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
@@ -348,10 +348,19 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
           </div>
         )
       }
+      const intentConfig: Record<string, { icon: React.ReactNode; label: string }> = {
+        "Organic": { icon: <Leaf className="h-3.5 w-3.5" />, label: "Organic" },
+        "Competitor": { icon: <Swords className="h-3.5 w-3.5" />, label: "Competitor" },
+        "How-to": { icon: <BookOpen className="h-3.5 w-3.5" />, label: "How to" },
+        "How-to Guides": { icon: <BookOpen className="h-3.5 w-3.5" />, label: "How to" },
+        "Brand-Specific": { icon: <Building2 className="h-3.5 w-3.5" />, label: "Brand-Specific" },
+      }
+      const config = intentConfig[intent] || { icon: null, label: intent }
       return (
         <div className="flex items-center justify-center">
-          <Badge className="px-2 py-0.5 rounded text-xs font-medium bg-white/10 text-white/80 border-0">
-            {intent}
+          <Badge className="px-2 py-0.5 rounded text-xs font-medium bg-white text-black border-0 gap-1.5">
+            {config.icon}
+            {config.label}
           </Badge>
         </div>
       )
@@ -426,7 +435,7 @@ function TrackedPromptsPageInner() {
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 50, // show all 50 prompts on one page
+    pageSize: 15, // collapsed by default
   })
   const [sorting, setSorting] = useState<SortingState>([
     { id: "visibility", desc: true },
@@ -845,23 +854,12 @@ function TrackedPromptsPageInner() {
                   <p className="text-muted-foreground">Monitor prompts and mentions across AI models</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {isLoading ? (
-                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading prompts...
-                    </div>
-                  ) : (
-                    <div className={`text-sm ${data.length >= 50 ? 'text-yellow-400' : 'text-muted-foreground'}`}>
-                      {data.length} / 50 prompts tracked
-                      {data.length >= 50 && ' (Max)'}
-                    </div>
-                  )}
                   <Button
                     size="sm"
                     className="h-9 rounded-lg bg-white/5 text-white hover:bg-white/10 border-0"
                     onClick={() => {
                       if (showAll) {
-                        setPagination((p: PaginationState) => ({ ...p, pageIndex: 0, pageSize: 12 }))
+                        setPagination((p: PaginationState) => ({ ...p, pageIndex: 0, pageSize: 15 }))
                         setShowAll(false)
                       } else {
                         setPagination((p: PaginationState) => ({ ...p, pageIndex: 0, pageSize: filteredData.length }))
@@ -870,7 +868,7 @@ function TrackedPromptsPageInner() {
                     }}
                     disabled={isLoading || filteredData.length === 0}
                   >
-                    {showAll ? "Collapse" : "All Prompts"}
+                    {showAll ? "Collapse" : "Expand"}
                   </Button>
                   <Button
                     size="sm"
@@ -968,8 +966,12 @@ function TrackedPromptsPageInner() {
                       Clear filters
                     </Button>
                   )}
-                  <div className="ml-auto text-sm text-muted-foreground">
-                    Showing {filteredData.length} of {data.length} prompts
+                  <div className={`ml-auto px-2.5 py-1 rounded-md text-sm font-medium ${
+                    data.length >= 50 
+                      ? 'bg-amber-500/15 text-amber-400' 
+                      : 'bg-white/5 text-muted-foreground'
+                  }`}>
+                    {filteredData.length}/{data.length}
                   </div>
                 </div>
                 <div className="overflow-hidden rounded-xl border border-white/[0.04]">
@@ -1203,7 +1205,7 @@ function TrackedPromptsPageInner() {
                             <SelectValue placeholder="Select intent" />
                           </SelectTrigger>
                           <SelectContent className="rounded-lg">
-                            <SelectItem value="How-to Guides">How-to</SelectItem>
+                            <SelectItem value="How-to">How to</SelectItem>
                             <SelectItem value="Organic">Organic</SelectItem>
                             <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
                             <SelectItem value="Competitor">Competitor</SelectItem>
@@ -1322,7 +1324,7 @@ function TrackedPromptsPageInner() {
                             <SelectValue placeholder="Select intent" />
                           </SelectTrigger>
                           <SelectContent className="rounded-lg">
-                            <SelectItem value="How-to Guides">How-to</SelectItem>
+                            <SelectItem value="How-to">How to</SelectItem>
                             <SelectItem value="Organic">Organic</SelectItem>
                             <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
                             <SelectItem value="Competitor">Competitor</SelectItem>

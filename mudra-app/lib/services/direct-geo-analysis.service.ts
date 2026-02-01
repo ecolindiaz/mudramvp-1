@@ -7,6 +7,147 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Utility: Sleep function for retry delays
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Cache for resolved Gemini grounding redirect URLs (in-memory, per-process)
+const geminiRedirectCache = new Map<string, { url: string; title: string; resolvedAt: number }>();
+const REDIRECT_CACHE_TTL = 1000 * 60 * 60; // 1 hour cache TTL
+
+/**
+ * Resolves a Gemini grounding redirect URL to get the actual source URL.
+ * Google's grounding API returns URLs like:
+ * https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHQl1aug...
+ *
+ * This function follows the redirect to get the actual destination URL.
+ * Returns the original URL if resolution fails to ensure we don't lose data.
+ */
+async function resolveGeminiGroundingUrl(
+  redirectUrl: string,
+  originalTitle?: string
+): Promise<{ url: string; title: string }> {
+  // If not a grounding redirect URL, return as-is
+  if (!redirectUrl.includes('vertexaisearch.cloud.google.com/grounding-api-redirect')) {
+    return { url: redirectUrl, title: originalTitle || '' };
+  }
+
+  // Check cache first
+  const cached = geminiRedirectCache.get(redirectUrl);
+  if (cached && Date.now() - cached.resolvedAt < REDIRECT_CACHE_TTL) {
+    return { url: cached.url, title: cached.title };
+  }
+
+  try {
+    // Use fetch with redirect: 'manual' to get the redirect location without following it
+    // This is faster and avoids loading the full page content
+    const response = await fetch(redirectUrl, {
+      method: 'HEAD',
+      redirect: 'manual',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; MudraBot/1.0)',
+      },
+      signal: AbortSignal.timeout(5000), // 5 second timeout
+    });
+
+    // Get the redirect location from headers
+    const location = response.headers.get('location');
+
+    if (location && location !== redirectUrl) {
+      // Extract a better title from the resolved URL if original title is just a domain
+      let resolvedTitle = originalTitle || '';
+
+      try {
+        const urlObj = new URL(location);
+        // If the original title is just a domain (e.g., "aws.amazon.com"),
+        // keep it but ensure it's the actual domain
+        if (!resolvedTitle || resolvedTitle.length < 5) {
+          resolvedTitle = urlObj.hostname;
+        }
+      } catch {
+        // Keep original title if URL parsing fails
+      }
+
+      // Cache the resolved URL
+      geminiRedirectCache.set(redirectUrl, {
+        url: location,
+        title: resolvedTitle,
+        resolvedAt: Date.now(),
+      });
+
+      console.log(`[Gemini] Resolved redirect: ${redirectUrl.substring(0, 60)}... → ${location.substring(0, 80)}...`);
+      return { url: location, title: resolvedTitle };
+    }
+
+    // If no redirect location found, try following the redirect chain
+    const followResponse = await fetch(redirectUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; MudraBot/1.0)',
+      },
+      signal: AbortSignal.timeout(8000), // 8 second timeout for full follow
+    });
+
+    const finalUrl = followResponse.url;
+    if (finalUrl && finalUrl !== redirectUrl) {
+      let resolvedTitle = originalTitle || '';
+      try {
+        const urlObj = new URL(finalUrl);
+        if (!resolvedTitle || resolvedTitle.length < 5) {
+          resolvedTitle = urlObj.hostname;
+        }
+      } catch {
+        // Keep original title
+      }
+
+      geminiRedirectCache.set(redirectUrl, {
+        url: finalUrl,
+        title: resolvedTitle,
+        resolvedAt: Date.now(),
+      });
+
+      console.log(`[Gemini] Resolved redirect (follow): ${redirectUrl.substring(0, 60)}... → ${finalUrl.substring(0, 80)}...`);
+      return { url: finalUrl, title: resolvedTitle };
+    }
+  } catch (error: any) {
+    console.warn(`[Gemini] Failed to resolve redirect URL: ${error.message}`);
+    // Fall through to return original
+  }
+
+  // Return original URL as fallback - never lose the source
+  return { url: redirectUrl, title: originalTitle || '' };
+}
+
+/**
+ * Resolves multiple Gemini grounding URLs in parallel with concurrency limit.
+ * Returns resolved citations maintaining original order and positions.
+ */
+async function resolveGeminiGroundingUrls(
+  citations: Citation[],
+  concurrency: number = 3
+): Promise<Citation[]> {
+  if (citations.length === 0) return [];
+
+  const results: Citation[] = new Array(citations.length);
+  const queue = citations.map((c, i) => ({ citation: c, index: i }));
+
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const item = queue.shift();
+      if (!item) break;
+
+      const { citation, index } = item;
+      const resolved = await resolveGeminiGroundingUrl(citation.url, citation.title);
+
+      results[index] = {
+        ...citation,
+        url: resolved.url,
+        title: resolved.title || citation.title,
+      };
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
 /**
  * Retry helper with exponential backoff for rate limits and transient errors
  */
@@ -1508,19 +1649,30 @@ async function analyzeWithGoogle(
     
     console.log('[Google] Response received:', text.substring(0, 100) + '...');
     
-    const citations: Citation[] = [];
+    // Extract raw citations from grounding metadata
+    const rawCitations: Citation[] = [];
     const groundingMetadata = (response as any).candidates?.[0]?.groundingMetadata;
 
     if (groundingMetadata?.groundingChunks) {
       groundingMetadata.groundingChunks.forEach((chunk: any, idx: number) => {
         if (chunk.web) {
-          citations.push({
+          rawCitations.push({
             url: chunk.web.uri || '',
             title: chunk.web.title,
             position: idx + 1,
           });
         }
       });
+    }
+
+    // Resolve Gemini grounding redirect URLs to get actual source URLs
+    // This runs in parallel with concurrency limit to avoid overwhelming the server
+    const citations = rawCitations.length > 0
+      ? await resolveGeminiGroundingUrls(rawCitations, 3)
+      : [];
+
+    if (citations.length > 0) {
+      console.log(`[Google] Resolved ${citations.length} grounding URLs to actual sources`);
     }
 
     const searchQueries: string[] = [];

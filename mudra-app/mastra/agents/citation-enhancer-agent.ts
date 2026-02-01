@@ -11,6 +11,7 @@
  */
 
 import { Agent } from "@mastra/core/agent";
+import { anthropic } from "@ai-sdk/anthropic";
 
 const CITATION_ENHANCER_INSTRUCTIONS = `You are an expert at making content citation-worthy for AI systems.
 
@@ -180,5 +181,5 @@ export const citationEnhancerAgent = new Agent({
   id: "citation-enhancer-agent",
   name: "Citation Enhancer Agent",
   instructions: CITATION_ENHANCER_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4.5",
+  model: anthropic("claude-sonnet-4-5-20250514"),
 });

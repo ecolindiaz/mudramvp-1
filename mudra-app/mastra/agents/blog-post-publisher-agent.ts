@@ -10,6 +10,7 @@
  */
 
 import { Agent } from "@mastra/core/agent";
+import { anthropic } from "@ai-sdk/anthropic";
 
 const BLOG_POST_PUBLISHER_INSTRUCTIONS = `You are an expert at publishing blog posts to websites.
 
@@ -113,7 +114,7 @@ export const blogPostPublisherAgent = new Agent({
   id: "blog-post-publisher-agent",
   name: "Blog Post Publisher Agent",
   instructions: BLOG_POST_PUBLISHER_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4.5",
+  model: anthropic("claude-sonnet-4-5-20250514"),
 });
 
 export default blogPostPublisherAgent;

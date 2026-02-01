@@ -453,11 +453,12 @@ function TrackedPromptsPageInner() {
       return
     }
 
-    console.log('📡 Fetching tracked prompts for brand:', profile.id)
+    console.log('📡 Fetching tracked prompts for brand:', profile.id, 'with model filter:', selectedModel)
     setIsLoading(true)
-    
+
     try {
-      const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
+      const modelParam = selectedModel !== 'all' ? `&model=${encodeURIComponent(selectedModel)}` : ''
+      const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}`)
       const result = await response.json()
       
       console.log('📥 Prompts API response:', {
@@ -515,27 +516,20 @@ function TrackedPromptsPageInner() {
     }
   }
 
-  // Fetch prompts on mount and when profile changes
+  // Fetch prompts on mount and when profile or model filter changes
   useEffect(() => {
     fetchPrompts()
-  }, [profile?.id])
+  }, [profile?.id, selectedModel])
 
   // Filter the data based on selected filters
+  // Note: Model filtering is now handled at the API level for accurate metrics
+  // Client-side filtering only handles intent
   const filteredData = useMemo(() => {
     return data.filter((item) => {
-      // Check if any of the item's models match the selected filter (using normalized names)
-      let modelMatch = selectedModel === "all"
-      if (!modelMatch) {
-        if (item.models && item.models.length > 0) {
-          modelMatch = item.models.some(m => getModelDisplayName(m) === selectedModel)
-        } else if (item.model) {
-          modelMatch = getModelDisplayName(item.model) === selectedModel
-        }
-      }
       const intentMatch = selectedIntent === "all" || item.intent === selectedIntent
-      return modelMatch && intentMatch
+      return intentMatch
     })
-  }, [data, selectedModel, selectedIntent])
+  }, [data, selectedIntent])
 
   // Get unique models and intents for filter dropdowns
   // Normalize model names to handle duplicates like "Openai" vs "openai" vs "ChatGPT"

@@ -719,26 +719,31 @@ function TrackedPromptDeepViewInner() {
   const chartData = useMemo(() => {
     // Use real visibility history from API if available
     if (promptData?.visibilityHistory && promptData.visibilityHistory.length > 0) {
-      return promptData.visibilityHistory.map((point: any) => {
+      // Filter to only days with actual data for smoother trends
+      const dataWithValues = promptData.visibilityHistory.filter((point: any) =>
+        point.you !== null && point.totalResponses > 0
+      )
+
+      return dataWithValues.map((point: any) => {
         const row: any = { day: point.displayDate }
-        
-        // Add "you" visibility
-        row['you'] = point.you || 0
-        
+
+        // Add "you" visibility (Firegeo score, not mention rate)
+        row['you'] = point.you
+
         // Add each competitor's visibility for this day
         if (point.competitors) {
           Object.keys(point.competitors).forEach(compName => {
             row[toSeriesKey(compName)] = point.competitors[compName]
           })
         }
-        
+
         // Also add any competitors that might not have data for this day
         competitorSeries.forEach((s) => {
           if (!(s.key in row)) {
-            row[s.key] = 0
+            row[s.key] = null // null instead of 0 - chart will skip these
           }
         })
-        
+
         return row
       })
     }
@@ -1124,22 +1129,24 @@ function TrackedPromptDeepViewInner() {
               <div className="w-full space-y-4">
                 {/* Top row: two metric containers */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card className="bg-transparent rounded-lg border border-white/[0.03]">
-                    <CardContent className="pt-1 md:pt-2 px-5 md:px-6 pb-3 md:pb-4 min-h-[340px] md:min-h-[380px]">
-                      <div className="flex items-center justify-between -mt-2 mb-0">
-                        <div className="text-[14px] md:text-[15px] text-white/90 font-semibold">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="inline-flex items-center gap-1.5 cursor-help">Prompt Visibility <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              Percentage of chats mentioning your brand and competitors
-                            </TooltipContent>
-                          </Tooltip>
+                  <Card className="bg-transparent rounded-lg border border-white/[0.03] overflow-hidden py-0 shadow-none gap-0">
+                    <CardContent className="p-0 min-h-[340px] md:min-h-[380px] flex flex-col">
+                      <div className="sticky top-0 z-10 bg-white/[0.04] pt-4 pb-3 px-5 md:px-6">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-medium text-white/80">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center gap-1.5 cursor-help">Prompt Visibility <HelpCircle className="h-3.5 w-3.5 opacity-70" /></span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                Percentage of chats mentioning your brand and competitors
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <div className="hidden md:flex items-center gap-4" />
                         </div>
-                        <div className="hidden md:flex items-center gap-4" />
                       </div>
-                      <Separator className="-mx-5 md:-mx-6 mb-2 border-border" />
+                      <div className="flex-1 px-5 md:px-6 pb-3 md:pb-4 mt-8">
                       <ChartContainer config={computedChartConfig} className="h-[290px] md:h-[330px] w-full [&_.recharts-cartesian-axis-tick_text]:fill-white [&_.recharts-cartesian-axis-tick_text]:opacity-90">
                         <LineChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="4 8" stroke="#ffffff" strokeOpacity={0.08} vertical={false} />
@@ -1165,34 +1172,50 @@ function TrackedPromptDeepViewInner() {
                           {competitorSeries.map((s) => (
                             <Line
                               key={s.key}
-                              type="stepAfter"
+                              type="monotone"
                               dataKey={s.key}
                               stroke={s.color}
                               strokeWidth={2}
-                              dot={false}
-                              activeDot={{ r: 4, strokeWidth: 0 }}
+                              dot={{ r: 3, strokeWidth: 0, fill: s.color }}
+                              activeDot={{ r: 5, strokeWidth: 0 }}
                               strokeLinecap="round"
                               strokeLinejoin="round"
+                              connectNulls={false}
                               hide={!!activeCompetitor && activeCompetitor !== s.label}
                             />
                           ))}
                         </LineChart>
                       </ChartContainer>
                       <div className="mt-3 flex items-center justify-center gap-6 md:hidden" />
+                      </div>
                     </CardContent>
                   </Card>
                   <Card className="bg-transparent rounded-xl border border-white/[0.04] overflow-hidden py-0 shadow-none gap-0">
-                    <CardContent className="p-0 min-h-[360px] md:min-h-[400px]">
-                      <div className="overflow-hidden max-h-[360px] md:max-h-[400px] overflow-y-auto">
+                    <CardContent className="p-0 min-h-[360px] md:min-h-[400px] flex flex-col">
+                      <div className="sticky top-0 z-10 bg-white/[0.04]">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-white/[0.03]">
+                              <th className="w-12 h-11 px-4 text-left font-medium text-white/80"></th>
+                              <th className="w-12 h-11 text-left font-medium text-white/80 px-2">#</th>
+                              <th className="h-11 text-left font-medium text-white/80 px-4">Company</th>
+                              <th className="w-28 h-11 text-center font-medium text-white/80 px-4">Visibility</th>
+                              <th className="w-28 h-11 text-center font-medium text-white/80 px-4">Sentiment</th>
+                              <th className="w-24 h-11 text-center font-medium text-white/80 px-4">Position</th>
+                            </tr>
+                          </thead>
+                        </table>
+                      </div>
+                      <div className="overflow-y-auto flex-1 max-h-[320px] md:max-h-[360px]">
                         <Table className="w-full text-sm">
-                          <TableHeader className="sticky top-0 z-10 bg-white/[0.04]">
-                            <TableRow className="hover:bg-transparent border-white/[0.03]">
-                              <TableHead className="w-12 h-11 px-4"></TableHead>
-                              <TableHead className="w-12 h-11 text-white/80 px-2">#</TableHead>
-                              <TableHead className="h-11 text-white/80 px-4">Company</TableHead>
-                              <TableHead className="w-28 h-11 text-white/80 text-center px-4">Visibility</TableHead>
-                              <TableHead className="w-28 h-11 text-white/80 text-center px-4">Sentiment</TableHead>
-                              <TableHead className="w-24 h-11 text-white/80 text-center px-4">Position</TableHead>
+                          <TableHeader className="sr-only">
+                            <TableRow>
+                              <TableHead></TableHead>
+                              <TableHead>#</TableHead>
+                              <TableHead>Company</TableHead>
+                              <TableHead>Visibility</TableHead>
+                              <TableHead>Sentiment</TableHead>
+                              <TableHead>Position</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>

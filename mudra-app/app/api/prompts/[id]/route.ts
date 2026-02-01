@@ -4,9 +4,12 @@ import { getPromptVisibilityHistory } from '@/lib/services/prompt-visibility-his
 import { getCitationAnalysisForPrompt } from '@/lib/services/citation-extraction.service'
 
 /**
- * GET /api/prompts/[id]?brandProfileId={id}&dateRange={7d|14d|30d}&platform={all|ChatGPT|Claude|...}
+ * GET /api/prompts/[id]?brandProfileId={id}&dateRange={7d|14d|30d}&model={all|ChatGPT|Claude|...}
  * Get detailed prompt information including analysis results, competitive landscape, AI responses,
  * visibility history, and citation data
+ *
+ * Note: The 'model' parameter filters results by AI model/provider.
+ * For backwards compatibility, 'platform' is also accepted as an alias.
  */
 export async function GET(
   request: NextRequest,
@@ -18,7 +21,8 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
     const dateRange = (searchParams.get('dateRange') as '7d' | '14d' | '30d') || '7d'
-    const platform = searchParams.get('platform') || 'all'
+    // Accept both 'model' (new standard) and 'platform' (legacy) for backwards compatibility
+    const model = searchParams.get('model') || searchParams.get('platform') || 'all'
 
     if (!brandProfileId) {
       return NextResponse.json(
@@ -188,29 +192,45 @@ export async function GET(
       console.log(`   Citations per provider:`, promptTestResults.map(r => `${r.provider}: ${r.citations?.length || 0}`).join(', '))
     }
 
-    // Step 4: Calculate aggregate metrics for this prompt
-    const totalTests = promptTestResults.length
-    const mentionedCount = promptTestResults.filter(r => r.brandMentioned).length
-    const visibilityPercentage = totalTests > 0 ? Math.round((mentionedCount / totalTests) * 100) : 0
+    // Step 4: Apply model filter BEFORE calculating aggregate metrics
+    // This ensures visibility, position, and totals are all based on filtered data
+    const filteredTestResults = model && model !== 'all'
+      ? promptTestResults.filter(result => matchesModel(result.provider || result.model, model))
+      : promptTestResults
 
-    const positions = promptTestResults
+    console.log(`   After model filter (${model}): ${filteredTestResults.length} results`)
+
+    // Step 5: Calculate aggregate metrics from FILTERED data using Firegeo formula
+    const totalTests = filteredTestResults.length
+    const mentionedCount = filteredTestResults.filter(r => r.brandMentioned).length
+    const mentionRate = totalTests > 0 ? mentionedCount / totalTests : 0
+
+    const positions = filteredTestResults
       .filter(r => r.brandMentioned && r.brandPosition)
       .map(r => r.brandPosition)
     const averagePosition = positions.length > 0
       ? positions.reduce((sum, pos) => sum + pos, 0) / positions.length
       : null
 
-    // Sentiment breakdown
-    const sentimentCounts = {
-      Positive: promptTestResults.filter(r => r.sentiment === 'Positive').length,
-      Neutral: promptTestResults.filter(r => r.sentiment === 'Neutral').length,
-      Negative: promptTestResults.filter(r => r.sentiment === 'Negative').length
+    // Calculate Firegeo visibility score (consistent with chart)
+    // Formula: mentionRate * 50 + positionBonus * 50
+    let visibilityPercentage = Math.round(mentionRate * 50)
+    if (averagePosition && averagePosition > 0) {
+      const positionBonus = Math.max(0, (10 - averagePosition) / 10) * 50
+      visibilityPercentage += Math.round(positionBonus)
     }
-    const dominantSentiment = 
+
+    // Sentiment breakdown from filtered data
+    const sentimentCounts = {
+      Positive: filteredTestResults.filter(r => r.sentiment === 'Positive').length,
+      Neutral: filteredTestResults.filter(r => r.sentiment === 'Neutral').length,
+      Negative: filteredTestResults.filter(r => r.sentiment === 'Negative').length
+    }
+    const dominantSentiment =
       sentimentCounts.Positive >= sentimentCounts.Neutral && sentimentCounts.Positive >= sentimentCounts.Negative ? 'Positive' :
       sentimentCounts.Negative >= sentimentCounts.Neutral ? 'Negative' : 'Neutral'
 
-    // Step 5: Calculate per-competitor metrics
+    // Step 6: Calculate per-competitor metrics (from filtered data)
     const competitorMetrics = new Map<string, {
       mentions: number
       visibility: number
@@ -218,8 +238,8 @@ export async function GET(
       sentiments: string[]
     }>()
 
-    // Analyze each test result for competitor mentions
-    promptTestResults.forEach(result => {
+    // Analyze each filtered test result for competitor mentions
+    filteredTestResults.forEach(result => {
       const competitors = result.competitorsMentioned || []
       const competitorPositions = result.competitorPositions || {}
       const competitorSentiments = result.competitorSentiments || {}
@@ -258,14 +278,22 @@ export async function GET(
       })
     })
 
-    // Calculate final metrics for each competitor
+    // Calculate final metrics for each competitor using Firegeo formula
+    // (Same formula as chart for consistency)
     const competitorsWithMetrics = Array.from(competitorMetrics.entries()).map(([name, metrics]) => {
-      const visibility = totalTests > 0 ? Math.round((metrics.mentions / totalTests) * 100) : 0
-      
       // Average position across all tests where this competitor had a position
       const avgPosition = metrics.positions.length > 0
         ? Math.round((metrics.positions.reduce((sum, pos) => sum + pos, 0) / metrics.positions.length) * 10) / 10
         : null
+
+      // Calculate Firegeo visibility score (not mention rate!)
+      // Formula: mentionRate * 50 + positionBonus * 50
+      const mentionRate = totalTests > 0 ? metrics.mentions / totalTests : 0
+      let visibility = Math.round(mentionRate * 50)
+      if (avgPosition && avgPosition > 0) {
+        const positionBonus = Math.max(0, (10 - avgPosition) / 10) * 50
+        visibility += Math.round(positionBonus)
+      }
       
       // Dominant sentiment based on most frequent sentiment across tests
       const sentimentCount = {
@@ -299,7 +327,7 @@ export async function GET(
     // Sort by mentions (most mentioned first)
     competitorsWithMetrics.sort((a, b) => b.mentions - a.mentions)
 
-    // Step 6: Build competitive landscape
+    // Step 7: Build competitive landscape
     const competitorsList = Array.from(allCompetitorMentions)
     const competitiveLandscape = {
       mentioned: competitorsList,
@@ -308,11 +336,7 @@ export async function GET(
       totalCompetitors: competitorsList.length
     }
 
-    // Step 7: Format responses by provider (applying platform filter)
-    const filteredTestResults = platform && platform !== 'all'
-      ? promptTestResults.filter(result => matchesPlatform(result.provider || result.model, platform))
-      : promptTestResults
-    
+    // Step 8: Format responses by provider (already filtered)
     const responsesByProvider = filteredTestResults.map((result, index) => ({
       id: `response_${index}`,
       provider: result.provider,
@@ -330,23 +354,23 @@ export async function GET(
       analysisRunDate: result.analysisRunDate
     }))
 
-    // Step 8: Get visibility history time-series data
+    // Step 9: Get visibility history time-series data
     const visibilityHistory = await getPromptVisibilityHistory(
       profileId,
       prompt.text,
       dateRange,
-      platform
+      model
     )
 
-    // Step 9: Get citation analysis
+    // Step 10: Get citation analysis
     const citationAnalysis = await getCitationAnalysisForPrompt(
       profileId,
       promptId,
       dateRange,
-      platform
+      model
     )
 
-    // Step 10: Build competitors with "You" row included
+    // Step 11: Build competitors with "You" row included
     const brandName = prompt.brandProfile?.companyName || 'Your Brand'
     const competitorsWithYou = [
       {
@@ -363,7 +387,7 @@ export async function GET(
       }))
     ]
 
-    // Step 11: Return comprehensive prompt details
+    // Step 12: Return comprehensive prompt details
     return NextResponse.json({
       success: true,
       prompt: {
@@ -409,7 +433,7 @@ export async function GET(
         // Filter metadata
         filters: {
           dateRange,
-          platform
+          model
         },
         
         // Analysis metadata
@@ -427,13 +451,13 @@ export async function GET(
   }
 }
 /**
- * Check if a provider matches the selected platform filter
+ * Check if a provider matches the selected model filter
  */
-function matchesPlatform(provider: string, platform: string): boolean {
+function matchesModel(provider: string, model: string): boolean {
   const providerLower = (provider || '').toLowerCase()
-  const platformLower = platform.toLowerCase()
-  
-  switch (platformLower) {
+  const modelLower = model.toLowerCase()
+
+  switch (modelLower) {
     case 'chatgpt':
       return providerLower.includes('openai') || providerLower.includes('chatgpt') || providerLower.includes('gpt')
     case 'claude':

@@ -4,7 +4,7 @@
 
 This document explains how Mudra calculates AI visibility scores, competitor rankings, citations, and deltas. All metrics use the **Firegeo formula** as the single source of truth.
 
----
+---W
 
 ## 1. Firegeo Scoring Formula
 

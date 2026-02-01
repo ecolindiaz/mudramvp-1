@@ -481,9 +481,9 @@ export async function GET(request: NextRequest) {
         text: prompt.text,
         category: prompt.category,
         isCustom: prompt.isCustom,
-        // Top-level metrics (backward compatibility - uses first provider)
-        visibility: firstResult?.visibilityScore ?? 0,
-        position: firstResult?.position ?? null,
+        // Top-level metrics - use aggregate across all providers (Firegeo methodology)
+        visibility: promptAggregate?.overallScore ?? 0,
+        position: promptAggregate?.averagePosition ?? null,
         model: firstResult?.model ?? null,
         models: allModels, // All models used for this prompt
         sentiment: firstResult?.sentiment ?? null,

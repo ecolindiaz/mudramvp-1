@@ -1,8 +1,11 @@
 /**
  * Prompt Visibility History Service
- * 
+ *
  * Provides time-series visibility data for prompts, competitors, and the user's brand.
- * Aggregates historical analysis results into daily visibility percentages.
+ * Uses Firegeo formula for consistency with other views:
+ *   - Base 50 points for being mentioned
+ *   - Position bonus: 0-45 points based on position (Position 1 = 45, Position 10 = 0)
+ *   - Average across all tests on that day
  */
 
 import { prisma } from '@/lib/prisma'
@@ -10,9 +13,28 @@ import { prisma } from '@/lib/prisma'
 export interface VisibilityDataPoint {
   date: string // ISO date string (YYYY-MM-DD)
   displayDate: string // Formatted for display (e.g., "Oct 20")
-  you: number // User's brand visibility percentage
-  competitors: { [name: string]: number } // Each competitor's visibility percentage
+  you: number | null // User's brand visibility score (Firegeo), null if no data
+  competitors: { [name: string]: number } // Each competitor's visibility score
   totalResponses: number
+}
+
+/**
+ * Calculate Firegeo visibility score for a single test result
+ * Same formula used in visibility-scoring.service.ts
+ */
+function calculateFiregeoScore(mentioned: boolean, position: number | null): number {
+  if (!mentioned) return 0;
+
+  // Base 50 points for being mentioned
+  let score = 50;
+
+  // Position bonus: 0-45 points
+  if (position && position > 0) {
+    const positionBonus = Math.max(0, (10 - position) / 10) * 50;
+    score += positionBonus;
+  }
+
+  return Math.round(score);
 }
 
 export interface CompetitorVisibilityMetrics {
@@ -74,13 +96,15 @@ export async function getPromptVisibilityHistory(
   // Normalize prompt text for matching
   const normalizedPromptText = normalizeText(promptText)
   
-  // Aggregate data by date
+  // Aggregate data by date - now tracking Firegeo scores instead of just mentions
   const dailyData = new Map<string, {
+    brandScores: number[] // Individual Firegeo scores for each test
     brandMentions: number
     totalResponses: number
     brandPositions: number[]
     brandSentiments: string[]
     competitorData: Map<string, {
+      scores: number[] // Individual Firegeo scores
       mentions: number
       positions: number[]
       sentiments: string[]
@@ -93,6 +117,7 @@ export async function getPromptVisibilityHistory(
     
     if (!dailyData.has(date)) {
       dailyData.set(date, {
+        brandScores: [],
         brandMentions: 0,
         totalResponses: 0,
         brandPositions: [],
@@ -132,7 +157,14 @@ export async function getPromptVisibilityHistory(
       }
       
       dayData.totalResponses++
-      
+
+      // Calculate Firegeo score for this test
+      const brandScore = calculateFiregeoScore(
+        matchingTest.brandMentioned,
+        matchingTest.brandPosition
+      )
+      dayData.brandScores.push(brandScore)
+
       // Track brand mentions
       if (matchingTest.brandMentioned) {
         dayData.brandMentions++
@@ -148,21 +180,27 @@ export async function getPromptVisibilityHistory(
       const competitors = matchingTest.competitors || matchingTest.competitorsMentioned || []
       const competitorPositions = matchingTest.competitorPositions || {}
       const competitorSentiments = matchingTest.competitorSentiments || {}
-      
+
       for (const competitor of competitors) {
         if (!dayData.competitorData.has(competitor)) {
           dayData.competitorData.set(competitor, {
+            scores: [],
             mentions: 0,
             positions: [],
             sentiments: []
           })
         }
-        
+
         const compData = dayData.competitorData.get(competitor)!
+        const compPosition = competitorPositions[competitor] || null
+
+        // Calculate Firegeo score for this competitor
+        const compScore = calculateFiregeoScore(true, compPosition)
+        compData.scores.push(compScore)
         compData.mentions++
-        
-        if (competitorPositions[competitor]) {
-          compData.positions.push(competitorPositions[competitor])
+
+        if (compPosition) {
+          compData.positions.push(compPosition)
         }
         if (competitorSentiments[competitor]) {
           compData.sentiments.push(competitorSentiments[competitor])
@@ -171,77 +209,89 @@ export async function getPromptVisibilityHistory(
     }
   }
   
-  // Build time series data
+  // Build time series data using Firegeo scores
   const timeSeries: VisibilityDataPoint[] = []
   const allCompetitors = new Map<string, {
+    totalScores: number[]
     totalMentions: number
     positions: number[]
     sentiments: string[]
   }>()
-  
+
   let totalBrandMentions = 0
   let totalResponses = 0
+  const allBrandScores: number[] = []
   const allBrandPositions: number[] = []
   const allBrandSentiments: string[] = []
-  
+
   // Generate data points for each day in the range
   for (let d = new Date(startDate); d <= now; d.setDate(d.getDate() + 1)) {
     const dateKey = d.toISOString().split('T')[0]
     const displayDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    
+
     const dayData = dailyData.get(dateKey)
-    
+
     const dataPoint: VisibilityDataPoint = {
       date: dateKey,
       displayDate,
-      you: 0,
+      you: null, // null when no data (chart should not plot this point)
       competitors: {},
       totalResponses: 0
     }
-    
+
     if (dayData && dayData.totalResponses > 0) {
-      dataPoint.you = Math.round((dayData.brandMentions / dayData.totalResponses) * 100)
+      // Calculate average Firegeo score for the day (not mention rate!)
+      const avgBrandScore = dayData.brandScores.length > 0
+        ? Math.round(dayData.brandScores.reduce((a, b) => a + b, 0) / dayData.brandScores.length)
+        : 0
+      dataPoint.you = avgBrandScore
       dataPoint.totalResponses = dayData.totalResponses
-      
+
       totalBrandMentions += dayData.brandMentions
       totalResponses += dayData.totalResponses
+      allBrandScores.push(...dayData.brandScores)
       allBrandPositions.push(...dayData.brandPositions)
       allBrandSentiments.push(...dayData.brandSentiments)
-      
-      // Add competitor data for this day
+
+      // Add competitor data for this day (also using Firegeo scores)
       for (const [competitor, compData] of dayData.competitorData) {
-        dataPoint.competitors[competitor] = Math.round((compData.mentions / dayData.totalResponses) * 100)
-        
+        const avgCompScore = compData.scores.length > 0
+          ? Math.round(compData.scores.reduce((a, b) => a + b, 0) / compData.scores.length)
+          : 0
+        dataPoint.competitors[competitor] = avgCompScore
+
         // Aggregate competitor totals
         if (!allCompetitors.has(competitor)) {
           allCompetitors.set(competitor, {
+            totalScores: [],
             totalMentions: 0,
             positions: [],
             sentiments: []
           })
         }
         const aggData = allCompetitors.get(competitor)!
+        aggData.totalScores.push(...compData.scores)
         aggData.totalMentions += compData.mentions
         aggData.positions.push(...compData.positions)
         aggData.sentiments.push(...compData.sentiments)
       }
     }
-    
+
     timeSeries.push(dataPoint)
   }
   
   // Build competitor metrics array (including "You" as a row)
   const competitors: CompetitorVisibilityMetrics[] = []
-  
-  // Add "You" row first
-  const brandVisibility = totalResponses > 0
-    ? Math.round((totalBrandMentions / totalResponses) * 100)
+
+  // Add "You" row first - using average Firegeo score (not mention rate)
+  const brandVisibility = allBrandScores.length > 0
+    ? Math.round(allBrandScores.reduce((a, b) => a + b, 0) / allBrandScores.length)
     : 0
   const brandAvgPosition = allBrandPositions.length > 0
     ? Math.round((allBrandPositions.reduce((a, b) => a + b, 0) / allBrandPositions.length) * 10) / 10
     : null
   const brandSentiment = getDominantSentiment(allBrandSentiments)
-  
+
   competitors.push({
     name: brandProfile?.companyName || 'Your Brand',
     visibility: brandVisibility,
@@ -250,17 +300,17 @@ export async function getPromptVisibilityHistory(
     mentions: totalBrandMentions,
     isYou: true
   })
-  
-  // Add other competitors
+
+  // Add other competitors - using average Firegeo score
   for (const [name, data] of allCompetitors) {
-    const visibility = totalResponses > 0
-      ? Math.round((data.totalMentions / totalResponses) * 100)
+    const visibility = data.totalScores.length > 0
+      ? Math.round(data.totalScores.reduce((a, b) => a + b, 0) / data.totalScores.length)
       : 0
     const avgPosition = data.positions.length > 0
       ? Math.round((data.positions.reduce((a, b) => a + b, 0) / data.positions.length) * 10) / 10
       : null
     const sentiment = getDominantSentiment(data.sentiments)
-    
+
     competitors.push({
       name,
       visibility,

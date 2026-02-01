@@ -1,11 +1,16 @@
 /**
  * Visibility Scoring Service
- * 
- * Implements two scoring methodologies:
- * 1. Aggregate Score (Firegeo-style): Overall brand visibility across all prompts
- * 2. Per-Prompt Score (Mudra-style): Individual prompt performance
+ *
+ * Implements consistent Firegeo-style scoring methodology everywhere:
+ * 1. Aggregate Score: Overall brand visibility across all prompts
+ * 2. Per-Prompt Score: Individual prompt performance (now also uses Firegeo formula)
  * 3. Weighted Score: Intent-based scoring with category weights
- * 
+ *
+ * Firegeo Formula:
+ * - Base 50 points for being mentioned
+ * - Position bonus: 0-45 points (Position 1 = 45, Position 10 = 0)
+ * - Not mentioned = 0 points
+ *
  * Intent Weights (as per spec):
  * - Organic: 50%
  * - Competitor: 20%
@@ -273,9 +278,17 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
 }
 
 /**
- * Calculate per-prompt visibility score using Mudra methodology
- * Formula: Position-based scoring with 10% decay per rank
- * 
+ * Calculate per-prompt visibility score using Firegeo methodology
+ * Formula: Base 50 points for mention + position bonus (0-45 points based on position)
+ *
+ * Score Examples:
+ * - Position 1, mentioned → 50 + 45 = 95
+ * - Position 2, mentioned → 50 + 40 = 90
+ * - Position 3, mentioned → 50 + 35 = 85
+ * - Position 5, mentioned → 50 + 25 = 75
+ * - Mentioned, no position → 50
+ * - Not mentioned → 0
+ *
  * @param test - Single prompt test result
  * @returns Per-prompt visibility score
  */
@@ -284,26 +297,25 @@ export function calculatePerPromptScore(test: PromptTestResult): PerPromptScore 
   let position: number | null = null;
 
   if (test.brandMentioned) {
+    // Base score: 50 points for being mentioned
+    visibilityScore = 50;
+
     const pos = test.brandPosition;
-    
     if (pos !== undefined && pos !== null && pos > 0) {
       position = pos;
-      // Position-based scoring: Position 1 = 100%, each rank down = -10%
-      // Position 1 = 100%, Position 2 = 90%, Position 10 = 10%, Position 11+ = 0%
-      visibilityScore = Math.max(0, 100 - (pos - 1) * 10);
-    } else {
-      // Mentioned but no position tracked
-      visibilityScore = 50;
+      // Position bonus: 0-45 points based on position (Firegeo formula)
+      // Position 1 = 45 points, Position 10 = 0 points
+      const positionBonus = Math.max(0, (10 - pos) / 10) * 50;
+      visibilityScore += positionBonus;
     }
-  } else {
-    // Not mentioned
-    visibilityScore = 0;
+    // If mentioned but no position: just the 50 points (same as before)
   }
+  // Not mentioned: 0 points
 
   return {
     promptId: '', // Will be set by caller
     promptText: test.prompt,
-    visibilityScore,
+    visibilityScore: Math.round(visibilityScore),
     position,
     brandMentioned: test.brandMentioned,
     sentiment: test.sentiment || null,

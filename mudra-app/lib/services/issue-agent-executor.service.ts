@@ -373,10 +373,23 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
     console.log(`[IssueExecutor] Agent generate starting at ${new Date().toISOString()}`)
     const generateStartTime = Date.now()
     
+    // Wrap generate in a logged promise
+    const generatePromise = (async () => {
+      console.log(`[IssueExecutor] Inside generate promise - calling agent.generate()...`)
+      try {
+        const result = await agent.generate(prompt)
+        console.log(`[IssueExecutor] agent.generate() returned successfully`)
+        return result
+      } catch (genError) {
+        console.error(`[IssueExecutor] agent.generate() threw error:`, genError instanceof Error ? genError.message : String(genError))
+        throw genError
+      }
+    })()
+    
     let response
     try {
       response = await withTimeout(
-        agent.generate(prompt),
+        generatePromise,
         AGENT_TIMEOUT_MS,
         `Agent generation timed out after ${AGENT_TIMEOUT_MS/1000}s`
       )

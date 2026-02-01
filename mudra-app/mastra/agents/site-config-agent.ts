@@ -198,5 +198,5 @@ export const siteConfigAgent = new Agent({
   id: "site-config-agent",
   name: "Site Config Agent",
   instructions: SITE_CONFIG_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5-20250929",
+  model: "anthropic/claude-sonnet-4.5",
 });

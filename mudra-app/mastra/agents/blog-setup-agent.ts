@@ -116,7 +116,7 @@ export const blogSetupAgent = new Agent({
   id: "blog-setup-agent",
   name: "Blog Setup Agent",
   instructions: BLOG_SETUP_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5-20250929",
+  model: "anthropic/claude-sonnet-4.5",
 });
 
 export default blogSetupAgent;

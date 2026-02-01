@@ -134,5 +134,5 @@ export const llmsTxtAgent = new Agent({
   id: "llms-txt-agent",
   name: "LLMs.txt Agent",
   instructions: LLMS_TXT_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5-20250929",
+  model: "anthropic/claude-sonnet-4.5",
 });

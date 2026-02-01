@@ -113,7 +113,7 @@ export const blogPostPublisherAgent = new Agent({
   id: "blog-post-publisher-agent",
   name: "Blog Post Publisher Agent",
   instructions: BLOG_POST_PUBLISHER_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5-20250929",
+  model: "anthropic/claude-sonnet-4.5",
 });
 
 export default blogPostPublisherAgent;

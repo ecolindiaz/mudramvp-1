@@ -165,5 +165,5 @@ export const schemaArchitectAgent = new Agent({
   id: "schema-architect-agent",
   name: "Schema Architect Agent",
   instructions: SCHEMA_ARCHITECT_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5-20250929",
+  model: "anthropic/claude-sonnet-4.5",
 });

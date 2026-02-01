@@ -180,5 +180,5 @@ export const citationEnhancerAgent = new Agent({
   id: "citation-enhancer-agent",
   name: "Citation Enhancer Agent",
   instructions: CITATION_ENHANCER_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5-20250929",
+  model: "anthropic/claude-sonnet-4.5",
 });

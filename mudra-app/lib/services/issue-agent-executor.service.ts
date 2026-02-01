@@ -20,6 +20,35 @@ import {
 import { createOptimizationPR } from './github.service'
 import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
 
+// Timeout for agent generation (2 minutes)
+const AGENT_TIMEOUT_MS = 120_000
+
+/**
+ * Wrap a promise with a timeout
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string
+): Promise<T> {
+  let timeoutId: NodeJS.Timeout
+  
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(errorMessage))
+    }, timeoutMs)
+  })
+  
+  try {
+    const result = await Promise.race([promise, timeoutPromise])
+    clearTimeout(timeoutId!)
+    return result
+  } catch (error) {
+    clearTimeout(timeoutId!)
+    throw error
+  }
+}
+
 // Agent type to Mastra agent name mapping
 const ISSUE_AGENT_MAP: Record<string, string> = {
   // Technical Structure
@@ -331,9 +360,22 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
     console.log(`[IssueExecutor] Prompt length: ${prompt.length} chars`)
     console.log(`[IssueExecutor] Prompt preview: ${prompt.substring(0, 200)}...`)
     
-    console.log(`[IssueExecutor] Calling agent.generate()...`)
+    console.log(`[IssueExecutor] Calling agent.generate() with ${AGENT_TIMEOUT_MS/1000}s timeout...`)
     const generateStartTime = Date.now()
-    const response = await agent.generate(prompt)
+    
+    let response
+    try {
+      response = await withTimeout(
+        agent.generate(prompt),
+        AGENT_TIMEOUT_MS,
+        `Agent generation timed out after ${AGENT_TIMEOUT_MS/1000}s`
+      )
+    } catch (timeoutError) {
+      const elapsed = Date.now() - generateStartTime
+      console.error(`[IssueExecutor] Agent.generate() failed after ${elapsed}ms:`, timeoutError)
+      throw timeoutError
+    }
+    
     const generateDuration = Date.now() - generateStartTime
     console.log(`[IssueExecutor] Agent.generate() completed in ${generateDuration}ms`)
     

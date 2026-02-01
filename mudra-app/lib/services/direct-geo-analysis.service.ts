@@ -251,6 +251,69 @@ export interface CompetitorAnalysis {
 }
 
 /**
+ * Normalize company name for comparison
+ * Handles common variations: case, punctuation, common suffixes
+ */
+function normalizeCompanyName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    // Remove common suffixes
+    .replace(/\s*(inc\.?|llc\.?|ltd\.?|corp\.?|co\.?|company)$/i, '')
+    // Remove punctuation
+    .replace(/[.,!?'"()]/g, '')
+    // Normalize whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Check if two company names match (strict matching, not fuzzy substring)
+ * Returns true only if names are essentially the same company
+ */
+function matchCompetitorNames(name1: string, name2: string): boolean {
+  const norm1 = normalizeCompanyName(name1);
+  const norm2 = normalizeCompanyName(name2);
+
+  // Exact match after normalization
+  if (norm1 === norm2) {
+    return true;
+  }
+
+  // Handle acronyms vs full names (e.g., "YC" vs "Y Combinator")
+  // Only match if one is very short (likely acronym) and other starts with those letters
+  if (norm1.length <= 3 && norm2.length > 3) {
+    const initials = norm2.split(' ').map(w => w[0]).join('');
+    if (initials === norm1) return true;
+  }
+  if (norm2.length <= 3 && norm1.length > 3) {
+    const initials = norm1.split(' ').map(w => w[0]).join('');
+    if (initials === norm2) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Validate brand position - must be >= 1 to be a valid ranking
+ * Position 0 or negative values indicate the LLM misinterpreted a brand mention
+ * (e.g., brand mentioned in prose before a list) as a ranking position.
+ * In such cases, we return null to indicate no explicit ranking was found.
+ */
+function validateBrandPosition(position: number | null | undefined): number | undefined {
+  if (position === null || position === undefined) {
+    return undefined;
+  }
+  // Position must be >= 1 to be a valid ranking (rankings start at 1, not 0)
+  if (position >= 1) {
+    return position;
+  }
+  // Position 0 or negative = LLM error, treat as no ranking
+  console.warn(`[Position Validation] Invalid position ${position} detected, treating as no ranking`);
+  return undefined;
+}
+
+/**
  * Validate brand mention using regex with word boundaries
  */
 function validateBrandMention(text: string, brandName: string): boolean {
@@ -574,13 +637,28 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
         
         if (rowMatch) {
           let company = rowMatch[1].trim();
-          
-          // Skip if it looks like a header or separator
-          if (company.toLowerCase().includes('accelerator') || 
-              company.toLowerCase().includes('funding') ||
-              company.toLowerCase().includes('equity') ||
-              company.toLowerCase().includes('focus') ||
-              company === '') {
+          const companyLower = company.toLowerCase();
+
+          // Skip if it looks like a table header (comprehensive list)
+          const tableHeaderKeywords = [
+            // Generic table headers
+            'name', 'company', 'organization', 'entity', 'platform', 'tool', 'service',
+            'product', 'solution', 'provider', 'vendor', 'brand', 'rank', 'ranking',
+            // Industry-specific headers
+            'accelerator', 'incubator', 'fund', 'investor', 'vc',
+            'funding', 'investment', 'amount', 'valuation', 'equity', 'stake',
+            'focus', 'industry', 'sector', 'vertical', 'category', 'type',
+            'location', 'region', 'country', 'headquarters', 'hq',
+            'founded', 'year', 'date', 'stage', 'status',
+            'description', 'notes', 'details', 'summary', 'overview',
+            'website', 'url', 'link', 'contact', 'email',
+            // Metrics headers
+            'score', 'rating', 'stars', 'reviews', 'users', 'customers',
+            'revenue', 'arr', 'mrr', 'growth', 'size', 'employees',
+          ];
+
+          if (company === '' ||
+              tableHeaderKeywords.some(kw => companyLower === kw || companyLower.includes(kw + ' ') || companyLower.startsWith(kw))) {
             continue;
           }
           
@@ -615,7 +693,13 @@ function extractBrandPositionFromBulletList(text: string, brandName: string): nu
     const trimmedLine = line.trim();
 
     // Detect section headers (reset bullet count)
-    if (trimmedLine.match(/^#{1,3}\s+/) || trimmedLine.match(/^[A-Z][^:]*:$/)) {
+    // More specific patterns to avoid false resets on description lines
+    const isMarkdownHeader = /^#{1,3}\s+/.test(trimmedLine);
+    const isBoldHeader = /^\*\*[^*]+\*\*:?\s*$/.test(trimmedLine);
+    // Only reset on standalone title lines (all caps or title case, ends with colon, no long descriptions)
+    const isStandaloneHeader = /^[A-Z][A-Za-z\s]{2,30}:$/.test(trimmedLine) && !trimmedLine.includes(' - ');
+
+    if (isMarkdownHeader || isBoldHeader || isStandaloneHeader) {
       bulletPosition = 0;
       continue;
     }
@@ -978,25 +1062,25 @@ Return ONLY a valid JSON object with these exact keys:
     const mergedPositions = { ...(analysis.competitorPositions || {}) };
     
     // For each competitor mentioned, try to get position from regex if not in LLM result
+    // Use strict name matching to avoid false positives (e.g., "Y Combinator" matching "Y Combinator Studio")
     (analysis.competitorsMentioned || []).forEach((competitor: string) => {
-      // Check if this competitor has a regex-extracted position
+      // Check if this competitor has a regex-extracted position using strict matching
       const regexMatch = Object.keys(regexPositions).find(
-        regexComp => regexComp.toLowerCase() === competitor.toLowerCase() ||
-                     regexComp.includes(competitor) ||
-                     competitor.includes(regexComp)
+        regexComp => matchCompetitorNames(regexComp, competitor)
       );
-      
+
       if (regexMatch && !mergedPositions[competitor]) {
         mergedPositions[competitor] = regexPositions[regexMatch];
       }
     });
-    
+
     // Also add any regex-found competitors that LLM might have missed
+    // Use strict matching to avoid duplicates
     Object.entries(regexPositions).forEach(([company, position]) => {
       const alreadyMentioned = (analysis.competitorsMentioned || []).some(
-        (comp: string) => comp.toLowerCase() === company.toLowerCase()
+        (comp: string) => matchCompetitorNames(comp, company)
       );
-      
+
       if (!alreadyMentioned) {
         analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
         mergedPositions[company] = position;
@@ -1041,7 +1125,7 @@ Return ONLY a valid JSON object with these exact keys:
       prompt,
       response: text,
       brandMentioned: regexBrandMentioned,
-      brandPosition: analysis.brandPosition,
+      brandPosition: validateBrandPosition(analysis.brandPosition),
       competitors: validatedCompetitors,
       competitorPositions: validatedPositions,
       competitorSentiments: validatedSentiments,
@@ -1314,24 +1398,23 @@ Return ONLY a valid JSON object with these exact keys:
     // Merge regex positions with LLM positions
     const mergedPositions = { ...(analysis.competitorPositions || {}) };
     
+    // Use strict name matching to avoid false positives
     (analysis.competitorsMentioned || []).forEach((competitor: string) => {
       const regexMatch = Object.keys(regexPositions).find(
-        regexComp => regexComp.toLowerCase() === competitor.toLowerCase() ||
-                     regexComp.includes(competitor) ||
-                     competitor.includes(regexComp)
+        regexComp => matchCompetitorNames(regexComp, competitor)
       );
-      
+
       if (regexMatch && !mergedPositions[competitor]) {
         mergedPositions[competitor] = regexPositions[regexMatch];
       }
     });
-    
-    // Add regex-found competitors that LLM missed
+
+    // Add regex-found competitors that LLM missed (strict matching)
     Object.entries(regexPositions).forEach(([company, position]) => {
       const alreadyMentioned = (analysis.competitorsMentioned || []).some(
-        (comp: string) => comp.toLowerCase() === company.toLowerCase()
+        (comp: string) => matchCompetitorNames(comp, company)
       );
-      
+
       if (!alreadyMentioned) {
         analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
         mergedPositions[company] = position;
@@ -1340,7 +1423,7 @@ Return ONLY a valid JSON object with these exact keys:
 
     // CRITICAL: Validate brand mention using regex (not just LLM analysis)
     const regexBrandMentioned = validateBrandMention(text, config.brandName);
-    
+
     // CRITICAL: Filter out generic terms that aren't real companies
     const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
 
@@ -1348,7 +1431,7 @@ Return ONLY a valid JSON object with these exact keys:
       prompt,
       response: text,
       brandMentioned: regexBrandMentioned,
-      brandPosition: analysis.brandPosition,
+      brandPosition: validateBrandPosition(analysis.brandPosition),
       competitors: validatedCompetitors,
       competitorPositions: mergedPositions,
       competitorSentiments: analysis.competitorSentiments || {},
@@ -1548,23 +1631,23 @@ Return ONLY a valid JSON object with these exact keys:
     const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
     const mergedPositions = { ...(analysis.competitorPositions || {}) };
     
+    // Use strict name matching to avoid false positives
     (analysis.competitorsMentioned || []).forEach((competitor: string) => {
       const regexMatch = Object.keys(regexPositions).find(
-        regexComp => regexComp.toLowerCase() === competitor.toLowerCase() ||
-                     regexComp.includes(competitor) ||
-                     competitor.includes(regexComp)
+        regexComp => matchCompetitorNames(regexComp, competitor)
       );
-      
+
       if (regexMatch && !mergedPositions[competitor]) {
         mergedPositions[competitor] = regexPositions[regexMatch];
       }
     });
-    
+
+    // Add regex-found competitors that LLM missed (strict matching)
     Object.entries(regexPositions).forEach(([company, position]) => {
       const alreadyMentioned = (analysis.competitorsMentioned || []).some(
-        (comp: string) => comp.toLowerCase() === company.toLowerCase()
+        (comp: string) => matchCompetitorNames(comp, company)
       );
-      
+
       if (!alreadyMentioned) {
         analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
         mergedPositions[company] = position;
@@ -1578,7 +1661,7 @@ Return ONLY a valid JSON object with these exact keys:
       prompt,
       response: text,
       brandMentioned: regexBrandMentioned,
-      brandPosition: analysis.brandPosition,
+      brandPosition: validateBrandPosition(analysis.brandPosition),
       competitors: validatedCompetitors,
       competitorPositions: mergedPositions,
       competitorSentiments: analysis.competitorSentiments || {},
@@ -1755,23 +1838,23 @@ Return ONLY a valid JSON object with these exact keys:
     const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
     const mergedPositions = { ...(analysis.competitorPositions || {}) };
     
+    // Use strict name matching to avoid false positives
     (analysis.competitorsMentioned || []).forEach((competitor: string) => {
       const regexMatch = Object.keys(regexPositions).find(
-        regexComp => regexComp.toLowerCase() === competitor.toLowerCase() ||
-                     regexComp.includes(competitor) ||
-                     competitor.includes(regexComp)
+        regexComp => matchCompetitorNames(regexComp, competitor)
       );
-      
+
       if (regexMatch && !mergedPositions[competitor]) {
         mergedPositions[competitor] = regexPositions[regexMatch];
       }
     });
-    
+
+    // Add regex-found competitors that LLM missed (strict matching)
     Object.entries(regexPositions).forEach(([company, position]) => {
       const alreadyMentioned = (analysis.competitorsMentioned || []).some(
-        (comp: string) => comp.toLowerCase() === company.toLowerCase()
+        (comp: string) => matchCompetitorNames(comp, company)
       );
-      
+
       if (!alreadyMentioned) {
         analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
         mergedPositions[company] = position;
@@ -1785,7 +1868,7 @@ Return ONLY a valid JSON object with these exact keys:
       prompt,
       response: text,
       brandMentioned: regexBrandMentioned,
-      brandPosition: analysis.brandPosition,
+      brandPosition: validateBrandPosition(analysis.brandPosition),
       competitors: validatedCompetitors,
       competitorPositions: mergedPositions,
       competitorSentiments: analysis.competitorSentiments || {},
@@ -1813,10 +1896,15 @@ function calculateBrandMetrics(tests: PromptTest[]): {
   const mentionedTests = tests.filter(t => t.brandMentioned);
   const mentionRate = mentionedTests.length / totalTests;
   
-  // Calculate average position (only for tests where brand was mentioned with position)
-  const rankedTests = mentionedTests.filter(t => t.brandPosition !== undefined);
-  const averagePosition = rankedTests.length > 0 
-    ? rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length
+  // Calculate average position (only for tests where brand was mentioned with valid position)
+  // Position must be defined, not null, and > 0 to be valid (consistent with visibility-scoring.service.ts)
+  const rankedTests = mentionedTests.filter(t =>
+    t.brandPosition !== undefined &&
+    t.brandPosition !== null &&
+    t.brandPosition > 0
+  );
+  const averagePosition = rankedTests.length > 0
+    ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length) * 10) / 10
     : 0;
   
   // Calculate visibility score (0-100)

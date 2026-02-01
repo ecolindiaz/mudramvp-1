@@ -11,7 +11,7 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, CheckSquare, Loader2, Pencil, Leaf, Swords, BookOpen, Building2 } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, BookOpen, Building2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
@@ -870,21 +870,6 @@ function TrackedPromptsPageInner() {
                   >
                     {showAll ? "Collapse" : "Expand"}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-9 rounded-lg bg-white/5 text-white hover:bg-white/10 border-white/10 gap-1.5"
-                    onClick={() => {
-                      const selectedRows = table.getSelectedRowModel().rows
-                      if (selectedRows.length === 1) {
-                        openEditDialog(selectedRows[0].original)
-                      }
-                    }}
-                    disabled={isLoading || table.getSelectedRowModel().rows.length !== 1}
-                  >
-                    <Pencil className="h-4 w-4" />
-                    Edit Prompt
-                  </Button>
                   <Button 
                     size="sm" 
                     className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5" 
@@ -1110,22 +1095,50 @@ function TrackedPromptsPageInner() {
                 {/* Selection footer */}
                 {selectedCount > 0 && (
                   <div className="fixed left-1/2 -translate-x-1/2 bottom-6 z-30">
-                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-3.5 py-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-                      <div className="flex items-center gap-2 text-sm text-white/90">
-                        <CheckSquare className="h-4 w-4 text-white/70" />
-                        <span>
-                          {selectedCount} {selectedCount === 1 ? 'Prompt' : 'Prompts'} selected
+                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[#1a1a1a]/90 px-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+                      <div className="flex items-center gap-2 text-sm text-white/80 font-medium">
+                        <div className="flex items-center justify-center h-5 w-5 rounded-full bg-white/10">
+                          <span className="text-xs">{selectedCount}</span>
+                        </div>
+                        <span className="text-white/60">
+                          {selectedCount === 1 ? 'selected' : 'selected'}
                         </span>
                       </div>
-                      <div className="h-4 w-px bg-white/15" />
-                      <Button variant="outline" size="sm" className="h-8 rounded-md gap-1.5" onClick={() => table.resetRowSelection()}>
-                        <X className="h-4 w-4" />
+                      <div className="h-4 w-px bg-white/10 mx-1" />
+                      {/* Edit button - only show when exactly 1 prompt is selected */}
+                      {selectedCount === 1 && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 px-3 rounded-full gap-1.5 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                          onClick={() => {
+                            const selectedRows = table.getFilteredSelectedRowModel().rows
+                            if (selectedRows.length === 1) {
+                              const prompt = selectedRows[0].original
+                              setEditingPrompt(prompt)
+                              setEditPromptText(prompt.prompt)
+                              setEditIntent(prompt.intent || "Organic")
+                              setEditOpen(true)
+                            }
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                      )}
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 px-3 rounded-full gap-1.5 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                        onClick={() => table.resetRowSelection()}
+                      >
+                        <X className="h-3.5 w-3.5" />
                         Clear
                       </Button>
                       <Button 
-                        variant="destructive" 
+                        variant="ghost" 
                         size="sm" 
-                        className="h-8 rounded-md gap-1.5"
+                        className="h-8 px-3 rounded-full gap-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
                         disabled={isDeleting !== null}
                         onClick={async () => {
                           const selectedRows = table.getFilteredSelectedRowModel().rows
@@ -1136,11 +1149,11 @@ function TrackedPromptsPageInner() {
                         }}
                       >
                         {isDeleting ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         )}
-                        Delete {selectedCount > 1 ? 'Prompts' : 'Prompt'}
+                        Delete
                       </Button>
                     </div>
                   </div>
@@ -1270,21 +1283,23 @@ function TrackedPromptsPageInner() {
                     setErrorMessage(null)
                   }
                 }}>
-                  <DialogContent className="sm:max-w-md rounded-2xl">
+                  <DialogContent className="sm:max-w-lg rounded-xl border-0 bg-dark-grey">
                     <DialogHeader>
-                      <DialogTitle className="text-xl">Edit Prompt</DialogTitle>
+                      <DialogTitle>Edit Prompt</DialogTitle>
                       <DialogDescription>
                         Update the prompt text or category.
                       </DialogDescription>
                     </DialogHeader>
+                    
                     {errorMessage && (
-                      <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
-                        <p className="text-sm text-red-400">{errorMessage}</p>
+                      <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
+                        {errorMessage}
                       </div>
                     )}
-                    <div className="space-y-4">
+                    
+                    <div className="space-y-4 pt-2">
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex justify-between items-center">
                           <Label htmlFor="edit-prompt">Prompt</Label>
                           <span className={cn(
                             "text-xs",
@@ -1323,7 +1338,7 @@ function TrackedPromptsPageInner() {
                           <SelectTrigger id="edit-intent" className="w-full rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 outline-none border-white/10">
                             <SelectValue placeholder="Select intent" />
                           </SelectTrigger>
-                          <SelectContent className="rounded-lg">
+                          <SelectContent className="rounded-lg bg-[#161616] border-0">
                             <SelectItem value="How-to">How to</SelectItem>
                             <SelectItem value="Organic">Organic</SelectItem>
                             <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>

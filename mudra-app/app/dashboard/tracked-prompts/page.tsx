@@ -64,6 +64,29 @@ type TrackedPrompt = {
   isPending?: boolean // True when prompt is added but not yet analyzed
 }
 
+// Format date as relative time (e.g., "2h ago", "1d ago")
+const formatRelativeTime = (date: Date | string | null): string | null => {
+  if (!date) return null
+
+  const now = new Date()
+  const then = new Date(date)
+  const diffMs = now.getTime() - then.getTime()
+
+  const seconds = Math.floor(diffMs / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  const weeks = Math.floor(days / 7)
+  const months = Math.floor(days / 30)
+
+  if (months > 0) return `${months}mo ago`
+  if (weeks > 0) return `${weeks}w ago`
+  if (days > 0) return `${days}d ago`
+  if (hours > 0) return `${hours}h ago`
+  if (minutes > 0) return `${minutes}m ago`
+  return 'Just now'
+}
+
 // Model logo mapping - same as Recent Chats
 const getModelIcon = (model: string) => {
   const modelLower = model.toLowerCase()
@@ -428,13 +451,17 @@ function TrackedPromptsPageInner() {
       const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
       const result = await response.json()
       
-      console.log('📥 Prompts API response:', { 
-        success: result.success, 
+      console.log('📥 Prompts API response:', {
+        success: result.success,
         count: result.count,
-        hasAnalysis: result.hasAnalysis 
+        hasAnalysis: result.hasAnalysis,
+        analysisDate: result.analysisDate
       })
-      
+
       if (result.success && result.prompts) {
+        // Format the analysis date as relative time
+        const lastRunTime = formatRelativeTime(result.analysisDate)
+
         // Transform API response to table format
         const transformedData: TrackedPrompt[] = result.prompts.map((p: any) => {
           // Check if prompt has been analyzed (has model or visibility data)
@@ -448,7 +475,7 @@ function TrackedPromptsPageInner() {
             intent: p.category || null,
             sentiment: p.sentiment || null,
             position: p.position || null,
-            lastRun: null,
+            lastRun: hasBeenAnalyzed ? lastRunTime : null,
             isPending: !hasBeenAnalyzed, // Show loading state if not yet analyzed
           }
         })
@@ -671,6 +698,9 @@ function TrackedPromptsPageInner() {
                 const newPromptData = refreshResult.prompts.find((p: any) => p.id.toString() === newPromptId)
                 const hasResults = newPromptData && (newPromptData.model || (newPromptData.visibility && newPromptData.visibility > 0))
 
+                // Format the analysis date as relative time
+                const lastRunTime = formatRelativeTime(refreshResult.analysisDate)
+
                 const transformedData: TrackedPrompt[] = refreshResult.prompts.map((p: any) => {
                   const hasBeenAnalyzed = p.model || (p.visibility && p.visibility > 0)
                   return {
@@ -682,7 +712,7 @@ function TrackedPromptsPageInner() {
                     intent: p.category || null,
                     sentiment: p.sentiment || null,
                     position: p.position || null,
-                    lastRun: null,
+                    lastRun: hasBeenAnalyzed ? lastRunTime : null,
                     isPending: !hasBeenAnalyzed,
                   }
                 })

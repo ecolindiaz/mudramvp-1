@@ -945,19 +945,23 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                     <>
                       {(isCompetitorRankingsExpanded ? competitorRankings : competitorRankings.slice(0, 5)).map((competitor, idx) => {
                         return (
-                          <div
+                          <a
                             key={idx}
-                            className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.02]"
+                            href={`https://${competitor.name.toLowerCase().replace(/\s+/g, '')}.com`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.02] group"
                           >
                             <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
                             <div className="flex items-center gap-2.5 min-w-0">
                               <CompanyLogo company={competitor.name} size={24} />
-                              <span className="text-sm truncate text-white/90">
+                              <span className="text-sm truncate text-white/90 group-hover:underline underline-offset-2">
                                 {competitor.name}
                               </span>
+                              <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
                             </div>
                             <div className="text-sm tabular-nums text-white/70 font-medium">{competitor.sov}%</div>
-                          </div>
+                          </a>
                         )
                       })}
                       {competitorRankings.length > 5 && (
@@ -998,7 +1002,8 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
               </button>
             </div>
             <div className="divide-y divide-white/[0.06]">
-              <div className="grid grid-cols-[1fr_100px_130px] items-center px-5 py-2.5 text-xs text-white/50">
+              <div className="grid grid-cols-[auto_1fr_100px_130px] items-center gap-4 px-5 py-2.5 text-xs text-white/50">
+                <span className="w-6">#</span>
                 <span>Source</span>
                 <span className="text-center">Type</span>
                 <span className="text-right">Mention rate</span>
@@ -1008,8 +1013,11 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                   {[1, 2, 3, 4, 5].map((i) => (
                     <div
                       key={i}
-                      className="grid grid-cols-[1fr_100px_130px] items-center px-5 py-3.5"
+                      className="grid grid-cols-[auto_1fr_100px_130px] items-center gap-4 px-5 py-3.5"
                     >
+                      <div className="w-6">
+                        <span className="block h-4 w-4 rounded bg-white/10 animate-pulse" />
+                      </div>
                       <div className="flex items-center gap-2.5">
                         <span className="block size-6 rounded bg-white/10 animate-pulse" />
                         <span className="block h-4 w-32 rounded bg-white/10 animate-pulse" />
@@ -1029,7 +1037,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                   {(isCitationsExpanded ? citations : citations.slice(0, 5)).map((c, idx) => (
                     <div
                       key={idx}
-                      className="grid grid-cols-[1fr_100px_130px] items-center px-5 py-3.5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                      className="grid grid-cols-[auto_1fr_100px_130px] items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] transition-colors cursor-pointer"
                       onClick={() => {
                         setCameFromCitationsModal(false)
                         setSelectedSource({
@@ -1043,6 +1051,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                         })
                       }}
                     >
+                      <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
                       <div className="flex items-center gap-2.5 min-w-0">
                         <DomainLogo domain={c.domain} size={24} />
                         <span className="truncate text-sm text-white/90">{c.domain}</span>
@@ -1229,10 +1238,17 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
             sortable: true,
             render: (item) => {
               return (
-                <div className="flex items-center gap-2.5 min-w-0">
+                <a
+                  href={`https://${item.name.toLowerCase().replace(/\s+/g, '')}.com`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2.5 min-w-0 group"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <CompanyLogo company={item.name} size={24} />
-                  <span className="truncate text-white/90">{item.name}</span>
-                </div>
+                  <span className="truncate text-white/90 group-hover:underline underline-offset-2">{item.name}</span>
+                  <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
+                </a>
               )
             },
           },
@@ -1277,6 +1293,14 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
           })
         }}
         columns={[
+          {
+            key: "rank",
+            header: "#",
+            width: "50px",
+            render: (_, idx) => (
+              <span className="text-white/50 tabular-nums">{idx + 1}</span>
+            ),
+          },
           {
             key: "domain",
             header: "Source",

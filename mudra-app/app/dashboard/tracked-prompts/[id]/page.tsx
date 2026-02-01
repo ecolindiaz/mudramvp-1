@@ -1222,10 +1222,23 @@ function TrackedPromptDeepViewInner() {
                                     {index}
                                   </TableCell>
                                   <TableCell className="text-white/90 px-4 py-3.5 align-middle">
-                                    <div className="flex items-center gap-2">
-                                      <CompanyLogo company={row.company} size={20} />
-                                      <span>{row.isYou ? `${row.company} (You)` : row.company}</span>
-                                    </div>
+                                    {row.isYou ? (
+                                      <div className="flex items-center gap-2">
+                                        <CompanyLogo company={row.company} size={20} />
+                                        <span>{row.company} (You)</span>
+                                      </div>
+                                    ) : (
+                                      <a 
+                                        href={`https://${row.company.toLowerCase().replace(/\s+/g, '')}.com`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 hover:text-white transition-colors group"
+                                      >
+                                        <CompanyLogo company={row.company} size={20} />
+                                        <span className="group-hover:underline underline-offset-2">{row.company}</span>
+                                        <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                                      </a>
+                                    )}
                                   </TableCell>
                                   <TableCell className="text-center px-4 py-3.5 align-middle">
                                     <div className="flex items-center justify-center gap-2">

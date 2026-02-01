@@ -360,7 +360,17 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
     console.log(`[IssueExecutor] Prompt length: ${prompt.length} chars`)
     console.log(`[IssueExecutor] Prompt preview: ${prompt.substring(0, 200)}...`)
     
+    // Pre-flight check for API keys
+    const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY
+    const hasOpenAIKey = !!process.env.OPENAI_API_KEY
+    console.log(`[IssueExecutor] API Keys available - Anthropic: ${hasAnthropicKey}, OpenAI: ${hasOpenAIKey}`)
+    
+    if (!hasAnthropicKey && !hasOpenAIKey) {
+      throw new Error('No LLM API keys configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.')
+    }
+    
     console.log(`[IssueExecutor] Calling agent.generate() with ${AGENT_TIMEOUT_MS/1000}s timeout...`)
+    console.log(`[IssueExecutor] Agent generate starting at ${new Date().toISOString()}`)
     const generateStartTime = Date.now()
     
     let response
@@ -372,12 +382,13 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
       )
     } catch (timeoutError) {
       const elapsed = Date.now() - generateStartTime
-      console.error(`[IssueExecutor] Agent.generate() failed after ${elapsed}ms:`, timeoutError)
+      console.error(`[IssueExecutor] Agent.generate() failed after ${elapsed}ms at ${new Date().toISOString()}`)
+      console.error(`[IssueExecutor] Error details:`, timeoutError instanceof Error ? timeoutError.message : String(timeoutError))
       throw timeoutError
     }
     
     const generateDuration = Date.now() - generateStartTime
-    console.log(`[IssueExecutor] Agent.generate() completed in ${generateDuration}ms`)
+    console.log(`[IssueExecutor] Agent.generate() completed in ${generateDuration}ms at ${new Date().toISOString()}`)
     
     const responseText = response.text || ''
     

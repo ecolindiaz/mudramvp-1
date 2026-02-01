@@ -95,6 +95,9 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
     totalPrompts: number;
   } | null>(null)
 
+  // Track navigation origin for back button functionality
+  const [cameFromCitationsModal, setCameFromCitationsModal] = React.useState(false)
+
   // Ensure consistent hydration - only use profile.id after mount
   React.useEffect(() => {
     setIsMounted(true)
@@ -1028,6 +1031,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                       key={idx}
                       className="grid grid-cols-[1fr_100px_130px] items-center px-5 py-3.5 hover:bg-white/[0.02] transition-colors cursor-pointer"
                       onClick={() => {
+                        setCameFromCitationsModal(false)
                         setSelectedSource({
                           domain: c.domain,
                           urls: c.urls || [],
@@ -1261,6 +1265,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
         onRowClick={(item) => {
           // Close the ExpansionModal first to avoid stacked modals
           setShowCitationsModal(false)
+          setCameFromCitationsModal(true)
           setSelectedSource({
             domain: item.domain,
             urls: item.urls || [],
@@ -1311,7 +1316,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
       />
 
       {/* Source URLs Modal - popup showing URLs for a domain */}
-      <Dialog open={!!selectedSource} onOpenChange={(open) => { if (!open) setSelectedSource(null) }}>
+      <Dialog open={!!selectedSource} onOpenChange={(open) => { if (!open) { setSelectedSource(null); setCameFromCitationsModal(false) } }}>
         <DialogContent 
           showCloseButton={false}
           className="!max-w-3xl bg-[#161616] border-white/[0.08] p-0 !rounded-2xl overflow-hidden"
@@ -1325,6 +1330,19 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {cameFromCitationsModal && (
+                    <button
+                      onClick={() => {
+                        setSelectedSource(null)
+                        setCameFromCitationsModal(false)
+                        setShowCitationsModal(true)
+                      }}
+                      className="flex items-center justify-center size-8 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white/50 hover:text-white hover:bg-white/[0.1] transition-colors flex-shrink-0"
+                      title="Back to Citations"
+                    >
+                      <ArrowUpRight className="size-3.5 rotate-[-135deg]" />
+                    </button>
+                  )}
                   <DomainLogo domain={selectedSource.domain} size={32} className="rounded-lg" />
                   <div className="min-w-0 flex-1">
                     <h2 className="text-[15px] font-semibold text-white truncate">{selectedSource.domain}</h2>
@@ -1332,7 +1350,10 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                   </div>
                 </div>
                 <button
-                  onClick={() => setSelectedSource(null)}
+                  onClick={() => {
+                    setSelectedSource(null)
+                    setCameFromCitationsModal(false)
+                  }}
                   className="flex items-center justify-center size-7 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/[0.06] transition-colors"
                 >
                   <X className="size-3.5" />
@@ -1436,9 +1457,28 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-end px-5 py-3 border-t border-white/[0.06]">
+              <div className="flex items-center justify-between px-5 py-3 border-t border-white/[0.06]">
+                {cameFromCitationsModal ? (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setSelectedSource(null)
+                      setCameFromCitationsModal(false)
+                      setShowCitationsModal(true)
+                    }}
+                    className="h-8 px-3 text-white/60 hover:text-white hover:bg-white/[0.08] rounded-lg text-[13px] font-medium gap-1.5"
+                  >
+                    <ArrowUpRight className="size-3.5 rotate-[-135deg]" />
+                    Back to Citations
+                  </Button>
+                ) : (
+                  <div />
+                )}
                 <Button
-                  onClick={() => setSelectedSource(null)}
+                  onClick={() => {
+                    setSelectedSource(null)
+                    setCameFromCitationsModal(false)
+                  }}
                   className="h-8 px-4 bg-white text-black hover:bg-white/90 rounded-lg text-[13px] font-medium"
                 >
                   Done
@@ -1564,7 +1604,15 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-end px-5 py-3 border-t border-white/[0.06]">
+              <div className="flex items-center justify-between px-5 py-3 border-t border-white/[0.06]">
+                <Button
+                  variant="ghost"
+                  onClick={() => setSelectedUrl(null)}
+                  className="h-8 px-3 text-white/60 hover:text-white hover:bg-white/[0.08] rounded-lg text-[13px] font-medium gap-1.5"
+                >
+                  <ArrowUpRight className="size-3.5 rotate-[-135deg]" />
+                  Back to URLs
+                </Button>
                 <Button
                   onClick={() => setSelectedUrl(null)}
                   className="h-8 px-4 bg-white text-black hover:bg-white/90 rounded-lg text-[13px] font-medium"

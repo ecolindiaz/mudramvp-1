@@ -216,6 +216,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar"
+import { DomainLogo } from "@/components/ui/company-logo"
 
 // Interface for company data
 interface CompanyData {
@@ -232,6 +233,21 @@ const getCompanyInitials = (name: string): string => {
     .join('')
     .toUpperCase()
     .slice(0, 2)
+}
+
+// Extract domain from website URL for logo fetching
+const extractDomain = (website: string | undefined): string | null => {
+  if (!website) return null
+  try {
+    // Add protocol if missing
+    const urlStr = website.startsWith('http') ? website : `https://${website}`
+    const url = new URL(urlStr)
+    return url.hostname.replace(/^www\./, '')
+  } catch {
+    // If URL parsing fails, try to extract domain directly
+    const cleaned = website.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]
+    return cleaned || null
+  }
 }
 
 const data = {
@@ -370,12 +386,13 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
   
   // Use real company data from BrandProfile, but only after mounting
   // Shows "Loading..." while profile is being fetched
-  const companyData: CompanyData = React.useMemo(() => ({
-    name: isMounted 
+  const companyData: CompanyData & { domain?: string | null } = React.useMemo(() => ({
+    name: isMounted
       ? (profile?.companyName || (profile?.id ? "Unnamed Company" : "Loading..."))
       : "Your Company",
     website: isMounted && profile?.companyWebsite ? profile.companyWebsite : undefined,
-    logo: isMounted && profile?.userAvatar ? profile.userAvatar : undefined
+    logo: isMounted && profile?.userAvatar ? profile.userAvatar : undefined,
+    domain: isMounted ? extractDomain(profile?.companyWebsite) : null
   }), [profile, isMounted])
 
   // Get company initials for avatar
@@ -407,8 +424,10 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                   type="button"
                 >
                   <div className="inline-flex items-center gap-2.5 px-0 py-0 rounded-lg hover:bg-white/[0.03] flex-1 min-w-0">
-                    <div className="w-7 h-7 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08]">
-                      {companyData.logo ? (
+                    <div className="w-7 h-7 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08] overflow-hidden">
+                      {companyData.domain ? (
+                        <DomainLogo domain={companyData.domain} size={28} className="rounded-full" />
+                      ) : companyData.logo ? (
                         <img
                           src={companyData.logo}
                           alt={`${companyData.name} logo`}
@@ -447,8 +466,10 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
               >
                 <DropdownMenuLabel className="p-0 font-normal">
                   <div className="flex items-center gap-2.5 px-3 py-2.5 text-left text-sm">
-                    <div className="w-7 h-7 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08]">
-                      {companyData.logo ? (
+                    <div className="w-7 h-7 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08] overflow-hidden">
+                      {companyData.domain ? (
+                        <DomainLogo domain={companyData.domain} size={28} className="rounded-full" />
+                      ) : companyData.logo ? (
                         <img
                           src={companyData.logo}
                           alt={`${companyData.name} logo`}

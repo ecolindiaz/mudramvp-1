@@ -1680,24 +1680,22 @@ function TrackedPromptDeepViewInner() {
                                     {/* Full Response */}
                                     <ResponseRenderer responseText={chat.fullResponse || 'No response available'} />
 
-                                    {/* Citations - Compact list with URL preview */}
-                                    <div>
-                                      <div className="text-xs text-white/40 mb-2">Citations ({(chat.responseCitations || []).length} sources)</div>
+                                    {/* Citations */}
+                                    <div className="rounded-lg border border-white/[0.03] bg-white/[0.02] p-4">
+                                      <div className="text-xs text-white/40 mb-3">Citations ({(chat.responseCitations || []).length} sources)</div>
                                       {(chat.responseCitations && chat.responseCitations.length > 0) ? (
                                         <div className="flex flex-wrap gap-2">
                                           {chat.responseCitations.map((citation, index) => {
-                                            // Create short URL preview: domain + truncated path
-                                            const getShortUrl = (url: string) => {
+                                            // Extract domain from URL
+                                            const getDomain = (url: string) => {
                                               try {
                                                 const parsed = new URL(url)
-                                                const path = parsed.pathname.length > 20
-                                                  ? parsed.pathname.slice(0, 20) + '...'
-                                                  : parsed.pathname
-                                                return `${parsed.host}${path === '/' ? '' : path}`
+                                                return parsed.host.replace(/^www\./, '')
                                               } catch {
-                                                return url.slice(0, 35) + (url.length > 35 ? '...' : '')
+                                                return ''
                                               }
                                             }
+                                            const domain = getDomain(citation.url)
                                             return (
                                               <a
                                                 key={`${citation.url}-${index}`}
@@ -1705,16 +1703,20 @@ function TrackedPromptDeepViewInner() {
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 title={citation.url}
-                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.06] text-[11px] text-white/50 hover:text-white/70 transition-colors"
+                                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.04] text-[13px] text-white/70 hover:text-white/90 transition-all"
                                               >
-                                                <ExternalLink className="h-3 w-3 flex-shrink-0 text-white/40" />
-                                                <span className="truncate max-w-[200px]">{getShortUrl(citation.url)}</span>
+                                                {domain ? (
+                                                  <DomainLogo domain={domain} size={16} />
+                                                ) : (
+                                                  <Globe className="h-4 w-4 flex-shrink-0 text-white/40" />
+                                                )}
+                                                <span className="truncate max-w-[180px]">{domain || citation.url.slice(0, 30)}</span>
                                               </a>
                                             )
                                           })}
                                         </div>
                                       ) : (
-                                        <div className="text-[13px] text-white/40 italic">
+                                        <div className="text-[13px] text-white/40">
                                           No citations captured for this response
                                         </div>
                                       )}

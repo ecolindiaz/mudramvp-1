@@ -242,31 +242,34 @@ export default function SignUpPage() {
 
           <SignUpForm />
 
-          <div className="space-y-6">
-            <p className="text-center text-sm text-gray-400">
-              By clicking continue, you agree to our{' '}
-              <a
-                href="/terms"
-                className="underline underline-offset-4 hover:text-white text-gray-300"
-              >
-                Terms of Service
-              </a>{' '}
-              and{' '}
-              <a
-                href="/privacy"
-                className="underline underline-offset-4 hover:text-white text-gray-300"
-              >
-                Privacy Policy
-              </a>
-              .
-            </p>
+          <div className="space-y-4">
             <p className="text-center text-sm text-gray-400">
               Already have an account?{' '}
               <a
                 href="/login"
-                className="underline underline-offset-4 hover:text-white text-gray-300"
+                className="text-white hover:underline"
               >
                 Sign in
+              </a>
+            </p>
+            <p className="text-center text-xs text-gray-500">
+              By continuing, you agree to our{' '}
+              <a
+                href="https://www.trymudra.com/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                Terms
+              </a>{' '}
+              and{' '}
+              <a
+                href="https://www.trymudra.com/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                Privacy Policy
               </a>
             </p>
           </div>

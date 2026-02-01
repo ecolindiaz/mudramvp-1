@@ -463,7 +463,47 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
 }
 
 /**
- * Analyze with OpenAI
+ * Extract brand position from bullet list format
+ */
+function extractBrandPositionFromBulletList(text: string, brandName: string): number | null {
+  const lines = text.split('\n');
+  let bulletPosition = 0;
+  const brandLower = brandName.toLowerCase();
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    // Detect section headers (reset bullet count)
+    if (trimmedLine.match(/^#{1,3}\s+/) || trimmedLine.match(/^[A-Z][^:]*:$/)) {
+      bulletPosition = 0;
+      continue;
+    }
+
+    // Match bullet list items: • Company, - Company, * Company
+    // Allow lowercase start for brands like "iMerit"
+    const bulletMatch = trimmedLine.match(/^[•\-\*]\s+\*?\*?([A-Za-z][A-Za-z0-9\s&\.]+)/);
+
+    if (bulletMatch) {
+      bulletPosition++;
+      let company = bulletMatch[1].trim();
+
+      // Clean up company name: remove trailing punctuation, markdown, descriptions
+      company = company.replace(/[:\*]+$/, '').trim();
+      company = company.replace(/\s+[-—–].*$/, '').trim();
+      company = company.replace(/\s{2,}.*$/, '').trim();
+
+      // Check if this is the brand
+      if (company.toLowerCase() === brandLower) {
+        return bulletPosition;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Analyze with OpenAI using Responses API with web_search tool
  */
 async function analyzeWithOpenAI(
   prompt: string,
@@ -474,54 +514,113 @@ async function analyzeWithOpenAI(
     throw new Error('OpenAI API key required for analysis');
   }
 
-  const apiKey = config.apiKeys.openai;
+  const apiKey = config.apiKeys.openai.trim();
   const openai = new OpenAI({
-    apiKey: apiKey.trim(),
+    apiKey: apiKey,
   });
 
-  // System prompt for consistent ranking behavior
-  const systemPrompt = `You are an expert advisor providing rankings and recommendations.
-
-When asked about tools, services, or companies:
-1. Provide specific rankings with positions (1st, 2nd, etc.)
-2. Be objective and factual
-3. Focus on quality, features, and user satisfaction
-4. Include brief explanations for rankings
-5. If you don't have enough information about a specific company, mention that
-
-Be helpful and comprehensive in your response.`;
-
   try {
-    // Get the provider's response
-    // Note: OpenAI's web_search tool is not yet in stable API
-    // Using GPT-4o for best quality responses
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o', // Using GPT-4o for better quality
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.7,
-      max_tokens: 1200,
+    // Use OpenAI Responses API with web_search tool for real-time data
+    // No system prompt - let the model respond naturally to simulate real user searches
+    const response = await retryWithBackoff(async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
+      try {
+        const res = await fetch('https://api.openai.com/v1/responses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            tools: [
+              {
+                type: 'web_search',
+                search_context_size: 'high',
+              },
+            ],
+            tool_choice: { type: 'web_search' }, // Force web search
+            input: prompt, // Direct prompt without system instructions
+            include: ['web_search_call.action.sources'],
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          const error = new Error(`OpenAI Responses API error: ${res.status} - ${errorText.substring(0, 200)}`);
+          (error as any).status = res.status;
+          throw error;
+        }
+
+        return res;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          const timeoutError = new Error('Request timeout after 60 seconds');
+          (timeoutError as any).code = 'ETIMEDOUT';
+          throw timeoutError;
+        }
+        throw err;
+      }
     });
 
-    const text = response.choices[0]?.message?.content || '';
-    
-    // Citations not available in standard OpenAI API yet
-    // Will be added when web_search tool becomes available in stable API
-    const citations: Citation[] | undefined = undefined;
+    const data = await response.json();
+
+    // Extract response text, sources, and citations
+    let text = '';
+    const citations: Citation[] = [];
+    const sources: Citation[] = [];
+
+    for (const item of data.output || []) {
+      // Get sources from web_search_call
+      if (item.type === 'web_search_call' && item.action?.sources) {
+        for (const s of item.action.sources) {
+          sources.push({
+            url: s.url?.replace(/\?utm_source=openai$/, '') || '',
+            title: s.title || '',
+          });
+        }
+      }
+
+      // Get response text and citations from message
+      if (item.type === 'message') {
+        for (const c of item.content || []) {
+          if (c.type === 'output_text') {
+            text += c.text || '';
+            // Extract inline citations from annotations
+            for (const a of c.annotations || []) {
+              if (a.type === 'url_citation') {
+                citations.push({
+                  title: a.title || '',
+                  url: a.url?.replace(/\?utm_source=openai$/, '') || '',
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Deduplicate citations and sources
+    const uniqueCitations = Array.from(
+      new Map(citations.map(c => [c.url, c])).values()
+    );
+    const uniqueSources = Array.from(
+      new Map(sources.map(s => [s.url, s])).values()
+    );
+
+    console.log(`[OpenAI] Response received with ${uniqueCitations.length} citations and ${uniqueSources.length} sources`);
 
     // Analyze the response for brand mentions and sentiment using AI
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
 
 BRAND NAME: ${config.brandName}
-COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
+WHAT "${config.brandName}" DOES: ${config.description || config.keyProducts?.join(', ') || 'Not specified'}
+KNOWN DIRECT COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
 
 RESPONSE TEXT:
 "${text}"
@@ -536,22 +635,22 @@ Extract the following information:
    - If no explicit position/ranking is found, return null
    - Examples:
      * "### 1st: Y Combinator" → 1
-     * "2nd Place: Y Combinator" → 2  
+     * "2nd Place: Y Combinator" → 2
      * "#3: Y Combinator" → 3
      * "Y Combinator is mentioned but no ranking" → null
 
 3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
-   - Extract ALL proper company names that are competitors, alternatives, or mentioned alongside the brand
-   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
-   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "a16z", "Entrepreneurs First", "Boost VC")
-   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
-   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
-   - Return empty array [] if no competitors are mentioned
-   - Examples:
-     * From "Top 5 accelerators: 1. Y Combinator, 2. Techstars, 3. 500 Global, 4. Seedcamp, 5. MassChallenge"
-       → competitorsMentioned should be: ["Techstars", "500 Global", "Seedcamp", "MassChallenge"]
-     * From "Top 7: 1. YC, 2. Techstars, 3. 500 Global, 4. a16z Speedrun, 5. Antler, 6. Entrepreneurs First, 7. Boost VC"
-       → competitorsMentioned should be: ["Techstars", "500 Global", "a16z Speedrun", "Antler", "Entrepreneurs First", "Boost VC"]
+   - Extract ONLY companies that offer services/products SIMILAR to what "${config.brandName}" does: ${config.description || config.keyProducts?.join(', ') || 'similar services'}
+   - A company is a competitor if they provide COMPARABLE services/products that solve similar customer problems
+   - EXCLUDE companies with completely different service offerings (e.g., if analyzing an accelerator, exclude payment processors, hosting providers, design tools)
+   - EXCLUDE companies mentioned only as integration partners, tool mentions, or passing examples
+   - Prioritize companies from the known competitors list: ${config.competitors?.join(', ') || 'None'}
+   - Return empty array [] if no relevant competitors are mentioned
+   - **CRITICAL**: Only return actual COMPANY/BRAND NAMES. Never include:
+     * Sentence fragments like "Others share enthusiasm" or "Posts highlight..."
+     * Action phrases like "Reach out directly" or "Sign up now"
+     * Generic descriptions like "leading platform" or "top tool"
+     * Marketing copy or testimonials
 
 4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
    - Extract numerical positions for each competitor mentioned
@@ -650,9 +749,12 @@ Return ONLY a valid JSON object with these exact keys:
       const positionPatterns = [
         new RegExp(`(?:^|\\n)(?:###?\\s*)?([1-9]\\d?)(?:st|nd|rd|th)(?:\\s*[Pp]lace)?:?\\s*\\*?\\*?${config.brandName}`, 'i'),
         new RegExp(`#([1-9]\\d?):\\s*${config.brandName}`, 'i'),
-        new RegExp(`(?:ranked?|position)\\s*#?([1-9]\\d?).*${config.brandName}`, 'i'),
+        // More specific: "Brand is ranked #2" or "Brand ranked #2"
+        new RegExp(`${config.brandName}(?:\\s+is)?\\s+(?:ranked?|position(?:ed)?)\\s*#?([1-9]\\d?)`, 'i'),
+        // Numbered list: "2. Scale AI" or "## 2. Scale AI"
+        new RegExp(`(?:^|\\n)\\s*(?:#{1,3}\\s*)?(\\d+)\\.\\s+\\*?\\*?${config.brandName}\\b`, 'im'),
       ];
-      
+
       for (const pattern of positionPatterns) {
         const match = text.match(pattern);
         if (match) {
@@ -660,7 +762,12 @@ Return ONLY a valid JSON object with these exact keys:
           break;
         }
       }
-      
+
+      // If no position found, try bullet list detection
+      if (!brandPosition) {
+        brandPosition = extractBrandPositionFromBulletList(text, config.brandName);
+      }
+
       // Heuristic sentiment analysis
       let sentiment: 'positive' | 'neutral' | 'negative' = 'neutral';
       if (brandMentioned) {
@@ -755,11 +862,39 @@ Return ONLY a valid JSON object with these exact keys:
       }
     });
 
-    // CRITICAL: Validate brand mention using regex (not just LLM analysis)
+    // POST-PROCESSING VALIDATION
+    // 1. Validate brand mention using regex (more reliable than LLM)
     const regexBrandMentioned = validateBrandMention(text, config.brandName);
-    
-    // CRITICAL: Filter out generic terms that aren't real companies
-    const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
+    const llmBrandMentioned = analysis.brandMentioned || false;
+
+    if (llmBrandMentioned !== regexBrandMentioned) {
+      console.warn(`[OpenAI] Brand mention mismatch - LLM: ${llmBrandMentioned}, Regex: ${regexBrandMentioned}. Using regex result.`);
+    }
+
+    // 2. Filter competitors to only include valid company names
+    const rawCompetitors = analysis.competitorsMentioned || [];
+    const validatedCompetitors = filterValidCompetitors(rawCompetitors, config.brandName);
+
+    if (rawCompetitors.length !== validatedCompetitors.length) {
+      const filtered = rawCompetitors.filter((c: string) => !validatedCompetitors.includes(c));
+      console.warn(`[OpenAI] Filtered ${filtered.length} invalid competitors:`, filtered.slice(0, 5));
+    }
+
+    // 3. Filter positions to only include validated competitors
+    const validatedPositions: Record<string, number> = {};
+    validatedCompetitors.forEach(comp => {
+      if (mergedPositions[comp]) {
+        validatedPositions[comp] = mergedPositions[comp];
+      }
+    });
+
+    // 4. Filter sentiments to only include validated competitors
+    const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+    validatedCompetitors.forEach(comp => {
+      if (analysis.competitorSentiments?.[comp]) {
+        validatedSentiments[comp] = analysis.competitorSentiments[comp];
+      }
+    });
 
     return {
       prompt,
@@ -767,11 +902,12 @@ Return ONLY a valid JSON object with these exact keys:
       brandMentioned: regexBrandMentioned,
       brandPosition: analysis.brandPosition,
       competitors: validatedCompetitors,
-      competitorPositions: mergedPositions,
-      competitorSentiments: analysis.competitorSentiments || {},
+      competitorPositions: validatedPositions,
+      competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations,
+      citations: uniqueCitations.length > 0 ? uniqueCitations : undefined,
+      sources: uniqueSources.length > 0 ? uniqueSources : undefined,
     };
   } catch (error) {
     console.error(`Error analyzing with OpenAI:`, error);

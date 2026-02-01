@@ -133,118 +133,89 @@ export function PromptsForm() {
   const currentProgress = calculateProgress()
   const currentStage = getCurrentStage()
 
-  return (
-    <Card className="w-full max-w-[480px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
-      <CardHeader className="text-center pb-6">
-        <CardTitle className="text-2xl font-semibold text-white">
-          {hasError ? "Analysis Failed" : 
-           isAnalysisComplete ? "AI Visibility Analysis Complete!" : 
-           "Analyzing Your AI Visibility"}
-        </CardTitle>
-        <CardDescription className="text-white/70">
-          {hasError ? "We encountered an issue with the analysis" :
-           isAnalysisComplete ? "Your brand's AI visibility has been analyzed across major models" :
-           "Testing how AI models like ChatGPT, Claude, and Gemini rank your brand"}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="text-center space-y-4">
-          {hasError ? (
-            <>
-              <div className="relative">
-                <div className="w-16 h-16 mx-auto bg-red-500/20 rounded-full flex items-center justify-center">
-                  <div className="w-8 h-8 text-red-400">⚠️</div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-red-400 text-sm">{error || 'An error occurred during analysis'}</p>
-                <p className="text-white/60 text-xs">
-                  Don't worry - you can run analysis later from your dashboard
-                </p>
-              </div>
-            </>
-          ) : isAnalysisComplete ? (
-            <>
-              <div className="relative inline-block">
-                <CheckCircle className="w-16 h-16 mx-auto text-emerald-400" />
-                <div className="absolute inset-0 animate-ping">
-                  <CheckCircle className="w-16 h-16 mx-auto text-emerald-400/30" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-2xl font-bold text-white">Analysis Complete!</p>
-                <p className="text-white/70 text-sm">Your brand analysis is ready</p>
-                <div className="grid grid-cols-3 gap-2 text-xs mt-4">
-                  <div className="bg-white/[0.04] border border-white/[0.06] rounded-xl p-3">
-                    <div className="flex items-center gap-1 text-white/60 mb-1">
-                      <Target className="w-3 h-3" />
-                      AI Visibility
-                    </div>
-                    <div className="text-emerald-400 font-medium">
-                      {progress.geoAnalysis === 'completed' ? '✓' : '○'}
-                    </div>
-                  </div>
-                  <div className="bg-white/[0.04] border border-white/[0.06] rounded-xl p-3">
-                    <div className="flex items-center gap-1 text-white/60 mb-1">
-                      <Code className="w-3 h-3" />
-                      Technical
-                    </div>
-                    <div className="text-emerald-400 font-medium">
-                      {progress.technicalStructure === 'completed' ? '✓' : '○'}
-                    </div>
-                  </div>
-                  <div className="bg-white/[0.04] border border-white/[0.06] rounded-xl p-3">
-                    <div className="flex items-center gap-1 text-white/60 mb-1">
-                      <BarChart3 className="w-3 h-3" />
-                      Report
-                    </div>
-                    <div className="text-emerald-400 font-medium">
-                      {progress.report === 'completed' ? '✓' : '○'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-20 h-20 border-2 border-white/10 rounded-full"></div>
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-20 h-20 border-2 border-white/10 border-t-white rounded-full animate-spin"></div>
-                </div>
-                <Sparkles className="w-10 h-10 mx-auto text-white animate-pulse relative z-10 mt-[20px]" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-3 h-3 bg-white rounded-full shadow-[0_0_16px_rgba(255,255,255,0.5)]"></div>
-                </div>
-              </div>
-              <div className="space-y-3 mt-4">
-                <p className="text-4xl font-bold text-white">{Math.round(currentProgress)}%</p>
-                <p className="text-white/60 text-sm">{currentStage}</p>
-                <div className="w-full bg-white/[0.08] rounded-full h-1.5 overflow-hidden">
-                  <div 
-                    className="bg-white h-1.5 rounded-full transition-all duration-500 ease-out shadow-[0_0_8px_rgba(255,255,255,0.4)]"
-                    style={{ width: `${currentProgress}%` }}
-                  ></div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {(isAnalysisComplete || hasError) && (
+  if (isAnalysisComplete) {
+    return (
+      <Card className="w-full max-w-[400px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
+        <CardContent className="pt-8 pb-6 px-6 text-center space-y-6">
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-white">
+              AI Visibility Analysis Complete!
+            </h2>
+            <p className="text-sm text-white/60">
+              Your brand's AI visibility has been analyzed across major models
+            </p>
+          </div>
           <Button
             type="button"
             onClick={handleFinish}
-            className="w-full h-10 bg-white text-black border border-white hover:bg-white/90 shadow-none rounded-lg disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
+            className="w-full h-11 bg-white text-black hover:bg-white/90 rounded-lg font-medium"
           >
-            <div className="flex items-center justify-center gap-2">
-              {isAnalysisComplete ? "View Dashboard" : "Continue to Dashboard"}
-              <ArrowRight className="w-4 h-4" />
-            </div>
+            View Dashboard
+            <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
-        )}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (hasError) {
+    return (
+      <Card className="w-full max-w-[400px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
+        <CardContent className="pt-8 pb-6 px-6 text-center space-y-6">
+          <div className="space-y-3">
+            <div className="w-12 h-12 mx-auto bg-red-500/10 rounded-full flex items-center justify-center">
+              <span className="text-xl">⚠️</span>
+            </div>
+            <h2 className="text-xl font-semibold text-white">Analysis Failed</h2>
+            <p className="text-sm text-red-400">{error || 'An error occurred during analysis'}</p>
+            <p className="text-xs text-white/50">
+              You can run analysis later from your dashboard
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={handleFinish}
+            className="w-full h-11 bg-white text-black hover:bg-white/90 rounded-lg font-medium"
+          >
+            Continue to Dashboard
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="w-full max-w-[400px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
+      <CardContent className="pt-8 pb-6 px-6 text-center space-y-6">
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold text-white">
+            Analyzing Your AI Visibility
+          </h2>
+          <p className="text-sm text-white/60">
+            Testing how AI models rank your brand
+          </p>
+        </div>
+        
+        <div className="space-y-4">
+          <div className="relative h-20 flex items-center justify-center">
+            <div className="absolute w-16 h-16 border-2 border-white/10 rounded-full" />
+            <div className="absolute w-16 h-16 border-2 border-transparent border-t-white rounded-full animate-spin" />
+            <Sparkles className="w-6 h-6 text-white animate-pulse" />
+          </div>
+          
+          <div className="space-y-2">
+            <p className="text-3xl font-bold text-white">{Math.round(currentProgress)}%</p>
+            <p className="text-xs text-white/50">{currentStage}</p>
+          </div>
+          
+          <div className="w-full bg-white/[0.08] rounded-full h-1 overflow-hidden">
+            <div 
+              className="bg-white h-1 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${currentProgress}%` }}
+            />
+          </div>
+        </div>
       </CardContent>
     </Card>
   )

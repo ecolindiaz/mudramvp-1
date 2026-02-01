@@ -822,7 +822,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Summary */}
-        <div className="rounded-xl bg-[#161616] overflow-hidden flex flex-col border border-white/[0.04]">
+        <div className="rounded-xl bg-[#161616] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
             <div className="text-base font-medium text-white">Summary</div>
             <Tooltip>

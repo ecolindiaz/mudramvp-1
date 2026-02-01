@@ -208,16 +208,32 @@ export default function LoginPage() {
                     </div>
                 </div>
 
-                <div className="mt-6 text-center">
+                <div className="mt-6 space-y-3 text-center">
                     <p className="text-sm text-gray-400">
-                        Don't have an account?{" "}
-                        <Button
-                            asChild
-                            variant="link"
-                            className="text-gray-400 hover:text-white"
-                            disabled={isLoading}>
-                            <Link href="/signup">Create Account</Link>
-                        </Button>
+                        Don't have an account?{' '}
+                        <Link href="/signup" className="text-white hover:underline">
+                            Create Account
+                        </Link>
+                    </p>
+                    <p className="text-xs text-gray-500">
+                        By signing in, you agree to our{' '}
+                        <a
+                            href="https://www.trymudra.com/terms"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-400 hover:text-white transition-colors"
+                        >
+                            Terms
+                        </a>{' '}
+                        and{' '}
+                        <a
+                            href="https://www.trymudra.com/privacy"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-400 hover:text-white transition-colors"
+                        >
+                            Privacy Policy
+                        </a>
                     </p>
                 </div>
             </form>

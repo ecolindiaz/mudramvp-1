@@ -144,7 +144,7 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
         </button>
       </div>
       <div className={cn(
-        "px-5 py-4 text-[13px] text-white/60 leading-[1.7] overflow-y-auto transition-all",
+        "px-5 py-4 text-[13px] text-white/60 leading-[1.7] overflow-y-auto overflow-x-auto max-w-full transition-all",
         isExpanded ? "max-h-[400px]" : "max-h-[200px]"
       )}>
         <ReactMarkdown
@@ -163,7 +163,7 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
               <h4 className="text-[13px] font-semibold text-white/90 mt-3 mb-1.5">{children}</h4>
             ),
             p: ({ children }) => (
-              <p className="mb-3 text-white/60 leading-[1.7] last:mb-0">{children}</p>
+              <p className="mb-3 text-white/60 leading-[1.7] last:mb-0 break-words">{children}</p>
             ),
             ul: ({ children }) => (
               <ul className="my-3 ml-4 space-y-2 list-disc list-outside">{children}</ul>
@@ -188,7 +188,7 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
                 )
               }
               return (
-                <code className="text-emerald-400/80 bg-white/[0.06] px-1.5 py-0.5 rounded text-[12px]">{children}</code>
+                <code className="text-emerald-400/80 bg-white/[0.06] px-1.5 py-0.5 rounded text-[12px] break-all">{children}</code>
               )
             },
             pre: ({ children }) => (
@@ -198,7 +198,7 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
               <blockquote className="border-l-2 border-white/20 pl-4 my-4 text-white/50 italic">{children}</blockquote>
             ),
             a: ({ href, children }) => (
-              <a href={href} className="text-emerald-400/80 hover:text-emerald-400 transition-colors" target="_blank" rel="noopener noreferrer">{children}</a>
+              <a href={href} className="text-emerald-400/80 hover:text-emerald-400 transition-colors break-words" target="_blank" rel="noopener noreferrer">{children}</a>
             ),
             hr: () => (
               <hr className="border-white/[0.08] my-5" />

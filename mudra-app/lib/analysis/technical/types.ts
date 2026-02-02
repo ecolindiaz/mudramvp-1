@@ -446,6 +446,18 @@ export interface DiscoveryOptions {
 }
 
 /**
+ * Extended options for AI-powered discovery
+ */
+export interface AIDiscoveryOptions extends DiscoveryOptions {
+	/** Enable AI-powered page categorization (default: true) */
+	useAI?: boolean;
+	/** OpenAI model to use for analysis (default: 'gpt-5.2') */
+	aiModel?: string;
+	/** Maximum URLs to send to AI for analysis (default: 100) */
+	maxUrlsForAI?: number;
+}
+
+/**
  * Discovered page information from Firecrawl /map endpoint
  */
 export interface DiscoveredPage {
@@ -454,6 +466,18 @@ export interface DiscoveredPage {
 	description?: string;
 	pageType: PageType;
 	priority: number;
+}
+
+/**
+ * AI-enhanced discovered page with additional metadata
+ */
+export interface AIDiscoveredPage extends DiscoveredPage {
+	/** AI-generated descriptive title */
+	title: string;
+	/** AI-generated reason for page importance */
+	reason: string;
+	/** AI-assigned importance score (1-10) */
+	importance: number;
 }
 
 /**
@@ -467,6 +491,45 @@ export interface DiscoveryResult {
 	pages: DiscoveredPage[];
 	byType: Record<PageType, number>;
 	error?: string;
+}
+
+/**
+ * Timing information for discovery phases
+ */
+export interface DiscoveryTimings {
+	/** Time spent on Firecrawl map call (ms) */
+	map: number;
+	/** Time spent on pre-filtering (ms) */
+	filter: number;
+	/** Time spent on AI analysis (ms) */
+	analysis: number;
+	/** Total discovery time (ms) */
+	total: number;
+}
+
+/**
+ * AI-enhanced discovery result with timing and AI metadata
+ */
+export interface AIDiscoveryResult extends DiscoveryResult {
+	/** Whether AI analysis was used */
+	aiAnalyzed: boolean;
+	/** Discovery phase timings */
+	timings: DiscoveryTimings;
+	/** AI-analyzed pages with enhanced metadata */
+	aiPages?: AIDiscoveredPage[];
+}
+
+/**
+ * OpenAI structured output response for page analysis
+ */
+export interface OpenAIPageAnalysisResponse {
+	pages: Array<{
+		url: string;
+		pageType: PageType | "customers";
+		title: string;
+		reason: string;
+		importance: number;
+	}>;
 }
 
 /**

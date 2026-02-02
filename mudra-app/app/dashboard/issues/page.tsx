@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { BrandProfileProvider } from "@/components/brand-profile-context"
-import { IconPlus, IconTrash, IconEdit, IconLoader2, IconSparkles, IconPlayerPlay, IconRotate, IconExternalLink, IconRobot, IconGitPullRequest, IconCode, IconCopy, IconCheck } from "@tabler/icons-react"
+import { IconPlus, IconTrash, IconLoader2, IconSparkles, IconRotate, IconExternalLink, IconGitPullRequest, IconCode, IconCopy, IconCheck, IconWand } from "@tabler/icons-react"
 import {
   Dialog,
   DialogContent,
@@ -56,7 +56,7 @@ import { CSS } from "@dnd-kit/utilities"
 import { toast } from "sonner"
 
 // Custom status icons
-const IdentifiedIcon = ({ className }: { className?: string }) => (
+const IdentifiedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M10.1 2.182a10 10 0 0 1 3.8 0"/>
     <path d="M13.9 21.818a10 10 0 0 1-3.8 0"/>
@@ -69,25 +69,42 @@ const IdentifiedIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
-const InProgressIcon = ({ className }: { className?: string }) => (
+const InProgressIcon = ({ className, animate = false }: { className?: string; animate?: boolean }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <circle cx="12" cy="19" r="2"/>
-    <circle cx="12" cy="5" r="2"/>
-    <circle cx="16" cy="12" r="2"/>
-    <circle cx="20" cy="19" r="2"/>
-    <circle cx="4" cy="19" r="2"/>
-    <circle cx="8" cy="12" r="2"/>
+    <style>
+      {animate ? `
+        @keyframes dotPulse {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 1; }
+        }
+        .dot-top { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0s; }
+        .dot-mid-1 { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0.2s; }
+        .dot-mid-2 { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0.3s; }
+        .dot-bot-1 { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0.5s; }
+        .dot-bot-2 { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0.6s; }
+        .dot-bot-3 { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0.7s; }
+      ` : ''}
+    </style>
+    {/* Top dot */}
+    <circle cx="12" cy="5" r="2" className={animate ? "dot-top" : ""} />
+    {/* Middle dots */}
+    <circle cx="8" cy="12" r="2" className={animate ? "dot-mid-1" : ""} />
+    <circle cx="16" cy="12" r="2" className={animate ? "dot-mid-2" : ""} />
+    {/* Bottom dots */}
+    <circle cx="4" cy="19" r="2" className={animate ? "dot-bot-1" : ""} />
+    <circle cx="12" cy="19" r="2" className={animate ? "dot-bot-2" : ""} />
+    <circle cx="20" cy="19" r="2" className={animate ? "dot-bot-3" : ""} />
   </svg>
 )
 
-const CompletedIcon = ({ className }: { className?: string }) => (
+const CompletedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M21.801 10A10 10 0 1 1 17 3.335"/>
     <path d="m9 11 3 3L22 4"/>
   </svg>
 )
 
-const MergedIcon = ({ className }: { className?: string }) => (
+const MergedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <circle cx="18" cy="18" r="3"/>
     <circle cx="6" cy="6" r="3"/>
@@ -95,7 +112,7 @@ const MergedIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
-const FailedIcon = ({ className }: { className?: string }) => (
+const FailedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>
     <path d="M12 9v4"/>
@@ -103,7 +120,7 @@ const FailedIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
-const DismissedIcon = ({ className }: { className?: string }) => (
+const DismissedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <circle cx="12" cy="12" r="10"/>
     <path d="m15 9-6 6"/>
@@ -177,19 +194,19 @@ const priorityConfig = {
 // Sortable Issue Card Component
 function SortableIssueCard({
   issue,
-  onEdit,
   onDelete,
-  onDeploy,
+  onFix,
   onRetry,
   onViewOutput,
+  onClick,
   isDeploying,
 }: {
   issue: Issue
-  onEdit: (issue: Issue) => void
   onDelete: (issue: Issue) => void
-  onDeploy?: (issueId: number) => void
+  onFix?: (issueId: number) => void
   onRetry?: (issueId: number) => void
   onViewOutput?: (issue: Issue) => void
+  onClick?: (issue: Issue) => void
   isDeploying?: boolean
 }) {
   const {
@@ -217,21 +234,22 @@ function SortableIssueCard({
       style={style}
       {...attributes}
       {...listeners}
-      className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3.5 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all cursor-grab active:cursor-grabbing group"
+      onClick={() => onClick?.(issue)}
+      className="bg-white/[0.03] rounded-xl p-3.5 hover:bg-white/[0.05] transition-colors cursor-grab active:cursor-grabbing group"
     >
       <div className="flex items-start gap-3 mb-3">
-        <StatusIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${statusConf.color}`} />
+        <StatusIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${statusConf.color}`} animate={issue.status === "in_progress"} />
         <p className="text-[13px] text-white/90 font-medium leading-relaxed flex-1">
           {issue.title}
         </p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button 
-              className="p-1 hover:bg-white/[0.1] rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            <button
+              className="p-1 hover:bg-white/[0.1] rounded text-white/40 hover:text-white/60 transition-colors"
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/50">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="1"/>
                 <circle cx="12" cy="5" r="1"/>
                 <circle cx="12" cy="19" r="1"/>
@@ -239,9 +257,20 @@ function SortableIssueCard({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-[#1a1a1a] border-white/10">
+            {/* Fix - for identified issues */}
+            {issue.status === "identified" && onFix && (
+              <DropdownMenuItem
+                onClick={(e) => { e.stopPropagation(); onFix(issue.id); }}
+                className="text-white hover:bg-white/10 cursor-pointer"
+                disabled={isDeploying}
+              >
+                <IconWand className="w-4 h-4 mr-2" />
+                Fix
+              </DropdownMenuItem>
+            )}
             {/* Retry - for failed issues */}
             {issue.status === "failed" && onRetry && (
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={(e) => { e.stopPropagation(); onRetry(issue.id); }}
                 className="text-amber-400 hover:bg-amber-400/10 cursor-pointer"
                 disabled={isDeploying}
@@ -260,14 +289,7 @@ function SortableIssueCard({
                 View PR
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem 
-              onClick={(e) => { e.stopPropagation(); onEdit(issue); }}
-              className="text-white/80 hover:bg-white/10 cursor-pointer"
-            >
-              <IconEdit className="w-4 h-4 mr-2" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem 
+            <DropdownMenuItem
               onClick={(e) => { e.stopPropagation(); onDelete(issue); }}
               className="text-red-400 hover:bg-red-400/10 cursor-pointer"
             >
@@ -294,34 +316,13 @@ function SortableIssueCard({
       )}
       {/* Generated Output Badge - for issues with output but no PR */}
       {!issue.prUrl && issue.generatedOutput && (
-        <button 
+        <button
           onClick={(e) => { e.stopPropagation(); onViewOutput?.(issue); }}
           onPointerDown={(e) => e.stopPropagation()}
           className="flex items-center gap-1.5 ml-7 mb-2 px-2 py-1 rounded-md bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors w-fit"
         >
           <IconCode className="w-3.5 h-3.5" />
           <span className="text-[11px] font-medium">View Output</span>
-        </button>
-      )}
-      {/* Deploy Agent Button - visible for identified issues with agentType */}
-      {issue.status === "identified" && issue.agentType && onDeploy && (
-        <button 
-          onClick={(e) => { e.stopPropagation(); onDeploy(issue.id); }}
-          onPointerDown={(e) => e.stopPropagation()}
-          disabled={isDeploying}
-          className="flex items-center gap-1.5 ml-7 mb-2 px-3 py-1.5 rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors w-fit disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isDeploying ? (
-            <>
-              <IconLoader2 className="w-3.5 h-3.5 animate-spin" />
-              <span className="text-[11px] font-medium">Deploying...</span>
-            </>
-          ) : (
-            <>
-              <IconRobot className="w-3.5 h-3.5" />
-              <span className="text-[11px] font-medium">Deploy Agent</span>
-            </>
-          )}
         </button>
       )}
       <div className="flex items-center justify-between pl-7">
@@ -351,9 +352,9 @@ function IssueCardOverlay({ issue }: { issue: Issue }) {
   const StatusIcon = statusConf.icon
 
   return (
-    <div className="bg-white/[0.08] border border-white/[0.15] rounded-xl p-3.5 shadow-xl cursor-grabbing w-[260px]">
+    <div className="bg-white/[0.08] rounded-xl p-3.5 shadow-xl cursor-grabbing w-[260px]">
       <div className="flex items-start gap-3 mb-3">
-        <StatusIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${statusConf.color}`} />
+        <StatusIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${statusConf.color}`} animate={issue.status === "in_progress"} />
         <p className="text-[13px] text-white/90 font-medium leading-relaxed">
           {issue.title}
         </p>
@@ -710,28 +711,177 @@ function DeleteDialog({
   )
 }
 
+// Issue Detail Dialog (popup when clicking on an issue)
+function IssueDetailDialog({
+  open,
+  onOpenChange,
+  issue,
+  onDeploy,
+  onRetry,
+  onViewOutput,
+  isDeploying,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  issue: Issue | null
+  onDeploy?: (issueId: number) => void
+  onRetry?: (issueId: number) => void
+  onViewOutput?: (issue: Issue) => void
+  isDeploying?: boolean
+}) {
+  if (!issue) return null
+
+  const typeConf = typeConfig[issue.type]
+  const statusConf = statusConfig[issue.status]
+  const StatusIcon = statusConf.icon
+  const priorityConf = priorityConfig[issue.priority]
+  
+  const canDeploy = issue.status === "identified" && issue.agentType
+  const canRetry = issue.status === "failed"
+  const hasPR = issue.prUrl && issue.prNumber
+  const hasOutput = issue.generatedOutput
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-[#141414] border-white/[0.06] text-white max-w-md p-0 overflow-hidden">
+        {/* Header */}
+        <div className="px-5 pt-5 pb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <StatusIcon className={`w-4 h-4 ${statusConf.color}`} animate={issue.status === "in_progress"} />
+            <span className={`text-[11px] ${statusConf.color} capitalize`}>
+              {issue.status.replace("_", " ")}
+            </span>
+            <span className="text-[11px] text-white/30">·</span>
+            <span className="text-[11px] text-white/30">
+              ISS-{String(issue.id).padStart(2, "0")}
+            </span>
+          </div>
+          <DialogHeader className="p-0">
+            <DialogTitle className="text-[15px] font-medium text-white/90 leading-snug">
+              {issue.title}
+            </DialogTitle>
+          </DialogHeader>
+        </div>
+
+        {/* Content */}
+        <div className="px-5 pb-5 space-y-4">
+          {/* Description */}
+          {issue.description && (
+            <p className="text-[13px] text-white/50 leading-relaxed">{issue.description}</p>
+          )}
+
+          {/* Metadata */}
+          <div className="flex items-center gap-3 text-[12px]">
+            <span className="inline-flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${typeConf.color}`} />
+              <span className="text-white/50">{typeConf.label}</span>
+            </span>
+            <span className={`${priorityConf.color} capitalize`}>{issue.priority}</span>
+            {issue.agentType && (
+              <>
+                <span className="text-white/20">·</span>
+                <span className="text-white/40">{issue.agentType}</span>
+              </>
+            )}
+          </div>
+
+          {/* PR Link */}
+          {hasPR && (
+            <a
+              href={issue.prUrl!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-[12px] text-sky-400 hover:text-sky-300 transition-colors"
+            >
+              <IconGitPullRequest className="w-3.5 h-3.5" />
+              <span>PR #{issue.prNumber}</span>
+              <IconExternalLink className="w-3 h-3 opacity-50" />
+            </a>
+          )}
+
+          {/* Generated Output Preview */}
+          {hasOutput && !hasPR && (
+            <div className="relative">
+              <pre className="bg-white/[0.03] rounded-lg p-3 text-[11px] text-white/50 max-h-[100px] overflow-hidden font-mono">
+                {issue.generatedOutput?.slice(0, 200)}
+                {(issue.generatedOutput?.length || 0) > 200 && "..."}
+              </pre>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-white/[0.06] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {canRetry && (
+              <Button
+                onClick={() => { onRetry?.(issue.id); onOpenChange(false); }}
+                disabled={isDeploying}
+                variant="ghost"
+                size="sm"
+                className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+              >
+                <IconRotate className="w-3.5 h-3.5 mr-1.5" />
+                Retry
+              </Button>
+            )}
+            {hasOutput && (
+              <Button
+                onClick={() => { onViewOutput?.(issue); onOpenChange(false); }}
+                variant="ghost"
+                size="sm"
+                className="text-white/50 hover:text-white/70 hover:bg-white/[0.05]"
+              >
+                <IconCode className="w-3.5 h-3.5 mr-1.5" />
+                View Output
+              </Button>
+            )}
+          </div>
+          {canDeploy && (
+            <Button
+              onClick={() => { onDeploy?.(issue.id); onOpenChange(false); }}
+              disabled={isDeploying}
+              size="sm"
+              className="bg-white text-black hover:bg-white/90 font-medium"
+            >
+              {isDeploying ? (
+                <>
+                  <IconLoader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Deploying...
+                </>
+              ) : (
+                "Deploy Agent"
+              )}
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // Column with handlers
 function IssueColumnWithHandlers({
   title,
   issues,
   status,
   onAddClick,
-  onEdit,
   onDelete,
-  onDeploy,
+  onFix,
   onRetry,
   onViewOutput,
+  onIssueClick,
   deployingId,
 }: {
   title: string
   issues: Issue[]
   status: "identified" | "in_progress" | "completed" | "merged"
   onAddClick: (status: string) => void
-  onEdit: (issue: Issue) => void
   onDelete: (issue: Issue) => void
-  onDeploy?: (issueId: number) => void
+  onFix?: (issueId: number) => void
   onRetry?: (issueId: number) => void
   onViewOutput?: (issue: Issue) => void
+  onIssueClick?: (issue: Issue) => void
   deployingId?: number | null
 }) {
   const config = statusConfig[status]
@@ -743,7 +893,7 @@ function IssueColumnWithHandlers({
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2.5">
           <div className={`p-1.5 rounded-lg ${config.bg}`}>
-            <StatusIcon className={`w-3.5 h-3.5 ${config.color}`} />
+            <StatusIcon className={`w-3.5 h-3.5 ${config.color}`} animate={status === "in_progress"} />
           </div>
           <span className="text-[13px] font-medium text-white/80">{title}</span>
           <span className="text-[11px] text-white/40 bg-white/[0.05] px-1.5 py-0.5 rounded-md">
@@ -762,14 +912,14 @@ function IssueColumnWithHandlers({
       <SortableContext items={issues.map(i => i.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-3 min-h-[100px]" data-status={status}>
           {issues.map((issue) => (
-            <SortableIssueCard 
-              key={issue.id} 
-              issue={issue} 
-              onEdit={onEdit} 
+            <SortableIssueCard
+              key={issue.id}
+              issue={issue}
               onDelete={onDelete}
-              onDeploy={onDeploy}
+              onFix={onFix}
               onRetry={onRetry}
               onViewOutput={onViewOutput}
+              onClick={onIssueClick}
               isDeploying={deployingId === issue.id}
             />
           ))}
@@ -797,9 +947,11 @@ function IssuesPageInner() {
   const [issueDialogOpen, setIssueDialogOpen] = React.useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
   const [outputDialogOpen, setOutputDialogOpen] = React.useState(false)
+  const [issueDetailDialogOpen, setIssueDetailDialogOpen] = React.useState(false)
   const [editingIssue, setEditingIssue] = React.useState<Issue | null>(null)
   const [deletingIssue, setDeletingIssue] = React.useState<Issue | null>(null)
   const [viewingOutputIssue, setViewingOutputIssue] = React.useState<Issue | null>(null)
+  const [selectedIssue, setSelectedIssue] = React.useState<Issue | null>(null)
   const [defaultStatus, setDefaultStatus] = React.useState<string>("identified")
   const [copiedOutput, setCopiedOutput] = React.useState(false)
   
@@ -1022,6 +1174,12 @@ function IssuesPageInner() {
     setCopiedOutput(false)
   }
 
+  // Open issue detail dialog
+  const handleIssueClick = (issue: Issue) => {
+    setSelectedIssue(issue)
+    setIssueDetailDialogOpen(true)
+  }
+
   // Copy generated output to clipboard
   const handleCopyOutput = async () => {
     if (viewingOutputIssue?.generatedOutput) {
@@ -1157,11 +1315,6 @@ function IssuesPageInner() {
     setIssueDialogOpen(true)
   }
 
-  const handleEditClick = (issue: Issue) => {
-    setEditingIssue(issue)
-    setIssueDialogOpen(true)
-  }
-
   const handleDeleteClick = (issue: Issue) => {
     setDeletingIssue(issue)
     setDeleteDialogOpen(true)
@@ -1187,7 +1340,7 @@ function IssuesPageInner() {
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight text-white">Issues</h1>
-                  <p className="text-sm text-white/60 mt-1">Track and manage issues across your brand</p>
+                  <p className="text-sm text-white/60 mt-1">Track and fix issues preventing you from winning in AI search</p>
                 </div>
                 <div className="flex gap-2">
                 <Button
@@ -1323,11 +1476,11 @@ function IssuesPageInner() {
                         issues={identifiedIssues}
                         status="identified"
                         onAddClick={handleAddClick}
-                        onEdit={handleEditClick}
                         onDelete={handleDeleteClick}
-                        onDeploy={handleDeployAgent}
+                        onFix={handleDeployAgent}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
+                        onIssueClick={handleIssueClick}
                         deployingId={deployingId}
                       />
                       <IssueColumnWithHandlers
@@ -1335,11 +1488,11 @@ function IssuesPageInner() {
                         issues={inProgressIssues}
                         status="in_progress"
                         onAddClick={handleAddClick}
-                        onEdit={handleEditClick}
                         onDelete={handleDeleteClick}
-                        onDeploy={handleDeployAgent}
+                        onFix={handleDeployAgent}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
+                        onIssueClick={handleIssueClick}
                         deployingId={deployingId}
                       />
                       <IssueColumnWithHandlers
@@ -1347,11 +1500,11 @@ function IssuesPageInner() {
                         issues={completedIssues}
                         status="completed"
                         onAddClick={handleAddClick}
-                        onEdit={handleEditClick}
                         onDelete={handleDeleteClick}
-                        onDeploy={handleDeployAgent}
+                        onFix={handleDeployAgent}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
+                        onIssueClick={handleIssueClick}
                         deployingId={deployingId}
                       />
                       <IssueColumnWithHandlers
@@ -1359,11 +1512,11 @@ function IssuesPageInner() {
                         issues={mergedIssues}
                         status="merged"
                         onAddClick={handleAddClick}
-                        onEdit={handleEditClick}
                         onDelete={handleDeleteClick}
-                        onDeploy={handleDeployAgent}
+                        onFix={handleDeployAgent}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
+                        onIssueClick={handleIssueClick}
                         deployingId={deployingId}
                       />
                     </div>
@@ -1406,6 +1559,17 @@ function IssuesPageInner() {
         isLoading={isSaving}
       />
       
+      {/* Issue Detail Dialog - popup when clicking on an issue */}
+      <IssueDetailDialog
+        open={issueDetailDialogOpen}
+        onOpenChange={setIssueDetailDialogOpen}
+        issue={selectedIssue}
+        onDeploy={handleDeployAgent}
+        onRetry={handleRetryAgent}
+        onViewOutput={handleViewOutput}
+        isDeploying={deployingId === selectedIssue?.id}
+      />
+
       {/* View Generated Output Dialog */}
       <Dialog open={outputDialogOpen} onOpenChange={setOutputDialogOpen}>
         <DialogContent className="bg-zinc-900 border-white/10 text-white max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">

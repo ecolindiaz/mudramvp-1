@@ -344,13 +344,23 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
   
   console.log(`[IssueExecutor] Issue "${issue.title}" found with brand "${issue.brandProfile.companyName}"`)
   
-  // 2. Update status to in_progress
+  // 2. Update status to in_progress (with timeout)
   console.log(`[IssueExecutor] Updating issue status to in_progress...`)
-  await prisma.issue.update({
-    where: { id: issueId },
-    data: { status: 'in_progress' }
-  })
-  console.log(`[IssueExecutor] Status updated`)
+  try {
+    await Promise.race([
+      prisma.issue.update({
+        where: { id: issueId },
+        data: { status: 'in_progress' }
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Status update timed out after 10s')), 10_000)
+      )
+    ])
+    console.log(`[IssueExecutor] Status updated`)
+  } catch (updateError) {
+    console.error(`[IssueExecutor] Failed to update status:`, updateError)
+    // Continue anyway - status update is not critical
+  }
   
   try {
     // 3. Get appropriate agent

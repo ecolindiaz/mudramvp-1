@@ -576,6 +576,12 @@ export async function discoverPages(
 			...(sitemap !== "include" && { ignoreSitemap: sitemap === "skip" }),
 		});
 
+		// Check for Firecrawl error response
+		if (mapResult && typeof mapResult === "object" && "success" in mapResult && mapResult.success === false) {
+			const errorMessage = (mapResult as { error?: string }).error || "Firecrawl map failed";
+			throw new Error(errorMessage);
+		}
+
 		const mapUrls = extractUrlsFromMapResult(mapResult);
 		timings.map = Date.now() - mapStartTime;
 		console.log(`[SitemapDiscovery] Map found ${mapUrls.length} URLs in ${(timings.map / 1000).toFixed(1)}s`);
@@ -769,7 +775,7 @@ export function getUrlsFromDiscovery(result: DiscoveryResult): string[] {
  * Creates a minimal discovery result for a single URL (homepage only)
  * Useful for fallback when sitemap discovery fails
  */
-export function createFallbackDiscovery(domain: string): DiscoveryResult {
+export function createFallbackDiscovery(domain: string): AIDiscoveryResult {
 	const normalizedUrl = normalizeDomain(domain);
 	const domainHost = extractDomain(normalizedUrl);
 
@@ -786,6 +792,13 @@ export function createFallbackDiscovery(domain: string): DiscoveryResult {
 			},
 		],
 		byType: countByType([{ url: normalizedUrl, pageType: "home", priority: 1 }]),
+		aiAnalyzed: false,
+		timings: {
+			map: 0,
+			filter: 0,
+			analysis: 0,
+			total: 0,
+		},
 	};
 }
 

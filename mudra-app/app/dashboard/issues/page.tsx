@@ -893,7 +893,7 @@ function IssueColumnWithHandlers({
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2.5">
           <div className={`p-1.5 rounded-lg ${config.bg}`}>
-            <StatusIcon className={`w-3.5 h-3.5 ${config.color}`} animate={status === "in_progress"} />
+            <StatusIcon className={`w-3.5 h-3.5 ${config.color}`} />
           </div>
           <span className="text-[13px] font-medium text-white/80">{title}</span>
           <span className="text-[11px] text-white/40 bg-white/[0.05] px-1.5 py-0.5 rounded-md">

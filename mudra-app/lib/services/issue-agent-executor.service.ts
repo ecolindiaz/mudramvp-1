@@ -11,6 +11,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { mastra } from '@/mastra'
+import Anthropic from '@anthropic-ai/sdk'
 import { 
   validateSchemaInSandbox, 
   requiresE2bValidation,
@@ -22,6 +23,34 @@ import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
 
 // Timeout for agent generation (60 seconds - Vercel has 60s limit on hobby)
 const AGENT_TIMEOUT_MS = 55_000
+
+// Direct Anthropic client as fallback
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
+
+/**
+ * Call Anthropic directly without Mastra wrapper
+ */
+async function callAnthropicDirect(prompt: string, systemPrompt?: string): Promise<string> {
+  console.log(`[IssueExecutor] Using direct Anthropic API call...`)
+  
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 4096,
+    messages: [
+      { role: 'user', content: prompt }
+    ],
+    ...(systemPrompt && { system: systemPrompt })
+  })
+  
+  const textContent = response.content.find(c => c.type === 'text')
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Anthropic')
+  }
+  
+  return textContent.text
+}
 
 /**
  * Wrap a promise with a timeout
@@ -399,41 +428,28 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
       throw new Error('No LLM API keys configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.')
     }
     
-    console.log(`[IssueExecutor] Calling agent.generate() with ${AGENT_TIMEOUT_MS/1000}s timeout...`)
+    console.log(`[IssueExecutor] Calling Anthropic directly (bypassing Mastra)...`)
     console.log(`[IssueExecutor] Agent generate starting at ${new Date().toISOString()}`)
     const generateStartTime = Date.now()
     
-    // Wrap generate in a logged promise
-    const generatePromise = (async () => {
-      console.log(`[IssueExecutor] Inside generate promise - calling agent.generate()...`)
-      try {
-        const result = await agent.generate(prompt)
-        console.log(`[IssueExecutor] agent.generate() returned successfully`)
-        return result
-      } catch (genError) {
-        console.error(`[IssueExecutor] agent.generate() threw error:`, genError instanceof Error ? genError.message : String(genError))
-        throw genError
-      }
-    })()
-    
-    let response
+    let responseText: string
     try {
-      response = await withTimeout(
-        generatePromise,
+      // Use direct Anthropic call instead of Mastra agent
+      responseText = await withTimeout(
+        callAnthropicDirect(prompt),
         AGENT_TIMEOUT_MS,
-        `Agent generation timed out after ${AGENT_TIMEOUT_MS/1000}s`
+        `Anthropic API call timed out after ${AGENT_TIMEOUT_MS/1000}s`
       )
-    } catch (timeoutError) {
+      console.log(`[IssueExecutor] Anthropic API returned successfully`)
+    } catch (apiError) {
       const elapsed = Date.now() - generateStartTime
-      console.error(`[IssueExecutor] Agent.generate() failed after ${elapsed}ms at ${new Date().toISOString()}`)
-      console.error(`[IssueExecutor] Error details:`, timeoutError instanceof Error ? timeoutError.message : String(timeoutError))
-      throw timeoutError
+      console.error(`[IssueExecutor] Anthropic API failed after ${elapsed}ms at ${new Date().toISOString()}`)
+      console.error(`[IssueExecutor] Error details:`, apiError instanceof Error ? apiError.message : String(apiError))
+      throw apiError
     }
     
     const generateDuration = Date.now() - generateStartTime
-    console.log(`[IssueExecutor] Agent.generate() completed in ${generateDuration}ms at ${new Date().toISOString()}`)
-    
-    const responseText = response.text || ''
+    console.log(`[IssueExecutor] Anthropic call completed in ${generateDuration}ms at ${new Date().toISOString()}`)
     
     if (!responseText) {
       console.error(`[IssueExecutor] Agent returned empty response object:`, JSON.stringify(response).substring(0, 500))

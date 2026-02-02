@@ -324,8 +324,8 @@ export async function GET(
       }
     })
 
-    // Sort by mentions (most mentioned first)
-    competitorsWithMetrics.sort((a, b) => b.mentions - a.mentions)
+    // Sort by visibility (highest visibility first) - ensures table ranking matches visibility scores
+    competitorsWithMetrics.sort((a, b) => b.visibility - a.visibility)
 
     // Step 7: Build competitive landscape
     const competitorsList = Array.from(allCompetitorMentions)

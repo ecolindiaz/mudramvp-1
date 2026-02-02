@@ -4,7 +4,7 @@ import Link from "next/link"
 import React, { useMemo, useState, useRef } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { ArrowLeft, TrendingUp, Target, Award, MessageSquare, MessageSquareText, Building2, GraduationCap, Globe, Clock, Maximize2, Tag, ChevronRight, CheckCircle, ChevronDown, ChevronUp, XCircle, ExternalLink, FileText, ListOrdered, BookOpen, HelpCircle, Copy, Check } from "lucide-react"
+import { ArrowLeft, TrendingUp, Target, Award, MessageSquare, MessageSquareText, Building2, GraduationCap, Globe, Clock, Maximize2, Tag, ChevronRight, CheckCircle, ChevronDown, ChevronUp, XCircle, ExternalLink, FileText, ListOrdered, BookOpen, HelpCircle, Copy, Check, Newspaper, PlayCircle, Star, Package, Users } from "lucide-react"
 import Image from "next/image"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -390,13 +390,49 @@ function getPositionClass(value: number | null) {
     : "bg-white/10 text-white/90 border-white/15"
 }
 
-type CitationCategory = 'Social Content' | 'Company Sources' | 'Academic Sources' | 'Wikipedia'
+type CitationCategory = 'Social Content' | 'Company Sources' | 'Academic Sources' | 'Wikipedia' | 'Blog' | 'News' | 'Forum' | 'Listicle' | 'Review' | 'Video' | 'Product' | 'Other'
+
 function mapCitationCategory(original?: string): CitationCategory {
   const src = (original || '').toLowerCase()
-  if (src.includes('wikipedia')) return 'Wikipedia'
-  if (src.includes('academic') || src.includes('paper') || src.includes('research')) return 'Academic Sources'
-  if (src.includes('docs') || src.includes('documentation') || src.includes('case') || src.includes('company')) return 'Company Sources'
-  return 'Social Content'
+
+  // Map backend citation types to UI categories
+  // Backend returns: 'Blog' | 'Listicle' | 'Docs' | 'News' | 'Academic' | 'Wiki' | 'Forum' | 'Video' | 'Product' | 'Review' | 'Social' | 'Other'
+
+  // Wikipedia/Wiki
+  if (src === 'wiki' || src.includes('wikipedia')) return 'Wikipedia'
+
+  // Academic sources
+  if (src === 'academic' || src.includes('paper') || src.includes('research')) return 'Academic Sources'
+
+  // Documentation / Company official sources
+  if (src === 'docs' || src.includes('documentation') || src.includes('case')) return 'Company Sources'
+
+  // Product pages
+  if (src === 'product') return 'Product'
+
+  // Blog content
+  if (src === 'blog') return 'Blog'
+
+  // News articles
+  if (src === 'news') return 'News'
+
+  // Forums/Community discussions
+  if (src === 'forum') return 'Forum'
+
+  // Listicle/Comparison sites
+  if (src === 'listicle') return 'Listicle'
+
+  // Review sites
+  if (src === 'review') return 'Review'
+
+  // Video content
+  if (src === 'video') return 'Video'
+
+  // Actual social media
+  if (src === 'social') return 'Social Content'
+
+  // Other/fallback
+  return 'Other'
 }
 
 // Helper to extract domain from URL
@@ -486,6 +522,23 @@ function CitationCategoryIcon({ category }: { category: CitationCategory }) {
       return <GraduationCap className={common} />
     case 'Wikipedia':
       return <Globe className={common} />
+    case 'Blog':
+      return <FileText className={common} />
+    case 'News':
+      return <Newspaper className={common} />
+    case 'Forum':
+      return <Users className={common} />
+    case 'Listicle':
+      return <ListOrdered className={common} />
+    case 'Review':
+      return <Star className={common} />
+    case 'Video':
+      return <PlayCircle className={common} />
+    case 'Product':
+      return <Package className={common} />
+    case 'Other':
+    default:
+      return <HelpCircle className={common} />
   }
 }
 
@@ -808,9 +861,10 @@ function TrackedPromptDeepViewInner() {
         }
 
         // Also add any competitors that might not have data for this day
+        // Use null for days without mentions - connectNulls will interpolate
         competitorSeries.forEach((s) => {
           if (!(s.key in row)) {
-            row[s.key] = null // null instead of 0 - chart will skip these
+            row[s.key] = null // null = not mentioned, line will interpolate through
           }
         })
 
@@ -1149,20 +1203,7 @@ function TrackedPromptDeepViewInner() {
                           <span>Gemini</span>
                         </div>
                       </SelectItem>
-                      <SelectItem value="AI Overviews" className="focus:bg-white/10 outline-none">
-                        <div className="flex items-center gap-2">
-                          {getModelIcon("Google AIO") && (
-                            <Image 
-                              src={getModelIcon("Google AIO")!} 
-                              alt="" 
-                              width={16} 
-                              height={16}
-                              className="shrink-0"
-                            />
-                          )}
-                          <span>Google AIO</span>
-                        </div>
-                      </SelectItem>
+
                     </SelectContent>
                   </Select>
                   <div className="flex items-center gap-1 text-[13px]">
@@ -1199,7 +1240,7 @@ function TrackedPromptDeepViewInner() {
               <div className="w-full space-y-4">
                 {/* Top row: two metric containers */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card className="bg-transparent rounded-lg border border-white/[0.03] overflow-hidden py-0 shadow-none gap-0">
+                  <Card className="relative rounded-lg border border-white/[0.03] overflow-hidden py-0 shadow-none gap-0 bg-transparent">
                     <CardContent className="p-0 min-h-[340px] md:min-h-[380px] flex flex-col">
                       <div className="sticky top-0 z-10 bg-white/[0.04] pt-4 pb-3 px-5 md:px-6">
                         <div className="flex items-center justify-between">
@@ -1216,47 +1257,48 @@ function TrackedPromptDeepViewInner() {
                           <div className="hidden md:flex items-center gap-4" />
                         </div>
                       </div>
-                      <div className="flex-1 px-5 md:px-6 pb-3 md:pb-4 mt-8">
-                      <ChartContainer config={computedChartConfig} className="h-[290px] md:h-[330px] w-full [&_.recharts-cartesian-axis-tick_text]:fill-white [&_.recharts-cartesian-axis-tick_text]:opacity-90">
-                        <LineChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="4 8" stroke="#ffffff" strokeOpacity={0.08} vertical={false} />
-                          <XAxis
-                            dataKey="day"
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 12, fill: '#ffffff' }}
-                            tickMargin={8}
-                          />
-                          <YAxis
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 12, fill: '#ffffff' }}
-                            tickFormatter={(v: number) => `${v}%`}
-                            domain={[0, 100]}
-                            tickMargin={8}
-                          />
-                          <ChartTooltip 
-                            cursor={{ stroke: '#ffffff', strokeDasharray: '4 6', strokeOpacity: 0.15 }}
-                            content={<VisibilityChartTooltip competitorSeries={competitorSeries} />}
-                          />
-                          {competitorSeries.map((s) => (
-                            <Line
-                              key={s.key}
-                              type="monotone"
-                              dataKey={s.key}
-                              stroke={s.color}
-                              strokeWidth={2}
-                              dot={{ r: 3, strokeWidth: 0, fill: s.color }}
-                              activeDot={{ r: 5, strokeWidth: 0 }}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              connectNulls={false}
-                              hide={!!activeCompetitor && activeCompetitor !== s.label}
+                      <div className="flex-1 px-4 md:px-5 pb-3 md:pb-4 mt-6 relative">
+                        {/* Micro dots background - aligned with chart plotting area */}
+                        <div className="absolute top-0 bottom-6 left-[56px] right-2 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.035)_1px,transparent_0)] bg-[length:8px_8px] pointer-events-none" />
+                        <ChartContainer config={computedChartConfig} className="relative h-[280px] md:h-[320px] w-full [&_.recharts-cartesian-axis-tick_text]:fill-white/80">
+                          <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                            <XAxis
+                              dataKey="day"
+                              axisLine={false}
+                              tickLine={false}
+                              tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.6)' }}
+                              tickMargin={10}
                             />
-                          ))}
-                        </LineChart>
-                      </ChartContainer>
-                      <div className="mt-3 flex items-center justify-center gap-6 md:hidden" />
+                            <YAxis
+                              axisLine={false}
+                              tickLine={false}
+                              tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.6)' }}
+                              tickFormatter={(v: number) => `${v}%`}
+                              domain={[0, 100]}
+                              width={48}
+                              tickMargin={4}
+                            />
+                            <ChartTooltip 
+                              cursor={{ stroke: 'rgba(255,255,255,0.2)', strokeWidth: 1 }}
+                              content={<VisibilityChartTooltip competitorSeries={competitorSeries} />}
+                            />
+                            {competitorSeries.map((s) => (
+                              <Line
+                                key={s.key}
+                                type="monotone"
+                                dataKey={s.key}
+                                stroke={s.color}
+                                strokeWidth={2}
+                                dot={{ r: 2.5, strokeWidth: 0, fill: s.color }}
+                                activeDot={{ r: 4, strokeWidth: 0 }}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                connectNulls={true}
+                                hide={!!activeCompetitor && activeCompetitor !== s.label}
+                              />
+                            ))}
+                          </LineChart>
+                        </ChartContainer>
                       </div>
                     </CardContent>
                   </Card>
@@ -1468,42 +1510,43 @@ function TrackedPromptDeepViewInner() {
                                     </TableCell>
                                   </TableRow>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-3xl rounded-xl border border-white/[0.03] bg-dark-grey p-0 max-h-[90vh] overflow-y-auto">
-                                  <DialogHeader>
-                                    <DialogTitle className="sr-only">Source Details</DialogTitle>
+                                <DialogContent className="sm:max-w-2xl rounded-xl border border-white/[0.04] bg-dark-grey p-0 max-h-[85vh] overflow-hidden">
+                                  <DialogHeader className="sr-only">
+                                    <DialogTitle>Source Details</DialogTitle>
                                   </DialogHeader>
-                                  <div className="p-6 space-y-6">
-                                    {/* Header with domain info */}
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.05]">
-                                          <Globe className="h-5 w-5 text-white/50" />
-                                        </div>
-                                        <div>
-                                          <div className="text-sm font-medium text-white/90">{row.domain}</div>
-                                          <a
-                                            href={`https://${row.domain}`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="text-xs text-white/40 hover:text-white/60 transition-colors"
-                                          >
-                                            Visit domain →
-                                          </a>
-                                        </div>
+                                  
+                                  {/* Header section */}
+                                  <div className="px-5 pt-5 pb-4 pr-12 border-b border-white/[0.04]">
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.04] border border-white/[0.05]">
+                                        <DomainLogo domain={row.domain} size={20} className="text-white/70" />
+                                      </div>
+                                      <div className="space-y-0.5">
+                                        <div className="text-sm font-medium text-white/90">{row.domain}</div>
+                                        <a
+                                          href={`https://${row.domain}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="inline-flex items-center gap-1 text-xs text-white/40 hover:text-white/60 transition-colors"
+                                        >
+                                          <ExternalLink className="h-3 w-3" />
+                                          Visit domain
+                                        </a>
                                       </div>
                                     </div>
+                                  </div>
 
-                                    {/* Citation Frequency Card */}
-                                    <div className="rounded-lg border border-white/[0.03] bg-white/[0.02] p-4">
-                                      <div className="text-xs text-white/40 mb-1.5">Citation Frequency</div>
-                                      <div className="text-2xl font-semibold text-white/90">
-                                        {Math.round((row.frequency / Math.max(1, totalCitationFrequency)) * 100)}%
+                                  {/* Tab selector with citation frequency */}
+                                  <div className="px-5 pt-3 pb-2 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex flex-col">
+                                        <div className="text-lg font-semibold text-white/90 tabular-nums">
+                                          {Math.round((row.frequency / Math.max(1, totalCitationFrequency)) * 100)}%
+                                        </div>
+                                        <div className="text-[10px] text-white/40">Citation frequency</div>
                                       </div>
-                                      <div className="text-xs text-white/40 mt-1">How often this source appears in responses</div>
                                     </div>
-
-                                    {/* Tab selector */}
-                                    <div className="flex items-center gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/[0.03] w-fit">
+                                    <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-white/[0.03] border border-white/[0.04]">
                                       <button
                                         type="button"
                                         onClick={() => setSourceDialogView('sources')}
@@ -1511,10 +1554,10 @@ function TrackedPromptDeepViewInner() {
                                           "px-3 py-1.5 rounded-md text-[13px] font-medium transition-all",
                                           sourceDialogView === 'sources'
                                             ? "bg-white text-black"
-                                            : "text-white/60 hover:text-white/80"
+                                            : "text-white/50 hover:text-white/70"
                                         )}
                                       >
-                                        Sources
+                                        URLs
                                       </button>
                                       <button
                                         type="button"
@@ -1523,14 +1566,18 @@ function TrackedPromptDeepViewInner() {
                                           "px-3 py-1.5 rounded-md text-[13px] font-medium transition-all",
                                           sourceDialogView === 'prompt'
                                             ? "bg-white text-black"
-                                            : "text-white/60 hover:text-white/80"
+                                            : "text-white/50 hover:text-white/70"
                                         )}
                                       >
-                                        This prompt
+                                        Responses
                                       </button>
                                     </div>
+                                  </div>
+                                  
+                                  {/* Content area */}
+                                  <div className="px-5 pb-5 space-y-3 overflow-y-auto max-h-[calc(85vh-180px)]">
 
-                                    {/* Chats by source (conditional) */}
+                                    {/* Responses tab - show prompt + responses citing this source */}
                                     {sourceDialogView !== 'sources' && (() => {
                                       const platformMatches = (chat: ChatHistoryEntry) => selectedPlatform === 'all' || providerKey(chat.provider) === selectedPlatform
                                       const domainMatches = (chat: ChatHistoryEntry) => (chat.responseCitations || []).some((c) => (c as any).domain === row.domain)
@@ -1540,69 +1587,125 @@ function TrackedPromptDeepViewInner() {
                                       const remainingLocal = Math.max(0, chatsForDomain.length - visibleChatsLocal.length)
 
                                       return (
-                                        <div className="rounded-lg border border-white/[0.03] bg-white/[0.02] overflow-hidden">
-                                          <div className="max-h-[35vh] overflow-y-auto">
-                                            <Table className="w-full">
-                                              <TableHeader className="sticky top-0 z-10 bg-white/[0.03]">
-                                                <TableRow className="hover:bg-transparent border-b border-white/[0.03]">
-                                                  <TableHead className="w-[160px] text-[13px] font-medium text-white/50 px-4 h-10">Platform</TableHead>
-                                                  <TableHead className="text-[13px] font-medium text-white/50 h-10">Response</TableHead>
-                                                  <TableHead className="w-[80px] text-center text-[13px] font-medium text-white/50 px-2 h-10">Citations</TableHead>
-                                                  <TableHead className="w-[100px] text-center text-[13px] font-medium text-white/50 px-2 h-10">Date</TableHead>
-                                                </TableRow>
-                                              </TableHeader>
-                                              <TableBody>
-                                                {visibleChatsLocal.map((chat) => {
-                                                  const responseText = (chat.fullResponse || '').split('\n').filter(Boolean).join(' ')
-                                                  const words = responseText.split(/\s+/).filter(Boolean)
-                                                  const previewText = words.slice(0, 3).join(' ')
-                                                  const hasMore = words.length > 3
-                                                  return (
-                                                  <TableRow key={chat.id} className="hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 transition-colors">
-                                                    <TableCell className="px-4 py-3">
-                                                      <span className="text-[13px] text-white/80">{getProviderDisplay(chat.provider)}</span>
-                                                    </TableCell>
-                                                    <TableCell className="py-3 max-w-[200px]">
-                                                      <span
-                                                        title={responseText}
-                                                        className="text-[13px] text-white/60 cursor-help truncate block"
-                                                      >
-                                                        {previewText}{hasMore && '...'}
-                                                      </span>
-                                                    </TableCell>
-                                                    <TableCell className="text-center text-[13px] text-white/60 px-2 py-3">
-                                                      {Math.max(1, (chat.responseCitations || []).filter((c) => (c as any).domain === row.domain).length)}
-                                                    </TableCell>
-                                                    <TableCell className="text-center text-[13px] text-white/50 px-2 py-3">{chat.date}</TableCell>
-                                                  </TableRow>
-                                                  )
-                                                })}
-                                                {visibleChatsLocal.length === 0 ? (
-                                                  <TableRow>
-                                                    <TableCell colSpan={4} className="text-center py-10">
-                                                      <div className="text-[13px] text-white/40">No chats found for this source</div>
-                                                    </TableCell>
-                                                  </TableRow>
-                                                ) : null}
-                                              </TableBody>
-                                            </Table>
-                                          </div>
-                                          {chatsForDomain.length > 0 && (
-                                            <div className="flex items-center justify-between px-4 py-2.5 border-t border-white/[0.03] text-[13px]">
-                                              <button
+                                        <div className="space-y-3">
+                                          {/* Prompt card - clickable to expand */}
+                                          <Dialog>
+                                            <DialogTrigger asChild>
+                                              <button 
                                                 type="button"
-                                                onClick={() => setSourceChatsVisibleCount(Math.min(sourceChatsVisibleCount + INITIAL_VISIBLE, chatsForDomain.length))}
-                                                disabled={remainingLocal <= 0}
-                                                className={cn(
-                                                  "text-white/50 hover:text-white/80 transition-colors",
-                                                  remainingLocal <= 0 && "opacity-40 cursor-not-allowed"
-                                                )}
+                                                className="w-full text-left rounded-lg border border-white/[0.03] bg-white/[0.02] p-4 hover:bg-white/[0.04] hover:border-white/[0.06] transition-colors cursor-pointer group"
                                               >
-                                                {remainingLocal > 0 ? `Show ${Math.min(INITIAL_VISIBLE, remainingLocal)} more` : 'All shown'}
+                                                <div className="flex items-center justify-between mb-2">
+                                                  <div className="flex items-center gap-2">
+                                                    <MessageSquareText className="h-3.5 w-3.5 text-white/40" />
+                                                    <span className="text-[11px] font-medium text-white/40 uppercase tracking-wide">Tracked Prompt</span>
+                                                  </div>
+                                                  <Maximize2 className="h-3.5 w-3.5 text-white/30 group-hover:text-white/50 transition-colors" />
+                                                </div>
+                                                <p className="text-[13px] text-white/80 leading-relaxed line-clamp-2">{promptData?.text || 'Loading prompt...'}</p>
                                               </button>
-                                              <span className="text-white/40">{visibleChatsLocal.length} of {chatsForDomain.length}</span>
+                                            </DialogTrigger>
+                                            <DialogContent className="sm:max-w-lg rounded-xl border border-white/[0.04] bg-dark-grey p-0">
+                                              <DialogHeader className="px-5 pt-5 pb-3 pr-12 border-b border-white/[0.04]">
+                                                <DialogTitle className="flex items-center gap-2 text-sm font-medium text-white/90">
+                                                  <MessageSquareText className="h-4 w-4 text-white/50" />
+                                                  Tracked Prompt
+                                                </DialogTitle>
+                                              </DialogHeader>
+                                              <div className="px-5 py-4">
+                                                <p className="text-[14px] text-white/80 leading-relaxed whitespace-pre-wrap">{promptData?.text || 'Loading prompt...'}</p>
+                                              </div>
+                                            </DialogContent>
+                                          </Dialog>
+                                          
+                                          {/* Responses list - clickable to view full response */}
+                                          <div className="rounded-lg border border-white/[0.03] bg-white/[0.02] overflow-hidden">
+                                            <div className="max-h-[260px] overflow-y-auto divide-y divide-white/[0.03]">
+                                              {visibleChatsLocal.map((chat) => {
+                                                const responseText = (chat.fullResponse || '').split('\n').filter(Boolean).join(' ')
+                                                const words = responseText.split(/\s+/).filter(Boolean)
+                                                const previewText = words.slice(0, 12).join(' ')
+                                                const hasMore = words.length > 12
+                                                return (
+                                                  <Dialog key={chat.id}>
+                                                    <DialogTrigger asChild>
+                                                      <button 
+                                                        type="button"
+                                                        className="w-full text-left px-4 py-3 hover:bg-white/[0.02] transition-colors cursor-pointer group"
+                                                      >
+                                                        <div className="flex items-start gap-3">
+                                                          {/* Model logo */}
+                                                          <div className="flex-shrink-0 mt-0.5">
+                                                            <Image 
+                                                              src={getProviderIconSrc(chat.provider)} 
+                                                              alt={chat.provider} 
+                                                              width={18} 
+                                                              height={18}
+                                                              className="rounded"
+                                                            />
+                                                          </div>
+                                                          {/* Content */}
+                                                          <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                              <span className="text-[12px] font-medium text-white/70">{getProviderDisplay(chat.provider)}</span>
+                                                              <span className="text-[11px] text-white/30">•</span>
+                                                              <span className="text-[11px] text-white/40">{chat.date}</span>
+                                                            </div>
+                                                            <p className="text-[13px] text-white/50 group-hover:text-white/70 transition-colors line-clamp-2">
+                                                              {previewText}{hasMore && '...'}
+                                                            </p>
+                                                          </div>
+                                                          {/* Expand icon */}
+                                                          <ChevronRight className="h-4 w-4 text-white/20 group-hover:text-white/40 transition-colors flex-shrink-0 mt-1" />
+                                                        </div>
+                                                      </button>
+                                                    </DialogTrigger>
+                                                    <DialogContent className="sm:max-w-2xl rounded-xl border border-white/[0.04] bg-dark-grey p-0 max-h-[80vh] overflow-hidden">
+                                                      <DialogHeader className="px-5 pt-5 pb-3 pr-12 border-b border-white/[0.04]">
+                                                        <DialogTitle className="flex items-center gap-3 text-sm font-medium text-white/90">
+                                                          <Image 
+                                                            src={getProviderIconSrc(chat.provider)} 
+                                                            alt={chat.provider} 
+                                                            width={20} 
+                                                            height={20}
+                                                            className="rounded"
+                                                          />
+                                                          <span>{getProviderDisplay(chat.provider)} Response</span>
+                                                          <span className="text-[12px] text-white/40 font-normal">{chat.date}</span>
+                                                        </DialogTitle>
+                                                      </DialogHeader>
+                                                      <div className="px-5 py-4 overflow-y-auto max-h-[calc(80vh-80px)]">
+                                                        <div className="text-[14px] text-white/80 leading-relaxed whitespace-pre-wrap">
+                                                          {chat.fullResponse || 'No response content available.'}
+                                                        </div>
+                                                      </div>
+                                                    </DialogContent>
+                                                  </Dialog>
+                                                )
+                                              })}
+                                              {visibleChatsLocal.length === 0 && (
+                                                <div className="text-center py-10">
+                                                  <div className="text-[13px] text-white/40">No responses found citing this source</div>
+                                                </div>
+                                              )}
                                             </div>
-                                          )}
+                                            {chatsForDomain.length > 0 && (
+                                              <div className="flex items-center justify-between px-4 py-2 border-t border-white/[0.03] text-[12px]">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setSourceChatsVisibleCount(Math.min(sourceChatsVisibleCount + INITIAL_VISIBLE, chatsForDomain.length))}
+                                                  disabled={remainingLocal <= 0}
+                                                  className={cn(
+                                                    "text-white/50 hover:text-white/70 transition-colors",
+                                                    remainingLocal <= 0 && "opacity-40 cursor-not-allowed"
+                                                  )}
+                                                >
+                                                  {remainingLocal > 0 ? `Show ${Math.min(INITIAL_VISIBLE, remainingLocal)} more` : 'All shown'}
+                                                </button>
+                                                <span className="text-white/40">{visibleChatsLocal.length} of {chatsForDomain.length}</span>
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
                                       )
                                     })()}
@@ -1621,38 +1724,56 @@ function TrackedPromptDeepViewInner() {
                                           </TableHeader>
                                           <TableBody>
                                             {(row.urls && row.urls.length > 0) ? (
-                                              row.urls.map((item: { url: string; title?: string; citationType: string; brandMentioned: boolean }, idx: number) => (
-                                              <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 transition-colors">
-                                                <TableCell className="px-4 py-3">
-                                                  <a
-                                                    href={item.url}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="text-[13px] text-white/70 hover:text-white transition-colors"
-                                                    title={item.url}
-                                                  >
-                                                    {extractDomain(item.url)}
-                                                  </a>
-                                                </TableCell>
-                                                <TableCell className="text-center px-3 py-3">
-                                                  <span className="inline-flex items-center gap-1.5 text-[12px] text-white/60">
-                                                    <ContentTypeIcon type={mapContentType(item.citationType)} />
-                                                    {mapContentType(item.citationType)}
-                                                  </span>
-                                                </TableCell>
-                                                <TableCell className="text-center px-3 py-3">
-                                                  {item.brandMentioned ? (
-                                                    <span className="inline-flex items-center gap-1 text-[12px] text-emerald-400">
-                                                      <CheckCircle className="h-3.5 w-3.5" />Yes
-                                                    </span>
-                                                  ) : (
-                                                    <span className="inline-flex items-center gap-1 text-[12px] text-white/40">
-                                                      <XCircle className="h-3.5 w-3.5" />No
-                                                    </span>
-                                                  )}
-                                                </TableCell>
-                                              </TableRow>
-                                              ))
+                                              row.urls
+                                                .filter((item: { url: string }) => item.url && item.url.trim().length > 0)
+                                                .map((item: { url: string; title?: string; citationType: string; brandMentioned: boolean }, idx: number) => {
+                                                  // Format URL for display: show path, truncate if too long
+                                                  const formatUrlForDisplay = (url: string): string => {
+                                                    try {
+                                                      const parsed = new URL(url)
+                                                      // Show domain + path (without query params for cleaner display)
+                                                      const pathPart = parsed.pathname === '/' ? '' : parsed.pathname
+                                                      const display = parsed.hostname.replace('www.', '') + pathPart
+                                                      // Truncate if too long
+                                                      return display.length > 60 ? display.substring(0, 57) + '...' : display
+                                                    } catch {
+                                                      // Fallback for malformed URLs
+                                                      return url.length > 60 ? url.substring(0, 57) + '...' : url
+                                                    }
+                                                  }
+                                                  return (
+                                                    <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 transition-colors">
+                                                      <TableCell className="px-4 py-3">
+                                                        <a
+                                                          href={item.url}
+                                                          target="_blank"
+                                                          rel="noreferrer"
+                                                          className="text-[13px] text-white/70 hover:text-white transition-colors truncate block max-w-[400px]"
+                                                          title={item.url}
+                                                        >
+                                                          {formatUrlForDisplay(item.url)}
+                                                        </a>
+                                                      </TableCell>
+                                                      <TableCell className="text-center px-3 py-3">
+                                                        <span className="inline-flex items-center gap-1.5 text-[12px] text-white/60">
+                                                          <ContentTypeIcon type={mapContentType(item.citationType)} />
+                                                          {mapContentType(item.citationType)}
+                                                        </span>
+                                                      </TableCell>
+                                                      <TableCell className="text-center px-3 py-3">
+                                                        {item.brandMentioned ? (
+                                                          <span className="inline-flex items-center gap-1 text-[12px] text-emerald-400">
+                                                            <CheckCircle className="h-3.5 w-3.5" />Yes
+                                                          </span>
+                                                        ) : (
+                                                          <span className="inline-flex items-center gap-1 text-[12px] text-white/40">
+                                                            <XCircle className="h-3.5 w-3.5" />No
+                                                          </span>
+                                                        )}
+                                                      </TableCell>
+                                                    </TableRow>
+                                                  )
+                                                })
                                             ) : (
                                               <TableRow>
                                                 <TableCell colSpan={3} className="text-center py-10">

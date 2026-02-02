@@ -56,6 +56,46 @@ export function extractDomain(url: string): string {
 }
 
 /**
+ * Normalize URL for deduplication
+ * Removes trailing slashes, www prefix, common tracking params, and normalizes case
+ * Preserves port numbers and fragments for accuracy
+ */
+export function normalizeUrlForDedup(url: string): string {
+  try {
+    const parsed = new URL(url)
+
+    // Normalize hostname (lowercase, remove www)
+    const hostname = parsed.hostname.toLowerCase().replace(/^www\./, '')
+
+    // Preserve port if non-standard
+    const port = parsed.port ? `:${parsed.port}` : ''
+
+    // Normalize pathname (remove trailing slash unless it's just "/")
+    let pathname = parsed.pathname
+    if (pathname.length > 1 && pathname.endsWith('/')) {
+      pathname = pathname.slice(0, -1)
+    }
+
+    // Remove common tracking parameters
+    const trackingParams = [
+      'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+      'ref', 'source', 'fbclid', 'gclid', 'trackingId', 'tracking_id',
+      'mc_cid', 'mc_eid', 'mkt_tok', '_ga', '_gl', 'oly_enc_id', 'oly_anon_id'
+    ]
+    const params = new URLSearchParams(parsed.search)
+    trackingParams.forEach(p => params.delete(p))
+
+    // Reconstruct URL without tracking params (exclude fragment for deduplication - same page)
+    const cleanSearch = params.toString() ? `?${params.toString()}` : ''
+
+    return `${parsed.protocol}//${hostname}${port}${pathname}${cleanSearch}`
+  } catch {
+    // Fallback: just lowercase and remove trailing slash
+    return url.toLowerCase().replace(/\/+$/, '')
+  }
+}
+
+/**
  * Categorize citation type based on URL and title patterns
  * Order matters - more specific patterns should come first
  */
@@ -302,7 +342,8 @@ export function extractCitationsFromResponse(
   sources: any[] = []
 ): ExtractedCitation[] {
   const extractedCitations: ExtractedCitation[] = []
-  const processedUrls = new Set<string>()
+  // Use normalized URLs for deduplication to catch variations (trailing slashes, www, tracking params)
+  const processedNormalizedUrls = new Set<string>()
 
   // Helper to extract URL from citation/source object
   const extractUrl = (item: any): string => {
@@ -312,12 +353,20 @@ export function extractCitationsFromResponse(
     return ''
   }
 
+  // Helper to check if URL should be processed (not empty, not already seen)
+  const shouldProcessUrl = (url: string): boolean => {
+    if (!url || url.trim().length === 0) return false
+    const normalized = normalizeUrlForDedup(url)
+    if (processedNormalizedUrls.has(normalized)) return false
+    processedNormalizedUrls.add(normalized)
+    return true
+  }
+
   // Process explicit citations from API
   if (citations && Array.isArray(citations)) {
     for (const citation of citations) {
       const url = extractUrl(citation)
-      if (!url || processedUrls.has(url)) continue
-      processedUrls.add(url)
+      if (!shouldProcessUrl(url)) continue
 
       extractedCitations.push({
         url,
@@ -334,8 +383,7 @@ export function extractCitationsFromResponse(
   if (sources && Array.isArray(sources)) {
     for (const source of sources) {
       const url = extractUrl(source)
-      if (!url || processedUrls.has(url)) continue
-      processedUrls.add(url)
+      if (!shouldProcessUrl(url)) continue
 
       extractedCitations.push({
         url,
@@ -356,9 +404,8 @@ export function extractCitationsFromResponse(
     // Clean up URL (remove trailing punctuation)
     const cleanUrl = url.replace(/[.,;:!?]+$/, '')
 
-    // Skip if already extracted
-    if (processedUrls.has(cleanUrl)) continue
-    processedUrls.add(cleanUrl)
+    // Skip if already extracted (uses normalized URL for deduplication)
+    if (!shouldProcessUrl(cleanUrl)) continue
 
     extractedCitations.push({
       url: cleanUrl,
@@ -382,14 +429,14 @@ export function aggregateCitationsForPrompt(
 ): CitationAnalysis {
   const domainMap = new Map<string, {
     citations: ExtractedCitation[]
-    urls: Set<string>
-    urlDetails: Map<string, { title?: string; citationType: string; brandMentioned: boolean }>
+    normalizedUrls: Set<string>  // Use normalized URLs for deduplication
+    urlDetails: Map<string, { url: string; title?: string; citationType: string; brandMentioned: boolean }>  // Key is normalized URL, value includes original URL
     chatsWithCitation: number
     dominantType: Map<string, number>
   }>()
-  
+
   let totalCitations = 0
-  
+
   for (const result of testResults) {
     const citations = extractCitationsFromResponse(
       result.response || '',
@@ -398,43 +445,51 @@ export function aggregateCitationsForPrompt(
       result.timestamp ? new Date(result.timestamp) : new Date(),
       result.sources || []  // Include web search results to match /api/analytics/citations behavior
     )
-    
+
     totalCitations += citations.length
-    
+
     // Track which domains appear in this response (for frequency calculation)
     const domainsInThisResponse = new Set<string>()
-    
+
     for (const citation of citations) {
+      // Skip empty or invalid URLs
+      if (!citation.url || citation.url.trim().length === 0) continue
+
       domainsInThisResponse.add(citation.domain)
-      
+
       if (!domainMap.has(citation.domain)) {
         domainMap.set(citation.domain, {
           citations: [],
-          urls: new Set(),
+          normalizedUrls: new Set(),
           urlDetails: new Map(),
           chatsWithCitation: 0,
           dominantType: new Map()
         })
       }
-      
+
       const domainData = domainMap.get(citation.domain)!
       domainData.citations.push(citation)
-      domainData.urls.add(citation.url)
-      
-      // Track URL details
-      if (!domainData.urlDetails.has(citation.url)) {
+
+      // Use normalized URL for deduplication
+      const normalizedUrl = normalizeUrlForDedup(citation.url)
+
+      // Only add URL details if we haven't seen this normalized URL before
+      if (!domainData.normalizedUrls.has(normalizedUrl)) {
+        domainData.normalizedUrls.add(normalizedUrl)
+
         // Check if brand is mentioned in the response for this URL
-        const brandMentioned = brandName 
+        const brandMentioned = brandName
           ? (result.response || '').toLowerCase().includes(brandName.toLowerCase())
           : result.brandMentioned || false
-        
-        domainData.urlDetails.set(citation.url, {
+
+        domainData.urlDetails.set(normalizedUrl, {
+          url: citation.url,  // Store original URL for display
           title: citation.title,
           citationType: citation.citationType,
           brandMentioned
         })
       }
-      
+
       // Track citation types for determining dominant type
       const currentTypeCount = domainData.dominantType.get(citation.citationType) || 0
       domainData.dominantType.set(citation.citationType, currentTypeCount + 1)
@@ -466,9 +521,9 @@ export function aggregateCitationsForPrompt(
       ? Math.round((data.chatsWithCitation / totalResponses) * 100)
       : 0
     
-    // Build URL details array
-    const urls = Array.from(data.urlDetails.entries()).map(([url, details]) => ({
-      url,
+    // Build URL details array (use original URL from details, not the normalized key)
+    const urls = Array.from(data.urlDetails.values()).map(details => ({
+      url: details.url,
       title: details.title,
       citationType: details.citationType,
       brandMentioned: details.brandMentioned

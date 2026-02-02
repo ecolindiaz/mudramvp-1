@@ -332,19 +332,66 @@ function validateBrandMention(text: string, brandName: string): boolean {
 /**
  * Filter competitors to only include valid company names
  */
-function filterValidCompetitors(competitors: string[], brandName: string): string[] {
+export function filterValidCompetitors(competitors: string[], brandName: string): string[] {
   if (!competitors || !Array.isArray(competitors)) return [];
-  
+
   const brandLower = brandName.toLowerCase();
-  
+
+  // Extract first word of brand name for matching brand products
+  // e.g., "Vercel" -> matches "Vercel AI", "Vercel SDK", "Vercel Agent"
+  const brandFirstWord = brandLower.split(/\s+/)[0];
+
   return competitors.filter(comp => {
     if (!comp || typeof comp !== 'string') return false;
-    
+
     const compLower = comp.toLowerCase().trim();
-    
+
+    // Filter empty or whitespace-only strings
+    if (!compLower || compLower.length === 0) return false;
+
+    // Filter exact brand match or brand contained in competitor name
     if (compLower === brandLower || compLower.includes(brandLower)) return false;
+
+    // Filter if competitor starts with brand name (catches "Vercel AI", "Vercel SDK", etc.)
+    if (compLower.startsWith(brandFirstWord + ' ') || compLower.startsWith(brandFirstWord + "'s")) return false;
+
+    // Filter generic product/feature names that are likely referring to tracked brand's products
+    // These are commonly extracted when AI describes a brand's features instead of competitors
+    const genericProductNames = [
+      // SDK/API related
+      'ai sdk', 'ai gateway', 'ai agent', 'ai assistant', 'ai platform', 'ai api',
+      'sdk', 'api', 'gateway', 'agent', 'cli', 'dashboard', 'platform',
+      // Payment/commerce related generic terms
+      'payment gateway', 'payment api', 'payment platform', 'checkout',
+      // Generic product features
+      'edge functions', 'edge network', 'edge runtime', 'serverless functions',
+      'analytics', 'insights', 'observability', 'monitoring',
+      'preview deployments', 'preview environments', 'instant rollbacks',
+      'automatic scaling', 'auto scaling', 'global cdn',
+      // Generic platform features
+      'pro plan', 'enterprise plan', 'team plan', 'free tier',
+      'managed infrastructure', 'infrastructure as code',
+    ];
+    if (genericProductNames.includes(compLower)) return false;
+
+    // Filter if it's a 2-word combo where second word is a generic tech term
+    // e.g., "AI Gateway", "AI SDK" (unless it's clearly a company like "Scale AI")
+    const words = compLower.split(/\s+/);
+    if (words.length === 2) {
+      const genericSecondWords = [
+        'sdk', 'api', 'cli', 'gateway', 'agent', 'platform', 'runtime',
+        'functions', 'network', 'cdn', 'edge', 'proxy', 'cache',
+        'dashboard', 'console', 'portal', 'studio', 'hub', 'center',
+      ];
+      if (genericSecondWords.includes(words[1])) {
+        // Only keep if first word is a known company name (not generic like "AI", "Edge", "Cloud")
+        const genericFirstWords = ['ai', 'edge', 'cloud', 'serverless', 'managed', 'global', 'auto', 'instant'];
+        if (genericFirstWords.includes(words[0])) return false;
+      }
+    }
+
     if (comp.length < 2 || comp.length > 40) return false;
-    
+
     // CRITICAL: Filter out generic category terms that are NOT company names
     const genericTerms = [
       // Career/Job related generic terms

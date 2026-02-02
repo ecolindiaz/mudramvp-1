@@ -20,8 +20,8 @@ import {
 import { createOptimizationPR } from './github.service'
 import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
 
-// Timeout for agent generation (2 minutes)
-const AGENT_TIMEOUT_MS = 120_000
+// Timeout for agent generation (60 seconds - Vercel has 60s limit on hobby)
+const AGENT_TIMEOUT_MS = 55_000
 
 /**
  * Wrap a promise with a timeout
@@ -35,16 +35,24 @@ async function withTimeout<T>(
   
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
+      console.error(`[IssueExecutor] TIMEOUT triggered after ${timeoutMs}ms`)
       reject(new Error(errorMessage))
     }, timeoutMs)
   })
   
+  // Log heartbeat every 10 seconds
+  const heartbeatId = setInterval(() => {
+    console.log(`[IssueExecutor] Heartbeat - still waiting for agent response...`)
+  }, 10_000)
+  
   try {
     const result = await Promise.race([promise, timeoutPromise])
     clearTimeout(timeoutId!)
+    clearInterval(heartbeatId)
     return result
   } catch (error) {
     clearTimeout(timeoutId!)
+    clearInterval(heartbeatId)
     throw error
   }
 }

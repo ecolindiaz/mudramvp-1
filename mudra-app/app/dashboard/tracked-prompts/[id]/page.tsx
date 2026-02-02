@@ -70,6 +70,67 @@ function LegendChip({ color, label }: { color: string; label: string }) {
   )
 }
 
+// Custom tooltip for visibility chart - clean, limited to 10 brands
+function VisibilityChartTooltip({ 
+  active, 
+  payload, 
+  label,
+  competitorSeries 
+}: { 
+  active?: boolean
+  payload?: Array<{ dataKey: string; value: number; color: string }>
+  label?: string
+  competitorSeries: Array<{ key: string; label: string; color: string; isYou?: boolean }>
+}) {
+  if (!active || !payload?.length) return null
+
+  // Sort by value descending and limit to 10
+  const sortedPayload = [...payload]
+    .filter(p => p.value !== null && p.value !== undefined)
+    .sort((a, b) => (b.value || 0) - (a.value || 0))
+    .slice(0, 10)
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-[#0a0a0a]/95 backdrop-blur-sm px-3 py-2.5 shadow-2xl min-w-[180px]">
+      <p className="text-[11px] font-medium text-white/60 mb-2 pb-1.5 border-b border-white/[0.06]">{label}</p>
+      <div className="space-y-1.5">
+        {sortedPayload.map((entry) => {
+          const seriesInfo = competitorSeries.find(s => s.key === entry.dataKey)
+          const isYou = seriesInfo?.isYou
+          return (
+            <div 
+              key={entry.dataKey} 
+              className={cn(
+                "flex items-center justify-between gap-4",
+                isYou && "bg-emerald-500/10 -mx-1.5 px-1.5 py-0.5 rounded"
+              )}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span 
+                  className="h-2 w-2 rounded-full shrink-0 ring-1 ring-white/20" 
+                  style={{ backgroundColor: entry.color }} 
+                />
+                <span className={cn(
+                  "text-xs truncate max-w-[120px]",
+                  isYou ? "text-emerald-400 font-medium" : "text-white/70"
+                )}>
+                  {seriesInfo?.label || entry.dataKey}
+                </span>
+              </div>
+              <span className={cn(
+                "text-xs font-mono tabular-nums",
+                isYou ? "text-emerald-400 font-semibold" : "text-white/90"
+              )}>
+                {entry.value?.toFixed(1)}%
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 type CompetitorRow = { 
   rank: number
   company: string
@@ -689,10 +750,10 @@ function TrackedPromptDeepViewInner() {
   }, [promptData, competitorsData, profile?.companyName])
 
   // Dynamic competitor series config (including "You" with special color)
-  // Deduplicate by key to avoid React key collisions in chart tooltips
+  // Deduplicate by key, limit to top 10 brands by visibility
   const competitorSeries = useMemo(() => {
     const seenKeys = new Set<string>()
-    return competitorsDataWithYou
+    const allSeries = competitorsDataWithYou
       .map((c, idx) => ({
         key: toSeriesKey(c.company),
         label: c.company,
@@ -705,6 +766,15 @@ function TrackedPromptDeepViewInner() {
         seenKeys.add(s.key)
         return true
       })
+    
+    // Always include "You", then top 9 competitors by visibility
+    const youEntry = allSeries.find(s => s.isYou)
+    const competitors = allSeries
+      .filter(s => !s.isYou)
+      .sort((a, b) => b.visibility - a.visibility)
+      .slice(0, 9)
+    
+    return youEntry ? [youEntry, ...competitors] : competitors.slice(0, 10)
   }, [competitorsDataWithYou])
 
   const computedChartConfig = useMemo(() => {
@@ -1167,7 +1237,7 @@ function TrackedPromptDeepViewInner() {
                           />
                           <ChartTooltip 
                             cursor={{ stroke: '#ffffff', strokeDasharray: '4 6', strokeOpacity: 0.15 }}
-                            content={<ChartTooltipContent indicator="line" className="bg-black border-white/20 text-white/90 shadow-xl" />}
+                            content={<VisibilityChartTooltip competitorSeries={competitorSeries} />}
                           />
                           {competitorSeries.map((s) => (
                             <Line

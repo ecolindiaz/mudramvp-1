@@ -302,21 +302,29 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
   console.log(`[IssueExecutor] Starting execution for issue ${issueId}`)
   
   // 1. Get issue with brand profile
-  const issue = await prisma.issue.findUnique({
-    where: { id: issueId },
-    include: {
-      brandProfile: {
-        select: {
-          id: true,
-          companyName: true,
-          companyWebsite: true,
-          companyDescription: true,
-          companyIndustry: true,
-          companyServices: true
+  console.log(`[IssueExecutor] Fetching issue from database...`)
+  let issue
+  try {
+    issue = await prisma.issue.findUnique({
+      where: { id: issueId },
+      include: {
+        brandProfile: {
+          select: {
+            id: true,
+            companyName: true,
+            companyWebsite: true,
+            companyDescription: true,
+            companyIndustry: true,
+            companyServices: true
+          }
         }
       }
-    }
-  })
+    })
+    console.log(`[IssueExecutor] Issue fetched: ${issue ? 'found' : 'not found'}`)
+  } catch (dbError) {
+    console.error(`[IssueExecutor] Database error fetching issue:`, dbError)
+    return { success: false, error: `Database error: ${dbError instanceof Error ? dbError.message : 'Unknown'}` }
+  }
   
   if (!issue) {
     return { success: false, error: 'Issue not found' }
@@ -326,11 +334,15 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
     return { success: false, error: 'Brand profile not found' }
   }
   
+  console.log(`[IssueExecutor] Issue "${issue.title}" found with brand "${issue.brandProfile.companyName}"`)
+  
   // 2. Update status to in_progress
+  console.log(`[IssueExecutor] Updating issue status to in_progress...`)
   await prisma.issue.update({
     where: { id: issueId },
     data: { status: 'in_progress' }
   })
+  console.log(`[IssueExecutor] Status updated`)
   
   try {
     // 3. Get appropriate agent

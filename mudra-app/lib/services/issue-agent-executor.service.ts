@@ -34,15 +34,19 @@ const anthropic = new Anthropic({
  */
 async function callAnthropicDirect(prompt: string, systemPrompt?: string): Promise<string> {
   console.log(`[IssueExecutor] Using direct Anthropic API call...`)
+  console.log(`[IssueExecutor] Anthropic API key present: ${!!process.env.ANTHROPIC_API_KEY}`)
+  console.log(`[IssueExecutor] Calling anthropic.messages.create with model: claude-sonnet-4-5-20250929`)
   
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-4-5-20250929',
     max_tokens: 4096,
     messages: [
       { role: 'user', content: prompt }
     ],
     ...(systemPrompt && { system: systemPrompt })
   })
+  
+  console.log(`[IssueExecutor] Anthropic API response received, stop_reason: ${response.stop_reason}`)
   
   const textContent = response.content.find(c => c.type === 'text')
   if (!textContent || textContent.type !== 'text') {

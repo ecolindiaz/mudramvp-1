@@ -118,7 +118,7 @@ const mockDeployments: DeploymentItem[] = [
   },
 ]
 
-function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deployment: DeploymentItem & { repoConfig?: { repo: string; branch: string } }) => Promise<void>, deployedAgentIds?: string[] }) {
+export function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deployment: DeploymentItem & { repoConfig?: { repo: string; branch: string } }) => Promise<void>, deployedAgentIds?: string[] }) {
   const [loadingDeploymentId, setLoadingDeploymentId] = useState<string | null>(null)
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([])
   const [isLoadingRepos, setIsLoadingRepos] = useState(false)

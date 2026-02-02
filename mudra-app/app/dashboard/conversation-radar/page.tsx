@@ -15,7 +15,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Search, Clock, Radio, ChevronRight, BookOpen, MoreHorizontal, Sparkles, type LucideProps, MessageSquare, ExternalLink, TrendingUp, Users } from "lucide-react"
-import { BrowserWindowEmpty } from "@/components/empty-states/browser-window-empty"
 import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { useState, useEffect } from "react"
@@ -374,30 +373,81 @@ function ConversationRadarPageInner() {
                   <Loader2 className="w-8 h-8 animate-spin text-white/40" />
                 </div>
               ) : filteredOpportunities.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20">
-                  <BrowserWindowEmpty 
-                    text={viewFilter === "active" 
-                      ? "No active opportunities. Run the radar to discover conversations about your brand."
-                      : "No opportunities found. Click 'Run Radar' to search for conversations."
-                    }
-                  />
-                  <Button
-                    onClick={runRadarSearch}
-                    disabled={isLoading}
-                    className="mt-6 bg-white text-black hover:bg-white/90"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Searching...
-                      </>
-                    ) : (
-                      <>
-                        <Search className="w-4 h-4 mr-2" />
-                        Run Radar
-                      </>
-                    )}
-                  </Button>
+                <div className="flex flex-col items-center justify-center py-12 px-6">
+                  <div className="flex flex-col items-center max-w-md text-center w-full">
+                    {/* Dashboard Preview Card */}
+                    <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden group">
+                      {/* Title Section */}
+                      <div className="text-center mb-5">
+                        <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
+                          {viewFilter === "active" ? "No Active Opportunities" : "No Opportunities Found"}
+                        </h3>
+                        <p className="text-sm text-white/60 leading-relaxed">
+                          {viewFilter === "active"
+                            ? "Run the radar to discover conversations about your brand"
+                            : "Click 'Run Radar' to search for conversations"}
+                        </p>
+                      </div>
+
+                      {/* Dashboard Preview */}
+                      <div className="mb-5">
+                        {/* Header Section */}
+                        <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/[0.06]">
+                          <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.08] flex-shrink-0">
+                            <Radio className="h-5 w-5 text-orange-500" />
+                          </div>
+                          <div className="flex-1 space-y-1.5">
+                            <div className="h-2 bg-white/10 rounded-full w-3/4"></div>
+                            <div className="h-1.5 bg-white/10 rounded-full w-1/2"></div>
+                          </div>
+                        </div>
+
+                        {/* Dashboard Grid */}
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                          {/* Stat Card 1 */}
+                          <div className="bg-white/[0.03] rounded-lg border border-white/[0.06] p-3 space-y-2">
+                            <div className="h-1.5 bg-white/10 rounded-full w-2/3"></div>
+                            <div className="h-3 bg-white/10 rounded-full w-1/2"></div>
+                            <div className="h-1 bg-white/10 rounded-full w-full"></div>
+                          </div>
+
+                          {/* Stat Card 2 */}
+                          <div className="bg-white/[0.03] rounded-lg border border-white/[0.06] p-3 space-y-2">
+                            <div className="h-1.5 bg-white/10 rounded-full w-2/3"></div>
+                            <div className="h-3 bg-white/10 rounded-full w-1/2"></div>
+                            <div className="h-1 bg-white/10 rounded-full w-full"></div>
+                          </div>
+                        </div>
+
+                        {/* Status Bar */}
+                        <div className="flex items-center gap-2 pt-3 border-t border-white/[0.06]">
+                          <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
+                          <div className="h-1.5 bg-white/10 rounded-full flex-1"></div>
+                          <div className="h-2 w-12 bg-white/10 rounded"></div>
+                        </div>
+                      </div>
+
+                      {/* Action Button */}
+                      <Button
+                        onClick={runRadarSearch}
+                        disabled={isLoading}
+                        size="sm"
+                        className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium gap-2 transition-all shadow-sm hover:shadow-md border-0 disabled:opacity-50"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Running Radar...
+                          </>
+                        ) : (
+                          <>
+                            <Radio className="h-4 w-4" />
+                            Run Radar
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

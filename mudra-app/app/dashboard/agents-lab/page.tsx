@@ -21,7 +21,7 @@ import { BrowserWindowEmpty } from "@/components/empty-states/browser-window-emp
 import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
-import { DeployAgentDialog } from "@/components/dashboard/deploy-agent-dialog"
+import { DeployAgentDialog, DeploymentList } from "@/components/dashboard/deploy-agent-dialog"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 
@@ -1201,7 +1201,9 @@ function AgentsLabPageInner() {
                             ? isConversationRadar
                               ? "Opportunities the agent surfaced for you to join"
                               : "Tasks that agents are cooking"
-                            : "Active Deployed Agents"}
+                            : filteredDeployedAgents.length > 0
+                              ? "Active Deployed Agents"
+                              : "Deploy agents to boost your AI Visibility"}
                         </p>
                       </div>
 
@@ -1693,19 +1695,110 @@ function AgentsLabPageInner() {
                               </div>
                             </div>
                           </div>
+                        ) : isConversationRadar ? (
+                          // Conversation Radar Empty State - Nice card design
+                          <div className="flex flex-col items-center justify-center py-12 px-6">
+                            <div className="flex flex-col items-center max-w-md text-center w-full">
+                              {/* Dashboard Preview Card */}
+                              <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden group">
+                                {/* Title Section */}
+                                <div className="text-center mb-5">
+                                  <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
+                                    No Active Opportunities
+                                  </h3>
+                                  <p className="text-sm text-white/60 leading-relaxed">
+                                    Run the radar to discover conversations about your brand
+                                  </p>
+                                </div>
+
+                                {/* Dashboard Preview */}
+                                <div className="mb-5">
+                                  {/* Header Section */}
+                                  <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/[0.06]">
+                                    <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.08] flex-shrink-0">
+                                      <Radio className="h-5 w-5 text-orange-500" />
+                                    </div>
+                                    <div className="flex-1 space-y-1.5">
+                                      <div className="h-2 bg-white/10 rounded-full w-3/4"></div>
+                                      <div className="h-1.5 bg-white/10 rounded-full w-1/2"></div>
+                                    </div>
+                                  </div>
+
+                                  {/* Dashboard Grid */}
+                                  <div className="grid grid-cols-2 gap-3 mb-4">
+                                    {/* Stat Card 1 */}
+                                    <div className="bg-white/[0.03] rounded-lg border border-white/[0.06] p-3 space-y-2">
+                                      <div className="h-1.5 bg-white/10 rounded-full w-2/3"></div>
+                                      <div className="h-3 bg-white/10 rounded-full w-1/2"></div>
+                                      <div className="h-1 bg-white/10 rounded-full w-full"></div>
+                                    </div>
+
+                                    {/* Stat Card 2 */}
+                                    <div className="bg-white/[0.03] rounded-lg border border-white/[0.06] p-3 space-y-2">
+                                      <div className="h-1.5 bg-white/10 rounded-full w-2/3"></div>
+                                      <div className="h-3 bg-white/10 rounded-full w-1/2"></div>
+                                      <div className="h-1 bg-white/10 rounded-full w-full"></div>
+                                    </div>
+                                  </div>
+
+                                  {/* Status Bar */}
+                                  <div className="flex items-center gap-2 pt-3 border-t border-white/[0.06]">
+                                    <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
+                                    <div className="h-1.5 bg-white/10 rounded-full flex-1"></div>
+                                    <div className="h-2 w-12 bg-white/10 rounded"></div>
+                                  </div>
+                                </div>
+
+                                {/* Action Button */}
+                                <Button
+                                  onClick={async () => {
+                                    setIsLoadingRadar(true)
+                                    try {
+                                      const response = await fetch('/api/conversation-radar/run', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          brandProfileId: profile.id,
+                                          mode: 'proactive',
+                                          analyze: true,
+                                          analyzeLimit: 15,
+                                        }),
+                                      })
+                                      const result = await response.json()
+                                      console.log('📊 Radar run result:', result)
+                                      await fetchRadarOpportunities()
+                                    } catch (error) {
+                                      console.error('❌ Error running radar:', error)
+                                    } finally {
+                                      setIsLoadingRadar(false)
+                                    }
+                                  }}
+                                  disabled={isLoadingRadar}
+                                  size="sm"
+                                  className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium gap-2 transition-all shadow-sm hover:shadow-md border-0 disabled:opacity-50"
+                                >
+                                  {isLoadingRadar ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      Running Radar...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Radio className="h-4 w-4" />
+                                      Run Radar
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
                         ) : (
+                          // Other agents empty state
                           <div className="px-6 py-10 text-center">
                             <div className="space-y-2">
                               <p className="text-sm text-white/60">
-                                {isConversationRadar 
-                                  ? "No opportunities found yet." 
-                                  : "No tasks found for this filter."}
+                                No tasks found for this filter.
                               </p>
-                              {isConversationRadar && (
-                                <p className="text-xs text-white/40">
-                                  Make sure you have tracked prompts configured in your brand profile.
-                                </p>
-                              )}
                             </div>
                           </div>
                         )}
@@ -1852,73 +1945,13 @@ function AgentsLabPageInner() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center py-16 px-6">
-                      <div className="flex flex-col items-center max-w-md text-center w-full">
-                        {/* Dashboard Preview Card */}
-                        <div className="relative w-full max-w-md bg-[#161616] rounded-xl p-6 overflow-hidden group">
-                          {/* Title Section */}
-                          <div className="text-center mb-5">
-                            <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
-                              {viewMode === "active" ? "No Active Agents" : "No Inactive Agents"}
-                            </h3>
-                            <p className="text-sm text-white/60 leading-relaxed">
-                              {viewMode === "active"
-                                ? "You will see active deployed agents here"
-                                : "You will see inactive agents here"}
-                            </p>
-                          </div>
-
-                          {/* Dashboard Preview */}
-                          <div className="mb-5">
-                            {/* Header Section */}
-                            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/[0.06]">
-                              <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] flex-shrink-0">
-                                <Bot className="h-5 w-5 text-orange-500" />
-                              </div>
-                              <div className="flex-1 space-y-1.5">
-                                <div className="h-2 bg-white/[0.06] rounded-full w-3/4"></div>
-                                <div className="h-1.5 bg-white/[0.06] rounded-full w-1/2"></div>
-                              </div>
-                            </div>
-
-                            {/* Dashboard Grid */}
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                              {/* Stat Card 1 */}
-                              <div className="bg-white/[0.03] rounded-lg p-3 space-y-2">
-                                <div className="h-1.5 bg-white/[0.06] rounded-full w-2/3"></div>
-                                <div className="h-3 bg-white/[0.06] rounded-full w-1/2"></div>
-                                <div className="h-1 bg-white/[0.06] rounded-full w-full"></div>
-                              </div>
-
-                              {/* Stat Card 2 */}
-                              <div className="bg-white/[0.03] rounded-lg p-3 space-y-2">
-                                <div className="h-1.5 bg-white/[0.06] rounded-full w-2/3"></div>
-                                <div className="h-3 bg-white/[0.06] rounded-full w-1/2"></div>
-                                <div className="h-1 bg-white/[0.06] rounded-full w-full"></div>
-                              </div>
-                            </div>
-
-                            {/* Status Bar */}
-                            <div className="flex items-center gap-2 pt-3 border-t border-white/[0.06]">
-                              <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
-                              <div className="h-1.5 bg-white/[0.06] rounded-full flex-1"></div>
-                              <div className="h-2 w-12 bg-white/[0.06] rounded"></div>
-                            </div>
-                          </div>
-                          
-                          {/* Action Button - Only show for active view */}
-                          {viewMode === "active" && (
-                            <Button
-                              onClick={() => setIsDeployDialogOpen(true)}
-                              size="sm"
-                              className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium gap-2 transition-all shadow-sm hover:shadow-md border-0"
-                            >
-                              Deploy Agent
-                              <Bot className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
+                    <div className="space-y-2">
+                      <DeploymentList
+                        onDeploy={handleDeployAgent}
+                        deployedAgentIds={deployedAgents
+                          .filter(agent => agent.status === "active" || agent.status === "deploying")
+                          .map(agent => agent.agentName)}
+                      />
                     </div>
                   )}
                 </div>

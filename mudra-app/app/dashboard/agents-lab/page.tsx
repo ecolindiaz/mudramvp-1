@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Bot, Loader2, GitBranch, ChevronDown, GitPullRequest, Search, Check, Clock, Layers, Rocket, Radio, ChevronRight, ChevronLeft, ListChecks, BookOpen, XCircle, MoreHorizontal, Sparkles, type LucideProps } from "lucide-react"
+import { Bot, Loader2, GitBranch, ChevronDown, GitPullRequest, Search, Check, Clock, Layers, Rocket, Radio, ChevronRight, ChevronLeft, ListChecks, BookOpen, XCircle, MoreHorizontal, Sparkles, Info, TrendingUp, MessageSquare, type LucideProps } from "lucide-react"
 import { BrowserWindowEmpty } from "@/components/empty-states/browser-window-empty"
 import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -904,7 +904,7 @@ function AgentsLabPageInner() {
     "grid grid-cols-1 gap-4 md:gap-5 px-4 lg:px-6",
     isDetailView
       ? isConversationRadar
-        ? "md:grid-cols-2 @xl/main:grid-cols-2 @3xl/main:grid-cols-2"
+        ? "md:grid-cols-3 @xl/main:grid-cols-3 @3xl/main:grid-cols-3"
         : "md:grid-cols-3 @xl/main:grid-cols-3 @3xl/main:grid-cols-3"
       : "@xl/main:grid-cols-2 @3xl/main:grid-cols-4"
   )
@@ -922,6 +922,26 @@ function AgentsLabPageInner() {
                 accentColor: "rgba(251, 191, 36, 0.9)",
                 info: "How many conversations you can act on right now. Counts open Reddit opportunities with 70%+ relevance.",
                 icon: Radio,
+              },
+              {
+                title: "Total Discovered",
+                value: radarOpportunities.length,
+                delta: 0,
+                lastValue: 0,
+                positive: true,
+                accentColor: "rgba(167, 139, 250, 0.9)",
+                info: "Total conversation opportunities found by the radar.",
+                icon: Layers,
+              },
+              {
+                title: "High Relevance",
+                value: radarOpportunities.filter((o: any) => (o.relevanceScore || 0) >= 80).length,
+                delta: 0,
+                lastValue: 0,
+                positive: true,
+                accentColor: "rgba(52, 211, 153, 0.9)",
+                info: "Opportunities with 80%+ relevance score - highest priority.",
+                icon: Sparkles,
               },
             ]
           : [
@@ -1138,24 +1158,143 @@ function AgentsLabPageInner() {
             {/* Agent Metrics Section */}
             <div className="py-6 space-y-4">
               <div className={metricGridClass}>
-                {metricCards.map((card) => (
-                  <DashboardStatCard
-                    key={card.title}
-                    title={card.title}
-                    value={card.value}
-                    delta={card.delta}
-                    lastValue={card.lastValue}
-                    positive={card.positive}
-                    prefix={card.prefix}
-                    suffix={card.suffix}
-                    format={card.format}
-                    accentColor={card.accentColor}
-                    info={card.info}
-                    icon={card.icon}
-                    showLastPeriod={!isDetailView}
-                  />
-                ))}
-              {isDetailView && selectedAgent && (
+                {/* Conversation Radar custom cards matching overview style */}
+                {isDetailView && isConversationRadar ? (
+                  <>
+                    {/* Active Opportunities */}
+                    <div className="bg-[#161616] rounded-xl p-5 min-h-[140px] flex flex-col">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Radio className="size-4 text-amber-400/80" />
+                          <span className="text-sm text-white/50 font-medium">Active Opportunities</span>
+                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button className="text-white/30 hover:text-white/50 transition-colors">
+                              <Info className="size-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent sideOffset={8} className="max-w-xs">
+                            How many conversations you can act on right now. Counts open Reddit opportunities with 70%+ relevance.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <div className="flex-1 flex flex-col justify-center">
+                        {isLoadingRadar ? (
+                          <div className="h-9 w-20 rounded bg-white/[0.06] animate-pulse" />
+                        ) : (
+                          <div className="flex items-end justify-between">
+                            <span className="text-[28px] font-medium text-white tabular-nums">{activeRadarOpportunitiesCount}</span>
+                            <span className="text-sm font-medium text-white/40">—</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-auto pt-3 border-t border-white/[0.06]">
+                        {isLoadingRadar ? (
+                          <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
+                        ) : (
+                          <span className="text-xs text-white/30">70%+ relevance score</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Total Discovered */}
+                    <div className="bg-[#161616] rounded-xl p-5 min-h-[140px] flex flex-col">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="size-4 text-violet-400/80" />
+                          <span className="text-sm text-white/50 font-medium">Total Discovered</span>
+                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button className="text-white/30 hover:text-white/50 transition-colors">
+                              <Info className="size-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent sideOffset={8} className="max-w-xs">
+                            Total conversation opportunities found by the radar.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <div className="flex-1 flex flex-col justify-center">
+                        {isLoadingRadar ? (
+                          <div className="h-9 w-16 rounded bg-white/[0.06] animate-pulse" />
+                        ) : (
+                          <div className="flex items-end justify-between">
+                            <span className="text-[28px] font-medium text-white tabular-nums">{radarOpportunities.length}</span>
+                            <span className="text-sm font-medium text-white/40">—</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-auto pt-3 border-t border-white/[0.06]">
+                        {isLoadingRadar ? (
+                          <div className="h-4 w-28 rounded bg-white/[0.06] animate-pulse" />
+                        ) : (
+                          <span className="text-xs text-white/30">All time discoveries</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* High Relevance */}
+                    <div className="bg-[#161616] rounded-xl p-5 min-h-[140px] flex flex-col">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="size-4 text-emerald-400/80" />
+                          <span className="text-sm text-white/50 font-medium">High Relevance</span>
+                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button className="text-white/30 hover:text-white/50 transition-colors">
+                              <Info className="size-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent sideOffset={8} className="max-w-xs">
+                            Opportunities with 80%+ relevance score - highest priority.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <div className="flex-1 flex flex-col justify-center">
+                        {isLoadingRadar ? (
+                          <div className="h-9 w-14 rounded bg-white/[0.06] animate-pulse" />
+                        ) : (
+                          <div className="flex items-end justify-between">
+                            <span className="text-[28px] font-medium text-white tabular-nums">
+                              {radarOpportunities.filter((o: any) => (o.relevanceScore || 0) >= 80).length}
+                            </span>
+                            <span className="text-sm font-medium text-white/40">—</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-auto pt-3 border-t border-white/[0.06]">
+                        {isLoadingRadar ? (
+                          <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
+                        ) : (
+                          <span className="text-xs text-white/30">80%+ relevance score</span>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* Default DashboardStatCard for other agents */
+                  metricCards.map((card) => (
+                    <DashboardStatCard
+                      key={card.title}
+                      title={card.title}
+                      value={card.value}
+                      delta={card.delta}
+                      lastValue={card.lastValue}
+                      positive={card.positive}
+                      prefix={card.prefix}
+                      suffix={card.suffix}
+                      format={card.format}
+                      accentColor={card.accentColor}
+                      info={card.info}
+                      icon={card.icon}
+                      showLastPeriod={!isDetailView}
+                    />
+                  ))
+                )}
+              {isDetailView && selectedAgent && !isConversationRadar && (
                 <Card className="group relative overflow-hidden bg-transparent backdrop-blur-sm rounded-lg border border-white/[0.04] hover:border-white/[0.12] transition-all duration-200 gap-3">
                   <CardHeader className="border-0 pb-0">
                     <CardTitle className="text-base font-semibold text-white tracking-tight">Run Status</CardTitle>
@@ -1640,12 +1779,12 @@ function AgentsLabPageInner() {
                         ) : isAnalyzing ? (
                           // Analyzing State - Agent is generating tasks
                           <div className="flex flex-col items-center justify-center min-h-[400px] px-6 py-10">
-                            <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.04] p-6 shadow-xl overflow-hidden">
+                            <div className="relative w-full max-w-md bg-[#1a1a1a] rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden">
                               {/* Title Section */}
                               <div className="text-center mb-5">
                                 <div className="flex items-center justify-center mb-4">
-                                  <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.04]">
-                                    <Loader2 className="h-5 w-5 text-orange-500 animate-spin" />
+                                  <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.08]">
+                                    <Loader2 className="h-5 w-5 text-white/50 animate-spin" />
                                   </div>
                                 </div>
                                 <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
@@ -1659,12 +1798,12 @@ function AgentsLabPageInner() {
                               </div>
                               
                               {/* Analyzing Preview */}
-                              <div className="bg-[#161616] rounded-xl p-4 space-y-3">
-                                {/* Header Section */}
-                                <div className="flex items-center gap-3 pb-3 border-b border-white/[0.06]">
-                                  <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05]">
-                                    <Bot className="h-5 w-5 text-orange-500" />
-                                  </div>
+                              <div className="bg-white/[0.02] rounded-xl p-4 space-y-3">
+                              {/* Header Section */}
+                              <div className="flex items-center gap-3 pb-3 border-b border-white/[0.06]">
+                                <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05]">
+                                  <Bot className="h-5 w-5 text-white/40" />
+                                </div>
                                   <div className="flex-1 space-y-1.5">
                                     <div className="h-2 bg-white/[0.06] rounded-full w-3/4 animate-pulse"></div>
                                     <div className="h-1.5 bg-white/[0.06] rounded-full w-1/2 animate-pulse"></div>
@@ -1674,7 +1813,7 @@ function AgentsLabPageInner() {
                                 {/* Task Preview Lines */}
                                 <div className="space-y-2">
                                   <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-orange-500/40"></div>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-white/30"></div>
                                     <div className="h-1.5 bg-white/[0.06] rounded-full w-full animate-pulse"></div>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -1689,7 +1828,7 @@ function AgentsLabPageInner() {
 
                                 {/* Status Indicator */}
                                 <div className="flex items-center gap-2 pt-3 border-t border-white/[0.06]">
-                                  <Loader2 className="w-3.5 h-3.5 text-orange-500 animate-spin" />
+                                  <Loader2 className="w-3.5 h-3.5 text-white/40 animate-spin" />
                                   <div className="h-1.5 bg-white/[0.06] rounded-full flex-1"></div>
                                 </div>
                               </div>
@@ -1700,7 +1839,7 @@ function AgentsLabPageInner() {
                           <div className="flex flex-col items-center justify-center py-12 px-6">
                             <div className="flex flex-col items-center max-w-md text-center w-full">
                               {/* Dashboard Preview Card */}
-                              <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden group">
+                              <div className="relative w-full max-w-md bg-[#1a1a1a] rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden group">
                                 {/* Title Section */}
                                 <div className="text-center mb-5">
                                   <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
@@ -1716,7 +1855,7 @@ function AgentsLabPageInner() {
                                   {/* Header Section */}
                                   <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/[0.06]">
                                     <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05] border border-white/[0.08] flex-shrink-0">
-                                      <Radio className="h-5 w-5 text-orange-500" />
+                                      <Radio className="h-5 w-5 text-white/40" />
                                     </div>
                                     <div className="flex-1 space-y-1.5">
                                       <div className="h-2 bg-white/10 rounded-full w-3/4"></div>
@@ -1743,7 +1882,7 @@ function AgentsLabPageInner() {
 
                                   {/* Status Bar */}
                                   <div className="flex items-center gap-2 pt-3 border-t border-white/[0.06]">
-                                    <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
+                                    <div className="w-1.5 h-1.5 bg-white/30 rounded-full"></div>
                                     <div className="h-1.5 bg-white/10 rounded-full flex-1"></div>
                                     <div className="h-2 w-12 bg-white/10 rounded"></div>
                                   </div>

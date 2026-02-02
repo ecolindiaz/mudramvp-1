@@ -1,5 +1,4 @@
 import { Agent } from '@mastra/core/agent';
-import { openai } from '@ai-sdk/openai';
 import { searchAiCitationsTool } from '../tools/citation-tracker';
 import { monitorRedditThreadsTool } from '../tools/reddit-monitor';
 import { analyzeCompetitorCitationsTool } from '../tools/competitor-analyzer';
@@ -331,7 +330,7 @@ Track these for users:
 
 Now help the user discover and exploit growth opportunities! 🚀
   `,
-  model: openai('gpt-4o'),
+  model: "openai/gpt-4o",
   tools: {
     searchAiCitations: searchAiCitationsTool,
     monitorRedditThreads: monitorRedditThreadsTool,

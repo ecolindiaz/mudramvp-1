@@ -452,7 +452,7 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
     console.log(`[IssueExecutor] Anthropic call completed in ${generateDuration}ms at ${new Date().toISOString()}`)
     
     if (!responseText) {
-      console.error(`[IssueExecutor] Agent returned empty response object:`, JSON.stringify(response).substring(0, 500))
+      console.error(`[IssueExecutor] Agent returned empty response`)
       throw new Error('Agent returned empty response')
     }
     

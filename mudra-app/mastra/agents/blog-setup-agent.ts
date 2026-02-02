@@ -11,7 +11,6 @@
  */
 
 import { Agent } from "@mastra/core/agent";
-import { anthropic } from "@ai-sdk/anthropic";
 
 const BLOG_SETUP_INSTRUCTIONS = `You are an expert at setting up blog infrastructure for websites.
 
@@ -117,7 +116,7 @@ export const blogSetupAgent = new Agent({
   id: "blog-setup-agent",
   name: "Blog Setup Agent",
   instructions: BLOG_SETUP_INSTRUCTIONS,
-  model: anthropic("claude-sonnet-4-5"),
+  model: "anthropic/claude-sonnet-4-5",
 });
 
 export default blogSetupAgent;

@@ -10,7 +10,6 @@
  */
 
 import { Agent } from "@mastra/core/agent";
-import { anthropic } from "@ai-sdk/anthropic";
 
 const CONTENT_RESTRUCTURE_INSTRUCTIONS = `You are an expert at restructuring content for SEO and AI optimization.
 
@@ -177,5 +176,5 @@ export const contentRestructureAgent = new Agent({
   id: "content-restructure-agent",
   name: "Content Restructure Agent",
   instructions: CONTENT_RESTRUCTURE_INSTRUCTIONS,
-  model: anthropic("claude-sonnet-4-5"),
+  model: "anthropic/claude-sonnet-4-5",
 });

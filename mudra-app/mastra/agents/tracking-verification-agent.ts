@@ -1,5 +1,4 @@
 import { Agent } from "@mastra/core/agent";
-import { anthropic } from "@ai-sdk/anthropic";
 import { githubSearchTool } from "../tools/github-search";
 
 const VERIFICATION_INSTRUCTIONS = `You are a specialized tracking script verification agent. Your task is to verify that an AI referral tracking script has been correctly installed in a GitHub repository.
@@ -54,7 +53,7 @@ export const trackingVerificationAgent = new Agent({
   id: "tracking-verification-agent",
   name: "Tracking Verification Agent",
   instructions: VERIFICATION_INSTRUCTIONS,
-  model: anthropic("claude-sonnet-4-5"),
+  model: "anthropic/claude-sonnet-4-5",
   tools: {
     githubSearchTool,
   },

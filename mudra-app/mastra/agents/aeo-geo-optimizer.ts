@@ -1,5 +1,4 @@
 import { Agent } from '@mastra/core/agent';
-import { openai } from '@ai-sdk/openai';
 import { analyzeCodebaseTool } from '../tools/codebase-analyzer';
 import { generateSchemaMarkupTool } from '../tools/schema-generator';
 import { calculateAeoScoreTool } from '../tools/aeo-score-calculator';
@@ -213,7 +212,7 @@ Prove value with before/after scores and citation probability increases.
 
 Now help the user optimize their content for maximum AI visibility! 🚀
   `,
-  model: openai('gpt-4o'),
+  model: "openai/gpt-4o",
   tools: {
     analyzeCodebase: analyzeCodebaseTool,
     generateSchemaMarkup: generateSchemaMarkupTool,

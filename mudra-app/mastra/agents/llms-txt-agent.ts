@@ -11,7 +11,6 @@
  */
 
 import { Agent } from "@mastra/core/agent";
-import { anthropic } from "@ai-sdk/anthropic";
 
 const LLMS_TXT_INSTRUCTIONS = `You are an expert at creating llms.txt files - the robots.txt for AI.
 
@@ -135,5 +134,5 @@ export const llmsTxtAgent = new Agent({
   id: "llms-txt-agent",
   name: "LLMs.txt Agent",
   instructions: LLMS_TXT_INSTRUCTIONS,
-  model: anthropic("claude-sonnet-4-5"),
+  model: "anthropic/claude-sonnet-4-5",
 });

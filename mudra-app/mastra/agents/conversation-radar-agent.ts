@@ -1,5 +1,4 @@
 import { Agent } from '@mastra/core/agent';
-import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 import { logAIModelCall, estimateAICost } from '@/lib/services/ai-model-logging.service';
 
@@ -241,7 +240,7 @@ export const conversationRadarAgent = new Agent({
   id: 'conversation-radar-agent',
   name: 'Conversation Radar Agent',
   instructions: CONVERSATION_RADAR_INSTRUCTIONS,
-  model: openai('gpt-5.1'),
+  model: "openai/gpt-4o",
 });
 
 /**

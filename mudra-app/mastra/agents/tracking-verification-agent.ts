@@ -54,7 +54,7 @@ export const trackingVerificationAgent = new Agent({
   id: "tracking-verification-agent",
   name: "Tracking Verification Agent",
   instructions: VERIFICATION_INSTRUCTIONS,
-  model: anthropic("claude-sonnet-4-5"),
+  model: anthropic("claude-sonnet-4-5-20250514"),
   tools: {
     githubSearchTool,
   },

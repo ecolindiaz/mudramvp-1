@@ -35,25 +35,42 @@ const anthropic = new Anthropic({
 async function callAnthropicDirect(prompt: string, systemPrompt?: string): Promise<string> {
   console.log(`[IssueExecutor] Using direct Anthropic API call...`)
   console.log(`[IssueExecutor] Anthropic API key present: ${!!process.env.ANTHROPIC_API_KEY}`)
+  console.log(`[IssueExecutor] API key first 10 chars: ${process.env.ANTHROPIC_API_KEY?.substring(0, 10)}...`)
   console.log(`[IssueExecutor] Calling anthropic.messages.create with model: claude-sonnet-4-5-20250929`)
+  console.log(`[IssueExecutor] Prompt length: ${prompt.length} chars`)
   
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5-20250929',
-    max_tokens: 4096,
-    messages: [
-      { role: 'user', content: prompt }
-    ],
-    ...(systemPrompt && { system: systemPrompt })
-  })
-  
-  console.log(`[IssueExecutor] Anthropic API response received, stop_reason: ${response.stop_reason}`)
-  
-  const textContent = response.content.find(c => c.type === 'text')
-  if (!textContent || textContent.type !== 'text') {
-    throw new Error('No text response from Anthropic')
+  try {
+    const startTime = Date.now()
+    console.log(`[IssueExecutor] API call starting at ${new Date().toISOString()}`)
+    
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 4096,
+      messages: [
+        { role: 'user', content: prompt }
+      ],
+      ...(systemPrompt && { system: systemPrompt })
+    })
+    
+    const elapsed = Date.now() - startTime
+    console.log(`[IssueExecutor] Anthropic API response received in ${elapsed}ms, stop_reason: ${response.stop_reason}`)
+    console.log(`[IssueExecutor] Response usage: input=${response.usage.input_tokens}, output=${response.usage.output_tokens}`)
+    
+    const textContent = response.content.find(c => c.type === 'text')
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('No text response from Anthropic')
+    }
+    
+    return textContent.text
+  } catch (error) {
+    console.error(`[IssueExecutor] Anthropic API call failed:`, error)
+    if (error instanceof Error) {
+      console.error(`[IssueExecutor] Error name: ${error.name}`)
+      console.error(`[IssueExecutor] Error message: ${error.message}`)
+      console.error(`[IssueExecutor] Error stack: ${error.stack}`)
+    }
+    throw error
   }
-  
-  return textContent.text
 }
 
 /**

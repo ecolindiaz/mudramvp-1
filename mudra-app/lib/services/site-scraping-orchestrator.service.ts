@@ -20,6 +20,7 @@ import { extractDOMData } from './dom-parser.service';
 // Note: five-dimension-scoring.service.ts was removed - use lib/analysis/technical/five-dimension-scorer.ts instead
 import { computePageScore as computeFiveDimensionScore } from '@/lib/analysis/technical/five-dimension-scorer';
 import { htmlToExtraction } from '@/lib/analysis/technical/dom-extractor';
+import type { FullPageScore } from '@/lib/analysis/technical/types';
 
 import type {
   ScrapeJobConfig,
@@ -27,7 +28,6 @@ import type {
   ScrapeJobStatus,
   SiteWideScore,
   PageType,
-  FiveDimensionScore,
 } from '@/lib/types/site-scraping.types';
 
 // Default configuration
@@ -168,15 +168,23 @@ async function savePageSnapshot(
 
 /**
  * Save page score to the database
+ * Maps the new 5-dimension scoring (metadata, headings, semantic, schema, faq)
+ * to the database schema fields
  */
 async function savePageScore(
   brandProfileId: number,
   pageSnapshotId: string,
   sitemapPageId: string,
   pageUrl: string,
-  score: FiveDimensionScore
+  score: FullPageScore
 ): Promise<void> {
-  // Upsert page score
+  // Map new dimensions to database fields:
+  // - structured_data = schema (JSON-LD/structured data)
+  // - semantic_html = semantic (semantic HTML elements)
+  // - citability = metadata (meta tags for citations)
+  // - accessibility = headings (heading hierarchy for accessibility)
+  // - answer_engine = faq (FAQ content for answer engines)
+
   await prisma.pageScore.upsert({
     where: { page_snapshot_id: pageSnapshotId },
     create: {
@@ -184,34 +192,34 @@ async function savePageScore(
       page_snapshot_id: pageSnapshotId,
       sitemap_page_id: sitemapPageId,
       page_url: pageUrl,
-      overall_score: score.overall,
-      structured_data_score: score.structuredData.score,
-      structured_data_details: JSON.parse(JSON.stringify(score.structuredData)),
-      semantic_html_score: score.semanticHtml.score,
-      semantic_html_details: JSON.parse(JSON.stringify(score.semanticHtml)),
-      citability_score: score.citability.score,
-      citability_details: JSON.parse(JSON.stringify(score.citability)),
-      accessibility_score: score.accessibility.score,
-      accessibility_details: JSON.parse(JSON.stringify(score.accessibility)),
-      answer_engine_score: score.answerEngine.score,
-      answer_engine_details: JSON.parse(JSON.stringify(score.answerEngine)),
+      overall_score: score.scores.total,
+      structured_data_score: score.scores.schema,
+      structured_data_details: JSON.parse(JSON.stringify(score.dimension_details.schema)),
+      semantic_html_score: score.scores.semantic,
+      semantic_html_details: JSON.parse(JSON.stringify(score.dimension_details.semantic)),
+      citability_score: score.scores.metadata,
+      citability_details: JSON.parse(JSON.stringify(score.dimension_details.metadata)),
+      accessibility_score: score.scores.headings,
+      accessibility_details: JSON.parse(JSON.stringify(score.dimension_details.headings)),
+      answer_engine_score: score.scores.faq,
+      answer_engine_details: JSON.parse(JSON.stringify(score.dimension_details.faq)),
       issues: JSON.parse(JSON.stringify(score.issues)),
-      recommendations: JSON.parse(JSON.stringify(score.recommendations)),
+      recommendations: JSON.parse(JSON.stringify(score.interventions)),
     },
     update: {
-      overall_score: score.overall,
-      structured_data_score: score.structuredData.score,
-      structured_data_details: JSON.parse(JSON.stringify(score.structuredData)),
-      semantic_html_score: score.semanticHtml.score,
-      semantic_html_details: JSON.parse(JSON.stringify(score.semanticHtml)),
-      citability_score: score.citability.score,
-      citability_details: JSON.parse(JSON.stringify(score.citability)),
-      accessibility_score: score.accessibility.score,
-      accessibility_details: JSON.parse(JSON.stringify(score.accessibility)),
-      answer_engine_score: score.answerEngine.score,
-      answer_engine_details: JSON.parse(JSON.stringify(score.answerEngine)),
+      overall_score: score.scores.total,
+      structured_data_score: score.scores.schema,
+      structured_data_details: JSON.parse(JSON.stringify(score.dimension_details.schema)),
+      semantic_html_score: score.scores.semantic,
+      semantic_html_details: JSON.parse(JSON.stringify(score.dimension_details.semantic)),
+      citability_score: score.scores.metadata,
+      citability_details: JSON.parse(JSON.stringify(score.dimension_details.metadata)),
+      accessibility_score: score.scores.headings,
+      accessibility_details: JSON.parse(JSON.stringify(score.dimension_details.headings)),
+      answer_engine_score: score.scores.faq,
+      answer_engine_details: JSON.parse(JSON.stringify(score.dimension_details.faq)),
       issues: JSON.parse(JSON.stringify(score.issues)),
-      recommendations: JSON.parse(JSON.stringify(score.recommendations)),
+      recommendations: JSON.parse(JSON.stringify(score.interventions)),
       updated_at: new Date(),
     },
   });
@@ -266,7 +274,7 @@ async function processPage(
     // Update status to completed
     await updatePageScrapeStatus(page.id, 'completed');
     
-    console.log(`[Orchestrator] Completed: ${page.pageUrl} (Score: ${score.overall})`);
+    console.log(`[Orchestrator] Completed: ${page.pageUrl} (Score: ${score.scores.total})`);
     return { success: true };
     
   } catch (error) {

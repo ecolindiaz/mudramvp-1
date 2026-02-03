@@ -43,6 +43,7 @@ export const CHECK_TO_AGENT_MAP: Record<string, string> = {
   'J1_present': 'schema_markup',
   'J2_valid': 'schema_markup',
   'J3_relevant': 'schema_markup',
+  'J4_coverage': 'schema_markup',
 
   // FAQ (15 pts)
   'FAQ_count': 'faq_sections',
@@ -68,6 +69,7 @@ export const ISSUE_TITLES: Record<string, string> = {
   'J1_present': 'Add JSON-LD Schema',
   'J2_valid': 'Fix JSON-LD Syntax',
   'J3_relevant': 'Use AEO-Relevant Schema Types',
+  'J4_coverage': 'Add Additional Schema Types',
   'FAQ_count': 'Add FAQ Content',
   'FAQ_schema_gap': 'Add FAQPage Schema for Existing FAQs',
 }
@@ -91,6 +93,7 @@ const ISSUE_DESCRIPTIONS: Record<string, string> = {
   'J1_present': 'This page has no JSON-LD schema markup. Structured data is critical for AI systems to understand your content.',
   'J2_valid': 'This page has invalid JSON-LD schema. Invalid schema is ignored by AI systems and search engines.',
   'J3_relevant': 'This page has schema types that are not optimized for Answer Engine visibility. Use Organization, Product, FAQPage, Article, etc.',
+  'J4_coverage': 'This page has some JSON-LD schema but is missing additional recommended types. Adding more schema types improves AEO coverage and AI understanding.',
   'FAQ_count': 'This page has no FAQ content. FAQ sections are highly valued by AI for direct answer generation.',
   'FAQ_schema_gap': 'This page has FAQ content but no FAQPage schema. Adding schema will make your FAQs eligible for rich results.',
 }
@@ -111,9 +114,10 @@ const ISSUE_IMPACTS: Record<string, string> = {
   'S2_page_structure': '+4 points',
   'S3_sections': '+4 points',
   'S4_content_quality': '+3 points',
-  'J1_present': '+8 points',
-  'J2_valid': '+7 points',
-  'J3_relevant': '+10 points',
+  'J1_present': '+6 points',
+  'J2_valid': '+5 points',
+  'J3_relevant': '+7 points',
+  'J4_coverage': '+7 points',
   'FAQ_count': '+15 points',
   'FAQ_schema_gap': 'Rich results eligibility',
 }
@@ -192,8 +196,17 @@ export async function createIssuesFromPageScore(
       if (schemaMatch) {
         title = `Add ${schemaMatch[1]} Schema`
       }
-      impact = '+25 points (full schema implementation)'
+      impact = '+25 points (full schema dimension)'
       description = `This page has no JSON-LD schema markup. Structured data is critical for AI systems to understand your content.\n\nRecommended schemas: ${schemaMatch?.[1] || 'appropriate type for this page'}.`
+    }
+
+    // J4_coverage: Extract missing schemas from message for dynamic title
+    if (check === 'J4_coverage') {
+      const addMatch = issue.message.match(/Add: (.+)$/)
+      if (addMatch) {
+        title = `Add ${addMatch[1]} Schema`
+      }
+      description = `${ISSUE_DESCRIPTIONS[check]}\n\n${issue.message}`
     }
 
     if (!agentType) {

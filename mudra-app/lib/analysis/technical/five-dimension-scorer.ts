@@ -13,6 +13,7 @@
 
 import type {
 	DOMExtraction,
+	DOMExtractionData,
 	DimensionScore,
 	FullPageScore,
 	Issue,
@@ -72,11 +73,15 @@ const SEMANTIC_WEIGHTS = {
 
 /**
  * Individual check weights within schema dimension
+ *
+ * J4_coverage ensures the score reflects whether ALL recommended schemas
+ * for the page type are present — not just "at least one relevant type."
  */
 const SCHEMA_WEIGHTS = {
-	J1_present: 8,
-	J2_valid: 7,
-	J3_relevant: 10,
+	J1_present: 6,
+	J2_valid: 5,
+	J3_relevant: 7,
+	J4_coverage: 7,
 } as const;
 
 // ============================================================================
@@ -392,9 +397,10 @@ export function scoreSemantic(extraction: DOMExtraction): DimensionScore {
 /**
  * Scores Schema/JSON-LD implementation
  *
- * J1 - JSON-LD present: 8 points (at least one script tag)
- * J2 - Valid structure: 7 points (parses, has @context AND @type)
- * J3 - Relevant schema type: 10 points (one of the AEO-relevant types)
+ * J1 - JSON-LD present: 6 points (at least one script tag)
+ * J2 - Valid structure: 5 points (parses, has @context AND @type)
+ * J3 - Relevant schema type: 7 points (one of the AEO-relevant types)
+ * J4 - Schema coverage: 7 points (all recommended schemas for page type are present)
  */
 export function scoreSchema(extraction: DOMExtraction): DimensionScore {
 	const { schema } = extraction.extraction;
@@ -448,13 +454,30 @@ export function scoreSchema(extraction: DOMExtraction): DimensionScore {
 		passedCount++;
 	}
 
+	// J4 - Schema coverage (all recommended types for this page type present)
+	const missingSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction);
+	const j4Passed = j3Passed && missingSchemas.length === 0;
+	let j4Rationale: string;
+	if (!j3Passed) {
+		j4Rationale = "No relevant schema to evaluate coverage";
+	} else if (j4Passed) {
+		j4Rationale = "All recommended schemas present for this page type";
+	} else {
+		j4Rationale = `Missing recommended schemas: ${missingSchemas.join(", ")}`;
+	}
+	checks.J4_coverage = createCheckResult(j4Passed, SCHEMA_WEIGHTS.J4_coverage, j4Rationale);
+	if (j4Passed) {
+		totalScore += SCHEMA_WEIGHTS.J4_coverage;
+		passedCount++;
+	}
+
 	return {
 		dimension: "schema",
 		score: totalScore,
 		max_score: DIMENSION_WEIGHTS.schema,
 		checks,
 		passed_count: passedCount,
-		total_count: 3,
+		total_count: 4,
 	};
 }
 
@@ -602,7 +625,7 @@ function generateIssues(
 
 	// Schema issues — page-type-specific when no schema exists at all
 	if (!schemaScore.checks.J1_present?.passed) {
-		const recommendedSchemas = getRecommendedSchemas(extraction.page_type);
+		const recommendedSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction);
 		const schemaList = recommendedSchemas.join(' + ');
 		issues.push(createIssue(
 			"J1_present",
@@ -616,7 +639,31 @@ function generateIssues(
 		issues.push(createIssue("J2_valid", "schema", "high", "Invalid JSON-LD structure", pageUrl));
 	}
 	if (!schemaScore.checks.J3_relevant?.passed && extraction.extraction.schema.has_schema) {
-		issues.push(createIssue("J3_relevant", "schema", "medium", "Schema types not optimized for AEO", pageUrl));
+		const recommended = getRecommendedSchemas(extraction.page_type, extraction.extraction);
+		const currentTypes = extraction.extraction.schema.schema_types.join(', ');
+		const suggestedTypes = recommended.length > 0 ? recommended.join(' + ') : 'Organization, Article, or Product';
+		issues.push(createIssue(
+			"J3_relevant",
+			"schema",
+			"medium",
+			`Schema types not optimized for AEO (current: ${currentTypes}). Recommended: ${suggestedTypes}`,
+			pageUrl
+		));
+	}
+
+	// J4 — Schema coverage: page has some relevant schema but is missing additional recommended types
+	if (schemaScore.checks.J3_relevant?.passed) {
+		const missingSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction);
+		if (missingSchemas.length > 0) {
+			const currentTypes = extraction.extraction.schema.schema_types.join(', ');
+			issues.push(createIssue(
+				"J4_coverage",
+				"schema",
+				"medium",
+				`Additional schemas recommended (current: ${currentTypes}). Add: ${missingSchemas.join(' + ')}`,
+				pageUrl
+			));
+		}
 	}
 
 	// FAQ issues
@@ -742,18 +789,34 @@ function generateInterventions(
 				"high",
 				"inject_jsonld_schema",
 				"head",
-				"+25 points potential",
+				"+25 points (full schema dimension)",
 				`<script type="application/ld+json">{"@context":"https://schema.org","@type":"${schemaType}",...}</script>`
 			)
 		);
 	}
 	if (!schemaScore.checks.J2_valid?.passed && extraction.extraction.schema.jsonld_blocks.length > 0) {
-		interventions.push(createIntervention("J2_valid", "high", "fix_jsonld_syntax", "head", "+7 points"));
+		interventions.push(createIntervention("J2_valid", "high", "fix_jsonld_syntax", "head", "+5 points"));
 	}
 	if (!schemaScore.checks.J3_relevant?.passed && extraction.extraction.schema.has_schema) {
 		interventions.push(
-			createIntervention("J3_relevant", "medium", "update_schema_type", "head", "+10 points")
+			createIntervention("J3_relevant", "medium", "update_schema_type", "head", "+7 points")
 		);
+	}
+	// J4 — Additional schemas to inject alongside existing ones
+	if (schemaScore.checks.J4_coverage && !schemaScore.checks.J4_coverage.passed && schemaScore.checks.J3_relevant?.passed) {
+		const missingSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction);
+		if (missingSchemas.length > 0) {
+			interventions.push(
+				createIntervention(
+					"J4_coverage",
+					"medium",
+					"inject_additional_schemas",
+					"head",
+					"+7 points",
+					missingSchemas.map(s => `<script type="application/ld+json">{"@context":"https://schema.org","@type":"${s}",...}</script>`).join('\n')
+				)
+			);
+		}
 	}
 
 	// FAQ interventions
@@ -796,14 +859,14 @@ function generateInterventions(
 }
 
 /**
- * Recommends a schema type based on page type
+ * Returns the primary schema type for a page (used in intervention code hints).
  */
 function getRecommendedSchemaType(pageType: string): string {
 	switch (pageType) {
 		case "home":
 			return "Organization";
 		case "blog":
-			return "Article";
+			return "BlogPosting";
 		case "product":
 			return "Product";
 		case "pricing":
@@ -816,38 +879,80 @@ function getRecommendedSchemaType(pageType: string): string {
 			return "Organization";
 		case "contact":
 			return "Organization";
+		case "solutions":
+			return "Service";
 		default:
 			return "WebPage";
 	}
 }
 
 /**
- * Returns the list of recommended schemas for a page type.
- * Used to create specific schema issue messages.
+ * Returns the full list of recommended schemas for a page.
+ *
+ * Logic:
+ * 1. Page-type core schemas (based on URL pattern)
+ * 2. BreadcrumbList — universally recommended for every page
+ * 3. Content-aware additions — FAQPage when FAQ content is detected
+ *
+ * Filters out any schema types the page already has.
  */
-export function getRecommendedSchemas(pageType: string): string[] {
+export function getRecommendedSchemas(
+	pageType: string,
+	extraction?: DOMExtractionData
+): string[] {
+	const schemas: string[] = [];
+
+	// --- Page-type core schemas ---
 	switch (pageType) {
 		case "home":
-			return ["Organization", "WebSite"];
+			schemas.push("Organization", "WebSite", "SoftwareApplication");
+			break;
 		case "blog":
-			return ["Article"];
+			schemas.push("BlogPosting");
+			break;
 		case "product":
-			return ["Product"];
+			schemas.push("Product");
+			break;
 		case "pricing":
-			return ["Product"];
+			schemas.push("Product", "SoftwareApplication");
+			break;
 		case "features":
-			return ["SoftwareApplication"];
+			schemas.push("SoftwareApplication");
+			break;
 		case "documentation":
-			return ["Article"];
+			schemas.push("Article", "HowTo");
+			break;
 		case "about":
-			return ["Organization"];
+			schemas.push("Organization");
+			break;
 		case "contact":
-			return ["Organization"];
+			schemas.push("Organization");
+			break;
 		case "solutions":
-			return ["Service"];
-		default:
-			return ["WebPage"];
+			schemas.push("Service");
+			break;
 	}
+
+	// --- BreadcrumbList for all non-home pages (homepage has no breadcrumb path above it) ---
+	if (pageType !== "home") {
+		schemas.push("BreadcrumbList");
+	}
+
+	// --- Content-aware additions ---
+	if (extraction) {
+		// If FAQ content exists on the page, recommend FAQPage schema
+		if (extraction.faqs.has_faq_content && !extraction.schema.analysis.has_faq_schema) {
+			schemas.push("FAQPage");
+		}
+	}
+
+	// --- Filter out schemas the page already has ---
+	if (extraction) {
+		const existingTypes = new Set(extraction.schema.schema_types);
+		return schemas.filter((s) => !existingTypes.has(s));
+	}
+
+	return schemas;
 }
 
 // ============================================================================

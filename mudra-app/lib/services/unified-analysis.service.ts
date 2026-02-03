@@ -688,17 +688,22 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
       console.warn('[Technical Core] Issue creation failed:', issueError);
     }
 
-    // Reset page discovery index so future manual discovery starts fresh
+    // Increment page visibility index (controls progressive issue reveal on frontend)
     try {
+      const currentProfile = await prisma.brandProfile.findUnique({
+        where: { id: config.brandProfileId },
+        select: { issueDiscoveryPageIndex: true },
+      });
+      const currentIndex = currentProfile?.issueDiscoveryPageIndex ?? 0;
       await prisma.brandProfile.update({
         where: { id: config.brandProfileId },
         data: {
-          issueDiscoveryPageIndex: 0,
+          issueDiscoveryPageIndex: currentIndex + 1,
           issueDiscoveryTotalPages: pageScores.length,
         },
       });
-    } catch (resetError) {
-      console.warn('[Technical Core] Could not reset page index:', resetError);
+    } catch (updateError) {
+      console.warn('[Technical Core] Could not update page index:', updateError);
     }
 
     return {

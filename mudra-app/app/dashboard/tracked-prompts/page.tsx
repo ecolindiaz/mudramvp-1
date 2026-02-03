@@ -11,7 +11,7 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, BookOpen, Building2 } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, BookOpen, Building2, Download } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
@@ -825,6 +825,28 @@ function TrackedPromptsPageInner() {
     setEditOpen(true)
   }
 
+  const handleExportCSV = () => {
+    const headers = ["Prompt", "Visibility (%)", "Position", "Models", "Last Run", "Intent", "Sentiment"]
+    const rows = filteredData.map((item) => [
+      `"${item.prompt.replace(/"/g, '""')}"`,
+      item.visibility,
+      item.position != null ? `#${item.position.toFixed(1)}` : "",
+      item.models.map(getModelDisplayName).join("; "),
+      item.lastRun || "",
+      item.intent || "",
+      item.sentiment || "",
+    ])
+
+    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `tracked-prompts-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <SidebarProvider
       className="bg-dark-grey"
@@ -945,12 +967,23 @@ function TrackedPromptsPageInner() {
                       Clear filters
                     </Button>
                   )}
-                  <div className={`ml-auto px-2.5 py-1 rounded-md text-sm font-medium ${
-                    data.length >= 50 
-                      ? 'bg-amber-500/15 text-amber-400' 
-                      : 'bg-white/5 text-muted-foreground'
-                  }`}>
-                    {filteredData.length}/{data.length}
+                  <div className="ml-auto flex items-center gap-2">
+                    <div className={`px-2.5 py-1 rounded-md text-sm font-medium ${
+                      data.length >= 50
+                        ? 'bg-amber-500/15 text-amber-400'
+                        : 'bg-white/5 text-muted-foreground'
+                    }`}>
+                      {filteredData.length}/{data.length}
+                    </div>
+                    <Button
+                      size="sm"
+                      className="h-8 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 hover:text-white border-0 gap-1.5 text-sm"
+                      onClick={handleExportCSV}
+                      disabled={isLoading || filteredData.length === 0}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Export
+                    </Button>
                   </div>
                 </div>
                 <div className="overflow-hidden rounded-xl border border-white/[0.04]">

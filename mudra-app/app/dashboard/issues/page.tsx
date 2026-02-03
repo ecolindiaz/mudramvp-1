@@ -326,8 +326,8 @@ function SortableIssueCard({
       <div className="flex items-center justify-between pl-7">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]">
-            <span className={`w-1.5 h-1.5 rounded-full ${typeConf.color}`} />
-            <span className="text-[11px] text-white/50">{typeConf.label}</span>
+            <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
+            <span className="text-[11px] text-white/50">{categoryConf.label}</span>
           </span>
           {issue.priority !== "medium" && (
             <span className={`text-[10px] px-1.5 py-0.5 rounded ${priorityConfig[issue.priority].bg} ${priorityConfig[issue.priority].color}`}>
@@ -754,8 +754,8 @@ function IssueDetailDialog({
           {/* Metadata */}
           <div className="flex items-center gap-3 text-[12px]">
             <span className="inline-flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${typeConf.color}`} />
-              <span className="text-white/50">{typeConf.label}</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
+              <span className="text-white/50">{categoryConf.label}</span>
             </span>
             <span className={`${priorityConf.color} capitalize`}>{issue.priority}</span>
             {issue.agentType && (

@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
       _count: { id: true },
     })
 
-    // Get counts by type
-    const typeCounts = await prisma.issue.groupBy({
-      by: ["type"],
+    // Get counts by category
+    const categoryCounts = await prisma.issue.groupBy({
+      by: ["category"],
       where: { brandProfileId: brandProfile.id },
       _count: { id: true },
     })
@@ -76,8 +76,8 @@ export async function GET(request: NextRequest) {
     const byStatus = Object.fromEntries(
       statusCounts.map((s) => [s.status, s._count.id])
     )
-    const byType = Object.fromEntries(
-      typeCounts.map((t) => [t.type, t._count.id])
+    const byCategory = Object.fromEntries(
+      categoryCounts.map((c) => [c.category, c._count.id])
     )
     const byPriority = Object.fromEntries(
       priorityCounts.map((p) => [p.priority, p._count.id])
@@ -93,16 +93,15 @@ export async function GET(request: NextRequest) {
           completed: byStatus.completed || 0,
           merged: byStatus.merged || 0,
         },
-        byType: {
-          bug: byType.bug || 0,
-          improvement: byType.improvement || 0,
-          feature: byType.feature || 0,
+        byCategory: {
+          technical_structure: byCategory.technical_structure || 0,
+          ai_visibility: byCategory.ai_visibility || 0,
+          conversation: byCategory.conversation || 0,
         },
         byPriority: {
           low: byPriority.low || 0,
           medium: byPriority.medium || 0,
           high: byPriority.high || 0,
-          critical: byPriority.critical || 0,
         },
         recentIssues,
         completedThisWeek,

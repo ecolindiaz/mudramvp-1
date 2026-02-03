@@ -43,24 +43,21 @@ interface IssueCardProps {
 }
 
 const priorityColors: Record<IssuePriority, string> = {
-  critical: "bg-red-500/10 text-red-500 border-red-500/20",
   high: "bg-orange-500/10 text-orange-500 border-orange-500/20",
   medium: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
   low: "bg-gray-500/10 text-gray-400 border-gray-500/20",
 }
 
 const categoryLabels: Record<IssueCategory, string> = {
-  technical_seo: "Technical SEO",
+  technical_structure: "Technical",
   ai_visibility: "AI Visibility",
-  conversation_radar: "Conversation",
-  content: "Content",
+  conversation: "Conversation",
 }
 
 const categoryColors: Record<IssueCategory, string> = {
-  technical_seo: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  technical_structure: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   ai_visibility: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  conversation_radar: "bg-green-500/10 text-green-400 border-green-500/20",
-  content: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+  conversation: "bg-green-500/10 text-green-400 border-green-500/20",
 }
 
 const statusIcons: Record<IssueStatus, React.ReactNode> = {

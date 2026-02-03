@@ -36,17 +36,15 @@ interface IssueDetailSheetProps {
 }
 
 const priorityColors: Record<IssuePriority, string> = {
-  critical: "bg-red-500/10 text-red-500 border-red-500/20",
   high: "bg-orange-500/10 text-orange-500 border-orange-500/20",
   medium: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
   low: "bg-gray-500/10 text-gray-400 border-gray-500/20",
 }
 
 const categoryLabels: Record<IssueCategory, string> = {
-  technical_seo: "Technical SEO",
+  technical_structure: "Technical",
   ai_visibility: "AI Visibility",
-  conversation_radar: "Conversation",
-  content: "Content",
+  conversation: "Conversation",
 }
 
 export function IssueDetailSheet({

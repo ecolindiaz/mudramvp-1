@@ -25,38 +25,38 @@ export const generateSchemaMarkupTool = createTool({
       questions: z.array(z.object({
         question: z.string(),
         answer: z.string(),
-      })).optional().describe('FAQ questions and answers'),
-      
+      })).nullable().default(null).describe('FAQ questions and answers'),
+
       // Article specific
-      headline: z.string().optional(),
-      description: z.string().optional(),
+      headline: z.string().nullable().default(null),
+      description: z.string().nullable().default(null),
       author: z.object({
         name: z.string(),
-        jobTitle: z.string().optional(),
-        url: z.string().optional(),
-      }).optional(),
+        jobTitle: z.string().nullable().default(null),
+        url: z.string().nullable().default(null),
+      }).nullable().default(null),
       publisher: z.object({
         name: z.string(),
-        logo: z.string().url().optional(),
-      }).optional(),
-      datePublished: z.string().optional(),
-      dateModified: z.string().optional(),
-      
+        logo: z.string().url().nullable().default(null),
+      }).nullable().default(null),
+      datePublished: z.string().nullable().default(null),
+      dateModified: z.string().nullable().default(null),
+
       // HowTo specific
-      name: z.string().optional(),
-      totalTime: z.string().optional().describe('ISO 8601 duration (e.g., PT30M for 30 minutes)'),
+      name: z.string().nullable().default(null),
+      totalTime: z.string().nullable().default(null).describe('ISO 8601 duration (e.g., PT30M for 30 minutes)'),
       steps: z.array(z.object({
         name: z.string(),
         text: z.string(),
-        url: z.string().optional(),
-        image: z.string().optional(),
-      })).optional(),
-      
+        url: z.string().nullable().default(null),
+        image: z.string().nullable().default(null),
+      })).nullable().default(null),
+
       // Organization specific
-      organizationName: z.string().optional(),
-      organizationUrl: z.string().url().optional(),
-      logo: z.string().url().optional(),
-      socialProfiles: z.array(z.string().url()).optional(),
+      organizationName: z.string().nullable().default(null),
+      organizationUrl: z.string().url().nullable().default(null),
+      logo: z.string().url().nullable().default(null),
+      socialProfiles: z.array(z.string().url()).nullable().default(null),
     }),
   }),
   outputSchema: z.object({

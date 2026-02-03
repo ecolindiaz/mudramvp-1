@@ -28,13 +28,13 @@ const inputSchema = z.object({
     .number()
     .min(1)
     .max(10)
-    .optional()
+    .default(5)
     .describe("Number of results to return (default: 5)"),
   maxAgeMonths: z
     .number()
     .min(1)
     .max(24)
-    .optional()
+    .default(DEFAULT_MAX_AGE_MONTHS)
     .describe("Filter out sources older than this many months (default: 10)"),
 });
 

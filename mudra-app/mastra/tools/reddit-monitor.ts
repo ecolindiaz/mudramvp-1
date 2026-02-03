@@ -17,7 +17,7 @@ export const monitorRedditThreadsTool = createTool({
   `,
   inputSchema: z.object({
     keywords: z.array(z.string()).describe('Keywords to monitor (e.g., ["react hooks", "nextjs", "typescript"])'),
-    subreddits: z.array(z.string()).optional().describe('Specific subreddits to monitor (e.g., ["reactjs", "webdev"])'),
+    subreddits: z.array(z.string()).default([]).describe('Specific subreddits to monitor (e.g., ["reactjs", "webdev"])'),
     minUpvotes: z.number().default(50).describe('Minimum upvotes to consider'),
     timeRange: z.enum(['day', 'week', 'month', 'year', 'all']).default('week'),
     limit: z.number().min(1).max(50).default(10),

@@ -6,8 +6,9 @@
  * instead of LLM hallucination.
  *
  * Features:
- * - Per-page issue tracking with pagination (1 page per run)
- * - Automatic issue creation from scoring results
+ * - Technical issues created automatically during analysis (Step 8.5)
+ * - AI visibility issues from policy file checks
+ * - Conversation issues from Conversation Radar
  * - Progressive discovery based on score tiers
  */
 
@@ -355,10 +356,9 @@ async function upsertDiscoveredIssues(
  * Main discovery orchestrator
  * Runs after each analysis to discover new issues
  *
- * Uses deterministic scoring-based issue creation:
- * - Technical issues: Created from computePageScore() results (1 page per run)
- * - AI visibility issues: Created from policy file checks
- * - Conversation issues: Created from Conversation Radar opportunities
+ * Technical structure issues are now created automatically during analysis
+ * (unified-analysis.service.ts Step 8.5 calls createIssuesFromMultiplePageScores).
+ * This function only discovers AI visibility and conversation issues.
  */
 export async function discoverIssues(brandProfileId: number): Promise<DiscoveryResult> {
   console.log(`[IssueDiscovery] Starting discovery for brand ${brandProfileId}`)
@@ -367,28 +367,24 @@ export async function discoverIssues(brandProfileId: number): Promise<DiscoveryR
   const aiVisibilityScore = await getLatestAIVisibilityScore(brandProfileId)
   console.log(`[IssueDiscovery] AI Visibility Score: ${aiVisibilityScore}`)
 
-  // 2. Discover issues from different sources
-  // - Technical: Uses scoring-based pagination (1 page per run)
-  // - AI Visibility: Deterministic policy file checks
-  // - Conversation: From Conversation Radar opportunities
-  const [technicalResult, aiVisibilityIssues, conversationIssues] = await Promise.all([
-    discoverTechnicalIssuesFromScoring(brandProfileId),
+  // 2. Technical structure issues are now created automatically during analysis
+  //    (unified-analysis.service.ts Step 8.5 calls createIssuesFromMultiplePageScores)
+  //    Only discover AI visibility and conversation issues here.
+  const [aiVisibilityIssues, conversationIssues] = await Promise.all([
     discoverAIVisibilityIssues(brandProfileId, aiVisibilityScore),
     discoverConversationOpportunities(brandProfileId)
   ])
 
-  console.log(`[IssueDiscovery] Technical: ${technicalResult.created} created for ${technicalResult.pageUrl || 'no page'}`)
   console.log(`[IssueDiscovery] AI Visibility: ${aiVisibilityIssues.length} found`)
   console.log(`[IssueDiscovery] Conversation: ${conversationIssues.length} found`)
 
-  // 3. Upsert AI visibility and conversation issues (technical already upserted)
+  // 3. Upsert AI visibility and conversation issues
   const otherIssues = [...aiVisibilityIssues, ...conversationIssues]
   const otherCreated = await upsertDiscoveredIssues(brandProfileId, otherIssues)
 
-  const totalCreated = technicalResult.created + otherCreated
-  console.log(`[IssueDiscovery] Total created: ${totalCreated}`)
+  console.log(`[IssueDiscovery] Total created: ${otherCreated}`)
 
-  // 4. Calculate tier distribution from the newly discovered issues
+  // 4. Calculate tier distribution
   const tierCounts: Record<DiscoveryTier, number> = {
     fundamental: 0,
     intermediate: 0,
@@ -401,9 +397,9 @@ export async function discoverIssues(brandProfileId: number): Promise<DiscoveryR
   }
 
   return {
-    discovered: technicalResult.created + otherIssues.length,
+    discovered: otherCreated,
     categories: {
-      technical_structure: technicalResult.created,
+      technical_structure: 0, // Created during analysis, not here
       ai_visibility: aiVisibilityIssues.length,
       conversation: conversationIssues.length
     },

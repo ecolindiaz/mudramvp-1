@@ -22,8 +22,8 @@ export const analyzeCodebaseTool = createTool({
     Returns detailed findings with severity levels and actionable recommendations.
   `,
   inputSchema: z.object({
-    url: z.string().url().optional().describe('Website URL to analyze'),
-    htmlContent: z.string().optional().describe('Raw HTML content to analyze'),
+    url: z.string().url().nullable().default(null).describe('Website URL to analyze'),
+    htmlContent: z.string().nullable().default(null).describe('Raw HTML content to analyze'),
     fileType: z.enum(['html', 'jsx', 'tsx', 'md']).default('html').describe('Type of content being analyzed'),
   }),
   outputSchema: z.object({

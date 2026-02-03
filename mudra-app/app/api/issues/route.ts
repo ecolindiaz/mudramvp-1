@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
     const category = searchParams.get('category')
     const priority = searchParams.get('priority')
+    const page = searchParams.get('page')
 
     // Get brand profile - either by ID or for user
     let brandProfile
@@ -49,21 +50,39 @@ export async function GET(request: NextRequest) {
       priority: priority || undefined
     })
 
+    // Filter by page if requested
+    let filteredIssues = issues
+    if (page) {
+      filteredIssues = issues.filter(issue => {
+        if (!issue.affectedUrl) return true // Keep issues without a specific URL (AI visibility, conversation)
+        try {
+          const urlPath = new URL(issue.affectedUrl).pathname
+          if (page === 'home' || page === 'homepage') {
+            return urlPath === '/' || urlPath === ''
+          }
+          // Match by path segment (e.g., 'pricing' matches '/pricing', '/pricing/enterprise')
+          return urlPath.toLowerCase().includes(page.toLowerCase())
+        } catch {
+          return issue.affectedUrl.toLowerCase().includes(page.toLowerCase())
+        }
+      })
+    }
+
     // Group by status for Kanban view
     const grouped = {
-      identified: issues.filter(i => i.status === 'identified'),
-      in_progress: issues.filter(i => i.status === 'in_progress'),
-      completed: issues.filter(i => i.status === 'completed'),
-      merged: issues.filter(i => i.status === 'merged')
+      identified: filteredIssues.filter(i => i.status === 'identified'),
+      in_progress: filteredIssues.filter(i => i.status === 'in_progress'),
+      completed: filteredIssues.filter(i => i.status === 'completed'),
+      merged: filteredIssues.filter(i => i.status === 'merged')
     }
 
     return NextResponse.json({
       success: true,
       data: {
-        issues,
+        issues: filteredIssues,
         grouped,
         counts: {
-          total: issues.length,
+          total: filteredIssues.length,
           identified: grouped.identified.length,
           in_progress: grouped.in_progress.length,
           completed: grouped.completed.length,

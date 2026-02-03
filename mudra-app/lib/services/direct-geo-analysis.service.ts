@@ -7,6 +7,30 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Utility: Sleep function for retry delays
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+/**
+ * Runs async tasks with a concurrency limit using a worker-queue pattern.
+ * Preserves result order matching the input order.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  fn: (item: T, index: number) => Promise<R>,
+  concurrency: number
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  const queue = items.map((item, i) => ({ item, index: i }));
+
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const entry = queue.shift();
+      if (!entry) break;
+      results[entry.index] = await fn(entry.item, entry.index);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
 // Cache for resolved Gemini grounding redirect URLs (in-memory, per-process)
 const geminiRedirectCache = new Map<string, { url: string; title: string; resolvedAt: number }>();
 const REDIRECT_CACHE_TTL = 1000 * 60 * 60; // 1 hour cache TTL
@@ -2066,25 +2090,26 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     
     console.log(`\n🔍 Analyzing with ${provider}: testing ${providerPrompts.length} prompts (${startIdx + 1}-${endIdx})...`);
     
-    // Test ALL prompts for this provider IN PARALLEL using Promise.all
-    const promptTestPromises = providerPrompts.map(async (promptObj) => {
-      const promptText = typeof promptObj === 'string' ? promptObj : promptObj.text;
-      const promptCategory = typeof promptObj === 'object' ? promptObj.category : undefined;
-      
-      try {
-        const test = await analyzePromptWithProvider(promptText, provider, config);
-        // Add category to test result for intent weighting
-        const testWithCategory = { ...test, promptCategory };
-        console.log(`  ✓ [${provider}] "${promptText.substring(0, 50)}..." - Brand mentioned: ${test.brandMentioned}`);
-        return testWithCategory;
-      } catch (error) {
-        console.error(`  ✗ [${provider}] Failed prompt: ${promptText.substring(0, 50)}...`, error);
-        return null;
-      }
-    });
-    
-    // Wait for all prompts for this provider to complete
-    const promptTestResults = await Promise.all(promptTestPromises);
+    // Gemini needs throttling (503 overload errors), other providers can run fully parallel
+    const concurrency = provider === 'google' ? 3 : providerPrompts.length;
+    const promptTestResults = await mapWithConcurrency(
+      providerPrompts,
+      async (promptObj) => {
+        const promptText = typeof promptObj === 'string' ? promptObj : promptObj.text;
+        const promptCategory = typeof promptObj === 'object' ? promptObj.category : undefined;
+
+        try {
+          const test = await analyzePromptWithProvider(promptText, provider, config);
+          const testWithCategory = { ...test, promptCategory };
+          console.log(`  ✓ [${provider}] "${promptText.substring(0, 50)}..." - Brand mentioned: ${test.brandMentioned}`);
+          return testWithCategory;
+        } catch (error) {
+          console.error(`  ✗ [${provider}] Failed prompt: ${promptText.substring(0, 50)}...`, error);
+          return null;
+        }
+      },
+      concurrency
+    );
     
     // Filter out failed tests (null values)
     const promptTests = promptTestResults.filter((test): test is NonNullable<typeof test> => test !== null);

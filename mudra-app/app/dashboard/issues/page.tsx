@@ -8,7 +8,8 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { BrandProfileProvider } from "@/components/brand-profile-context"
+import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
+import { CountdownBadge } from "@/components/dashboard/countdown-badge"
 import { IconPlus, IconTrash, IconLoader2, IconSparkles, IconRotate, IconExternalLink, IconGitPullRequest, IconCode, IconCopy, IconCheck, IconWand } from "@tabler/icons-react"
 import {
   Dialog,
@@ -939,8 +940,15 @@ function IssuesPageInner() {
   // Drag state
   const [activeId, setActiveId] = React.useState<number | null>(null)
   
+  // Brand profile for analysis
+  const { profile } = useBrandProfile()
+
+  // Analysis cooldown state
+  const [canRunAnalysis, setCanRunAnalysis] = React.useState(false)
+  const [nextAnalysisTime, setNextAnalysisTime] = React.useState<number | null>(null)
+  const [isRunningAnalysis, setIsRunningAnalysis] = React.useState(false)
+
   // Agent deployment state
-  const [isDiscovering, setIsDiscovering] = React.useState(false)
   const [deployingId, setDeployingId] = React.useState<number | null>(null)
 
   const sensors = useSensors(
@@ -994,29 +1002,90 @@ function IssuesPageInner() {
     }
   }, [viewMode, fetchStats])
 
-  // Discover new issues using AI
-  const handleDiscoverIssues = async () => {
-    setIsDiscovering(true)
+  // Check cooldown status
+  React.useEffect(() => {
+    const checkCooldown = async () => {
+      if (!profile?.id || profile.id <= 0) return
+
+      try {
+        const response = await fetch(`/api/analysis/cooldown?brandProfileId=${profile.id}`)
+        const data = await response.json()
+
+        if (data.success) {
+          setCanRunAnalysis(data.allowed)
+          if (data.lastRunAt && data.timeUntilNext) {
+            setNextAnalysisTime(Date.now() + data.timeUntilNext)
+          } else {
+            setNextAnalysisTime(null)
+          }
+        } else {
+          console.warn('Cooldown check returned error, allowing analysis:', data.error)
+          setCanRunAnalysis(true)
+        }
+      } catch (error) {
+        console.error('Failed to check cooldown:', error)
+        setCanRunAnalysis(true)
+      }
+    }
+
+    checkCooldown()
+    const interval = setInterval(checkCooldown, 30000)
+    return () => clearInterval(interval)
+  }, [profile?.id])
+
+  // Run full analysis (replaces discover issues)
+  const handleRunAnalysis = async () => {
+    if (!profile?.id || profile.id <= 0) {
+      toast.error('Profile not loaded. Please refresh the page.')
+      return
+    }
+
+    if (!canRunAnalysis) {
+      toast.error('Analysis is on cooldown. Please wait 24 hours.')
+      return
+    }
+
+    if (isRunningAnalysis) return
+
+    setIsRunningAnalysis(true)
+    const toastId = 'run-analysis'
+    toast.loading('Running analysis... This may take 1-2 minutes.', { id: toastId })
+
     try {
-      const response = await fetch("/api/issues", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "discover" }),
+      const response = await fetch('/api/analysis/unified', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandProfileId: profile.id,
+          brandName: profile.companyName,
+          website: profile.companyWebsite,
+          description: profile.companyDescription,
+          industry: profile.companyIndustry,
+          competitors: [],
+          skipCooldown: false,
+          generateReport: true,
+        }),
       })
+
       const result = await response.json()
+
       if (result.success) {
-        toast.success("Issues discovered", {
-          description: `Found ${result.data.discovered?.length || 0} new issues`,
-        })
+        toast.success('Analysis completed! Issues refreshed.', { id: toastId })
         await fetchIssues()
+        window.dispatchEvent(new Event('mudra:website-analyzed'))
+        setCanRunAnalysis(false)
+        setNextAnalysisTime(Date.now() + (24 * 60 * 60 * 1000))
       } else {
-        toast.error("Discovery failed", { description: result.error?.message })
+        const errorMsg = typeof result.error === 'string'
+          ? result.error
+          : result.error?.message || 'Analysis failed'
+        toast.error(errorMsg, { id: toastId })
       }
     } catch (error) {
-      console.error("Failed to discover issues:", error)
-      toast.error("Discovery failed")
+      console.error('Failed to run analysis:', error)
+      toast.error('Failed to run analysis. Please try again.', { id: toastId })
     } finally {
-      setIsDiscovering(false)
+      setIsRunningAnalysis(false)
     }
   }
 
@@ -1323,19 +1392,22 @@ function IssuesPageInner() {
                   <h1 className="text-2xl font-bold tracking-tight text-white">Issues</h1>
                   <p className="text-sm text-white/60 mt-1">Track and fix issues preventing you from winning in AI search</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                {!canRunAnalysis && nextAnalysisTime && (
+                  <CountdownBadge targetMs={nextAnalysisTime} />
+                )}
                 <Button
-                  onClick={handleDiscoverIssues}
-                  disabled={isDiscovering}
+                  onClick={handleRunAnalysis}
+                  disabled={!canRunAnalysis || isRunningAnalysis}
                   variant="outline"
                   className="border-white/10 text-white hover:bg-white/10"
                 >
-                  {isDiscovering ? (
+                  {isRunningAnalysis ? (
                     <IconLoader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <IconSparkles className="w-4 h-4 mr-2" />
                   )}
-                  {isDiscovering ? "Discovering..." : "Discover Issues"}
+                  {isRunningAnalysis ? "Analyzing..." : "Run Analysis"}
                 </Button>
                 <Button
                   onClick={() => handleAddClick("identified")}

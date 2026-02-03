@@ -533,39 +533,59 @@ function extractFAQsFromAccordion($: CheerioAPI): FAQItem[] {
 }
 
 /**
- * Extracts FAQs from headings that end with question marks
+ * Extracts FAQs from headings that end with question marks,
+ * but ONLY if they are inside an explicit FAQ section container.
+ * General marketing headings like "How does it work?" are NOT FAQs.
  */
 function extractFAQsFromQuestionHeadings($: CheerioAPI): FAQItem[] {
 	const faqs: FAQItem[] = [];
 
-	$("h2, h3, h4").each((_headingIndex, heading) => {
-		const question = $(heading).text().trim();
+	// Only look for question headings inside FAQ containers
+	const faqContainerSelectors = [
+		'#faq',
+		'[data-section="faq"]',
+		'.faq',
+		'.faqs',
+		'.faq-section',
+		'[class*="faq-"]',
+		'[id*="faq"]',
+	].join(', ');
 
-		// Must end with ?
-		if (!question.endsWith("?")) return;
+	const faqContainers = $(faqContainerSelectors);
 
-		// Get following content until next heading
-		let answer = "";
-		let next = $(heading).next();
+	// No FAQ containers → no question-heading FAQs
+	if (faqContainers.length === 0) return faqs;
 
-		while (next.length && !next.is("h1, h2, h3, h4, h5, h6")) {
-			if (next.is("p, div, ul, ol")) {
-				answer += next.text().trim() + " ";
+	faqContainers.each((_containerIndex, container) => {
+		$(container).find("h2, h3, h4").each((_headingIndex, heading) => {
+			const question = $(heading).text().trim();
+
+			// Must end with ?
+			if (!question.endsWith("?")) return;
+
+			// Get following content until next heading
+			let answer = "";
+			let next = $(heading).next();
+
+			while (next.length && !next.is("h1, h2, h3, h4, h5, h6")) {
+				if (next.is("p, div, ul, ol")) {
+					answer += next.text().trim() + " ";
+				}
+				next = next.next();
 			}
-			next = next.next();
-		}
 
-		answer = answer.trim();
+			answer = answer.trim();
 
-		if (question && answer && question.length > 10 && answer.length > 20) {
-			faqs.push({
-				question,
-				answer,
-				question_length: question.length,
-				answer_length: answer.length,
-				source: "pattern",
-			});
-		}
+			if (question && answer && question.length > 10 && answer.length > 20) {
+				faqs.push({
+					question,
+					answer,
+					question_length: question.length,
+					answer_length: answer.length,
+					source: "pattern",
+				});
+			}
+		});
 	});
 
 	return faqs;

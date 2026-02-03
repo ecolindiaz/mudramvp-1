@@ -600,9 +600,17 @@ function generateIssues(
 		);
 	}
 
-	// Schema issues
+	// Schema issues — page-type-specific when no schema exists at all
 	if (!schemaScore.checks.J1_present?.passed) {
-		issues.push(createIssue("J1_present", "schema", "high", "No JSON-LD schema found", pageUrl));
+		const recommendedSchemas = getRecommendedSchemas(extraction.page_type);
+		const schemaList = recommendedSchemas.join(' + ');
+		issues.push(createIssue(
+			"J1_present",
+			"schema",
+			"high",
+			`No JSON-LD schema found. Recommended for this page: ${schemaList}`,
+			pageUrl
+		));
 	}
 	if (!schemaScore.checks.J2_valid?.passed && extraction.extraction.schema.jsonld_blocks.length > 0) {
 		issues.push(createIssue("J2_valid", "schema", "high", "Invalid JSON-LD structure", pageUrl));
@@ -810,6 +818,35 @@ function getRecommendedSchemaType(pageType: string): string {
 			return "Organization";
 		default:
 			return "WebPage";
+	}
+}
+
+/**
+ * Returns the list of recommended schemas for a page type.
+ * Used to create specific schema issue messages.
+ */
+export function getRecommendedSchemas(pageType: string): string[] {
+	switch (pageType) {
+		case "home":
+			return ["Organization", "WebSite"];
+		case "blog":
+			return ["Article"];
+		case "product":
+			return ["Product"];
+		case "pricing":
+			return ["Product"];
+		case "features":
+			return ["SoftwareApplication"];
+		case "documentation":
+			return ["Article"];
+		case "about":
+			return ["Organization"];
+		case "contact":
+			return ["Organization"];
+		case "solutions":
+			return ["Service"];
+		default:
+			return ["WebPage"];
 	}
 }
 

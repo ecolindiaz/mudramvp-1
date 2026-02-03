@@ -162,6 +162,17 @@ export async function runUnifiedAnalysis(
       }
     }
 
+    // Step 9: Auto-discover AI visibility + conversation issues
+    if (result.geoAnalysisId || result.technicalAnalysisId) {
+      try {
+        const { discoverIssues } = await import('./issue-discovery.service');
+        const discoveryResult = await discoverIssues(config.brandProfileId);
+        console.log(`[Unified Analysis] Issue discovery: ${discoveryResult.discovered} new issues`);
+      } catch (discoveryError) {
+        console.warn('[Unified Analysis] Issue discovery failed (non-fatal):', discoveryError);
+      }
+    }
+
     // Set success status and error message
     result.success = !!(result.geoAnalysisId || result.technicalAnalysisId);
 
@@ -664,6 +675,30 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
     } catch (reconcileError) {
       console.warn('[Technical Core] Issue reconciliation failed:', reconcileError);
       // Don't fail the whole analysis if reconciliation fails
+    }
+
+    // Step 8.5: Create issues from ALL page scores at once
+    // (replaces the old pagination-based discovery that processed 1 page per click)
+    console.log('[Technical Core] Step 8.5: Creating issues from all page scores...');
+    try {
+      const { createIssuesFromMultiplePageScores } = await import('./issue-from-scoring.service');
+      const issueResult = await createIssuesFromMultiplePageScores(config.brandProfileId, pageScores);
+      console.log(`[Technical Core] Issues: ${issueResult.totalCreated} created, ${issueResult.totalUpdated} updated, ${issueResult.totalSkipped} skipped`);
+    } catch (issueError) {
+      console.warn('[Technical Core] Issue creation failed:', issueError);
+    }
+
+    // Reset page discovery index so future manual discovery starts fresh
+    try {
+      await prisma.brandProfile.update({
+        where: { id: config.brandProfileId },
+        data: {
+          issueDiscoveryPageIndex: 0,
+          issueDiscoveryTotalPages: pageScores.length,
+        },
+      });
+    } catch (resetError) {
+      console.warn('[Technical Core] Could not reset page index:', resetError);
     }
 
     return {

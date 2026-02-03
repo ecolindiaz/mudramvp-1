@@ -182,9 +182,19 @@ export async function createIssuesFromPageScore(
   for (const issue of pageScore.issues) {
     const check = issue.check
     const agentType = CHECK_TO_AGENT_MAP[check]
-    const title = ISSUE_TITLES[check] || `Fix: ${issue.message}`
-    const description = ISSUE_DESCRIPTIONS[check] || issue.message
-    const impact = ISSUE_IMPACTS[check] || 'Improved AEO score'
+    let title = ISSUE_TITLES[check] || `Fix: ${issue.message}`
+    let description = ISSUE_DESCRIPTIONS[check] || issue.message
+    let impact = ISSUE_IMPACTS[check] || 'Improved AEO score'
+
+    // J1_present: Use page-type-specific title and full schema impact
+    if (check === 'J1_present') {
+      const schemaMatch = issue.message.match(/Recommended for this page: (.+)$/)
+      if (schemaMatch) {
+        title = `Add ${schemaMatch[1]} Schema`
+      }
+      impact = '+25 points (full schema implementation)'
+      description = `This page has no JSON-LD schema markup. Structured data is critical for AI systems to understand your content.\n\nRecommended schemas: ${schemaMatch?.[1] || 'appropriate type for this page'}.`
+    }
 
     if (!agentType) {
       console.warn(`[IssueFromScoring] No agent mapping for check: ${check}`)

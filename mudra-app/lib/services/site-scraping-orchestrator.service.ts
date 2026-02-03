@@ -17,7 +17,8 @@ import { createFirecrawlApp } from '@/lib/config/firecrawl-config';
 import { detectPolicyFiles } from './policy-detection.service';
 import { discoverAndSaveSitemap, updatePageScrapeStatus, getPendingPages } from './sitemap-parser.service';
 import { extractDOMData } from './dom-parser.service';
-import { computeFiveDimensionScore } from './five-dimension-scoring.service';
+// Note: five-dimension-scoring.service.ts was removed - use lib/analysis/technical/five-dimension-scorer.ts instead
+import { computePageScore as computeFiveDimensionScore } from '@/lib/analysis/technical/five-dimension-scorer';
 
 import type {
   ScrapeJobConfig,

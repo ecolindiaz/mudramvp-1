@@ -604,6 +604,21 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
             siteScore,
             scoreByPageType,
             topIssues: topIssues.slice(0, 5),
+            // Full page scores for issue discovery pagination and delta analysis
+            pageScores: pageScores.map(ps => ({
+              page_url: ps.page_url,
+              page_type: ps.page_type,
+              status: ps.status,
+              scores: ps.scores,
+              dimensions: {
+                metadata: ps.scores.metadata,
+                headings: ps.scores.headings,
+                semantic: ps.scores.semantic,
+                schema: ps.scores.schema,
+                faq: ps.scores.faq,
+              },
+              issues: ps.issues,
+            })),
           },
           // Legacy data for backward compatibility
           components: legacyFindings.length > 0 ? legacyFindings : [],
@@ -636,6 +651,19 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
     });
 
     console.log(`[Technical Core] Multi-page analysis complete: ${siteScore}/100 (${pageScores.length} pages)`);
+
+    // Step 8: Reconcile issues with current scores (auto-close fixed issues)
+    console.log('[Technical Core] Step 8: Reconciling issues...');
+    try {
+      const { reconcileIssuesWithScores } = await import('./issue-reconciliation.service');
+      // Import FullPageScore type to ensure pageScores are typed correctly
+      const fullPageScores = pageScores as Parameters<typeof reconcileIssuesWithScores>[1];
+      const reconcileResult = await reconcileIssuesWithScores(config.brandProfileId, fullPageScores);
+      console.log(`[Technical Core] Issue reconciliation: ${reconcileResult.closed} closed, ${reconcileResult.stillOpen} still open`);
+    } catch (reconcileError) {
+      console.warn('[Technical Core] Issue reconciliation failed:', reconcileError);
+      // Don't fail the whole analysis if reconciliation fails
+    }
 
     return {
       success: true,

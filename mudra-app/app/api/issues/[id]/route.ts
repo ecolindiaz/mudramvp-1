@@ -94,7 +94,7 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { title, description, type, status, priority, order, dismissedAt, prUrl, prNumber, prStatus } = body
+    const { title, description, status, priority, order, dismissedAt, prUrl, prNumber, prStatus } = body
 
     // Get brand profile for user
     const brandProfile = await prisma.brandProfile.findFirst({
@@ -127,7 +127,6 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {}
     if (title !== undefined) updateData.title = title
     if (description !== undefined) updateData.description = description
-    if (type !== undefined) updateData.type = type
     if (status !== undefined) updateData.status = status
     if (priority !== undefined) updateData.priority = priority
     if (order !== undefined) updateData.order = order

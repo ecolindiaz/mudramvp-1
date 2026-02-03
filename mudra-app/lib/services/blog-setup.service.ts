@@ -58,7 +58,6 @@ export async function createInitialBlogSetupIssue(brandProfileId: number): Promi
 - SEO metadata and structured data included
 
 Deploy this agent to get started!`,
-      type: 'feature',
       status: 'identified',
       priority: 'high',
       category: BLOG_SETUP_CATEGORY,

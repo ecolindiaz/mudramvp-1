@@ -133,9 +133,8 @@ interface Issue {
   id: number
   title: string
   description?: string | null
-  type: "bug" | "improvement" | "feature"
   status: "identified" | "in_progress" | "completed" | "merged" | "failed" | "dismissed"
-  priority: "low" | "medium" | "high" | "critical"
+  priority: "low" | "medium" | "high"
   order: number
   createdAt: string
   updatedAt: string
@@ -144,6 +143,7 @@ interface Issue {
   prNumber?: number | null
   generatedOutput?: string | null
   outputType?: string | null
+  category?: string | null
 }
 
 interface IssueStats {
@@ -154,25 +154,24 @@ interface IssueStats {
     completed: number
     merged: number
   }
-  byType: {
-    bug: number
-    improvement: number
-    feature: number
+  byCategory: {
+    technical_structure: number
+    ai_visibility: number
+    conversation: number
   }
   byPriority: {
     low: number
     medium: number
     high: number
-    critical: number
   }
   recentIssues: number
   completedThisWeek: number
 }
 
-const typeConfig = {
-  bug: { color: "bg-red-500", label: "Bug" },
-  improvement: { color: "bg-blue-500", label: "Improvement" },
-  feature: { color: "bg-purple-500", label: "Feature" },
+const categoryConfig = {
+  technical_structure: { color: "bg-blue-500", label: "Technical" },
+  ai_visibility: { color: "bg-purple-500", label: "AI Visibility" },
+  conversation: { color: "bg-green-500", label: "Conversation" },
 }
 
 const statusConfig = {
@@ -187,8 +186,7 @@ const statusConfig = {
 const priorityConfig = {
   low: { color: "text-white/40", bg: "bg-white/5" },
   medium: { color: "text-amber-400", bg: "bg-amber-400/10" },
-  high: { color: "text-orange-400", bg: "bg-orange-400/10" },
-  critical: { color: "text-red-400", bg: "bg-red-400/10" },
+  high: { color: "text-red-400", bg: "bg-red-400/10" },
 }
 
 // Sortable Issue Card Component
@@ -224,7 +222,7 @@ function SortableIssueCard({
     opacity: isDragging ? 0.5 : 1,
   }
 
-  const typeConf = typeConfig[issue.type]
+  const categoryConf = categoryConfig[issue.category as keyof typeof categoryConfig] || categoryConfig.technical_structure
   const statusConf = statusConfig[issue.status]
   const StatusIcon = statusConf.icon
 
@@ -347,7 +345,7 @@ function SortableIssueCard({
 
 // Static Issue Card for Drag Overlay
 function IssueCardOverlay({ issue }: { issue: Issue }) {
-  const typeConf = typeConfig[issue.type]
+  const categoryConf = categoryConfig[issue.category as keyof typeof categoryConfig] || categoryConfig.technical_structure
   const statusConf = statusConfig[issue.status]
   const StatusIcon = statusConf.icon
 
@@ -361,8 +359,8 @@ function IssueCardOverlay({ issue }: { issue: Issue }) {
       </div>
       <div className="flex items-center justify-between pl-7">
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]">
-          <span className={`w-1.5 h-1.5 rounded-full ${typeConf.color}`} />
-          <span className="text-[11px] text-white/50">{typeConf.label}</span>
+          <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
+          <span className="text-[11px] text-white/50">{categoryConf.label}</span>
         </span>
         <span className="text-[11px] text-white/30">
           ISS-{String(issue.id).padStart(2, "0")}
@@ -435,10 +433,10 @@ function AnalysisView({ stats, isLoading }: { stats: IssueStats | null; isLoadin
 
         {/* Bugs */}
         <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-          <div className="text-[11px] text-white/50 uppercase tracking-wider mb-1">Bug Count</div>
-          <div className="text-2xl font-bold text-red-400">{stats.byType.bug}</div>
+          <div className="text-[11px] text-white/50 uppercase tracking-wider mb-1">High Priority</div>
+          <div className="text-2xl font-bold text-red-400">{stats.byPriority.high}</div>
           <div className="text-[12px] text-white/40 mt-1">
-            {stats.byPriority.critical + stats.byPriority.high} high priority
+            {stats.byCategory.technical_structure} technical issues
           </div>
         </div>
       </div>
@@ -474,19 +472,19 @@ function AnalysisView({ stats, isLoading }: { stats: IssueStats | null; isLoadin
           </div>
         </div>
 
-        {/* By Type */}
+        {/* By Category */}
         <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5">
-          <h3 className="text-sm font-medium text-white/80 mb-4">Issues by Type</h3>
+          <h3 className="text-sm font-medium text-white/80 mb-4">Issues by Category</h3>
           <div className="space-y-3">
-            {Object.entries(stats.byType).map(([type, count]) => {
-              const conf = typeConfig[type as keyof typeof typeConfig]
+            {Object.entries(stats.byCategory).map(([category, count]) => {
+              const conf = categoryConfig[category as keyof typeof categoryConfig] || categoryConfig.technical_structure
               const percentage = stats.total > 0 ? (count / stats.total) * 100 : 0
               return (
-                <div key={type} className="flex items-center gap-3">
+                <div key={category} className="flex items-center gap-3">
                   <span className={`w-2.5 h-2.5 rounded-full ${conf.color}`} />
-                  <span className="text-[13px] text-white/70 capitalize w-24">{conf.label}</span>
+                  <span className="text-[13px] text-white/70 w-24">{conf.label}</span>
                   <div className="flex-1 h-2 bg-white/[0.05] rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className={`h-full ${conf.color} rounded-full transition-all`}
                       style={{ width: `${percentage}%` }}
                     />
@@ -536,7 +534,6 @@ function IssueDialog({
 }) {
   const [title, setTitle] = React.useState("")
   const [description, setDescription] = React.useState("")
-  const [type, setType] = React.useState<Issue["type"]>("bug")
   const [status, setStatus] = React.useState<Issue["status"]>("identified")
   const [priority, setPriority] = React.useState<Issue["priority"]>("medium")
 
@@ -544,13 +541,11 @@ function IssueDialog({
     if (issue) {
       setTitle(issue.title)
       setDescription(issue.description || "")
-      setType(issue.type)
       setStatus(issue.status)
       setPriority(issue.priority)
     } else {
       setTitle("")
       setDescription("")
-      setType("bug")
       setStatus(defaultStatus as Issue["status"] || "identified")
       setPriority("medium")
     }
@@ -558,7 +553,7 @@ function IssueDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({ title, description: description || null, type, status, priority })
+    onSave({ title, description: description || null, status, priority })
   }
 
   return (
@@ -593,20 +588,7 @@ function IssueDialog({
                 className="bg-white/[0.05] border-white/10 text-white placeholder:text-white/30 min-h-[80px]"
               />
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <Label className="text-white/70">Type</Label>
-                <Select value={type} onValueChange={(v) => setType(v as Issue["type"])}>
-                  <SelectTrigger className="bg-white/[0.05] border-white/10 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1a1a1a] border-white/10">
-                    <SelectItem value="bug" className="text-white hover:bg-white/10">Bug</SelectItem>
-                    <SelectItem value="improvement" className="text-white hover:bg-white/10">Improvement</SelectItem>
-                    <SelectItem value="feature" className="text-white hover:bg-white/10">Feature</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-white/70">Status</Label>
                 <Select value={status} onValueChange={(v) => setStatus(v as Issue["status"])}>
@@ -631,7 +613,6 @@ function IssueDialog({
                     <SelectItem value="low" className="text-white hover:bg-white/10">Low</SelectItem>
                     <SelectItem value="medium" className="text-white hover:bg-white/10">Medium</SelectItem>
                     <SelectItem value="high" className="text-white hover:bg-white/10">High</SelectItem>
-                    <SelectItem value="critical" className="text-white hover:bg-white/10">Critical</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -731,7 +712,7 @@ function IssueDetailDialog({
 }) {
   if (!issue) return null
 
-  const typeConf = typeConfig[issue.type]
+  const categoryConf = categoryConfig[issue.category as keyof typeof categoryConfig] || categoryConfig.technical_structure
   const statusConf = statusConfig[issue.status]
   const StatusIcon = statusConf.icon
   const priorityConf = priorityConfig[issue.priority]

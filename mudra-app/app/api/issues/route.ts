@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { title, description, type, status, priority, brandProfileId, action } = body
+    const { title, description, status, priority, brandProfileId, action } = body
 
     // Get brand profile for user
     let brandProfile
@@ -158,7 +158,6 @@ export async function POST(request: NextRequest) {
         brandProfileId: brandProfile.id,
         title,
         description: description || null,
-        type: type || "bug",
         status: status || "identified",
         priority: priority || "medium",
         order: (maxOrder._max.order ?? -1) + 1,

@@ -8,14 +8,13 @@ import { useState, useEffect, useCallback } from 'react'
 import { useBrandProfile } from '@/components/brand-profile-context'
 
 export type IssueStatus = 'identified' | 'in_progress' | 'completed' | 'failed' | 'dismissed'
-export type IssueCategory = 'technical_seo' | 'ai_visibility' | 'conversation_radar' | 'content'
-export type IssuePriority = 'critical' | 'high' | 'medium' | 'low'
+export type IssueCategory = 'technical_structure' | 'ai_visibility' | 'conversation'
+export type IssuePriority = 'high' | 'medium' | 'low'
 
 export interface Issue {
   id: number
   title: string
   description: string | null
-  type: string
   status: IssueStatus
   priority: IssuePriority
   category: IssueCategory | null

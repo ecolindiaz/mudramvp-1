@@ -61,6 +61,10 @@ model BrandProfile {
   conversationOpportunities  ConversationOpportunity[]
   issues                     Issue[]
 
+  // Issue discovery pagination
+  issueDiscoveryPageIndex    Int      @default(0)  // Current page index for issue discovery
+  issueDiscoveryTotalPages   Int      @default(0)  // Total pages discovered
+
   @@index([userId])
 }
 
@@ -102,9 +106,8 @@ model Issue {
   brandProfileId Int
   title          String
   description    String?
-  type           String       @default("improvement") // bug, improvement, feature
   status         String       @default("identified") // identified, in_progress, completed, merged
-  priority       String       @default("medium") // low, medium, high, critical
+  priority       String       @default("medium") // low, medium, high
   order          Int          @default(0) // For ordering within a column
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

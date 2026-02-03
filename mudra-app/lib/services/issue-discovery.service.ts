@@ -1,20 +1,28 @@
 /**
  * Issue Discovery Service
- * 
- * AI-powered discovery of optimization opportunities based on
- * current analysis scores. Issues are progressively discovered
- * as scores improve - fundamentals first, then advanced.
+ *
+ * Deterministic discovery of optimization opportunities based on
+ * computePageScore() results. Uses scoring-based issue creation
+ * instead of LLM hallucination.
+ *
+ * Features:
+ * - Per-page issue tracking with pagination (1 page per run)
+ * - Automatic issue creation from scoring results
+ * - Progressive discovery based on score tiers
  */
 
 import { prisma } from '@/lib/prisma'
-import OpenAI from 'openai'
 import crypto from 'crypto'
 import { createInitialBlogSetupIssue } from './blog-setup.service'
+import {
+  createIssuesFromPageScore,
+} from './issue-from-scoring.service'
+import type { FullPageScore } from '@/lib/analysis/technical/types'
 
 // Types
 export type IssueCategory = 'technical_structure' | 'ai_visibility' | 'conversation'
 export type DiscoveryTier = 'fundamental' | 'intermediate' | 'advanced' | 'polish'
-export type IssuePriority = 'low' | 'medium' | 'high' | 'critical'
+export type IssuePriority = 'low' | 'medium' | 'high'
 
 export interface DiscoveredIssue {
   title: string
@@ -33,11 +41,6 @@ interface DiscoveryResult {
   categories: Record<IssueCategory, number>
   tiers: Record<DiscoveryTier, number>
 }
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-})
 
 /**
  * Get discovery tiers based on current score
@@ -101,273 +104,153 @@ export async function getLatestAIVisibilityScore(brandProfileId: number): Promis
 }
 
 /**
- * Get website analysis data for discovery prompts
+ * Get the next page for issue discovery using pagination
+ * Returns the next page to analyze, or null if all pages have been processed
  */
-async function getWebsiteAnalysisData(brandProfileId: number) {
-  const [brandProfile, technicalAnalysis, geoAnalysis] = await Promise.all([
-    prisma.brandProfile.findUnique({
-      where: { id: brandProfileId },
-      select: {
-        companyName: true,
-        companyWebsite: true,
-        companyIndustry: true,
-        companyServices: true,
-        companyDescription: true
-      }
-    }),
-    prisma.technicalStructureAnalysis.findFirst({
-      where: { brandProfileId },
-      orderBy: { createdAt: 'desc' }
-    }),
-    prisma.geoAnalysisResult.findFirst({
-      where: { brandProfileId },
-      orderBy: { createdAt: 'desc' }
-    })
-  ])
+async function getNextPageForIssueDiscovery(brandProfileId: number): Promise<{
+  pageScore: FullPageScore | null
+  pageIndex: number
+  totalPages: number
+} | null> {
+  // Get brand profile with pagination state
+  const brandProfile = await prisma.brandProfile.findUnique({
+    where: { id: brandProfileId },
+    select: {
+      issueDiscoveryPageIndex: true,
+      issueDiscoveryTotalPages: true,
+    }
+  })
+
+  if (!brandProfile) {
+    return null
+  }
+
+  // Get the latest technical analysis with multi-page data
+  const techAnalysis = await prisma.technicalStructureAnalysis.findFirst({
+    where: { brandProfileId },
+    orderBy: { createdAt: 'desc' },
+    select: { metadata: true }
+  })
+
+  if (!techAnalysis) {
+    return null
+  }
+
+  const metadata = techAnalysis.metadata as Record<string, unknown> | null
+  const multiPageData = metadata?.multiPageAnalysis as {
+    pageScores?: FullPageScore[]
+  } | undefined
+
+  if (!multiPageData?.pageScores || multiPageData.pageScores.length === 0) {
+    return null
+  }
+
+  const totalPages = multiPageData.pageScores.length
+  let currentIndex = brandProfile.issueDiscoveryPageIndex
+
+  // Wrap around if we've reached the end
+  if (currentIndex >= totalPages) {
+    currentIndex = 0
+  }
+
+  const pageScore = multiPageData.pageScores[currentIndex]
+
+  // Update the page index for next run
+  const nextIndex = (currentIndex + 1) % totalPages
+  await prisma.brandProfile.update({
+    where: { id: brandProfileId },
+    data: {
+      issueDiscoveryPageIndex: nextIndex,
+      issueDiscoveryTotalPages: totalPages
+    }
+  })
 
   return {
-    brandProfile,
-    technicalAnalysis,
-    geoAnalysis
+    pageScore: pageScore || null,
+    pageIndex: currentIndex,
+    totalPages
   }
 }
 
 /**
- * Discover technical structure issues using LLM
+ * Discover technical structure issues using page scoring (not LLM)
+ * Uses pagination to process one page per run
  */
-async function discoverTechnicalIssues(
-  brandProfileId: number,
-  websiteData: Awaited<ReturnType<typeof getWebsiteAnalysisData>>,
-  tiers: DiscoveryTier[],
-  currentScore: number
-): Promise<DiscoveredIssue[]> {
-  const { brandProfile, technicalAnalysis } = websiteData
+async function discoverTechnicalIssuesFromScoring(
+  brandProfileId: number
+): Promise<{ created: number; pageUrl: string | null }> {
+  // Get next page to process
+  const nextPage = await getNextPageForIssueDiscovery(brandProfileId)
 
-  if (!brandProfile || !technicalAnalysis) {
-    return []
+  if (!nextPage || !nextPage.pageScore) {
+    console.log(`[IssueDiscovery] No page scores available for brand ${brandProfileId}`)
+    return { created: 0, pageUrl: null }
   }
 
-  // Extract metadata from JSON field
-  const metadata = (technicalAnalysis.metadata || {}) as Record<string, unknown>
+  console.log(`[IssueDiscovery] Processing page ${nextPage.pageIndex + 1}/${nextPage.totalPages}: ${nextPage.pageScore.page_url}`)
 
-  const tierDescriptions = tiers.map(t => `- ${t.toUpperCase()}: ${getTierDescription(t)}`).join('\n')
+  // Create issues from page score
+  const result = await createIssuesFromPageScore(brandProfileId, nextPage.pageScore)
 
-  const prompt = `You are an expert at identifying technical SEO and AI-optimization issues.
-
-WEBSITE ANALYSIS:
-- Company: ${brandProfile.companyName}
-- URL: ${brandProfile.companyWebsite}
-- Industry: ${brandProfile.companyIndustry || 'Unknown'}
-- Technical Score: ${currentScore}/100
-
-CURRENT TECHNICAL STATE:
-- Has Schema Markup: ${metadata.hasSchemaMarkup ?? 'Unknown'}
-- Schema Types Found: ${JSON.stringify(metadata.schemaTypes || [])}
-- Has FAQ Schema: ${metadata.hasFaqSchema ?? 'Unknown'}
-- Has Sitemap: ${metadata.hasSitemap ?? 'Unknown'}
-- Has Robots.txt: ${metadata.hasRobotsTxt ?? 'Unknown'}
-- Page Speed Score: ${metadata.pageSpeedScore || technicalAnalysis.performanceScore || 'Unknown'}
-- Heading Structure Valid: ${metadata.headingStructureValid ?? 'Unknown'}
-- Meta Description Present: ${metadata.hasMetaDescription ?? 'Unknown'}
-
-ALLOWED TIERS (based on current score):
-${tierDescriptions}
-
-ISSUE TYPES BY TIER:
-
-FUNDAMENTAL (score 0-30):
-- Missing robots.txt or sitemap.xml
-- No meta descriptions
-- Missing basic Organization schema
-- No heading hierarchy (H1 missing)
-- No favicon
-
-INTERMEDIATE (score 30-60):
-- FAQ schema improvements
-- Article/BlogPosting schema
-- Internal linking optimization
-- Heading restructuring for Q&A format
-- Image alt text improvements
-
-ADVANCED (score 60-80):
-- Rich snippet optimization
-- Breadcrumb schema
-- Speakable schema for voice search
-- HowTo schema for guides
-- Video schema
-
-POLISH (score 80+):
-- Minor performance optimizations
-- Edge case schema additions
-- Mobile-specific optimizations
-
-Generate issues ONLY for the allowed tiers. Each issue must be:
-1. Specific and actionable
-2. Fixable by an automated agent
-3. Have measurable impact
-
-Return a JSON object with an "issues" array:
-{
-  "issues": [
-    {
-      "title": "Add Organization Schema Markup",
-      "description": "Your homepage lacks Organization schema markup, which helps AI systems understand your brand identity and display rich results.",
-      "priority": "high",
-      "agentType": "schema_markup",
-      "estimatedImpact": "+5-8 points",
-      "discoveryTier": "fundamental",
-      "affectedUrl": "/"
-    }
-  ]
-}
-
-AGENT TYPES:
-- schema_markup: For JSON-LD schema generation
-- heading_hierarchy: For heading structure fixes
-- site_config: For robots.txt, sitemap issues
-- meta_optimization: For meta tags, descriptions
-- content_structure: For FAQ sections, lists, tables
-
-Generate 2-5 issues maximum. Focus on highest impact items first.`
-
-  try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-      temperature: 0.3
-    })
-
-    const content = response.choices[0].message.content
-    if (!content) return []
-
-    const parsed = JSON.parse(content) as { issues: DiscoveredIssue[] }
-    
-    return parsed.issues.map(issue => ({
-      ...issue,
-      category: 'technical_structure' as const,
-      discoveredFromScore: currentScore
-    }))
-  } catch (error) {
-    console.error('[IssueDiscovery] Technical issues discovery failed:', error)
-    return []
+  return {
+    created: result.created,
+    pageUrl: nextPage.pageScore.page_url
   }
 }
 
 /**
- * Discover AI visibility issues using LLM
+ * Discover AI visibility issues based on policy file checks (deterministic)
  */
 async function discoverAIVisibilityIssues(
   brandProfileId: number,
-  websiteData: Awaited<ReturnType<typeof getWebsiteAnalysisData>>,
-  tiers: DiscoveryTier[],
   currentScore: number
 ): Promise<DiscoveredIssue[]> {
-  const { brandProfile, geoAnalysis } = websiteData
-
-  if (!brandProfile) {
-    return []
-  }
+  const issues: DiscoveredIssue[] = []
 
   // Check if llms.txt exists
   const policyFile = await prisma.policyFile.findFirst({
-    where: { 
+    where: {
       brand_profile_id: brandProfileId
     }
   })
 
-  const tierDescriptions = tiers.map(t => `- ${t.toUpperCase()}: ${getTierDescription(t)}`).join('\n')
+  // Missing llms.txt - fundamental issue
+  if (!policyFile?.llms_txt_exists) {
+    const hash = generateIssueHash(brandProfileId, 'ai_visibility', 'Create llms.txt File')
+    const existing = await prisma.issue.findUnique({ where: { issueHash: hash } })
 
-  const prompt = `You are an expert at optimizing websites for AI visibility (LLMs, ChatGPT, Perplexity, etc.).
-
-WEBSITE CONTEXT:
-- Company: ${brandProfile.companyName}
-- URL: ${brandProfile.companyWebsite}
-- Industry: ${brandProfile.companyIndustry || 'Unknown'}
-- Services: ${brandProfile.companyServices || 'Unknown'}
-
-AI VISIBILITY STATE:
-- AI Visibility Score: ${currentScore}/100
-- llms.txt exists: ${policyFile?.llms_txt_exists ? 'Yes' : 'No'}
-- llms.txt content length: ${policyFile?.llms_txt_content?.length || 0} chars
-- Overall GEO Score: ${geoAnalysis?.overallScore || 'Not analyzed'}
-
-ALLOWED TIERS:
-${tierDescriptions}
-
-ISSUE TYPES BY TIER:
-
-FUNDAMENTAL (score 0-30):
-- Missing llms.txt file entirely
-- No AI-readable content structure
-- Poor citation signals (no authoritative claims)
-- Content not formatted for LLM consumption
-- No clear brand messaging for AI
-
-INTERMEDIATE (score 30-60):
-- llms.txt exists but incomplete/outdated
-- Content restructuring for AI understanding
-- Citation-worthy statement improvements
-- Authority signal enhancements
-- Key differentiators not highlighted
-
-ADVANCED (score 60+):
-- llms.txt optimization for competitive positioning
-- Advanced citation strategies
-- Multi-platform AI optimization
-- Thought leadership content gaps
-- Industry-specific AI optimizations
-
-Generate issues ONLY for allowed tiers. Each must be:
-1. Specific to AI visibility improvement
-2. Actionable by an automated agent
-3. Have clear impact on AI citations
-
-Return JSON:
-{
-  "issues": [
-    {
-      "title": "Create llms.txt File",
-      "description": "Your website lacks an llms.txt file, which AI systems use to understand how to represent your brand. This is critical for consistent AI-generated responses about your company.",
-      "priority": "critical",
-      "agentType": "llms_txt",
-      "estimatedImpact": "+10-15 points",
-      "discoveryTier": "fundamental"
+    if (!existing) {
+      issues.push({
+        title: 'Create llms.txt File',
+        description: 'Your website lacks an llms.txt file, which AI systems use to understand how to represent your brand. This is critical for consistent AI-generated responses about your company.',
+        priority: 'high',
+        agentType: 'llms_txt',
+        estimatedImpact: '+10-15 visibility points',
+        category: 'ai_visibility',
+        discoveryTier: 'fundamental',
+        discoveredFromScore: currentScore
+      })
     }
-  ]
-}
+  } else if (policyFile.llms_txt_content && policyFile.llms_txt_content.length < 500) {
+    // llms.txt exists but is too short - intermediate issue
+    const hash = generateIssueHash(brandProfileId, 'ai_visibility', 'Expand llms.txt Content')
+    const existing = await prisma.issue.findUnique({ where: { issueHash: hash } })
 
-AGENT TYPES:
-- llms_txt: For creating/updating llms.txt
-- llms_txt_optimizer: For optimizing existing llms.txt
-- citation_signals: For improving citation-worthy content
-- ai_content_optimizer: For restructuring content for AI
-- brand_messaging: For clarifying brand identity for AI
-
-Generate 2-5 issues maximum.`
-
-  try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-      temperature: 0.3
-    })
-
-    const content = response.choices[0].message.content
-    if (!content) return []
-
-    const parsed = JSON.parse(content) as { issues: DiscoveredIssue[] }
-    
-    return parsed.issues.map(issue => ({
-      ...issue,
-      category: 'ai_visibility' as const,
-      discoveredFromScore: currentScore
-    }))
-  } catch (error) {
-    console.error('[IssueDiscovery] AI visibility issues discovery failed:', error)
-    return []
+    if (!existing) {
+      issues.push({
+        title: 'Expand llms.txt Content',
+        description: 'Your llms.txt file exists but may be too brief. A comprehensive llms.txt helps AI systems better understand and represent your brand.',
+        priority: 'medium',
+        agentType: 'llms_txt_optimizer',
+        estimatedImpact: '+5-8 visibility points',
+        category: 'ai_visibility',
+        discoveryTier: 'intermediate',
+        discoveredFromScore: currentScore
+      })
+    }
   }
+
+  return issues
 }
 
 /**
@@ -433,13 +316,12 @@ async function upsertDiscoveredIssues(
       continue
     }
 
-    // Create new issue
+    // Create new issue (type field removed from schema)
     await prisma.issue.create({
       data: {
         brandProfileId,
         title: issue.title,
         description: issue.description,
-        type: 'improvement',
         status: 'identified',
         priority: issue.priority,
         category: issue.category,
@@ -448,8 +330,8 @@ async function upsertDiscoveredIssues(
         estimatedImpact: issue.estimatedImpact,
         affectedUrl: issue.affectedUrl,
         discoveredFromScore: issue.discoveredFromScore,
-        sourceAnalysis: issue.category === 'technical_structure' 
-          ? 'technical_analysis' 
+        sourceAnalysis: issue.category === 'technical_structure'
+          ? 'technical_analysis'
           : issue.category === 'ai_visibility'
             ? 'geo_analysis'
             : 'conversation_radar',
@@ -465,6 +347,11 @@ async function upsertDiscoveredIssues(
 /**
  * Main discovery orchestrator
  * Runs after each analysis to discover new issues
+ *
+ * Uses deterministic scoring-based issue creation:
+ * - Technical issues: Created from computePageScore() results (1 page per run)
+ * - AI visibility issues: Created from policy file checks
+ * - Conversation issues: Created from Conversation Radar opportunities
  */
 export async function discoverIssues(brandProfileId: number): Promise<DiscoveryResult> {
   console.log(`[IssueDiscovery] Starting discovery for brand ${brandProfileId}`)
@@ -480,54 +367,47 @@ export async function discoverIssues(brandProfileId: number): Promise<DiscoveryR
     // Continue with other discovery - don't fail the whole process
   }
 
-  // 1. Get current scores
-  const [technicalScore, aiVisibilityScore] = await Promise.all([
-    getLatestTechnicalScore(brandProfileId),
-    getLatestAIVisibilityScore(brandProfileId)
-  ])
+  // 1. Get current AI visibility score for policy-based issues
+  const aiVisibilityScore = await getLatestAIVisibilityScore(brandProfileId)
+  console.log(`[IssueDiscovery] AI Visibility Score: ${aiVisibilityScore}`)
 
-  console.log(`[IssueDiscovery] Scores - Technical: ${technicalScore}, AI Visibility: ${aiVisibilityScore}`)
-
-  // 2. Get tiers for each category
-  const technicalTiers = getTiersForScore(technicalScore)
-  const aiVisibilityTiers = getTiersForScore(aiVisibilityScore)
-
-  console.log(`[IssueDiscovery] Tiers - Technical: ${technicalTiers.join(', ')}, AI: ${aiVisibilityTiers.join(', ')}`)
-
-  // 3. Get website data
-  const websiteData = await getWebsiteAnalysisData(brandProfileId)
-
-  // 4. Discover issues in parallel
-  const [technicalIssues, aiVisibilityIssues, conversationIssues] = await Promise.all([
-    discoverTechnicalIssues(brandProfileId, websiteData, technicalTiers, technicalScore),
-    discoverAIVisibilityIssues(brandProfileId, websiteData, aiVisibilityTiers, aiVisibilityScore),
+  // 2. Discover issues from different sources
+  // - Technical: Uses scoring-based pagination (1 page per run)
+  // - AI Visibility: Deterministic policy file checks
+  // - Conversation: From Conversation Radar opportunities
+  const [technicalResult, aiVisibilityIssues, conversationIssues] = await Promise.all([
+    discoverTechnicalIssuesFromScoring(brandProfileId),
+    discoverAIVisibilityIssues(brandProfileId, aiVisibilityScore),
     discoverConversationOpportunities(brandProfileId)
   ])
 
-  console.log(`[IssueDiscovery] Found - Technical: ${technicalIssues.length}, AI: ${aiVisibilityIssues.length}, Conversation: ${conversationIssues.length}`)
+  console.log(`[IssueDiscovery] Technical: ${technicalResult.created} created for ${technicalResult.pageUrl || 'no page'}`)
+  console.log(`[IssueDiscovery] AI Visibility: ${aiVisibilityIssues.length} found`)
+  console.log(`[IssueDiscovery] Conversation: ${conversationIssues.length} found`)
 
-  // 5. Upsert all issues (handles deduplication)
-  const allIssues = [...technicalIssues, ...aiVisibilityIssues, ...conversationIssues]
-  const created = await upsertDiscoveredIssues(brandProfileId, allIssues)
+  // 3. Upsert AI visibility and conversation issues (technical already upserted)
+  const otherIssues = [...aiVisibilityIssues, ...conversationIssues]
+  const otherCreated = await upsertDiscoveredIssues(brandProfileId, otherIssues)
 
-  console.log(`[IssueDiscovery] Created ${created} new issues`)
+  const totalCreated = technicalResult.created + otherCreated
+  console.log(`[IssueDiscovery] Total created: ${totalCreated}`)
 
-  // 6. Calculate tier distribution
+  // 4. Calculate tier distribution from the newly discovered issues
   const tierCounts: Record<DiscoveryTier, number> = {
     fundamental: 0,
     intermediate: 0,
     advanced: 0,
     polish: 0
   }
-  
-  for (const issue of allIssues) {
+
+  for (const issue of otherIssues) {
     tierCounts[issue.discoveryTier]++
   }
 
   return {
-    discovered: allIssues.length,
+    discovered: technicalResult.created + otherIssues.length,
     categories: {
-      technical_structure: technicalIssues.length,
+      technical_structure: technicalResult.created,
       ai_visibility: aiVisibilityIssues.length,
       conversation: conversationIssues.length
     },

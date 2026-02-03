@@ -6,7 +6,6 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import type { GeoAnalysisResult, TechnicalStructureAnalysis } from '@prisma/client';
 
 export interface DeltaResult {
   current: AnalysisSnapshot;
@@ -120,11 +119,11 @@ async function extractSnapshot(
 
   if (geoResult) {
     const analysesRaw = geoResult.analyses;
-    const analyses: any[] = typeof analysesRaw === 'string' 
-      ? JSON.parse(analysesRaw) 
+    const analyses: Array<{ provider?: string; brandVisibilityScore?: number }> = typeof analysesRaw === 'string'
+      ? JSON.parse(analysesRaw)
       : (Array.isArray(analysesRaw) ? analysesRaw : []);
-    
-    analyses.forEach((analysis: any) => {
+
+    analyses.forEach((analysis) => {
       if (analysis.provider) {
         const provider = analysis.provider.toLowerCase();
         if (provider in visibilityByProvider) {
@@ -139,6 +138,54 @@ async function extractSnapshot(
     ? visibilityScores.reduce((a, b) => a + b, 0) / visibilityScores.length
     : 0;
 
+  // Extract technical dimension scores from metadata.multiPageAnalysis
+  let technicalDimensions = {
+    metadata: 0,
+    headings: 0,
+    semantic: 0,
+    schema: 0,
+    faq: 0,
+  };
+
+  if (techAnalysis) {
+    const metadata = techAnalysis.metadata as Record<string, unknown> | null;
+    const multiPageData = metadata?.multiPageAnalysis as {
+      pageScores?: Array<{
+        dimensions?: {
+          metadata?: number;
+          headings?: number;
+          semantic?: number;
+          schema?: number;
+          faq?: number;
+        };
+      }>;
+    } | undefined;
+
+    if (multiPageData?.pageScores && multiPageData.pageScores.length > 0) {
+      // Calculate average dimension scores across all pages
+      const totals = { metadata: 0, headings: 0, semantic: 0, schema: 0, faq: 0 };
+
+      for (const pageScore of multiPageData.pageScores) {
+        if (pageScore.dimensions) {
+          totals.metadata += pageScore.dimensions.metadata || 0;
+          totals.headings += pageScore.dimensions.headings || 0;
+          totals.semantic += pageScore.dimensions.semantic || 0;
+          totals.schema += pageScore.dimensions.schema || 0;
+          totals.faq += pageScore.dimensions.faq || 0;
+        }
+      }
+
+      const count = multiPageData.pageScores.length;
+      technicalDimensions = {
+        metadata: Math.round(totals.metadata / count),
+        headings: Math.round(totals.headings / count),
+        semantic: Math.round(totals.semantic / count),
+        schema: Math.round(totals.schema / count),
+        faq: Math.round(totals.faq / count),
+      };
+    }
+  }
+
   return {
     timestamp,
     geoScore: geoResult?.overallScore || avgVisibility,
@@ -147,13 +194,7 @@ async function extractSnapshot(
       ...visibilityByProvider,
       average: avgVisibility,
     },
-    technical: {
-      metadata: 0,
-      headings: 0,
-      semantic: 0,
-      schema: 0,
-      faq: 0,
-    },
+    technical: technicalDimensions,
   };
 }
 

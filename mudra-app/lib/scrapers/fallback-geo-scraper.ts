@@ -149,7 +149,7 @@ function extractMetaContent(html: string, name: string): string | undefined {
  */
 function extractJsonLdScripts(html: string): any[] {
   const scripts = [];
-  const regex = /<script[^>]*type=[\"']application\/ld\+json[\"'][^>]*>(.*?)<\/script>/gi;
+  const regex = /<script[^>]*type=[\"']application\/ld\+json[\"'][^>]*>([\s\S]*?)<\/script>/gi;
   let match;
 
   while ((match = regex.exec(html)) !== null) {

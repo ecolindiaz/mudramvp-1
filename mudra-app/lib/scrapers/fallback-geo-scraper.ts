@@ -6,6 +6,7 @@
  */
 
 import type { EnhancedGEOResult } from './enhanced-geo-scraper';
+import { createFirecrawlApp } from '../config/firecrawl-config';
 
 interface BasicScrapedData {
   html: string;
@@ -75,7 +76,30 @@ async function scrapeBasicData(url: string): Promise<BasicScrapedData> {
   };
 
   // Extract JSON-LD scripts
-  const jsonLdScripts = extractJsonLdScripts(html);
+  let jsonLdScripts = extractJsonLdScripts(html);
+
+  // If plain fetch found no JSON-LD, try Firecrawl rawHtml to catch JS-rendered schemas
+  if (jsonLdScripts.length === 0) {
+    try {
+      console.log('⚡ No JSON-LD found via plain fetch, trying Firecrawl rawHtml...');
+      const app = await createFirecrawlApp();
+      const firecrawlResult = await app.scrapeUrl(url, {
+        formats: ["rawHtml"],
+        onlyMainContent: false,
+        timeout: 60000
+      });
+      const rawHtml = (firecrawlResult as any).rawHtml || '';
+      if (rawHtml) {
+        jsonLdScripts = extractJsonLdScripts(rawHtml);
+        if (jsonLdScripts.length > 0) {
+          console.log(`✅ Firecrawl found ${jsonLdScripts.length} JSON-LD schema(s)`);
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Firecrawl fallback unavailable, continuing with plain fetch results:',
+        error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
 
   // Extract links and images (basic)
   const links = extractLinks(html);

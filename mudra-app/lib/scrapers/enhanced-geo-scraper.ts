@@ -669,7 +669,7 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEOOu
   // Make sequential API calls to respect rate limits (Free plan: 10 requests/min)
   console.log('📄 Step 1/5: Extracting HTML and structured data...');
   const htmlResult = await app.scrapeUrl(url, {
-    formats: ["html", "markdown", "extract"],
+    formats: ["html", "rawHtml", "markdown", "extract"],
     extract: {
       prompt: "Find and extract all JSON-LD structured data, microdata, and Schema.org markup. Look for @context, @type, itemscope, itemtype, and structured data examples. Return complete JSON objects."
     },
@@ -770,9 +770,9 @@ export async function extractEnhancedGEOData(url: string): Promise<EnhancedGEOOu
   });
   
   // Parse structured data from HTML AND AI extraction
-  const html = (htmlResult as any).html || '';
-  const htmlJsonLd = parseJsonLdFromHtml(html);
-  const htmlMicrodata = parseMicrodataFromHtml(html);
+  const rawHtml = (htmlResult as any).rawHtml || (htmlResult as any).html || '';
+  const htmlJsonLd = parseJsonLdFromHtml(rawHtml);
+  const htmlMicrodata = parseMicrodataFromHtml(rawHtml);
   
   // Get AI-extracted structured data (often finds more than regex)
   const aiStructuredData = (htmlResult as any).extract || {};

@@ -325,6 +325,8 @@ export async function savePageSnapshot(
     });
 
     return { id: snapshot.id, version: newVersion };
+  }, {
+    timeout: 30000, // 30s for large HTML payloads over remote DB
   });
 
   return result;

@@ -11,6 +11,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import { runDirectGEOAnalysis, createDirectGEOConfig } from './direct-geo-analysis.service';
 
 export interface UnifiedAnalysisConfig {
@@ -271,13 +272,13 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       data: {
         brandProfileId: config.brandProfileId,
         overallScore: data.overallScore || 0,
-        analyses: JSON.stringify(data.analyses || []),
-        summary: JSON.stringify({
+        analyses: (data.analyses || []) as unknown as Prisma.InputJsonValue,
+        summary: ({
           brandName: config.brandName,
           competitorData: data.competitorComparison || {},
           recommendations: data.recommendations || [],
           status: 'completed',
-        }),
+        }) as unknown as Prisma.InputJsonValue,
       },
     });
 
@@ -589,13 +590,13 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
         seoScore: legacySeoScore,
         performanceScore: 0,
         accessibilityScore: 0,
-        insights: JSON.stringify(topIssues.map(i => ({
+        insights: topIssues.map(i => ({
           type: i.severity,
           message: i.message,
           category: i.dimension
-        }))),
-        recommendations: JSON.stringify(recommendations),
-        metadata: JSON.stringify({
+        })) as unknown as Prisma.InputJsonValue,
+        recommendations: recommendations as unknown as Prisma.InputJsonValue,
+        metadata: ({
           // New multi-page data
           multiPageAnalysis: {
             pagesAnalyzed: pageScores.length,
@@ -646,7 +647,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
           criticalIssues: topIssues.filter(i => i.severity === 'high').map(i => i.message),
           warnings: topIssues.filter(i => i.severity === 'medium').map(i => i.message),
           suggestions: topIssues.filter(i => i.severity === 'low').map(i => i.message),
-        }),
+        }) as unknown as Prisma.InputJsonValue,
       },
     });
 
@@ -765,15 +766,15 @@ async function generateReport(data: {
       data: {
         brandProfileId: data.brandProfileId,
         reportText: report.fullReport || report.summary || 'Analysis report generated',
-        insights: JSON.stringify(report.insights || []),
-        recommendations: JSON.stringify(report.recommendations || []),
-        metadata: JSON.stringify({
+        insights: (report.insights || []) as unknown as Prisma.InputJsonValue,
+        recommendations: (report.recommendations || []) as unknown as Prisma.InputJsonValue,
+        metadata: ({
           reportType: 'analysis',
           title: 'Brand Analysis Report',
           summary: report.summary,
           sections: report.sections,
           model: 'gpt-4',
-        }),
+        }) as unknown as Prisma.InputJsonValue,
       },
     });
 

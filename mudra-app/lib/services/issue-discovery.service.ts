@@ -136,7 +136,15 @@ async function getNextPageForIssueDiscovery(brandProfileId: number): Promise<{
     return null
   }
 
-  const metadata = techAnalysis.metadata as Record<string, unknown> | null
+  // Handle both properly stored JSON objects and legacy double-serialized strings
+  let metadata = techAnalysis.metadata as Record<string, unknown> | null
+  if (typeof metadata === 'string') {
+    try {
+      metadata = JSON.parse(metadata) as Record<string, unknown>
+    } catch {
+      metadata = null
+    }
+  }
   const multiPageData = metadata?.multiPageAnalysis as {
     pageScores?: FullPageScore[]
   } | undefined

@@ -219,7 +219,7 @@ export async function getRecommendedSchemasWithAI(
 		const res = await generateText({
 			model: MODEL as any,
 			temperature: 0.1,
-			maxTokens: 200,
+			maxOutputTokens: 200,
 			system: SYSTEM_PROMPT,
 			prompt: pageSummary,
 		});

@@ -25,6 +25,7 @@ import type {
 	InterventionPriority,
 } from "./types";
 import { isRelevantSchemaType } from "./dom-extractor";
+import { heuristicRecommendedSchemas } from "./schema-recommender";
 
 // ============================================================================
 // CONSTANTS
@@ -455,7 +456,7 @@ export function scoreSchema(extraction: DOMExtraction): DimensionScore {
 	}
 
 	// J4 - Schema coverage (all recommended types for this page type present)
-	const missingSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction);
+	const missingSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
 	const j4Passed = j3Passed && missingSchemas.length === 0;
 	let j4Rationale: string;
 	if (!j3Passed) {
@@ -625,7 +626,7 @@ function generateIssues(
 
 	// Schema issues — page-type-specific when no schema exists at all
 	if (!schemaScore.checks.J1_present?.passed) {
-		const recommendedSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction);
+		const recommendedSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
 		const schemaList = recommendedSchemas.join(' + ');
 		issues.push(createIssue(
 			"J1_present",
@@ -639,7 +640,7 @@ function generateIssues(
 		issues.push(createIssue("J2_valid", "schema", "high", "Invalid JSON-LD structure", pageUrl));
 	}
 	if (!schemaScore.checks.J3_relevant?.passed && extraction.extraction.schema.has_schema) {
-		const recommended = getRecommendedSchemas(extraction.page_type, extraction.extraction);
+		const recommended = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
 		const currentTypes = extraction.extraction.schema.schema_types.join(', ');
 		const suggestedTypes = recommended.length > 0 ? recommended.join(' + ') : 'Organization, Article, or Product';
 		issues.push(createIssue(
@@ -653,7 +654,7 @@ function generateIssues(
 
 	// J4 — Schema coverage: page has some relevant schema but is missing additional recommended types
 	if (schemaScore.checks.J3_relevant?.passed) {
-		const missingSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction);
+		const missingSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
 		if (missingSchemas.length > 0) {
 			const currentTypes = extraction.extraction.schema.schema_types.join(', ');
 			issues.push(createIssue(
@@ -782,7 +783,7 @@ function generateInterventions(
 	// Schema interventions
 	if (!schemaScore.checks.J1_present?.passed) {
 		const pageType = extraction.page_type;
-		const schemaType = getRecommendedSchemaType(pageType);
+		const schemaType = getRecommendedSchemaType(pageType, extraction.recommendedSchemas);
 		interventions.push(
 			createIntervention(
 				"J1_present",
@@ -804,7 +805,7 @@ function generateInterventions(
 	}
 	// J4 — Additional schemas to inject alongside existing ones
 	if (schemaScore.checks.J4_coverage && !schemaScore.checks.J4_coverage.passed && schemaScore.checks.J3_relevant?.passed) {
-		const missingSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction);
+		const missingSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
 		if (missingSchemas.length > 0) {
 			interventions.push(
 				createIntervention(
@@ -861,7 +862,15 @@ function generateInterventions(
 /**
  * Returns the primary schema type for a page (used in intervention code hints).
  */
-function getRecommendedSchemaType(pageType: string): string {
+function getRecommendedSchemaType(pageType: string, precomputedSchemas?: string[]): string {
+	if (precomputedSchemas && precomputedSchemas.length > 0) {
+		// Return the first non-BreadcrumbList, non-FAQPage schema as the primary type
+		const primary = precomputedSchemas.find(
+			(s) => s !== "BreadcrumbList" && s !== "FAQPage"
+		);
+		if (primary) return primary;
+	}
+
 	switch (pageType) {
 		case "home":
 			return "Organization";
@@ -898,55 +907,35 @@ function getRecommendedSchemaType(pageType: string): string {
  */
 export function getRecommendedSchemas(
 	pageType: string,
-	extraction?: DOMExtractionData
+	extraction?: DOMExtractionData,
+	precomputedSchemas?: string[]
 ): string[] {
-	const schemas: string[] = [];
-
-	// --- Page-type core schemas ---
-	switch (pageType) {
-		case "home":
-			schemas.push("Organization", "WebSite", "SoftwareApplication");
-			break;
-		case "blog":
-			schemas.push("BlogPosting");
-			break;
-		case "product":
-			schemas.push("Product");
-			break;
-		case "pricing":
-			schemas.push("Product", "SoftwareApplication");
-			break;
-		case "features":
-			schemas.push("SoftwareApplication");
-			break;
-		case "documentation":
-			schemas.push("Article", "HowTo");
-			break;
-		case "about":
-			schemas.push("Organization");
-			break;
-		case "contact":
-			schemas.push("Organization");
-			break;
-		case "solutions":
-			schemas.push("Service");
-			break;
+	// When precomputed schemas are available (from LLM), use them directly
+	// but still filter out existing schemas
+	if (precomputedSchemas && precomputedSchemas.length > 0) {
+		if (extraction) {
+			const existingTypes = new Set(extraction.schema.schema_types);
+			return precomputedSchemas.filter((s) => !existingTypes.has(s));
+		}
+		return [...precomputedSchemas];
 	}
 
-	// --- BreadcrumbList for all non-home pages (homepage has no breadcrumb path above it) ---
+	// Heuristic fallback — single source of truth from schema-recommender
+	const schemas = heuristicRecommendedSchemas(pageType);
+
+	// BreadcrumbList for all non-home pages
 	if (pageType !== "home") {
 		schemas.push("BreadcrumbList");
 	}
 
-	// --- Content-aware additions ---
+	// Content-aware: FAQPage when FAQ content exists
 	if (extraction) {
-		// If FAQ content exists on the page, recommend FAQPage schema
 		if (extraction.faqs.has_faq_content && !extraction.schema.analysis.has_faq_schema) {
 			schemas.push("FAQPage");
 		}
 	}
 
-	// --- Filter out schemas the page already has ---
+	// Filter out schemas the page already has
 	if (extraction) {
 		const existingTypes = new Set(extraction.schema.schema_types);
 		return schemas.filter((s) => !existingTypes.has(s));

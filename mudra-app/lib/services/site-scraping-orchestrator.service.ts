@@ -258,8 +258,14 @@ async function processPage(
       scrapeResult.duration
     );
     
-    // Compute score
+    // Compute score with LLM-powered schema recommendations
     const extraction = htmlToExtraction(scrapeResult.html, page.pageUrl);
+    try {
+      const { getRecommendedSchemasWithAI } = await import('@/lib/analysis/technical/schema-recommender');
+      extraction.recommendedSchemas = await getRecommendedSchemasWithAI(extraction);
+    } catch (schemaErr) {
+      console.warn(`[Orchestrator] Schema recommendation failed for ${page.pageUrl}:`, schemaErr);
+    }
     const score = computeFiveDimensionScore(extraction);
     
     // Save score

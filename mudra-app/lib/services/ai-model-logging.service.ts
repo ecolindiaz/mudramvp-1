@@ -173,6 +173,7 @@ export function estimateAICost(
     'gpt-4o-mini': { input: 0.015, output: 0.06 },
     // Google
     'gemini-3-pro': { input: 0.125, output: 0.5 },
+    'gemini-3-pro-preview': { input: 0.125, output: 0.5 },
     'gemini-2.0-flash': { input: 0.075, output: 0.3 },
     'gemini-pro': { input: 0.125, output: 0.375 },
     // Anthropic

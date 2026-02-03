@@ -307,6 +307,7 @@ export interface DOMExtraction {
 	extraction: DOMExtractionData;
 	raw_html_hash: string;
 	html_size_bytes: number;
+	recommendedSchemas?: string[];
 }
 
 // ============================================================================

@@ -421,6 +421,14 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
         // Extract DOM data
         const extraction = htmlToExtraction(page.rawHtml, page.url);
 
+        // Pre-compute LLM-powered schema recommendations
+        try {
+          const { getRecommendedSchemasWithAI } = await import('@/lib/analysis/technical/schema-recommender');
+          extraction.recommendedSchemas = await getRecommendedSchemasWithAI(extraction);
+        } catch (schemaErr) {
+          console.warn(`[Technical Core] Schema recommendation failed for ${page.url}:`, schemaErr);
+        }
+
         // Score the page
         const score = computePageScore(extraction);
         pageScores.push(score);

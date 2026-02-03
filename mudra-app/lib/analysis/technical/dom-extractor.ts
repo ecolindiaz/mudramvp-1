@@ -56,14 +56,14 @@ export function detectPageType(url: string): PageType {
 		const path = parsedUrl.pathname.toLowerCase();
 
 		if (path === "/" || path === "") return "home";
+		if (/\/(blog|posts?|articles?)($|\/)/.test(path)) return "blog";
+		if (/\/docs($|\/)/.test(path) || path.includes("/documentation") || path.includes("/help") || path.includes("/guide")) return "documentation";
 		if (path.includes("/pricing")) return "pricing";
 		if (path.includes("/features")) return "features";
-		if (path.includes("/product")) return "product";
+		if (/\/products?($|\/)/.test(path)) return "product";
 		if (path.includes("/solution")) return "solutions";
-		if (path.includes("/blog") || path.includes("/post") || path.includes("/article")) return "blog";
-		if (path.includes("/about")) return "about";
+		if (path.includes("/about") || path.includes("/team") || path.includes("/careers") || path.includes("/company")) return "about";
 		if (path.includes("/contact")) return "contact";
-		if (path.includes("/docs") || path.includes("/documentation") || path.includes("/help")) return "documentation";
 		return "other";
 	} catch {
 		return "other";

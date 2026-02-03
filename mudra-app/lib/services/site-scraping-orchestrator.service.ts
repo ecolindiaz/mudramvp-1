@@ -19,6 +19,7 @@ import { discoverAndSaveSitemap, updatePageScrapeStatus, getPendingPages } from 
 import { extractDOMData } from './dom-parser.service';
 // Note: five-dimension-scoring.service.ts was removed - use lib/analysis/technical/five-dimension-scorer.ts instead
 import { computePageScore as computeFiveDimensionScore } from '@/lib/analysis/technical/five-dimension-scorer';
+import { htmlToExtraction } from '@/lib/analysis/technical/dom-extractor';
 
 import type {
   ScrapeJobConfig,
@@ -250,7 +251,7 @@ async function processPage(
     );
     
     // Compute score
-    const extraction = extractDOMData(scrapeResult.html);
+    const extraction = htmlToExtraction(scrapeResult.html, page.pageUrl);
     const score = computeFiveDimensionScore(extraction);
     
     // Save score

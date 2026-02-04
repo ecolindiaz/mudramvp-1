@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { BrandProfileProvider } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -65,7 +66,7 @@ interface OpportunityData {
   promotionalReason?: string
 }
 
-export default function OpportunityDetailPage() {
+function OpportunityDetailPageInner() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
   const opportunityId = params?.id
@@ -351,5 +352,15 @@ export default function OpportunityDetailPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+  )
+}
+
+export default function OpportunityDetailPage() {
+  return (
+    <BrandProfileProvider>
+      <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+        <OpportunityDetailPageInner />
+      </Suspense>
+    </BrandProfileProvider>
   )
 }

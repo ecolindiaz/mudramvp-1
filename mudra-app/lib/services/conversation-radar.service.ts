@@ -645,7 +645,7 @@ export async function getOpportunityForFrontend(opportunityId: number) {
     url: opp.postUrl,
     platform: 'Reddit',
     postedAt: opp.postCreatedAt,
-    engagement: opp.engagementString,
+    engagement: { upvotes: opp.score ?? undefined, comments: opp.numComments ?? undefined },
     promptOrigin: opp.mode === 'cited' ? 'tracked' : 'search',
     trackedPrompt: opp.mode === 'cited' 
       ? (opp.discoveredVia as any)?.[0]?.promptText 
@@ -894,7 +894,7 @@ export async function getOpportunitiesForFrontend(
     url: opp.postUrl,
     platform: 'Reddit',
     postedAt: opp.postCreatedAt,
-    engagement: opp.engagementString,
+    engagement: { upvotes: opp.score ?? undefined, comments: opp.numComments ?? undefined },
     promptOrigin: opp.mode === 'cited' ? 'tracked' : 'search',
     trackedPrompt: opp.mode === 'cited' 
       ? (opp.discoveredVia as any)?.[0]?.promptText 

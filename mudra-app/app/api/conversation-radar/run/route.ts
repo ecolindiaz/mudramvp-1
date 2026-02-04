@@ -8,6 +8,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/require-auth';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
+import {
+  runProactiveSearch,
+  processCitedOpportunities,
+  analyzeNewOpportunities,
+  getLatestAnalysisRun,
+} from '@/lib/services/conversation-radar.service';
 
 export async function POST(req: NextRequest) {
   // Rate limit first - expensive AI operations
@@ -44,17 +50,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // For now, return a success response indicating the scan would be triggered
-    // The actual scanning logic is in the conversation-radar.service.ts
-    // This can be connected to the runConversationRadar function
+    // 1. Run proactive search (Reddit via Apify)
+    const proactiveStats = await runProactiveSearch(brandProfileId);
 
+    // 2. Process cited opportunities from the latest analysis run (if any)
+    let citedStats = { created: 0, skipped: 0, errors: 0 };
+    const latestRun = await getLatestAnalysisRun(brandProfileId);
+    if (latestRun) {
+      citedStats = await processCitedOpportunities(brandProfileId, latestRun.id);
+    }
+
+    // 3. Analyze new unanalyzed opportunities with LLM
+    const analysisResult = await analyzeNewOpportunities(brandProfileId, { limit: 5 });
+
+    // 4. Return updated counts
     const counts = await getOpportunityCounts(brandProfileId);
 
     return NextResponse.json({
       success: true,
       data: {
-        message: 'Conversation radar scan initiated',
+        message: 'Conversation radar scan completed',
         brandProfileId,
+        proactive: proactiveStats,
+        cited: citedStats,
+        analyzed: analysisResult,
         ...counts,
       },
     });

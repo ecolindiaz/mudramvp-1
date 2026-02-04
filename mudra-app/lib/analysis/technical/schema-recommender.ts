@@ -14,6 +14,7 @@ import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import { logAIModelCall, estimateAICost } from "@/lib/services/ai-model-logging.service";
 import type { DOMExtraction, RelevantSchemaType } from "./types";
+import { isBlogIndex } from "./dom-extractor";
 
 const MODEL = google("gemini-3-pro-preview");
 
@@ -28,6 +29,7 @@ const VALID_SCHEMA_TYPES: Set<string> = new Set([
 	"BreadcrumbList",
 	"HowTo",
 	"SoftwareApplication",
+	"CollectionPage",
 ]);
 
 const SYSTEM_PROMPT = `You are an SEO schema markup expert. Given a page summary, return the JSON-LD schema types that should be present on this page for Answer Engine Optimization.
@@ -132,9 +134,14 @@ export function heuristicRecommendedSchemas(
 		case "home":
 			schemas.push("Organization", "WebSite");
 			break;
-		case "blog":
-			schemas.push("BlogPosting");
+		case "blog": {
+			if (extraction && isBlogIndex(extraction.page_url)) {
+				schemas.push("CollectionPage");
+			} else {
+				schemas.push("BlogPosting");
+			}
 			break;
+		}
 		case "product":
 			schemas.push("Product");
 			break;

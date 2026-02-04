@@ -70,6 +70,17 @@ export function detectPageType(url: string): PageType {
 	}
 }
 
+/**
+ * Checks if a URL is a blog index page (e.g. /blog, /posts, /articles)
+ * as opposed to an individual blog post (e.g. /blog/my-post)
+ */
+export function isBlogIndex(url: string): boolean {
+	try {
+		const path = new URL(url).pathname.replace(/\/+$/, "").toLowerCase();
+		return /^\/(blog|posts?|articles?)$/.test(path);
+	} catch { return false; }
+}
+
 // ============================================================================
 // METADATA EXTRACTION
 // ============================================================================
@@ -146,6 +157,10 @@ function extractHeadings($: CheerioAPI): HeadingsExtraction {
 	const counts: HeadingCounts = { h1: 0, h2: 0, h3: 0, h4: 0, h5: 0, h6: 0, total: 0 };
 
 	$("h1, h2, h3, h4, h5, h6").each((index, el) => {
+		// Skip headings inside nav/footer — structural labels, not content headings
+		if ($(el).closest("nav, footer, [role='navigation'], [role='contentinfo']").length > 0) {
+			return;
+		}
 		// Access the tag name from the element - in cheerio/domhandler it's the 'name' property
 		const tagName = ("name" in el ? el.name : "").toLowerCase();
 		const text = $(el).text().trim();
@@ -294,7 +309,29 @@ const RELEVANT_SCHEMA_TYPES = new Set([
 	"BreadcrumbList",
 	"HowTo",
 	"SoftwareApplication",
+	"CollectionPage",
 ]);
+
+const SCHEMA_SUBTYPE_MAP: Record<string, string[]> = {
+	"Article": ["TechArticle", "ScholarlyArticle", "NewsArticle", "SatiricalArticle",
+		"AnalysisNewsArticle", "OpinionNewsArticle", "ReportageNewsArticle", "ReviewNewsArticle"],
+	"BlogPosting": ["LiveBlogPosting"],
+	"SoftwareApplication": ["MobileApplication", "WebApplication", "VideoGame"],
+	"Organization": ["LocalBusiness", "Corporation", "NGO",
+		"EducationalOrganization", "GovernmentOrganization"],
+};
+
+// Reverse lookup: subtype → parent (O(1) check)
+export const SUBTYPE_TO_PARENT = new Map<string, string>();
+for (const [parent, subtypes] of Object.entries(SCHEMA_SUBTYPE_MAP)) {
+	for (const sub of subtypes) SUBTYPE_TO_PARENT.set(sub, parent);
+}
+
+function hasSchemaTypeOrSubtype(types: string[], target: string): boolean {
+	if (types.includes(target)) return true;
+	const subs = SCHEMA_SUBTYPE_MAP[target];
+	return subs ? types.some(t => subs.includes(t)) : false;
+}
 
 function extractSchema($: CheerioAPI): SchemaExtraction {
 	const jsonldBlocks: JsonLdBlock[] = [];
@@ -340,16 +377,16 @@ function extractSchema($: CheerioAPI): SchemaExtraction {
 	const validBlocks = jsonldBlocks.filter((b) => b.valid);
 
 	const analysis: SchemaAnalysis = {
-		has_article_schema: schemaTypes.includes("Article"),
+		has_article_schema: hasSchemaTypeOrSubtype(schemaTypes, "Article"),
 		has_faq_schema: schemaTypes.includes("FAQPage"),
 		has_howto_schema: schemaTypes.includes("HowTo"),
 		has_product_schema: schemaTypes.includes("Product"),
 		has_breadcrumb_schema: schemaTypes.includes("BreadcrumbList"),
-		has_organization_schema: schemaTypes.includes("Organization"),
-		has_software_application_schema: schemaTypes.includes("SoftwareApplication"),
+		has_organization_schema: hasSchemaTypeOrSubtype(schemaTypes, "Organization"),
+		has_software_application_schema: hasSchemaTypeOrSubtype(schemaTypes, "SoftwareApplication"),
 		has_website_schema: schemaTypes.includes("WebSite"),
 		has_service_schema: schemaTypes.includes("Service"),
-		has_blog_posting_schema: schemaTypes.includes("BlogPosting"),
+		has_blog_posting_schema: hasSchemaTypeOrSubtype(schemaTypes, "BlogPosting"),
 	};
 
 	return {
@@ -365,7 +402,7 @@ function extractSchema($: CheerioAPI): SchemaExtraction {
  * Checks if a schema type is one of the relevant types for AEO
  */
 export function isRelevantSchemaType(type: string): boolean {
-	return RELEVANT_SCHEMA_TYPES.has(type);
+	return RELEVANT_SCHEMA_TYPES.has(type) || SUBTYPE_TO_PARENT.has(type);
 }
 
 // ============================================================================

@@ -2,7 +2,7 @@
 
 import { Suspense } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -13,9 +13,8 @@ import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, Search, Clock, Radio, ChevronRight, BookOpen, MoreHorizontal, Sparkles, type LucideProps, MessageSquare, ExternalLink, TrendingUp, Users } from "lucide-react"
-import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
+
+import { Loader2, Search, Radio, ChevronRight, BookOpen, Info, type LucideProps, MessageSquare, TrendingUp } from "lucide-react"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
@@ -59,7 +58,6 @@ interface Opportunity {
 
 function ConversationRadarPageInner() {
   const { profile } = useBrandProfile()
-  const router = useRouter()
   
   // State
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
@@ -178,69 +176,8 @@ function ConversationRadarPageInner() {
     )
   })
 
-  // Format relative time
-  const formatRelativeTime = (date: Date) => {
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMins / 60)
-    const diffDays = Math.floor(diffHours / 24)
-    
-    if (diffMins < 1) return 'Just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    return `${diffDays}d ago`
-  }
-
-  // Status badge
-  const getStatusBadge = (status: string) => {
-    const config: Record<string, { bg: string; text: string; label: string }> = {
-      queued: { bg: 'bg-amber-500/10', text: 'text-amber-400', label: 'New' },
-      running: { bg: 'bg-blue-500/10', text: 'text-blue-400', label: 'In Progress' },
-      completed: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', label: 'Completed' },
-      failed: { bg: 'bg-red-500/10', text: 'text-red-400', label: 'Failed' },
-    }
-    const c = config[status] || config.queued
-    return (
-      <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", c.bg, c.text)}>
-        {c.label}
-      </span>
-    )
-  }
-
-  // Metric cards for Conversation Radar
-  const metricCards = [
-    {
-      title: "Active Opportunities",
-      value: activeOpportunitiesCount,
-      delta: 0,
-      lastValue: 0,
-      positive: true,
-      accentColor: "rgba(251, 191, 36, 0.9)",
-      info: "Conversations you can engage with right now. Counts Reddit opportunities with 70%+ relevance score.",
-      icon: Radio,
-    },
-    {
-      title: "Total Discovered",
-      value: opportunities.length,
-      delta: 0,
-      lastValue: 0,
-      positive: true,
-      accentColor: "rgba(167, 139, 250, 0.9)",
-      info: "Total conversation opportunities found by the radar.",
-      icon: MessageSquare,
-    },
-    {
-      title: "High Relevance",
-      value: opportunities.filter(o => (o.relevanceScore || 0) >= 80).length,
-      delta: 0,
-      lastValue: 0,
-      positive: true,
-      accentColor: "rgba(52, 211, 153, 0.9)",
-      info: "Opportunities with 80%+ relevance score - highest priority.",
-      icon: TrendingUp,
-    },
-  ]
+  // Calculated metrics
+  const highRelevanceCount = opportunities.filter(o => (o.relevanceScore || 0) >= 80).length
 
   if (!isMounted) {
     return null
@@ -262,7 +199,7 @@ function ConversationRadarPageInner() {
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight text-white">Conversation Radar</h1>
-                  <p className="text-muted-foreground">Find and engage with conversations about your brand</p>
+                  <p className="text-sm text-white/60">Find and engage with conversations about your brand</p>
                 </div>
                 
                 {/* Right side - buttons */}
@@ -271,16 +208,16 @@ function ConversationRadarPageInner() {
                     size="sm"
                     onClick={runRadarSearch}
                     disabled={isLoading}
-                    className="h-8 px-3 rounded-md bg-white text-black hover:bg-white/90 text-xs font-medium shadow-sm hover:shadow transition-shadow gap-1.5"
+                    className="h-9 px-4 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2"
                   >
                     {isLoading ? (
                       <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin" />
                         Searching...
                       </>
                     ) : (
                       <>
-                        <Search className="w-3.5 h-3.5" />
+                        <Radio className="w-4 h-4" />
                         Run Radar
                       </>
                     )}
@@ -288,9 +225,9 @@ function ConversationRadarPageInner() {
                   <Button
                     size="sm"
                     onClick={() => window.open("https://docs.trymudra.com/agentic-features/conversation-radar", "_blank", "noopener")}
-                    className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5"
+                    className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-sm font-medium gap-2"
                   >
-                    <BookOpen className="w-3.5 h-3.5" />
+                    <BookOpen className="w-4 h-4" />
                     Documentation
                   </Button>
                 </div>
@@ -300,23 +237,119 @@ function ConversationRadarPageInner() {
             {/* Header Divider */}
             <div className="h-[0.5px] bg-white/[0.04]"></div>
 
-            {/* Metrics Section */}
+            {/* Metrics Section - matching agents-lab style */}
             <div className="py-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5 px-4 lg:px-6">
-                {metricCards.map((card) => (
-                  <DashboardStatCard
-                    key={card.title}
-                    title={card.title}
-                    value={card.value}
-                    delta={card.delta}
-                    lastValue={card.lastValue}
-                    positive={card.positive}
-                    accentColor={card.accentColor}
-                    info={card.info}
-                    icon={card.icon}
-                    sparkline={[]}
-                  />
-                ))}
+                {/* Active Opportunities */}
+                <div className="bg-[#161616] rounded-xl p-5 min-h-[140px] flex flex-col border border-white/[0.04]">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Radio className="size-4 text-white/50" />
+                      <span className="text-sm text-white/50 font-medium">Active Opportunities</span>
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button className="text-white/30 hover:text-white/50 transition-colors">
+                          <Info className="size-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={8} className="max-w-xs">
+                        Conversations you can engage with right now. Counts opportunities with 70%+ relevance.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="flex-1 flex flex-col justify-center">
+                    {isLoading && isInitialLoad ? (
+                      <div className="h-9 w-14 rounded bg-white/[0.06] animate-pulse" />
+                    ) : (
+                      <div className="flex items-end justify-between">
+                        <span className="text-[28px] font-medium text-white tabular-nums">{activeOpportunitiesCount}</span>
+                        <span className="text-sm font-medium text-white/40">—</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-auto pt-3 border-t border-white/[0.06]">
+                    {isLoading && isInitialLoad ? (
+                      <div className="h-4 w-28 rounded bg-white/[0.06] animate-pulse" />
+                    ) : (
+                      <span className="text-xs text-white/30">70%+ relevance score</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Total Discovered */}
+                <div className="bg-[#161616] rounded-xl p-5 min-h-[140px] flex flex-col border border-white/[0.04]">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="size-4 text-white/50" />
+                      <span className="text-sm text-white/50 font-medium">Total Discovered</span>
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button className="text-white/30 hover:text-white/50 transition-colors">
+                          <Info className="size-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={8} className="max-w-xs">
+                        Total conversation opportunities found by the radar.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="flex-1 flex flex-col justify-center">
+                    {isLoading && isInitialLoad ? (
+                      <div className="h-9 w-16 rounded bg-white/[0.06] animate-pulse" />
+                    ) : (
+                      <div className="flex items-end justify-between">
+                        <span className="text-[28px] font-medium text-white tabular-nums">{opportunities.length}</span>
+                        <span className="text-sm font-medium text-white/40">—</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-auto pt-3 border-t border-white/[0.06]">
+                    {isLoading && isInitialLoad ? (
+                      <div className="h-4 w-28 rounded bg-white/[0.06] animate-pulse" />
+                    ) : (
+                      <span className="text-xs text-white/30">All time discoveries</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* High Relevance */}
+                <div className="bg-[#161616] rounded-xl p-5 min-h-[140px] flex flex-col border border-white/[0.04]">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="size-4 text-white/50" />
+                      <span className="text-sm text-white/50 font-medium">High Relevance</span>
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button className="text-white/30 hover:text-white/50 transition-colors">
+                          <Info className="size-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={8} className="max-w-xs">
+                        Opportunities with 80%+ relevance score - highest priority.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="flex-1 flex flex-col justify-center">
+                    {isLoading && isInitialLoad ? (
+                      <div className="h-9 w-14 rounded bg-white/[0.06] animate-pulse" />
+                    ) : (
+                      <div className="flex items-end justify-between">
+                        <span className="text-[28px] font-medium text-white tabular-nums">{highRelevanceCount}</span>
+                        <span className="text-sm font-medium text-white/40">—</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-auto pt-3 border-t border-white/[0.06]">
+                    {isLoading && isInitialLoad ? (
+                      <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
+                    ) : (
+                      <span className="text-xs text-white/30">80%+ relevance score</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -325,6 +358,7 @@ function ConversationRadarPageInner() {
 
             {/* Main Content */}
             <div className="flex-1 px-4 lg:px-6 py-6">
+              <div className="max-w-4xl mx-auto">
               {/* Toolbar */}
               <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
                 <div className="flex items-center gap-2.5">
@@ -376,7 +410,7 @@ function ConversationRadarPageInner() {
                 <div className="flex flex-col items-center justify-center py-12 px-6">
                   <div className="flex flex-col items-center max-w-md text-center w-full">
                     {/* Dashboard Preview Card */}
-                    <div className="relative w-full max-w-md bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden group">
+                    <div className="relative w-full max-w-md bg-[#161616] rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden group">
                       {/* Title Section */}
                       <div className="text-center mb-5">
                         <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
@@ -450,73 +484,71 @@ function ConversationRadarPageInner() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="rounded-xl border border-white/[0.04] bg-[#161616] overflow-hidden">
                   {filteredOpportunities.map((opportunity) => (
                     <Link
                       key={opportunity.id}
                       href={`/dashboard/conversation-radar/${opportunity.dbId || opportunity.id}`}
                       className="block"
                     >
-                      <Card className="bg-[#161616] border-white/[0.04] hover:border-white/[0.12] transition-all cursor-pointer group">
-                        <CardContent className="p-4">
-                          {/* Header */}
-                          <div className="flex items-start justify-between gap-3 mb-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
-                                <RedditIcon className="w-4 h-4 text-orange-400" />
-                              </div>
-                              <div className="min-w-0">
-                                <h3 className="text-sm font-medium text-white truncate group-hover:text-white/90">
-                                  {opportunity.title}
-                                </h3>
-                                <p className="text-xs text-white/50">
-                                  {opportunity.postedAt ? formatRelativeTime(opportunity.postedAt) : 'Reddit'}
-                                </p>
-                              </div>
-                            </div>
-                            {getStatusBadge(opportunity.status)}
-                          </div>
-                          
-                          {/* Description */}
-                          <p className="text-xs text-white/60 line-clamp-2 mb-3">
-                            {opportunity.description}
-                          </p>
-                          
-                          {/* Footer */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 text-xs text-white/40">
-                              {opportunity.engagement?.upvotes !== undefined && (
-                                <span className="flex items-center gap-1">
-                                  <TrendingUp className="w-3 h-3" />
-                                  {opportunity.engagement.upvotes}
-                                </span>
-                              )}
-                              {opportunity.engagement?.comments !== undefined && (
-                                <span className="flex items-center gap-1">
-                                  <MessageSquare className="w-3 h-3" />
-                                  {opportunity.engagement.comments}
-                                </span>
-                              )}
-                            </div>
-                            {typeof opportunity.relevanceScore === 'number' && (
-                              <div className={cn(
-                                "text-[10px] font-medium px-2 py-0.5 rounded-full",
-                                opportunity.relevanceScore >= 80 
-                                  ? "bg-emerald-500/10 text-emerald-400"
-                                  : opportunity.relevanceScore >= 70 
-                                    ? "bg-amber-500/10 text-amber-400"
-                                    : "bg-white/5 text-white/40"
-                              )}>
-                                {opportunity.relevanceScore}% match
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <div className="px-5 py-4 flex items-center gap-4 transition-colors hover:bg-white/[0.02] border-b border-white/[0.03] last:border-b-0">
+                        {/* Icon */}
+                        <div className="size-8 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                          <RedditIcon className="size-4 text-orange-400" />
+                        </div>
+
+                        {/* Title */}
+                        <p className="flex-1 text-sm font-medium text-white truncate min-w-0">
+                          {opportunity.title}
+                        </p>
+
+                        {/* Engagement - compact */}
+                        <div className="flex items-center gap-2 text-xs text-white/40 flex-shrink-0">
+                          {opportunity.engagement?.upvotes !== undefined && (
+                            <span className="flex items-center gap-1">
+                              <TrendingUp className="size-3" />
+                              {opportunity.engagement.upvotes}
+                            </span>
+                          )}
+                          {opportunity.engagement?.comments !== undefined && (
+                            <span className="flex items-center gap-1">
+                              <MessageSquare className="size-3" />
+                              {opportunity.engagement.comments}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Relevance badge */}
+                        {typeof opportunity.relevanceScore === 'number' && (
+                          <span className={cn(
+                            "text-[11px] font-medium px-2 py-0.5 rounded-full flex-shrink-0",
+                            opportunity.relevanceScore >= 80
+                              ? "bg-emerald-500/10 text-emerald-400"
+                              : opportunity.relevanceScore >= 70
+                                ? "bg-amber-500/10 text-amber-400"
+                                : "bg-white/5 text-white/40"
+                          )}>
+                            {opportunity.relevanceScore}%
+                          </span>
+                        )}
+
+                        {/* Status dot */}
+                        <div className={cn(
+                          "size-2 rounded-full flex-shrink-0",
+                          opportunity.status === "queued" || opportunity.status === "running"
+                            ? "bg-orange-500 animate-pulse"
+                            : opportunity.status === "failed"
+                              ? "bg-red-500"
+                              : "bg-green-500"
+                        )} />
+
+                        <ChevronRight className="size-4 text-white/20 flex-shrink-0" />
+                      </div>
                     </Link>
                   ))}
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>

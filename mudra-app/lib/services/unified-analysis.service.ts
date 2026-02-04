@@ -405,6 +405,23 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
     // Step 4: Extract DOM and score each successful page
     console.log('[Technical Core] Step 4: Extracting and scoring pages...');
     const successfulScrapes = getSuccessfulScrapes(scrapeResult);
+
+    // Deduplicate pages with identical HTML (handles redirects)
+    const { createHash } = await import("node:crypto");
+    const seenHashes = new Set<string>();
+    const deduplicatedScrapes: typeof successfulScrapes = [];
+
+    for (const page of successfulScrapes) {
+      if (!page.rawHtml) continue;
+      const hash = createHash("sha256").update(page.rawHtml).digest("hex");
+      if (seenHashes.has(hash)) {
+        console.log(`[Technical Core] Skipping duplicate: ${page.url}`);
+        continue;
+      }
+      seenHashes.add(hash);
+      deduplicatedScrapes.push(page);
+    }
+
     const pageScores: Array<ReturnType<typeof computePageScore>> = [];
     const allIssues: Array<{ check: string; dimension: string; severity: string; message: string; page_url: string }> = [];
     let pagesScored = 0;
@@ -414,12 +431,13 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
     const sitemapPages = await getSitemapPages(config.brandProfileId, domain);
     const urlToSitemapPageId = new Map(sitemapPages.map(p => [p.page_url, p.id]));
 
-    for (const page of successfulScrapes) {
+    for (const page of deduplicatedScrapes) {
       if (!page.rawHtml) continue;
 
       try {
-        // Extract DOM data
-        const extraction = htmlToExtraction(page.rawHtml, page.url);
+        // Extract DOM data (use effective URL for redirects)
+        const effectiveUrl = page.metadata?.sourceURL || page.url;
+        const extraction = htmlToExtraction(page.rawHtml, effectiveUrl);
 
         // Pre-compute LLM-powered schema recommendations
         try {
@@ -766,7 +784,7 @@ function generateActionFromIssue(issue: { check: string; dimension: string; mess
     'H3_no_skips': 'Fix heading hierarchy - avoid skipping levels',
     // Semantic
     'S1_main_content': 'Wrap main content in <main> or <article> tags',
-    'S2_page_structure': 'Add <header> and <footer> elements',
+    'S2_page_structure': 'Add a <footer> element for page structure',
     'S3_sections': 'Use semantic HTML elements instead of divs',
     // Schema
     'J1_present': 'Add JSON-LD structured data to your pages',

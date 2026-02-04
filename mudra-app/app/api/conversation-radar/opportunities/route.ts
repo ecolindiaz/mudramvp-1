@@ -6,10 +6,12 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getOpportunityForFrontend } from '@/lib/services/conversation-radar.service';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const opportunityId = searchParams.get('opportunityId');
     const brandProfileId = searchParams.get('brandProfileId');
     const status = searchParams.get('status') || 'new';
     const mode = searchParams.get('mode');
@@ -17,6 +19,25 @@ export async function GET(req: NextRequest) {
     const minRelevanceScore = parseInt(searchParams.get('minRelevanceScore') || '70', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
+
+    // Single opportunity fetch by ID
+    if (opportunityId) {
+      const id = parseInt(opportunityId, 10);
+      if (isNaN(id)) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid opportunityId' },
+          { status: 400 }
+        );
+      }
+      const data = await getOpportunityForFrontend(id);
+      if (!data) {
+        return NextResponse.json(
+          { success: false, error: 'Opportunity not found' },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json({ success: true, data });
+    }
 
     if (!brandProfileId) {
       return NextResponse.json(

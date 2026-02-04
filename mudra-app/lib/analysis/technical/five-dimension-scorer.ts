@@ -24,7 +24,7 @@ import type {
 	IssueSeverity,
 	InterventionPriority,
 } from "./types";
-import { isRelevantSchemaType } from "./dom-extractor";
+import { isRelevantSchemaType, SUBTYPE_TO_PARENT } from "./dom-extractor";
 import { heuristicRecommendedSchemas } from "./schema-recommender";
 
 // ============================================================================
@@ -84,6 +84,14 @@ const SCHEMA_WEIGHTS = {
 	J3_relevant: 7,
 	J4_coverage: 7,
 } as const;
+
+/**
+ * Page types where FAQ scoring is relevant.
+ * Non-FAQ page types (about, contact, documentation, other) get 0/0 for FAQ.
+ */
+const FAQ_RELEVANT_PAGE_TYPES = new Set<string>([
+	"home", "pricing", "features", "product", "solutions", "blog",
+]);
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -328,14 +336,14 @@ export function scoreSemantic(extraction: DOMExtraction): DimensionScore {
 		passedCount++;
 	}
 
-	// S2 - Page structure (<header> AND <footer>)
-	const s2Passed = semantic_html.elements.header.count > 0 && semantic_html.elements.footer.count > 0;
+	// S2 - Page structure (<footer>)
+	const s2Passed = semantic_html.elements.footer.count > 0;
 	checks.S2_page_structure = createCheckResult(
 		s2Passed,
 		SEMANTIC_WEIGHTS.S2_page_structure,
 		s2Passed
-			? "Both <header> and <footer> found"
-			: `Missing page structure (header: ${semantic_html.elements.header.count}, footer: ${semantic_html.elements.footer.count})`
+			? "<footer> element found"
+			: "Missing <footer> element"
 	);
 	if (s2Passed) {
 		totalScore += SEMANTIC_WEIGHTS.S2_page_structure;
@@ -497,6 +505,18 @@ export function scoreSchema(extraction: DOMExtraction): DimensionScore {
  */
 export function scoreFaq(extraction: DOMExtraction): DimensionScore {
 	const { faqs } = extraction.extraction;
+
+	if (!FAQ_RELEVANT_PAGE_TYPES.has(extraction.page_type)) {
+		return {
+			dimension: "faq", score: 0, max_score: 0,
+			checks: { FAQ_not_applicable: {
+				passed: true, points: 0, max_points: 0,
+				rationale: `FAQ scoring not applicable for ${extraction.page_type} pages`,
+			}},
+			passed_count: 0, total_count: 0,
+		};
+	}
+
 	const faqCount = faqs.total_faq_count;
 	const score = Math.min(faqCount * 5, 15);
 
@@ -605,7 +625,7 @@ function generateIssues(
 		issues.push(createIssue("S1_main_content", "semantic", "medium", "No <main> or <article> element", pageUrl));
 	}
 	if (!semanticScore.checks.S2_page_structure?.passed) {
-		issues.push(createIssue("S2_page_structure", "semantic", "low", "Missing <header> and/or <footer>", pageUrl));
+		issues.push(createIssue("S2_page_structure", "semantic", "low", "Missing <footer> element", pageUrl));
 	}
 	if (!semanticScore.checks.S3_sections?.passed) {
 		issues.push(createIssue("S3_sections", "semantic", "low", "Insufficient semantic HTML elements", pageUrl));
@@ -667,11 +687,13 @@ function generateIssues(
 		}
 	}
 
-	// FAQ issues
-	if (faqScore.score === 0) {
-		issues.push(createIssue("FAQ_count", "faq", "medium", "No FAQ content found", pageUrl));
-	} else if (extraction.extraction.faqs.analysis.schema_gap) {
-		issues.push(createIssue("FAQ_schema_gap", "faq", "medium", "FAQ content exists but no FAQPage schema", pageUrl));
+	// FAQ issues (only for FAQ-relevant page types)
+	if (FAQ_RELEVANT_PAGE_TYPES.has(extraction.page_type)) {
+		if (faqScore.score === 0) {
+			issues.push(createIssue("FAQ_count", "faq", "medium", "No FAQ content found", pageUrl));
+		} else if (extraction.extraction.faqs.analysis.schema_gap) {
+			issues.push(createIssue("FAQ_schema_gap", "faq", "medium", "FAQ content exists but no FAQPage schema", pageUrl));
+		}
 	}
 
 	return issues;
@@ -771,7 +793,7 @@ function generateInterventions(
 	}
 	if (!semanticScore.checks.S2_page_structure?.passed) {
 		interventions.push(
-			createIntervention("S2_page_structure", "low", "add_header_footer", "body", "+5 points")
+			createIntervention("S2_page_structure", "low", "add_footer", "body", "+4 points")
 		);
 	}
 	if (!semanticScore.checks.S3_sections?.passed) {
@@ -820,40 +842,42 @@ function generateInterventions(
 		}
 	}
 
-	// FAQ interventions
-	if (faqScore.score === 0) {
-		interventions.push(
-			createIntervention(
-				"FAQ_count",
-				"high",
-				"generate_faq_section",
-				"body > main",
-				"+15 points",
-				"Generate FAQ section with 3-5 Q&As + FAQPage schema"
-			)
-		);
-	} else if (extraction.extraction.faqs.analysis.schema_gap) {
-		interventions.push(
-			createIntervention(
-				"FAQ_schema_gap",
-				"medium",
-				"add_faqpage_schema",
-				"head",
-				"Improved rich results",
-				"Add FAQPage JSON-LD for existing FAQ content"
-			)
-		);
-	} else if (faqScore.score < 15) {
-		interventions.push(
-			createIntervention(
-				"FAQ_count",
-				"low",
-				"expand_faq_content",
-				"body > main",
-				`+${15 - faqScore.score} points`,
-				"Add more FAQ items to reach 3+"
-			)
-		);
+	// FAQ interventions (only for FAQ-relevant page types)
+	if (FAQ_RELEVANT_PAGE_TYPES.has(extraction.page_type)) {
+		if (faqScore.score === 0) {
+			interventions.push(
+				createIntervention(
+					"FAQ_count",
+					"high",
+					"generate_faq_section",
+					"body > main",
+					"+15 points",
+					"Generate FAQ section with 3-5 Q&As + FAQPage schema"
+				)
+			);
+		} else if (extraction.extraction.faqs.analysis.schema_gap) {
+			interventions.push(
+				createIntervention(
+					"FAQ_schema_gap",
+					"medium",
+					"add_faqpage_schema",
+					"head",
+					"Improved rich results",
+					"Add FAQPage JSON-LD for existing FAQ content"
+				)
+			);
+		} else if (faqScore.score < 15) {
+			interventions.push(
+				createIntervention(
+					"FAQ_count",
+					"low",
+					"expand_faq_content",
+					"body > main",
+					`+${15 - faqScore.score} points`,
+					"Add more FAQ items to reach 3+"
+				)
+			);
+		}
 	}
 
 	return interventions;
@@ -914,8 +938,12 @@ export function getRecommendedSchemas(
 	// but still filter out existing schemas
 	if (precomputedSchemas && precomputedSchemas.length > 0) {
 		if (extraction) {
-			const existingTypes = new Set(extraction.schema.schema_types);
-			return precomputedSchemas.filter((s) => !existingTypes.has(s));
+			const expandedExisting = new Set(extraction.schema.schema_types);
+			for (const t of extraction.schema.schema_types) {
+				const parent = SUBTYPE_TO_PARENT.get(t);
+				if (parent) expandedExisting.add(parent);
+			}
+			return precomputedSchemas.filter((s) => !expandedExisting.has(s));
 		}
 		return [...precomputedSchemas];
 	}
@@ -935,10 +963,14 @@ export function getRecommendedSchemas(
 		}
 	}
 
-	// Filter out schemas the page already has
+	// Filter out schemas the page already has (including parent types when subtypes exist)
 	if (extraction) {
-		const existingTypes = new Set(extraction.schema.schema_types);
-		return schemas.filter((s) => !existingTypes.has(s));
+		const expandedExisting = new Set(extraction.schema.schema_types);
+		for (const t of extraction.schema.schema_types) {
+			const parent = SUBTYPE_TO_PARENT.get(t);
+			if (parent) expandedExisting.add(parent);
+		}
+		return schemas.filter((s) => !expandedExisting.has(s));
 	}
 
 	return schemas;
@@ -962,13 +994,12 @@ export function computePageScore(extraction: DOMExtraction): FullPageScore {
 	const schemaScore = scoreSchema(extraction);
 	const faqScore = scoreFaq(extraction);
 
-	// Calculate total
-	const total =
-		metadataScore.score +
-		headingsScore.score +
-		semanticScore.score +
-		schemaScore.score +
-		faqScore.score;
+	// Calculate total (normalized to 100 when FAQ is excluded)
+	const maxPossible = metadataScore.max_score + headingsScore.max_score +
+		semanticScore.max_score + schemaScore.max_score + faqScore.max_score;
+	const rawTotal = metadataScore.score + headingsScore.score +
+		semanticScore.score + schemaScore.score + faqScore.score;
+	const total = maxPossible > 0 ? Math.round((rawTotal / maxPossible) * 100) : 0;
 
 	// Generate issues and interventions
 	const issues = generateIssues(

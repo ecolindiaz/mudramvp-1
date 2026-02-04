@@ -29,7 +29,8 @@ interface DashboardStatusProps {
 }
 
 export function DashboardStatus({ className }: DashboardStatusProps) {
-  const { data: session } = useSession()
+  const sessionData = useSession()
+  const session = sessionData?.data
   const [status, setStatus] = useState<OnboardingStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

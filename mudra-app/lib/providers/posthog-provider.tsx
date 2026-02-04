@@ -22,7 +22,8 @@ import { useBrandProfile } from '@/components/brand-profile-context'
  * - NEXT_PUBLIC_POSTHOG_HOST: PostHog instance URL (defaults to US cloud)
  */
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
-  const { data: session } = useSession()
+  const sessionData = useSession()
+  const session = sessionData?.data
   const { profile: brandProfile } = useBrandProfile()
 
   useEffect(() => {

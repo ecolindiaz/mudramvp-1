@@ -65,7 +65,7 @@ export const calculateAeoScoreTool = createTool({
       analysisData.schemaScore +
       analysisData.headerScore +
       analysisData.faqScore +
-      analysisData.contentStructureScore +
+      analysisData.contentStructureScore +               
       analysisData.citationsScore +
       analysisData.metaScore +
       analysisData.authorityScore;

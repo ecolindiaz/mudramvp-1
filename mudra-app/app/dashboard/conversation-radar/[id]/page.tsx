@@ -1,8 +1,5 @@
 "use client"
 
-// Force dynamic rendering for dashboard pages
-export const dynamic = 'force-dynamic'
-
 import { Suspense, useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { BrandProfileProvider } from "@/components/brand-profile-context"

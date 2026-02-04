@@ -5,9 +5,6 @@ import { useSession } from "next-auth/react"
 import { BrandProfileProvider } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
-
-// Force dynamic rendering to prevent build-time errors with useSession
-export const dynamic = 'force-dynamic'
 import {
   SidebarInset,
   SidebarProvider,
@@ -27,6 +24,27 @@ import { toast } from "sonner"
 
 function AccountPageInner() {
   const { data: session, update } = useSession()
+  
+  // Handle loading state during server-side rendering
+  if (!session) {
+    return (
+      <BrandProfileProvider>
+        <SidebarProvider>
+          <AppSidebar />
+          <SidebarInset>
+            <SiteHeader />
+            <div className="flex flex-1 flex-col gap-4 p-4">
+              <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              </div>
+            </div>
+          </SidebarInset>
+        </SidebarProvider>
+      </BrandProfileProvider>
+    )
+  }
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("profile")
   

@@ -1,8 +1,5 @@
 "use client"
 
-// Force dynamic rendering for dashboard pages
-export const dynamic = 'force-dynamic'
-
 import { useMemo, useState, useEffect } from "react"
 import {
   ColumnDef,

@@ -5,6 +5,9 @@ import { useSession } from "next-auth/react"
 import { BrandProfileProvider } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
+
+// Force dynamic rendering to prevent build-time errors with useSession
+export const dynamic = 'force-dynamic'
 import {
   SidebarInset,
   SidebarProvider,

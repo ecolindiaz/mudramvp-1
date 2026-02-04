@@ -2,6 +2,9 @@
 import React from "react"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 
+// Force dynamic rendering for dashboard pages
+export const dynamic = 'force-dynamic'
+
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {

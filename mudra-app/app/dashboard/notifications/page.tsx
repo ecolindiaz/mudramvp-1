@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering for dashboard pages
+export const dynamic = 'force-dynamic'
+
 import React, { useState, useEffect } from "react"
 import { BrandProfileProvider } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"

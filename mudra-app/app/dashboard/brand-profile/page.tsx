@@ -1,3 +1,6 @@
+// Force dynamic rendering for dashboard pages
+export const dynamic = 'force-dynamic'
+
 import { AppSidebar } from "@/components/app-sidebar"
 import { BrandProfileForm } from "@/components/brand-profile-form"
 import { SiteHeader } from "@/components/site-header"

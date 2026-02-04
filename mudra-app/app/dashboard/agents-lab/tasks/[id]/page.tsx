@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering for dashboard pages
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"

@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering for dashboard pages
+export const dynamic = 'force-dynamic'
+
 import * as React from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"

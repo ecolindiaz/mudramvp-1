@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering for dashboard pages
+export const dynamic = 'force-dynamic'
+
 import { Suspense } from "react"
 import Link from "next/link"
 

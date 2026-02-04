@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering for dashboard pages
+export const dynamic = 'force-dynamic'
+
 import Link from "next/link"
 import React, { useMemo, useState, useRef } from "react"
 import ReactMarkdown from "react-markdown"

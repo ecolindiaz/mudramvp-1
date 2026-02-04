@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 
+export const maxDuration = 60
+
 // GET /api/issues/[id] - Get a single issue
 export async function GET(
   request: NextRequest,

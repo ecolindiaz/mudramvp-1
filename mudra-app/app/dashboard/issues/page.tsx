@@ -963,14 +963,32 @@ function IssuesPageInner() {
   // Fetch issues
   const fetchIssues = React.useCallback(async () => {
     try {
+      console.log('[Issues Page] Fetching issues...')
       const response = await fetch("/api/issues")
+      console.log('[Issues Page] Response status:', response.status)
+      
+      if (!response.ok) {
+        const text = await response.text()
+        console.error('[Issues Page] Error response:', text.substring(0, 500))
+        throw new Error(`Failed to fetch issues: ${response.status} ${response.statusText}`)
+      }
+      
       const data = await response.json()
+      console.log('[Issues Page] Data received:', data)
+      
       if (data.success) {
         // API returns { issues, grouped, counts } - extract the issues array
         setIssues(data.data.issues || data.data)
+      } else {
+        console.error('[Issues Page] API returned error:', data.error)
+        throw new Error(data.error?.message || 'Unknown error')
       }
     } catch (error) {
       console.error("Failed to fetch issues:", error)
+      // Show error to user via toast
+      if (typeof window !== 'undefined' && window.navigator.onLine === false) {
+        console.error('Network offline')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -1689,7 +1707,16 @@ function IssuesPageInner() {
 export default function IssuesPage() {
   return (
     <BrandProfileProvider>
-      <IssuesPageInner />
+      <React.Suspense fallback={
+        <div className="flex h-screen items-center justify-center bg-black">
+          <div className="flex flex-col items-center gap-4">
+            <IconLoader2 className="h-8 w-8 animate-spin text-purple-500" />
+            <p className="text-sm text-white/60">Loading issues...</p>
+          </div>
+        </div>
+      }>
+        <IssuesPageInner />
+      </React.Suspense>
     </BrandProfileProvider>
   )
 }

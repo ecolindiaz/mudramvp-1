@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 
+// Prevent Vercel timeout
+export const maxDuration = 60
+
 // GET /api/issues/stats - Get issue statistics for analysis view
 export async function GET(request: NextRequest) {
   try {

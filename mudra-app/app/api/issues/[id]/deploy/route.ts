@@ -10,6 +10,13 @@
  * 4. Client polls /api/issues/[id] to check completion
  */
 
+// Allow longer execution for agent deployment
+export const maxDuration = 120
+
+/**
+ * Continued description...
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'

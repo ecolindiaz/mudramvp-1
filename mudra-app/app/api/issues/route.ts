@@ -4,11 +4,17 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { discoverIssues, getIssuesForBrand } from "@/lib/services/issue-discovery.service"
 
+// Prevent Vercel timeout for issue queries with large datasets
+export const maxDuration = 60
+
 // GET /api/issues - Get all issues for the user's brand profile
 export async function GET(request: NextRequest) {
   try {
+    console.log('[Issues API] GET request started')
     const session = await getServerSession(authOptions)
+    console.log('[Issues API] Session:', session ? 'Found' : 'Not found', session?.user?.id)
     if (!session?.user?.id) {
+      console.log('[Issues API] Unauthorized - no session')
       return NextResponse.json(
         { success: false, error: { message: "Unauthorized" } },
         { status: 401 }
@@ -125,6 +131,11 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error("[Issues API] GET error:", error)
+    console.error("[Issues API] Error details:", {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    })
     return NextResponse.json(
       { success: false, error: { message: "Failed to fetch issues" } },
       { status: 500 }

@@ -15,6 +15,8 @@ import {
   getLatestAnalysisRun,
 } from '@/lib/services/conversation-radar.service';
 
+export const maxDuration = 120; // 2 minutes - Apify + LLM analysis
+
 export async function POST(req: NextRequest) {
   // Rate limit first - expensive AI operations
   const rateLimited = await applyRateLimitAsync(req, 'aiGeneration');

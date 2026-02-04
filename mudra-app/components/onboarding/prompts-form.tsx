@@ -8,6 +8,15 @@ import { ArrowRight, Sparkles, CheckCircle, Target, BarChart3, Activity, Code } 
 import { useAnalysisPipeline } from "@/hooks/use-analysis-pipeline"
 import { useBrandProfile } from "@/components/brand-profile-context"
 import { useOnboarding } from "./onboarding-context"
+import { motion, AnimatePresence } from "framer-motion"
+
+const LOADING_STEPS = [
+  { text: "Analyzing your brand", icon: Sparkles },
+  { text: "Testing AI visibility", icon: Target },
+  { text: "Scanning competitors", icon: BarChart3 },
+  { text: "Testing agent readiness", icon: Code },
+  { text: "Preparing your dashboard", icon: Activity },
+]
 
 export function PromptsForm() {
   const router = useRouter()
@@ -15,6 +24,7 @@ export function PromptsForm() {
   const { data: onboardingData, saveToProfile } = useOnboarding()
   const { state, progress, results, error, simulatedProgress, runPipeline } = useAnalysisPipeline()
   const [analysisStarted, setAnalysisStarted] = useState(false)
+  const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const hasSaved = useRef(false) // Track if we've already saved
   const hasTriggeredAnalysis = useRef(false) // Track if we've already triggered analysis
 
@@ -133,6 +143,21 @@ export function PromptsForm() {
   const currentProgress = calculateProgress()
   const currentStage = getCurrentStage()
 
+  // Cycle through loading steps based on progress
+  useEffect(() => {
+    if (state !== 'running') return
+    
+    const stepProgress = currentProgress / 100
+    const newStepIndex = Math.min(
+      Math.floor(stepProgress * LOADING_STEPS.length),
+      LOADING_STEPS.length - 1
+    )
+    
+    if (newStepIndex !== currentStepIndex) {
+      setCurrentStepIndex(newStepIndex)
+    }
+  }, [currentProgress, state, currentStepIndex])
+
   if (isAnalysisComplete) {
     return (
       <Card className="w-full max-w-[400px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
@@ -185,6 +210,8 @@ export function PromptsForm() {
     )
   }
 
+  const CurrentIcon = LOADING_STEPS[currentStepIndex].icon
+
   return (
     <Card className="w-full max-w-[400px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
       <CardContent className="pt-8 pb-6 px-6 text-center space-y-6">
@@ -198,22 +225,78 @@ export function PromptsForm() {
         </div>
         
         <div className="space-y-4">
+          {/* Animated icon */}
           <div className="relative h-20 flex items-center justify-center">
             <div className="absolute w-16 h-16 border-2 border-white/10 rounded-full" />
             <div className="absolute w-16 h-16 border-2 border-transparent border-t-white rounded-full animate-spin" />
-            <Sparkles className="w-6 h-6 text-white animate-pulse" />
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStepIndex}
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              >
+                <CurrentIcon className="w-6 h-6 text-white" />
+              </motion.div>
+            </AnimatePresence>
           </div>
           
+          {/* Animated step text */}
+          <div className="h-16 flex flex-col items-center justify-center overflow-hidden">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStepIndex}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -20, opacity: 0 }}
+                transition={{ duration: 0.4, ease: "easeInOut" }}
+                className="flex flex-col items-center gap-1"
+              >
+                <span className="text-lg font-medium text-white">
+                  {LOADING_STEPS[currentStepIndex].text}
+                </span>
+                <motion.span 
+                  className="text-white/40"
+                  animate={{ opacity: [0.4, 1, 0.4] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  ...
+                </motion.span>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+          
+          {/* Progress bar */}
           <div className="space-y-2">
             <p className="text-3xl font-bold text-white">{Math.round(currentProgress)}%</p>
-            <p className="text-xs text-white/50">{currentStage}</p>
           </div>
           
-          <div className="w-full bg-white/[0.08] rounded-full h-1 overflow-hidden">
-            <div 
-              className="bg-white h-1 rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${currentProgress}%` }}
+          <div className="w-full bg-white/[0.08] rounded-full h-1.5 overflow-hidden">
+            <motion.div 
+              className="bg-white h-1.5 rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${currentProgress}%` }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
             />
+          </div>
+          
+          {/* Step indicators */}
+          <div className="flex justify-center gap-1.5 pt-2">
+            {LOADING_STEPS.map((_, index) => (
+              <motion.div
+                key={index}
+                className={`w-1.5 h-1.5 rounded-full ${
+                  index <= currentStepIndex ? 'bg-white' : 'bg-white/20'
+                }`}
+                initial={false}
+                animate={{
+                  scale: index === currentStepIndex ? 1.3 : 1,
+                  opacity: index <= currentStepIndex ? 1 : 0.3,
+                }}
+                transition={{ duration: 0.3 }}
+              />
+            ))}
           </div>
         </div>
       </CardContent>

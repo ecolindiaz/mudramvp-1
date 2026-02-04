@@ -18,6 +18,7 @@ import { CountdownBadge } from "@/components/dashboard/countdown-badge"
 import { Loader2, PlayCircle } from "lucide-react"
 import Image from "next/image"
 import toast from "react-hot-toast"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 type PlatformFilter = "all" | AIModel
 
@@ -103,6 +104,10 @@ function DashboardPageInner() {
 
     setIsRunningAnalysis(true)
     const toastId = toast.loading('Running analysis... This may take 1-2 minutes.')
+    const startTime = Date.now()
+
+    // Track analysis start
+    trackEvent.analysisStarted(profile.id, 'unified')
 
     try {
       const response = await fetch('/api/analysis/unified', {
@@ -124,6 +129,14 @@ function DashboardPageInner() {
       console.log('[Dashboard] Analysis result:', result)
 
       if (result.success) {
+        const duration = Date.now() - startTime
+        
+        // Track successful analysis
+        trackEvent.analysisCompleted(profile.id, 'unified', duration, {
+          geo_score: result.data?.geoScore,
+          technical_score: result.data?.technicalScore,
+        })
+        
         toast.success('Analysis completed successfully!', { id: toastId })
         // Dispatch event to refresh dashboard metrics
         window.dispatchEvent(new Event('mudra:website-analyzed'))
@@ -135,10 +148,19 @@ function DashboardPageInner() {
           ? result.error 
           : result.error?.message || 'Analysis failed'
         console.error('[Dashboard] Analysis failed:', result)
+        
+        // Track analysis failure
+        trackEvent.analysisFailed(profile.id, 'unified', errorMsg)
+        
         toast.error(errorMsg, { id: toastId })
       }
     } catch (error) {
       console.error('[Dashboard] Analysis error:', error)
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      
+      // Track analysis error
+      trackEvent.analysisFailed(profile.id, 'unified', errorMsg)
+      
       toast.error('Failed to run analysis. Please try again.', { id: toastId })
     } finally {
       setIsRunningAnalysis(false)

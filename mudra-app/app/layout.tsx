@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { PostHogProvider } from "@/lib/providers/posthog-provider";
+import { PageViewTracker } from "@/components/analytics/page-view-tracker";
 import "./globals.css";
 import NextAuthSessionProvider from "@/components/SessionProvider";
 
@@ -38,14 +41,19 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
       >
-        <NextAuthSessionProvider>
-          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">
-            {children}
-            <Toaster />
-            <Analytics />
-            <SpeedInsights />
-          </ThemeProvider>
-        </NextAuthSessionProvider>
+        <PostHogProvider>
+          <NextAuthSessionProvider>
+            <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">
+              <Suspense fallback={null}>
+                <PageViewTracker />
+              </Suspense>
+              {children}
+              <Toaster />
+              <Analytics />
+              <SpeedInsights />
+            </ThemeProvider>
+          </NextAuthSessionProvider>
+        </PostHogProvider>
       </body>
     </html>
   );

@@ -306,9 +306,9 @@ def analyze_competitor_citations(competitor_urls, topic, include_content_gaps):
     return json.dumps(result, indent=2)
 
 # Execute analysis
-competitor_urls = ${JSON.stringify(input.competitorUrls)}
-topic = """${input.topic}"""
-include_content_gaps = ${input.includeContentGaps}
+competitor_urls = ${JSON.stringify(competitorUrls)}
+topic = """${topic}"""
+include_content_gaps = ${includeContentGaps}
 
 result = analyze_competitor_citations(competitor_urls, topic, include_content_gaps)
 print(result)

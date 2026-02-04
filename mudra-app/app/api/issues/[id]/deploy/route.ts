@@ -11,7 +11,7 @@
  */
 
 // Allow longer execution for agent deployment
-export const maxDuration = 120
+// (see below for actual export)
 
 /**
  * Continued description...

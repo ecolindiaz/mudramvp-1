@@ -95,7 +95,12 @@ export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
     }
   }, [loadingMore, hasMore])
 
-  // Fetch on open + poll every 60s when open
+  // Fetch on mount so the unread badge is visible even before opening
+  React.useEffect(() => {
+    fetchNotifications()
+  }, [fetchNotifications])
+
+  // Poll every 60s when open
   React.useEffect(() => {
     if (open) {
       fetchNotifications()
@@ -109,6 +114,20 @@ export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
     const onFocus = () => fetchNotifications()
     window.addEventListener("focus", onFocus)
     return () => window.removeEventListener("focus", onFocus)
+  }, [fetchNotifications])
+
+  // Refetch when analysis or other background tasks complete
+  React.useEffect(() => {
+    const refetch = () => fetchNotifications()
+    const events = [
+      "mudra:analysis-complete",
+      "mudra:website-analyzed",
+      "mudra:nlr-refresh",
+    ]
+    events.forEach((e) => window.addEventListener(e, refetch))
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, refetch))
+    }
   }, [fetchNotifications])
 
   // Infinite scroll: load more when near bottom

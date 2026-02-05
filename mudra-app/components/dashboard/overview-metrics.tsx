@@ -2,8 +2,9 @@
 
 import type { TimeRange } from "./time-range-selector"
 import type { AIModel } from "./model-selector"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useBrandProfile } from "@/components/brand-profile-context"
+import { useAnalysis } from "@/components/analysis-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Info, Check, ArrowUp, ArrowDown, ArrowLeft, Settings, Loader2, AlertCircle, Github, ExternalLink, X, ChevronDown } from "lucide-react"
@@ -24,7 +25,11 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   void timeRange
 
   const { profile } = useBrandProfile()
-  
+  const { lastCompletedAt, isRunningAnalysis } = useAnalysis()
+
+  // Track when we last fetched data to detect if we need to refresh
+  const lastFetchedRef = useRef<number>(0)
+
   // AI Referral Tracking modal state
   const [showTrackingModal, setShowTrackingModal] = useState(false)
   const [scriptCopied, setScriptCopied] = useState(false)
@@ -641,6 +646,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       fetchTechnicalHistory()
       fetchTrafficMetrics()
       fetchAiReferralTraffic()
+      // Track when we fetched data
+      lastFetchedRef.current = Date.now()
     } else if (profile.id === 0) {
       // Profile explicitly has id=0, meaning no profile exists yet
       // Reset loading states immediately to show empty state
@@ -650,6 +657,22 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       setLoadingTraffic(false)
     }
   }, [profile.id, selectedModel, days])
+
+  // Auto-refresh if analysis completed while user was away
+  // This detects when user returns to page after analysis finished on another page
+  useEffect(() => {
+    if (profile.id && lastCompletedAt && !isRunningAnalysis) {
+      // Check if analysis completed after we last fetched data
+      if (lastCompletedAt > lastFetchedRef.current) {
+        console.log('🔄 Analysis completed while away, refreshing data...')
+        fetchAiVisibilityHistory()
+        fetchTechnicalHistory()
+        fetchTrafficMetrics()
+        fetchAiReferralTraffic()
+        lastFetchedRef.current = Date.now()
+      }
+    }
+  }, [profile.id, lastCompletedAt, isRunningAnalysis])
 
   // Listen for analysis completion events
   useEffect(() => {
@@ -662,6 +685,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         fetchTrafficMetrics(),
         fetchAiReferralTraffic()
       ])
+      // Update last fetched time
+      lastFetchedRef.current = Date.now()
     }
 
     window.addEventListener('mudra:website-analyzed', handleAnalysisComplete)

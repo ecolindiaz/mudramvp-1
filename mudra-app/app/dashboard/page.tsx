@@ -1,6 +1,7 @@
 "use client"
 import React from "react"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
+import { useAnalysis } from "@/components/analysis-context"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -39,27 +40,43 @@ const timeRangeOptions = [
 
 function DashboardPageInner() {
   const { profile } = useBrandProfile()
+  const {
+    isRunningAnalysis,
+    startAnalysis,
+    completeAnalysis,
+    getAbortSignal,
+    checkForRecentCompletion
+  } = useAnalysis()
   const [timeRange, setTimeRange] = React.useState<TimeRange>("1m")
   const [selectedPlatform, setSelectedPlatform] = React.useState<PlatformFilter>("all")
 
   // Calculate days from timeRange for API calls
   const days = timeRange === '7d' ? 7 : timeRange === '15d' ? 15 : 30
-  
+
   // Analysis cooldown state
   const [canRunAnalysis, setCanRunAnalysis] = React.useState(false)
   const [nextAnalysisTime, setNextAnalysisTime] = React.useState<number | null>(null)
-  const [isRunningAnalysis, setIsRunningAnalysis] = React.useState(false)
+
+  // Check if analysis completed while user was away and refresh data
+  React.useEffect(() => {
+    if (profile?.id && checkForRecentCompletion(profile.id)) {
+      console.log('[Dashboard] Analysis completed while away, refreshing data...')
+      // Dispatch event to refresh dashboard metrics
+      window.dispatchEvent(new Event('mudra:website-analyzed'))
+      toast.success('Analysis completed! Data has been refreshed.')
+    }
+  }, [profile?.id, checkForRecentCompletion])
 
   // Check cooldown status
   React.useEffect(() => {
     const checkCooldown = async () => {
       // Make sure profile is loaded and has a valid ID
       if (!profile?.id || profile.id <= 0) return
-      
+
       try {
         const response = await fetch(`/api/analysis/cooldown?brandProfileId=${profile.id}`)
         const data = await response.json()
-        
+
         if (data.success) {
           setCanRunAnalysis(data.allowed)
           if (data.lastRunAt && data.timeUntilNext) {
@@ -92,17 +109,18 @@ function DashboardPageInner() {
       toast.error('Profile not loaded. Please refresh the page.')
       return
     }
-    
+
     if (!canRunAnalysis) {
       toast.error('Analysis is on cooldown. Please wait 24 hours.')
       return
     }
-    
+
     if (isRunningAnalysis) {
       return
     }
 
-    setIsRunningAnalysis(true)
+    // Start analysis using global context (persists across navigation)
+    startAnalysis(profile.id)
     const toastId = toast.loading('Running analysis... This may take 1-2 minutes.')
     const startTime = Date.now()
 
@@ -123,6 +141,7 @@ function DashboardPageInner() {
           skipCooldown: false, // Enforce 24-hour cooldown
           generateReport: true, // Generate natural language report on each analysis
         }),
+        signal: getAbortSignal(), // Allow cancellation if user navigates away
       })
 
       const result = await response.json()
@@ -130,40 +149,55 @@ function DashboardPageInner() {
 
       if (result.success) {
         const duration = Date.now() - startTime
-        
+
         // Track successful analysis
         trackEvent.analysisCompleted(profile.id, 'unified', duration, {
           geo_score: result.data?.geoScore,
           technical_score: result.data?.technicalScore,
         })
-        
+
         toast.success('Analysis completed successfully!', { id: toastId })
         // Dispatch event to refresh dashboard metrics
         window.dispatchEvent(new Event('mudra:website-analyzed'))
         // Reset cooldown state
         setCanRunAnalysis(false)
         setNextAnalysisTime(Date.now() + (24 * 60 * 60 * 1000)) // 24 hours from now
+
+        // Mark analysis as complete in global context
+        completeAnalysis(true)
       } else {
-        const errorMsg = typeof result.error === 'string' 
-          ? result.error 
+        const errorMsg = typeof result.error === 'string'
+          ? result.error
           : result.error?.message || 'Analysis failed'
         console.error('[Dashboard] Analysis failed:', result)
-        
+
         // Track analysis failure
         trackEvent.analysisFailed(profile.id, 'unified', errorMsg)
-        
+
         toast.error(errorMsg, { id: toastId })
+
+        // Mark analysis as complete (with failure) in global context
+        completeAnalysis(false)
       }
     } catch (error) {
+      // Check if this was an abort (user navigated away)
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[Dashboard] Analysis request aborted (user navigated away)')
+        toast.dismiss(toastId)
+        // Don't mark as complete - analysis may still be running on server
+        return
+      }
+
       console.error('[Dashboard] Analysis error:', error)
       const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-      
+
       // Track analysis error
       trackEvent.analysisFailed(profile.id, 'unified', errorMsg)
-      
+
       toast.error('Failed to run analysis. Please try again.', { id: toastId })
-    } finally {
-      setIsRunningAnalysis(false)
+
+      // Mark analysis as complete (with failure) in global context
+      completeAnalysis(false)
     }
   }
 

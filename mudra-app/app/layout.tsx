@@ -8,6 +8,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PostHogProvider } from "@/lib/providers/posthog-provider";
 import { PageViewTracker } from "@/components/analytics/page-view-tracker";
+import { AnalysisProvider } from "@/components/analysis-context";
 import "./globals.css";
 import NextAuthSessionProvider from "@/components/SessionProvider";
 
@@ -41,19 +42,21 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
       >
-        <PostHogProvider>
-          <NextAuthSessionProvider>
+        <NextAuthSessionProvider>
+          <PostHogProvider>
             <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">
-              <Suspense fallback={null}>
-                <PageViewTracker />
-              </Suspense>
-              {children}
-              <Toaster />
+              <AnalysisProvider>
+                <Suspense fallback={null}>
+                  <PageViewTracker />
+                </Suspense>
+                {children}
+                <Toaster />
+              </AnalysisProvider>
               <Analytics />
               <SpeedInsights />
             </ThemeProvider>
-          </NextAuthSessionProvider>
-        </PostHogProvider>
+          </PostHogProvider>
+        </NextAuthSessionProvider>
       </body>
     </html>
   );

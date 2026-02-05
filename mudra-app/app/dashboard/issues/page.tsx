@@ -1289,7 +1289,11 @@ function IssuesPageInner() {
   // Delete issue
   const handleDeleteIssue = async () => {
     if (!deletingIssue) return
+    
+    // Close dialog immediately for better UX
+    setDeleteDialogOpen(false)
     setIsSaving(true)
+    
     try {
       const response = await fetch(`/api/issues/${deletingIssue.id}`, {
         method: "DELETE",
@@ -1305,8 +1309,7 @@ function IssuesPageInner() {
       console.error("Failed to delete issue:", error)
       toast.error("Failed to delete issue")
     } finally {
-      // Always close the dialog and reset state
-      setDeleteDialogOpen(false)
+      // Always reset state
       setDeletingIssue(null)
       setIsSaving(false)
     }

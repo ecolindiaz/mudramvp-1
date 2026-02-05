@@ -28,8 +28,8 @@ const inputSchema = z.object({
 
 const outputSchema = gapAnalysisOutputSchema;
 
-// Step timeout: 45 seconds (GPT analysis should be quick)
-const GAP_ANALYSIS_TIMEOUT_MS = 45000;
+// Step timeout: 75 seconds
+const GAP_ANALYSIS_TIMEOUT_MS = 75000;
 
 export const analyzeGapsStep = createStep({
   id: "analyze-gaps",
@@ -40,11 +40,10 @@ export const analyzeGapsStep = createStep({
     const startTime = Date.now();
 
     // Combine scraped content (limit to avoid token overflow)
-    // Truncate to ~1500 chars per source to stay well under token limits
     const combinedContent = scrapedSources
       .map(
         (s, i) =>
-          `## Source ${i + 1}: ${s.title || s.url}\n${s.markdown.slice(0, 1500)}`
+          `## Source ${i + 1}: ${s.title || s.url}\n${s.markdown.slice(0, 3000)}`
       )
       .join("\n\n---\n\n");
 
@@ -59,7 +58,7 @@ export const analyzeGapsStep = createStep({
 
 ${combinedContent}
 
-Identify all content, data, format, and depth gaps. Suggest up to 3 search queries to fill the gaps.`,
+Identify all content, data, format, and depth gaps. Suggest up to 5 search queries to fill the gaps.`,
           {
             structuredOutput: { schema: gapAnalysisOutputSchema },
           }
@@ -78,13 +77,15 @@ Identify all content, data, format, and depth gaps. Suggest up to 3 search queri
       const duration = Math.round((Date.now() - startTime) / 1000);
       console.error(`[AnalyzeGaps] Failed after ${duration}s:`, error.message);
       
-      // Return minimal gap analysis on timeout - let content generation proceed
+      // Return minimal gap analysis on timeout with fallback queries derived from the prompt
+      const fallbackQuery1 = `${trackedPrompt} comparison review ${new Date().getFullYear()}`;
+      const fallbackQuery2 = `${trackedPrompt} statistics expert analysis`;
       return {
         contentGaps: ["Unable to analyze gaps - proceeding with available content"],
         dataGaps: [],
         formatGaps: ["Consider adding comparison table", "Consider adding FAQ section"],
         depthGaps: [],
-        recommendedSearchQueries: [],
+        recommendedSearchQueries: [fallbackQuery1, fallbackQuery2],
       };
     }
   },

@@ -18,8 +18,8 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMsg: string
   ]);
 };
 
-// Step timeout: 90 seconds (content generation can be slow for long articles)
-const CONTENT_GENERATION_TIMEOUT_MS = 90000;
+// Step timeout: 150 seconds (content generation with richer source context)
+const CONTENT_GENERATION_TIMEOUT_MS = 150000;
 
 const inputSchema = z.object({
   trackedPrompt: z.string(),
@@ -61,7 +61,7 @@ export const generateContentStep = createStep({
     const sourcesSummary = scrapedSources
       .map(
         (s, i) =>
-          `${i + 1}. ${s.title || s.url}: ${s.markdown.slice(0, 500)}...`
+          `${i + 1}. ${s.title || s.url}: ${s.markdown.slice(0, 1500)}...`
       )
       .join("\n\n");
 

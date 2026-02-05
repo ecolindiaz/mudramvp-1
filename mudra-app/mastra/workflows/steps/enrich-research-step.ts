@@ -25,8 +25,8 @@ const outputSchema = researchOutputSchema.extend({
   searchQueriesRun: z.number(),
 });
 
-// Step timeout: 90 seconds (research can take 60-90s with multiple searches)
-const RESEARCH_STEP_TIMEOUT_MS = 90000;
+// Step timeout: 150 seconds (research with up to 5 searches)
+const RESEARCH_STEP_TIMEOUT_MS = 150000;
 
 export const enrichResearchStep = createStep({
   id: "enrich-research",
@@ -51,14 +51,14 @@ Gap Analysis:
 - Format Gaps: ${gapAnalysis.formatGaps.join(", ")}
 - Depth Gaps: ${gapAnalysis.depthGaps.join(", ")}
 
-Recommended Search Queries (run max 3):
-${gapAnalysis.recommendedSearchQueries.slice(0, 3).map((q, i) => `${i + 1}. ${q}`).join("\n")}
+Recommended Search Queries (run max 5):
+${gapAnalysis.recommendedSearchQueries.map((q, i) => `${i + 1}. ${q}`).join("\n")}
 
 Use the search tool to find authoritative sources, statistics, and expert quotes.
-IMPORTANT: Run a MAXIMUM of 3 searches to stay within time limits.`,
+IMPORTANT: Run a MAXIMUM of 5 searches to stay within time limits.`,
           {
             structuredOutput: { schema: researchOutputSchema },
-            maxSteps: 6, // Reduced from 10 to limit tool calls
+            maxSteps: 10,
           }
         ),
         RESEARCH_STEP_TIMEOUT_MS,
@@ -75,10 +75,7 @@ IMPORTANT: Run a MAXIMUM of 3 searches to stay within time limits.`,
         statistics: response.object?.statistics || [],
         expertQuotes: response.object?.expertQuotes || [],
         recommendations: response.object?.recommendations || [],
-        searchQueriesRun: Math.min(
-          gapAnalysis.recommendedSearchQueries.length,
-          3
-        ),
+        searchQueriesRun: gapAnalysis.recommendedSearchQueries.length,
       };
     } catch (error: any) {
       const duration = Math.round((Date.now() - startTime) / 1000);

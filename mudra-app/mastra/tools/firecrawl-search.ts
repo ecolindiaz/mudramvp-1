@@ -28,14 +28,12 @@ const inputSchema = z.object({
     .number()
     .min(1)
     .max(10)
-    .default(5)
-    .describe("Number of results to return (default: 5)"),
+    .describe("Number of results to return (use 5 for standard searches)"),
   maxAgeMonths: z
     .number()
     .min(1)
     .max(24)
-    .default(DEFAULT_MAX_AGE_MONTHS)
-    .describe("Filter out sources older than this many months (default: 10)"),
+    .describe("Filter out sources older than this many months (use 10 for standard searches)"),
 });
 
 // Search result schema
@@ -72,10 +70,8 @@ export const firecrawlSearchTool = createTool({
       // Calculate date range filter (default: 10 months)
       const tbs = getDateRangeFilter(maxAgeMonths);
 
-      // Reduced limit to 3 results to balance quality vs credit usage
-      // (~16 credits per search vs ~26 with 5 results)
       const searchResults = await firecrawl.search(query, {
-        limit: Math.min(limit, 3), // Cap at 3 to reduce costs while keeping content
+        limit, // schema caps at 10 via zod
         tbs, // Filter out sources older than maxAgeMonths
         scrapeOptions: {
           formats: ["markdown"],
@@ -96,8 +92,7 @@ export const firecrawlSearchTool = createTool({
           url: item.url || "",
           title: item.title || "",
           description: item.description || "",
-          // Truncate markdown to avoid token overflow (max 500 chars per result)
-          markdown: item.markdown?.slice(0, 500),
+          markdown: item.markdown?.slice(0, 2000),
         })
       );
 

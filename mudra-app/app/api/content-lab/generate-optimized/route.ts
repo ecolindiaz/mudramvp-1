@@ -9,8 +9,8 @@ import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 
 // Required for Vercel serverless - allow long-running workflows
-// 300s = 5 minutes, the max allowed on Pro plan
-export const maxDuration = 300;
+// 540s = 9 minutes, needed for restored enrichment pipeline (5 searches, richer content)
+export const maxDuration = 540;
 
 // Store active workflow runs for status polling
 const activeRuns = new Map<string, {

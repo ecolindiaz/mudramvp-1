@@ -21,8 +21,8 @@ import {
 import { createOptimizationPR } from './github.service'
 import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
 
-// Timeout for agent generation (60 seconds - Vercel has 60s limit on hobby)
-const AGENT_TIMEOUT_MS = 55_000
+// Timeout for agent generation (deploy route has maxDuration=300s on Vercel Pro)
+const AGENT_TIMEOUT_MS = 120_000
 
 // Direct Anthropic client as fallback
 const anthropic = new Anthropic({

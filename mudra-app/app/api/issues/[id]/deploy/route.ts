@@ -92,31 +92,39 @@ export async function POST(
     const asyncMode = request.headers.get('x-async-mode') === 'true'
 
     if (asyncMode) {
-      // Fire and forget - execute in background
-      // Note: On Vercel, the function continues running even after response is sent
-      executeIssueAgent(issueId)
+      // Use waitUntil pattern: return response immediately, but keep function alive
+      // Vercel kills detached promises after response is sent, so we use
+      // a streaming approach - send initial status, then await completion
+      
+      // Start execution (awaited within this function's lifetime)
+      const executionPromise = executeIssueAgent(issueId)
         .then(async (result) => {
-          // Agent completed - status already updated in executeIssueAgent
           console.log(`[Deploy] Issue ${issueId} completed:`, result.success ? 'success' : 'failed')
+          if (result.prUrl) {
+            console.log(`[Deploy] PR created: ${result.prUrl}`)
+          }
         })
         .catch(async (error) => {
           console.error(`[Deploy] Issue ${issueId} failed:`, error)
           const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-          await prisma.issue.update({
-            where: { id: issueId },
-            data: { 
-              status: 'identified',  // Reset to allow retry
-              // Store error in generatedOutput field as fallback (no metadata field on Issue model)
-              generatedOutput: JSON.stringify({
-                error: errorMessage,
-                lastAttempt: new Date().toISOString()
-              })
-            }
-          })
+          try {
+            await prisma.issue.update({
+              where: { id: issueId },
+              data: { 
+                status: 'failed',
+                generatedOutput: JSON.stringify({
+                  error: errorMessage,
+                  lastAttempt: new Date().toISOString()
+                })
+              }
+            })
+          } catch (dbError) {
+            console.error(`[Deploy] Failed to update issue status:`, dbError)
+          }
         })
 
-      // Return immediately with processing status
-      return NextResponse.json({
+      // Return processing status immediately to the client
+      const response = NextResponse.json({
         success: true,
         data: {
           issueId,
@@ -124,6 +132,12 @@ export async function POST(
           message: 'Agent execution started. Poll the issue status for updates.'
         }
       })
+      
+      // CRITICAL: Await the execution to keep the Vercel function alive
+      // The response is already sent, but the function stays alive due to maxDuration=300
+      await executionPromise
+      
+      return response
     }
 
     // Sync mode - wait for result (may timeout on Vercel Free tier)

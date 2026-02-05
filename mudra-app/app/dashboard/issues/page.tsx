@@ -1174,18 +1174,20 @@ function IssuesPageInner() {
             i.id === issueId ? { ...i, ...issue } : i
           ))
           
-          if (issue.status === 'resolved') {
+          if (issue.status === 'completed' || issue.status === 'merged') {
             toast.success("Agent completed", {
-              description: issue.prUrl ? `PR created` : "Issue resolved successfully",
+              description: issue.prUrl ? `PR #${issue.prNumber} created` : "Issue resolved successfully",
             })
             setDeployingId(null)
+            fetchIssues()  // Refresh full list
             return  // Stop polling
-          } else if (issue.status === 'identified') {
-            // Reset to identified means it failed
+          } else if (issue.status === 'failed' || issue.status === 'identified') {
+            // Failed or reset to identified means it failed
             toast.error("Agent failed", {
               description: "Check the issue details for error information.",
             })
             setDeployingId(null)
+            fetchIssues()  // Refresh full list
             return  // Stop polling
           }
         }

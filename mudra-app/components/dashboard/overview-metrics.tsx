@@ -388,8 +388,12 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       
       const currentResult = await currentResponse.json()
       
+      // Capture current aggregate score as local variable for use in history processing
+      let currentAggregateScore = 0
+
       if (currentResult.success && currentResult.aggregate) {
-        setAiVisibilityScore(Math.round(currentResult.aggregate.overallScore))
+        currentAggregateScore = Math.round(currentResult.aggregate.overallScore)
+        setAiVisibilityScore(currentAggregateScore)
         setMentionRate(currentResult.aggregate.mentionRate)
         setAveragePosition(currentResult.aggregate.averagePosition)
         setTotalTests(currentResult.aggregate.totalTests || 0)
@@ -442,6 +446,12 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         if (historyResult.success && historyResult.data && historyResult.data.length > 1) {
           // Store full history for chart (reversed so oldest is first)
           const historyScores = historyResult.data.map((h: { overallScore: number }) => h.overallScore || 0).reverse()
+          // Replace the latest point with the current aggregate score so the trend chart
+          // matches the displayed current score (aggregate uses all-runs per-provider methodology
+          // which differs from the per-run stored overallScore)
+          if (historyScores.length > 0 && currentAggregateScore > 0) {
+            historyScores[historyScores.length - 1] = currentAggregateScore
+          }
           setAiVisibilityHistory(historyScores)
           // Track the number of analysis runs for syncing with technical chart
           setAnalysisRunCount(historyResult.data.length)

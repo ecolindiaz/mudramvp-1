@@ -745,7 +745,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
           <ChevronDown className={`size-3.5 text-white/30 transition-transform ${aiVisibilityExpanded ? 'rotate-180' : ''}`} />
         </div>
         <div className="flex-1 flex flex-col justify-center">
-          {loadingAIVisibility ? (
+          {loadingAIVisibility || isRunningAnalysis ? (
             <div className="h-9 w-24 rounded bg-white/[0.06] animate-pulse" />
           ) : (
             <div className="flex items-end justify-between">
@@ -761,9 +761,9 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
             </div>
           )}
         </div>
-        
+
         {/* Expanded Details */}
-        {aiVisibilityExpanded && !loadingAIVisibility && (
+        {aiVisibilityExpanded && !loadingAIVisibility && !isRunningAnalysis && (
           <div className="mt-4 pt-4 border-t border-white/[0.06]">
             {/* KPI Chart */}
             {aiVisibilityHistory.length >= 2 ? (
@@ -863,7 +863,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         
         {!aiVisibilityExpanded && (
           <div className="mt-auto pt-3 border-t border-white/[0.06]">
-            {loadingAIVisibility ? (
+            {loadingAIVisibility || isRunningAnalysis ? (
               <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
             ) : (
               <span className="text-xs text-white/30">
@@ -890,7 +890,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
           </Tooltip>
         </div>
         <div className="flex-1 flex flex-col justify-center">
-          {loadingAIVisibility ? (
+          {loadingAIVisibility || isRunningAnalysis ? (
             <div className="h-9 w-20 rounded bg-white/[0.06] animate-pulse" />
           ) : (
             <div className="flex items-end justify-between">
@@ -909,7 +909,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
           )}
         </div>
         <div className="mt-auto pt-3 border-t border-white/[0.06]">
-          {loadingAIVisibility ? (
+          {loadingAIVisibility || isRunningAnalysis ? (
             <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
           ) : (
             <span className="text-xs text-white/30">
@@ -941,7 +941,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
           <ChevronDown className={`size-3.5 text-white/30 transition-transform ${technicalScoreExpanded ? 'rotate-180' : ''}`} />
         </div>
         <div className="flex-1 flex flex-col justify-center">
-          {loadingTechnical ? (
+          {loadingTechnical || isRunningAnalysis ? (
             <div className="h-9 w-24 rounded bg-white/[0.06] animate-pulse" />
           ) : (
             <div className="flex items-end justify-between">
@@ -959,7 +959,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         </div>
         
         {/* Expanded Details */}
-        {technicalScoreExpanded && !loadingTechnical && !isGeneratingScore && (
+        {technicalScoreExpanded && !loadingTechnical && !isRunningAnalysis && !isGeneratingScore && (
           <div className="mt-4 pt-4 border-t border-white/[0.06]">
             {/* KPI Chart */}
             {(() => {
@@ -1066,7 +1066,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
 
         {!technicalScoreExpanded && (
           <div className="mt-auto pt-3 border-t border-white/[0.06]">
-            {loadingTechnical ? (
+            {loadingTechnical || isRunningAnalysis ? (
               <div className="h-4 w-32 rounded bg-white/[0.06] animate-pulse" />
             ) : (
               <span className="text-xs text-white/30">

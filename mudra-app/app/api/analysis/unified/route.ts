@@ -69,7 +69,6 @@ export async function POST(request: NextRequest) {
       competitors: competitors || [],
       skipCooldown,
       generateReport,
-      maxPrompts: 25, // Limit to 25 prompts for faster dashboard analysis (avoids Vercel timeout)
     });
 
     if (result.success) {

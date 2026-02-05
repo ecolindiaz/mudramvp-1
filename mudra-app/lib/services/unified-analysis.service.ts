@@ -23,6 +23,7 @@ export interface UnifiedAnalysisConfig {
   competitors?: string[];
   skipCooldown?: boolean; // For dashboard re-runs
   generateReport?: boolean; // Generate natural language report
+  maxPrompts?: number; // Limit prompts for faster analysis (dashboard uses ~25, onboarding uses 50)
 }
 
 export interface UnifiedAnalysisResult {
@@ -235,11 +236,20 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
     });
 
     // Call DirectGEO service directly (avoids HTTP auth issues)
+    // Limit prompts if maxPrompts is specified (for faster dashboard runs)
+    const limitedPrompts = config.maxPrompts 
+      ? prompts.slice(0, config.maxPrompts)
+      : prompts;
+    
+    if (config.maxPrompts && prompts.length > config.maxPrompts) {
+      console.log(`[GEO Core] Limiting to ${config.maxPrompts} prompts (from ${prompts.length}) for faster analysis`);
+    }
+
     const geoConfig = createDirectGEOConfig(config.brandName, config.website, {
       industry: config.industry || '',
       description: config.description || '',
       competitors: config.competitors || [],
-      customPrompts: prompts.map(p => ({
+      customPrompts: limitedPrompts.map(p => ({
         text: p.text,
         category: p.category || undefined, // Pass category for intent weighting (convert null to undefined)
       })),

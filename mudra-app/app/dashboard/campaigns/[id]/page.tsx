@@ -16,6 +16,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, FileCode, Edit } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { BlogSetupDialog } from "@/components/content-lab/blog-setup-dialog"
 
 // Helper function to accurately count words in markdown content
 function countWordsInMarkdown(content: string): number {
@@ -110,6 +111,7 @@ function CampaignCanvasPageInner({
     prUrl?: string
   } | null>(null)
   const [publishing, setPublishing] = React.useState(false)
+  const [blogSetupDialogOpen, setBlogSetupDialogOpen] = React.useState(false)
   const [publishResult, setPublishResult] = React.useState<{
     success: boolean
     prUrl?: string
@@ -388,8 +390,8 @@ function CampaignCanvasPageInner({
                   <Button 
                     onClick={async () => {
                       if (!blogSetupStatus?.canPublish) {
-                        // Show message about needing to set up blog first
-                        alert(blogSetupStatus?.actionRequired || 'Please set up your blog first')
+                        // Open blog setup dialog instead of alert
+                        setBlogSetupDialogOpen(true)
                         return
                       }
                       
@@ -483,6 +485,21 @@ function CampaignCanvasPageInner({
                 </div>
               </div>
             </div>
+
+          {/* Blog Setup Dialog */}
+          <BlogSetupDialog
+            open={blogSetupDialogOpen}
+            onOpenChange={setBlogSetupDialogOpen}
+            onStatusChange={(status) => {
+              setBlogSetupStatus({
+                canPublish: status.canPublish,
+                setupStatus: status.setupStatus,
+                message: status.message,
+                actionRequired: status.actionRequired,
+                prUrl: status.prUrl,
+              })
+            }}
+          />
 
           {/* Header Divider */}
           <div className="h-[0.25px] bg-white/10"></div>

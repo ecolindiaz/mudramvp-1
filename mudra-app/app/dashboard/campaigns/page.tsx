@@ -29,6 +29,7 @@ import {
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { AIOptimizedGenerator, type GeneratingContent } from "@/components/content-lab/ai-optimized-generator"
+import { BlogSetupDialog } from "@/components/content-lab/blog-setup-dialog"
  
 
 // Format types mapping
@@ -121,6 +122,43 @@ function CampaignsPageInner() {
   // Track content being generated (for showing in table when dialog is closed)
   const [generatingContent, setGeneratingContent] = useState<GeneratingContent | null>(null)
   const [generatorDialogOpen, setGeneratorDialogOpen] = useState(false)
+
+  // Blog setup status
+  const [blogSetupStatus, setBlogSetupStatus] = useState<{
+    canPublish: boolean
+    setupStatus: 'not_started' | 'pr_open' | 'ready'
+    message: string
+    actionRequired?: string
+    prUrl?: string
+  } | null>(null)
+  const [blogSetupDialogOpen, setBlogSetupDialogOpen] = useState(false)
+  const [blogStatusLoading, setBlogStatusLoading] = useState(true)
+
+  // Fetch blog setup status
+  useEffect(() => {
+    const fetchBlogStatus = async () => {
+      try {
+        const res = await fetch('/api/content-lab/blog-status')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success) {
+            setBlogSetupStatus({
+              canPublish: data.canPublish,
+              setupStatus: data.setupStatus,
+              message: data.message,
+              actionRequired: data.actionRequired,
+              prUrl: data.prUrl,
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch blog status:', error)
+      } finally {
+        setBlogStatusLoading(false)
+      }
+    }
+    fetchBlogStatus()
+  }, [])
 
   // Restore generating content from localStorage on mount (for page refresh)
   useEffect(() => {
@@ -442,6 +480,59 @@ function CampaignsPageInner() {
 
           {/* Clean Divider Line - Full Width */}
           <div className="h-[0.25px] bg-white/10"></div>
+
+          {/* Blog Setup Banner */}
+          {!blogStatusLoading && blogSetupStatus && !blogSetupStatus.canPublish && (
+            <div className="px-4 lg:px-6 pt-4">
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center justify-center size-8 rounded-md bg-amber-500/10 border border-amber-500/20 flex-shrink-0">
+                    <FileText className="size-4 text-amber-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white truncate">
+                      {blogSetupStatus.setupStatus === 'pr_open'
+                        ? 'Blog setup PR ready — merge to start publishing'
+                        : 'Blog not configured — set up to start publishing'}
+                    </p>
+                    <p className="text-xs text-white/40 mt-0.5">
+                      {blogSetupStatus.setupStatus === 'pr_open'
+                        ? 'Merge the Pull Request and all your content can go live.'
+                        : 'Our AI agent will create blog infrastructure on your website.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex-shrink-0">
+                  {blogSetupStatus.setupStatus === 'pr_open' && blogSetupStatus.prUrl ? (
+                    <a
+                      href={blogSetupStatus.prUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-medium transition-colors border border-amber-500/20"
+                    >
+                      View PR
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => setBlogSetupDialogOpen(true)}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-white/10 text-white hover:bg-white/15 text-xs font-medium transition-colors border border-white/[0.06]"
+                    >
+                      Set Up Blog
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Blog Setup Dialog */}
+          <BlogSetupDialog
+            open={blogSetupDialogOpen}
+            onOpenChange={setBlogSetupDialogOpen}
+            onStatusChange={(status) => {
+              setBlogSetupStatus(status)
+            }}
+          />
 
           {/* Progress Animation - Shown on main page when generating */}
           {isGenerating && (

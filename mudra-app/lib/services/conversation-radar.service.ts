@@ -862,7 +862,30 @@ export async function analyzeNewOpportunities(
   }
   
   console.log(`[Conversation Radar] Analysis complete: ${analyzed} analyzed, ${errors} errors`);
-  
+
+  // Notification: new opportunities analyzed
+  if (analyzed > 0) {
+    try {
+      const profile = await prisma.brandProfile.findUnique({
+        where: { id: brandProfileId },
+        select: { userId: true },
+      });
+      if (profile?.userId) {
+        const { createNotification } = await import('./notification.service');
+        await createNotification({
+          userId: profile.userId,
+          brandProfileId,
+          type: 'info',
+          category: 'radar_opportunity',
+          title: `${analyzed} New Conversation ${analyzed === 1 ? 'Opportunity' : 'Opportunities'}`,
+          message: `We found ${analyzed} new Reddit conversations relevant to your brand.`,
+          actionUrl: '/dashboard/conversation-radar',
+          metadata: { analyzed, errors },
+        });
+      }
+    } catch (e) { console.warn('[Notification] Failed to create radar notification:', e); }
+  }
+
   return { analyzed, errors };
 }
 

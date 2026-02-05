@@ -168,6 +168,29 @@ export async function runUnifiedAnalysis(
         const { discoverIssues } = await import('./issue-discovery.service');
         const discoveryResult = await discoverIssues(config.brandProfileId);
         console.log(`[Unified Analysis] Issue discovery: ${discoveryResult.discovered} new issues`);
+
+        // Notification: new issues created
+        if (discoveryResult.discovered > 0) {
+          try {
+            const profile = await prisma.brandProfile.findUnique({
+              where: { id: config.brandProfileId },
+              select: { userId: true },
+            });
+            if (profile?.userId) {
+              const { createNotification } = await import('./notification.service');
+              await createNotification({
+                userId: profile.userId,
+                brandProfileId: config.brandProfileId,
+                type: 'info',
+                category: 'issues_created',
+                title: `${discoveryResult.discovered} New Issues Found`,
+                message: `We found ${discoveryResult.discovered} new optimization opportunities for your website.`,
+                actionUrl: '/dashboard/issues',
+                metadata: { discovered: discoveryResult.discovered },
+              });
+            }
+          } catch (e) { console.warn('[Notification] Failed to create issues notification:', e); }
+        }
       } catch (discoveryError) {
         console.warn('[Unified Analysis] Issue discovery failed (non-fatal):', discoveryError);
       }
@@ -183,6 +206,29 @@ export async function runUnifiedAnalysis(
       if (!result.geoAnalysisId && !result.technicalAnalysisId) {
         result.success = false;
       }
+    }
+
+    // Notification: analysis complete
+    if (result.success) {
+      try {
+        const profile = await prisma.brandProfile.findUnique({
+          where: { id: config.brandProfileId },
+          select: { userId: true },
+        });
+        if (profile?.userId) {
+          const { createNotification } = await import('./notification.service');
+          await createNotification({
+            userId: profile.userId,
+            brandProfileId: config.brandProfileId,
+            type: 'success',
+            category: 'analysis_complete',
+            title: 'Analysis Complete',
+            message: `Your website analysis is ready.${result.scores?.aiVisibility ? ` AI Visibility: ${Math.round(result.scores.aiVisibility)}/100` : ''}${result.scores?.technical ? `, Technical: ${Math.round(result.scores.technical)}/100` : ''}`,
+            actionUrl: '/dashboard',
+            metadata: { scores: result.scores },
+          });
+        }
+      } catch (e) { console.warn('[Notification] Failed to create analysis notification:', e); }
     }
 
     return result;

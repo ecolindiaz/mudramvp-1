@@ -197,6 +197,27 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
   // Log ready
   await logNlrJob({ companyId, weekStartUtc: weekStart.toISOString(), status: 'ready', modelId: usedModelId, tokenIn: tokensIn, tokenOut: tokensOut, costCents })
 
+  // Notification: report ready
+  try {
+    const profile = await prisma.brandProfile.findFirst({
+      where: { siteId: companyId },
+      select: { id: true, userId: true },
+    });
+    if (profile?.userId) {
+      const { createNotification } = await import('@/lib/services/notification.service');
+      await createNotification({
+        userId: profile.userId,
+        brandProfileId: profile.id,
+        type: 'success',
+        category: 'report_ready',
+        title: 'Weekly Report Ready',
+        message: 'Your natural language report has been generated and is ready to review.',
+        actionUrl: '/dashboard',
+        metadata: { reportId: report.id, model: usedModelId },
+      });
+    }
+  } catch (e) { console.warn('[Notification] Failed to create report notification:', e); }
+
   // Minimal sections: What's Changed + Highlights placeholders (extend later)
   const sections: { key: string; title: string; bodyMarkdown: string }[] = []
   sections.push({ key: 'whats_changed', title: "What's Changed", bodyMarkdown: '' })

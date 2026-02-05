@@ -69,6 +69,10 @@ function NotificationsPageInner() {
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("notifications")
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const nextCursorRef = React.useRef<string | null>(null)
+  const sentinelRef = React.useRef<HTMLDivElement>(null)
   const [settings, setSettings] = useState<NotificationSettings>({
     email: {
       analysisComplete: true,
@@ -98,19 +102,59 @@ function NotificationsPageInner() {
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch("/api/notifications")
+      const response = await fetch("/api/notifications?limit=20")
+      if (!response.ok) return
       const result = await response.json()
-      
-      if (response.ok && result.data) {
+
+      if (result.data) {
         setNotifications(result.data.map((notif: any) => ({
           ...notif,
           timestamp: new Date(notif.timestamp)
         })))
+        setHasMore(result.hasMore ?? false)
+        nextCursorRef.current = result.nextCursor ?? null
       }
     } catch (error) {
       console.error("Error fetching notifications:", error)
     }
   }
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || !nextCursorRef.current) return
+    setLoadingMore(true)
+    try {
+      const response = await fetch(`/api/notifications?limit=20&cursor=${nextCursorRef.current}`)
+      if (!response.ok) return
+      const result = await response.json()
+      if (result.data) {
+        setNotifications(prev => [
+          ...prev,
+          ...result.data.map((notif: any) => ({
+            ...notif,
+            timestamp: new Date(notif.timestamp),
+          })),
+        ])
+        setHasMore(result.hasMore ?? false)
+        nextCursorRef.current = result.nextCursor ?? null
+      }
+    } catch (error) {
+      console.error("Error loading more notifications:", error)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore() },
+      { threshold: 0.1 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, loadingMore]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSettings = async () => {
     try {
@@ -382,6 +426,7 @@ function NotificationsPageInner() {
                           </CardContent>
                         </Card>
                       ))}
+                      {hasMore && <div ref={sentinelRef} className="h-1" />}
                     </div>
                   ) : (
                     <Card className="bg-transparent border-white/[0.04]">

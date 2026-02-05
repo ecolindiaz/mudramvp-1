@@ -60,6 +60,7 @@ model BrandProfile {
   campaigns                  Campaign[]
   conversationOpportunities  ConversationOpportunity[]
   issues                     Issue[]
+  notifications              Notification[]
 
   // Issue discovery pagination
   issueDiscoveryPageIndex    Int      @default(0)  // Current page index for issue discovery
@@ -178,6 +179,7 @@ model User {
   githubIntegration   GitHubIntegration?
   accounts            Account[]
   sessions            Session[]
+  notifications       Notification[]
 
   @@index([githubId])
   @@map("users")
@@ -1044,4 +1046,25 @@ model AIModelLog {
   @@index([createdAt])
   @@index([feature, createdAt])
   @@map("ai_model_logs")
+}
+
+model Notification {
+  id             Int           @id @default(autoincrement())
+  userId         String
+  brandProfileId Int?
+  type           String        // 'success' | 'warning' | 'info' | 'error'
+  category       String        // 'analysis_complete' | 'issues_created' | 'content_ready' | 'radar_opportunity' | 'report_ready'
+  title          String
+  message        String
+  actionUrl      String?
+  metadata       Json?
+  read           Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandProfile   BrandProfile? @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }

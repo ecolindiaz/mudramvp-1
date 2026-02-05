@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { RefreshCw, Bell, CheckCheck, X } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { RefreshCw, Bell, CheckCheck, X, Check, AlertTriangle } from "lucide-react"
 import {
   Popover,
   PopoverContent,
@@ -10,10 +11,12 @@ import {
 
 interface Notification {
   id: string
-  icon: React.ReactNode
+  type: "success" | "warning" | "info" | "error"
+  title: string
   message: string
   timestamp: string
-  isRead?: boolean
+  read: boolean
+  actionUrl?: string
 }
 
 interface InboxPanelProps {
@@ -22,28 +25,136 @@ interface InboxPanelProps {
   children: React.ReactNode
 }
 
+function getNotificationIcon(type: string) {
+  switch (type) {
+    case "success":
+      return <Check className="w-3.5 h-3.5" />
+    case "warning":
+      return <AlertTriangle className="w-3.5 h-3.5" />
+    case "error":
+      return <X className="w-3.5 h-3.5" />
+    default:
+      return <Bell className="w-3.5 h-3.5" />
+  }
+}
+
+function timeAgo(dateStr: string): string {
+  const now = Date.now()
+  const then = new Date(dateStr).getTime()
+  const diffMs = now - then
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return "just now"
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `${diffHr}h ago`
+  const diffDays = Math.floor(diffHr / 24)
+  if (diffDays < 7) return `${diffDays}d ago`
+  return `${Math.floor(diffDays / 7)}w ago`
+}
+
 export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
-  // Mock notifications data - replace with real data later
-  const [notifications, setNotifications] = React.useState<Notification[]>([
-    {
-      id: "1",
-      icon: <RefreshCw className="w-3.5 h-3.5" />,
-      message: "Backsync complete: nano@trymudra.com synced back to December 18, 2025",
-      timestamp: "20h ago",
-      isRead: false,
-    },
-  ])
+  const router = useRouter()
+  const [notifications, setNotifications] = React.useState<Notification[]>([])
+  const [loading, setLoading] = React.useState(false)
+  const [loadingMore, setLoadingMore] = React.useState(false)
+  const [hasMore, setHasMore] = React.useState(false)
+  const nextCursorRef = React.useRef<string | null>(null)
+  const scrollRef = React.useRef<HTMLDivElement>(null)
 
-  const unreadCount = notifications.filter(n => !n.isRead).length
+  const fetchNotifications = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications?limit=20")
+      if (!res.ok) return
+      const result = await res.json()
+      if (result.data) {
+        setNotifications(result.data)
+        setHasMore(result.hasMore ?? false)
+        nextCursorRef.current = result.nextCursor ?? null
+      }
+    } catch (e) {
+      console.error("Error fetching notifications:", e)
+    }
+  }, [])
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
+  const loadMore = React.useCallback(async () => {
+    if (loadingMore || !hasMore || !nextCursorRef.current) return
+    setLoadingMore(true)
+    try {
+      const res = await fetch(`/api/notifications?limit=20&cursor=${nextCursorRef.current}`)
+      if (!res.ok) return
+      const result = await res.json()
+      if (result.data) {
+        setNotifications(prev => [...prev, ...result.data])
+        setHasMore(result.hasMore ?? false)
+        nextCursorRef.current = result.nextCursor ?? null
+      }
+    } catch (e) {
+      console.error("Error loading more notifications:", e)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loadingMore, hasMore])
+
+  // Fetch on open + poll every 60s when open
+  React.useEffect(() => {
+    if (open) {
+      fetchNotifications()
+      const interval = setInterval(fetchNotifications, 60000)
+      return () => clearInterval(interval)
+    }
+  }, [open, fetchNotifications])
+
+  // Also refetch on window focus
+  React.useEffect(() => {
+    const onFocus = () => fetchNotifications()
+    window.addEventListener("focus", onFocus)
+    return () => window.removeEventListener("focus", onFocus)
+  }, [fetchNotifications])
+
+  // Infinite scroll: load more when near bottom
+  React.useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onScroll = () => {
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
+        loadMore()
+      }
+    }
+    el.addEventListener("scroll", onScroll)
+    return () => el.removeEventListener("scroll", onScroll)
+  }, [loadMore])
+
+  const unreadCount = notifications.filter(n => !n.read).length
+
+  const markAllAsRead = async () => {
+    setLoading(true)
+    try {
+      await fetch("/api/notifications/read-all", { method: "POST" })
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    } catch (e) {
+      console.error("Error marking all as read:", e)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev => prev.map(n => 
-      n.id === id ? { ...n, isRead: true } : n
-    ))
+  const markAsRead = async (id: string) => {
+    try {
+      await fetch(`/api/notifications/${id}/read`, { method: "PATCH" })
+      setNotifications(prev => prev.map(n =>
+        n.id === id ? { ...n, read: true } : n
+      ))
+    } catch (e) {
+      console.error("Error marking as read:", e)
+    }
+  }
+
+  const handleClick = (notification: Notification) => {
+    if (!notification.read) markAsRead(notification.id)
+    if (notification.actionUrl) {
+      onOpenChange(false)
+      router.push(notification.actionUrl)
+    }
   }
 
   return (
@@ -82,7 +193,8 @@ export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
             {unreadCount > 0 ? (
               <button
                 onClick={markAllAsRead}
-                className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
+                disabled={loading}
+                className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors disabled:opacity-50"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 Mark all read
@@ -99,17 +211,17 @@ export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
         </div>
 
         {/* Notifications List */}
-        <div className="max-h-[360px] overflow-y-auto">
+        <div ref={scrollRef} className="max-h-[360px] overflow-y-auto">
           {notifications.length > 0 ? (
             <div>
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => handleClick(notification)}
                   className={`
                     relative px-4 py-3 cursor-pointer transition-all duration-200
                     hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0
-                    ${!notification.isRead ? 'bg-white/[0.02]' : ''}
+                    ${!notification.read ? 'bg-white/[0.02]' : ''}
                   `}
                 >
                   <div className="flex items-start gap-3">
@@ -118,20 +230,23 @@ export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
                       <div className="w-1.5 flex-shrink-0">
                         <div
                           className={`w-1.5 h-1.5 rounded-full bg-blue-500 transition-all duration-200 ${
-                            !notification.isRead ? 'opacity-100 scale-100' : 'opacity-0 scale-0'
+                            !notification.read ? 'opacity-100 scale-100' : 'opacity-0 scale-0'
                           }`}
                         />
                       </div>
                       <div className="flex-shrink-0 p-1.5 rounded-md bg-white/[0.05] text-white/50">
-                        {notification.icon}
+                        {getNotificationIcon(notification.type)}
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[13px] leading-relaxed transition-colors duration-200 ${notification.isRead ? 'text-white/50' : 'text-white/80'}`}>
+                      <p className={`text-[13px] font-medium leading-relaxed transition-colors duration-200 ${notification.read ? 'text-white/50' : 'text-white/90'}`}>
+                        {notification.title}
+                      </p>
+                      <p className={`text-[12px] leading-relaxed mt-0.5 ${notification.read ? 'text-white/30' : 'text-white/60'}`}>
                         {notification.message}
                       </p>
                       <span className="text-[11px] text-white/30 mt-1 block">
-                        {notification.timestamp}
+                        {timeAgo(notification.timestamp)}
                       </span>
                     </div>
                   </div>

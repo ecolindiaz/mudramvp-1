@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeWeeklyAnalysis } from '@/lib/services/cron.service';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // 5 minutes max execution time
+export const maxDuration = 540; // 9 minutes - allows full 50-prompt analysis
 
 /**
  * POST /api/cron/weekly-analysis

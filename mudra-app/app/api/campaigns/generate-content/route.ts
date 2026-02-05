@@ -65,6 +65,20 @@ export async function POST(req: NextRequest) {
       body = content.replace(/^#\s+.+$/m, "").trim();
     }
 
+    // Notification: content ready
+    try {
+      const { createNotification } = await import('@/lib/services/notification.service');
+      await createNotification({
+        userId: authResult.user.id,
+        type: 'success',
+        category: 'content_ready',
+        title: 'Content Ready',
+        message: `Your ${formatLabel} "${generatedTitle || title || 'Untitled'}" has been generated.`,
+        actionUrl: '/dashboard/content-lab',
+        metadata: { type, wordCount: body.split(/\s+/).length },
+      });
+    } catch (e) { console.warn('[Notification] Failed to create content notification:', e); }
+
     return NextResponse.json({
       success: true,
       title: generatedTitle || `Generated ${type} Post`,

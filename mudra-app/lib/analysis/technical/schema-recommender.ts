@@ -2,7 +2,7 @@
  * LLM-Powered Schema Recommender
  *
  * Recommends JSON-LD schema types for a page based on its content.
- * Uses Gemini 3 Pro for semantic understanding with heuristic fallback.
+ * Uses OpenAI GPT-5.2 for semantic understanding with heuristic fallback.
  *
  * Fixes three false-positive/negative classes from the old heuristic:
  * 1. SoftwareApplication recommended for every homepage (false positive for non-SaaS)
@@ -11,15 +11,12 @@
  */
 
 import { generateText } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { openai } from "@ai-sdk/openai";
 import { logAIModelCall, estimateAICost } from "@/lib/services/ai-model-logging.service";
-import type { DOMExtraction, RelevantSchemaType } from "./types";
+import type { DOMExtraction } from "./types";
 import { isBlogIndex } from "./dom-extractor";
 
-const google = createGoogleGenerativeAI({
-	apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-});
-const MODEL = google("gemini-3-pro-preview");
+const MODEL = openai("gpt-5.2");
 
 const VALID_SCHEMA_TYPES: Set<string> = new Set([
 	"Organization",
@@ -243,7 +240,7 @@ export async function getRecommendedSchemasWithAI(
 		const tokensOut =
 			(res as any).usage?.completionTokens ?? Math.ceil(text.length / 4);
 		const costCents = Math.round(
-			estimateAICost("gemini-3-pro", tokensIn, tokensOut) * 100
+			estimateAICost("gpt-5.2", tokensIn, tokensOut) * 100
 		) / 100;
 
 		const llmResult = parseLLMResponse(text);
@@ -251,8 +248,8 @@ export async function getRecommendedSchemasWithAI(
 		logAIModelCall({
 			feature: "technical-analysis",
 			endpoint: "getRecommendedSchemasWithAI",
-			model: "gemini-3-pro-preview",
-			provider: "google",
+			model: "gpt-5.2",
+			provider: "openai",
 			status: "success",
 			latencyMs,
 			tokensIn,
@@ -285,8 +282,8 @@ export async function getRecommendedSchemasWithAI(
 		logAIModelCall({
 			feature: "technical-analysis",
 			endpoint: "getRecommendedSchemasWithAI",
-			model: "gemini-3-pro-preview",
-			provider: "google",
+			model: "gpt-5.2",
+			provider: "openai",
 			status: "error",
 			latencyMs,
 			errorMessage: (err as Error).message,

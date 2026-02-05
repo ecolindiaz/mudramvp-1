@@ -166,6 +166,7 @@ export function estimateAICost(
   const pricing: Record<string, { input: number; output: number }> = {
     // OpenAI
     'gpt-5': { input: 0.5, output: 1.5 },
+    'gpt-5.2': { input: 0.5, output: 1.5 },
     'gpt-5.1': { input: 0.5, output: 1.5 },
     'gpt-4': { input: 3.0, output: 6.0 },
     'gpt-4-turbo': { input: 1.0, output: 3.0 },

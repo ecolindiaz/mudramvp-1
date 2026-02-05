@@ -940,8 +940,9 @@ function IssuesPageInner() {
   // Drag state
   const [activeId, setActiveId] = React.useState<number | null>(null)
   
-  // Brand profile for analysis
-  const { profile } = useBrandProfile()
+  // Brand profile for analysis - with safety check
+  const brandProfileContext = useBrandProfile()
+  const profile = brandProfileContext?.profile ?? null
 
   // Analysis cooldown state
   const [canRunAnalysis, setCanRunAnalysis] = React.useState(false)

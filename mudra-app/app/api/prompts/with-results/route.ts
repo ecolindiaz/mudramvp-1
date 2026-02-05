@@ -369,11 +369,17 @@ export async function GET(request: NextRequest) {
 
     // Step 5: Match prompt texts from analysis with Prompt records using normalized text
     const normalizeText = (text: string): string => {
-      return text
+      let normalized = text
         .toLowerCase()
         .trim()
         .replace(/[^\w\s]/g, '')
         .replace(/\s+/g, ' ')
+      
+      // Strip common brand prefixes (Try*, Get*, Use*) to handle brand name changes
+      // e.g., "TryMudra" vs "Mudra", "GetFireGeo" vs "FireGeo"
+      normalized = normalized.replace(/^(try|get|use)\s*/, '')
+      
+      return normalized
     }
 
     // Create a map of normalized text to prompt records
@@ -385,6 +391,7 @@ export async function GET(request: NextRequest) {
 
     // Match tested prompts with database records
     const matchedPrompts = []
+    const unmatchedTestedPrompts = []
     for (const promptText of promptTextsArray) {
       const normalized = normalizeText(promptText)
       const promptRecord = promptMap.get(normalized)
@@ -395,12 +402,24 @@ export async function GET(request: NextRequest) {
           originalText: promptText // Keep the original text from analysis
         })
       } else {
-        // Prompt was tested but not in database (shouldn't happen normally)
-        console.warn(`⚠️  Prompt not found in database: "${promptText.substring(0, 50)}..."`)
+        // Prompt was tested but not in database (likely due to brand name change)
+        console.log(`ℹ️  Prompt tested but not in DB (likely brand name mismatch): "${promptText.substring(0, 50)}..."`)
+        // Create a synthetic prompt record so it still appears in results
+        unmatchedTestedPrompts.push({
+          id: -1 * (unmatchedTestedPrompts.length + 1), // Negative ID to identify synthetic records
+          brandProfileId: profileId,
+          text: promptText,
+          category: 'Brand-Specific', // Default category
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          originalText: promptText
+        })
       }
     }
 
     console.log(`✅ Matched ${matchedPrompts.length} prompts from analysis with database records`)
+    console.log(`📋 Found ${unmatchedTestedPrompts.length} tested prompts not in database (likely brand name mismatch)`)
 
     // Create a set of matched prompt IDs for quick lookup
     const matchedPromptIds = new Set(matchedPrompts.map((p: any) => p.id))
@@ -413,10 +432,10 @@ export async function GET(request: NextRequest) {
         originalText: p.text
       }))
 
-    console.log(`📋 Including ${unmatchedPrompts.length} additional prompts without analysis results`)
+    console.log(`📋 Including ${unmatchedPrompts.length} additional database prompts without analysis results`)
 
-    // Combine matched (with results) and unmatched (pending/new) prompts
-    const prompts = [...matchedPrompts, ...unmatchedPrompts]
+    // Combine ALL prompts: matched (DB + results), unmatched tested (results only), and unmatched DB (DB only)
+    const prompts = [...matchedPrompts, ...unmatchedTestedPrompts, ...unmatchedPrompts]
 
     // Build a map of prompts with their results (including ALL providers)
     const promptsWithResults = prompts.map((prompt: any) => {

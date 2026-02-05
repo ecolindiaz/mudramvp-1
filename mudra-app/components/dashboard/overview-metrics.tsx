@@ -31,6 +31,15 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   // Track when we last fetched data to detect if we need to refresh
   const lastFetchedRef = useRef<number>(0)
 
+  // Refs to always call the latest version of fetch functions from event listeners
+  // This prevents stale closures when the event fires after selectedModel/days change
+  const fetchFnsRef = useRef<{
+    fetchAiVisibilityHistory: () => Promise<void>
+    fetchTechnicalHistory: () => Promise<void>
+    fetchTrafficMetrics: () => Promise<void>
+    fetchAiReferralTraffic: () => Promise<void>
+  }>(null as any)
+
   // AI Referral Tracking modal state
   const [showTrackingModal, setShowTrackingModal] = useState(false)
   const [scriptCopied, setScriptCopied] = useState(false)
@@ -233,6 +242,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   // State for AI Visibility score
   const [aiVisibilityScore, setAiVisibilityScore] = useState(0)
   const [aiVisibilityPrevious, setAiVisibilityPrevious] = useState<number | null>(null)
+  // Latest run's stored score (same methodology as previous) — used for delta comparison
+  const [aiVisibilityLatestRun, setAiVisibilityLatestRun] = useState<number | null>(null)
   const [hasAiHistory, setHasAiHistory] = useState(false)
   const [aiVisibilityHistory, setAiVisibilityHistory] = useState<number[]>([])
   // Track the number of analysis runs (used to sync chart data points)
@@ -411,6 +422,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         setTotalTests(0)
         setHasAiHistory(false)
         setAiVisibilityPrevious(null)
+        setAiVisibilityLatestRun(null)
         setAiVisibilityHistory([])
         setAveragePositionPrevious(null)
         setHasPositionHistory(false)
@@ -423,6 +435,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         // When filtering by a specific model, we don't have historical comparison data
         setHasAiHistory(false)
         setAiVisibilityPrevious(null)
+        setAiVisibilityLatestRun(null)
         setAiVisibilityHistory([])
         setAveragePositionPrevious(null)
         setHasPositionHistory(false)
@@ -457,9 +470,14 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
           setAnalysisRunCount(historyResult.data.length)
           console.log('📊 AI Visibility history stored:', historyScores, 'Run count:', historyResult.data.length)
 
-          // Use previous run's score for comparison
+          // Store latest run's stored score (same methodology as previous) for delta comparison
+          const latest = historyResult.data[0]
+          setAiVisibilityLatestRun(Math.round(latest.overallScore || 0))
+          console.log('📊 AI Visibility latest run stored score:', latest.overallScore)
+
+          // Use previous run's score for comparison (same per-run methodology)
           const previous = historyResult.data[1]
-          setAiVisibilityPrevious(previous.overallScore || 0)
+          setAiVisibilityPrevious(Math.round(previous.overallScore || 0))
           setHasAiHistory(true)
           console.log('📊 AI Visibility previous score:', previous.overallScore)
 
@@ -485,6 +503,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         } else {
           setHasAiHistory(false)
           setAiVisibilityPrevious(null)
+          setAiVisibilityLatestRun(null)
           // Set run count for single record or empty
           setAnalysisRunCount(historyResult.data?.length || 0)
         }
@@ -494,6 +513,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       // Set safe defaults on error
       setHasAiHistory(false)
       setAiVisibilityPrevious(null)
+      setAiVisibilityLatestRun(null)
       setAiVisibilityScore(0)
       setAnalysisRunCount(0)
     } finally {
@@ -650,6 +670,14 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
     }
   }
 
+  // Keep refs updated with latest fetch functions (avoids stale closures in event listeners)
+  fetchFnsRef.current = {
+    fetchAiVisibilityHistory,
+    fetchTechnicalHistory,
+    fetchTrafficMetrics,
+    fetchAiReferralTraffic,
+  }
+
   // Initial data fetch - re-fetch when model filter changes
   useEffect(() => {
     if (profile.id) {
@@ -686,15 +714,17 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   }, [profile.id, lastCompletedAt, isRunningAnalysis])
 
   // Listen for analysis completion events
+  // Uses refs to always call the latest fetch functions (avoids stale closures)
   useEffect(() => {
     const handleAnalysisComplete = async () => {
       console.log('🔄 Analysis complete, refreshing all metrics')
-      // Refresh all metrics from database
+      const fns = fetchFnsRef.current
+      // Refresh all metrics from database using latest function references
       await Promise.all([
-        fetchAiVisibilityHistory(),
-        fetchTechnicalHistory(),
-        fetchTrafficMetrics(),
-        fetchAiReferralTraffic()
+        fns.fetchAiVisibilityHistory(),
+        fns.fetchTechnicalHistory(),
+        fns.fetchTrafficMetrics(),
+        fns.fetchAiReferralTraffic()
       ])
       // Update last fetched time
       lastFetchedRef.current = Date.now()
@@ -709,8 +739,11 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   }, [profile.id])
 
   // Calculate deltas for display
+  // Use latest run's stored score vs previous run's stored score (same per-run methodology)
+  // to ensure the comparison is apples-to-apples
+  const aiVisibilityCurrentForDelta = aiVisibilityLatestRun ?? aiVisibilityScore
   const aiVisibilityDelta = hasAiHistory && aiVisibilityPrevious !== null && aiVisibilityPrevious > 0
-    ? Math.round(((aiVisibilityScore - aiVisibilityPrevious) / aiVisibilityPrevious) * 100)
+    ? Math.round(((aiVisibilityCurrentForDelta - aiVisibilityPrevious) / aiVisibilityPrevious) * 100)
     : 0
 
   const organicTrafficDelta = hasTrafficHistory && organicTrafficPrevious !== null && organicTrafficPrevious > 0

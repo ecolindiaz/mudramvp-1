@@ -330,7 +330,7 @@ function SortableIssueCard({
             <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
             <span className="text-[11px] text-white/50">{categoryConf.label}</span>
           </span>
-          {issue.priority !== "medium" && (
+          {issue.priority && issue.priority !== "medium" && priorityConfig[issue.priority] && (
             <span className={`text-[10px] px-1.5 py-0.5 rounded ${priorityConfig[issue.priority].bg} ${priorityConfig[issue.priority].color}`}>
               {issue.priority}
             </span>
@@ -503,6 +503,7 @@ function AnalysisView({ stats, isLoading }: { stats: IssueStats | null; isLoadin
           <div className="flex gap-4">
             {Object.entries(stats.byPriority).map(([priority, count]) => {
               const conf = priorityConfig[priority as keyof typeof priorityConfig]
+              if (!conf) return null
               return (
                 <div key={priority} className={`flex-1 p-4 rounded-xl ${conf.bg} border border-white/[0.06]`}>
                   <div className={`text-2xl font-bold ${conf.color}`}>{count}</div>
@@ -716,7 +717,7 @@ function IssueDetailDialog({
   const categoryConf = categoryConfig[issue.category as keyof typeof categoryConfig] || categoryConfig.technical_structure
   const statusConf = statusConfig[issue.status]
   const StatusIcon = statusConf.icon
-  const priorityConf = priorityConfig[issue.priority]
+  const priorityConf = issue.priority && priorityConfig[issue.priority] ? priorityConfig[issue.priority] : priorityConfig.medium
   
   const canDeploy = issue.status === "identified" && issue.agentType
   const canRetry = issue.status === "failed"

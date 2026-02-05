@@ -18,7 +18,7 @@ import {
   type SandboxResult,
   type SchemaValidationResult
 } from './e2b-sandbox.service'
-import { createOptimizationPR } from './github.service'
+import { createOptimizationPR, checkExistingBlogFiles } from './github.service'
 import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
 
 // Timeout for agent generation (deploy route has maxDuration=300s on Vercel Pro)
@@ -219,6 +219,7 @@ async function buildAgentPrompt(issue: {
   affectedUrl: string | null
   category: string | null
   agentType: string | null
+  brandProfileId: number
   brandProfile: {
     companyName: string | null
     companyWebsite: string | null
@@ -228,6 +229,39 @@ async function buildAgentPrompt(issue: {
   }
 }): Promise<string> {
   const { brandProfile } = issue
+
+  // For blog_setup issues, check what blog files already exist in the repo
+  let blogContext = ''
+  if (issue.agentType === 'blog_setup' || issue.agentType === 'blog_page_missing') {
+    try {
+      const blogCheck = await checkExistingBlogFiles(issue.brandProfileId)
+      if (blogCheck.hasBlog) {
+        blogContext = `
+## ⚠️ EXISTING BLOG DETECTED
+The repository already has blog-related files at these paths:
+${blogCheck.foundPaths.map(p => `- ${p}`).join('\n')}
+
+Detected framework: ${blogCheck.framework}
+
+**CRITICAL: Do NOT create new blog pages that duplicate existing ones.**
+Instead, verify the existing blog works correctly and only generate supplementary files if something is missing (e.g. a [slug] page if only the index exists, or structured data if missing).
+If the blog is already fully set up, return a JSON response with:
+\`\`\`json
+{ "blogCheck": { "found": true, "existingPath": "${blogCheck.foundPaths[0]}", "techStack": "${blogCheck.framework}" }, "filesToCreate": [], "integrationGuide": "Your blog is already set up at /${blogCheck.foundPaths[0].split('/').slice(0, -1).join('/')}. No changes needed." }
+\`\`\`
+`
+      } else {
+        blogContext = `
+## Blog Status
+No existing blog pages were found in the repository.
+Detected framework: ${blogCheck.framework}
+Please generate the full blog infrastructure.
+`
+      }
+    } catch (err) {
+      console.error('[IssueExecutor] Failed to check existing blog files:', err)
+    }
+  }
   
   return `## Task
 Fix this optimization issue for a website.
@@ -245,18 +279,15 @@ Fix this optimization issue for a website.
 - **Industry**: ${brandProfile.companyIndustry || 'Unknown'}
 - **Services**: ${brandProfile.companyServices || 'Unknown'}
 - **Description**: ${brandProfile.companyDescription || 'No description available'}
-
+${blogContext}
 ## Instructions
 1. Generate the fix for this issue
-2. Provide complete, ready-to-implement code or content
-3. Include placement instructions (where to add the code)
-4. Explain the expected impact
+2. Provide ONLY the code/content — no explanations or commentary outside the code block
+3. The code will be committed directly to a file; do not wrap it in markdown explanations
 
 ## Output Format
-Provide your response with:
-1. The generated code/content in a code block
-2. Implementation instructions
-3. Expected benefits`
+Provide ONLY the code in a single code block. No additional text outside the code block.
+The code must be complete and ready to commit as a file.`
 }
 
 /**
@@ -484,6 +515,30 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
     console.log(`[IssueExecutor] Extracting generated content...`)
     const generatedContent = extractGeneratedContent(responseText)
     console.log(`[IssueExecutor] Extracted content length: ${generatedContent.length}`)
+    
+    // 5b. For blog_setup: check if the agent determined blog already exists
+    if ((agentType === 'blog_setup' || agentType === 'blog_page_missing') && generatedContent) {
+      try {
+        const parsed = JSON.parse(generatedContent)
+        if (parsed.blogCheck?.found === true && (!parsed.filesToCreate || parsed.filesToCreate.length === 0)) {
+          console.log(`[IssueExecutor] Blog already exists at ${parsed.blogCheck.existingPath} — skipping PR creation`)
+          await prisma.issue.update({
+            where: { id: issueId },
+            data: {
+              status: 'merged', // Mark as complete so publishing is enabled
+              generatedOutput: generatedContent,
+              outputType: 'code',
+            },
+          })
+          return {
+            success: true,
+            generatedContent: parsed.integrationGuide || 'Blog already set up — no changes needed.',
+          }
+        }
+      } catch {
+        // Not valid JSON, agent returned code — proceed as normal
+      }
+    }
     
     // 6. Validate with E2B if needed
     let e2bValidation: SandboxResult<SchemaValidationResult> | undefined

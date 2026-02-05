@@ -1,5 +1,5 @@
 import { generateSophisticatedPrompts, profileToBrandInfo, type GeneratedPrompts } from './prompt-generation.service';
-import { validateCompetitors, type ValidatedCompetitor } from './competitor-validation.service';
+import { validateCompetitors, quickValidateName, type ValidatedCompetitor } from './competitor-validation.service';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -651,11 +651,11 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
     company = company.replace(/[:\*]+$/, '').trim();
     company = company.split(/\n/)[0].trim(); // Take only first line
     
-    if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2) {
+    if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2 && quickValidateName(company)) {
       positions[company] = pos;
     }
   }
-  
+
   // Method 2: "### 1st Place:" or "### 1st:" format
   const headingRankRegex = /###\s*(\d+)(?:st|nd|rd|th)\s+(?:Place)?:?\s*\*?\*?([^*\n]+)/gi;
   
@@ -664,13 +664,13 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
     let company = match[2].trim();
     company = company.replace(/[:\*]+$/, '').trim();
     
-    if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2) {
+    if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2 && quickValidateName(company)) {
       if (!positions[company]) { // Don't overwrite if already found
         positions[company] = pos;
       }
     }
   }
-  
+
   // Method 3: "1st Place: Company" or "Ranked 1st: Company" inline format
   const inlineRankRegex = /(?:Ranked\s+)?(\d+)(?:st|nd|rd|th)\s+(?:Place)?:?\s+\*?\*?([A-Z][^.\n]{2,40}?)\*?\*?(?=\s|$|\*|\n)/g;
   
@@ -679,13 +679,13 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
     let company = match[2].trim();
     company = company.replace(/[:\*]+$/, '').trim();
     
-    if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2) {
+    if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2 && quickValidateName(company)) {
       if (!positions[company]) {
         positions[company] = pos;
       }
     }
   }
-  
+
   // Method 4: Markdown table rows (extract position from row order)
   // This is specifically for Perplexity responses with tables
   // Extract from tables ONLY if we found fewer than 3 numbered positions
@@ -735,7 +735,7 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
           
           tablePosition++;
           
-          if (company && company.toLowerCase() !== brandName.toLowerCase()) {
+          if (company && company.toLowerCase() !== brandName.toLowerCase() && quickValidateName(company)) {
             // Only add if not already found via numbered list
             if (!positions[company]) {
               positions[company] = tablePosition;

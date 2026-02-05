@@ -11,11 +11,14 @@
  */
 
 import { generateText } from "ai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { logAIModelCall, estimateAICost } from "@/lib/services/ai-model-logging.service";
 import type { DOMExtraction, RelevantSchemaType } from "./types";
 import { isBlogIndex } from "./dom-extractor";
 
+const google = createGoogleGenerativeAI({
+	apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+});
 const MODEL = google("gemini-3-pro-preview");
 
 const VALID_SCHEMA_TYPES: Set<string> = new Set([

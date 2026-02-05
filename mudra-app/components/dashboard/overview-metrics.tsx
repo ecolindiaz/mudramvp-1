@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "react-hot-toast"
+import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts"
 
 interface OverviewMetricsProps {
   showAll?: boolean
@@ -751,36 +752,100 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
           )}
         </div>
         
-        {/* Expanded Chart */}
+        {/* Expanded Details */}
         {aiVisibilityExpanded && !loadingAIVisibility && (
           <div className="mt-4 pt-4 border-t border-white/[0.06]">
+            {/* KPI Chart */}
             {aiVisibilityHistory.length >= 2 ? (
-              <>
-                <div className="h-[80px] flex items-end gap-1">
-                  {aiVisibilityHistory.map((value, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 bg-white/10 rounded-sm transition-all"
-                      style={{ height: `${Math.max(8, value * 0.8)}%` }}
-                    />
-                  ))}
+              <div className="relative">
+                {/* Background dots pattern */}
+                <div className="absolute inset-0 opacity-[0.15] pointer-events-none">
+                  <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <pattern id="ai-dots" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+                        <circle cx="1" cy="1" r="0.5" fill="white" />
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#ai-dots)" />
+                  </svg>
                 </div>
+                
+                <div className="relative h-[80px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart 
+                      data={aiVisibilityHistory.map((value, i) => ({ 
+                        name: `Run ${i + 1}`, 
+                        value: Math.round(value),
+                        index: i + 1
+                      }))}
+                      margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                    >
+                      <XAxis 
+                        dataKey="index" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={false}
+                        hide
+                      />
+                      <YAxis 
+                        domain={['dataMin - 5', 'dataMax + 5']} 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={false}
+                        hide
+                        width={0}
+                      />
+                      <RechartsTooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            return (
+                              <div className="bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 shadow-xl">
+                                <p className="text-[10px] text-white/50 mb-0.5">{payload[0].payload.name}</p>
+                                <p className="text-sm font-medium text-white">{payload[0].value}%</p>
+                              </div>
+                            )
+                          }
+                          return null
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke="rgba(255,255,255,0.7)"
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ fill: '#fff', strokeWidth: 0, r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                
+                {/* Min/Max labels */}
                 <div className="flex justify-between mt-2">
-                  <div className="flex flex-col">
-                    <span className="text-[11px] text-white/50 tabular-nums">
-                      {`${Math.round(aiVisibilityHistory[0])}%`}
-                    </span>
-                    <span className="text-[10px] text-white/30">First</span>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <span className="text-[11px] text-white/50 tabular-nums">{aiVisibilityScore}%</span>
-                    <span className="text-[10px] text-white/30">Now</span>
-                  </div>
+                  <span className="text-[10px] text-white/30 tabular-nums">{Math.round(aiVisibilityHistory[0])}%</span>
+                  <span className="text-[10px] text-white/50 tabular-nums font-medium">{aiVisibilityScore}%</span>
                 </div>
-              </>
+              </div>
             ) : (
-              <div className="h-[80px] flex items-center justify-center">
-                <span className="text-xs text-white/40">Run more analyses to see trends</span>
+              <div className="relative h-[60px] flex flex-col items-center justify-center">
+                {/* Background dots pattern */}
+                <div className="absolute inset-0 opacity-[0.08] pointer-events-none">
+                  <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <pattern id="ai-dots-empty" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+                        <circle cx="1" cy="1" r="0.5" fill="white" />
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#ai-dots-empty)" />
+                  </svg>
+                </div>
+                <span className="text-[11px] text-white/30 relative z-10">
+                  {selectedModel !== 'all' 
+                    ? 'Trend data available for "All Models"' 
+                    : aiVisibilityHistory.length === 1 
+                      ? 'Need one more analysis for trend'
+                      : 'Run an analysis to see trends'}
+                </span>
               </div>
             )}
           </div>
@@ -883,45 +948,108 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
           )}
         </div>
         
-        {/* Expanded Chart */}
+        {/* Expanded Details */}
         {technicalScoreExpanded && !loadingTechnical && !isGeneratingScore && (
           <div className="mt-4 pt-4 border-t border-white/[0.06]">
+            {/* KPI Chart */}
             {(() => {
-              // Sync technical history with GEO analysis run count to ensure both charts match
-              // This handles cases where technical records may exist without corresponding GEO records
               const syncedHistory = analysisRunCount > 0 && technicalScoreHistory.length > analysisRunCount
-                ? technicalScoreHistory.slice(-analysisRunCount)  // Take the most recent N records
+                ? technicalScoreHistory.slice(-analysisRunCount)
                 : technicalScoreHistory
 
+              const lineColor = technicalScore >= 70 ? 'rgba(52,211,153,0.9)' : technicalScore >= 40 ? 'rgba(250,204,21,0.9)' : 'rgba(248,113,113,0.9)'
+              const dotColor = technicalScore >= 70 ? 'rgba(52,211,153,1)' : technicalScore >= 40 ? 'rgba(250,204,21,1)' : 'rgba(248,113,113,1)'
+
               return syncedHistory.length >= 2 ? (
-              <>
-                <div className="h-[80px] flex items-end gap-1">
-                  {syncedHistory.map((value, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 bg-white/10 rounded-sm transition-all"
-                      style={{ height: `${Math.max(8, value * 0.8)}%` }}
-                    />
-                  ))}
-                </div>
-                <div className="flex justify-between mt-2">
-                  <div className="flex flex-col">
-                    <span className="text-[11px] text-white/50 tabular-nums">
-                      {`${Math.round(syncedHistory[0])}%`}
-                    </span>
-                    <span className="text-[10px] text-white/30">First</span>
+                <div className="relative">
+                  {/* Background dots pattern */}
+                  <div className="absolute inset-0 opacity-[0.15] pointer-events-none">
+                    <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <pattern id="tech-dots" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+                          <circle cx="1" cy="1" r="0.5" fill="white" />
+                        </pattern>
+                      </defs>
+                      <rect width="100%" height="100%" fill="url(#tech-dots)" />
+                    </svg>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <span className="text-[11px] text-white/50 tabular-nums">{technicalScore}%</span>
-                    <span className="text-[10px] text-white/30">Now</span>
+                  
+                  <div className="relative h-[80px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart 
+                        data={syncedHistory.map((value, i) => ({ 
+                          name: `Run ${i + 1}`, 
+                          value: Math.round(value),
+                          index: i + 1
+                        }))}
+                        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                      >
+                        <XAxis 
+                          dataKey="index" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={false}
+                          hide
+                        />
+                        <YAxis 
+                          domain={['dataMin - 5', 'dataMax + 5']} 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={false}
+                          hide
+                          width={0}
+                        />
+                        <RechartsTooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              return (
+                                <div className="bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 shadow-xl">
+                                  <p className="text-[10px] text-white/50 mb-0.5">{payload[0].payload.name}</p>
+                                  <p className="text-sm font-medium text-white">{payload[0].value}%</p>
+                                </div>
+                              )
+                            }
+                            return null
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke={lineColor}
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={{ fill: '#fff', strokeWidth: 0, r: 4 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  
+                  {/* Min/Max labels */}
+                  <div className="flex justify-between mt-2">
+                    <span className="text-[10px] text-white/30 tabular-nums">{Math.round(syncedHistory[0])}%</span>
+                    <span className="text-[10px] text-white/50 tabular-nums font-medium">{technicalScore}%</span>
                   </div>
                 </div>
-              </>
-            ) : (
-              <div className="h-[80px] flex items-center justify-center">
-                <span className="text-xs text-white/40">Run more analyses to see trends</span>
-              </div>
-            )
+              ) : (
+                <div className="relative h-[60px] flex flex-col items-center justify-center">
+                  {/* Background dots pattern */}
+                  <div className="absolute inset-0 opacity-[0.08] pointer-events-none">
+                    <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <pattern id="tech-dots-empty" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+                          <circle cx="1" cy="1" r="0.5" fill="white" />
+                        </pattern>
+                      </defs>
+                      <rect width="100%" height="100%" fill="url(#tech-dots-empty)" />
+                    </svg>
+                  </div>
+                  <span className="text-[11px] text-white/30 relative z-10">
+                    {syncedHistory.length === 1 
+                      ? 'Need one more analysis for trend'
+                      : 'Run an analysis to see trends'}
+                  </span>
+                </div>
+              )
             })()}
           </div>
         )}

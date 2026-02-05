@@ -10,7 +10,8 @@ interface Citation {
   provider: string;
 }
 
-const MAX_CITATIONS_PER_MODEL = 3;
+const MAX_CITATIONS_PER_MODEL = 4;
+const MAX_TOTAL_CITATIONS = 6;
 
 interface PromptTest {
   prompt: string;
@@ -95,11 +96,14 @@ export async function GET(request: NextRequest) {
     };
 
     // Collect citations from all providers for the matching prompt
-    // Track citations per provider (max 3 per provider)
+    // Track citations per provider (max 4 per provider, 6 total)
     const citationsByProvider = new Map<string, Citation[]>();
     const seenDomains = new Set<string>();
+    let totalCitations = 0;
 
     for (const providerAnalysis of analyses) {
+      if (totalCitations >= MAX_TOTAL_CITATIONS) break;
+
       const provider = providerAnalysis.provider || 'Unknown';
 
       if (!citationsByProvider.has(provider)) {
@@ -109,6 +113,8 @@ export async function GET(request: NextRequest) {
       const providerCitations = citationsByProvider.get(provider)!;
 
       for (const test of providerAnalysis.promptTests || []) {
+        if (totalCitations >= MAX_TOTAL_CITATIONS) break;
+
         // Match prompt if specified, otherwise collect all citations
         const promptMatches = !promptText ||
           test.prompt?.toLowerCase().includes(promptText.toLowerCase()) ||
@@ -117,7 +123,7 @@ export async function GET(request: NextRequest) {
         if (promptMatches && providerCitations.length < MAX_CITATIONS_PER_MODEL) {
           // Collect citations (inline citations from response)
           for (const citation of test.citations || []) {
-            if (citation.url && providerCitations.length < MAX_CITATIONS_PER_MODEL) {
+            if (citation.url && providerCitations.length < MAX_CITATIONS_PER_MODEL && totalCitations < MAX_TOTAL_CITATIONS) {
               const domain = extractDomain(citation.url);
               // Avoid duplicates across all providers
               if (!seenDomains.has(domain)) {
@@ -128,13 +134,14 @@ export async function GET(request: NextRequest) {
                   domain,
                   provider,
                 });
+                totalCitations++;
               }
             }
           }
 
           // Also collect sources (URLs retrieved during web search) - these are also citations
           for (const source of test.sources || []) {
-            if (source.url && providerCitations.length < MAX_CITATIONS_PER_MODEL) {
+            if (source.url && providerCitations.length < MAX_CITATIONS_PER_MODEL && totalCitations < MAX_TOTAL_CITATIONS) {
               const domain = extractDomain(source.url);
               if (!seenDomains.has(domain)) {
                 seenDomains.add(domain);
@@ -144,6 +151,7 @@ export async function GET(request: NextRequest) {
                   domain,
                   provider,
                 });
+                totalCitations++;
               }
             }
           }

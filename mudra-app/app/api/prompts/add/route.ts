@@ -5,7 +5,7 @@ import { runSinglePromptAnalysis } from '@/lib/services/single-prompt-analysis.s
 
 // Validation constants
 const MAX_PROMPT_LENGTH = 500
-const MAX_ACTIVE_PROMPTS = 50
+const MAX_ACTIVE_PROMPTS = 100
 const VALID_CATEGORIES = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific']
 
 export async function POST(request: NextRequest) {

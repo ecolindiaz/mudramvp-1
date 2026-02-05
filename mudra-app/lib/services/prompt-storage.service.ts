@@ -173,8 +173,8 @@ export async function getPromptsByCategory(brandProfileId: number, category: str
 
 // Prompt limits
 export const PROMPT_LIMITS = {
-  MAX_CUSTOM_PROMPTS: 25,
-  MAX_TOTAL_PROMPTS: 75
+  MAX_CUSTOM_PROMPTS: 50,
+  MAX_TOTAL_PROMPTS: 100
 }
 
 /**

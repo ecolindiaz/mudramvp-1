@@ -416,7 +416,7 @@ function TrackedPromptsPageInner() {
   const [addOpen, setAddOpen] = useState(false)
   const [newPromptText, setNewPromptText] = useState("")
   const [newIntent, setNewIntent] = useState<string>("Organic")
-  const [runAnalysisOnAdd, setRunAnalysisOnAdd] = useState(false) // BUG-3: Option to run immediate analysis
+  const [runAnalysisOnAdd, setRunAnalysisOnAdd] = useState(true) // BUG-3: Option to run immediate analysis
   const [showAll, setShowAll] = useState(false)
   
   // Edit dialog state
@@ -629,8 +629,8 @@ function TrackedPromptsPageInner() {
     }
 
     // Check if at limit before making request
-    if (data.length >= 50) {
-      setErrorMessage('Maximum 50 active prompts allowed. Please delete a prompt before adding a new one.')
+    if (data.length >= 100) {
+      setErrorMessage('Maximum 100 active prompts allowed. Please delete a prompt before adding a new one.')
       return
     }
 
@@ -727,6 +727,7 @@ function TrackedPromptsPageInner() {
                   pollForResults(attempts + 1, maxAttempts)
                 } else if (hasResults) {
                   console.log(`✅ Prompt ${newPromptId} analysis complete!`)
+                  window.dispatchEvent(new Event('mudra:analysis-complete'))
                 }
               }
             } catch (err) {
@@ -890,7 +891,7 @@ function TrackedPromptsPageInner() {
                     size="sm" 
                     className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5" 
                     onClick={() => setAddOpen(true)}
-                    disabled={isLoading || data.length >= 50}
+                    disabled={isLoading || data.length >= 100}
                   >
                     <Plus className="h-4 w-4" />
                     Add Prompt
@@ -969,7 +970,7 @@ function TrackedPromptsPageInner() {
                   )}
                   <div className="ml-auto flex items-center gap-2">
                     <div className={`px-2.5 py-1 rounded-md text-sm font-medium ${
-                      data.length >= 50
+                      data.length >= 100
                         ? 'bg-amber-500/15 text-amber-400'
                         : 'bg-white/5 text-muted-foreground'
                     }`}>
@@ -1192,7 +1193,7 @@ function TrackedPromptsPageInner() {
                     <DialogHeader>
                       <DialogTitle>Add Prompt</DialogTitle>
                       <DialogDescription>
-                        Manually add a prompt to track ({data.length}/50 active prompts).
+                        Manually add a prompt to track ({data.length}/100 active prompts).
                       </DialogDescription>
                     </DialogHeader>
                     

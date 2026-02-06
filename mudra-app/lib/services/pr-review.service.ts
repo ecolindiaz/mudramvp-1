@@ -140,6 +140,35 @@ export async function reviewGeneratedContent(input: ReviewInput): Promise<Review
     warnings.push('Navigation should include aria-label for accessibility.')
   }
   
+  // Issue 4: Full page/document being injected (most dangerous)
+  const hasDoctype = /<!DOCTYPE\s+html>/i.test(generatedCode)
+  const hasHtmlTag = /<html[\s>]/i.test(generatedCode)
+  const hasFullHead = /<head[\s>]/i.test(generatedCode) && /<\/head>/i.test(generatedCode)
+  const hasFullBody = /<body[\s>]/i.test(generatedCode) && /<\/body>/i.test(generatedCode)
+  if (hasDoctype || hasHtmlTag || (hasFullHead && hasFullBody)) {
+    warnings.push('CRITICAL: Generated code contains a full HTML document structure (html/head/body). This should be a targeted snippet, not a full page. The content will be injected into an existing file.')
+  }
+  
+  // Issue 5: Full React component being injected into an existing component
+  const hasExportDefault = /export\s+default\s+function/.test(generatedCode)
+  const hasImports = (generatedCode.match(/^import\s+/gm) || []).length >= 2
+  if (hasExportDefault && hasImports) {
+    warnings.push('CRITICAL: Generated code appears to be a complete React component with imports and export. This should be a JSX snippet that gets inserted into the existing component, not a replacement.')
+  }
+  
+  // Issue 6: Content has duplicate page sections (header, footer, form, nav) suggesting a full page
+  const sectionCounts = {
+    header: (generatedCode.match(/<header[\s>]/gi) || []).length,
+    footer: (generatedCode.match(/<footer[\s>]/gi) || []).length,
+    nav: (generatedCode.match(/<nav[\s>]/gi) || []).length,
+    form: (generatedCode.match(/<form[\s>]/gi) || []).length,
+    main: (generatedCode.match(/<main[\s>]/gi) || []).length,
+  }
+  const pageSections = Object.entries(sectionCounts).filter(([, count]) => count > 0)
+  if (pageSections.length >= 3) {
+    warnings.push(`CRITICAL: Generated code contains multiple page-level sections (${pageSections.map(([s, c]) => `${s}:${c}`).join(', ')}). This looks like a full page, not a targeted fix.`)
+  }
+  
   // Determine best file
   let suggestedFile = targetFile
   
@@ -217,7 +246,8 @@ Your job is to:
 1. Evaluate if the code is placed in the optimal location
 2. Suggest a better file if needed
 3. Identify any issues with the code
-4. Provide brief, actionable reasoning
+4. STRIP OUT any full-page wrappers or unrelated content
+5. Provide brief, actionable reasoning
 
 Key principles:
 - Navigation elements should be in PAGE components, not layouts (layouts render on every route)
@@ -225,11 +255,18 @@ Key principles:
 - Meta tags belong in the document head
 - Content enhancements should generally be page-specific unless explicitly global
 
+CRITICAL — The generated code will be INJECTED INTO an existing file. Watch for these problems:
+- If the code is a FULL HTML page (has <!DOCTYPE>, <html>, <head>, <body>), extract ONLY the meaningful optimization content (e.g. the JSON-LD script tag, the meta tags, or the specific content section)
+- If the code is a FULL React component (has import statements + export default), extract ONLY the JSX that needs to be inserted
+- If the code contains header/footer/nav/form that duplicates what already exists on the page, REMOVE those duplicate sections
+- The improvedCode field should contain ONLY the targeted snippet, never a full page
+- The code must be minimal and self-contained
+
 Respond in JSON format:
 {
   "reasoning": "Brief explanation of your decision",
   "suggestedFile": "path/to/file.tsx or null to keep current",
-  "improvedCode": "Improved version of the code or null if no changes needed",
+  "improvedCode": "The TARGETED snippet only (no full page wrappers), or null if no changes needed",
   "additionalWarnings": ["Array of additional warnings if any"]
 }`
 

@@ -649,6 +649,48 @@ function insertCodeIntoFile(existingContent: string, newCode: string, filePath: 
     .replace(/<!--\s*Example of.*?-->\n?/gi, '')
     .replace(/<!--\s*Instructions:.*?-->\n?/gi, '')
     .trim();
+    
+  // GUARDRAIL: Detect and strip full-page wrappers that would break existing files
+  // This catches cases where the LLM generated a full page despite prompt instructions
+  const hasDoctype = /<!DOCTYPE\s+html>/i.test(cleanCode)
+  const hasHtmlTag = /<html[\s>]/i.test(cleanCode)
+  const hasHeadAndBody = /<head[\s>]/i.test(cleanCode) && /<body[\s>]/i.test(cleanCode)
+  
+  if ((hasDoctype || hasHtmlTag) && hasHeadAndBody) {
+    console.warn('[GitHub] GUARDRAIL: Code contains full HTML page structure — extracting targeted content')
+    
+    // Extract JSON-LD scripts
+    const jsonLdScripts = cleanCode.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) || []
+    
+    // Extract meaningful meta tags (not charset/viewport)
+    const metaTags = (cleanCode.match(/<meta[^>]+>/gi) || [])
+      .filter(m => !m.includes('charset=') && !m.includes('viewport'))
+    
+    // Extract content from <main> or <body>, stripping header/footer/nav
+    let bodyContent = ''
+    const mainMatch = cleanCode.match(/<main[^>]*>([\s\S]*?)<\/main>/i)
+    if (mainMatch) {
+      bodyContent = mainMatch[1].trim()
+    } else {
+      const bodyMatch = cleanCode.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+      if (bodyMatch) {
+        bodyContent = bodyMatch[1].trim()
+      }
+    }
+    bodyContent = bodyContent
+      .replace(/<header[\s\S]*?<\/header>/gi, '')
+      .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+      .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+      .trim()
+    
+    const parts: string[] = [...jsonLdScripts, ...metaTags]
+    if (bodyContent.length > 10) parts.push(bodyContent)
+    
+    if (parts.length > 0) {
+      cleanCode = parts.join('\n\n')
+      console.log(`[GitHub] Extracted ${parts.length} content section(s) from full page`)
+    }
+  }
   
   // ==================================
   // HTML FILES

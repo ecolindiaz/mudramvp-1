@@ -264,7 +264,7 @@ Please generate the full blog infrastructure.
   }
   
   return `## Task
-Fix this optimization issue for a website.
+Generate a TARGETED code snippet to fix this optimization issue. Your output will be INSERTED INTO an existing file — do NOT generate a full page or document.
 
 ## Issue Details
 - **Title**: ${issue.title}
@@ -280,14 +280,22 @@ Fix this optimization issue for a website.
 - **Services**: ${brandProfile.companyServices || 'Unknown'}
 - **Description**: ${brandProfile.companyDescription || 'No description available'}
 ${blogContext}
-## Instructions
-1. Generate the fix for this issue
-2. Provide ONLY the code/content — no explanations or commentary outside the code block
-3. The code will be committed directly to a file; do not wrap it in markdown explanations
+## CRITICAL RULES — Read carefully
+1. Generate ONLY the specific code snippet that fixes this issue
+2. Do NOT generate a full HTML page, full React component, or full document
+3. Do NOT include <html>, <head>, <body>, <!DOCTYPE>, or page-level wrapper tags
+4. Do NOT include headers, footers, navigation, forms, or marketing sections that are unrelated to the issue
+5. Do NOT duplicate existing page content — your code will be INJECTED into the existing page
+6. For schema markup (JSON-LD): output ONLY the JSON object (e.g. {"@context": "https://schema.org", ...})
+7. For meta tags: output ONLY the <meta> tags themselves
+8. For heading hierarchy fixes: output ONLY the <h1>/<h2>/<h3> elements with brief content
+9. For FAQ sections: output ONLY the FAQ content block (a <section> with question/answer pairs)
+10. For content structure: output ONLY the structural elements that need to be added
 
 ## Output Format
-Provide ONLY the code in a single code block. No additional text outside the code block.
-The code must be complete and ready to commit as a file.`
+Provide ONLY the targeted code snippet in a single code block.
+The snippet must be minimal and self-contained — it will be inserted into an existing file.
+Do NOT wrap it in a full page, component definition, or document structure.`
 }
 
 /**
@@ -297,7 +305,7 @@ function extractGeneratedContent(responseText: string): string {
   // Look for code blocks
   const codeBlockMatch = responseText.match(/```(?:json|html|xml|txt|markdown|md)?\n?([\s\S]*?)```/i)
   if (codeBlockMatch) {
-    return codeBlockMatch[1].trim()
+    return sanitizeGeneratedContent(codeBlockMatch[1].trim())
   }
   
   // Look for JSON-LD specifically
@@ -306,8 +314,113 @@ function extractGeneratedContent(responseText: string): string {
     return jsonLdMatch[0].trim()
   }
   
-  // Return full text if no code block found
-  return responseText
+  // Return sanitized full text if no code block found
+  return sanitizeGeneratedContent(responseText)
+}
+
+/**
+ * Sanitize LLM-generated content to remove full-page wrappers.
+ * 
+ * The LLM sometimes generates an entire HTML page or React component
+ * when only a snippet is needed. This strips document-level wrappers
+ * and extracts only the meaningful content.
+ */
+function sanitizeGeneratedContent(content: string): string {
+  let cleaned = content.trim()
+  
+  // If it's pure JSON (e.g. JSON-LD), return as-is
+  if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+    try {
+      JSON.parse(cleaned)
+      return cleaned
+    } catch {
+      // Not valid JSON, continue cleaning
+    }
+  }
+  
+  // If it's a standalone config file (robots.txt, llms.txt, sitemap), return as-is
+  if (cleaned.startsWith('User-agent:') || cleaned.startsWith('# ') || cleaned.startsWith('<?xml')) {
+    return cleaned
+  }
+  
+  // Detect if LLM wrapped a snippet in a full HTML document
+  const hasDoctype = /<!DOCTYPE\s+html>/i.test(cleaned)
+  const hasHtmlTag = /<html[\s>]/i.test(cleaned)
+  const hasHeadTag = /<head[\s>]/i.test(cleaned)
+  const hasBodyTag = /<body[\s>]/i.test(cleaned)
+  const isFullPage = (hasDoctype || hasHtmlTag) && (hasHeadTag || hasBodyTag)
+  
+  if (isFullPage) {
+    console.warn('[IssueExecutor] LLM generated a full HTML page — extracting targeted content')
+    
+    // Extract JSON-LD if present
+    const jsonLdScripts = cleaned.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi)
+    
+    // Extract meta tags
+    const metaTags = cleaned.match(/<meta[^>]+>/gi)
+    
+    // Extract content from <main> or <body> (excluding standard nav/header/footer)
+    let bodyContent = ''
+    const mainMatch = cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i)
+    if (mainMatch) {
+      bodyContent = mainMatch[1].trim()
+    } else {
+      const bodyMatch = cleaned.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+      if (bodyMatch) {
+        bodyContent = bodyMatch[1].trim()
+      }
+    }
+    
+    // Strip out header, nav, footer from body content
+    bodyContent = bodyContent
+      .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+      .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+      .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+      .trim()
+    
+    // Prioritize: JSON-LD > meta tags > body content
+    const parts: string[] = []
+    if (jsonLdScripts?.length) parts.push(...jsonLdScripts)
+    if (metaTags?.length) {
+      // Filter out basic charset/viewport meta tags that already exist
+      const meaningfulMeta = metaTags.filter(m => 
+        !m.includes('charset=') && !m.includes('viewport')
+      )
+      if (meaningfulMeta.length) parts.push(meaningfulMeta.join('\n'))
+    }
+    if (bodyContent && bodyContent.length > 10) parts.push(bodyContent)
+    
+    if (parts.length > 0) {
+      cleaned = parts.join('\n\n')
+      console.log(`[IssueExecutor] Extracted ${parts.length} content section(s) from full page`)
+    }
+  }
+  
+  // Detect if LLM wrapped a snippet in a full React component definition
+  const hasExportDefault = /export\s+default\s+function/i.test(cleaned)
+  const hasImportReact = /import\s+.*\bReact\b.*from/i.test(cleaned)
+  const isFullComponent = hasExportDefault && (hasImportReact || cleaned.includes('import '))
+  
+  if (isFullComponent && !cleaned.includes('{children}')) {
+    console.warn('[IssueExecutor] LLM generated a full React component — extracting JSX content')
+    
+    // Extract the JSX from inside the return statement
+    const returnMatch = cleaned.match(/return\s*\(([\s\S]*?)\)\s*;?\s*\}\s*$/)
+    if (returnMatch) {
+      let jsx = returnMatch[1].trim()
+      // Strip the outermost wrapper div/fragment if it's just a container
+      const outerWrapperMatch = jsx.match(/^<(?:div|>|React\.Fragment)[^>]*>([\s\S]*)<\/(?:div|>|React\.Fragment)>$/)
+      if (outerWrapperMatch) {
+        jsx = outerWrapperMatch[1].trim()
+      }
+      if (jsx.length > 20) {
+        cleaned = jsx
+        console.log(`[IssueExecutor] Extracted JSX content from component (${cleaned.length} chars)`)
+      }
+    }
+  }
+  
+  return cleaned
 }
 
 /**
@@ -487,8 +600,20 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
     let responseText: string
     try {
       // Use direct Anthropic call instead of Mastra agent
+      const systemPrompt = `You are a GEO (Generative Engine Optimization) code generation agent. You produce TARGETED code snippets that will be INSERTED INTO existing files via automated PR creation.
+
+CRITICAL CONSTRAINTS:
+- Output ONLY the specific snippet/fix — never a full HTML page or full React component
+- Your output gets injected into an existing codebase — do NOT include <!DOCTYPE>, <html>, <head>, <body>, or page-level wrappers
+- Do NOT include import statements, export statements, or component definitions — just the JSX/HTML content
+- Do NOT duplicate existing page elements (headers, footers, navigation, forms, marketing sections)
+- For JSON-LD: output the raw JSON object only (starting with { and ending with })
+- For meta tags: output only the <meta> tags
+- For heading/content fixes: output only the specific section elements
+- Keep output minimal and focused on the single issue being fixed`
+
       responseText = await withTimeout(
-        callAnthropicDirect(prompt),
+        callAnthropicDirect(prompt, systemPrompt),
         AGENT_TIMEOUT_MS,
         `Anthropic API call timed out after ${AGENT_TIMEOUT_MS/1000}s`
       )

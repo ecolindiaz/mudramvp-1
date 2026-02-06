@@ -35,6 +35,9 @@ async function mapWithConcurrency<T, R>(
 const geminiRedirectCache = new Map<string, { url: string; title: string; resolvedAt: number }>();
 const REDIRECT_CACHE_TTL = 1000 * 60 * 60; // 1 hour cache TTL
 
+// Model used to extract brand/competitor entities from provider response text.
+const COMPETITOR_EXTRACTION_MODEL = 'gpt-5-mini-2025-08-07';
+
 /**
  * Resolves a Gemini grounding redirect URL to get the actual source URL.
  * Google's grounding API returns URLs like:
@@ -58,81 +61,81 @@ async function resolveGeminiGroundingUrl(
     return { url: cached.url, title: cached.title };
   }
 
-  try {
-    // Use fetch with redirect: 'manual' to get the redirect location without following it
-    // This is faster and avoids loading the full page content
-    const response = await fetch(redirectUrl, {
-      method: 'HEAD',
-      redirect: 'manual',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; MudraBot/1.0)',
-      },
-      signal: AbortSignal.timeout(5000), // 5 second timeout
-    });
-
-    // Get the redirect location from headers
-    const location = response.headers.get('location');
-
-    if (location && location !== redirectUrl) {
-      // Extract a better title from the resolved URL if original title is just a domain
-      let resolvedTitle = originalTitle || '';
-
-      try {
-        const urlObj = new URL(location);
-        // If the original title is just a domain (e.g., "aws.amazon.com"),
-        // keep it but ensure it's the actual domain
-        if (!resolvedTitle || resolvedTitle.length < 5) {
-          resolvedTitle = urlObj.hostname;
-        }
-      } catch {
-        // Keep original title if URL parsing fails
+  // Helper to extract title from resolved URL
+  const extractTitle = (resolvedUrl: string): string => {
+    let title = originalTitle || '';
+    try {
+      const urlObj = new URL(resolvedUrl);
+      if (!title || title.length < 5) {
+        title = urlObj.hostname;
       }
+    } catch {
+      // Keep original title if URL parsing fails
+    }
+    return title;
+  };
 
-      // Cache the resolved URL
-      geminiRedirectCache.set(redirectUrl, {
-        url: location,
-        title: resolvedTitle,
-        resolvedAt: Date.now(),
+  // Helper to cache and return a resolved URL
+  const cacheAndReturn = (resolved: string, method: string): { url: string; title: string } => {
+    const title = extractTitle(resolved);
+    geminiRedirectCache.set(redirectUrl, {
+      url: resolved,
+      title,
+      resolvedAt: Date.now(),
+    });
+    console.log(`[Gemini] Resolved redirect (${method}): ${redirectUrl.substring(0, 60)}... → ${resolved.substring(0, 80)}...`);
+    return { url: resolved, title };
+  };
+
+  // Retry with backoff: 3 attempts with 500ms, 1s, 2s delays
+  // This handles transient failures & rate limiting from Google's redirect endpoint
+  const MAX_ATTEMPTS = 3;
+  const INITIAL_RETRY_DELAY = 500;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      // Stage 1: HEAD request to read Location header (fast path)
+      const response = await fetch(redirectUrl, {
+        method: 'HEAD',
+        redirect: 'manual',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; MudraBot/1.0)',
+        },
+        signal: AbortSignal.timeout(8000), // 8 second timeout
       });
 
-      console.log(`[Gemini] Resolved redirect: ${redirectUrl.substring(0, 60)}... → ${location.substring(0, 80)}...`);
-      return { url: location, title: resolvedTitle };
-    }
-
-    // If no redirect location found, try following the redirect chain
-    const followResponse = await fetch(redirectUrl, {
-      method: 'GET',
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; MudraBot/1.0)',
-      },
-      signal: AbortSignal.timeout(8000), // 8 second timeout for full follow
-    });
-
-    const finalUrl = followResponse.url;
-    if (finalUrl && finalUrl !== redirectUrl) {
-      let resolvedTitle = originalTitle || '';
-      try {
-        const urlObj = new URL(finalUrl);
-        if (!resolvedTitle || resolvedTitle.length < 5) {
-          resolvedTitle = urlObj.hostname;
-        }
-      } catch {
-        // Keep original title
+      const location = response.headers.get('location');
+      if (location && location !== redirectUrl) {
+        return cacheAndReturn(location, 'HEAD');
       }
 
-      geminiRedirectCache.set(redirectUrl, {
-        url: finalUrl,
-        title: resolvedTitle,
-        resolvedAt: Date.now(),
+      // Stage 2: GET with full redirect follow (slower fallback)
+      const followResponse = await fetch(redirectUrl, {
+        method: 'GET',
+        redirect: 'follow',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; MudraBot/1.0)',
+        },
+        signal: AbortSignal.timeout(12000), // 12 second timeout for full follow
       });
 
-      console.log(`[Gemini] Resolved redirect (follow): ${redirectUrl.substring(0, 60)}... → ${finalUrl.substring(0, 80)}...`);
-      return { url: finalUrl, title: resolvedTitle };
+      const finalUrl = followResponse.url;
+      if (finalUrl && finalUrl !== redirectUrl) {
+        return cacheAndReturn(finalUrl, 'GET follow');
+      }
+
+      // Both stages returned same URL — not a transient error, no point retrying
+      break;
+    } catch (error: any) {
+      const isLastAttempt = attempt === MAX_ATTEMPTS - 1;
+      if (isLastAttempt) {
+        console.warn(`[Gemini] Failed to resolve redirect URL after ${MAX_ATTEMPTS} attempts: ${error.message}`);
+      } else {
+        const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt);
+        console.warn(`[Gemini] Redirect resolution attempt ${attempt + 1}/${MAX_ATTEMPTS} failed (${error.message}), retrying in ${delay}ms...`);
+        await sleep(delay);
+      }
     }
-  } catch (error: any) {
-    console.warn(`[Gemini] Failed to resolve redirect URL: ${error.message}`);
-    // Fall through to return original
   }
 
   // Return original URL as fallback - never lose the source
@@ -992,7 +995,7 @@ Return ONLY a valid JSON object with these exact keys:
 }`;
 
     const analysisResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: COMPETITOR_EXTRACTION_MODEL,
       messages: [
         {
           role: 'system',
@@ -1357,7 +1360,7 @@ Return ONLY a valid JSON object with these exact keys:
 }`;
 
     const analysisResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: COMPETITOR_EXTRACTION_MODEL,
       messages: [
         {
           role: 'system',
@@ -1665,7 +1668,7 @@ Return ONLY a valid JSON object with these exact keys:
 }`;
 
     const analysisResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: COMPETITOR_EXTRACTION_MODEL,
       messages: [
         {
           role: 'system',
@@ -1820,9 +1823,10 @@ async function analyzeWithGoogle(
     }
 
     // Resolve Gemini grounding redirect URLs to get actual source URLs
-    // This runs in parallel with concurrency limit to avoid overwhelming the server
+    // Concurrency=2 to reduce pressure on Google's redirect endpoint
+    // (Gemini prompts already run at concurrency=3, so 2 workers × 3 prompts = 6 max concurrent)
     const citations = rawCitations.length > 0
-      ? await resolveGeminiGroundingUrls(rawCitations, 3)
+      ? await resolveGeminiGroundingUrls(rawCitations, 2)
       : [];
 
     if (citations.length > 0) {
@@ -1872,7 +1876,7 @@ Return ONLY a valid JSON object with these exact keys:
 }`;
 
     const analysisResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: COMPETITOR_EXTRACTION_MODEL,
       messages: [
         {
           role: 'system',

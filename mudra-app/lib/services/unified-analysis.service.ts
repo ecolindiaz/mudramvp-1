@@ -436,6 +436,26 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
 
     console.log(`[Technical Core] Scraped ${scrapeResult.successCount}/${scrapeResult.totalUrls} pages`);
 
+    // If ALL pages failed to scrape, don't save a 0-score record.
+    // This prevents the score from dropping to 0 when e.g. Firecrawl credits are exhausted (402).
+    // The previous good score will remain as the latest.
+    if (scrapeResult.successCount === 0) {
+      const firstError = scrapeResult.errors[0]?.error || 'All pages failed to scrape';
+      console.error(`[Technical Core] All ${scrapeResult.totalUrls} pages failed to scrape. Aborting to preserve previous score.`);
+
+      // Complete job as failed
+      if (jobId) {
+        try {
+          await completeScrapeJob(jobId, false, scrapeResult.durationMs);
+        } catch (e) { /* ignore */ }
+      }
+
+      return {
+        success: false,
+        error: `Scraping failed for all pages: ${firstError}`,
+      };
+    }
+
     // Update job progress
     if (jobId) {
       try {

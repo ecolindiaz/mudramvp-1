@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation'
 import { useBrandProfile } from "@/components/brand-profile-context"
 import { ExpansionModal, type ExpansionModalColumn } from "./expansion-modal"
 import { CompanyLogo, DomainLogo } from "@/components/ui/company-logo"
+import { getCompanyDomain } from "@/lib/logo"
 
 interface NaturalLanguageReportProps {
   className?: string
@@ -469,22 +470,24 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
   // Transform competitor data for display (preview - top 5)
   // Note: User's brand is already excluded by the API
   // Data is already sorted by SOV (highest first) by the API
-  const competitorRankings: Array<{ name: string; sov: number }> = React.useMemo(() => {
+  const competitorRankings: Array<{ name: string; sov: number; domain?: string }> = React.useMemo(() => {
     if (!competitorsData?.competitors) return []
 
     return competitorsData.competitors.map((comp: any) => ({
       name: comp.name || '',
-      sov: comp.shareOfVoice || 0 // SOV % already calculated by API
+      sov: comp.shareOfVoice || 0, // SOV % already calculated by API
+      domain: comp.domain
     }))
   }, [competitorsData])
 
   // Transform ALL competitor data for expansion modal
-  const allCompetitorRankings: Array<{ name: string; sov: number }> = React.useMemo(() => {
+  const allCompetitorRankings: Array<{ name: string; sov: number; domain?: string }> = React.useMemo(() => {
     if (!allCompetitorsData?.competitors) return []
 
     return allCompetitorsData.competitors.map((comp: any) => ({
       name: comp.name || '',
-      sov: comp.shareOfVoice || 0
+      sov: comp.shareOfVoice || 0,
+      domain: comp.domain
     }))
   }, [allCompetitorsData])
 
@@ -948,7 +951,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                         return (
                           <a
                             key={idx}
-                            href={`https://${competitor.name.toLowerCase().replace(/\s+/g, '')}.com`}
+                            href={`https://${competitor.domain || getCompanyDomain(competitor.name)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.02] group"
@@ -1240,7 +1243,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
             render: (item) => {
               return (
                 <a
-                  href={`https://${item.name.toLowerCase().replace(/\s+/g, '')}.com`}
+                  href={`https://${item.domain || getCompanyDomain(item.name)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2.5 min-w-0 group"
@@ -1263,7 +1266,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
               <span className="tabular-nums text-white/70 font-medium">{item.sov}%</span>
             ),
           },
-        ] as ExpansionModalColumn<{ name: string; sov: number }>[]}
+        ] as ExpansionModalColumn<{ name: string; sov: number; domain?: string }>[]}
       />
 
       {/* Citations Expansion Modal - shows ALL citations */}

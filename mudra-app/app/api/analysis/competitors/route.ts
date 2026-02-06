@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { quickValidateName } from '@/lib/services/competitor-validation.service'
+import { resolveCompetitorDomains } from '@/lib/competitor-domain'
+import { getCompanyDomain } from '@/lib/logo'
 
 interface CompetitorMention {
   name: string
@@ -155,6 +157,7 @@ interface AggregatedCompetitor {
   shareOfVoice: number // SOV % = (competitor mentions ÷ all competitor mentions) × 100
   averagePosition: number
   sentiment: 'positive' | 'neutral' | 'negative'
+  domain: string
 }
 
 /**
@@ -236,6 +239,8 @@ export async function GET(request: NextRequest) {
     // Use lowercase key for deduplication, but track display names
     const competitorMentionMap = new Map<string, CompetitorMention[]>()
     const competitorDisplayNames = new Map<string, Map<string, number>>() // lowerKey -> { displayName -> count }
+    // Collect all citations/sources for domain resolution
+    const allCitations: Array<{ url?: string }> = []
 
     // Helper to add a competitor mention with case-insensitive deduplication
     const addCompetitorMention = (
@@ -303,6 +308,10 @@ export async function GET(request: NextRequest) {
           const competitors = test.competitors || test.competitorsMentioned || []
           const positions = test.competitorPositions || {}
           const sentiments = test.competitorSentiments || {}
+
+          // Collect citations/sources for domain resolution
+          if (test.citations) allCitations.push(...test.citations)
+          if (test.sources) allCitations.push(...test.sources)
 
           for (const competitorName of competitors) {
             if (!competitorName || typeof competitorName !== 'string') continue
@@ -392,6 +401,10 @@ export async function GET(request: NextRequest) {
       totalMentions += mentions.length
     })
 
+    // Resolve competitor domains from citations
+    const competitorNames = Array.from(competitorMentionMap.keys()).map(k => getBestDisplayName(k))
+    const resolvedDomains = resolveCompetitorDomains(competitorNames, allCitations)
+
     // Calculate aggregated stats for each competitor
     const aggregatedCompetitors: AggregatedCompetitor[] = []
 
@@ -420,12 +433,16 @@ export async function GET(request: NextRequest) {
       const overallSentiment = Object.entries(sentimentCounts)
         .sort(([, a], [, b]) => b - a)[0][0] as 'positive' | 'neutral' | 'negative'
 
+      // Resolve domain: citation match > static mapping > fallback
+      const domain = resolvedDomains.get(lowerKey) || getCompanyDomain(displayName)
+
       aggregatedCompetitors.push({
         name: displayName,
         mentionCount,
         shareOfVoice: Math.round(shareOfVoice * 10) / 10, // Round to 1 decimal
         averagePosition: Math.round(averagePosition * 10) / 10,
-        sentiment: overallSentiment
+        sentiment: overallSentiment,
+        domain
       })
     })
 

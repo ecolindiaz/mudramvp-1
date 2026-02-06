@@ -29,6 +29,7 @@ import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profil
 import { useParams } from "next/navigation"
 import { useEffect } from "react"
 import { CompanyLogo, DomainLogo } from "@/components/ui/company-logo"
+import { getCompanyDomain } from "@/lib/logo"
 
 // Model icon mapping - helper function to get icon based on model name
 const getModelIcon = (model: string): string | null => {
@@ -91,35 +92,29 @@ function VisibilityChartTooltip({
     .slice(0, 10)
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#0a0a0a]/95 backdrop-blur-sm px-3 py-2.5 shadow-2xl min-w-[180px]">
-      <p className="text-[11px] font-medium text-white/60 mb-2 pb-1.5 border-b border-white/[0.06]">{label}</p>
-      <div className="space-y-1.5">
+    <div className="rounded-lg border border-white/[0.06] bg-[#0a0a0a]/95 backdrop-blur-sm px-3 py-2.5 shadow-2xl min-w-[170px]">
+      <p className="text-[11px] text-white/50 mb-2">{label}</p>
+      <div className="space-y-1">
         {sortedPayload.map((entry) => {
           const seriesInfo = competitorSeries.find(s => s.key === entry.dataKey)
           const isYou = seriesInfo?.isYou
           return (
             <div 
               key={entry.dataKey} 
-              className={cn(
-                "flex items-center justify-between gap-4",
-                isYou && "bg-emerald-500/10 -mx-1.5 px-1.5 py-0.5 rounded"
-              )}
+              className="flex items-center justify-between gap-4"
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <span 
-                  className="h-2 w-2 rounded-full shrink-0 ring-1 ring-white/20" 
-                  style={{ backgroundColor: entry.color }} 
-                />
+              <div className="flex items-center gap-1.5 min-w-0">
+                <CompanyLogo company={seriesInfo?.label || entry.dataKey} size={14} />
                 <span className={cn(
-                  "text-xs truncate max-w-[120px]",
-                  isYou ? "text-emerald-400 font-medium" : "text-white/70"
+                  "text-xs truncate max-w-[110px]",
+                  isYou ? "text-white font-medium" : "text-white/70"
                 )}>
                   {seriesInfo?.label || entry.dataKey}
                 </span>
               </div>
               <span className={cn(
                 "text-xs font-mono tabular-nums",
-                isYou ? "text-emerald-400 font-semibold" : "text-white/90"
+                isYou ? "text-white font-medium" : "text-white/50"
               )}>
                 {entry.value?.toFixed(1)}%
               </span>
@@ -131,13 +126,14 @@ function VisibilityChartTooltip({
   )
 }
 
-type CompetitorRow = { 
+type CompetitorRow = {
   rank: number
   company: string
   visibility: number
   position: number | null
   sentiment: 'Positive' | 'Neutral' | 'Negative'
   isYou?: boolean
+  domain?: string
 }
 
 // Citation source type from API
@@ -756,7 +752,8 @@ function TrackedPromptDeepViewInner() {
         company: competitor.name,
         visibility: competitor.visibility,
         position: competitor.position,
-        sentiment: competitor.sentiment as 'Positive' | 'Neutral' | 'Negative'
+        sentiment: competitor.sentiment as 'Positive' | 'Neutral' | 'Negative',
+        domain: competitor.domain
       }))
     }
     
@@ -785,7 +782,8 @@ function TrackedPromptDeepViewInner() {
         visibility: competitor.visibility,
         position: competitor.position,
         sentiment: (competitor.sentiment as 'Positive' | 'Neutral' | 'Negative') || 'Neutral',
-        isYou: competitor.isYou || false
+        isYou: competitor.isYou || false,
+        domain: competitor.domain
       }))
     }
     
@@ -1363,8 +1361,8 @@ function TrackedPromptDeepViewInner() {
                                         <span>{row.company} (You)</span>
                                       </div>
                                     ) : (
-                                      <a 
-                                        href={`https://${row.company.toLowerCase().replace(/\s+/g, '')}.com`}
+                                      <a
+                                        href={`https://${row.domain || getCompanyDomain(row.company)}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="flex items-center gap-2 hover:text-white transition-colors group"

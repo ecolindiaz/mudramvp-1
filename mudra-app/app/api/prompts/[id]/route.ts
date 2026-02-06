@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getPromptVisibilityHistory } from '@/lib/services/prompt-visibility-history.service'
 import { getCitationAnalysisForPrompt } from '@/lib/services/citation-extraction.service'
+import { resolveCompetitorDomains } from '@/lib/competitor-domain'
+import { getCompanyDomain } from '@/lib/logo'
 
 /**
  * GET /api/prompts/[id]?brandProfileId={id}&dateRange={7d|14d|30d}&model={all|ChatGPT|Claude|...}
@@ -332,11 +334,26 @@ export async function GET(
     // Sort by visibility (highest visibility first) - ensures table ranking matches visibility scores
     competitorsWithMetrics.sort((a, b) => b.visibility - a.visibility)
 
+    // Resolve competitor domains from citation/source URLs
+    const allCitationsForDomains: Array<{ url?: string }> = []
+    for (const result of filteredTestResults) {
+      if (result.citations) allCitationsForDomains.push(...result.citations)
+      if (result.sources) allCitationsForDomains.push(...result.sources)
+    }
+    const competitorNamesForDomains = competitorsWithMetrics.map(c => c.name)
+    const resolvedDomains = resolveCompetitorDomains(competitorNamesForDomains, allCitationsForDomains)
+
+    // Add domain to each competitor
+    const competitorsWithDomains = competitorsWithMetrics.map(c => ({
+      ...c,
+      domain: resolvedDomains.get(c.name.toLowerCase()) || getCompanyDomain(c.name)
+    }))
+
     // Step 7: Build competitive landscape
     const competitorsList = Array.from(allCompetitorMentions)
     const competitiveLandscape = {
       mentioned: competitorsList,
-      competitorsWithMetrics, // Add detailed metrics
+      competitorsWithMetrics: competitorsWithDomains, // Add detailed metrics with domains
       brandPosition: averagePosition ? Math.round(averagePosition * 10) / 10 : null,
       totalCompetitors: competitorsList.length
     }
@@ -378,6 +395,10 @@ export async function GET(
 
     // Step 11: Build competitors with "You" row included
     const brandName = prompt.brandProfile?.companyName || 'Your Brand'
+    const brandWebsite = prompt.brandProfile?.companyWebsite
+    const brandDomain = brandWebsite
+      ? brandWebsite.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '')
+      : getCompanyDomain(brandName)
     const competitorsWithYou = [
       {
         name: brandName,
@@ -385,9 +406,10 @@ export async function GET(
         mentions: mentionedCount,
         position: averagePosition ? Math.round(averagePosition * 10) / 10 : null,
         sentiment: dominantSentiment,
-        isYou: true
+        isYou: true,
+        domain: brandDomain
       },
-      ...competitorsWithMetrics.map(c => ({
+      ...competitorsWithDomains.map(c => ({
         ...c,
         isYou: false
       }))

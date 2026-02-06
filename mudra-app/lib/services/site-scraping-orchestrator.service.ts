@@ -178,12 +178,12 @@ async function savePageScore(
   pageUrl: string,
   score: FullPageScore
 ): Promise<void> {
-  // Map new dimensions to database fields:
-  // - structured_data = schema (JSON-LD/structured data)
-  // - semantic_html = semantic (semantic HTML elements)
-  // - citability = metadata (meta tags for citations)
-  // - accessibility = headings (heading hierarchy for accessibility)
-  // - answer_engine = faq (FAQ content for answer engines)
+  // Map 4-dimension scores to database fields:
+  // - accessibility = schema (40 pts)
+  // - structured_data = metadata (30 pts)
+  // - answer_engine = faq (20 pts)
+  // - citability = content (10 pts)
+  // - semantic_html = deprecated (0)
 
   await prisma.pageScore.upsert({
     where: { page_snapshot_id: pageSnapshotId },
@@ -193,31 +193,29 @@ async function savePageScore(
       sitemap_page_id: sitemapPageId,
       page_url: pageUrl,
       overall_score: score.scores.total,
-      structured_data_score: score.scores.schema,
-      structured_data_details: JSON.parse(JSON.stringify(score.dimension_details.schema)),
-      semantic_html_score: score.scores.semantic,
-      semantic_html_details: JSON.parse(JSON.stringify(score.dimension_details.semantic)),
-      citability_score: score.scores.metadata,
-      citability_details: JSON.parse(JSON.stringify(score.dimension_details.metadata)),
-      accessibility_score: score.scores.headings,
-      accessibility_details: JSON.parse(JSON.stringify(score.dimension_details.headings)),
+      accessibility_score: score.scores.schema,
+      accessibility_details: JSON.parse(JSON.stringify(score.dimension_details.schema)),
+      structured_data_score: score.scores.metadata,
+      structured_data_details: JSON.parse(JSON.stringify(score.dimension_details.metadata)),
       answer_engine_score: score.scores.faq,
       answer_engine_details: JSON.parse(JSON.stringify(score.dimension_details.faq)),
+      citability_score: score.scores.content,
+      citability_details: JSON.parse(JSON.stringify(score.dimension_details.content)),
+      semantic_html_score: 0,
       issues: JSON.parse(JSON.stringify(score.issues)),
       recommendations: JSON.parse(JSON.stringify(score.interventions)),
     },
     update: {
       overall_score: score.scores.total,
-      structured_data_score: score.scores.schema,
-      structured_data_details: JSON.parse(JSON.stringify(score.dimension_details.schema)),
-      semantic_html_score: score.scores.semantic,
-      semantic_html_details: JSON.parse(JSON.stringify(score.dimension_details.semantic)),
-      citability_score: score.scores.metadata,
-      citability_details: JSON.parse(JSON.stringify(score.dimension_details.metadata)),
-      accessibility_score: score.scores.headings,
-      accessibility_details: JSON.parse(JSON.stringify(score.dimension_details.headings)),
+      accessibility_score: score.scores.schema,
+      accessibility_details: JSON.parse(JSON.stringify(score.dimension_details.schema)),
+      structured_data_score: score.scores.metadata,
+      structured_data_details: JSON.parse(JSON.stringify(score.dimension_details.metadata)),
       answer_engine_score: score.scores.faq,
       answer_engine_details: JSON.parse(JSON.stringify(score.dimension_details.faq)),
+      citability_score: score.scores.content,
+      citability_details: JSON.parse(JSON.stringify(score.dimension_details.content)),
+      semantic_html_score: 0,
       issues: JSON.parse(JSON.stringify(score.issues)),
       recommendations: JSON.parse(JSON.stringify(score.interventions)),
       updated_at: new Date(),

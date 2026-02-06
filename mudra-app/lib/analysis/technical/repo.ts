@@ -389,17 +389,17 @@ export async function savePageScore(
       sitemap_page_id: sitemapPageId,
       page_url: pageUrl,
       overall_score: score.scores.total,
-      // Map 5-dimension scores to database fields
-      structured_data_score: score.scores.metadata, // Metadata (25 pts)
-      structured_data_details: score.dimension_details.metadata as unknown as Prisma.InputJsonValue,
-      semantic_html_score: score.scores.headings, // Headings (20 pts)
-      semantic_html_details: score.dimension_details.headings as unknown as Prisma.InputJsonValue,
-      citability_score: score.scores.semantic, // Semantic (15 pts)
-      citability_details: score.dimension_details.semantic as unknown as Prisma.InputJsonValue,
-      accessibility_score: score.scores.schema, // Schema (25 pts)
+      // Map 4-dimension scores to database fields
+      accessibility_score: score.scores.schema, // Schema (40 pts)
       accessibility_details: score.dimension_details.schema as unknown as Prisma.InputJsonValue,
-      answer_engine_score: score.scores.faq, // FAQ (15 pts)
+      structured_data_score: score.scores.metadata, // Metadata (30 pts)
+      structured_data_details: score.dimension_details.metadata as unknown as Prisma.InputJsonValue,
+      answer_engine_score: score.scores.faq, // FAQ (20 pts)
       answer_engine_details: score.dimension_details.faq as unknown as Prisma.InputJsonValue,
+      citability_score: score.scores.content, // Content (10 pts)
+      citability_details: score.dimension_details.content as unknown as Prisma.InputJsonValue,
+      semantic_html_score: 0, // Deprecated - headings dimension removed
+      semantic_html_details: undefined,
       issues: score.issues as unknown as Prisma.InputJsonValue,
       recommendations: score.interventions as unknown as Prisma.InputJsonValue,
     },
@@ -458,19 +458,17 @@ export async function saveSiteStructureScore(
     throw new Error("Cannot save site structure score with no page scores");
   }
 
-  // Calculate averages
+  // Calculate averages (4 dimensions: schema 40, metadata 30, faq 20, content 10)
   const avgOverall =
     pageScores.reduce((sum, p) => sum + p.scores.total, 0) / pageScores.length;
-  const avgMetadata =
-    pageScores.reduce((sum, p) => sum + p.scores.metadata, 0) / pageScores.length;
-  const avgHeadings =
-    pageScores.reduce((sum, p) => sum + p.scores.headings, 0) / pageScores.length;
-  const avgSemantic =
-    pageScores.reduce((sum, p) => sum + p.scores.semantic, 0) / pageScores.length;
   const avgSchema =
     pageScores.reduce((sum, p) => sum + p.scores.schema, 0) / pageScores.length;
+  const avgMetadata =
+    pageScores.reduce((sum, p) => sum + p.scores.metadata, 0) / pageScores.length;
   const avgFaq =
     pageScores.reduce((sum, p) => sum + p.scores.faq, 0) / pageScores.length;
+  const avgContent =
+    pageScores.reduce((sum, p) => sum + p.scores.content, 0) / pageScores.length;
 
   // Count pages with issues
   const pagesWithIssues = pageScores.filter((p) => p.issues.length > 0).length;
@@ -506,11 +504,11 @@ export async function saveSiteStructureScore(
       brand_profile_id: brandProfileId,
       domain,
       overall_score: Math.round(avgOverall * 100) / 100,
-      structured_data_score: Math.round(avgMetadata * 100) / 100,
-      semantic_html_score: Math.round(avgHeadings * 100) / 100,
-      citability_score: Math.round(avgSemantic * 100) / 100,
-      accessibility_score: Math.round(avgSchema * 100) / 100,
-      answer_engine_score: Math.round(avgFaq * 100) / 100,
+      accessibility_score: Math.round(avgSchema * 100) / 100, // Schema (40 pts)
+      structured_data_score: Math.round(avgMetadata * 100) / 100, // Metadata (30 pts)
+      answer_engine_score: Math.round(avgFaq * 100) / 100, // FAQ (20 pts)
+      citability_score: Math.round(avgContent * 100) / 100, // Content (10 pts)
+      semantic_html_score: 0, // Deprecated - headings dimension removed
       total_pages: pageScores.length,
       pages_scraped: pageScores.length,
       pages_scored: pageScores.length,

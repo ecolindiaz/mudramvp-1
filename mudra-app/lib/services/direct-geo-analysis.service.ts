@@ -285,10 +285,12 @@ function normalizeCompanyName(name: string): string {
   return name
     .toLowerCase()
     .trim()
+    // Strip parenthetical suffixes: "io.net (GPU DePIN)" → "io.net"
+    .replace(/\s*\(.*?\)\s*$/, '')
     // Remove common suffixes
     .replace(/\s*(inc\.?|llc\.?|ltd\.?|corp\.?|co\.?|company)$/i, '')
-    // Remove punctuation
-    .replace(/[.,!?'"()]/g, '')
+    // Remove punctuation (but keep periods for domains like io.net)
+    .replace(/[,!?'"()]/g, '')
     // Normalize whitespace
     .replace(/\s+/g, ' ')
     .trim();
@@ -316,6 +318,22 @@ function matchCompetitorNames(name1: string, name2: string): boolean {
   if (norm2.length <= 3 && norm1.length > 3) {
     const initials = norm1.split(' ').map(w => w[0]).join('');
     if (initials === norm2) return true;
+  }
+
+  // Suffix-aware matching: "Akash" matches "Akash Network", "Scale" matches "Scale AI"
+  // Constraints: shorter MUST be exactly 1 word, longer MUST be exactly 2 words
+  const companySuffixes = new Set([
+    'network', 'ai', 'labs', 'protocol', 'cloud', 'tech', 'technologies',
+    'digital', 'studio', 'studios', 'global', 'group', 'hq', 'io',
+    'platform', 'software', 'computing', 'systems', 'data', 'health',
+  ]);
+  const words1 = norm1.split(' ');
+  const words2 = norm2.split(' ');
+  if (words1.length === 1 && words2.length === 2) {
+    if (words2[0] === norm1 && companySuffixes.has(words2[1])) return true;
+  }
+  if (words2.length === 1 && words1.length === 2) {
+    if (words1[0] === norm2 && companySuffixes.has(words1[1])) return true;
   }
 
   return false;
@@ -446,6 +464,7 @@ export function filterValidCompetitors(competitors: string[], brandName: string)
     const categoryStarts = [
       'online ', 'virtual ', 'professional ', 'technical ', 'coding ',
       'career ', 'job ', 'industry ', 'software ', 'tech ', 'digital ',
+      'ai ', 'commercial ', 'decentralized ', 'centralized ', 'distributed ',
     ];
     for (const start of categoryStarts) {
       if (compLower.startsWith(start)) {
@@ -455,9 +474,62 @@ export function filterValidCompetitors(competitors: string[], brandName: string)
           'courses', 'events', 'services', 'platforms', 'resources', 'tools',
           'communities', 'networks', 'groups', 'forums', 'boards', 'fairs',
           'certifications', 'workshops', 'bootcamps', 'programs', 'portals',
+          'marketplaces', 'providers', 'solutions', 'systems', 'agencies',
+          'organizations', 'ecosystems', 'protocols', 'frameworks', 'offerings',
+          'alternatives', 'options',
         ];
         if (genericRest.includes(rest)) return false;
       }
+    }
+
+    // Filter names containing '/' — almost never companies
+    // Catches: "AI model/data marketplaces", "GPU/CPU compute", "annotation/labeling services"
+    if (comp.includes('/')) {
+      const slashExceptions = ['fly.io', 'bolt.new', 'ci/cd', 'gitlab ci/cd', 'next.js'];
+      if (!slashExceptions.some(ex => compLower.includes(ex))) return false;
+    }
+
+    // Filter multi-word phrases ending with plural category nouns
+    // Using PLURAL forms only protects company names with singular: "Render Network", "Ocean Protocol"
+    const pluralCategoryNouns = [
+      'marketplaces', 'networks', 'services', 'providers', 'platforms',
+      'solutions', 'tools', 'systems', 'agencies', 'organizations',
+      'ecosystems', 'protocols', 'frameworks', 'offerings', 'alternatives', 'options',
+    ];
+    const lastWord = words[words.length - 1];
+    if (pluralCategoryNouns.includes(lastWord)) {
+      if (words.length >= 3) {
+        // 3+ words ending in plural category noun → always filter
+        return false;
+      }
+      if (words.length === 2) {
+        // 2-word: only filter if first word is also generic
+        const genericFirstWordsForCategory = [
+          'ai', 'cloud', 'data', 'web', 'digital', 'enterprise', 'commercial',
+          'decentralized', 'centralized', 'distributed', 'gpu', 'compute',
+          'edge', 'serverless', 'managed', 'global', 'auto', 'instant',
+          'online', 'virtual', 'professional', 'technical', 'coding',
+          'career', 'job', 'industry', 'software', 'tech', 'open',
+          'annotation', 'labeling', 'training',
+        ];
+        if (genericFirstWordsForCategory.includes(words[0])) return false;
+      }
+    }
+
+    // Expanded 3+ word generic combo: first word generic AND last word generic tech term → filter
+    if (words.length >= 3) {
+      const genericFirstSet = [
+        'ai', 'edge', 'cloud', 'serverless', 'managed', 'global', 'auto', 'instant',
+        'decentralized', 'centralized', 'distributed', 'gpu', 'compute', 'data',
+        'web', 'digital', 'enterprise', 'commercial', 'open',
+      ];
+      const genericLastSet = [
+        'sdk', 'gateway', 'service', 'platform', 'runtime', 'functions',
+        'network', 'cdn', 'edge', 'proxy', 'cache', 'dashboard', 'console',
+        'portal', 'studio', 'hub', 'center', 'marketplace', 'provider',
+        'solution', 'tool', 'system', 'framework', 'protocol', 'ecosystem',
+      ];
+      if (genericFirstSet.includes(words[0]) && genericLastSet.includes(lastWord)) return false;
     }
     
     const invalidStarts = [
@@ -939,16 +1011,19 @@ Extract the following information:
      * "Y Combinator is mentioned but no ranking" → null
 
 3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
-   - Extract ONLY companies that offer services/products SIMILAR to what "${config.brandName}" does: ${config.description || config.keyProducts?.join(', ') || 'similar services'}
-   - A company is a competitor if they provide COMPARABLE services/products that solve similar customer problems
-   - EXCLUDE companies with completely different service offerings (e.g., if analyzing an accelerator, exclude payment processors, hosting providers, design tools)
+   - Extract ALL proper company/brand names that compete with or are alternatives to "${config.brandName}": ${config.description || config.keyProducts?.join(', ') || 'similar services'}
+   - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
+   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
+   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
+   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
    - EXCLUDE companies mentioned only as integration partners, tool mentions, or passing examples
-   - Prioritize companies from the known competitors list: ${config.competitors?.join(', ') || 'None'}
+   - EXCLUDE companies with completely different service offerings (e.g., if analyzing an accelerator, exclude payment processors, hosting providers, design tools)
    - Return empty array [] if no relevant competitors are mentioned
    - **CRITICAL**: Only return actual COMPANY/BRAND NAMES. Never include:
      * Sentence fragments like "Others share enthusiasm" or "Posts highlight..."
      * Action phrases like "Reach out directly" or "Sign up now"
      * Generic descriptions like "leading platform" or "top tool"
+     * Category headings like "AI model/data marketplaces" or "GPU compute networks"
      * Marketing copy or testimonials
 
 4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
@@ -1650,7 +1725,15 @@ Extract the following information:
 
 1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
 2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position
-3. **competitorsMentioned**: Array of OTHER company/brand names mentioned (EXCLUDING "${config.brandName}")
+3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}")
+   - Extract ALL proper company/brand names that compete with or are alternatives to "${config.brandName}"
+   - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
+   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
+   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
+   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
+   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
+   - Exclude category headings like "AI model/data marketplaces" or "GPU compute networks"
+   - Return empty array [] if no competitors are mentioned
 4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
 6. **sentiment**: Overall sentiment toward "${config.brandName}" ("positive" | "neutral" | "negative")
@@ -1858,7 +1941,15 @@ Extract the following information:
 
 1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
 2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position
-3. **competitorsMentioned**: Array of OTHER company/brand names mentioned (EXCLUDING "${config.brandName}")
+3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}")
+   - Extract ALL proper company/brand names that compete with or are alternatives to "${config.brandName}"
+   - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
+   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
+   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
+   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
+   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
+   - Exclude category headings like "AI model/data marketplaces" or "GPU compute networks"
+   - Return empty array [] if no competitors are mentioned
 4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
 6. **sentiment**: Overall sentiment toward "${config.brandName}" ("positive" | "neutral" | "negative")

@@ -538,6 +538,10 @@ export function quickValidateName(name: string): boolean {
     /\(\s*(https?:|by\s|e\.g\.|now\s)/i,
     // Contains " vs " (comparison, not company name)
     /\svs\s/i,
+    // 3+ word phrases ending in plural category nouns (category headings, not companies)
+    /^\S+\s+\S+\s+.*\b(marketplaces|networks|services|providers|platforms|solutions|tools|systems|agencies|organizations|ecosystems|protocols|frameworks|offerings|alternatives|options)$/i,
+    // Names containing '/' that aren't known patterns like "ci/cd" — almost never companies
+    /\/(?!cd\b)/i,
     // Action phrases
     /^(deploy|configure|set up|push to|launch|organize your|map your)/i,
     // Phrases ending with generic nouns (descriptions, not companies)

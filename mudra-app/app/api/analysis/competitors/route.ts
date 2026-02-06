@@ -148,6 +148,51 @@ function isValidCompetitorName(name: string): boolean {
   // Contains lowercase-only words longer than 15 chars (likely description)
   if (name === compLower && name.length > 15 && !/[A-Z0-9.]/.test(name)) return false
 
+  // Filter names containing '/' — almost never companies
+  if (name.includes('/')) {
+    const slashExceptions = ['fly.io', 'bolt.new', 'ci/cd', 'gitlab ci/cd', 'next.js']
+    if (!slashExceptions.some(ex => compLower.includes(ex))) return false
+  }
+
+  // Filter multi-word phrases ending with plural category nouns
+  const words = compLower.split(/\s+/)
+  const pluralCategoryNouns = [
+    'marketplaces', 'networks', 'services', 'providers', 'platforms',
+    'solutions', 'tools', 'systems', 'agencies', 'organizations',
+    'ecosystems', 'protocols', 'frameworks', 'offerings', 'alternatives', 'options',
+  ]
+  const lastWord = words[words.length - 1]
+  if (pluralCategoryNouns.includes(lastWord)) {
+    if (words.length >= 3) return false
+    if (words.length === 2) {
+      const genericFirstWords = [
+        'ai', 'cloud', 'data', 'web', 'digital', 'enterprise', 'commercial',
+        'decentralized', 'centralized', 'distributed', 'gpu', 'compute',
+        'edge', 'serverless', 'managed', 'global', 'auto', 'instant',
+        'online', 'virtual', 'professional', 'technical', 'coding',
+        'career', 'job', 'industry', 'software', 'tech', 'open',
+        'annotation', 'labeling', 'training',
+      ]
+      if (genericFirstWords.includes(words[0])) return false
+    }
+  }
+
+  // 3+ word generic combo: first word generic AND last word generic tech term → filter
+  if (words.length >= 3) {
+    const genericFirstSet = [
+      'ai', 'edge', 'cloud', 'serverless', 'managed', 'global', 'auto', 'instant',
+      'decentralized', 'centralized', 'distributed', 'gpu', 'compute', 'data',
+      'web', 'digital', 'enterprise', 'commercial', 'open',
+    ]
+    const genericLastSet = [
+      'sdk', 'gateway', 'service', 'platform', 'runtime', 'functions',
+      'network', 'cdn', 'edge', 'proxy', 'cache', 'dashboard', 'console',
+      'portal', 'studio', 'hub', 'center', 'marketplace', 'provider',
+      'solution', 'tool', 'system', 'framework', 'protocol', 'ecosystem',
+    ]
+    if (genericFirstSet.includes(words[0]) && genericLastSet.includes(lastWord)) return false
+  }
+
   return true
 }
 
@@ -375,6 +420,43 @@ export async function GET(request: NextRequest) {
               )
             }
           }
+        }
+      }
+    }
+
+    // Dedup merge: merge "X" and "X suffix" entries (e.g., "akash" + "akash network")
+    // Prefer the longer (more specific) name as display name
+    const companySuffixes = new Set([
+      'network', 'ai', 'labs', 'protocol', 'cloud', 'tech', 'technologies',
+      'digital', 'studio', 'studios', 'global', 'group', 'hq', 'io',
+      'platform', 'software', 'computing', 'systems', 'data', 'health',
+    ])
+    const allKeys = Array.from(competitorMentionMap.keys())
+    for (const key of allKeys) {
+      const keyWords = key.split(/\s+/)
+      // Only check 1-word keys for potential merge with 2-word keys
+      if (keyWords.length !== 1) continue
+      for (const otherKey of allKeys) {
+        if (key === otherKey) continue
+        const otherWords = otherKey.split(/\s+/)
+        if (otherWords.length !== 2) continue
+        if (otherWords[0] === key && companySuffixes.has(otherWords[1])) {
+          // Merge short→long: combine mentions into the longer key
+          const shortMentions = competitorMentionMap.get(key) || []
+          const longMentions = competitorMentionMap.get(otherKey) || []
+          competitorMentionMap.set(otherKey, [...longMentions, ...shortMentions])
+          // Merge display name counts
+          const shortDisplayCounts = competitorDisplayNames.get(key)
+          const longDisplayCounts = competitorDisplayNames.get(otherKey)
+          if (shortDisplayCounts && longDisplayCounts) {
+            shortDisplayCounts.forEach((count, name) => {
+              longDisplayCounts.set(name, (longDisplayCounts.get(name) || 0) + count)
+            })
+          }
+          // Remove the short key
+          competitorMentionMap.delete(key)
+          competitorDisplayNames.delete(key)
+          break // key is deleted, stop inner loop
         }
       }
     }

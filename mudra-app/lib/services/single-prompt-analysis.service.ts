@@ -131,7 +131,9 @@ export async function runSinglePromptAnalysis(
         searchQueries: result.searchQueries,
       }
     } catch (error) {
-      console.error(`  ✗ [${provider}] Error:`, error)
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      const errorStatus = (error as any)?.status || (error as any)?.code || 'unknown'
+      console.error(`  ✗ [${provider}] FAILED (status: ${errorStatus}): ${errorMsg}`)
       return {
         provider,
         response: '',
@@ -139,21 +141,26 @@ export async function runSinglePromptAnalysis(
         competitors: [],
         sentiment: 'neutral',
         confidence: 0,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMsg,
       }
     }
   })
   
   const providerResults = await Promise.all(providerPromises)
-  
+
   // Calculate overall visibility (percentage of providers that mentioned the brand)
   const successfulResults = providerResults.filter(r => !r.error)
+  const failedResults = providerResults.filter(r => r.error)
   const mentionedCount = successfulResults.filter(r => r.brandMentioned).length
-  const overallVisibility = successfulResults.length > 0 
+  const overallVisibility = successfulResults.length > 0
     ? Math.round((mentionedCount / successfulResults.length) * 100)
     : 0
-  
+
   console.log(`✅ Single-prompt analysis complete: ${overallVisibility}% visibility`)
+  console.log(`   ✓ Succeeded: ${successfulResults.map(r => r.provider).join(', ') || 'none'}`)
+  if (failedResults.length > 0) {
+    console.error(`   ✗ Failed: ${failedResults.map(r => `${r.provider} (${r.error})`).join(', ')}`)
+  }
   
   // Store results by appending to GeoAnalysisResult.analyses
   try {

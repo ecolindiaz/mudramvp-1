@@ -108,10 +108,15 @@ export async function GET(
         : (Array.isArray(analysesRaw) ? analysesRaw : [])
 
       for (const analysis of analyses) {
+        // Use per-entry analyzedAt when available (set by single-prompt analysis),
+        // otherwise fall back to the GeoAnalysisResult row's createdAt
+        const entryDate = analysis.analyzedAt
+          ? new Date(analysis.analyzedAt)
+          : analysisResult.createdAt
         allAnalyses.push({
           data: analysis,
           runId: analysisResult.id,
-          runDate: analysisResult.createdAt
+          runDate: entryDate
         })
       }
     }
@@ -350,6 +355,7 @@ export async function GET(
       competitorPositions: result.competitorPositions, // Include positions data
       competitorSentiments: result.competitorSentiments, // Include sentiment data per competitor
       citations: result.citations || [], // Include citations from live search APIs
+      sources: result.sources || [], // Include web search result URLs (OpenAI Responses API, Gemini grounding, etc.)
       analysisRunId: result.analysisRunId,
       analysisRunDate: result.analysisRunDate
     }))
@@ -436,8 +442,10 @@ export async function GET(
           model
         },
         
-        // Analysis metadata
-        analysisDate: latestAnalysis.createdAt,
+        // Analysis metadata - use most recent date from THIS prompt's matched results
+        analysisDate: promptTestResults.length > 0
+          ? new Date(Math.max(...promptTestResults.map((r: any) => new Date(r.analysisRunDate).getTime())))
+          : latestAnalysis.createdAt,
         overallScore: latestAnalysis.overallScore
       }
     })

@@ -263,12 +263,18 @@ export async function GET(request: NextRequest) {
 
     // Step 3: Extract analyses from ALL GeoAnalysisResults (not just latest)
     // This ensures visibility is averaged across all runs, matching Deep View
-    let allAnalyses: any[] = []
+    // Each entry gets a resolvedDate: per-entry analyzedAt if available, else the run's createdAt
+    let allAnalyses: Array<any & { _resolvedDate: Date }> = []
     for (const analysisResult of allAnalysisResults) {
       const analysesRaw = analysisResult.analyses
       const parsedAnalyses: any[] = typeof analysesRaw === 'string'
         ? JSON.parse(analysesRaw)
         : (Array.isArray(analysesRaw) ? analysesRaw : [])
+      for (const entry of parsedAnalyses) {
+        entry._resolvedDate = entry.analyzedAt
+          ? new Date(entry.analyzedAt)
+          : analysisResult.createdAt
+      }
       allAnalyses.push(...parsedAnalyses)
     }
     console.log(`📊 Collected ${allAnalyses.length} total analyses from ${allAnalysisResults.length} run(s)`)
@@ -445,6 +451,8 @@ export async function GET(request: NextRequest) {
 
       // Collect ALL test results for this prompt across all providers
       const testResults: PromptTestResult[] = []
+      // Track the most recent analysis date for THIS specific prompt
+      let promptLastAnalyzedAt: Date | null = null
 
       // Search through all analyses for this prompt
       for (const item of analyses) {
@@ -480,6 +488,11 @@ export async function GET(request: NextRequest) {
             provider: providerName,
             model: providerName
           })
+          // Track the most recent date for this prompt's results
+          const entryDate: Date = item._resolvedDate || latestAnalysis.createdAt
+          if (!promptLastAnalyzedAt || entryDate > promptLastAnalyzedAt) {
+            promptLastAnalyzedAt = entryDate
+          }
         }
       }
 
@@ -530,7 +543,9 @@ export async function GET(request: NextRequest) {
           mentionedIn: testResults.filter(t => t.brandMentioned).length
         } : null,
         createdAt: prompt.createdAt,
-        updatedAt: prompt.updatedAt
+        updatedAt: prompt.updatedAt,
+        // Per-prompt last analyzed date (accounts for single-prompt runs)
+        lastAnalyzedAt: promptLastAnalyzedAt || null
       }
     })
 

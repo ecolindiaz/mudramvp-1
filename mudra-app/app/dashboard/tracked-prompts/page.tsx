@@ -150,7 +150,8 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
     accessorKey: "prompt",
     cell: ({ row }) => (
       <div 
-        className="font-medium text-white/90 text-[15px] md:text-base leading-relaxed cursor-pointer hover:text-white transition-colors"
+        className="font-medium text-white/90 text-[15px] md:text-base leading-relaxed cursor-pointer hover:text-white transition-colors max-w-[300px] md:max-w-[400px] truncate"
+        title={row.getValue("prompt")}
         onClick={(e) => {
           e.stopPropagation()
           router.push(`/dashboard/tracked-prompts/${row.original.id}`)
@@ -469,13 +470,17 @@ function TrackedPromptsPageInner() {
       })
 
       if (result.success && result.prompts) {
-        // Format the analysis date as relative time
-        const lastRunTime = formatRelativeTime(result.analysisDate)
+        // Global analysis date as fallback
+        const globalLastRunTime = formatRelativeTime(result.analysisDate)
 
         // Transform API response to table format
         const transformedData: TrackedPrompt[] = result.prompts.map((p: any) => {
           // Check if prompt has been analyzed (has model or visibility data)
           const hasBeenAnalyzed = p.model || (p.visibility && p.visibility > 0)
+          // Use per-prompt lastAnalyzedAt when available, fall back to global analysisDate
+          const lastRunTime = p.lastAnalyzedAt
+            ? formatRelativeTime(p.lastAnalyzedAt)
+            : globalLastRunTime
           return {
             id: p.id.toString(),
             prompt: p.text,
@@ -701,11 +706,15 @@ function TrackedPromptsPageInner() {
                 const newPromptData = refreshResult.prompts.find((p: any) => p.id.toString() === newPromptId)
                 const hasResults = newPromptData && (newPromptData.model || (newPromptData.visibility && newPromptData.visibility > 0))
 
-                // Format the analysis date as relative time
-                const lastRunTime = formatRelativeTime(refreshResult.analysisDate)
+                // Global analysis date as fallback
+                const globalLastRunTime = formatRelativeTime(refreshResult.analysisDate)
 
                 const transformedData: TrackedPrompt[] = refreshResult.prompts.map((p: any) => {
                   const hasBeenAnalyzed = p.model || (p.visibility && p.visibility > 0)
+                  // Use per-prompt lastAnalyzedAt when available, fall back to global analysisDate
+                  const lastRunTime = p.lastAnalyzedAt
+                    ? formatRelativeTime(p.lastAnalyzedAt)
+                    : globalLastRunTime
                   return {
                     id: p.id.toString(),
                     prompt: p.text,

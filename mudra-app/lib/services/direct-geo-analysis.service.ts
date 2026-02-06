@@ -33,6 +33,8 @@ async function mapWithConcurrency<T, R>(
 
 // Cache for resolved Gemini grounding redirect URLs (in-memory, per-process)
 const geminiRedirectCache = new Map<string, { url: string; title: string; resolvedAt: number }>();
+// Tracks active redirect resolutions so duplicate URLs don't trigger parallel retries/log spam
+const geminiRedirectInFlight = new Map<string, Promise<{ url: string; title: string }>>();
 const REDIRECT_CACHE_TTL = 1000 * 60 * 60; // 1 hour cache TTL
 
 // Model used to extract brand/competitor entities from provider response text.
@@ -61,85 +63,102 @@ async function resolveGeminiGroundingUrl(
     return { url: cached.url, title: cached.title };
   }
 
-  // Helper to extract title from resolved URL
-  const extractTitle = (resolvedUrl: string): string => {
-    let title = originalTitle || '';
-    try {
-      const urlObj = new URL(resolvedUrl);
-      if (!title || title.length < 5) {
-        title = urlObj.hostname;
-      }
-    } catch {
-      // Keep original title if URL parsing fails
-    }
-    return title;
-  };
-
-  // Helper to cache and return a resolved URL
-  const cacheAndReturn = (resolved: string, method: string): { url: string; title: string } => {
-    const title = extractTitle(resolved);
-    geminiRedirectCache.set(redirectUrl, {
-      url: resolved,
-      title,
-      resolvedAt: Date.now(),
-    });
-    console.log(`[Gemini] Resolved redirect (${method}): ${redirectUrl.substring(0, 60)}... → ${resolved.substring(0, 80)}...`);
-    return { url: resolved, title };
-  };
-
-  // Retry with backoff: 3 attempts with 500ms, 1s, 2s delays
-  // This handles transient failures & rate limiting from Google's redirect endpoint
-  const MAX_ATTEMPTS = 3;
-  const INITIAL_RETRY_DELAY = 500;
-
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    try {
-      // Stage 1: HEAD request to read Location header (fast path)
-      const response = await fetch(redirectUrl, {
-        method: 'HEAD',
-        redirect: 'manual',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; MudraBot/1.0)',
-        },
-        signal: AbortSignal.timeout(8000), // 8 second timeout
-      });
-
-      const location = response.headers.get('location');
-      if (location && location !== redirectUrl) {
-        return cacheAndReturn(location, 'HEAD');
-      }
-
-      // Stage 2: GET with full redirect follow (slower fallback)
-      const followResponse = await fetch(redirectUrl, {
-        method: 'GET',
-        redirect: 'follow',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; MudraBot/1.0)',
-        },
-        signal: AbortSignal.timeout(12000), // 12 second timeout for full follow
-      });
-
-      const finalUrl = followResponse.url;
-      if (finalUrl && finalUrl !== redirectUrl) {
-        return cacheAndReturn(finalUrl, 'GET follow');
-      }
-
-      // Both stages returned same URL — not a transient error, no point retrying
-      break;
-    } catch (error: any) {
-      const isLastAttempt = attempt === MAX_ATTEMPTS - 1;
-      if (isLastAttempt) {
-        console.warn(`[Gemini] Failed to resolve redirect URL after ${MAX_ATTEMPTS} attempts: ${error.message}`);
-      } else {
-        const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt);
-        console.warn(`[Gemini] Redirect resolution attempt ${attempt + 1}/${MAX_ATTEMPTS} failed (${error.message}), retrying in ${delay}ms...`);
-        await sleep(delay);
-      }
-    }
+  // Reuse an active resolution for the same URL to avoid duplicate retries/logs under concurrency.
+  const activeResolution = geminiRedirectInFlight.get(redirectUrl);
+  if (activeResolution) {
+    const resolved = await activeResolution;
+    return { url: resolved.url, title: resolved.title || originalTitle || '' };
   }
 
-  // Return original URL as fallback - never lose the source
-  return { url: redirectUrl, title: originalTitle || '' };
+  const resolutionPromise = (async (): Promise<{ url: string; title: string }> => {
+    // Helper to extract title from resolved URL
+    const extractTitle = (resolvedUrl: string): string => {
+      let title = originalTitle || '';
+      try {
+        const urlObj = new URL(resolvedUrl);
+        if (!title || title.length < 5) {
+          title = urlObj.hostname;
+        }
+      } catch {
+        // Keep original title if URL parsing fails
+      }
+      return title;
+    };
+
+    // Helper to cache and return a resolved URL
+    const cacheAndReturn = (resolved: string, method: string): { url: string; title: string } => {
+      const title = extractTitle(resolved);
+      geminiRedirectCache.set(redirectUrl, {
+        url: resolved,
+        title,
+        resolvedAt: Date.now(),
+      });
+      console.log(`[Gemini] Resolved redirect (${method}): ${redirectUrl.substring(0, 60)}... → ${resolved.substring(0, 80)}...`);
+      return { url: resolved, title };
+    };
+
+    // Retry with backoff: 3 attempts with 500ms, 1s, 2s delays
+    // This handles transient failures & rate limiting from Google's redirect endpoint
+    const MAX_ATTEMPTS = 3;
+    const INITIAL_RETRY_DELAY = 500;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        // Stage 1: HEAD request to read Location header (fast path)
+        const response = await fetch(redirectUrl, {
+          method: 'HEAD',
+          redirect: 'manual',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; MudraBot/1.0)',
+          },
+          signal: AbortSignal.timeout(8000), // 8 second timeout
+        });
+
+        const location = response.headers.get('location');
+        if (location && location !== redirectUrl) {
+          return cacheAndReturn(location, 'HEAD');
+        }
+
+        // Stage 2: GET with full redirect follow (slower fallback)
+        const followResponse = await fetch(redirectUrl, {
+          method: 'GET',
+          redirect: 'follow',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; MudraBot/1.0)',
+          },
+          signal: AbortSignal.timeout(12000), // 12 second timeout for full follow
+        });
+
+        const finalUrl = followResponse.url;
+        if (finalUrl && finalUrl !== redirectUrl) {
+          return cacheAndReturn(finalUrl, 'GET follow');
+        }
+
+        // Both stages returned same URL — not a transient error, no point retrying
+        break;
+      } catch (error: any) {
+        const isLastAttempt = attempt === MAX_ATTEMPTS - 1;
+        if (isLastAttempt) {
+          console.warn(`[Gemini] Failed to resolve redirect URL after ${MAX_ATTEMPTS} attempts: ${error.message}`);
+        } else {
+          const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt);
+          console.warn(`[Gemini] Redirect resolution attempt ${attempt + 1}/${MAX_ATTEMPTS} failed (${error.message}), retrying in ${delay}ms...`);
+          await sleep(delay);
+        }
+      }
+    }
+
+    // Return original URL as fallback - never lose the source
+    return { url: redirectUrl, title: originalTitle || '' };
+  })();
+
+  geminiRedirectInFlight.set(redirectUrl, resolutionPromise);
+
+  try {
+    return await resolutionPromise;
+  } finally {
+    geminiRedirectInFlight.delete(redirectUrl);
+  }
 }
 
 /**
@@ -2069,14 +2088,20 @@ function calculateBrandMetrics(tests: PromptTest[]): {
     ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length) * 10) / 10
     : 0;
   
-  // Calculate visibility score (0-100)
-  // Based on mention rate and average position
-  let visibilityScore = mentionRate * 50; // Base score from mention rate
-  if (averagePosition > 0) {
-    // Add position bonus (better positions = higher score)
-    const positionBonus = Math.max(0, (10 - averagePosition) / 10) * 50;
-    visibilityScore += positionBonus;
-  }
+  // Calculate visibility score using per-test Firegeo average (0-100)
+  // Each test: 0 if not mentioned, 50 + positionBonus if mentioned
+  // Average across ALL tests (properly weights mention rate and position)
+  const firegeoScores = tests.map(t => {
+    if (!t.brandMentioned) return 0;
+    let score = 50;
+    if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0) {
+      score += Math.max(0, (10 - t.brandPosition) / 10) * 50;
+    }
+    return Math.round(score);
+  });
+  const visibilityScore = firegeoScores.length > 0
+    ? firegeoScores.reduce((a, b) => a + b, 0) / firegeoScores.length
+    : 0;
   
   // Calculate overall sentiment
   const sentimentCounts = {

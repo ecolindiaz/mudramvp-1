@@ -605,24 +605,27 @@ export async function GET(request: NextRequest) {
       const sentimentCounts = { positive: 0, neutral: 0, negative: 0 }
 
       for (const [provider, tests] of testsByProvider) {
-        // Calculate this provider's score with position boost
+        // Calculate this provider's score using per-test Firegeo average
+        // Each test gets: 0 if not mentioned, 50 + positionBonus if mentioned
         const mentionedTests = tests.filter(t => t.brandMentioned)
-        const mentionRate = mentionedTests.length / tests.length
 
-        // Get average position for this provider
+        // Get average position for this provider (for aggregate metrics)
         const rankedTests = mentionedTests.filter(t =>
           t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0
         )
-        const avgPosition = rankedTests.length > 0
-          ? rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length
-          : 0
 
-        // Score formula: mentionRate * 50 + positionBonus * 50
-        let providerScore = mentionRate * 50
-        if (avgPosition > 0) {
-          const positionBonus = Math.max(0, (10 - avgPosition) / 10) * 50
-          providerScore += positionBonus
-        }
+        // Per-test Firegeo scores averaged across ALL tests for this provider
+        const firegeoScores = tests.map(t => {
+          if (!t.brandMentioned) return 0
+          let score = 50
+          if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0) {
+            score += Math.max(0, (10 - t.brandPosition) / 10) * 50
+          }
+          return Math.round(score)
+        })
+        const providerScore = firegeoScores.length > 0
+          ? firegeoScores.reduce((a, b) => a + b, 0) / firegeoScores.length
+          : 0
         providerScores.push(providerScore)
 
         // Accumulate for aggregate metrics

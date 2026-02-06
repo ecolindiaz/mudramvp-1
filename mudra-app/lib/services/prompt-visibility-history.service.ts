@@ -253,10 +253,12 @@ export async function getPromptVisibilityHistory(
       allBrandPositions.push(...dayData.brandPositions)
       allBrandSentiments.push(...dayData.brandSentiments)
 
-      // Add competitor data for this day (also using Firegeo scores)
+      // Add competitor data for this day (using Firegeo scores divided by total tests)
+      // This makes daily competitor scores consistent with how brand scores work:
+      // sum(per-test firegeo) / totalResponses (non-mention tests contribute 0)
       for (const [competitor, compData] of dayData.competitorData) {
         const avgCompScore = compData.scores.length > 0
-          ? Math.round(compData.scores.reduce((a, b) => a + b, 0) / compData.scores.length)
+          ? Math.round(compData.scores.reduce((a, b) => a + b, 0) / dayData.totalResponses)
           : 0
         dataPoint.competitors[competitor] = avgCompScore
 
@@ -301,10 +303,10 @@ export async function getPromptVisibilityHistory(
     isYou: true
   })
 
-  // Add other competitors - using average Firegeo score
+  // Add other competitors - using per-test Firegeo average (dividing by total tests, not just mentions)
   for (const [name, data] of allCompetitors) {
-    const visibility = data.totalScores.length > 0
-      ? Math.round(data.totalScores.reduce((a, b) => a + b, 0) / data.totalScores.length)
+    const visibility = data.totalScores.length > 0 && totalResponses > 0
+      ? Math.round(data.totalScores.reduce((a, b) => a + b, 0) / totalResponses)
       : 0
     const avgPosition = data.positions.length > 0
       ? Math.round((data.positions.reduce((a, b) => a + b, 0) / data.positions.length) * 10) / 10

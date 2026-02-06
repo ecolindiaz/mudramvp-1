@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { runSinglePromptAnalysis } from '@/lib/services/single-prompt-analysis.service'
 
+// Vercel serverless: single-prompt analysis needs time for 4 concurrent AI provider calls
+export const maxDuration = 120
+
 // Validation constants
 const MAX_PROMPT_LENGTH = 500
 const MAX_ACTIVE_PROMPTS = 100
@@ -140,25 +143,29 @@ export async function POST(request: NextRequest) {
     console.log(`✅ Created custom prompt ${newPrompt.id} for brand profile ${brandProfileId}`)
 
     // === BUG-3 FIX: Optional immediate analysis trigger ===
+    // IMPORTANT: Must await the analysis — fire-and-forget doesn't work on Vercel
+    // because the serverless function is killed once the response is sent.
     let analysisTriggered = false
+    let analysisResult = null
     if (runAnalysis) {
       try {
-        // Trigger single-prompt analysis asynchronously (don't block response)
-        triggerSinglePromptAnalysis(brandProfileId, newPrompt.id, trimmedText, newPrompt.category || canonicalCategory)
-          .catch(err => console.error('❌ Background analysis failed:', err))
+        console.log(`🚀 Running immediate analysis for prompt ${newPrompt.id}...`)
+        analysisResult = await triggerSinglePromptAnalysis(brandProfileId, newPrompt.id, trimmedText, newPrompt.category || canonicalCategory)
         analysisTriggered = true
-        console.log(`🚀 Triggered immediate analysis for prompt ${newPrompt.id}`)
+        console.log(`✅ Analysis complete for prompt ${newPrompt.id}: ${analysisResult.overallVisibility}% visibility`)
       } catch (error) {
-        console.error('⚠️ Failed to trigger immediate analysis:', error)
+        console.error('⚠️ Failed to run immediate analysis:', error)
         // Don't fail the request - prompt was created successfully
       }
     }
 
     return NextResponse.json({
       success: true,
-      data: { 
+      data: {
         prompt: newPrompt,
         analysisTriggered,
+        analysisComplete: !!analysisResult,
+        visibility: analysisResult?.overallVisibility ?? null,
       },
     })
   } catch (error) {
@@ -268,8 +275,8 @@ async function triggerSinglePromptAnalysis(
   promptId: number,
   promptText: string,
   category: string
-): Promise<void> {
-  await runSinglePromptAnalysis({
+) {
+  return await runSinglePromptAnalysis({
     brandProfileId,
     promptId,
     promptText,

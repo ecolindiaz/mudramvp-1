@@ -196,7 +196,7 @@ function calculateCategoryScore(categoryTests: PromptTestResult[]): {
 
 /**
  * Calculate aggregate visibility score using Firegeo methodology
- * Formula: mentionRate * 50 + positionBonus * 50
+ * Formula: avg(per-test Firegeo scores) where each test = 0 or 50 + positionBonus
  * 
  * Also calculates weighted score using intent category weights
  * 
@@ -239,15 +239,20 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
     ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length) * 10) / 10
     : 0;
 
-  // Calculate visibility score using Firegeo formula
-  let overallScore = mentionRate * 50; // Base score from mention rate (0-50)
-  
-  if (averagePosition > 0) {
-    // Position bonus: better positions = higher score (0-50)
-    // Position 1 = 45 points, Position 10 = 0 points
-    const positionBonus = Math.max(0, (10 - averagePosition) / 10) * 50;
-    overallScore += positionBonus;
-  }
+  // Calculate visibility score using per-test Firegeo average
+  // Each test gets: 0 if not mentioned, 50 + positionBonus if mentioned
+  // Then average across ALL tests (properly weights both mention rate and position)
+  const firegeoScores = tests.map(t => {
+    if (!t.brandMentioned) return 0;
+    let score = 50;
+    if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0) {
+      score += Math.max(0, (10 - t.brandPosition) / 10) * 50;
+    }
+    return Math.round(score);
+  });
+  const overallScore = firegeoScores.length > 0
+    ? firegeoScores.reduce((a, b) => a + b, 0) / firegeoScores.length
+    : 0;
 
   // Calculate weighted score by intent category
   const { weightedScore, categoryBreakdown } = calculateWeightedScore(tests);

@@ -207,10 +207,11 @@ export async function GET(
 
     console.log(`   After model filter (${model}): ${filteredTestResults.length} results`)
 
-    // Step 5: Calculate aggregate metrics from FILTERED data using Firegeo formula
+    // Step 5: Calculate aggregate metrics from FILTERED data using per-test Firegeo scoring
+    // Each test gets: 0 if not mentioned, 50 + positionBonus if mentioned
+    // Then average across ALL tests (same formula as chart service)
     const totalTests = filteredTestResults.length
     const mentionedCount = filteredTestResults.filter(r => r.brandMentioned).length
-    const mentionRate = totalTests > 0 ? mentionedCount / totalTests : 0
 
     const positions = filteredTestResults
       .filter(r => r.brandMentioned && r.brandPosition)
@@ -219,13 +220,18 @@ export async function GET(
       ? positions.reduce((sum, pos) => sum + pos, 0) / positions.length
       : null
 
-    // Calculate Firegeo visibility score (consistent with chart)
-    // Formula: mentionRate * 50 + positionBonus * 50
-    let visibilityPercentage = Math.round(mentionRate * 50)
-    if (averagePosition && averagePosition > 0) {
-      const positionBonus = Math.max(0, (10 - averagePosition) / 10) * 50
-      visibilityPercentage += Math.round(positionBonus)
-    }
+    // Calculate per-test Firegeo scores and average them
+    const brandFiregeoScores = filteredTestResults.map(r => {
+      if (!r.brandMentioned) return 0
+      let score = 50
+      if (r.brandPosition && r.brandPosition > 0) {
+        score += Math.max(0, (10 - r.brandPosition) / 10) * 50
+      }
+      return Math.round(score)
+    })
+    const visibilityPercentage = brandFiregeoScores.length > 0
+      ? Math.round(brandFiregeoScores.reduce((a, b) => a + b, 0) / brandFiregeoScores.length)
+      : 0
 
     // Sentiment breakdown from filtered data
     const sentimentCounts = {
@@ -240,7 +246,7 @@ export async function GET(
     // Step 6: Calculate per-competitor metrics (from filtered data)
     const competitorMetrics = new Map<string, {
       mentions: number
-      visibility: number
+      firegeoScores: number[]
       positions: number[]
       sentiments: string[]
     }>()
@@ -250,57 +256,58 @@ export async function GET(
       const competitors = result.competitorsMentioned || []
       const competitorPositions = result.competitorPositions || {}
       const competitorSentiments = result.competitorSentiments || {}
-      
+
       // IMPORTANT: Also extract competitors from competitorPositions object
       // because sometimes they're only in positions but not in the mentions array
       const competitorsFromPositions = Object.keys(competitorPositions)
       const competitorsFromSentiments = Object.keys(competitorSentiments)
       const allCompetitorsInTest = new Set([...competitors, ...competitorsFromPositions, ...competitorsFromSentiments])
-      
+
       allCompetitorsInTest.forEach((competitor: string) => {
         if (!competitorMetrics.has(competitor)) {
           competitorMetrics.set(competitor, {
             mentions: 0,
-            visibility: 0,
+            firegeoScores: [],
             positions: [],
             sentiments: []
           })
         }
-        
+
         const metrics = competitorMetrics.get(competitor)!
         metrics.mentions += 1
-        
+
+        // Calculate per-test Firegeo score for this competitor
+        const compPosition = competitorPositions[competitor] || null
+        let score = 50 // Base score for being mentioned
+        if (compPosition && compPosition > 0) {
+          score += Math.max(0, (10 - compPosition) / 10) * 50
+        }
+        metrics.firegeoScores.push(Math.round(score))
+
         // Track position if available for this competitor in this test
         if (competitorPositions[competitor]) {
           metrics.positions.push(competitorPositions[competitor])
         }
-        
+
         // Track sentiment if available for this competitor in this test
         if (competitorSentiments[competitor]) {
           metrics.sentiments.push(competitorSentiments[competitor])
         }
-        
-        // For visibility: count how many times competitor appeared across tests
-        // Note: We're counting mentions per test, so visibility = (mentions / totalTests) * 100
       })
     })
 
-    // Calculate final metrics for each competitor using Firegeo formula
-    // (Same formula as chart for consistency)
+    // Calculate final metrics for each competitor using per-test Firegeo average
+    // (Same formula as chart service for consistency)
     const competitorsWithMetrics = Array.from(competitorMetrics.entries()).map(([name, metrics]) => {
       // Average position across all tests where this competitor had a position
       const avgPosition = metrics.positions.length > 0
         ? Math.round((metrics.positions.reduce((sum, pos) => sum + pos, 0) / metrics.positions.length) * 10) / 10
         : null
 
-      // Calculate Firegeo visibility score (not mention rate!)
-      // Formula: mentionRate * 50 + positionBonus * 50
-      const mentionRate = totalTests > 0 ? metrics.mentions / totalTests : 0
-      let visibility = Math.round(mentionRate * 50)
-      if (avgPosition && avgPosition > 0) {
-        const positionBonus = Math.max(0, (10 - avgPosition) / 10) * 50
-        visibility += Math.round(positionBonus)
-      }
+      // Per-test Firegeo average: sum of scores / totalTests
+      // Non-mention tests contribute 0 implicitly (they're not in firegeoScores)
+      const firegeoSum = metrics.firegeoScores.reduce((a, b) => a + b, 0)
+      const visibility = totalTests > 0 ? Math.round(firegeoSum / totalTests) : 0
       
       // Dominant sentiment based on most frequent sentiment across tests
       const sentimentCount = {

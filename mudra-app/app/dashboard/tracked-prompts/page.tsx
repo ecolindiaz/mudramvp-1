@@ -675,17 +675,35 @@ function TrackedPromptsPageInner() {
       console.log('📥 Add prompt response:', { status: response.status, result })
 
       if (response.ok && result.success) {
-        console.log('✅ Prompt added successfully', result.data?.analysisTriggered ? '(analysis triggered)' : '')
+        const analysisComplete = Boolean(result.data?.analysisComplete)
+        console.log('✅ Prompt added successfully', analysisComplete ? `(analysis complete: ${result.data?.visibility}% visibility)` : result.data?.analysisTriggered ? '(analysis triggered)' : '')
 
         // Close dialog and reset form
         setAddOpen(false)
         setNewPromptText("")
         setNewIntent("Organic")
-        setRunAnalysisOnAdd(false)
         setErrorMessage(null)
 
         const newPromptId = result.data?.prompt?.id?.toString() || `pending-${Date.now()}`
         const analysisTriggered = Boolean(result.data?.analysisTriggered)
+
+        // If analysis completed synchronously, refresh data immediately
+        if (analysisComplete) {
+          try {
+            const refreshResponse = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
+            const refreshResult = await refreshResponse.json()
+            if (refreshResult.success && refreshResult.prompts) {
+              const transformedData = transformPromptsFromApi(refreshResult.prompts, refreshResult.analysisDate, new Set())
+              setData(transformedData)
+              console.log(`✅ Prompt ${newPromptId} data refreshed with analysis results`)
+              window.dispatchEvent(new Event('mudra:analysis-complete'))
+            }
+          } catch (err) {
+            console.error('Error refreshing after analysis:', err)
+          }
+          return
+        }
+
         const pendingPrompt: TrackedPrompt = {
           id: newPromptId,
           prompt: text,
@@ -702,7 +720,7 @@ function TrackedPromptsPageInner() {
         setData((prev) => [pendingPrompt, ...prev])
 
         if (runAnalysisOnAdd && analysisTriggered) {
-          // Poll for results (~88s window to handle slow AI provider responses)
+          // Fallback polling in case analysis was triggered but not yet complete
           const pollForResults = async (attempts: number = 0, maxAttempts: number = 18) => {
             const delay = attempts === 0 ? 3000 : 5000
             await new Promise(resolve => setTimeout(resolve, delay))

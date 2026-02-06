@@ -198,21 +198,21 @@ export async function runSinglePromptAnalysis(
     console.warn('⚠️ Competitor validation failed for single-prompt analysis, using unvalidated results:', error)
   }
 
-  // Calculate overall visibility using Firegeo formula (consistent with unified analysis)
-  // Formula: mentionRate * 50 + positionBonus * 50
+  // Calculate overall visibility using per-test Firegeo average (consistent across all views)
+  // Each test: 0 if not mentioned, 50 + positionBonus if mentioned
   const successfulResults = providerResults.filter(r => !r.error)
   const failedResults = providerResults.filter(r => r.error)
-  const mentionedCount = successfulResults.filter(r => r.brandMentioned).length
-  const mentionRate = successfulResults.length > 0 ? mentionedCount / successfulResults.length : 0
-
-  const positionsWithMention = successfulResults
-    .filter(r => r.brandMentioned && r.brandPosition && r.brandPosition > 0)
-    .map(r => r.brandPosition!)
-  const avgPosition = positionsWithMention.length > 0
-    ? positionsWithMention.reduce((sum, p) => sum + p, 0) / positionsWithMention.length
+  const firegeoScores = successfulResults.map(r => {
+    if (!r.brandMentioned) return 0
+    let score = 50
+    if (r.brandPosition && r.brandPosition > 0) {
+      score += Math.max(0, (10 - r.brandPosition) / 10) * 50
+    }
+    return Math.round(score)
+  })
+  const overallVisibility = firegeoScores.length > 0
+    ? Math.round(firegeoScores.reduce((a, b) => a + b, 0) / firegeoScores.length)
     : 0
-  const positionBonus = avgPosition > 0 ? Math.max(0, (10 - avgPosition) / 10) * 50 : 0
-  const overallVisibility = Math.round(mentionRate * 50 + positionBonus)
 
   console.log(`✅ Single-prompt analysis complete: ${overallVisibility}% visibility`)
   console.log(`   ✓ Succeeded: ${successfulResults.map(r => r.provider).join(', ') || 'none'}`)

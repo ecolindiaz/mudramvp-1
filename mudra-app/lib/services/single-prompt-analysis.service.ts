@@ -7,6 +7,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { validateCompetitors } from './competitor-validation.service'
 
 export interface SinglePromptAnalysisConfig {
   brandProfileId: number
@@ -148,13 +149,70 @@ export async function runSinglePromptAnalysis(
   
   const providerResults = await Promise.all(providerPromises)
 
-  // Calculate overall visibility (percentage of providers that mentioned the brand)
+  // Validate competitors using the same pipeline as unified analysis
+  try {
+    const allResponses = providerResults
+      .filter(r => !r.error && r.response)
+      .map(r => r.response)
+      .join('\n\n---\n\n')
+    const allCompetitorMentions = providerResults.flatMap(r => r.competitors || [])
+
+    if (allCompetitorMentions.length > 0) {
+      const validatedCompetitors = await validateCompetitors(
+        allResponses,
+        brandProfile.companyName ?? 'Unknown Brand',
+        allCompetitorMentions
+      )
+      const validatedNameSet = new Set(validatedCompetitors.map(c => c.name.toLowerCase()))
+
+      // Filter each provider result's competitors to only validated ones
+      for (const result of providerResults) {
+        if (result.competitors) {
+          result.competitors = result.competitors.filter(c =>
+            validatedNameSet.has(c.toLowerCase())
+          )
+        }
+        if (result.competitorPositions) {
+          const filtered: Record<string, number> = {}
+          for (const [name, pos] of Object.entries(result.competitorPositions)) {
+            if (validatedNameSet.has(name.toLowerCase())) {
+              filtered[name] = pos
+            }
+          }
+          result.competitorPositions = filtered
+        }
+        if (result.competitorSentiments) {
+          const filtered: Record<string, 'positive' | 'neutral' | 'negative'> = {}
+          for (const [name, sent] of Object.entries(result.competitorSentiments)) {
+            if (validatedNameSet.has(name.toLowerCase())) {
+              filtered[name] = sent
+            }
+          }
+          result.competitorSentiments = filtered
+        }
+      }
+
+      console.log(`✅ Validated ${validatedCompetitors.length} competitors for single-prompt analysis`)
+    }
+  } catch (error) {
+    console.warn('⚠️ Competitor validation failed for single-prompt analysis, using unvalidated results:', error)
+  }
+
+  // Calculate overall visibility using Firegeo formula (consistent with unified analysis)
+  // Formula: mentionRate * 50 + positionBonus * 50
   const successfulResults = providerResults.filter(r => !r.error)
   const failedResults = providerResults.filter(r => r.error)
   const mentionedCount = successfulResults.filter(r => r.brandMentioned).length
-  const overallVisibility = successfulResults.length > 0
-    ? Math.round((mentionedCount / successfulResults.length) * 100)
+  const mentionRate = successfulResults.length > 0 ? mentionedCount / successfulResults.length : 0
+
+  const positionsWithMention = successfulResults
+    .filter(r => r.brandMentioned && r.brandPosition && r.brandPosition > 0)
+    .map(r => r.brandPosition!)
+  const avgPosition = positionsWithMention.length > 0
+    ? positionsWithMention.reduce((sum, p) => sum + p, 0) / positionsWithMention.length
     : 0
+  const positionBonus = avgPosition > 0 ? Math.max(0, (10 - avgPosition) / 10) * 50 : 0
+  const overallVisibility = Math.round(mentionRate * 50 + positionBonus)
 
   console.log(`✅ Single-prompt analysis complete: ${overallVisibility}% visibility`)
   console.log(`   ✓ Succeeded: ${successfulResults.map(r => r.provider).join(', ') || 'none'}`)

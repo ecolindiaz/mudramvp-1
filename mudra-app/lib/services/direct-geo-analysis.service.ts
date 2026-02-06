@@ -1081,13 +1081,12 @@ Return ONLY a valid JSON object with these exact keys:
           content: analysisPrompt,
         },
       ],
-      temperature: 0.1,
-      max_tokens: 500,
+      max_completion_tokens: 2000,
       response_format: { type: "json_object" }, // Force JSON output
     });
 
     const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
-    
+
     // Try to parse JSON, with fallback
     let analysis;
     try {
@@ -1446,13 +1445,12 @@ Return ONLY a valid JSON object with these exact keys:
           content: analysisPrompt,
         },
       ],
-      temperature: 0.1,
-      max_tokens: 500,
+      max_completion_tokens: 2000,
       response_format: { type: "json_object" },
     });
 
     const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
-    
+
     // Parse JSON
     let analysis;
     try {
@@ -1460,11 +1458,11 @@ Return ONLY a valid JSON object with these exact keys:
       analysis = JSON.parse(cleanedText);
     } catch (parseError) {
       console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
-      
+
       // Fallback: manual regex extraction with smart filtering
       const brandNameLower = config.brandName.toLowerCase();
       const textLower = text.toLowerCase();
-      
+
       // Remove common false positive contexts before checking
       const cleanedText = textLower
         // Remove URLs (http://... or https://... or www...)
@@ -1762,8 +1760,7 @@ Return ONLY a valid JSON object with these exact keys:
           content: analysisPrompt,
         },
       ],
-      temperature: 0.1,
-      max_tokens: 500,
+      max_completion_tokens: 2000,
       response_format: { type: "json_object" },
     });
 
@@ -1978,8 +1975,7 @@ Return ONLY a valid JSON object with these exact keys:
           content: analysisPrompt,
         },
       ],
-      temperature: 0.1,
-      max_tokens: 500,
+      max_completion_tokens: 2000,
       response_format: { type: "json_object" },
     });
 

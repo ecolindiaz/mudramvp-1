@@ -470,31 +470,8 @@ function TrackedPromptsPageInner() {
       })
 
       if (result.success && result.prompts) {
-        // Global analysis date as fallback
-        const globalLastRunTime = formatRelativeTime(result.analysisDate)
+        const transformedData = transformPromptsFromApi(result.prompts, result.analysisDate)
 
-        // Transform API response to table format
-        const transformedData: TrackedPrompt[] = result.prompts.map((p: any) => {
-          // Check if prompt has been analyzed (has model or visibility data)
-          const hasBeenAnalyzed = p.model || (p.visibility && p.visibility > 0)
-          // Use per-prompt lastAnalyzedAt when available, fall back to global analysisDate
-          const lastRunTime = p.lastAnalyzedAt
-            ? formatRelativeTime(p.lastAnalyzedAt)
-            : globalLastRunTime
-          return {
-            id: p.id.toString(),
-            prompt: p.text,
-            visibility: Math.round(p.visibility || 0), // Ensure integer percentage
-            model: p.model || null,
-            models: p.models || [], // All models used
-            intent: p.category || null,
-            sentiment: p.sentiment || null,
-            position: p.position || null,
-            lastRun: hasBeenAnalyzed ? lastRunTime : null,
-            isPending: !hasBeenAnalyzed, // Show loading state if not yet analyzed
-          }
-        })
-        
         console.log(`✅ Loaded ${transformedData.length} prompts with analysis results`)
         if (transformedData.length > 0) {
           console.log(`   Sample prompt:`, {
@@ -619,6 +596,46 @@ function TrackedPromptsPageInner() {
   // Validation constants (match backend)
   const MAX_PROMPT_LENGTH = 500
 
+  // A prompt can be fully analyzed even when visibility is 0%.
+  const hasPromptBeenAnalyzed = (prompt: any): boolean => {
+    return Boolean(
+      prompt?.lastAnalyzedAt ||
+      prompt?.promptAggregate ||
+      (Array.isArray(prompt?.results) && prompt.results.length > 0) ||
+      (Array.isArray(prompt?.models) && prompt.models.length > 0) ||
+      prompt?.model
+    )
+  }
+
+  const transformPromptsFromApi = (
+    prompts: any[],
+    analysisDate: string | null | undefined,
+    pendingPromptIds: Set<string> = new Set()
+  ): TrackedPrompt[] => {
+    const globalLastRunTime = formatRelativeTime(analysisDate || null)
+
+    return prompts.map((p: any) => {
+      const hasBeenAnalyzed = hasPromptBeenAnalyzed(p)
+      const lastRunTime = p.lastAnalyzedAt
+        ? formatRelativeTime(p.lastAnalyzedAt)
+        : globalLastRunTime
+      const promptId = p.id.toString()
+
+      return {
+        id: promptId,
+        prompt: p.text,
+        visibility: Math.round(p.visibility || 0),
+        model: p.model || null,
+        models: p.models || [],
+        intent: p.category || null,
+        sentiment: p.sentiment || null,
+        position: p.position || null,
+        lastRun: hasBeenAnalyzed ? lastRunTime : null,
+        isPending: !hasBeenAnalyzed && pendingPromptIds.has(promptId),
+      }
+    })
+  }
+
   const handleAddPrompt = async () => {
     const text = newPromptText.trim()
     
@@ -667,8 +684,8 @@ function TrackedPromptsPageInner() {
         setRunAnalysisOnAdd(false)
         setErrorMessage(null)
 
-        // Add the prompt immediately with isPending: true to show loading state
         const newPromptId = result.data?.prompt?.id?.toString() || `pending-${Date.now()}`
+        const analysisTriggered = Boolean(result.data?.analysisTriggered)
         const pendingPrompt: TrackedPrompt = {
           id: newPromptId,
           prompt: text,
@@ -679,21 +696,14 @@ function TrackedPromptsPageInner() {
           sentiment: null,
           position: null,
           lastRun: null,
-          isPending: true, // Show loading skeleton in data columns
+          isPending: runAnalysisOnAdd && analysisTriggered,
         }
 
-        // Add pending prompt at the top
         setData((prev) => [pendingPrompt, ...prev])
 
-        // If analysis was triggered, poll for results until complete
-        if (runAnalysisOnAdd) {
-          const pollForResults = async (attempts: number = 0, maxAttempts: number = 6) => {
-            if (attempts >= maxAttempts) {
-              console.log('⏰ Max polling attempts reached, giving up')
-              return
-            }
-
-            // Wait before polling (3s first, then 5s intervals)
+        if (runAnalysisOnAdd && analysisTriggered) {
+          // Poll for results (~88s window to handle slow AI provider responses)
+          const pollForResults = async (attempts: number = 0, maxAttempts: number = 18) => {
             const delay = attempts === 0 ? 3000 : 5000
             await new Promise(resolve => setTimeout(resolve, delay))
 
@@ -702,50 +712,45 @@ function TrackedPromptsPageInner() {
               const refreshResult = await response.json()
 
               if (refreshResult.success && refreshResult.prompts) {
-                // Check if our new prompt now has results
                 const newPromptData = refreshResult.prompts.find((p: any) => p.id.toString() === newPromptId)
-                const hasResults = newPromptData && (newPromptData.model || (newPromptData.visibility && newPromptData.visibility > 0))
+                const hasResults = Boolean(newPromptData && hasPromptBeenAnalyzed(newPromptData))
+                const shouldKeepPending = !hasResults && attempts < maxAttempts - 1
 
-                // Global analysis date as fallback
-                const globalLastRunTime = formatRelativeTime(refreshResult.analysisDate)
-
-                const transformedData: TrackedPrompt[] = refreshResult.prompts.map((p: any) => {
-                  const hasBeenAnalyzed = p.model || (p.visibility && p.visibility > 0)
-                  // Use per-prompt lastAnalyzedAt when available, fall back to global analysisDate
-                  const lastRunTime = p.lastAnalyzedAt
-                    ? formatRelativeTime(p.lastAnalyzedAt)
-                    : globalLastRunTime
-                  return {
-                    id: p.id.toString(),
-                    prompt: p.text,
-                    visibility: Math.round(p.visibility || 0),
-                    model: p.model || null,
-                    models: p.models || [],
-                    intent: p.category || null,
-                    sentiment: p.sentiment || null,
-                    position: p.position || null,
-                    lastRun: hasBeenAnalyzed ? lastRunTime : null,
-                    isPending: !hasBeenAnalyzed,
-                  }
-                })
+                const transformedData = transformPromptsFromApi(
+                  refreshResult.prompts,
+                  refreshResult.analysisDate,
+                  shouldKeepPending ? new Set([newPromptId]) : new Set()
+                )
                 setData(transformedData)
 
-                // If our prompt still doesn't have results, keep polling
-                if (!hasResults && attempts < maxAttempts - 1) {
+                if (shouldKeepPending) {
                   console.log(`🔄 Prompt ${newPromptId} still pending, polling again (attempt ${attempts + 2}/${maxAttempts})`)
                   pollForResults(attempts + 1, maxAttempts)
                 } else if (hasResults) {
                   console.log(`✅ Prompt ${newPromptId} analysis complete!`)
                   window.dispatchEvent(new Event('mudra:analysis-complete'))
+                } else {
+                  console.log(`⏰ Prompt ${newPromptId} did not complete within polling window`)
                 }
+              } else if (attempts < maxAttempts - 1) {
+                pollForResults(attempts + 1, maxAttempts)
+              } else {
+                setData((prev) => prev.map((p) => p.id === newPromptId ? { ...p, isPending: false } : p))
               }
             } catch (err) {
               console.error('Error polling for results:', err)
+              if (attempts < maxAttempts - 1) {
+                pollForResults(attempts + 1, maxAttempts)
+              } else {
+                setData((prev) => prev.map((p) => p.id === newPromptId ? { ...p, isPending: false } : p))
+              }
             }
           }
 
-          // Start polling
           pollForResults()
+        } else {
+          // No analysis triggered: refetch from server to show prompt with actual state
+          await fetchPrompts()
         }
       } else {
         const errorMsg = result.error?.message || result.message || 'Failed to add prompt'

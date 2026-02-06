@@ -173,7 +173,7 @@ export async function GET(
           model: providerName,
           brandMentioned: matchingTest.brandMentioned || false,
           brandPosition: matchingTest.brandPosition || null,
-          sentiment: matchingTest.sentiment || 'Neutral',
+          sentiment: matchingTest.sentiment || 'neutral',
           response: matchingTest.response || '',
           competitorsMentioned: competitors,
           competitorPositions: competitorPositions,
@@ -229,13 +229,13 @@ export async function GET(
 
     // Sentiment breakdown from filtered data
     const sentimentCounts = {
-      Positive: filteredTestResults.filter(r => r.sentiment === 'Positive').length,
-      Neutral: filteredTestResults.filter(r => r.sentiment === 'Neutral').length,
-      Negative: filteredTestResults.filter(r => r.sentiment === 'Negative').length
+      Positive: filteredTestResults.filter(r => r.sentiment === 'positive').length,
+      Neutral: filteredTestResults.filter(r => r.sentiment === 'neutral').length,
+      Negative: filteredTestResults.filter(r => r.sentiment === 'negative').length
     }
     const dominantSentiment =
-      sentimentCounts.Positive >= sentimentCounts.Neutral && sentimentCounts.Positive >= sentimentCounts.Negative ? 'Positive' :
-      sentimentCounts.Negative >= sentimentCounts.Neutral ? 'Negative' : 'Neutral'
+      sentimentCounts.Positive >= sentimentCounts.Neutral && sentimentCounts.Positive >= sentimentCounts.Negative ? 'positive' :
+      sentimentCounts.Negative >= sentimentCounts.Neutral ? 'negative' : 'neutral'
 
     // Step 6: Calculate per-competitor metrics (from filtered data)
     const competitorMetrics = new Map<string, {

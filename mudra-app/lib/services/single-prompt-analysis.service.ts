@@ -195,6 +195,40 @@ async function storePromptResults(
   brandProfileId: number
 ): Promise<void> {
   try {
+    // Map provider names to display names used across the app
+    const providerDisplayName = (provider: string): string => {
+      switch (provider.toLowerCase()) {
+        case 'openai': return 'ChatGPT'
+        case 'google': return 'Gemini'
+        case 'anthropic': return 'Claude'
+        case 'perplexity': return 'Perplexity'
+        default: return provider.charAt(0).toUpperCase() + provider.slice(1)
+      }
+    }
+
+    // Build flat prompt analysis entries used by prompt detail/content-lab APIs
+    const successfulResults = results.filter(r => !r.error)
+    const newEntries = successfulResults.map(result => {
+      const displayName = providerDisplayName(result.provider)
+      return {
+        prompt: promptText,
+        provider: displayName,
+        model: displayName,
+        brandMentioned: result.brandMentioned,
+        brandPosition: result.brandPosition || null,
+        sentiment: result.sentiment,
+        response: result.response, // Full response - no truncation
+        competitors: result.competitors,
+        competitorPositions: result.competitorPositions || {},
+        competitorSentiments: result.competitorSentiments || {},
+        confidence: result.confidence,
+        citations: result.citations || [],
+        sources: result.sources || [],
+        searchQueries: result.searchQueries || [],
+        analyzedAt: new Date().toISOString()
+      }
+    })
+
     // Get the latest GeoAnalysisResult for this brand
     const latestAnalysis = await prisma.geoAnalysisResult.findFirst({
       where: { brandProfileId },
@@ -213,41 +247,7 @@ async function storePromptResults(
       }
 
       // Add new results for this prompt (one entry per provider)
-      for (const result of results) {
-        if (!result.error) {
-          // Map provider names to display names
-          const providerDisplayName = (provider: string): string => {
-            switch (provider.toLowerCase()) {
-              case 'openai': return 'ChatGPT'
-              case 'google': return 'Gemini'
-              case 'anthropic': return 'Claude'
-              case 'perplexity': return 'Perplexity'
-              default: return provider.charAt(0).toUpperCase() + provider.slice(1)
-            }
-          }
-          const displayName = providerDisplayName(result.provider)
-          analyses.push({
-            prompt: promptText,
-            provider: displayName,
-            model: displayName,
-            brandMentioned: result.brandMentioned,
-            brandPosition: result.brandPosition || null,
-            sentiment: result.sentiment,
-            response: result.response, // Full response - no truncation
-            competitors: result.competitors,
-            competitorPositions: result.competitorPositions || {},
-            competitorSentiments: result.competitorSentiments || {},
-            confidence: result.confidence,
-            citations: result.citations || [],
-            sources: result.sources || [],
-            searchQueries: result.searchQueries || [],
-            analyzedAt: new Date().toISOString()
-          })
-        }
-      }
-
-      // Update the GeoAnalysisResult with new analyses
-      const successfulResults = results.filter(r => !r.error)
+      analyses.push(...newEntries)
 
       await prisma.geoAnalysisResult.update({
         where: { id: latestAnalysis.id },
@@ -267,7 +267,25 @@ async function storePromptResults(
         })
       }
     } else {
-      console.log('ℹ️ No existing GeoAnalysisResult found to append to')
+      if (newEntries.length > 0) {
+        const created = await prisma.geoAnalysisResult.create({
+          data: {
+            brandProfileId,
+            overallScore: overallVisibility,
+            analyses: JSON.stringify(newEntries),
+            summary: JSON.stringify({
+              type: 'single_prompt_analysis',
+              promptId,
+              providers: newEntries.length,
+              createdAt: new Date().toISOString(),
+            }),
+          }
+        })
+
+        console.log(`📊 Created GeoAnalysisResult (ID: ${created.id}) with ${newEntries.length} provider results for prompt ${promptId}`)
+      } else {
+        console.log('ℹ️ No successful provider results to store')
+      }
     }
 
     // Also update the prompt's updatedAt timestamp

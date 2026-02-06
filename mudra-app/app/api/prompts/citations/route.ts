@@ -13,15 +13,15 @@ interface Citation {
 const MAX_CITATIONS_PER_MODEL = 4;
 const MAX_TOTAL_CITATIONS = 6;
 
-interface PromptTest {
-  prompt: string;
-  citations?: Array<{ url: string; title?: string }>;
-  sources?: Array<{ url: string; title?: string }>;
+interface CitationRecord {
+  url?: string;
+  title?: string;
 }
 
-interface ProviderAnalysis {
-  provider: string;
-  promptTests: PromptTest[];
+interface PromptTest {
+  prompt?: string;
+  citations?: CitationRecord[] | string[];
+  sources?: CitationRecord[] | string[];
 }
 
 /**
@@ -57,31 +57,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Get the most recent GEO analysis result
-    const geoAnalysis = await prisma.geoAnalysisResult.findFirst({
+    // Get all GEO analysis results so prompts analyzed in prior runs are included.
+    const geoAnalyses = await prisma.geoAnalysisResult.findMany({
       where: { brandProfileId: profileId },
       orderBy: { timestamp: 'desc' },
     });
 
-    if (!geoAnalysis || !geoAnalysis.analyses) {
+    if (!geoAnalyses.length) {
       return NextResponse.json({
         success: true,
         citations: [],
         message: 'No GEO analysis found',
-      });
-    }
-
-    // Parse the analyses JSON
-    let analyses: ProviderAnalysis[];
-    try {
-      analyses = typeof geoAnalysis.analyses === 'string'
-        ? JSON.parse(geoAnalysis.analyses)
-        : (geoAnalysis.analyses as unknown) as ProviderAnalysis[];
-    } catch {
-      return NextResponse.json({
-        success: true,
-        citations: [],
-        message: 'Failed to parse analyses',
       });
     }
 
@@ -95,64 +81,165 @@ export async function GET(request: NextRequest) {
       }
     };
 
+    const normalizeText = (text: string): string =>
+      text
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s]/g, '')
+        .replace(/\s+/g, ' ');
+
+    const promptMatches = (candidatePrompt: string | undefined): boolean => {
+      if (!promptText) return true;
+      if (!candidatePrompt) return false;
+
+      const normalizedCandidate = normalizeText(candidatePrompt);
+      const normalizedTarget = normalizeText(promptText);
+
+      return (
+        normalizedCandidate === normalizedTarget ||
+        normalizedCandidate.includes(normalizedTarget) ||
+        normalizedTarget.includes(normalizedCandidate)
+      );
+    };
+
+    const normalizeCitationEntries = (
+      entries: PromptTest['citations'] | PromptTest['sources']
+    ): CitationRecord[] => {
+      if (!Array.isArray(entries)) return [];
+
+      const normalized: CitationRecord[] = [];
+      for (const entry of entries) {
+        if (typeof entry === 'string') {
+          normalized.push({ url: entry });
+          continue;
+        }
+        if (entry && typeof entry === 'object') {
+          const record = entry as CitationRecord;
+          if (record.url) {
+            normalized.push({
+              url: record.url,
+              title: record.title,
+            });
+          }
+        }
+      }
+      return normalized;
+    };
+
+    const pushCitation = (
+      provider: string,
+      record: CitationRecord,
+      citationsByProvider: Map<string, Citation[]>,
+      seenDomains: Set<string>
+    ): boolean => {
+      if (!record.url) return false;
+
+      const providerCitations = citationsByProvider.get(provider) ?? [];
+      if (providerCitations.length >= MAX_CITATIONS_PER_MODEL) return false;
+
+      const domain = extractDomain(record.url);
+      if (seenDomains.has(domain)) return false;
+
+      providerCitations.push({
+        url: record.url,
+        title: record.title || domain,
+        domain,
+        provider,
+      });
+      citationsByProvider.set(provider, providerCitations);
+      seenDomains.add(domain);
+      return true;
+    };
+
     // Collect citations from all providers for the matching prompt
     // Track citations per provider (max 4 per provider, 6 total)
     const citationsByProvider = new Map<string, Citation[]>();
     const seenDomains = new Set<string>();
     let totalCitations = 0;
 
-    for (const providerAnalysis of analyses) {
+    for (const geoAnalysis of geoAnalyses) {
       if (totalCitations >= MAX_TOTAL_CITATIONS) break;
+      if (!geoAnalysis.analyses) continue;
 
-      const provider = providerAnalysis.provider || 'Unknown';
-
-      if (!citationsByProvider.has(provider)) {
-        citationsByProvider.set(provider, []);
+      let analyses: unknown[] = [];
+      try {
+        const parsed =
+          typeof geoAnalysis.analyses === 'string'
+            ? JSON.parse(geoAnalysis.analyses)
+            : geoAnalysis.analyses;
+        analyses = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        continue;
       }
 
-      const providerCitations = citationsByProvider.get(provider)!;
-
-      for (const test of providerAnalysis.promptTests || []) {
+      for (const analysisItem of analyses) {
         if (totalCitations >= MAX_TOTAL_CITATIONS) break;
+        if (!analysisItem || typeof analysisItem !== 'object') continue;
 
-        // Match prompt if specified, otherwise collect all citations
-        const promptMatches = !promptText ||
-          test.prompt?.toLowerCase().includes(promptText.toLowerCase()) ||
-          promptText.toLowerCase().includes(test.prompt?.toLowerCase() || '');
+        const typedItem = analysisItem as Record<string, unknown>;
+        const defaultProvider = String(
+          typedItem.provider || typedItem.model || 'Unknown'
+        );
 
-        if (promptMatches && providerCitations.length < MAX_CITATIONS_PER_MODEL) {
-          // Collect citations (inline citations from response)
-          for (const citation of test.citations || []) {
-            if (citation.url && providerCitations.length < MAX_CITATIONS_PER_MODEL && totalCitations < MAX_TOTAL_CITATIONS) {
-              const domain = extractDomain(citation.url);
-              // Avoid duplicates across all providers
-              if (!seenDomains.has(domain)) {
-                seenDomains.add(domain);
-                providerCitations.push({
-                  url: citation.url,
-                  title: citation.title || domain,
-                  domain,
-                  provider,
-                });
-                totalCitations++;
-              }
+        // Flat structure used by single-prompt analysis:
+        // { prompt, provider, citations, sources, ... }
+        if (typeof typedItem.prompt === 'string' && promptMatches(typedItem.prompt)) {
+          const flatTest: PromptTest = {
+            prompt: typedItem.prompt,
+            citations: typedItem.citations as PromptTest['citations'],
+            sources: typedItem.sources as PromptTest['sources'],
+          };
+
+          for (const citation of normalizeCitationEntries(flatTest.citations)) {
+            if (totalCitations >= MAX_TOTAL_CITATIONS) break;
+            if (pushCitation(defaultProvider, citation, citationsByProvider, seenDomains)) {
+              totalCitations++;
+            }
+          }
+          for (const source of normalizeCitationEntries(flatTest.sources)) {
+            if (totalCitations >= MAX_TOTAL_CITATIONS) break;
+            if (pushCitation(defaultProvider, source, citationsByProvider, seenDomains)) {
+              totalCitations++;
+            }
+          }
+        }
+
+        // Provider-grouped structure from full GEO runs:
+        // { provider, promptTests: [{ prompt, citations, sources }] }
+        const promptTests = Array.isArray(typedItem.promptTests)
+          ? (typedItem.promptTests as unknown[])
+          : [];
+
+        for (const promptTest of promptTests) {
+          if (totalCitations >= MAX_TOTAL_CITATIONS) break;
+          if (!promptTest || typeof promptTest !== 'object') continue;
+
+          const testRecord = promptTest as Record<string, unknown>;
+          const provider = String(
+            testRecord.provider || testRecord.model || defaultProvider
+          );
+          const testPrompt =
+            typeof testRecord.prompt === 'string' ? testRecord.prompt : undefined;
+
+          if (!promptMatches(testPrompt)) continue;
+
+          const citations = normalizeCitationEntries(
+            testRecord.citations as PromptTest['citations']
+          );
+          for (const citation of citations) {
+            if (totalCitations >= MAX_TOTAL_CITATIONS) break;
+            if (pushCitation(provider, citation, citationsByProvider, seenDomains)) {
+              totalCitations++;
             }
           }
 
-          // Also collect sources (URLs retrieved during web search) - these are also citations
-          for (const source of test.sources || []) {
-            if (source.url && providerCitations.length < MAX_CITATIONS_PER_MODEL && totalCitations < MAX_TOTAL_CITATIONS) {
-              const domain = extractDomain(source.url);
-              if (!seenDomains.has(domain)) {
-                seenDomains.add(domain);
-                providerCitations.push({
-                  url: source.url,
-                  title: source.title || domain,
-                  domain,
-                  provider,
-                });
-                totalCitations++;
-              }
+          const sources = normalizeCitationEntries(
+            testRecord.sources as PromptTest['sources']
+          );
+          for (const source of sources) {
+            if (totalCitations >= MAX_TOTAL_CITATIONS) break;
+            if (pushCitation(provider, source, citationsByProvider, seenDomains)) {
+              totalCitations++;
             }
           }
         }

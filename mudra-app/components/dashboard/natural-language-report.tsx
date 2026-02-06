@@ -534,10 +534,10 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
       })
     }
 
-    // Sort by most recent (using updatedAt or createdAt)
+    // Sort by most recent analysis date per prompt (lastAnalyzedAt), falling back to updatedAt
     const sorted = [...promptsWithResults].sort((a: any, b: any) => {
-      const dateA = new Date(a.updatedAt || a.createdAt).getTime()
-      const dateB = new Date(b.updatedAt || b.createdAt).getTime()
+      const dateA = new Date(a.lastAnalyzedAt || a.updatedAt || a.createdAt).getTime()
+      const dateB = new Date(b.lastAnalyzedAt || b.updatedAt || b.createdAt).getTime()
       return dateB - dateA
     })
 
@@ -557,9 +557,10 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
         primaryModel = modelLabels[selectedModel] || selectedModel
       }
 
-      // Use the analysis date (when analysis was run) instead of prompt creation date
-      // This ensures Recent Chats shows when the analysis actually ran
-      const date = analysisDate || new Date(prompt.updatedAt || prompt.createdAt)
+      // Use per-prompt lastAnalyzedAt when available, fall back to global analysisDate
+      const date = prompt.lastAnalyzedAt
+        ? new Date(prompt.lastAnalyzedAt)
+        : (analysisDate || new Date(prompt.updatedAt || prompt.createdAt))
       const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 

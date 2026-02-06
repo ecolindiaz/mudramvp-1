@@ -418,7 +418,7 @@ function TrackedPromptsPageInner() {
   const [newPromptText, setNewPromptText] = useState("")
   const [newIntent, setNewIntent] = useState<string>("Organic")
   const [runAnalysisOnAdd, setRunAnalysisOnAdd] = useState(true) // BUG-3: Option to run immediate analysis
-  const [showAll, setShowAll] = useState(false)
+  const [showAll, setShowAll] = useState(true)
   
   // Edit dialog state
   const [editOpen, setEditOpen] = useState(false)
@@ -436,7 +436,7 @@ function TrackedPromptsPageInner() {
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 15, // collapsed by default
+    pageSize: 200, // show all by default (max 100 prompts)
   })
   const [sorting, setSorting] = useState<SortingState>([
     { id: "visibility", desc: true },

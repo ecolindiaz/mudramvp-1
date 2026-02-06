@@ -562,13 +562,22 @@ function TrackedPromptsPageInner() {
     setErrorMessage(null)
     
     try {
+      const numericId = parseInt(promptId)
       console.log('🗑️ Deleting prompt:', promptId, 'for brand:', profile.id)
+
+      // Synthetic prompts (negative IDs) only exist in local state, not in the DB
+      if (numericId < 0 || promptId.startsWith('pending-')) {
+        console.log('✅ Removing synthetic/pending prompt from local state:', promptId)
+        setData((prev) => prev.filter((p) => p.id !== promptId))
+        table.resetRowSelection()
+        return
+      }
       
       const response = await fetch('/api/prompts/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          promptId: parseInt(promptId), // Convert to number
+          promptId: numericId,
           brandProfileId: profile.id,
         }),
       })

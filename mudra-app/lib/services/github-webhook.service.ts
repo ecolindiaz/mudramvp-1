@@ -254,6 +254,11 @@ export async function syncPrStatuses(brandProfileId: number): Promise<{
 
   // Get GitHub integration for this brand's user
   const userId = issuesWithOpenPRs[0].brandProfile.userId
+  if (!userId) {
+    result.errors.push('Brand profile has no linked user')
+    return result
+  }
+
   const integration = await prisma.gitHubIntegration.findUnique({
     where: { userId },
   })

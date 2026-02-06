@@ -268,16 +268,27 @@ export async function syncPrStatuses(brandProfileId: number): Promise<{
     return result
   }
 
-  // Get a valid token
+  // Get a valid token (must handle installation token expiry)
   const { decryptToken } = await import('@/lib/crypto/token-encryption')
   let token: string
   try {
     if (integration.integrationType === 'installation' && integration.installationId) {
-      // For installation tokens, try decrypt first, refresh if needed
-      try {
-        token = decryptToken(integration.accessToken)
-      } catch {
+      // Installation tokens expire after 1 hour — always check expiry first
+      const now = new Date()
+      const tokenExpiresAt = integration.tokenExpiresAt
+      const isExpiredOrExpiringSoon = !tokenExpiresAt || 
+        (new Date(tokenExpiresAt).getTime() - now.getTime() < 5 * 60 * 1000)
+      
+      if (isExpiredOrExpiringSoon) {
+        console.log(`[PRSync] Installation token expired or expiring soon — refreshing`)
         token = await refreshInstallationTokenForSync(integration.installationId)
+      } else {
+        try {
+          token = decryptToken(integration.accessToken)
+        } catch {
+          console.log(`[PRSync] Failed to decrypt token — refreshing`)
+          token = await refreshInstallationTokenForSync(integration.installationId)
+        }
       }
     } else {
       token = decryptToken(integration.accessToken)

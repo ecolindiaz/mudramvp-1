@@ -25,7 +25,7 @@ export type PageType =
 /**
  * Scoring dimension names for the 5-dimension system
  */
-export type ScoringDimension = "metadata" | "headings" | "semantic" | "schema" | "faq";
+export type ScoringDimension = "schema" | "metadata" | "faq" | "content";
 
 /**
  * Status classification based on total score
@@ -192,7 +192,13 @@ export type RelevantSchemaType =
 	| "FAQPage"
 	| "BreadcrumbList"
 	| "HowTo"
-	| "SoftwareApplication";
+	| "SoftwareApplication"
+	| "WebApplication"
+	| "OfferCatalog"
+	| "VideoObject"
+	| "ItemList"
+	| "Review"
+	| "Person";
 
 export interface JsonLdBlock {
 	index: number;
@@ -212,6 +218,12 @@ export interface SchemaAnalysis {
 	has_website_schema: boolean;
 	has_service_schema: boolean;
 	has_blog_posting_schema: boolean;
+	has_video_schema: boolean;
+	has_review_schema: boolean;
+	has_person_schema: boolean;
+	has_offer_catalog_schema: boolean;
+	has_item_list_schema: boolean;
+	has_web_application_schema: boolean;
 }
 
 export interface SchemaExtraction {
@@ -298,6 +310,8 @@ export interface DOMExtractionData {
 	schema: SchemaExtraction;
 	faqs: FAQExtraction;
 	content_snapshot: ContentSnapshot;
+	has_video_content: boolean;
+	has_testimonial_content: boolean;
 }
 
 export interface DOMExtraction {
@@ -366,19 +380,17 @@ export interface FullPageScore {
 	page_url: string;
 	page_type: PageType;
 	scores: {
-		metadata: number;
-		headings: number;
-		semantic: number;
 		schema: number;
+		metadata: number;
 		faq: number;
+		content: number;
 		total: number;
 	};
 	dimension_details: {
-		metadata: DimensionScore;
-		headings: DimensionScore;
-		semantic: DimensionScore;
 		schema: DimensionScore;
+		metadata: DimensionScore;
 		faq: DimensionScore;
+		content: DimensionScore;
 	};
 	status: ScoreStatus;
 	issues: Issue[];

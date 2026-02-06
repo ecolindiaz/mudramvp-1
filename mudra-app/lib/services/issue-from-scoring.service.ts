@@ -21,105 +21,83 @@ export type IssuePriority = 'low' | 'medium' | 'high'
  * Mapping from scoring check codes to agent types
  */
 export const CHECK_TO_AGENT_MAP: Record<string, string> = {
-  // Metadata (25 pts)
+  // Schema (40 pts)
+  'J1_present': 'schema_markup',
+  'J2_valid': 'schema_markup',
+  'J3_relevant': 'schema_markup',
+  'J4_coverage': 'schema_markup',
+
+  // Metadata (30 pts)
   'M1_title': 'meta_optimization',
   'M2_description': 'meta_optimization',
   'M3_canonical': 'meta_optimization',
   'M4_opengraph': 'meta_optimization',
   'M5_twitter': 'meta_optimization',
 
-  // Headings (20 pts)
-  'H1_single': 'heading_hierarchy',
-  'H2_coverage': 'heading_hierarchy',
-  'H3_no_skips': 'heading_hierarchy',
-
-  // Semantic (15 pts)
-  'S1_main_content': 'content_structure',
-  'S2_page_structure': 'content_structure',
-  'S3_sections': 'content_structure',
-  'S4_content_quality': 'content_structure',
-
-  // Schema (25 pts)
-  'J1_present': 'schema_markup',
-  'J2_valid': 'schema_markup',
-  'J3_relevant': 'schema_markup',
-  'J4_coverage': 'schema_markup',
-
-  // FAQ (15 pts)
+  // FAQ (20 pts)
   'FAQ_count': 'faq_sections',
   'FAQ_schema_gap': 'schema_markup',
+
+  // Content (10 pts)
+  'C1_word_count': 'content_quality',
+  'C2_paragraph_structure': 'content_quality',
 }
 
 /**
  * Mapping from check codes to human-readable issue titles
  */
 export const ISSUE_TITLES: Record<string, string> = {
+  'J1_present': 'Add JSON-LD Schema',
+  'J2_valid': 'Fix JSON-LD Syntax',
+  'J3_relevant': 'Use AEO-Relevant Schema Types',
+  'J4_coverage': 'Add Additional Schema Types',
   'M1_title': 'Add Page Title Tag',
   'M2_description': 'Add Meta Description',
   'M3_canonical': 'Add Canonical URL',
   'M4_opengraph': 'Add Open Graph Tags',
   'M5_twitter': 'Add Twitter Card Tags',
-  'H1_single': 'Fix H1 Heading',
-  'H2_coverage': 'Improve Heading Coverage',
-  'H3_no_skips': 'Fix Heading Hierarchy',
-  'S1_main_content': 'Add Main Content Element',
-  'S2_page_structure': 'Add Footer Element',
-  'S3_sections': 'Add Semantic Sections',
-  'S4_content_quality': 'Improve Content Quality',
-  'J1_present': 'Add JSON-LD Schema',
-  'J2_valid': 'Fix JSON-LD Syntax',
-  'J3_relevant': 'Use AEO-Relevant Schema Types',
-  'J4_coverage': 'Add Additional Schema Types',
   'FAQ_count': 'Add FAQ Content',
   'FAQ_schema_gap': 'Add FAQPage Schema for Existing FAQs',
+  'C1_word_count': 'Add More Content',
+  'C2_paragraph_structure': 'Improve Paragraph Structure',
 }
 
 /**
  * Mapping from check codes to detailed descriptions
  */
 const ISSUE_DESCRIPTIONS: Record<string, string> = {
+  'J1_present': 'This page has no JSON-LD schema markup. Structured data is critical for AI systems to understand your content.',
+  'J2_valid': 'This page has invalid JSON-LD schema. Invalid schema is ignored by AI systems and search engines.',
+  'J3_relevant': 'This page has schema types that are not optimized for Answer Engine visibility. Use Organization, Product, FAQPage, Article, etc.',
+  'J4_coverage': 'This page has some JSON-LD schema but is missing additional recommended types. Adding more schema types improves AEO coverage and AI understanding.',
   'M1_title': 'This page is missing a <title> tag. A descriptive title is essential for AI systems to understand and cite your content correctly.',
   'M2_description': 'This page is missing a meta description. Meta descriptions help AI systems understand your page content and generate accurate summaries.',
   'M3_canonical': 'This page is missing a canonical URL. Canonical URLs help AI systems know which version of a page to cite.',
   'M4_opengraph': 'This page is missing Open Graph tags. OG tags improve how your content appears when shared and help AI understand page metadata.',
   'M5_twitter': 'This page is missing Twitter Card tags. Twitter cards improve social sharing and provide additional metadata signals.',
-  'H1_single': 'This page has an H1 heading issue (missing or multiple H1s). A single, clear H1 helps AI understand the main topic.',
-  'H2_coverage': 'This page has insufficient heading coverage. Well-structured headings help AI parse and understand content hierarchy.',
-  'H3_no_skips': 'This page has skipped heading levels. Proper heading hierarchy (H1 > H2 > H3) helps AI understand content structure.',
-  'S1_main_content': 'This page is missing <main> or <article> elements. Semantic elements help AI identify primary content.',
-  'S2_page_structure': 'This page is missing a <footer> element. A semantic footer helps AI systems understand page structure.',
-  'S3_sections': 'This page lacks semantic HTML elements. Using semantic HTML helps AI understand content organization.',
-  'S4_content_quality': 'This page has thin or poorly structured content. Substantive content with good paragraph structure improves AI citability.',
-  'J1_present': 'This page has no JSON-LD schema markup. Structured data is critical for AI systems to understand your content.',
-  'J2_valid': 'This page has invalid JSON-LD schema. Invalid schema is ignored by AI systems and search engines.',
-  'J3_relevant': 'This page has schema types that are not optimized for Answer Engine visibility. Use Organization, Product, FAQPage, Article, etc.',
-  'J4_coverage': 'This page has some JSON-LD schema but is missing additional recommended types. Adding more schema types improves AEO coverage and AI understanding.',
   'FAQ_count': 'This page has no FAQ content. FAQ sections are highly valued by AI for direct answer generation.',
   'FAQ_schema_gap': 'This page has FAQ content but no FAQPage schema. Adding schema will make your FAQs eligible for rich results.',
+  'C1_word_count': 'This page has thin content. Substantive content (300+ words) improves AI citability and search engine ranking.',
+  'C2_paragraph_structure': 'This page has poor paragraph structure. Well-structured content with 3+ paragraphs helps AI parse and cite your content.',
 }
 
 /**
  * Mapping from check codes to estimated impact
  */
 const ISSUE_IMPACTS: Record<string, string> = {
-  'M1_title': '+7 points',
-  'M2_description': '+7 points',
+  'J1_present': '+10 points',
+  'J2_valid': '+8 points',
+  'J3_relevant': '+11 points',
+  'J4_coverage': '+11 points',
+  'M1_title': '+8 points',
+  'M2_description': '+8 points',
   'M3_canonical': '+6 points',
-  'M4_opengraph': '+3 points',
-  'M5_twitter': '+2 points',
-  'H1_single': '+8 points',
-  'H2_coverage': '+6 points',
-  'H3_no_skips': '+6 points',
-  'S1_main_content': '+4 points',
-  'S2_page_structure': '+4 points',
-  'S3_sections': '+4 points',
-  'S4_content_quality': '+3 points',
-  'J1_present': '+6 points',
-  'J2_valid': '+5 points',
-  'J3_relevant': '+7 points',
-  'J4_coverage': '+7 points',
-  'FAQ_count': '+15 points',
+  'M4_opengraph': '+4 points',
+  'M5_twitter': '+4 points',
+  'FAQ_count': '+20 points',
   'FAQ_schema_gap': 'Rich results eligibility',
+  'C1_word_count': '+5 points',
+  'C2_paragraph_structure': '+5 points',
 }
 
 /**
@@ -127,12 +105,11 @@ const ISSUE_IMPACTS: Record<string, string> = {
  */
 function getDimensionTier(dimension: string): 'fundamental' | 'intermediate' | 'advanced' {
   switch (dimension) {
-    case 'metadata':
-    case 'headings':
     case 'schema':
+    case 'metadata':
       return 'fundamental'
-    case 'semantic':
     case 'faq':
+    case 'content':
       return 'intermediate'
     default:
       return 'fundamental'

@@ -49,11 +49,10 @@ export interface UnifiedAnalysisResult {
       pageType: string;
       score: number;
       dimensions: {
-        metadata: number;
-        headings: number;
-        semantic: number;
         schema: number;
+        metadata: number;
         faq: number;
+        content: number;
         total: number;
       };
       issueCount: number;
@@ -695,11 +694,10 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
               status: ps.status,
               scores: ps.scores,
               dimensions: {
-                metadata: ps.scores.metadata,
-                headings: ps.scores.headings,
-                semantic: ps.scores.semantic,
                 schema: ps.scores.schema,
+                metadata: ps.scores.metadata,
                 faq: ps.scores.faq,
+                content: ps.scores.content,
               },
               issues: ps.issues,
             })),
@@ -818,27 +816,23 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
  */
 function generateActionFromIssue(issue: { check: string; dimension: string; message: string }): string {
   const actionMap: Record<string, string> = {
+    // Schema
+    'J1_present': 'Add JSON-LD structured data to your pages',
+    'J2_valid': 'Fix JSON-LD syntax errors',
+    'J3_relevant': 'Use AEO-relevant schema types (Organization, Product, FAQPage, etc.)',
+    'J4_coverage': 'Add additional recommended schema types',
     // Metadata
     'M1_title': 'Add a descriptive <title> tag to your page',
     'M2_description': 'Add a meta description to improve search visibility',
     'M3_canonical': 'Add a canonical URL to prevent duplicate content issues',
     'M4_opengraph': 'Add Open Graph tags for better social sharing',
     'M5_twitter': 'Add Twitter Card tags for better Twitter previews',
-    // Headings
-    'H1_single': 'Ensure exactly one H1 tag per page',
-    'H2_coverage': 'Add more headings to improve content structure',
-    'H3_no_skips': 'Fix heading hierarchy - avoid skipping levels',
-    // Semantic
-    'S1_main_content': 'Wrap main content in <main> or <article> tags',
-    'S2_page_structure': 'Add a <footer> element for page structure',
-    'S3_sections': 'Use semantic HTML elements instead of divs',
-    // Schema
-    'J1_present': 'Add JSON-LD structured data to your pages',
-    'J2_valid': 'Fix JSON-LD syntax errors',
-    'J3_relevant': 'Use AEO-relevant schema types (Organization, Product, FAQPage, etc.)',
     // FAQ
     'FAQ_count': 'Add FAQ content to improve AEO visibility',
     'FAQ_schema_gap': 'Add FAQPage schema markup to existing FAQ content',
+    // Content
+    'C1_word_count': 'Add more substantive content (300+ words)',
+    'C2_paragraph_structure': 'Improve paragraph structure (3+ paragraphs)',
   };
 
   return actionMap[issue.check] || `Review and fix: ${issue.message}`;

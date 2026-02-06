@@ -11,7 +11,7 @@ This document describes the comprehensive refactoring of the issues system from 
 ### The Basic Flow
 
 ```
-Website Pages → 5-Dimension Scoring → Failed Checks → Issues Created
+Website Pages → 4-Dimension Scoring → Failed Checks → Issues Created
 ```
 
 ---
@@ -28,26 +28,26 @@ When you click "Analyze Website", we scrape multiple pages from your site:
 
 ---
 
-### Step 2: Each Page Gets Scored (5 Dimensions)
+### Step 2: Each Page Gets Scored (4 Dimensions)
 
-Every page is scored on **5 dimensions** totaling **100 points**:
+> **Updated Feb 2026:** Restructured from 5 to 4 dimensions. Headings and Semantic removed. Content added.
+
+Every page is scored on **4 dimensions** totaling **100 points**:
 
 | Dimension | Points | What It Checks |
 |-----------|--------|----------------|
-| **Metadata** | 25 pts | Title tag, meta description, canonical URL, Open Graph, Twitter cards |
-| **Headings** | 20 pts | Single H1, enough H2s, no skipped levels (H1→H3) |
-| **Semantic** | 15 pts | `<main>`, `<article>`, `<header>`, `<footer>`, semantic HTML |
-| **Schema** | 25 pts | JSON-LD present, valid syntax, relevant types (Organization, Product, FAQ) |
-| **FAQ** | 15 pts | FAQ content exists, FAQPage schema if FAQs found |
+| **Schema** | 40 pts | JSON-LD present, valid syntax, relevant types, schema coverage |
+| **Metadata** | 30 pts | Title tag, meta description, canonical URL, Open Graph, Twitter cards |
+| **FAQ** | 20 pts | FAQ content exists, FAQPage schema if FAQs found |
+| **Content** | 10 pts | Word count (300+), paragraph structure (3+) |
 
 **Example Page Score:**
 ```
 Homepage: 65/100
-├── Metadata:  20/25  (missing Twitter cards)
-├── Headings:  18/20  (good)
-├── Semantic:  10/15  (missing <main> tag)
-├── Schema:     8/25  (has schema but wrong type)
-└── FAQ:        9/15  (no FAQ content)
+├── Schema:    29/40  (has schema but missing recommended types)
+├── Metadata:  22/30  (missing Twitter cards)
+├── FAQ:        5/20  (1 FAQ found)
+└── Content:    9/10  (thin content, good paragraphs)
 ```
 
 ---
@@ -61,7 +61,7 @@ Each dimension has specific **checks**. When a check fails, it becomes an **Issu
 | Check Code | What Failed | Issue Created |
 |------------|-------------|---------------|
 | `M5_twitter` | No Twitter Card tags | "Add Twitter Card Tags (Homepage)" |
-| `S1_main_content` | No `<main>` element | "Add Main Content Element (Homepage)" |
+| `C1_word_count` | Thin content (<300 words) | "Add More Content (Homepage)" |
 | `J3_relevant` | Schema type not AEO-optimized | "Use AEO-Relevant Schema Types (Homepage)" |
 | `FAQ_count` | No FAQ content | "Add FAQ Content (Homepage)" |
 
@@ -142,18 +142,17 @@ After:  You added a <title> tag → Re-analysis finds check passes → Issue aut
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  3. SCORE EACH PAGE (5 dimensions × 100 points)                      │
+│  3. SCORE EACH PAGE (4 dimensions × 100 points)                      │
 │                                                                      │
 │     Page: /about                                                     │
-│     ├── Metadata:  22/25  ✓ title, ✓ description, ✗ OG tags         │
-│     ├── Headings:  20/20  ✓ all good                                │
-│     ├── Semantic:  12/15  ✓ main, ✗ no sections                     │
-│     ├── Schema:     0/25  ✗ no JSON-LD at all                       │
-│     └── FAQ:        0/15  ✗ no FAQ content                          │
+│     ├── Schema:     0/40  ✗ no JSON-LD at all                       │
+│     ├── Metadata:  26/30  ✓ title, ✓ description, ✗ OG tags         │
+│     ├── FAQ:        0/0   (not applicable for about pages)           │
+│     └── Content:   10/10  ✓ 500+ words, 5 paragraphs                │
 │     ─────────────────────                                           │
-│     TOTAL: 54/100                                                    │
+│     TOTAL: 51/100 (normalized from 36/80)                            │
 │                                                                      │
-│     FAILED CHECKS: M4_opengraph, S3_sections, J1_present, FAQ_count │
+│     FAILED CHECKS: M4_opengraph, J1_present                         │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
@@ -202,7 +201,7 @@ Issues are grouped into 3 categories:
 
 | Category | Source | Examples |
 |----------|--------|----------|
-| **Technical Structure** | Page scoring (5 dimensions) | Missing title, no schema, bad headings |
+| **Technical Structure** | Page scoring (4 dimensions) | Missing title, no schema, thin content |
 | **AI Visibility** | Policy file checks | Missing llms.txt file |
 | **Conversation** | Conversation Radar | Reddit/Twitter engagement opportunities |
 
@@ -223,7 +222,7 @@ Issues are grouped into 3 categories:
 
 ### Quick Summary
 
-1. **Analyze** → Score each page on 5 dimensions
+1. **Analyze** → Score each page on 4 dimensions
 2. **Identify** → Failed checks become issues (with deduplication)
 3. **Paginate** → Process 1 page per discovery run
 4. **Fix** → User deploys agent or fixes manually

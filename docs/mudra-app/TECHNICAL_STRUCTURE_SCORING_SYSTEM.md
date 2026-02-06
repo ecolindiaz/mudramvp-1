@@ -39,8 +39,8 @@ The Technical Structure Scoring System is a comprehensive site-wide scraping and
 │                              headings, semantic HTML, JSON-LD    │
 │                                      │                           │
 │                                      ▼                           │
-│  5. Five-Dimension Scoring ► Per-page scoring across            │
-│                              5 AEO dimensions                    │
+│  5. Four-Dimension Scoring ► Per-page scoring across             │
+│                              4 AEO dimensions                    │
 │                                      │                           │
 │                                      ▼                           │
 │  6. Site Aggregation ──────► Compute overall Technical          │
@@ -60,7 +60,7 @@ The Technical Structure Scoring System is a comprehensive site-wide scraping and
 | `PolicyFile` | Stores robots.txt, sitemap.xml, llms.txt detection results |
 | `SitemapPage` | All discovered page URLs with type classification |
 | `PageSnapshot` | Versioned HTML snapshots with extracted metadata |
-| `PageScore` | Five-dimension scores per page |
+| `PageScore` | Four-dimension scores per page |
 | `SiteStructureScore` | Aggregated site-wide scores |
 | `ScrapeJob` | Job tracking and progress monitoring |
 
@@ -119,79 +119,66 @@ model PageSnapshot {
 
 ---
 
-## Five-Dimension Scoring
+## Four-Dimension Scoring
 
-Each page is scored across five AEO dimensions:
+> **Updated Feb 2026:** Restructured from 5 to 4 dimensions. Removed Headings (20pts) and Semantic HTML (15pts) — users often can't fix heading hierarchy or semantic HTML without breaking their frontend. Added Content (10pts) for word count + paragraph structure. Reweighted toward Schema (purely additive JSON-LD injection). Added 6 new schema types.
 
-### 1. Structured Data Compliance (25%)
+Each page is scored across four AEO dimensions:
 
-Evaluates JSON-LD, Microdata, and RDFa markup.
+### 1. Schema / JSON-LD (40 points)
 
-**Scoring Components:**
-| Component | Max Points | Criteria |
-|-----------|------------|----------|
-| JSON-LD Schemas | 20 | Valid JSON-LD blocks present |
-| Schema Type Coverage | 50 | Organization, WebSite, Product, FAQPage, etc. |
-| Schema Validity | 15 | No parsing/validation errors |
-| Additional Formats | 15 | Microdata or RDFa bonus |
+Evaluates JSON-LD structured data implementation.
 
-**Critical Schemas Checked:**
-- `Organization` (15 pts) - Brand identity
-- `WebSite` (10 pts) - Site search integration
-- `FAQPage` (18 pts) - Answer engine optimization
-- `Product/Service` (12 pts each) - Offerings visibility
-- `BreadcrumbList` (8 pts) - Navigation structure
+| Check | Points | Criteria |
+|-------|--------|----------|
+| J1 - Present | 10 | At least one `<script type="application/ld+json">` exists |
+| J2 - Valid | 8 | JSON parses, has `@context` AND `@type` |
+| J3 - Relevant | 11 | Type is AEO-relevant (see list below) |
+| J4 - Coverage | 11 | All recommended schemas for page type are present |
 
-### 2. Semantic HTML Quality (20%)
+**AEO-Relevant Schema Types:**
+- Organization, WebSite, Product, Service, Article, BlogPosting, FAQPage
+- BreadcrumbList, HowTo, SoftwareApplication, CollectionPage
+- WebApplication, OfferCatalog, VideoObject, ItemList, Review, Person
 
-Evaluates proper use of HTML5 semantic elements.
+### 2. Metadata (30 points)
 
-**Scoring Components:**
-| Component | Max Points | Criteria |
-|-----------|------------|----------|
-| Semantic Elements | 30 | `<main>`, `<article>`, `<nav>`, `<header>`, `<footer>` |
-| Heading Structure | 30 | Single H1, logical H2-H6 hierarchy |
-| ARIA & Landmarks | 20 | Landmark roles, aria-labels |
-| Content Quality | 20 | Proper paragraph/list structure |
+Evaluates meta tags, canonical signals, and social tags.
 
-### 3. Content Citability (25%)
+| Check | Points | Criteria |
+|-------|--------|----------|
+| M1 - Title | 8 | `<title>` exists and is non-empty |
+| M2 - Description | 8 | `<meta name="description">` exists and is non-empty |
+| M3 - Canonical | 6 | `<link rel="canonical">` exists with href |
+| M4 - Open Graph | 4 | At least `og:title` OR `og:description` exists |
+| M5 - Twitter Cards | 4 | At least `twitter:card` OR `twitter:title` exists |
 
-Evaluates how easily AI can cite and attribute content.
+### 3. FAQ (20 points)
 
-**Scoring Components:**
-| Component | Max Points | Criteria |
-|-----------|------------|----------|
-| Title & Description | 25 | Optimal length meta tags |
-| Canonical Signals | 15 | Canonical URL, og:url |
-| Author Attribution | 20 | Author info, Person schema |
-| Excerpt Structure | 25 | Article content, paragraph structure |
-| Brand Clarity | 15 | Organization schema, og:site_name |
+Evaluates FAQ content quantity and schema coverage.
 
-### 4. Technical Accessibility (15%)
+**Linear scale:** `faq_score = min(faq_count * 5, 20)`
 
-Evaluates meta tags and technical signals.
+| FAQ Count | Points |
+|-----------|--------|
+| 0 | 0 |
+| 1 | 5 |
+| 2 | 10 |
+| 3 | 15 |
+| 4+ | 20 (capped) |
 
-**Scoring Components:**
-| Component | Max Points | Criteria |
-|-----------|------------|----------|
-| Meta Tags | 30 | Title, description, viewport, charset |
-| Open Graph | 20 | og:title, og:description, og:image, og:url |
-| Internationalization | 15 | hreflang tags, x-default |
-| Navigation Schema | 20 | BreadcrumbList, WebSite schema |
-| Twitter Cards | 15 | Twitter card meta tags |
+**FAQ sources:** JSON-LD FAQPage schema, `<details>/<summary>` elements, Q:/A: text patterns.
 
-### 5. Answer Engine Readiness (15%)
+Only scored for relevant page types: home, pricing, features, product, solutions, blog. Non-FAQ pages (about, contact, docs) get 0/0 and the score normalizes.
 
-Evaluates FAQ and direct answer optimization.
+### 4. Content (10 points)
 
-**Scoring Components:**
-| Component | Max Points | Criteria |
-|-----------|------------|----------|
-| FAQ Schema | 35 | FAQPage JSON-LD with questions |
-| HowTo Schema | 15 | HowTo JSON-LD for tutorials |
-| Direct Answer Format | 25 | Question headings, definition structure |
-| Advanced Features | 15 | SearchAction, Speakable specification |
-| Content Schema | 10 | Article, BlogPosting for content |
+Evaluates basic content quality signals.
+
+| Check | Points | Criteria |
+|-------|--------|----------|
+| C1 - Word Count | 5 | Page has 300+ words |
+| C2 - Paragraph Structure | 5 | Page has 3+ paragraphs |
 
 ---
 
@@ -205,7 +192,7 @@ Evaluates FAQ and direct answer optimization.
 | Policy Detection | `policy-detection.service.ts` | Checks policy files at domain root |
 | Sitemap Parser | `sitemap-parser.service.ts` | Discovers and classifies pages |
 | DOM Parser | `dom-parser.service.ts` | Extracts data from HTML |
-| Five-Dimension Scoring | `five-dimension-scoring.service.ts` | Computes per-page scores |
+| Four-Dimension Scoring | `five-dimension-scorer.ts` | Computes per-page scores |
 
 ### API Routes
 

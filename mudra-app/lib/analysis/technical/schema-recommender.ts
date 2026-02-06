@@ -30,23 +30,33 @@ const VALID_SCHEMA_TYPES: Set<string> = new Set([
 	"HowTo",
 	"SoftwareApplication",
 	"CollectionPage",
+	"WebApplication",
+	"OfferCatalog",
+	"VideoObject",
+	"ItemList",
+	"Review",
+	"Person",
 ]);
 
 const SYSTEM_PROMPT = `You are an SEO schema markup expert. Given a page summary, return the JSON-LD schema types that should be present on this page for Answer Engine Optimization.
 
 Rules:
 - SoftwareApplication: ONLY for pages about downloadable or installable software (desktop apps, mobile apps, browser extensions). Do NOT recommend for SaaS landing pages, marketing homepages, or web-based services.
+- WebApplication: For SaaS/web-based tools with interactive functionality (dashboards, editors, platforms). Use this instead of SoftwareApplication for web apps.
 - Article vs HowTo: Pick ONE based on content. Reference/informational = Article. Step-by-step tutorial/guide = HowTo. NEVER recommend both.
 - Article vs BlogPosting: Pick ONE. Blog posts = BlogPosting. Other long-form content = Article. NEVER recommend both.
 - Organization: Recommend for any page primarily about the company (about, careers, team, contact, partners, press). Also recommend for homepages.
 - WebSite: Recommend only for homepages.
 - Product: For pages describing a specific product with features/pricing.
 - Service: For pages describing a service offering.
-- Do NOT include BreadcrumbList or FAQPage — those are handled separately by deterministic rules.
+- OfferCatalog: For pricing pages with multiple tiers/plans.
+- ItemList: For feature comparison tables, integration directories, product catalogs.
+- Person: For blog posts with author bylines, team/about pages with individual profiles.
+- Do NOT include BreadcrumbList, FAQPage, VideoObject, or Review — those are handled separately by deterministic rules.
 
 Return ONLY a JSON object: {"schemas": ["Type1", "Type2"], "confidence": 0.0-1.0}
 confidence = how certain you are that these are the correct schema types (0.0 = guessing, 1.0 = certain).
-Valid types: Organization, WebSite, Product, Service, Article, BlogPosting, HowTo, SoftwareApplication`;
+Valid types: Organization, WebSite, Product, Service, Article, BlogPosting, HowTo, SoftwareApplication, WebApplication, OfferCatalog, ItemList, Person`;
 
 /**
  * Build a compact page summary for the LLM (~400 tokens).
@@ -138,7 +148,7 @@ export function heuristicRecommendedSchemas(
 			if (extraction && isBlogIndex(extraction.page_url)) {
 				schemas.push("CollectionPage");
 			} else {
-				schemas.push("BlogPosting");
+				schemas.push("BlogPosting", "Person");
 			}
 			break;
 		}
@@ -146,7 +156,7 @@ export function heuristicRecommendedSchemas(
 			schemas.push("Product");
 			break;
 		case "pricing":
-			schemas.push("Product");
+			schemas.push("Product", "OfferCatalog");
 			break;
 		case "features":
 			// No core schema — too ambiguous without LLM context.
@@ -156,7 +166,7 @@ export function heuristicRecommendedSchemas(
 			schemas.push("Article");
 			break;
 		case "about":
-			schemas.push("Organization");
+			schemas.push("Organization", "Person");
 			break;
 		case "contact":
 			schemas.push("Organization");
@@ -198,6 +208,26 @@ function applyDeterministicRules(
 	) {
 		if (!schemas.includes("FAQPage")) {
 			schemas.push("FAQPage");
+		}
+	}
+
+	// VideoObject when video embeds detected
+	if (
+		extraction.extraction.has_video_content &&
+		!extraction.extraction.schema.analysis.has_video_schema
+	) {
+		if (!schemas.includes("VideoObject")) {
+			schemas.push("VideoObject");
+		}
+	}
+
+	// Review when testimonial content detected
+	if (
+		extraction.extraction.has_testimonial_content &&
+		!extraction.extraction.schema.analysis.has_review_schema
+	) {
+		if (!schemas.includes("Review")) {
+			schemas.push("Review");
 		}
 	}
 

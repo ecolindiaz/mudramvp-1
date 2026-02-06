@@ -118,32 +118,30 @@ Once the job completes, you'll see:
 
 ### Overall Site Score
 
-- **Score:** 0-100 (weighted average of 5 dimensions)
-- **Grade:** A (90+), B (80-89), C (70-79), D (60-69), F (<60)
+- **Score:** 0-100 (weighted sum of 4 dimensions)
+- **Status:** excellent (80+), good (60-79), needs_improvement (40-59), poor (<40)
 - **Total pages analyzed**
 
-### Five Dimension Breakdown
+### Four Dimension Breakdown
 
-1. **Structured Data Compliance (25%)** - JSON-LD, Schema.org coverage
-2. **Semantic HTML Quality (20%)** - Proper HTML5 semantic elements
-3. **Content Citability (25%)** - How easily AI can cite your content
-4. **Technical Accessibility (15%)** - Meta tags, canonical, OG/Twitter cards
-5. **Answer Engine Readiness (15%)** - FAQ, How-To content
+1. **Schema / JSON-LD (40 pts)** - JSON-LD presence, validity, relevance, and coverage
+2. **Metadata (30 pts)** - Title, description, canonical, Open Graph, Twitter cards
+3. **FAQ (20 pts)** - FAQ content quantity and schema coverage
+4. **Content (10 pts)** - Word count (300+) and paragraph structure (3+)
 
 ### Example Display
 
 ```
-Overall Technical Structure Score: 78 (C - Fair)
+Overall Technical Structure Score: 78 (Good)
 
 Dimensions:
-├─ Structured Data:    65 (D - Poor)
-├─ Semantic HTML:      82 (B - Good)
-├─ Citability:         75 (C - Fair)
-├─ Accessibility:      90 (A - Excellent)
-└─ Answer Engine:      55 (F - Critical Issues)
+├─ Schema:    29/40  (missing recommended types)
+├─ Metadata:  30/30  (all checks pass)
+├─ FAQ:       10/20  (2 FAQs found)
+└─ Content:   10/10  (300+ words, 3+ paragraphs)
 
 Total Pages: 50 | Scraped: 50 | Scored: 50
-Last Scan: 2026-01-21 10:00 AM
+Last Scan: 2026-02-05 10:00 AM
 ```
 
 ---
@@ -178,20 +176,18 @@ Last Scan: 2026-01-21 10:00 AM
 **Issues:**
 - ❌ **Critical:** No JSON-LD Organization schema
 - ⚠️ **Major:** Missing FAQ schema (FAQ content detected but not structured)
-- ⚠️ **Moderate:** Multiple H1 tags (found 2, should be 1)
-
 **Recommendations:**
 1. **Add Organization Schema** (Priority: High)
-   - Impact: +15 points in Structured Data
+   - Impact: +11 points in Schema coverage (J4)
    - Implementation: Inject JSON-LD in `<head>`
-   
+
 2. **Add FAQ Schema** (Priority: High)
-   - Impact: +18 points in Answer Engine Readiness
+   - Impact: +20 points in FAQ dimension
    - Implementation: Wrap Q&A content in FAQPage schema
-   
-3. **Fix H1 Duplication** (Priority: Medium)
-   - Impact: +5 points in Semantic HTML
-   - Implementation: Combine or restructure headings
+
+3. **Add More Content** (Priority: Medium)
+   - Impact: +5 points in Content dimension
+   - Implementation: Expand page to 300+ words
 
 ---
 
@@ -477,10 +473,10 @@ POST /api/site-scrape/start
 - Monthly: Full site audit
 
 ### 4. Focus on Quick Wins
-- Add Organization schema (15+ points)
-- Add FAQ schema to pages with Q&A (18+ points)
-- Fix meta tags (10+ points)
-- Add canonical URLs (5+ points)
+- Add Organization + WebSite schema to homepage (+11 points via J4 coverage)
+- Add FAQ content + FAQPage schema (+20 points FAQ dimension)
+- Fix meta tags: title + description (+16 points)
+- Add canonical URLs (+6 points)
 
 ### 5. Track Before/After
 - Always run scan before agent implements changes
@@ -506,7 +502,7 @@ POST /api/site-scrape/start
 
 📚 **Further Reading:**
 - [Complete Implementation Guide](./SITE_WIDE_TECHNICAL_ANALYSIS.md)
-- [Five-Dimension Scoring Details](./FIVE_DIMENSION_SCORING.md)
+- [Four-Dimension Scoring Details](./TECHNICAL_STRUCTURE_SCORING_SYSTEM.md)
 - [Agent Lab Integration](./AGENT_LAB_INTEGRATION.md)
 
 ---

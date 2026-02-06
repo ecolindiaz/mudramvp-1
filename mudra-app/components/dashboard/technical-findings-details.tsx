@@ -11,7 +11,7 @@ import React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { CheckCircle2, XCircle, AlertCircle, FileText, Code, Search, Database, HelpCircle } from "lucide-react"
+import { CheckCircle2, XCircle, AlertCircle, FileText, Search, Database, HelpCircle } from "lucide-react"
 import {
   Accordion,
   AccordionContent,
@@ -22,9 +22,18 @@ import {
 interface PageFindings {
   url: string;
   score: number;
+  schema: {
+    score: number;
+    total: 40;
+    checks: {
+      jsonLdPresent: { passed: boolean; count: number };
+      orgWebsiteSchema: { passed: boolean; types: string[] };
+      faqSchema: { passed: boolean; count: number };
+    };
+  };
   metadata: {
     score: number;
-    total: 25;
+    total: 30;
     checks: {
       title: { passed: boolean; value?: string };
       description: { passed: boolean; value?: string };
@@ -33,39 +42,19 @@ interface PageFindings {
       canonical: { passed: boolean; value?: string };
     };
   };
-  headings: {
-    score: number;
-    total: 20;
-    checks: {
-      h1Present: { passed: boolean; count: number };
-      hierarchy: { passed: boolean; issues?: string[] };
-      descriptive: { passed: boolean; h2Count: number; h3Count: number };
-    };
-  };
-  semantic: {
-    score: number;
-    total: 15;
-    checks: {
-      semanticTags: { passed: boolean; found: string[] };
-      imageAlt: { passed: boolean; total: number; withAlt: number };
-      ariaLabels: { passed: boolean; count: number };
-      contentQuality: { passed: boolean; wordCount: number; paragraphCount: number };
-    };
-  };
-  schema: {
-    score: number;
-    total: 25;
-    checks: {
-      jsonLdPresent: { passed: boolean; count: number };
-      orgWebsiteSchema: { passed: boolean; types: string[] };
-      faqSchema: { passed: boolean; count: number };
-    };
-  };
   faq: {
     score: number;
-    total: 15;
+    total: 20;
     count: number;
     items: Array<{ question: string; answer: string }>;
+  };
+  content: {
+    score: number;
+    total: 10;
+    checks: {
+      wordCount: { passed: boolean; count: number };
+      paragraphStructure: { passed: boolean; count: number };
+    };
   };
 }
 
@@ -144,118 +133,6 @@ function PageAccordionItem({ page }: { page: PageFindings }) {
       </AccordionTrigger>
       <AccordionContent className="px-4 pt-4 pb-6">
         <div className="space-y-6">
-          {/* Metadata Section */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Search className="h-4 w-4 text-blue-400" />
-                <h4 className="text-sm font-medium text-white">Metadata</h4>
-              </div>
-              <ScoreBadge score={page.metadata.score} total={page.metadata.total} />
-            </div>
-            <div className="pl-6 space-y-1">
-              <CheckItem 
-                label="Title tag" 
-                passed={page.metadata.checks.title.passed}
-                details={page.metadata.checks.title.value}
-              />
-              <CheckItem 
-                label="Meta description" 
-                passed={page.metadata.checks.description.passed}
-                details={page.metadata.checks.description.value}
-              />
-              <CheckItem 
-                label="Open Graph tags" 
-                passed={page.metadata.checks.ogTags.passed}
-                details={!page.metadata.checks.ogTags.passed && page.metadata.checks.ogTags.missing ? 
-                  `Missing: ${page.metadata.checks.ogTags.missing.join(', ')}` : undefined
-                }
-              />
-              <CheckItem 
-                label="Twitter Card" 
-                passed={page.metadata.checks.twitterCard.passed}
-                details={!page.metadata.checks.twitterCard.passed && page.metadata.checks.twitterCard.missing ? 
-                  `Missing: ${page.metadata.checks.twitterCard.missing.join(', ')}` : undefined
-                }
-              />
-              <CheckItem 
-                label="Canonical URL" 
-                passed={page.metadata.checks.canonical.passed}
-                details={page.metadata.checks.canonical.value}
-              />
-            </div>
-          </div>
-
-          <Separator className="border-white/[0.08]" />
-
-          {/* Headings Section */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Code className="h-4 w-4 text-purple-400" />
-                <h4 className="text-sm font-medium text-white">Headings Structure</h4>
-              </div>
-              <ScoreBadge score={page.headings.score} total={page.headings.total} />
-            </div>
-            <div className="pl-6 space-y-1">
-              <CheckItem 
-                label="H1 tag present" 
-                passed={page.headings.checks.h1Present.passed}
-                details={`Found ${page.headings.checks.h1Present.count} H1 tag(s)`}
-              />
-              <CheckItem 
-                label="Proper heading hierarchy" 
-                passed={page.headings.checks.hierarchy.passed}
-                details={page.headings.checks.hierarchy.issues?.join(', ')}
-              />
-              <CheckItem 
-                label="Descriptive subheadings" 
-                passed={page.headings.checks.descriptive.passed}
-                details={`${page.headings.checks.descriptive.h2Count} H2s, ${page.headings.checks.descriptive.h3Count} H3s`}
-              />
-            </div>
-          </div>
-
-          <Separator className="border-white/[0.08]" />
-
-          {/* Semantic HTML Section */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-green-400" />
-                <h4 className="text-sm font-medium text-white">Semantic HTML</h4>
-              </div>
-              <ScoreBadge score={page.semantic.score} total={page.semantic.total} />
-            </div>
-            <div className="pl-6 space-y-1">
-              <CheckItem 
-                label="Semantic HTML5 tags" 
-                passed={page.semantic.checks.semanticTags.passed}
-                details={page.semantic.checks.semanticTags.found.length > 0 ? 
-                  `Found: ${page.semantic.checks.semanticTags.found.join(', ')}` : 
-                  'No semantic tags found'
-                }
-              />
-              <CheckItem 
-                label="Image alt attributes" 
-                passed={page.semantic.checks.imageAlt.passed}
-                details={`${page.semantic.checks.imageAlt.withAlt}/${page.semantic.checks.imageAlt.total} images have alt text`}
-              />
-              <CheckItem 
-                label="ARIA labels for accessibility" 
-                passed={page.semantic.checks.ariaLabels.passed}
-                details={`Found ${page.semantic.checks.ariaLabels.count} ARIA labels`}
-              />
-              <CheckItem 
-                label="Content quality" 
-                passed={page.semantic.checks.contentQuality.passed}
-                details={`${page.semantic.checks.contentQuality.wordCount} words, ${page.semantic.checks.contentQuality.paragraphCount} paragraphs`}
-              />
-            </div>
-          </div>
-
-          <Separator className="border-white/[0.08]" />
-
           {/* Schema/JSON-LD Section */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -266,23 +143,67 @@ function PageAccordionItem({ page }: { page: PageFindings }) {
               <ScoreBadge score={page.schema.score} total={page.schema.total} />
             </div>
             <div className="pl-6 space-y-1">
-              <CheckItem 
-                label="Valid JSON-LD present" 
+              <CheckItem
+                label="Valid JSON-LD present"
                 passed={page.schema.checks.jsonLdPresent.passed}
                 details={`Found ${page.schema.checks.jsonLdPresent.count} JSON-LD block(s)`}
               />
-              <CheckItem 
-                label="Organization/Website schema" 
+              <CheckItem
+                label="Organization/Website schema"
                 passed={page.schema.checks.orgWebsiteSchema.passed}
-                details={page.schema.checks.orgWebsiteSchema.types.length > 0 ? 
-                  `Types: ${page.schema.checks.orgWebsiteSchema.types.join(', ')}` : 
+                details={page.schema.checks.orgWebsiteSchema.types.length > 0 ?
+                  `Types: ${page.schema.checks.orgWebsiteSchema.types.join(', ')}` :
                   'No org/website schema found'
                 }
               />
-              <CheckItem 
-                label="FAQ schema markup" 
+              <CheckItem
+                label="FAQ schema markup"
                 passed={page.schema.checks.faqSchema.passed}
                 details={`Found ${page.schema.checks.faqSchema.count} FAQ schema(s)`}
+              />
+            </div>
+          </div>
+
+          <Separator className="border-white/[0.08]" />
+
+          {/* Metadata Section */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Search className="h-4 w-4 text-blue-400" />
+                <h4 className="text-sm font-medium text-white">Metadata</h4>
+              </div>
+              <ScoreBadge score={page.metadata.score} total={page.metadata.total} />
+            </div>
+            <div className="pl-6 space-y-1">
+              <CheckItem
+                label="Title tag"
+                passed={page.metadata.checks.title.passed}
+                details={page.metadata.checks.title.value}
+              />
+              <CheckItem
+                label="Meta description"
+                passed={page.metadata.checks.description.passed}
+                details={page.metadata.checks.description.value}
+              />
+              <CheckItem
+                label="Open Graph tags"
+                passed={page.metadata.checks.ogTags.passed}
+                details={!page.metadata.checks.ogTags.passed && page.metadata.checks.ogTags.missing ?
+                  `Missing: ${page.metadata.checks.ogTags.missing.join(', ')}` : undefined
+                }
+              />
+              <CheckItem
+                label="Twitter Card"
+                passed={page.metadata.checks.twitterCard.passed}
+                details={!page.metadata.checks.twitterCard.passed && page.metadata.checks.twitterCard.missing ?
+                  `Missing: ${page.metadata.checks.twitterCard.missing.join(', ')}` : undefined
+                }
+              />
+              <CheckItem
+                label="Canonical URL"
+                passed={page.metadata.checks.canonical.passed}
+                details={page.metadata.checks.canonical.value}
               />
             </div>
           </div>
@@ -314,6 +235,31 @@ function PageAccordionItem({ page }: { page: PageFindings }) {
               ) : (
                 <p className="text-sm text-white/40">No FAQs found</p>
               )}
+            </div>
+          </div>
+
+          <Separator className="border-white/[0.08]" />
+
+          {/* Content Quality Section */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-green-400" />
+                <h4 className="text-sm font-medium text-white">Content Quality</h4>
+              </div>
+              <ScoreBadge score={page.content.score} total={page.content.total} />
+            </div>
+            <div className="pl-6 space-y-1">
+              <CheckItem
+                label="Word count (300+)"
+                passed={page.content.checks.wordCount.passed}
+                details={`${page.content.checks.wordCount.count} words`}
+              />
+              <CheckItem
+                label="Paragraph structure (3+)"
+                passed={page.content.checks.paragraphStructure.passed}
+                details={`${page.content.checks.paragraphStructure.count} paragraphs`}
+              />
             </div>
           </div>
         </div>

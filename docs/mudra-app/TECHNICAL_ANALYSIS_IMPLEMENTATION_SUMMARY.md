@@ -163,49 +163,45 @@ model PageSnapshot {
 
 ---
 
-### ✅ 6. Per-Page Scoring Using Five-Dimension Scoring
+### ✅ 6. Per-Page Scoring Using Four-Dimension Scoring
 
-**Implemented:** `lib/services/five-dimension-scoring.service.ts`
+> **Updated Feb 2026:** Restructured from 5 to 4 dimensions. Headings and Semantic HTML removed. Content added. 6 new schema types.
 
-#### Dimension 1: Structured Data Compliance (25%)
-- [x] JSON-LD presence scoring (5 points per valid schema, max 20)
-- [x] Schema type coverage (Organization: 15, FAQPage: 18, Product/Service: 12, etc.)
-- [x] Schema validation (15 points max, deduct 5 per invalid)
-- [x] Microdata/RDFa bonus (15 points max)
-- [x] Issue detection: no JSON-LD, missing Organization, invalid schemas
+**Implemented:** `lib/analysis/technical/five-dimension-scorer.ts`
 
-#### Dimension 2: Semantic HTML Quality (20%)
-- [x] Semantic element usage (article: 12, section: 8, nav: 5, etc.)
-- [x] Heading hierarchy (single H1: 10, proper levels: 10, sufficient headings: 10)
-- [x] Landmark roles (5 points per unique role, max 15)
-- [x] Article quality (rich content with headings, paragraphs)
-- [x] Issue detection: multiple H1s, skipped levels, empty headings
+#### Dimension 1: Schema / JSON-LD (40 points)
+- [x] J1 - JSON-LD present (10 pts)
+- [x] J2 - Valid structure with @context and @type (8 pts)
+- [x] J3 - AEO-relevant schema type (11 pts)
+- [x] J4 - Schema coverage — all recommended types for page type present (11 pts)
+- [x] 17 recognized schema types including 6 new: WebApplication, OfferCatalog, VideoObject, ItemList, Review, Person
+- [x] Issue detection: no JSON-LD, invalid structure, missing recommended schemas
 
-#### Dimension 3: Content Citability (25%)
-- [x] Article structure (article tags: 20, has headings: 10, word count: 10)
-- [x] Author attribution (schema author: 20, meta/byline: 10)
-- [x] Datetime signals (published/modified dates: 30)
-- [x] Issue detection: no article tags, missing author, no datetime
-
-#### Dimension 4: Technical Accessibility (15%)
-- [x] Essential meta tags (title: 15, description: 15, canonical: 10)
-- [x] Open Graph (10 points per tag: title, description, image)
-- [x] Twitter Card (5 points per tag)
-- [x] Hreflang (15 points for international SEO)
+#### Dimension 2: Metadata (30 points)
+- [x] M1 - Title tag (8 pts)
+- [x] M2 - Meta description (8 pts)
+- [x] M3 - Canonical URL (6 pts)
+- [x] M4 - Open Graph (4 pts)
+- [x] M5 - Twitter Cards (4 pts)
 - [x] Issue detection: missing title/description, no canonical, no OG/Twitter
 
-#### Dimension 5: Answer Engine Readiness (15%)
-- [x] FAQ presence (schema: 30, DOM: 15, pattern: 5)
-- [x] FAQ quality (multiple questions: 20, answer length: 10)
-- [x] HowTo schema (20 points)
-- [x] Issue detection: no FAQ content, no HowTo schema
+#### Dimension 3: FAQ (20 points)
+- [x] Linear scale: min(faq_count * 5, 20) — 4+ FAQs for max score
+- [x] FAQ sources: JSON-LD FAQPage, details/summary, Q:/A: patterns
+- [x] Schema gap detection (content without schema)
+- [x] Page type filtering (only scored for home, pricing, features, product, solutions, blog)
+
+#### Dimension 4: Content (10 points)
+- [x] C1 - Word count >= 300 (5 pts)
+- [x] C2 - Paragraph structure >= 3 (5 pts)
+- [x] Issue detection: thin content, poor structure
 
 **Output:**
-- [x] Overall score (0-100, weighted average)
-- [x] Per-dimension scores with breakdown
-- [x] Issues array (severity: critical, major, moderate, minor)
-- [x] Recommendations array (priority: high, medium, low)
-- [x] Grade calculation (A: 90+, B: 80-89, C: 70-79, D: 60-69, F: <60)
+- [x] Overall score (0-100, weighted sum)
+- [x] Per-dimension scores with check-level details
+- [x] Issues array (severity: high, medium, low)
+- [x] Interventions array (priority: high, medium, low with code hints)
+- [x] Status: excellent (80+), good (60-79), needs_improvement (40-59), poor (<40)
 
 **Database:**
 ```prisma
@@ -265,7 +261,7 @@ model SiteStructureScore {
 
 #### Features
 - [x] Display overall site score and grade
-- [x] Show five-dimension breakdown
+- [x] Show four-dimension breakdown (schema, metadata, faq, content)
 - [x] List all pages with sorting/filtering
 - [x] Page type filtering (blog, pricing, etc.)
 - [x] Drill into page details (scores, issues, recommendations)

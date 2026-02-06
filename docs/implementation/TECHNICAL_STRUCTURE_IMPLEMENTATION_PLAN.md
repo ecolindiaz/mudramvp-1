@@ -1009,28 +1009,44 @@ function extractFAQs($) {
 
 ---
 
-## 10. Five-Dimension Scoring System
+## 10. Four-Dimension Scoring System
+
+> **Updated Feb 2026:** Restructured from 5 to 4 dimensions. Headings and Semantic HTML dimensions removed (users often can't control these without breaking frontend frameworks). Content dimension added. 6 new schema types added.
 
 ### Score Weights
 
 | Dimension | Max Points | Weight |
 |-----------|------------|--------|
-| Metadata | 25 | 25% |
-| Headings | 20 | 20% |
-| Semantic HTML | 15 | 15% |
-| Schema/JSON-LD | 25 | 25% |
-| FAQ | 15 | 15% |
+| Schema/JSON-LD | 40 | 40% |
+| Metadata | 30 | 30% |
+| FAQ | 20 | 20% |
+| Content | 10 | 10% |
 | **Total** | **100** | **100%** |
 
-### 1. Metadata Scoring (25 points)
+### 1. Schema/JSON-LD Score (40 points)
 
 | Check | Points | Criteria |
 |-------|--------|----------|
-| M1 - Title tag | 7 | `<title>` exists and is non-empty |
-| M2 - Meta description | 7 | `<meta name="description">` exists and is non-empty |
+| J1 - Present | 10 | At least one `<script type="application/ld+json">` |
+| J2 - Valid | 8 | JSON parses, has `@context` AND `@type` |
+| J3 - Relevant | 11 | Type is AEO-relevant (Organization, WebSite, Product, Service, Article, BlogPosting, FAQPage, BreadcrumbList, HowTo, SoftwareApplication, CollectionPage, WebApplication, OfferCatalog, VideoObject, ItemList, Review, Person) |
+| J4 - Coverage | 11 | All recommended schemas for page type are present |
+
+**Issue/Agent Interventions:**
+- `J1 false` → Inject appropriate JSON-LD schema
+- `J2 false` → Fix JSON syntax errors
+- `J3 false` → Replace with page-type-specific schema
+- `J4 false` → Add missing recommended schemas for page type
+
+### 2. Metadata Scoring (30 points)
+
+| Check | Points | Criteria |
+|-------|--------|----------|
+| M1 - Title tag | 8 | `<title>` exists and is non-empty |
+| M2 - Meta description | 8 | `<meta name="description">` exists and is non-empty |
 | M3 - Canonical URL | 6 | `<link rel="canonical">` exists with href |
-| M4 - Open Graph | 3 | At least `og:title` OR `og:description` exists |
-| M5 - Twitter Cards | 2 | At least `twitter:card` OR `twitter:title` exists |
+| M4 - Open Graph | 4 | At least `og:title` OR `og:description` exists |
+| M5 - Twitter Cards | 4 | At least `twitter:card` OR `twitter:title` exists |
 
 **Issue/Agent Interventions:**
 - `M1 false` → Inject `<title>{page_topic}</title>` into `<head>`
@@ -1039,57 +1055,11 @@ function extractFAQs($) {
 - `M4 false` → Inject Open Graph meta tags
 - `M5 false` → Inject Twitter Card meta tags
 
-### 2. Heading Hierarchy Score (20 points)
-
-| Check | Points | Criteria |
-|-------|--------|----------|
-| H1 - Single H1 | 8 | Exactly one `<h1>` tag. Zero or multiple = fail |
-| H2 - Coverage | 6 | At least 3 total headings (h1-h6) |
-| H3 - No skips | 6 | Never jumps > 1 level (H1→H4 = fail) |
-
-**Issue/Agent Interventions:**
-- `H1 false (zero)` → Wrap primary heading in `<h1>`
-- `H1 false (multiple)` → Convert extra H1s to `<h2>`
-- `H2 false` → Add H2 subheadings for sections
-- `H3 false` → Insert missing levels (add H2 between H1→H3)
-
-### 3. Semantic HTML5 Score (15 points)
-
-| Check | Points | Criteria |
-|-------|--------|----------|
-| S1 - Main content | 5 | At least one `<main>` OR `<article>` exists |
-| S2 - Page structure | 5 | At least one `<header>` AND one `<footer>` |
-| S3 - Sections | 5 | Total semantic elements >= 3 |
-
-**Semantic elements counted:** `<main>`, `<article>`, `<section>`, `<nav>`, `<aside>`, `<header>`, `<footer>`
-
-**Issue/Agent Interventions:**
-- `S1 false` → Wrap primary content in `<article>`
-- `S2 false` → Add `<header>` and `<footer>` wrappers
-- `S3 false` → Wrap content sections in `<section>` instead of `<div>`
-
-### 4. Schema/JSON-LD Score (25 points)
-
-| Check | Points | Criteria |
-|-------|--------|----------|
-| J1 - Present | 8 | At least one `<script type="application/ld+json">` |
-| J2 - Valid | 7 | JSON parses, has `@context` AND `@type` |
-| J3 - Relevant | 10 | Type is one of: Organization, WebSite, Product, Service, Article, BlogPosting, FAQPage, BreadcrumbList, HowTo, SoftwareApplication |
-
-**Issue/Agent Interventions:**
-- `J1 false` → Inject appropriate JSON-LD schema
-- `J2 false` → Fix JSON syntax errors
-- `J3 false` → Replace with page-type-specific schema:
-  - Blog → Article/BlogPosting
-  - Product page → Product
-  - Homepage → Organization + WebSite
-  - FAQ page → FAQPage
-
-### 5. FAQ Score (15 points)
+### 3. FAQ Score (20 points)
 
 **Linear scale:**
 ```
-faq_score = min(faq_count × 5, 15)
+faq_score = min(faq_count × 5, 20)
 ```
 
 | FAQ Count | Points |
@@ -1097,17 +1067,31 @@ faq_score = min(faq_count × 5, 15)
 | 0 | 0 |
 | 1 | 5 |
 | 2 | 10 |
-| 3+ | 15 (capped) |
+| 3 | 15 |
+| 4+ | 20 (capped) |
 
 **FAQ sources:**
 1. JSON-LD FAQPage schema
 2. `<details>/<summary>` elements
 3. Q:/A: text patterns
 
+Only scored for relevant page types: home, pricing, features, product, solutions, blog. Non-FAQ pages get 0/0 and the score normalizes.
+
 **Issue/Agent Interventions:**
-- `0 FAQs` → Generate FAQ section with 3-5 Q&As + FAQPage schema
-- `1-2 FAQs` → Expand to at least 3 items
+- `0 FAQs` → Generate FAQ section with 4+ Q&As + FAQPage schema
+- `1-3 FAQs` → Expand to at least 4 items for max score
 - `FAQ content but no schema` → Add FAQPage JSON-LD for existing Q&As
+
+### 4. Content Score (10 points)
+
+| Check | Points | Criteria |
+|-------|--------|----------|
+| C1 - Word count | 5 | Page has 300+ words of content |
+| C2 - Paragraph structure | 5 | Page has 3+ paragraphs |
+
+**Issue/Agent Interventions:**
+- `C1 false` → Add substantive content to reach 300+ words
+- `C2 false` → Break content into 3+ well-structured paragraphs
 
 ---
 

@@ -310,15 +310,23 @@ const RELEVANT_SCHEMA_TYPES = new Set([
 	"HowTo",
 	"SoftwareApplication",
 	"CollectionPage",
+	"WebApplication",
+	"OfferCatalog",
+	"VideoObject",
+	"ItemList",
+	"Review",
+	"Person",
 ]);
 
 const SCHEMA_SUBTYPE_MAP: Record<string, string[]> = {
 	"Article": ["TechArticle", "ScholarlyArticle", "NewsArticle", "SatiricalArticle",
 		"AnalysisNewsArticle", "OpinionNewsArticle", "ReportageNewsArticle", "ReviewNewsArticle"],
 	"BlogPosting": ["LiveBlogPosting"],
-	"SoftwareApplication": ["MobileApplication", "WebApplication", "VideoGame"],
+	"SoftwareApplication": ["MobileApplication", "VideoGame"],
 	"Organization": ["LocalBusiness", "Corporation", "NGO",
 		"EducationalOrganization", "GovernmentOrganization"],
+	"Review": ["UserReview", "CriticReview"],
+	"Person": [],
 };
 
 // Reverse lookup: subtype → parent (O(1) check)
@@ -387,6 +395,12 @@ function extractSchema($: CheerioAPI): SchemaExtraction {
 		has_website_schema: schemaTypes.includes("WebSite"),
 		has_service_schema: schemaTypes.includes("Service"),
 		has_blog_posting_schema: hasSchemaTypeOrSubtype(schemaTypes, "BlogPosting"),
+		has_video_schema: schemaTypes.includes("VideoObject"),
+		has_review_schema: hasSchemaTypeOrSubtype(schemaTypes, "Review"),
+		has_person_schema: hasSchemaTypeOrSubtype(schemaTypes, "Person"),
+		has_offer_catalog_schema: schemaTypes.includes("OfferCatalog"),
+		has_item_list_schema: schemaTypes.includes("ItemList"),
+		has_web_application_schema: schemaTypes.includes("WebApplication"),
 	};
 
 	return {
@@ -767,6 +781,42 @@ function extractContentSnapshot($: CheerioAPI, pageUrl: string): ContentSnapshot
 }
 
 // ============================================================================
+// VIDEO & TESTIMONIAL DETECTION
+// ============================================================================
+
+function detectVideoContent($: CheerioAPI): boolean {
+	if ($("video").length > 0) return true;
+	const iframeSrcs = $("iframe").map((_, el) => $(el).attr("src") || "").get();
+	return iframeSrcs.some(src =>
+		/youtube|vimeo|wistia|loom/i.test(src)
+	);
+}
+
+function detectTestimonialContent($: CheerioAPI): boolean {
+	// Check for sections with testimonial-related class/id
+	const testimonialSelectors = [
+		'[class*="testimonial"]',
+		'[class*="review"]',
+		'[class*="quote"]',
+		'[class*="customer-story"]',
+		'[id*="testimonial"]',
+		'[id*="review"]',
+		'[id*="quote"]',
+		'[id*="customer-story"]',
+	].join(", ");
+	if ($(testimonialSelectors).length > 0) return true;
+
+	// Check for blockquote elements with attribution (cite or footer)
+	const blockquotes = $("blockquote");
+	for (let i = 0; i < blockquotes.length; i++) {
+		const bq = $(blockquotes[i]);
+		if (bq.find("cite, footer, figcaption").length > 0) return true;
+	}
+
+	return false;
+}
+
+// ============================================================================
 // MAIN EXTRACTION FUNCTION
 // ============================================================================
 
@@ -787,6 +837,8 @@ export function htmlToExtraction(html: string, pageUrl: string): DOMExtraction {
 		schema: extractSchema($),
 		faqs: extractFAQs($),
 		content_snapshot: extractContentSnapshot($, pageUrl),
+		has_video_content: detectVideoContent($),
+		has_testimonial_content: detectTestimonialContent($),
 	};
 
 	return {

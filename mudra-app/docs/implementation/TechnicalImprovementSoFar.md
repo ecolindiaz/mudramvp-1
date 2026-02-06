@@ -27,7 +27,7 @@ This document tracks the implementation progress of the Technical Structure Scor
 ### Goals Achieved
 
 1. ✅ Built testable, isolated modules for DOM extraction
-2. ✅ Implemented 5-dimension scoring system (100 points total)
+2. ✅ Implemented 4-dimension scoring system (100 points total) — schema 40, metadata 30, faq 20, content 10
 3. ✅ Created comprehensive type definitions
 4. ✅ Achieved 113 passing unit tests
 
@@ -42,7 +42,7 @@ This document tracks the implementation progress of the Technical Structure Scor
 ```typescript
 // Enums
 PageType          // home, pricing, features, product, solutions, blog, about, contact, documentation, other
-ScoringDimension  // metadata, headings, semantic, schema, faq
+ScoringDimension  // schema, metadata, faq, content
 ScoreStatus       // excellent, good, needs_improvement, poor
 IssueSeverity     // high, medium, low
 InterventionPriority // high, medium, low
@@ -96,7 +96,8 @@ function htmlToExtraction(html: string, pageUrl: string): DOMExtraction
 **Relevant Schema Types for AEO:**
 - Organization, WebSite, Product, Service
 - Article, BlogPosting, FAQPage
-- BreadcrumbList, HowTo, SoftwareApplication
+- BreadcrumbList, HowTo, SoftwareApplication, CollectionPage
+- WebApplication, OfferCatalog, VideoObject, ItemList, Review, Person
 
 ---
 
@@ -105,13 +106,14 @@ function htmlToExtraction(html: string, pageUrl: string): DOMExtraction
 
 **Scoring Breakdown (100 points total):**
 
+> **Updated Feb 2026:** Restructured from 5 to 4 dimensions. Headings and Semantic removed. Content added. 6 new schema types.
+
 | Dimension | Points | Checks |
 |-----------|--------|--------|
-| **Metadata** | 25 | M1: Title (7), M2: Description (7), M3: Canonical (6), M4: OpenGraph (3), M5: Twitter (2) |
-| **Headings** | 20 | H1: Single H1 (8), H2: Coverage ≥3 (6), H3: No skipped levels (6) |
-| **Semantic** | 15 | S1: Main/article (5), S2: Header+footer (5), S3: ≥3 semantic elements (5) |
-| **Schema** | 25 | J1: JSON-LD present (8), J2: Valid structure (7), J3: AEO-relevant type (10) |
-| **FAQ** | 15 | Linear: 0 FAQs=0, 1 FAQ=5, 2 FAQs=10, 3+ FAQs=15 (capped) |
+| **Schema** | 40 | J1: Present (10), J2: Valid (8), J3: Relevant (11), J4: Coverage (11) |
+| **Metadata** | 30 | M1: Title (8), M2: Description (8), M3: Canonical (6), M4: OpenGraph (4), M5: Twitter (4) |
+| **FAQ** | 20 | Linear: 0=0, 1=5, 2=10, 3=15, 4+=20 (capped) |
+| **Content** | 10 | C1: Word count ≥300 (5), C2: Paragraphs ≥3 (5) |
 
 **Score Status Thresholds:**
 - **Excellent:** ≥ 85 points

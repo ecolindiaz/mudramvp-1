@@ -81,7 +81,7 @@ This layer is what lets us say "your score changed because your x Agent pushed X
 - Schema: JSON-LD Blocks - Extract All JSON-LD per page if present. (Organization, WebSite, Product, Service, Article, BlogPosting, FAQPage, BreadcrumbList, HowTo, SoftwareApplication)
 - FAQs - FAQ Schema (FAQ Content Discovery - Extract FAQs from three sources: JSON-LD FAQ Schema, HTML `<details>`/`<summary>` elements, and pattern matching for Q:/A: text patterns. Deduplicate across sources and count total FAQ items per page. Extract question text, answer text, and character counts.)
 
-### 6. Score Each Page Using Five-Dimensional Scoring
+### 6. Score Each Page Using Four-Dimensional Scoring
 
 ### 7. Compute Overall Technical Structure Score and Render Frontend in the Overview Metric Technical Structure Score
 
@@ -582,14 +582,16 @@ For this implementation we will call the API of DOMParser - DOMParser is a nativ
 
 ---
 
-## Five-Dimension Scoring
+## Four-Dimension Scoring
 
-Once we have the accurate findings from the DOMParser, displaying if/not present, we will then proceed and score findings. Here, we outline the correct method to score each page and compute the overall Technical Structure Score. Each page will be scored individually, then we'll calculate the average across all pages to ensure simplicity and scalability.
+> **Updated Feb 2026:** Restructured from 5 to 4 dimensions. Headings (20pts) and Semantic HTML (15pts) removed — users on Webflow/Shopify/WordPress often can't control these without breaking their frontend. Content (10pts) added. Schema reweighted to 40pts. 6 new schema types added: WebApplication, OfferCatalog, VideoObject, ItemList, Review, Person.
+
+Once we have the accurate findings from the DOM extraction, displaying if/not present, we will then proceed and score findings. Here, we outline the correct method to score each page and compute the overall Technical Structure Score. Each page will be scored individually, then we'll calculate the average across all pages to ensure simplicity and scalability.
 
 ### Complete Per-Page Score Weights
 
 ```javascript
-page_score = metadata_score (0-25) + headings_score (0-20) + semantic_score (0-15) + schema_score (0-25) + faq_score (0-15) = 0-100 total
+page_score = schema_score (0-40) + metadata_score (0-30) + faq_score (0-20) + content_score (0-10) = 0-100 total
 ```
 
 ### Site-Wide Technical Structure Score
@@ -600,19 +602,46 @@ site_score = average(all page scores)
 
 ---
 
-## 1. Metadata Score (25 points)
+## 1. Schema / JSON-LD Score (40 points)
 
 ### What We Check
 
 | Check | Points | Criteria |
 |-------|--------|----------|
-| M1 - Title tag present | 7 | `<title>` exists and is non-empty |
-| M2 - Meta description present | 7 | `<meta name="description">` exists and is non-empty |
-| M3 - Canonical URL present | 6 | `<link rel="canonical">` exists with href |
-| M4 - Open Graph present | 3 | At least `og:title` OR `og:description` exists |
-| M5 - Twitter Cards present | 2 | At least `twitter:card` OR `twitter:title` exists |
+| J1 - JSON-LD present | 10 | At least one `<script type="application/ld+json">` exists |
+| J2 - Valid structure | 8 | JSON parses successfully. Contains `@context` AND `@type` |
+| J3 - Relevant schema type | 11 | `@type` is AEO-relevant (Organization, WebSite, Product, Service, Article, BlogPosting, FAQPage, BreadcrumbList, HowTo, SoftwareApplication, CollectionPage, WebApplication, OfferCatalog, VideoObject, ItemList, Review, Person) |
+| J4 - Schema coverage | 11 | All recommended schemas for page type are present |
 
-**Scoring:** `metadata_score = sum of passed checks (max 25)`
+**Scoring:** `schema_score = sum of passed checks (max 40)`
+
+### Issue/Agent Interventions
+
+- `J1 false` → Inject appropriate JSON-LD schema block into `<head>`
+- `J2 false` → Fix JSON syntax errors in existing schema
+- `J3 false` → Replace generic schema with page-type-specific schema
+- `J4 false` → Add missing recommended schemas for page type:
+  - Homepage → Organization + WebSite
+  - Blog posts → BlogPosting + Person
+  - Products → Product
+  - Pricing → Product + OfferCatalog
+  - FAQ pages → FAQPage
+
+---
+
+## 2. Metadata Score (30 points)
+
+### What We Check
+
+| Check | Points | Criteria |
+|-------|--------|----------|
+| M1 - Title tag present | 8 | `<title>` exists and is non-empty |
+| M2 - Meta description present | 8 | `<meta name="description">` exists and is non-empty |
+| M3 - Canonical URL present | 6 | `<link rel="canonical">` exists with href |
+| M4 - Open Graph present | 4 | At least `og:title` OR `og:description` exists |
+| M5 - Twitter Cards present | 4 | At least `twitter:card` OR `twitter:title` exists |
+
+**Scoring:** `metadata_score = sum of passed checks (max 30)`
 
 ### Issue/Agent Interventions
 
@@ -624,72 +653,7 @@ site_score = average(all page scores)
 
 ---
 
-## 2. Heading Hierarchy Score (20 points)
-
-### What We Check
-
-| Check | Points | Criteria |
-|-------|--------|----------|
-| H1 - Single H1 present | 8 | Exactly one `<h1>` tag exists. Zero H1s OR multiple H1s = fail |
-| H2 - Heading coverage | 6 | At least 3 total headings (h1-h6) exist |
-| H3 - No skipped levels | 6 | Heading sequence never jumps > 1 level. Example OK: H1→H2→H3→H2→H3. Example FAIL: H1→H4 (skipped H2, H3) |
-
-**Scoring:** `headings_score = sum of passed checks (max 20)`
-
-### Issue/Agent Interventions
-
-- `H1 false (zero H1s)` → Wrap primary page heading in `<h1>` tag
-- `H1 false (multiple H1s)` → Convert extra H1s to `<h2>` tags
-- `H2 false` → Break content into sections with additional `<h2>` subheadings
-- `H3 false` → Fix hierarchy by inserting missing levels (e.g., add H2 between H1→H3)
-
----
-
-## 3. Semantic HTML5 Score (15 points)
-
-### What We Check
-
-| Check | Points | Criteria |
-|-------|--------|----------|
-| S1 - Main content element | 5 | At least one `<main>` OR `<article>` exists |
-| S2 - Page structure | 5 | At least one `<header>` AND one `<footer>` exist |
-| S3 - Semantic sections | 5 | Total semantic elements ≥ 3. Count: `<main>`, `<article>`, `<section>`, `<nav>`, `<aside>`, `<header>`, `<footer>` |
-
-**Scoring:** `semantic_score = sum of passed checks (max 15)`
-
-### Issue/Agent Interventions
-
-- `S1 false` → Wrap primary content in `<article>` tag
-- `S2 false` → Add `<header>` wrapper for top content, `<footer>` for bottom content
-- `S3 false` → Wrap content sections in `<section>` tags instead of `<div>`
-
----
-
-## 4. Schema / JSON-LD Score (25 points)
-
-### What We Check
-
-| Check | Points | Criteria |
-|-------|--------|----------|
-| J1 - JSON-LD present | 8 | At least one `<script type="application/ld+json">` exists |
-| J2 - Valid structure | 7 | JSON parses successfully. Contains `@context` AND `@type` |
-| J3 - Relevant schema type | 10 | `@type` is one of: Organization, WebSite, Product, Service, Article, BlogPosting, FAQPage, BreadcrumbList, HowTo, SoftwareApplication |
-
-**Scoring:** `schema_score = sum of passed checks (max 25)`
-
-### Issue/Agent Interventions
-
-- `J1 false` → Inject appropriate JSON-LD schema block into `<head>`
-- `J2 false` → Fix JSON syntax errors in existing schema
-- `J3 false` → Replace generic schema with page-type-specific schema:
-  - Blog posts → Article/BlogPosting schema
-  - Products → Product schema
-  - Homepage → Organization + WebSite schema
-  - FAQ pages → FAQPage schema
-
----
-
-## 5. FAQ Score (15 points)
+## 3. FAQ Score (20 points)
 
 ### What We Check
 
@@ -701,23 +665,44 @@ faq_items = count of unique (question, answer) pairs found via:
   - <details>/<summary> elements
   - Q:/A: text patterns
 
-faq_score = min(faq_items × 5, 15)
+faq_score = min(faq_items × 5, 20)
 ```
 
 **Examples:**
 - 0 FAQs → 0 points
 - 1 FAQ → 5 points
 - 2 FAQs → 10 points
-- 3+ FAQs → 15 points (capped)
+- 3 FAQs → 15 points
+- 4+ FAQs → 20 points (capped)
 
-**Scoring:** `faq_score = min(faq_items × 5, 15)`
+**Scoring:** `faq_score = min(faq_items × 5, 20)`
+
+Only scored for relevant page types: home, pricing, features, product, solutions, blog. Non-FAQ pages (about, contact, docs) get 0/0 and the score normalizes.
 
 ### Issue/Agent Interventions
 
-- `faq_items = 0` → Generate FAQ section with 3-5 Q&As + inject FAQPage schema
-- `faq_items = 1-2` → Expand existing FAQs to at least 3 items
+- `faq_items = 0` → Generate FAQ section with 4+ Q&As + inject FAQPage schema
+- `faq_items = 1-3` → Expand existing FAQs to at least 4 items
 - `FAQ content exists BUT no schema` → Inject FAQPage JSON-LD for existing Q&As
 - `Has <details> but no schema` → Add FAQPage schema matching the `<details>` content
+
+---
+
+## 4. Content Score (10 points)
+
+### What We Check
+
+| Check | Points | Criteria |
+|-------|--------|----------|
+| C1 - Word count | 5 | Page has 300+ words of content |
+| C2 - Paragraph structure | 5 | Page has 3+ paragraphs (`<p>` elements) |
+
+**Scoring:** `content_score = sum of passed checks (max 10)`
+
+### Issue/Agent Interventions
+
+- `C1 false` → Add substantive content to reach 300+ words
+- `C2 false` → Break content into 3+ well-structured paragraphs
 
 ---
 
@@ -727,98 +712,64 @@ faq_score = min(faq_items × 5, 15)
 {
   "page_url": "https://example.com/blog/post",
   "page_type": "blog",
-  "crawled_at": "2025-01-15T10:30:00Z",
-  
-  "checks": {
-    "metadata": {
-      "M1_title": true,
-      "M2_description": true,
-      "M3_canonical": false,
-      "M4_opengraph": true,
-      "M5_twitter": false,
-      "passed": 3,
-      "total": 5
-    },
-    "headings": {
-      "H1_single": true,
-      "H2_coverage": true,
-      "H3_no_skips": false,
-      "passed": 2,
-      "total": 3,
-      "violations": ["skipped_h1_to_h4"]
-    },
-    "semantic": {
-      "S1_main_content": true,
-      "S2_page_structure": true,
-      "S3_sections": false,
-      "passed": 2,
-      "total": 3,
-      "semantic_count": 2
-    },
+  "crawled_at": "2026-02-05T10:30:00Z",
+
+  "scores": {
+    "schema": 29,
+    "metadata": 22,
+    "faq": 0,
+    "content": 10,
+    "total": 61,
+    "status": "good"
+  },
+
+  "dimension_details": {
     "schema": {
-      "J1_present": true,
-      "J2_valid": true,
-      "J3_relevant": true,
-      "passed": 3,
-      "total": 3,
-      "schema_types": ["Article", "BreadcrumbList"]
+      "J1_present": { "passed": true, "points": 10 },
+      "J2_valid": { "passed": true, "points": 8 },
+      "J3_relevant": { "passed": true, "points": 11 },
+      "J4_coverage": { "passed": false, "points": 0, "rationale": "Missing: Person" }
     },
-    "faq": {
-      "faq_items": 0,
-      "has_content": false,
-      "has_schema": false
+    "metadata": {
+      "M1_title": { "passed": true, "points": 8 },
+      "M2_description": { "passed": true, "points": 8 },
+      "M3_canonical": { "passed": false, "points": 0 },
+      "M4_opengraph": { "passed": true, "points": 4 },
+      "M5_twitter": { "passed": false, "points": 0 }
+    },
+    "faq": { "FAQ_count": { "passed": false, "points": 0 } },
+    "content": {
+      "C1_word_count": { "passed": true, "points": 5 },
+      "C2_paragraph_structure": { "passed": true, "points": 5 }
     }
   },
-  
-  "scores": {
-    "metadata": 19,
-    "headings": 13.33,
-    "semantic": 10,
-    "schema": 25,
-    "faq": 0,
-    "total": 67.33,
-    "status": "needs_improvement"
-  },
-  
-  "agent_interventions": [
+
+  "interventions": [
+    {
+      "check": "J4_coverage",
+      "priority": "medium",
+      "action": "inject_jsonld_schema",
+      "estimated_impact": "+11 points"
+    },
     {
       "check": "M3_canonical",
       "priority": "medium",
       "action": "inject_canonical_tag",
-      "target": "head",
       "estimated_impact": "+6 points"
     },
     {
       "check": "M5_twitter",
       "priority": "low",
       "action": "inject_twitter_cards",
-      "target": "head",
-      "estimated_impact": "+2 points"
+      "estimated_impact": "+4 points"
     },
     {
-      "check": "H3_no_skips",
-      "priority": "high",
-      "action": "fix_heading_hierarchy",
-      "target": "body > main > article",
-      "estimated_impact": "+6 points"
-    },
-    {
-      "check": "S3_sections",
-      "priority": "medium",
-      "action": "wrap_content_sections",
-      "target": "body > main > article",
-      "estimated_impact": "+5 points"
-    },
-    {
-      "check": "faq_items",
+      "check": "FAQ_count",
       "priority": "high",
       "action": "generate_faq_section",
-      "target": "body > main > article",
-      "estimated_impact": "+15 points"
+      "estimated_impact": "+20 points"
     }
-  ],
-  
-  "potential_score_after_fixes": 100
+  ]
 }
 ```
 

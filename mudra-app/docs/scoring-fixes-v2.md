@@ -1,5 +1,7 @@
 # Scoring Accuracy Fixes v2
 
+> **Note (Feb 2026):** The scoring system was restructured from 5 dimensions to 4 dimensions. Headings (20pts) and Semantic HTML (15pts) were removed. Content (10pts) was added. New weights: **Schema 40, Metadata 30, FAQ 20, Content 10**. Fixes 3, 4, and 6 below are now obsolete — headings scoring, semantic scoring, and S2 checks no longer exist. The fixes for schema subtypes (Fix 1), blog index detection (Fix 2), and redirect dedup (Fix 5) remain valid.
+
 Six scoring accuracy issues discovered via live testing against vercel.com and apollo.io.
 
 ---
@@ -68,7 +70,7 @@ For non-relevant page types:
 - `computePageScore()` normalizes the total: `Math.round((rawTotal / maxPossible) * 100)`
 - FAQ issues and interventions are suppressed
 
-This means an about page with perfect metadata, headings, semantic, and schema scores 100/100 instead of being capped at 85/100.
+This means an about page with perfect metadata, schema, and content scores 100/100 instead of being capped.
 
 **Changes:**
 - `five-dimension-scorer.ts`: Added `FAQ_RELEVANT_PAGE_TYPES`. Updated `scoreFaq()`, `computePageScore()`, `generateIssues()`, and `generateInterventions()`.
@@ -116,7 +118,7 @@ rawTotal    = sum of all dimension scores
 total       = round((rawTotal / maxPossible) * 100)
 ```
 
-When FAQ is excluded (`max_score = 0`), `maxPossible` is 85 instead of 100, so the score is still out of 100.
+When FAQ is excluded (`max_score = 0`), `maxPossible` is 80 instead of 100, so the score is still out of 100.
 
 ---
 

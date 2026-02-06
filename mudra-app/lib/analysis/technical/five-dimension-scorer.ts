@@ -1,12 +1,11 @@
 /**
- * Five-Dimension Scoring Module
+ * Four-Dimension Scoring Module
  *
- * Implements the 5-dimension scoring system for Answer Engine Optimization:
- * - Metadata: 25 points (M1-M5)
- * - Headings: 20 points (H1-H3)
- * - Semantic: 15 points (S1-S3)
- * - Schema: 25 points (J1-J3)
- * - FAQ: 15 points (linear scale)
+ * Implements the 4-dimension scoring system for Answer Engine Optimization:
+ * - Schema: 40 points (J1-J4)
+ * - Metadata: 30 points (M1-M5)
+ * - FAQ: 20 points (linear scale)
+ * - Content: 10 points (C1-C2)
  *
  * Total: 100 points
  */
@@ -35,41 +34,29 @@ import { heuristicRecommendedSchemas } from "./schema-recommender";
  * Score weights for each dimension
  */
 export const DIMENSION_WEIGHTS = {
-	metadata: 25,
-	headings: 20,
-	semantic: 15,
-	schema: 25,
-	faq: 15,
+	schema: 40,
+	metadata: 30,
+	faq: 20,
+	content: 10,
 } as const;
 
 /**
  * Individual check weights within metadata dimension
  */
 const METADATA_WEIGHTS = {
-	M1_title: 7,
-	M2_description: 7,
+	M1_title: 8,
+	M2_description: 8,
 	M3_canonical: 6,
-	M4_opengraph: 3,
-	M5_twitter: 2,
+	M4_opengraph: 4,
+	M5_twitter: 4,
 } as const;
 
 /**
- * Individual check weights within headings dimension
+ * Individual check weights within content dimension
  */
-const HEADINGS_WEIGHTS = {
-	H1_single: 8,
-	H2_coverage: 6,
-	H3_no_skips: 6,
-} as const;
-
-/**
- * Individual check weights within semantic dimension
- */
-const SEMANTIC_WEIGHTS = {
-	S1_main_content: 4,
-	S2_page_structure: 4,
-	S3_sections: 4,
-	S4_content_quality: 3, // NEW: Content depth and readability
+const CONTENT_WEIGHTS = {
+	C1_word_count: 5,
+	C2_paragraph_structure: 5,
 } as const;
 
 /**
@@ -79,10 +66,10 @@ const SEMANTIC_WEIGHTS = {
  * for the page type are present — not just "at least one relevant type."
  */
 const SCHEMA_WEIGHTS = {
-	J1_present: 6,
-	J2_valid: 5,
-	J3_relevant: 7,
-	J4_coverage: 7,
+	J1_present: 10,
+	J2_valid: 8,
+	J3_relevant: 11,
+	J4_coverage: 11,
 } as const;
 
 /**
@@ -142,17 +129,17 @@ function createIntervention(
 }
 
 // ============================================================================
-// METADATA SCORING (25 points)
+// METADATA SCORING (30 points)
 // ============================================================================
 
 /**
  * Scores metadata elements
  *
- * M1 - Title tag present: 7 points
- * M2 - Meta description present: 7 points
+ * M1 - Title tag present: 8 points
+ * M2 - Meta description present: 8 points
  * M3 - Canonical URL present: 6 points
- * M4 - Open Graph present: 3 points
- * M5 - Twitter Cards present: 2 points
+ * M4 - Open Graph present: 4 points
+ * M5 - Twitter Cards present: 4 points
  */
 export function scoreMetadata(extraction: DOMExtraction): DimensionScore {
 	const { metadata } = extraction.extraction;
@@ -235,181 +222,70 @@ export function scoreMetadata(extraction: DOMExtraction): DimensionScore {
 }
 
 // ============================================================================
-// HEADINGS SCORING (20 points)
+// CONTENT SCORING (10 points)
 // ============================================================================
 
 /**
- * Scores heading hierarchy
+ * Scores content quality
  *
- * H1 - Single H1 present: 8 points (exactly one H1)
- * H2 - Heading coverage: 6 points (at least 3 total headings)
- * H3 - No skipped levels: 6 points (no H1->H3 jumps)
+ * C1 - Word count >= 300: 5 points
+ * C2 - Paragraph structure >= 3 paragraphs: 5 points
  */
-export function scoreHeadings(extraction: DOMExtraction): DimensionScore {
-	const { headings } = extraction.extraction;
-	const checks: Record<string, CheckResult> = {};
-	let totalScore = 0;
-	let passedCount = 0;
-
-	// H1 - Single H1 (exactly one)
-	const h1Passed = headings.counts.h1 === 1;
-	let h1Rationale: string;
-	if (headings.counts.h1 === 0) {
-		h1Rationale = "No H1 tag found";
-	} else if (headings.counts.h1 === 1) {
-		h1Rationale = "Single H1 tag found (correct)";
-	} else {
-		h1Rationale = `Multiple H1 tags found (${headings.counts.h1})`;
-	}
-	checks.H1_single = createCheckResult(h1Passed, HEADINGS_WEIGHTS.H1_single, h1Rationale);
-	if (h1Passed) {
-		totalScore += HEADINGS_WEIGHTS.H1_single;
-		passedCount++;
-	}
-
-	// H2 - Coverage (at least 3 total headings)
-	const h2Passed = headings.counts.total >= 3;
-	checks.H2_coverage = createCheckResult(
-		h2Passed,
-		HEADINGS_WEIGHTS.H2_coverage,
-		h2Passed
-			? `Good heading coverage (${headings.counts.total} headings)`
-			: `Insufficient heading coverage (${headings.counts.total} headings, need 3+)`
-	);
-	if (h2Passed) {
-		totalScore += HEADINGS_WEIGHTS.H2_coverage;
-		passedCount++;
-	}
-
-	// H3 - No skipped levels
-	const h3Passed = headings.analysis.skipped_levels.length === 0;
-	checks.H3_no_skips = createCheckResult(
-		h3Passed,
-		HEADINGS_WEIGHTS.H3_no_skips,
-		h3Passed
-			? "No skipped heading levels"
-			: `Skipped heading levels: ${headings.analysis.skipped_levels.join(", ")}`
-	);
-	if (h3Passed) {
-		totalScore += HEADINGS_WEIGHTS.H3_no_skips;
-		passedCount++;
-	}
-
-	return {
-		dimension: "headings",
-		score: totalScore,
-		max_score: DIMENSION_WEIGHTS.headings,
-		checks,
-		passed_count: passedCount,
-		total_count: 3,
-	};
-}
-
-// ============================================================================
-// SEMANTIC HTML SCORING (15 points)
-// ============================================================================
-
-/**
- * Scores semantic HTML5 structure
- *
- * S1 - Main content element: 5 points (<main> OR <article>)
- * S2 - Page structure: 5 points (<header> AND <footer>)
- * S3 - Semantic sections: 5 points (total semantic elements >= 3)
- */
-export function scoreSemantic(extraction: DOMExtraction): DimensionScore {
-	const { semantic_html } = extraction.extraction;
-	const checks: Record<string, CheckResult> = {};
-	let totalScore = 0;
-	let passedCount = 0;
-
-	// S1 - Main content (<main> OR <article>)
-	const s1Passed = semantic_html.elements.main.count > 0 || semantic_html.elements.article.count > 0;
-	checks.S1_main_content = createCheckResult(
-		s1Passed,
-		SEMANTIC_WEIGHTS.S1_main_content,
-		s1Passed
-			? `Main content element found (main: ${semantic_html.elements.main.count}, article: ${semantic_html.elements.article.count})`
-			: "No <main> or <article> element found"
-	);
-	if (s1Passed) {
-		totalScore += SEMANTIC_WEIGHTS.S1_main_content;
-		passedCount++;
-	}
-
-	// S2 - Page structure (<footer>)
-	const s2Passed = semantic_html.elements.footer.count > 0;
-	checks.S2_page_structure = createCheckResult(
-		s2Passed,
-		SEMANTIC_WEIGHTS.S2_page_structure,
-		s2Passed
-			? "<footer> element found"
-			: "Missing <footer> element"
-	);
-	if (s2Passed) {
-		totalScore += SEMANTIC_WEIGHTS.S2_page_structure;
-		passedCount++;
-	}
-
-	// S3 - Semantic sections (total >= 3)
-	const s3Passed = semantic_html.semantic_element_count >= 3;
-	checks.S3_sections = createCheckResult(
-		s3Passed,
-		SEMANTIC_WEIGHTS.S3_sections,
-		s3Passed
-			? `Good semantic structure (${semantic_html.semantic_element_count} semantic elements)`
-			: `Insufficient semantic elements (${semantic_html.semantic_element_count}, need 3+)`
-	);
-	if (s3Passed) {
-		totalScore += SEMANTIC_WEIGHTS.S3_sections;
-		passedCount++;
-	}
-
-	// S4 - Content Quality (NEW: uses content snapshot data)
+export function scoreContent(extraction: DOMExtraction): DimensionScore {
 	const { content_snapshot } = extraction.extraction;
-	const hasSubstantialContent = content_snapshot.word_count >= 300;
-	const hasGoodStructure = content_snapshot.paragraph_count >= 3;
-	const s4Passed = hasSubstantialContent && hasGoodStructure;
-	
-	let s4Rationale: string;
-	if (!hasSubstantialContent) {
-		s4Rationale = `Thin content (${content_snapshot.word_count} words, need 300+)`;
-	} else if (!hasGoodStructure) {
-		s4Rationale = `Poor paragraph structure (${content_snapshot.paragraph_count} paragraphs, need 3+)`;
-	} else {
-		s4Rationale = `Good content depth (${content_snapshot.word_count} words, ${content_snapshot.paragraph_count} paragraphs)`;
-	}
-	
-	checks.S4_content_quality = createCheckResult(
-		s4Passed,
-		SEMANTIC_WEIGHTS.S4_content_quality,
-		s4Rationale
+	const checks: Record<string, CheckResult> = {};
+	let totalScore = 0;
+	let passedCount = 0;
+
+	// C1 - Word count
+	const c1Passed = content_snapshot.word_count >= 300;
+	checks.C1_word_count = createCheckResult(
+		c1Passed,
+		CONTENT_WEIGHTS.C1_word_count,
+		c1Passed
+			? `Good content depth (${content_snapshot.word_count} words)`
+			: `Thin content (${content_snapshot.word_count} words, need 300+)`
 	);
-	if (s4Passed) {
-		totalScore += SEMANTIC_WEIGHTS.S4_content_quality;
+	if (c1Passed) {
+		totalScore += CONTENT_WEIGHTS.C1_word_count;
+		passedCount++;
+	}
+
+	// C2 - Paragraph structure
+	const c2Passed = content_snapshot.paragraphs.length >= 3;
+	checks.C2_paragraph_structure = createCheckResult(
+		c2Passed,
+		CONTENT_WEIGHTS.C2_paragraph_structure,
+		c2Passed
+			? `Good paragraph structure (${content_snapshot.paragraphs.length} paragraphs)`
+			: `Poor paragraph structure (${content_snapshot.paragraphs.length} paragraphs, need 3+)`
+	);
+	if (c2Passed) {
+		totalScore += CONTENT_WEIGHTS.C2_paragraph_structure;
 		passedCount++;
 	}
 
 	return {
-		dimension: "semantic",
+		dimension: "content",
 		score: totalScore,
-		max_score: DIMENSION_WEIGHTS.semantic,
+		max_score: DIMENSION_WEIGHTS.content,
 		checks,
 		passed_count: passedCount,
-		total_count: 4,
+		total_count: 2,
 	};
 }
 
 // ============================================================================
-// SCHEMA / JSON-LD SCORING (25 points)
+// SCHEMA / JSON-LD SCORING (40 points)
 // ============================================================================
 
 /**
  * Scores Schema/JSON-LD implementation
  *
- * J1 - JSON-LD present: 6 points (at least one script tag)
- * J2 - Valid structure: 5 points (parses, has @context AND @type)
- * J3 - Relevant schema type: 7 points (one of the AEO-relevant types)
- * J4 - Schema coverage: 7 points (all recommended schemas for page type are present)
+ * J1 - JSON-LD present: 10 points (at least one script tag)
+ * J2 - Valid structure: 8 points (parses, has @context AND @type)
+ * J3 - Relevant schema type: 11 points (one of the AEO-relevant types)
+ * J4 - Schema coverage: 11 points (all recommended schemas for page type are present)
  */
 export function scoreSchema(extraction: DOMExtraction): DimensionScore {
 	const { schema } = extraction.extraction;
@@ -491,17 +367,18 @@ export function scoreSchema(extraction: DOMExtraction): DimensionScore {
 }
 
 // ============================================================================
-// FAQ SCORING (15 points)
+// FAQ SCORING (20 points)
 // ============================================================================
 
 /**
  * Scores FAQ content
  *
- * Linear scale: faq_score = min(faq_count * 5, 15)
+ * Linear scale: faq_score = min(faq_count * 5, 20)
  * 0 FAQs = 0 points
  * 1 FAQ = 5 points
  * 2 FAQs = 10 points
- * 3+ FAQs = 15 points (capped)
+ * 3 FAQs = 15 points
+ * 4+ FAQs = 20 points (capped)
  */
 export function scoreFaq(extraction: DOMExtraction): DimensionScore {
 	const { faqs } = extraction.extraction;
@@ -518,7 +395,7 @@ export function scoreFaq(extraction: DOMExtraction): DimensionScore {
 	}
 
 	const faqCount = faqs.total_faq_count;
-	const score = Math.min(faqCount * 5, 15);
+	const score = Math.min(faqCount * 5, 20);
 
 	const checks: Record<string, CheckResult> = {
 		FAQ_count: {
@@ -532,7 +409,9 @@ export function scoreFaq(extraction: DOMExtraction): DimensionScore {
 						? "1 FAQ found (+5 points)"
 						: faqCount === 2
 							? "2 FAQs found (+10 points)"
-							: `${faqCount} FAQs found (max +15 points)`,
+							: faqCount === 3
+								? "3 FAQs found (+15 points)"
+								: `${faqCount} FAQs found (max +20 points)`,
 		},
 	};
 
@@ -579,10 +458,9 @@ export function scoreFaq(extraction: DOMExtraction): DimensionScore {
 function generateIssues(
 	extraction: DOMExtraction,
 	metadataScore: DimensionScore,
-	headingsScore: DimensionScore,
-	semanticScore: DimensionScore,
 	schemaScore: DimensionScore,
-	faqScore: DimensionScore
+	faqScore: DimensionScore,
+	contentScore: DimensionScore
 ): Issue[] {
 	const issues: Issue[] = [];
 	const pageUrl = extraction.page_url;
@@ -604,43 +482,18 @@ function generateIssues(
 		issues.push(createIssue("M5_twitter", "metadata", "low", "Missing Twitter Card tags", pageUrl));
 	}
 
-	// Heading issues
-	if (!headingsScore.checks.H1_single?.passed) {
-		const h1Count = extraction.extraction.headings.counts.h1;
-		if (h1Count === 0) {
-			issues.push(createIssue("H1_single", "headings", "high", "No H1 tag found on page", pageUrl));
-		} else {
-			issues.push(createIssue("H1_single", "headings", "medium", `Multiple H1 tags found (${h1Count})`, pageUrl));
-		}
-	}
-	if (!headingsScore.checks.H2_coverage?.passed) {
-		issues.push(createIssue("H2_coverage", "headings", "medium", "Insufficient heading coverage (< 3 headings)", pageUrl));
-	}
-	if (!headingsScore.checks.H3_no_skips?.passed) {
-		issues.push(createIssue("H3_no_skips", "headings", "medium", "Skipped heading levels detected", pageUrl));
-	}
-
-	// Semantic issues
-	if (!semanticScore.checks.S1_main_content?.passed) {
-		issues.push(createIssue("S1_main_content", "semantic", "medium", "No <main> or <article> element", pageUrl));
-	}
-	if (!semanticScore.checks.S2_page_structure?.passed) {
-		issues.push(createIssue("S2_page_structure", "semantic", "low", "Missing <footer> element", pageUrl));
-	}
-	if (!semanticScore.checks.S3_sections?.passed) {
-		issues.push(createIssue("S3_sections", "semantic", "low", "Insufficient semantic HTML elements", pageUrl));
-	}
-	if (!semanticScore.checks.S4_content_quality?.passed) {
+	// Content issues
+	if (!contentScore.checks.C1_word_count?.passed) {
 		const wordCount = extraction.extraction.content_snapshot.word_count;
 		const severity: IssueSeverity = wordCount < 150 ? "high" : "medium";
 		issues.push(
-			createIssue(
-				"S4_content_quality",
-				"semantic",
-				severity,
-				`Thin or poorly structured content (${wordCount} words)`,
-				pageUrl
-			)
+			createIssue("C1_word_count", "content", severity, `Thin content (${wordCount} words, need 300+)`, pageUrl)
+		);
+	}
+	if (!contentScore.checks.C2_paragraph_structure?.passed) {
+		const paragraphCount = extraction.extraction.content_snapshot.paragraphs.length;
+		issues.push(
+			createIssue("C2_paragraph_structure", "content", "medium", `Poor paragraph structure (${paragraphCount} paragraphs, need 3+)`, pageUrl)
 		);
 	}
 
@@ -706,10 +559,9 @@ function generateIssues(
 function generateInterventions(
 	extraction: DOMExtraction,
 	metadataScore: DimensionScore,
-	headingsScore: DimensionScore,
-	semanticScore: DimensionScore,
 	schemaScore: DimensionScore,
-	faqScore: DimensionScore
+	faqScore: DimensionScore,
+	contentScore: DimensionScore
 ): Intervention[] {
 	const interventions: Intervention[] = [];
 
@@ -721,7 +573,7 @@ function generateInterventions(
 				"high",
 				"inject_title_tag",
 				"head",
-				"+7 points",
+				"+8 points",
 				'<title>{page_topic} | {brand}</title>'
 			)
 		);
@@ -733,7 +585,7 @@ function generateInterventions(
 				"high",
 				"inject_meta_description",
 				"head",
-				"+7 points",
+				"+8 points",
 				'<meta name="description" content="{summary}">'
 			)
 		);
@@ -752,53 +604,24 @@ function generateInterventions(
 	}
 	if (!metadataScore.checks.M4_opengraph?.passed) {
 		interventions.push(
-			createIntervention("M4_opengraph", "low", "inject_opengraph_tags", "head", "+3 points")
+			createIntervention("M4_opengraph", "low", "inject_opengraph_tags", "head", "+4 points")
 		);
 	}
 	if (!metadataScore.checks.M5_twitter?.passed) {
 		interventions.push(
-			createIntervention("M5_twitter", "low", "inject_twitter_cards", "head", "+2 points")
+			createIntervention("M5_twitter", "low", "inject_twitter_cards", "head", "+4 points")
 		);
 	}
 
-	// Heading interventions
-	if (!headingsScore.checks.H1_single?.passed) {
-		const h1Count = extraction.extraction.headings.counts.h1;
-		if (h1Count === 0) {
-			interventions.push(
-				createIntervention("H1_single", "high", "add_h1_tag", "body > main", "+8 points", "<h1>{heading}</h1>")
-			);
-		} else {
-			interventions.push(
-				createIntervention("H1_single", "medium", "convert_extra_h1_to_h2", "body", "+8 points")
-			);
-		}
-	}
-	if (!headingsScore.checks.H2_coverage?.passed) {
+	// Content interventions
+	if (!contentScore.checks.C1_word_count?.passed) {
 		interventions.push(
-			createIntervention("H2_coverage", "medium", "add_section_headings", "body > main", "+6 points")
+			createIntervention("C1_word_count", "medium", "add_more_content", "body > main", "+5 points", "Add substantive content to reach 300+ words")
 		);
 	}
-	if (!headingsScore.checks.H3_no_skips?.passed) {
+	if (!contentScore.checks.C2_paragraph_structure?.passed) {
 		interventions.push(
-			createIntervention("H3_no_skips", "medium", "fix_heading_hierarchy", "body", "+6 points")
-		);
-	}
-
-	// Semantic interventions
-	if (!semanticScore.checks.S1_main_content?.passed) {
-		interventions.push(
-			createIntervention("S1_main_content", "medium", "wrap_content_in_article", "body", "+5 points")
-		);
-	}
-	if (!semanticScore.checks.S2_page_structure?.passed) {
-		interventions.push(
-			createIntervention("S2_page_structure", "low", "add_footer", "body", "+4 points")
-		);
-	}
-	if (!semanticScore.checks.S3_sections?.passed) {
-		interventions.push(
-			createIntervention("S3_sections", "low", "wrap_divs_in_sections", "body", "+5 points")
+			createIntervention("C2_paragraph_structure", "low", "improve_paragraph_structure", "body > main", "+5 points", "Break content into 3+ well-structured paragraphs")
 		);
 	}
 
@@ -812,17 +635,17 @@ function generateInterventions(
 				"high",
 				"inject_jsonld_schema",
 				"head",
-				"+25 points (full schema dimension)",
+				"+40 points (full schema dimension)",
 				`<script type="application/ld+json">{"@context":"https://schema.org","@type":"${schemaType}",...}</script>`
 			)
 		);
 	}
 	if (!schemaScore.checks.J2_valid?.passed && extraction.extraction.schema.jsonld_blocks.length > 0) {
-		interventions.push(createIntervention("J2_valid", "high", "fix_jsonld_syntax", "head", "+5 points"));
+		interventions.push(createIntervention("J2_valid", "high", "fix_jsonld_syntax", "head", "+8 points"));
 	}
 	if (!schemaScore.checks.J3_relevant?.passed && extraction.extraction.schema.has_schema) {
 		interventions.push(
-			createIntervention("J3_relevant", "medium", "update_schema_type", "head", "+7 points")
+			createIntervention("J3_relevant", "medium", "update_schema_type", "head", "+11 points")
 		);
 	}
 	// J4 — Additional schemas to inject alongside existing ones
@@ -835,7 +658,7 @@ function generateInterventions(
 					"medium",
 					"inject_additional_schemas",
 					"head",
-					"+7 points",
+					"+11 points",
 					missingSchemas.map(s => `<script type="application/ld+json">{"@context":"https://schema.org","@type":"${s}",...}</script>`).join('\n')
 				)
 			);
@@ -851,7 +674,7 @@ function generateInterventions(
 					"high",
 					"generate_faq_section",
 					"body > main",
-					"+15 points",
+					"+20 points",
 					"Generate FAQ section with 3-5 Q&As + FAQPage schema"
 				)
 			);
@@ -866,15 +689,15 @@ function generateInterventions(
 					"Add FAQPage JSON-LD for existing FAQ content"
 				)
 			);
-		} else if (faqScore.score < 15) {
+		} else if (faqScore.score < 20) {
 			interventions.push(
 				createIntervention(
 					"FAQ_count",
 					"low",
 					"expand_faq_content",
 					"body > main",
-					`+${15 - faqScore.score} points`,
-					"Add more FAQ items to reach 3+"
+					`+${20 - faqScore.score} points`,
+					"Add more FAQ items to reach 4+"
 				)
 			);
 		}
@@ -988,55 +811,50 @@ export function getRecommendedSchemas(
  */
 export function computePageScore(extraction: DOMExtraction): FullPageScore {
 	// Score each dimension
-	const metadataScore = scoreMetadata(extraction);
-	const headingsScore = scoreHeadings(extraction);
-	const semanticScore = scoreSemantic(extraction);
 	const schemaScore = scoreSchema(extraction);
+	const metadataScore = scoreMetadata(extraction);
 	const faqScore = scoreFaq(extraction);
+	const contentScore = scoreContent(extraction);
 
 	// Calculate total (normalized to 100 when FAQ is excluded)
-	const maxPossible = metadataScore.max_score + headingsScore.max_score +
-		semanticScore.max_score + schemaScore.max_score + faqScore.max_score;
-	const rawTotal = metadataScore.score + headingsScore.score +
-		semanticScore.score + schemaScore.score + faqScore.score;
+	const maxPossible = schemaScore.max_score + metadataScore.max_score +
+		faqScore.max_score + contentScore.max_score;
+	const rawTotal = schemaScore.score + metadataScore.score +
+		faqScore.score + contentScore.score;
 	const total = maxPossible > 0 ? Math.round((rawTotal / maxPossible) * 100) : 0;
 
 	// Generate issues and interventions
 	const issues = generateIssues(
 		extraction,
 		metadataScore,
-		headingsScore,
-		semanticScore,
 		schemaScore,
-		faqScore
+		faqScore,
+		contentScore
 	);
 
 	const interventions = generateInterventions(
 		extraction,
 		metadataScore,
-		headingsScore,
-		semanticScore,
 		schemaScore,
-		faqScore
+		faqScore,
+		contentScore
 	);
 
 	return {
 		page_url: extraction.page_url,
 		page_type: extraction.page_type,
 		scores: {
-			metadata: metadataScore.score,
-			headings: headingsScore.score,
-			semantic: semanticScore.score,
 			schema: schemaScore.score,
+			metadata: metadataScore.score,
 			faq: faqScore.score,
+			content: contentScore.score,
 			total,
 		},
 		dimension_details: {
-			metadata: metadataScore,
-			headings: headingsScore,
-			semantic: semanticScore,
 			schema: schemaScore,
+			metadata: metadataScore,
 			faq: faqScore,
+			content: contentScore,
 		},
 		status: getScoreStatus(total),
 		issues,
@@ -1056,8 +874,7 @@ export function computeSiteScore(pageScores: FullPageScore[]): number {
 // Export individual scorers for testing
 export const scorers = {
 	scoreMetadata,
-	scoreHeadings,
-	scoreSemantic,
 	scoreSchema,
 	scoreFaq,
+	scoreContent,
 };

@@ -1016,6 +1016,24 @@ function IssuesPageInner() {
     fetchIssues()
   }, [fetchIssues])
 
+  // Sync PR statuses on page load (catches merged PRs missed by webhooks)
+  React.useEffect(() => {
+    const syncPRs = async () => {
+      try {
+        const res = await fetch('/api/issues/sync-prs', { method: 'POST' })
+        const data = await res.json()
+        if (data.success && data.data.synced > 0) {
+          console.log(`[Issues] PR sync: ${data.data.merged} merged, ${data.data.closed} closed`)
+          fetchIssues() // Refresh issues to reflect updated statuses
+        }
+      } catch (error) {
+        // Silent fail — webhook is primary, this is just a fallback
+        console.debug('[Issues] PR sync check failed (non-critical):', error)
+      }
+    }
+    syncPRs()
+  }, [fetchIssues])
+
   React.useEffect(() => {
     if (viewMode === "analysis") {
       fetchStats()

@@ -830,15 +830,6 @@ function AgentsLabPageInner() {
 
     return [
       {
-        id: `${agent.id}-task-sync`,
-        title: `${agent.agentName} sync`,
-        description: "Live sync of AI-facing instructions & controls.",
-        impact: agent.impact,
-        status: "running",
-        lastActivity: subtractMinutes(2),
-        icon: agent.icon,
-      },
-      {
         id: `${agent.id}-task-audit`,
         title: "Audit + validation",
         description: "Validating structured output before publishing.",
@@ -2195,4 +2186,3 @@ export default function AgentsLabPage() {
     </BrandProfileProvider>
   )
 }
-

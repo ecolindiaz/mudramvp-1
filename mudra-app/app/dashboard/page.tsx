@@ -157,14 +157,14 @@ function DashboardPageInner() {
         })
 
         toast.success('Analysis completed successfully!', { id: toastId })
-        // Dispatch event to refresh dashboard metrics
-        window.dispatchEvent(new Event('mudra:website-analyzed'))
+        // Mark analysis as complete in global context BEFORE dispatching event
+        // so isRunningAnalysis is queued to be false when the event handler runs
+        completeAnalysis(true)
         // Reset cooldown state
         setCanRunAnalysis(false)
         setNextAnalysisTime(Date.now() + (24 * 60 * 60 * 1000)) // 24 hours from now
-
-        // Mark analysis as complete in global context
-        completeAnalysis(true)
+        // Dispatch event to refresh dashboard metrics (after state updates are queued)
+        window.dispatchEvent(new Event('mudra:website-analyzed'))
       } else {
         const errorMsg = typeof result.error === 'string'
           ? result.error

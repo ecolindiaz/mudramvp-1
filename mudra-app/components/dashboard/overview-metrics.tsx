@@ -26,10 +26,12 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   void timeRange
 
   const { profile } = useBrandProfile()
-  const { lastCompletedAt, isRunningAnalysis } = useAnalysis()
+  const { isRunningAnalysis } = useAnalysis()
 
   // Track when we last fetched data to detect if we need to refresh
   const lastFetchedRef = useRef<number>(0)
+  // When true, fetch functions skip setting loading=true (silent refresh after analysis)
+  const isRefreshingRef = useRef(false)
 
   // Refs to always call the latest version of fetch functions from event listeners
   // This prevents stale closures when the event fires after selectedModel/days change
@@ -378,7 +380,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
     if (!profile.id) return
 
     try {
-      setLoadingAIVisibility(true)
+      if (!isRefreshingRef.current) setLoadingAIVisibility(true)
 
       // Build URL with optional model filter
       const modelParam = selectedModel !== 'all' ? `&model=${selectedModel}` : ''
@@ -526,7 +528,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
     if (!profile.id) return
 
     try {
-      setLoadingTechnical(true)
+      if (!isRefreshingRef.current) setLoadingTechnical(true)
       
       // Add timeout to prevent hanging requests
       const controller = new AbortController()
@@ -582,7 +584,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
     if (!profile.id) return
 
     try {
-      setLoadingTraffic(true)
+      if (!isRefreshingRef.current) setLoadingTraffic(true)
       
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort('Request timeout'), 10000)
@@ -628,7 +630,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
     }
 
     try {
-      setLoadingAiReferral(true)
+      if (!isRefreshingRef.current) setLoadingAiReferral(true)
       // Build URL with optional model filter
       const modelParam = selectedModel !== 'all' ? `&model=${selectedModel}` : ''
       const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&days=${days}${modelParam}`)
@@ -697,37 +699,25 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
     }
   }, [profile.id, selectedModel, days])
 
-  // Auto-refresh if analysis completed while user was away
-  // This detects when user returns to page after analysis finished on another page
-  useEffect(() => {
-    if (profile.id && lastCompletedAt && !isRunningAnalysis) {
-      // Check if analysis completed after we last fetched data
-      if (lastCompletedAt > lastFetchedRef.current) {
-        console.log('🔄 Analysis completed while away, refreshing data...')
-        fetchAiVisibilityHistory()
-        fetchTechnicalHistory()
-        fetchTrafficMetrics()
-        fetchAiReferralTraffic()
-        lastFetchedRef.current = Date.now()
-      }
-    }
-  }, [profile.id, lastCompletedAt, isRunningAnalysis])
-
   // Listen for analysis completion events
   // Uses refs to always call the latest fetch functions (avoids stale closures)
+  // Also handles the "returned to page after analysis" case via checkForRecentCompletion in page.tsx
   useEffect(() => {
     const handleAnalysisComplete = async () => {
       console.log('🔄 Analysis complete, refreshing all metrics')
-      const fns = fetchFnsRef.current
-      // Refresh all metrics from database using latest function references
-      await Promise.all([
-        fns.fetchAiVisibilityHistory(),
-        fns.fetchTechnicalHistory(),
-        fns.fetchTrafficMetrics(),
-        fns.fetchAiReferralTraffic()
-      ])
-      // Update last fetched time
-      lastFetchedRef.current = Date.now()
+      isRefreshingRef.current = true
+      try {
+        const fns = fetchFnsRef.current
+        await Promise.all([
+          fns.fetchAiVisibilityHistory(),
+          fns.fetchTechnicalHistory(),
+          fns.fetchTrafficMetrics(),
+          fns.fetchAiReferralTraffic()
+        ])
+        lastFetchedRef.current = Date.now()
+      } finally {
+        isRefreshingRef.current = false
+      }
     }
 
     window.addEventListener('mudra:website-analyzed', handleAnalysisComplete)

@@ -1229,7 +1229,10 @@ function TrackedPromptsPageInner() {
                 )}
 
                 {/* Add Prompt Dialog */}
-                <Dialog open={addOpen} onOpenChange={setAddOpen}>
+                <Dialog open={addOpen} onOpenChange={(open) => {
+                  if (!open && isAdding) return // prevent closing mid-operation
+                  setAddOpen(open)
+                }}>
                   <DialogContent className="sm:max-w-lg rounded-xl border-0 bg-dark-grey">
                     <DialogHeader>
                       <DialogTitle>Add Prompt</DialogTitle>

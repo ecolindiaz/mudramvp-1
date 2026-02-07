@@ -1539,7 +1539,7 @@ function TrackedPromptDeepViewInner() {
                                     <div className="flex items-center gap-3">
                                       <div className="flex flex-col">
                                         <div className="text-lg font-semibold text-white/90 tabular-nums">
-                                          {Math.round((row.frequency / Math.max(1, totalCitationFrequency)) * 100)}%
+                                          {row.citationFrequencyPercent || Math.round((row.frequency / Math.max(1, totalCitationFrequency)) * 100)}%
                                         </div>
                                         <div className="text-[10px] text-white/40">Citation frequency</div>
                                       </div>

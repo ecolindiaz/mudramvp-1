@@ -293,7 +293,7 @@ export default function PromptsPage() {
       for (let i = 0; i < savedPrompts.length; i++) {
         const prompt = savedPrompts[i]
         try {
-          await fetch('/api/prompts', {
+          const analysisResponse = await fetch('/api/prompts', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -302,6 +302,16 @@ export default function PromptsPage() {
               runAnalysis: true
             })
           })
+
+          if (!analysisResponse.ok) {
+            const errorData = await analysisResponse.json()
+            console.error(`Failed to analyze prompt ${prompt.id}: ${analysisResponse.status} ${errorData.error || 'Unknown error'}`)
+          } else {
+            const analysisData = await analysisResponse.json()
+            if (!analysisData.success) {
+              console.error(`Failed to analyze prompt ${prompt.id}: ${analysisData.error || 'Unknown error'}`)
+            }
+          }
         } catch (error) {
           console.error(`Failed to analyze prompt ${prompt.id}:`, error)
         }

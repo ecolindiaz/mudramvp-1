@@ -96,6 +96,11 @@ export function CompetitorsForm() {
         <CardDescription className="text-white/70">
           Who are your main competitors?
         </CardDescription>
+        {data.extractedCompanyInfo?.competitorSource === 'ai_suggested' && (
+          <p className="text-xs text-white/40 mt-1">
+            Suggested by AI based on your company profile
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
         {competitors.map((competitor, index) => (

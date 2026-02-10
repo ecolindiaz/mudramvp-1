@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import OpenAI from 'openai';
 import { createFirecrawlApp } from '@/lib/config/firecrawl-config';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
@@ -14,6 +15,72 @@ interface FirecrawlResponse {
   success: boolean;
   json?: ExtractedCompanyInfo;
   error?: string;
+}
+
+async function suggestCompetitorsWithAI(params: {
+  companyDescription: string;
+  industry: string;
+  servicesProducts: string[];
+  companyUrl: string;
+}): Promise<{ urls: string[]; source: 'ai_suggested' }> {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const { companyDescription, industry, servicesProducts, companyUrl } = params;
+  const companyHostname = new URL(companyUrl).hostname.replace(/^www\./, '');
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    temperature: 0.3,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a competitive intelligence analyst. Return JSON only.',
+      },
+      {
+        role: 'user',
+        content: `Given this company profile, suggest 3-5 direct competitors with their website URLs.
+
+Company description: ${companyDescription}
+Industry: ${industry}
+Products/Services: ${servicesProducts.join(', ')}
+Company website: ${companyUrl}
+
+Return JSON in this exact format:
+{
+  "competitors": [
+    { "name": "Company Name", "url": "https://example.com" }
+  ]
+}
+
+Rules:
+- Only include real, well-known companies that directly compete
+- URLs must be valid homepage URLs (https://...)
+- Do NOT include ${companyHostname} or variations of it
+- Prefer companies of similar size/stage when possible`,
+      },
+    ],
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) return { urls: [], source: 'ai_suggested' };
+
+  const parsed = JSON.parse(content);
+  const urls: string[] = [];
+
+  for (const comp of parsed.competitors || []) {
+    if (typeof comp.url !== 'string') continue;
+    try {
+      const parsed = new URL(comp.url);
+      const hostname = parsed.hostname.replace(/^www\./, '');
+      if (hostname === companyHostname) continue;
+      urls.push(comp.url);
+    } catch {
+      // Skip invalid URLs
+    }
+  }
+
+  return { urls, source: 'ai_suggested' };
 }
 
 export async function POST(request: NextRequest) {
@@ -161,11 +228,39 @@ export async function POST(request: NextRequest) {
         : []
     };
 
+    // Fallback: if no competitors extracted, try AI suggestion
+    let competitorSource: 'extracted' | 'ai_suggested' = 'extracted';
+
+    if (
+      cleanedData.competitorUrls.length === 0 &&
+      (cleanedData.companyDescription || cleanedData.industry) &&
+      process.env.OPENAI_API_KEY
+    ) {
+      try {
+        console.log('🤖 No competitors found by Firecrawl, trying AI suggestion...');
+        const aiResult = await suggestCompetitorsWithAI({
+          companyDescription: cleanedData.companyDescription,
+          industry: cleanedData.industry,
+          servicesProducts: cleanedData.servicesProducts,
+          companyUrl: url,
+        });
+        if (aiResult.urls.length > 0) {
+          cleanedData.competitorUrls = aiResult.urls;
+          competitorSource = 'ai_suggested';
+          console.log(`🤖 AI suggested ${aiResult.urls.length} competitors:`, aiResult.urls);
+        }
+      } catch (err) {
+        console.log('🤖 AI competitor suggestion failed (graceful degradation):', err);
+        // Continue with empty competitors — not a critical failure
+      }
+    }
+
     console.log('✅ Company info extracted successfully:', cleanedData);
 
     return NextResponse.json({
       success: true,
-      data: cleanedData
+      data: cleanedData,
+      meta: { competitorSource },
     });
 
   } catch (error) {

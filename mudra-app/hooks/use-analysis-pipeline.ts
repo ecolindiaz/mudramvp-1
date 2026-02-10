@@ -2,7 +2,7 @@
  * Custom hook for triggering and monitoring the analysis pipeline
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 export interface AnalysisPipelineProgress {
   geoAnalysis: 'pending' | 'completed' | 'failed';
@@ -43,10 +43,36 @@ export function useAnalysisPipeline() {
     },
   });
   const [simulatedProgress, setSimulatedProgress] = useState(0);
+  const timeoutIdsRef = useRef<NodeJS.Timeout[]>([]);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clean up all timers on unmount
+  useEffect(() => {
+    return () => {
+      timeoutIdsRef.current.forEach(id => clearTimeout(id));
+      timeoutIdsRef.current = [];
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    };
+  }, []);
+
+  const clearAllTimers = () => {
+    timeoutIdsRef.current.forEach(id => clearTimeout(id));
+    timeoutIdsRef.current = [];
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  };
 
   const runPipeline = async (config: AnalysisPipelineConfig) => {
-    console.log("🔴 [useAnalysisPipeline] runPipeline called with config:", config)
-    
+    console.log("[useAnalysisPipeline] runPipeline called with config:", config)
+
+    // Clear any existing timers from a previous run
+    clearAllTimers();
+
     setPipelineState({
       state: 'running',
       progress: {
@@ -57,38 +83,42 @@ export function useAnalysisPipeline() {
       },
     });
     setSimulatedProgress(0);
-    
-    console.log("🔴 [useAnalysisPipeline] State set to 'running', calling UNIFIED API...")
-    
+
     // Simulate progress updates while analysis runs
-    const progressInterval = setInterval(() => {
+    progressIntervalRef.current = setInterval(() => {
       setSimulatedProgress(prev => {
         if (prev >= 90) return prev; // Cap at 90% until completion
         return prev + Math.random() * 10;
       });
     }, 1500);
-    
+
     // Update stage indicators progressively (simulated for better UX)
-    setTimeout(() => {
-      setPipelineState(prev => ({
-        ...prev,
-        progress: { ...prev.progress, geoAnalysis: 'completed' as const }
-      }));
-    }, 5000);
-    
-    setTimeout(() => {
-      setPipelineState(prev => ({
-        ...prev,
-        progress: { ...prev.progress, technicalStructure: 'completed' as const }
-      }));
-    }, 10000);
-    
-    setTimeout(() => {
-      setPipelineState(prev => ({
-        ...prev,
-        progress: { ...prev.progress, report: 'completed' as const }
-      }));
-    }, 15000)
+    timeoutIdsRef.current.push(
+      setTimeout(() => {
+        setPipelineState(prev => ({
+          ...prev,
+          progress: { ...prev.progress, geoAnalysis: 'completed' as const }
+        }));
+      }, 5000)
+    );
+
+    timeoutIdsRef.current.push(
+      setTimeout(() => {
+        setPipelineState(prev => ({
+          ...prev,
+          progress: { ...prev.progress, technicalStructure: 'completed' as const }
+        }));
+      }, 10000)
+    );
+
+    timeoutIdsRef.current.push(
+      setTimeout(() => {
+        setPipelineState(prev => ({
+          ...prev,
+          progress: { ...prev.progress, report: 'completed' as const }
+        }));
+      }, 15000)
+    );
 
     try {
       // Call the UNIFIED analysis endpoint (used by both onboarding and dashboard)
@@ -132,9 +162,9 @@ export function useAnalysisPipeline() {
         throw new Error(`Pipeline failed (${response.status}): ${errorDetail}`);
       }
 
-      clearInterval(progressInterval);
-      
-      console.log("🔴 [useAnalysisPipeline] Unified API result:", result)
+      clearAllTimers();
+
+      console.log("[useAnalysisPipeline] Unified API result:", result)
 
       if (result.success) {
         console.log("🔴 [useAnalysisPipeline] Unified analysis completed successfully!")
@@ -179,7 +209,7 @@ export function useAnalysisPipeline() {
           message: errorMessage,
           code: errorCode
         })
-        clearInterval(progressInterval);
+        clearAllTimers();
         setSimulatedProgress(0);
         setPipelineState({
           state: 'error',
@@ -195,7 +225,7 @@ export function useAnalysisPipeline() {
 
       return result;
     } catch (error) {
-      clearInterval(progressInterval);
+      clearAllTimers();
       setSimulatedProgress(0);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
@@ -215,6 +245,7 @@ export function useAnalysisPipeline() {
   };
 
   const reset = () => {
+    clearAllTimers();
     setSimulatedProgress(0);
     setPipelineState({
       state: 'idle',

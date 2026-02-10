@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Sparkles, CheckCircle, Target, BarChart3, Activity, Code } from "lucide-react"
+import { ArrowRight, Sparkles, Target, BarChart3, Activity, Code } from "lucide-react"
 import { useAnalysisPipeline } from "@/hooks/use-analysis-pipeline"
 import { useBrandProfile } from "@/components/brand-profile-context"
 import { useOnboarding } from "./onboarding-context"
+import { useAnalysis } from "@/components/analysis-context"
 import { motion, AnimatePresence } from "framer-motion"
 
 const LOADING_STEPS = [
@@ -18,92 +19,187 @@ const LOADING_STEPS = [
   { text: "Preparing your dashboard", icon: Activity },
 ]
 
+const STALE_THRESHOLD_MS = 12 * 60 * 1000 // 12 minutes
+const POLL_INTERVAL_MS = 15 * 1000 // 15 seconds
+
+type RecoveryState = 'none' | 'checking' | 'completed' | 'still-running'
+
 export function PromptsForm() {
   const router = useRouter()
   const { profile, refreshBrandProfile } = useBrandProfile()
   const { data: onboardingData, saveToProfile } = useOnboarding()
-  const { state, progress, results, error, simulatedProgress, runPipeline } = useAnalysisPipeline()
+  const { state, error, simulatedProgress, runPipeline } = useAnalysisPipeline()
+  const {
+    isRunningAnalysis,
+    analysisStartedAt,
+    startAnalysis,
+    completeAnalysis,
+    checkForRecentCompletion,
+  } = useAnalysis()
+
   const [analysisStarted, setAnalysisStarted] = useState(false)
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
-  const hasSaved = useRef(false) // Track if we've already saved
-  const hasTriggeredAnalysis = useRef(false) // Track if we've already triggered analysis
+  const [recoveryState, setRecoveryState] = useState<RecoveryState>('none')
+  const hasSaved = useRef(false)
+  const hasTriggeredAnalysis = useRef(false)
+  const hasCheckedRecovery = useRef(false)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Debug: Log when component mounts
+  // Cleanup polling on unmount
   useEffect(() => {
-    console.log("🟣 [PromptsForm] Component mounted")
-    console.log("🟣 [PromptsForm] Initial onboardingData:", onboardingData)
-    console.log("🟣 [PromptsForm] Initial profile:", profile)
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    }
   }, [])
 
+  // Recovery: check if analysis was already started (survives refresh)
   useEffect(() => {
-    // First save onboarding data to brand profile, then start full analysis pipeline
-    // Only run once when we have company name and haven't saved yet
+    if (hasCheckedRecovery.current || !profile?.id) return
+    hasCheckedRecovery.current = true
+
+    const profileId = profile.id
+
+    // Case 1: Analysis is marked as running in AnalysisContext (persisted in localStorage)
+    if (isRunningAnalysis && analysisStartedAt) {
+      const elapsed = Date.now() - analysisStartedAt
+
+      if (elapsed > STALE_THRESHOLD_MS) {
+        // Stale — analysis started too long ago, allow fresh trigger
+        console.log('[PromptsForm] Stale analysis detected, clearing state')
+        completeAnalysis(false)
+        setRecoveryState('none')
+        return
+      }
+
+      // Prevent re-trigger during recovery
+      hasSaved.current = true
+      hasTriggeredAnalysis.current = true
+      setRecoveryState('checking')
+
+      // Check if backend already completed
+      fetch(`/api/analysis/latest?brandProfileId=${profileId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.analysis?.createdAt) {
+            const analysisTime = new Date(data.analysis.createdAt).getTime()
+            if (analysisTime >= analysisStartedAt) {
+              // Analysis completed on the backend while we were away
+              console.log('[PromptsForm] Analysis already completed on backend')
+              completeAnalysis(true)
+              setRecoveryState('completed')
+              return
+            }
+          }
+          // Still running — enter polling mode
+          console.log('[PromptsForm] Analysis still running, entering polling mode')
+          setRecoveryState('still-running')
+          startPolling(profileId, analysisStartedAt)
+        })
+        .catch(() => {
+          // Network error during check — assume still running
+          setRecoveryState('still-running')
+          startPolling(profileId, analysisStartedAt)
+        })
+      return
+    }
+
+    // Case 2: Analysis completed recently (user might have navigated away and back)
+    if (checkForRecentCompletion(profileId)) {
+      console.log('[PromptsForm] Recent completion detected')
+      hasSaved.current = true
+      hasTriggeredAnalysis.current = true
+      setRecoveryState('completed')
+      return
+    }
+
+    // Case 3: No recovery needed — normal flow
+    setRecoveryState('none')
+  }, [profile?.id, isRunningAnalysis, analysisStartedAt, completeAnalysis, checkForRecentCompletion])
+
+  const startPolling = useCallback((profileId: number, startedAfter: number) => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+
+    pollIntervalRef.current = setInterval(() => {
+      fetch(`/api/analysis/latest?brandProfileId=${profileId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.analysis?.createdAt) {
+            const analysisTime = new Date(data.analysis.createdAt).getTime()
+            if (analysisTime >= startedAfter) {
+              // Analysis completed!
+              console.log('[PromptsForm] Polling detected analysis completion')
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current)
+                pollIntervalRef.current = null
+              }
+              completeAnalysis(true)
+              setRecoveryState('completed')
+            }
+          }
+        })
+        .catch(() => {
+          // Ignore polling errors, will retry next interval
+        })
+    }, POLL_INTERVAL_MS)
+  }, [completeAnalysis])
+
+  // Save + trigger flow (only when recoveryState === 'none')
+  useEffect(() => {
+    if (recoveryState !== 'none') return
     if (!hasSaved.current && !analysisStarted && onboardingData.companyName) {
-      hasSaved.current = true // Mark as saved to prevent re-runs
-      
+      hasSaved.current = true
+
       const saveAndAnalyze = async () => {
-        console.log("🔵 [PromptsForm] Starting save process...")
-        console.log("🔵 [PromptsForm] Onboarding data:", onboardingData)
-        
-        // Save to profile and wait for completion
+        console.log("[PromptsForm] Starting save process...")
         await saveToProfile()
-        console.log("🔵 [PromptsForm] Profile saved, refreshing to get ID...")
-        
-        // Refresh the profile to ensure we have the latest data with ID
         await refreshBrandProfile()
-        console.log("🔵 [PromptsForm] Profile refreshed, waiting for state update...")
-        
-        // Wait a bit more for the profile state to update with the ID
         await new Promise(resolve => setTimeout(resolve, 500))
-        
-        console.log("🔵 [PromptsForm] Setting analysisStarted to true")
         setAnalysisStarted(true)
       }
-      
+
       saveAndAnalyze()
     }
-  }, [onboardingData.companyName, analysisStarted, saveToProfile, refreshBrandProfile]) // Add refreshBrandProfile to dependencies
+  }, [recoveryState, onboardingData.companyName, analysisStarted, saveToProfile, refreshBrandProfile])
 
   useEffect(() => {
-    // Start analysis once we have analysisStarted flag AND a valid profile ID
-    console.log("🟢 [PromptsForm] Profile ID check - analysisStarted:", analysisStarted, "profile.id:", profile?.id, "companyName:", onboardingData.companyName, "hasTriggeredAnalysis:", hasTriggeredAnalysis.current)
-    
+    if (recoveryState !== 'none') return
+
     if (analysisStarted && onboardingData.companyName && profile?.id && profile.id > 0 && !hasTriggeredAnalysis.current) {
-      // Validate required fields before triggering analysis
       if (!onboardingData.companyWebsite) {
-        console.error("🔴 [PromptsForm] Cannot trigger analysis - missing website URL")
-        return;
+        console.error("[PromptsForm] Cannot trigger analysis - missing website URL")
+        return
       }
-      
-      hasTriggeredAnalysis.current = true // Mark as triggered to prevent duplicate runs
-      
-      console.log("🟢 🟢 🟢 [PromptsForm] ✅✅✅ TRIGGERING ANALYSIS NOW WITH PROFILE ID:", profile.id)
-      
+
+      hasTriggeredAnalysis.current = true
+
+      // Mark analysis as running in AnalysisContext (persists across refresh)
+      startAnalysis(profile.id)
+
       const config = {
-        brandProfileId: profile.id, // ✅ Use actual profile ID from database
+        brandProfileId: profile.id,
         brandName: onboardingData.companyName,
         website: onboardingData.companyWebsite,
         industry: onboardingData.companyIndustry || undefined,
         description: onboardingData.companyDescription || undefined,
         competitors: onboardingData.competitors || [],
       }
-      
-      console.log("🟢 [PromptsForm] Pipeline config:", config)
+
       runPipeline(config)
-    } else {
-      console.log("🔴 [PromptsForm] Analysis NOT triggered - Waiting for:", {
-        analysisStarted,
-        hasCompanyName: !!onboardingData.companyName,
-        profileId: profile?.id,
-        profileIdValid: profile?.id && profile.id > 0,
-        alreadyTriggered: hasTriggeredAnalysis.current
-      })
+        .then(() => {
+          completeAnalysis(true)
+        })
+        .catch((err) => {
+          console.error("[PromptsForm] Pipeline failed:", err)
+          completeAnalysis(false)
+        })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisStarted, profile?.id]) // ✅ Trigger when analysisStarted OR profile.id changes
+  }, [recoveryState, analysisStarted, profile?.id])
 
   const handleFinish = () => {
-    console.log("Onboarding completed with full analysis pipeline!")
     // Clear onboarding data from localStorage
     if (typeof window !== 'undefined') {
       localStorage.removeItem('onboardingData')
@@ -111,52 +207,44 @@ export function PromptsForm() {
     router.push("/dashboard")
   }
 
-  const isAnalysisComplete = state === 'completed'
+  const isAnalysisComplete = state === 'completed' || recoveryState === 'completed'
   const hasError = state === 'error'
-  const isRunning = state === 'running'
+  const isRunning = state === 'running' || recoveryState === 'still-running'
 
-  // Calculate overall progress using simulated progress for smoother UX
+  // Calculate overall progress
   const calculateProgress = () => {
-    if (state === 'completed') return 100;
-    if (state === 'error') return 0;
-    if (state === 'idle') return 0;
-    
-    // Use simulated progress for smoother UX while analysis runs
-    return Math.round(simulatedProgress);
-  }
-
-  const getCurrentStage = () => {
-    if (state === 'completed') return 'Analysis Complete';
-    if (state === 'error') return 'Analysis Failed';
-    if (state === 'idle') return 'Preparing analysis...';
-    
-    // Unified analysis stages (runs in parallel, but shown sequentially for UX)
-    if (simulatedProgress < 30) return 'Testing AI Visibility (ChatGPT, Claude, Gemini)...';
-    if (simulatedProgress < 60) return 'Analyzing Technical Structure & SEO...';
-    if (simulatedProgress < 90) return 'Generating Your Custom Report...';
-    if (progress.report === 'pending') return 'Finalizing Analysis...';
-
-    
-    return 'Processing...';
+    if (isAnalysisComplete) return 100
+    if (hasError) return 0
+    if (recoveryState === 'still-running') return -1 // indeterminate
+    if (state === 'idle' && recoveryState === 'none') return 0
+    return Math.round(simulatedProgress)
   }
 
   const currentProgress = calculateProgress()
-  const currentStage = getCurrentStage()
+  const isIndeterminate = currentProgress === -1
 
   // Cycle through loading steps based on progress
   useEffect(() => {
-    if (state !== 'running') return
-    
+    if (!isRunning) return
+
+    if (isIndeterminate) {
+      // For recovery polling, cycle through steps on a timer
+      const interval = setInterval(() => {
+        setCurrentStepIndex(prev => (prev + 1) % LOADING_STEPS.length)
+      }, 3000)
+      return () => clearInterval(interval)
+    }
+
     const stepProgress = currentProgress / 100
     const newStepIndex = Math.min(
       Math.floor(stepProgress * LOADING_STEPS.length),
       LOADING_STEPS.length - 1
     )
-    
+
     if (newStepIndex !== currentStepIndex) {
       setCurrentStepIndex(newStepIndex)
     }
-  }, [currentProgress, state, currentStepIndex])
+  }, [currentProgress, isRunning, currentStepIndex, isIndeterminate])
 
   if (isAnalysisComplete) {
     return (
@@ -220,10 +308,12 @@ export function PromptsForm() {
             Analyzing Your AI Visibility
           </h2>
           <p className="text-sm text-white/60">
-            Testing how AI models rank your brand
+            {recoveryState === 'still-running'
+              ? 'Your analysis is still running...'
+              : 'Testing how AI models rank your brand'}
           </p>
         </div>
-        
+
         <div className="space-y-4">
           {/* Animated icon */}
           <div className="relative h-20 flex items-center justify-center">
@@ -241,7 +331,7 @@ export function PromptsForm() {
               </motion.div>
             </AnimatePresence>
           </div>
-          
+
           {/* Animated step text */}
           <div className="h-16 flex flex-col items-center justify-center overflow-hidden">
             <AnimatePresence mode="wait">
@@ -256,7 +346,7 @@ export function PromptsForm() {
                 <span className="text-lg font-medium text-white">
                   {LOADING_STEPS[currentStepIndex].text}
                 </span>
-                <motion.span 
+                <motion.span
                   className="text-white/40"
                   animate={{ opacity: [0.4, 1, 0.4] }}
                   transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
@@ -266,21 +356,33 @@ export function PromptsForm() {
               </motion.div>
             </AnimatePresence>
           </div>
-          
+
           {/* Progress bar */}
           <div className="space-y-2">
-            <p className="text-3xl font-bold text-white">{Math.round(currentProgress)}%</p>
+            {isIndeterminate ? (
+              <p className="text-sm text-white/60">Analysis in progress</p>
+            ) : (
+              <p className="text-3xl font-bold text-white">{Math.round(currentProgress)}%</p>
+            )}
           </div>
-          
+
           <div className="w-full bg-white/[0.08] rounded-full h-1.5 overflow-hidden">
-            <motion.div 
-              className="bg-white h-1.5 rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${currentProgress}%` }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            />
+            {isIndeterminate ? (
+              <motion.div
+                className="bg-white h-1.5 rounded-full w-1/3"
+                animate={{ x: ['-100%', '300%'] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              />
+            ) : (
+              <motion.div
+                className="bg-white h-1.5 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${currentProgress}%` }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+              />
+            )}
           </div>
-          
+
           {/* Step indicators */}
           <div className="flex justify-center gap-1.5 pt-2">
             {LOADING_STEPS.map((_, index) => (
@@ -302,4 +404,4 @@ export function PromptsForm() {
       </CardContent>
     </Card>
   )
-} 
+}

@@ -8,6 +8,7 @@ export interface ExtractedCompanyInfo {
   servicesProducts: string[]
   idealCustomerProfiles: string[]
   competitorUrls: string[]
+  competitorSource?: 'extracted' | 'ai_suggested'
 }
 
 interface UseCompanyExtractionResult {
@@ -107,7 +108,13 @@ export function useCompanyExtraction(): UseCompanyExtractionResult {
         const result = await response.json()
 
         if (result.success && result.data) {
-          setExtractedData(result.data)
+          const data = {
+            ...result.data,
+            ...(result.meta?.competitorSource && {
+              competitorSource: result.meta.competitorSource,
+            }),
+          }
+          setExtractedData(data)
           lastUrlRef.current = normalizedUrl
           setError(null)
           setFailed(false)

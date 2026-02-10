@@ -316,6 +316,34 @@ function normalizeCompanyName(name: string): string {
 }
 
 /**
+ * Clean parenthetical content from LLM-extracted names in analysis objects.
+ * e.g. "Y Combinator (Online/Hybrid)" → "Y Combinator"
+ */
+function cleanLLMAnalysisNames(analysis: any): void {
+  if (analysis.competitorsMentioned && Array.isArray(analysis.competitorsMentioned)) {
+    analysis.competitorsMentioned = analysis.competitorsMentioned.map((name: string) =>
+      name.replace(/\s*\(.*$/, '').trim()
+    ).filter((name: string) => name.length > 0);
+  }
+  if (analysis.competitorPositions && typeof analysis.competitorPositions === 'object') {
+    const cleaned: Record<string, number> = {};
+    for (const [name, pos] of Object.entries(analysis.competitorPositions)) {
+      const clean = name.replace(/\s*\(.*$/, '').trim();
+      if (clean.length > 0) cleaned[clean] = pos as number;
+    }
+    analysis.competitorPositions = cleaned;
+  }
+  if (analysis.competitorSentiments && typeof analysis.competitorSentiments === 'object') {
+    const cleaned: Record<string, string> = {};
+    for (const [name, sent] of Object.entries(analysis.competitorSentiments)) {
+      const clean = name.replace(/\s*\(.*$/, '').trim();
+      if (clean.length > 0) cleaned[clean] = sent as string;
+    }
+    analysis.competitorSentiments = cleaned;
+  }
+}
+
+/**
  * Check if two company names match (strict matching, not fuzzy substring)
  * Returns true only if names are essentially the same company
  */
@@ -744,7 +772,8 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
     // Clean up company name (remove trailing colons, asterisks, markdown)
     company = company.replace(/[:\*]+$/, '').trim();
     company = company.split(/\n/)[0].trim(); // Take only first line
-    
+    company = company.replace(/\s*\(.*$/, '').trim(); // Strip parenthetical content (handles unclosed parens too)
+
     if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2 && quickValidateName(company)) {
       positions[company] = pos;
     }
@@ -752,12 +781,13 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
 
   // Method 2: "### 1st Place:" or "### 1st:" format
   const headingRankRegex = /###\s*(\d+)(?:st|nd|rd|th)\s+(?:Place)?:?\s*\*?\*?([^*\n]+)/gi;
-  
+
   while ((match = headingRankRegex.exec(text)) !== null) {
     const pos = parseInt(match[1]);
     let company = match[2].trim();
     company = company.replace(/[:\*]+$/, '').trim();
-    
+    company = company.replace(/\s*\(.*$/, '').trim(); // Strip parenthetical content (handles unclosed parens too)
+
     if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2 && quickValidateName(company)) {
       if (!positions[company]) { // Don't overwrite if already found
         positions[company] = pos;
@@ -767,12 +797,13 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
 
   // Method 3: "1st Place: Company" or "Ranked 1st: Company" inline format
   const inlineRankRegex = /(?:Ranked\s+)?(\d+)(?:st|nd|rd|th)\s+(?:Place)?:?\s+\*?\*?([A-Z][^.\n]{2,40}?)\*?\*?(?=\s|$|\*|\n)/g;
-  
+
   while ((match = inlineRankRegex.exec(text)) !== null) {
     const pos = parseInt(match[1]);
     let company = match[2].trim();
     company = company.replace(/[:\*]+$/, '').trim();
-    
+    company = company.replace(/\s*\(.*$/, '').trim(); // Strip parenthetical content (handles unclosed parens too)
+
     if (company && company.toLowerCase() !== brandName.toLowerCase() && company.length > 2 && quickValidateName(company)) {
       if (!positions[company]) {
         positions[company] = pos;
@@ -802,6 +833,7 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
         
         if (rowMatch) {
           let company = rowMatch[1].trim();
+          company = company.replace(/\s*\(.*$/, '').trim(); // Strip parenthetical content (handles unclosed parens too)
           const companyLower = company.toLowerCase();
 
           // Skip if it looks like a table header (comprehensive list)
@@ -844,6 +876,47 @@ function extractCompetitorPositionsWithRegex(text: string, brandName: string): R
   }
   
   return positions;
+}
+
+/**
+ * Merge LLM-extracted positions with regex-extracted positions,
+ * cross-validating where both exist. Regex wins on mismatch (>1 apart).
+ */
+function mergeCompetitorPositions(
+  analysis: any,
+  regexPositions: Record<string, number>,
+  brandName: string,
+  providerTag: string
+): Record<string, number> {
+  const mergedPositions = { ...(analysis.competitorPositions || {}) };
+
+  (analysis.competitorsMentioned || []).forEach((competitor: string) => {
+    const regexMatch = Object.keys(regexPositions).find(
+      regexComp => matchCompetitorNames(regexComp, competitor)
+    );
+    if (regexMatch) {
+      const regexPos = regexPositions[regexMatch];
+      const llmPos = mergedPositions[competitor];
+      if (llmPos && regexPos && Math.abs(llmPos - regexPos) > 1) {
+        console.warn(`[${providerTag}] Position mismatch for "${competitor}": LLM=${llmPos}, Regex=${regexPos}. Using regex.`);
+        mergedPositions[competitor] = regexPos;
+      } else if (!llmPos) {
+        mergedPositions[competitor] = regexPos;
+      }
+    }
+  });
+
+  Object.entries(regexPositions).forEach(([company, position]) => {
+    const alreadyMentioned = (analysis.competitorsMentioned || []).some(
+      (comp: string) => matchCompetitorNames(comp, company)
+    );
+    if (!alreadyMentioned) {
+      analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
+      mergedPositions[company] = position;
+    }
+  });
+
+  return mergedPositions;
 }
 
 /**
@@ -1112,13 +1185,14 @@ Return ONLY a valid JSON object with these exact keys:
       // Remove markdown code blocks if present
       const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
       analysis = JSON.parse(cleanedText);
+      cleanLLMAnalysisNames(analysis);
     } catch (parseError) {
       console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
-      
+
       // Fallback: manual regex extraction with smart filtering
       const brandNameLower = config.brandName.toLowerCase();
       const textLower = text.toLowerCase();
-      
+
       // Remove common false positive contexts before checking
       const cleanedTextForBrand = textLower
         // Remove URLs (http://... or https://... or www...)
@@ -1221,38 +1295,9 @@ Return ONLY a valid JSON object with these exact keys:
       };
     }
 
-    // ENHANCEMENT: Use regex extraction to fill in missing positions
-    // This is more reliable than LLM for structured numbered lists
+    // Cross-validate LLM positions with regex extraction
     const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
-    
-    // Merge regex positions with LLM positions (regex takes priority for missing values)
-    const mergedPositions = { ...(analysis.competitorPositions || {}) };
-    
-    // For each competitor mentioned, try to get position from regex if not in LLM result
-    // Use strict name matching to avoid false positives (e.g., "Y Combinator" matching "Y Combinator Studio")
-    (analysis.competitorsMentioned || []).forEach((competitor: string) => {
-      // Check if this competitor has a regex-extracted position using strict matching
-      const regexMatch = Object.keys(regexPositions).find(
-        regexComp => matchCompetitorNames(regexComp, competitor)
-      );
-
-      if (regexMatch && !mergedPositions[competitor]) {
-        mergedPositions[competitor] = regexPositions[regexMatch];
-      }
-    });
-
-    // Also add any regex-found competitors that LLM might have missed
-    // Use strict matching to avoid duplicates
-    Object.entries(regexPositions).forEach(([company, position]) => {
-      const alreadyMentioned = (analysis.competitorsMentioned || []).some(
-        (comp: string) => matchCompetitorNames(comp, company)
-      );
-
-      if (!alreadyMentioned) {
-        analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
-        mergedPositions[company] = position;
-      }
-    });
+    const mergedPositions = mergeCompetitorPositions(analysis, regexPositions, config.brandName, 'OpenAI');
 
     // POST-PROCESSING VALIDATION
     // 1. Validate brand mention using regex (more reliable than LLM)
@@ -1475,6 +1520,7 @@ Return ONLY a valid JSON object with these exact keys:
     try {
       const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
       analysis = JSON.parse(cleanedText);
+      cleanLLMAnalysisNames(analysis);
     } catch (parseError) {
       console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
 
@@ -1558,34 +1604,9 @@ Return ONLY a valid JSON object with these exact keys:
       };
     }
 
-    // ENHANCEMENT: Use regex extraction to fill in missing positions (same as OpenAI function)
+    // Cross-validate LLM positions with regex extraction
     const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
-    
-    // Merge regex positions with LLM positions
-    const mergedPositions = { ...(analysis.competitorPositions || {}) };
-    
-    // Use strict name matching to avoid false positives
-    (analysis.competitorsMentioned || []).forEach((competitor: string) => {
-      const regexMatch = Object.keys(regexPositions).find(
-        regexComp => matchCompetitorNames(regexComp, competitor)
-      );
-
-      if (regexMatch && !mergedPositions[competitor]) {
-        mergedPositions[competitor] = regexPositions[regexMatch];
-      }
-    });
-
-    // Add regex-found competitors that LLM missed (strict matching)
-    Object.entries(regexPositions).forEach(([company, position]) => {
-      const alreadyMentioned = (analysis.competitorsMentioned || []).some(
-        (comp: string) => matchCompetitorNames(comp, company)
-      );
-
-      if (!alreadyMentioned) {
-        analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
-        mergedPositions[company] = position;
-      }
-    });
+    const mergedPositions = mergeCompetitorPositions(analysis, regexPositions, config.brandName, 'Perplexity');
 
     // CRITICAL: Validate brand mention using regex (not just LLM analysis)
     const regexBrandMentioned = validateBrandMention(text, config.brandName);
@@ -1593,14 +1614,24 @@ Return ONLY a valid JSON object with these exact keys:
     // CRITICAL: Filter out generic terms that aren't real companies
     const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
 
+    // Filter positions and sentiments to only include validated competitors
+    const validatedPositions: Record<string, number> = {};
+    validatedCompetitors.forEach(comp => {
+      if (mergedPositions[comp]) validatedPositions[comp] = mergedPositions[comp];
+    });
+    const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+    validatedCompetitors.forEach(comp => {
+      if (analysis.competitorSentiments?.[comp]) validatedSentiments[comp] = analysis.competitorSentiments[comp];
+    });
+
     return {
       prompt,
       response: text,
       brandMentioned: regexBrandMentioned,
       brandPosition: validateBrandPosition(analysis.brandPosition),
       competitors: validatedCompetitors,
-      competitorPositions: mergedPositions,
-      competitorSentiments: analysis.competitorSentiments || {},
+      competitorPositions: validatedPositions,
+      competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
       citations: citations.length > 0 ? citations : undefined,
@@ -1788,6 +1819,7 @@ Return ONLY a valid JSON object with these exact keys:
     try {
       const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
       analysis = JSON.parse(cleanedText);
+      cleanLLMAnalysisNames(analysis);
     } catch (parseError) {
       console.warn('[Anthropic] Failed to parse analysis');
       analysis = {
@@ -1801,34 +1833,22 @@ Return ONLY a valid JSON object with these exact keys:
       };
     }
 
+    // Cross-validate LLM positions with regex extraction
     const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
-    const mergedPositions = { ...(analysis.competitorPositions || {}) };
-    
-    // Use strict name matching to avoid false positives
-    (analysis.competitorsMentioned || []).forEach((competitor: string) => {
-      const regexMatch = Object.keys(regexPositions).find(
-        regexComp => matchCompetitorNames(regexComp, competitor)
-      );
-
-      if (regexMatch && !mergedPositions[competitor]) {
-        mergedPositions[competitor] = regexPositions[regexMatch];
-      }
-    });
-
-    // Add regex-found competitors that LLM missed (strict matching)
-    Object.entries(regexPositions).forEach(([company, position]) => {
-      const alreadyMentioned = (analysis.competitorsMentioned || []).some(
-        (comp: string) => matchCompetitorNames(comp, company)
-      );
-
-      if (!alreadyMentioned) {
-        analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
-        mergedPositions[company] = position;
-      }
-    });
+    const mergedPositions = mergeCompetitorPositions(analysis, regexPositions, config.brandName, 'Anthropic');
 
     const regexBrandMentioned = validateBrandMention(text, config.brandName);
     const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
+
+    // Filter positions and sentiments to only include validated competitors
+    const validatedPositions: Record<string, number> = {};
+    validatedCompetitors.forEach(comp => {
+      if (mergedPositions[comp]) validatedPositions[comp] = mergedPositions[comp];
+    });
+    const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+    validatedCompetitors.forEach(comp => {
+      if (analysis.competitorSentiments?.[comp]) validatedSentiments[comp] = analysis.competitorSentiments[comp];
+    });
 
     return {
       prompt,
@@ -1836,8 +1856,8 @@ Return ONLY a valid JSON object with these exact keys:
       brandMentioned: regexBrandMentioned,
       brandPosition: validateBrandPosition(analysis.brandPosition),
       competitors: validatedCompetitors,
-      competitorPositions: mergedPositions,
-      competitorSentiments: analysis.competitorSentiments || {},
+      competitorPositions: validatedPositions,
+      competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
       citations: citations.length > 0 ? citations : undefined,
@@ -2003,6 +2023,7 @@ Return ONLY a valid JSON object with these exact keys:
     try {
       const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
       analysis = JSON.parse(cleanedText);
+      cleanLLMAnalysisNames(analysis);
     } catch (parseError) {
       console.warn('[Google] Failed to parse analysis');
       analysis = {
@@ -2016,34 +2037,22 @@ Return ONLY a valid JSON object with these exact keys:
       };
     }
 
+    // Cross-validate LLM positions with regex extraction
     const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
-    const mergedPositions = { ...(analysis.competitorPositions || {}) };
-    
-    // Use strict name matching to avoid false positives
-    (analysis.competitorsMentioned || []).forEach((competitor: string) => {
-      const regexMatch = Object.keys(regexPositions).find(
-        regexComp => matchCompetitorNames(regexComp, competitor)
-      );
-
-      if (regexMatch && !mergedPositions[competitor]) {
-        mergedPositions[competitor] = regexPositions[regexMatch];
-      }
-    });
-
-    // Add regex-found competitors that LLM missed (strict matching)
-    Object.entries(regexPositions).forEach(([company, position]) => {
-      const alreadyMentioned = (analysis.competitorsMentioned || []).some(
-        (comp: string) => matchCompetitorNames(comp, company)
-      );
-
-      if (!alreadyMentioned) {
-        analysis.competitorsMentioned = [...(analysis.competitorsMentioned || []), company];
-        mergedPositions[company] = position;
-      }
-    });
+    const mergedPositions = mergeCompetitorPositions(analysis, regexPositions, config.brandName, 'Google');
 
     const regexBrandMentioned = validateBrandMention(text, config.brandName);
     const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
+
+    // Filter positions and sentiments to only include validated competitors
+    const validatedPositions: Record<string, number> = {};
+    validatedCompetitors.forEach(comp => {
+      if (mergedPositions[comp]) validatedPositions[comp] = mergedPositions[comp];
+    });
+    const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+    validatedCompetitors.forEach(comp => {
+      if (analysis.competitorSentiments?.[comp]) validatedSentiments[comp] = analysis.competitorSentiments[comp];
+    });
 
     return {
       prompt,
@@ -2051,8 +2060,8 @@ Return ONLY a valid JSON object with these exact keys:
       brandMentioned: regexBrandMentioned,
       brandPosition: validateBrandPosition(analysis.brandPosition),
       competitors: validatedCompetitors,
-      competitorPositions: mergedPositions,
-      competitorSentiments: analysis.competitorSentiments || {},
+      competitorPositions: validatedPositions,
+      competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
       citations: citations.length > 0 ? citations : undefined,

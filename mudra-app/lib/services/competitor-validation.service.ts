@@ -469,8 +469,9 @@ Return ONLY a JSON object with each name mapped to true (real) or false (not rea
           results.set(name, isValid)
         }
       } else {
-        // Fallback: mark all as invalid if parsing fails
-        batch.forEach(name => results.set(name, false))
+        // Fallback: use quick validation if parsing fails (don't silently drop all)
+        console.warn('  AI validation: Could not parse response, falling back to quick validation')
+        batch.forEach(name => results.set(name, quickValidateName(name)))
       }
     } catch (error) {
       console.warn(`  AI validation batch failed:`, error)

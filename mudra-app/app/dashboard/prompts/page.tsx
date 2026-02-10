@@ -263,6 +263,18 @@ export default function PromptsPage() {
         })
       })
 
+      if (!response.ok) {
+        try {
+          const errorData = await response.json()
+          toast.error(errorData.error || "Failed to generate prompts")
+        } catch {
+          toast.error("Failed to generate prompts")
+        }
+        setIsBatchGenerating(false)
+        setBatchProgress(prev => ({ ...prev, phase: 'idle' }))
+        return
+      }
+
       const data = await response.json()
 
       if (!data.success) {

@@ -239,7 +239,8 @@ export async function createIssuesFromPageScore(
         affectedUrl: pageScore.page_url,
         discoveredFromScore: pageScore.scores.total,
         sourceAnalysis: 'technical_analysis',
-        issueHash: hash
+        issueHash: hash,
+        checkCode: check
       }
     })
     created++

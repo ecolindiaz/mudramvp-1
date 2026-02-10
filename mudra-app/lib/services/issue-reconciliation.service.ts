@@ -42,7 +42,7 @@ for (const [check, title] of Object.entries(ISSUE_TITLES)) {
  * Extract the check code from an issue
  * Uses title matching primarily, falls back to agent type
  */
-function extractCheckFromIssue(issue: { title: string; agentType: string | null }): string | null {
+export function extractCheckFromIssue(issue: { title: string; agentType: string | null }): string | null {
   // Remove page name suffix like "(Homepage)" or "(about)"
   const cleanTitle = issue.title.replace(/\s*\([^)]+\)$/, '').trim()
 
@@ -116,13 +116,14 @@ export async function reconcileIssuesWithScores(
       title: true,
       agentType: true,
       affectedUrl: true,
+      checkCode: true,
     },
   })
 
   console.log(`[IssueReconciliation] Found ${openIssues.length} open technical issues for brand ${brandProfileId}`)
 
   for (const issue of openIssues) {
-    const check = extractCheckFromIssue(issue)
+    const check = issue.checkCode ?? extractCheckFromIssue(issue)
 
     if (!check) {
       // Can't determine check code, skip this issue

@@ -178,6 +178,7 @@ model Issue {
   
   // Deduplication
   issueHash          String?      @unique  // Hash of title+category+brandProfileId to prevent duplicates
+  checkCode          String?              // Scoring check code (e.g. "J1_present") — used by reconciliation to avoid title-based ambiguity
 
   deployedAgent      DeployedAgent? @relation(fields: [deployedAgentId], references: [id])
   agentTask          AgentTask?     @relation(fields: [agentTaskId], references: [id])

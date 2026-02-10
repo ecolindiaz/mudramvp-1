@@ -228,6 +228,123 @@ function generateFallbackPrompts(brandInfo: BrandInfo): GeneratedPrompts {
   };
 }
 
+// --- Batch generation for AI-assisted prompt creation ---
+
+export interface BatchGeneratedPrompt {
+  text: string
+  category: 'Organic' | 'Competitor' | 'How-to Guides' | 'Brand-Specific'
+}
+
+/**
+ * Generate a batch of prompts based on a user description, with auto-assigned categories.
+ * Uses JSON response format for reliable parsing.
+ */
+export async function generateBatchPrompts(
+  description: string,
+  count: number,
+  existingPrompts: string[],
+  brandInfo: BrandInfo
+): Promise<BatchGeneratedPrompt[]> {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  const systemPrompt = `You generate natural-language search queries to test a brand's visibility in generative AI engines.
+
+You will be given:
+- A description of what kind of prompts the user wants
+- Brand context (company, industry, ICP, competitors)
+- A list of existing prompts to avoid duplicating
+
+Generate exactly ${count} unique search queries that a real person would type into ChatGPT, Perplexity, or Google.
+
+Category distribution guidelines:
+- Organic (~60%): Generic discovery queries where the brand could naturally appear
+- Competitor: Queries comparing or seeking alternatives to competitors
+- How-to Guides: Actionable task/how-to queries related to the brand's domain
+- Brand-Specific: Direct queries mentioning the brand name
+
+Rules:
+- Each query must be a natural search question or phrase (not a keyword)
+- Do NOT duplicate or closely paraphrase any existing prompt
+- Vary query styles: questions, comparisons, "best of" lists, how-tos, etc.
+- Keep queries concise (under 120 characters each)
+
+Return valid JSON in this exact format:
+{
+  "prompts": [
+    { "text": "query text here", "category": "Organic" },
+    ...
+  ]
+}
+
+Categories must be exactly one of: "Organic", "Competitor", "How-to Guides", "Brand-Specific"`;
+
+  const existingList = existingPrompts.length > 0
+    ? `\n\nExisting prompts (DO NOT duplicate):\n${existingPrompts.map((p, i) => `${i + 1}. ${p}`).join('\n')}`
+    : '';
+
+  const userPrompt = `Description of desired prompts: ${description}
+
+Brand context:
+- Company: ${brandInfo.companyName}
+- Industry: ${brandInfo.industry}
+- Description: ${brandInfo.companyDescription}
+- Products/Services: ${brandInfo.productsServices.join(', ')}
+- Ideal Customer: ${brandInfo.idealCustomer}
+- Competitors: ${brandInfo.competitors.join(', ')}${existingList}
+
+Generate exactly ${count} prompts now.`;
+
+  console.log(`[BatchGeneration] Generating ${count} prompts with description: "${description}"`);
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-5.2',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.7,
+    max_tokens: 2000,
+    response_format: { type: 'json_object' },
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error('Empty response from AI model');
+  }
+
+  let parsed: { prompts: BatchGeneratedPrompt[] };
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error('Failed to parse AI response as JSON');
+  }
+
+  if (!Array.isArray(parsed.prompts) || parsed.prompts.length !== count) {
+    throw new Error(
+      `Expected ${count} prompts but got ${parsed.prompts?.length ?? 0}`
+    );
+  }
+
+  const validCategories = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific'];
+  for (const prompt of parsed.prompts) {
+    if (!prompt.text || typeof prompt.text !== 'string') {
+      throw new Error('Invalid prompt: missing text');
+    }
+    if (!validCategories.includes(prompt.category)) {
+      throw new Error(`Invalid category "${prompt.category}" for prompt "${prompt.text}"`);
+    }
+  }
+
+  console.log(`[BatchGeneration] Successfully generated ${parsed.prompts.length} prompts`);
+  return parsed.prompts;
+}
+
 /**
  * Convert brand profile to BrandInfo format
  */

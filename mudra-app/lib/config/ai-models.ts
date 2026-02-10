@@ -93,6 +93,28 @@ export const AI_MODELS: Record<string, AIModelConfig> = {
     },
     bestFor: ['natural language reports', 'long-context summarization', 'policy-aware narrative synthesis']
   },
+  'gpt-5.2': {
+    id: 'gpt-5.2',
+    name: 'GPT-5.2',
+    provider: 'openai',
+    model: 'gpt-5.2',
+    description: 'Fast, cost-effective OpenAI model for structured generation tasks',
+    capabilities: {
+      reasoning: 'advanced',
+      speed: 'fast',
+      contextWindow: 128000,
+      maxOutputTokens: 8192
+    },
+    pricing: {
+      inputCostPer1M: 0.50,
+      outputCostPer1M: 1.50
+    },
+    settings: {
+      defaultTemperature: 0.7,
+      defaultMaxTokens: 2000
+    },
+    bestFor: ['batch generation', 'structured JSON output', 'prompt creation', 'classification']
+  },
   'o3': {
     id: 'o3',
     name: 'OpenAI o3',

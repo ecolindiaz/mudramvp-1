@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -18,7 +19,8 @@ import {
   TrendingUp,
   FileText,
   Check,
-  X
+  X,
+  Loader2
 } from "lucide-react"
 import { useBrandProfile } from "@/components/brand-profile-context"
 import { toast } from "sonner"
@@ -53,6 +55,16 @@ export default function PromptsPage() {
   const [newPromptText, setNewPromptText] = useState("")
   const [newPromptCategory, setNewPromptCategory] = useState("Organic")
   const [isGenerating, setIsGenerating] = useState(false)
+  const [showAIBatch, setShowAIBatch] = useState(false)
+  const [batchDescription, setBatchDescription] = useState("")
+  const [batchCount, setBatchCount] = useState<3 | 5 | 10>(5)
+  const [isBatchGenerating, setIsBatchGenerating] = useState(false)
+  const [batchProgress, setBatchProgress] = useState<{
+    phase: 'idle' | 'generating' | 'analyzing' | 'done'
+    generated: number
+    analyzed: number
+    total: number
+  }>({ phase: 'idle', generated: 0, analyzed: 0, total: 0 })
 
   // Load prompts
   useEffect(() => {
@@ -219,6 +231,85 @@ export default function PromptsPage() {
     }
   }
 
+  const handleBatchGenerate = async () => {
+    if (!batchDescription.trim()) {
+      toast.error("Please describe what prompts you want")
+      return
+    }
+    if (!profile.id) return
+
+    setIsBatchGenerating(true)
+    setBatchProgress({ phase: 'generating', generated: 0, analyzed: 0, total: batchCount })
+
+    try {
+      // Phase 1: Generate and save prompts
+      const response = await fetch('/api/prompts/batch-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandProfileId: profile.id,
+          description: batchDescription,
+          count: batchCount,
+          brandInfo: {
+            companyName: profile.companyName || '',
+            companyDescription: profile.companyDescription || '',
+            industry: profile.companyIndustry || '',
+            productsServices: profile.companyServices
+              ? profile.companyServices.split(',').map((s: string) => s.trim())
+              : [],
+            idealCustomer: profile.companyICP || '',
+            competitors: profile.competitors || []
+          }
+        })
+      })
+
+      const data = await response.json()
+
+      if (!data.success) {
+        toast.error(data.error || "Failed to generate prompts")
+        setIsBatchGenerating(false)
+        setBatchProgress(prev => ({ ...prev, phase: 'idle' }))
+        return
+      }
+
+      const savedPrompts = data.prompts
+      setBatchProgress({ phase: 'analyzing', generated: savedPrompts.length, analyzed: 0, total: savedPrompts.length })
+      toast.success(`Generated ${savedPrompts.length} prompts! Starting analysis...`)
+      await loadPrompts()
+
+      // Phase 2: Trigger analysis for each prompt sequentially
+      for (let i = 0; i < savedPrompts.length; i++) {
+        const prompt = savedPrompts[i]
+        try {
+          await fetch('/api/prompts', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              promptId: prompt.id.toString(),
+              text: prompt.text,
+              runAnalysis: true
+            })
+          })
+        } catch (error) {
+          console.error(`Failed to analyze prompt ${prompt.id}:`, error)
+        }
+        setBatchProgress(prev => ({ ...prev, analyzed: i + 1 }))
+      }
+
+      toast.success(`All ${savedPrompts.length} prompts analyzed!`)
+      await loadPrompts()
+      setBatchDescription("")
+      setShowAIBatch(false)
+      setBatchProgress({ phase: 'done', generated: savedPrompts.length, analyzed: savedPrompts.length, total: savedPrompts.length })
+    } catch (error) {
+      console.error("Error in batch generation:", error)
+      toast.error("Failed to generate prompts")
+    } finally {
+      setIsBatchGenerating(false)
+      setBatchProgress(prev => ({ ...prev, phase: 'idle' }))
+    }
+  }
+
   const getCategoryIcon = (category: string) => {
     const cat = CATEGORIES.find(c => c.value === category)
     return cat ? cat.icon : Target
@@ -298,12 +389,111 @@ export default function PromptsPage() {
               </select>
             </div>
           </div>
-          <Button onClick={handleAddPrompt}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Prompt
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleAddPrompt}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Prompt
+            </Button>
+            <Button
+              variant={showAIBatch ? "secondary" : "outline"}
+              onClick={() => setShowAIBatch(!showAIBatch)}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Add with AI
+            </Button>
+          </div>
         </CardContent>
       </Card>
+
+      {/* AI Batch Generation */}
+      {showAIBatch && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5" />
+              Generate Prompts with AI
+            </CardTitle>
+            <CardDescription>Describe what prompts you want and AI will generate them with auto-assigned categories</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label>Describe what new prompts you want</Label>
+              <Textarea
+                value={batchDescription}
+                onChange={(e) => setBatchDescription(e.target.value)}
+                placeholder="e.g., enterprise pricing and ROI comparisons, or questions about data security compliance"
+                className="mt-1"
+                maxLength={500}
+                rows={3}
+                disabled={isBatchGenerating}
+              />
+              <p className="text-xs text-muted-foreground mt-1">{batchDescription.length}/500</p>
+            </div>
+            <div>
+              <Label>Number of prompts</Label>
+              <div className="flex gap-2 mt-1">
+                {([3, 5, 10] as const).map(n => (
+                  <Button
+                    key={n}
+                    size="sm"
+                    variant={batchCount === n ? "default" : "outline"}
+                    onClick={() => setBatchCount(n)}
+                    disabled={isBatchGenerating}
+                  >
+                    {n}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {isBatchGenerating && (
+              <div className="rounded-lg border p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm font-medium">
+                    {batchProgress.phase === 'generating' && 'Generating prompts...'}
+                    {batchProgress.phase === 'analyzing' && `Analyzing prompts (${batchProgress.analyzed}/${batchProgress.total})...`}
+                  </span>
+                </div>
+                {batchProgress.phase === 'analyzing' && (
+                  <div className="w-full bg-secondary rounded-full h-2">
+                    <div
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(batchProgress.analyzed / batchProgress.total) * 100}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button onClick={handleBatchGenerate} disabled={isBatchGenerating || !batchDescription.trim()}>
+                {isBatchGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Working...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate {batchCount} Prompts
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAIBatch(false)
+                  setBatchDescription("")
+                }}
+                disabled={isBatchGenerating}
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Prompts List */}
       <Card>

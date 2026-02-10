@@ -716,7 +716,15 @@ function TrackedPromptsPageInner() {
         const analysisComplete = Boolean(result.data?.analysisComplete)
         console.log('✅ Prompt added successfully', analysisComplete ? `(analysis complete: ${result.data?.visibility}% visibility)` : result.data?.analysisTriggered ? '(analysis triggered)' : '')
 
-        const newPromptId = result.data?.prompt?.id?.toString() || optimisticId
+        // Validate that server returned a real prompt ID - this is required for polling/tracking
+        if (!result.data?.prompt?.id) {
+          console.error('❌ API returned success but no prompt ID', { result })
+          setData((prev) => prev.filter((p) => p.id !== optimisticId))
+          toast.error('Failed to create prompt: server returned invalid response')
+          return
+        }
+
+        const newPromptId = result.data.prompt.id.toString()
         const analysisTriggered = Boolean(result.data?.analysisTriggered)
 
         // Replace optimistic prompt ID with real ID from server

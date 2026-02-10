@@ -350,6 +350,8 @@ export async function GET(request: NextRequest) {
 
     // Step 4: Get ACTIVE prompts from Prompts table for this brand to match with texts
     let allPrompts = []
+    // Also get inactive (soft-deleted) prompts to avoid resurrecting them as synthetic records
+    let deletedPrompts: any[] = []
     try {
       allPrompts = await prisma.prompt.findMany({
         where: {
@@ -357,13 +359,20 @@ export async function GET(request: NextRequest) {
           isActive: true // Only show active prompts
         }
       })
-      console.log(`📝 Retrieved ${allPrompts.length} active prompts from database`)
+      deletedPrompts = await prisma.prompt.findMany({
+        where: {
+          brandProfileId: profileId,
+          isActive: false
+        },
+        select: { text: true }
+      })
+      console.log(`📝 Retrieved ${allPrompts.length} active prompts from database (${deletedPrompts.length} deleted)`)
     } catch (error: any) {
       // If table doesn't exist or Prisma client not regenerated, return empty
       if (error.code === 'P2021' || error.message?.includes('does not exist')) {
         console.warn('⚠️ Prompt table not accessible, returning empty prompts array')
-        return NextResponse.json({ 
-          success: true, 
+        return NextResponse.json({
+          success: true,
           prompts: [],
           count: 0,
           hasAnalysis: true,
@@ -380,11 +389,11 @@ export async function GET(request: NextRequest) {
         .trim()
         .replace(/[^\w\s]/g, '')
         .replace(/\s+/g, ' ')
-      
+
       // Strip common brand prefixes (Try*, Get*, Use*) to handle brand name changes
       // e.g., "TryMudra" vs "Mudra", "GetFireGeo" vs "FireGeo"
       normalized = normalized.replace(/^(try|get|use)\s*/, '')
-      
+
       return normalized
     }
 
@@ -395,18 +404,24 @@ export async function GET(request: NextRequest) {
       promptMap.set(normalized, prompt)
     }
 
+    // Build a set of normalized texts for deleted prompts so we don't resurrect them
+    const deletedPromptTexts = new Set(deletedPrompts.map((p: any) => normalizeText(p.text)))
+
     // Match tested prompts with database records
     const matchedPrompts = []
     const unmatchedTestedPrompts = []
     for (const promptText of promptTextsArray) {
       const normalized = normalizeText(promptText)
       const promptRecord = promptMap.get(normalized)
-      
+
       if (promptRecord) {
         matchedPrompts.push({
           ...promptRecord,
           originalText: promptText // Keep the original text from analysis
         })
+      } else if (deletedPromptTexts.has(normalized)) {
+        // Prompt was soft-deleted — skip it, don't create a synthetic record
+        console.log(`🗑️ Skipping deleted prompt from analysis results: "${promptText.substring(0, 50)}..."`)
       } else {
         // Prompt was tested but not in database (likely due to brand name change)
         console.log(`ℹ️  Prompt tested but not in DB (likely brand name mismatch): "${promptText.substring(0, 50)}..."`)

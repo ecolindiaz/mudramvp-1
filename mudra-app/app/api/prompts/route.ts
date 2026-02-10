@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { 
-  getActivePrompts, 
-  createCustomPrompt, 
-  updatePrompt, 
+import {
+  getActivePrompts,
+  createCustomPrompt,
+  updatePrompt,
   deletePrompt,
   getPromptStats,
   getPromptsByCategory,
@@ -12,6 +12,10 @@ import {
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { prisma } from '@/lib/prisma'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
+import { runSinglePromptAnalysis } from '@/lib/services/single-prompt-analysis.service'
+
+// Vercel serverless: PATCH with runAnalysis needs time for AI provider calls
+export const maxDuration = 120
 
 /**
  * GET /api/prompts?brandProfileId={id}&category={category}
@@ -153,7 +157,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { promptId, text, category, isActive } = body
+    const { promptId, text, category, isActive, runAnalysis } = body
 
     if (!promptId) {
       return NextResponse.json(
@@ -165,7 +169,7 @@ export async function PATCH(request: NextRequest) {
     // Verify the prompt belongs to the user's brand profile
     const existingPrompt = await prisma.prompt.findUnique({
       where: { id: parseInt(promptId) },
-      select: { brandProfileId: true }
+      select: { brandProfileId: true, text: true, category: true }
     })
 
     if (!existingPrompt) {
@@ -189,9 +193,30 @@ export async function PATCH(request: NextRequest) {
 
     const prompt = await updatePrompt(parseInt(promptId), updates)
 
-    return NextResponse.json({ 
-      success: true, 
-      prompt 
+    // Run analysis if requested (e.g. after editing prompt text)
+    let analysisResult = null
+    if (runAnalysis && text) {
+      try {
+        console.log(`🚀 Running re-analysis for edited prompt ${promptId}...`)
+        analysisResult = await runSinglePromptAnalysis({
+          brandProfileId: existingPrompt.brandProfileId,
+          promptId: parseInt(promptId),
+          promptText: text,
+          category: category || existingPrompt.category || 'Organic',
+        })
+        console.log(`✅ Re-analysis complete for prompt ${promptId}: ${analysisResult.overallVisibility}% visibility`)
+      } catch (error) {
+        console.error('⚠️ Failed to run re-analysis after edit:', error)
+        // Don't fail the request — the update itself succeeded
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      prompt,
+      analysisTriggered: !!analysisResult,
+      analysisComplete: !!analysisResult,
+      visibility: analysisResult?.overallVisibility ?? null,
     })
   } catch (error) {
     console.error('Error updating prompt:', error)

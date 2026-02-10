@@ -11,6 +11,8 @@ import { useOnboarding } from "./onboarding-context"
 import { useAnalysis } from "@/components/analysis-context"
 import { motion, AnimatePresence } from "framer-motion"
 
+
+
 const LOADING_STEPS = [
   { text: "Analyzing your brand", icon: Sparkles },
   { text: "Testing AI visibility", icon: Target },

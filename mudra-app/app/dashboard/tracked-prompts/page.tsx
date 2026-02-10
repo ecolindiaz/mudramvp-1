@@ -587,7 +587,10 @@ function TrackedPromptsPageInner() {
 
       if (result.success) {
         console.log('✅ Prompt deleted successfully')
-        // Refresh data from server to ensure consistency
+        // Immediately remove from local state for instant UI feedback
+        setData((prev) => prev.filter((p) => p.id !== promptId))
+        table.resetRowSelection()
+        // Also refresh from server to ensure full consistency
         await fetchPrompts()
       } else {
         const errorMsg = result.error?.message || result.message || 'Failed to delete prompt'
@@ -794,12 +797,12 @@ function TrackedPromptsPageInner() {
 
   const handleEditPrompt = async () => {
     const text = editPromptText.trim()
-    
+
     if (!text) {
       setErrorMessage('Please enter a prompt')
       return
     }
-    
+
     if (text.length > MAX_PROMPT_LENGTH) {
       setErrorMessage(`Prompt cannot exceed ${MAX_PROMPT_LENGTH} characters`)
       return
@@ -809,6 +812,9 @@ function TrackedPromptsPageInner() {
       setErrorMessage('No prompt selected for editing')
       return
     }
+
+    const promptChanged = text !== editingPrompt.prompt
+    const editedPromptId = editingPrompt.id
 
     setIsEditing(true)
     setErrorMessage(null)
@@ -821,6 +827,7 @@ function TrackedPromptsPageInner() {
           promptId: parseInt(editingPrompt.id),
           text: text,
           category: editIntent,
+          runAnalysis: promptChanged, // Re-run analysis when text changes
         }),
       })
 
@@ -828,7 +835,7 @@ function TrackedPromptsPageInner() {
       console.log('📥 Edit prompt response:', { status: response.status, result })
 
       if (response.ok && result.success) {
-        console.log('✅ Prompt edited successfully')
+        console.log('✅ Prompt edited successfully', result.analysisComplete ? `(re-analysis complete: ${result.visibility}% visibility)` : promptChanged ? '(re-analysis pending)' : '')
 
         // Close dialog and reset form
         setEditOpen(false)
@@ -837,15 +844,20 @@ function TrackedPromptsPageInner() {
         setEditIntent("Organic")
         setErrorMessage(null)
 
-        // Update the prompt in local state
-        setData((prev) => prev.map(p => 
-          p.id === editingPrompt.id 
-            ? { ...p, prompt: text, intent: editIntent }
+        // Update the prompt in local state immediately
+        setData((prev) => prev.map(p =>
+          p.id === editedPromptId
+            ? { ...p, prompt: text, intent: editIntent, isPending: promptChanged && !result.analysisComplete }
             : p
         ))
 
-        // Optionally refresh from server to ensure consistency
+        // Refresh from server to get updated analysis results
         await fetchPrompts()
+
+        // Notify other dashboard components that data changed
+        if (result.analysisComplete) {
+          window.dispatchEvent(new Event('mudra:analysis-complete'))
+        }
       } else {
         const errorMsg = result.error?.message || result.error || 'Failed to edit prompt'
         setErrorMessage(errorMsg)

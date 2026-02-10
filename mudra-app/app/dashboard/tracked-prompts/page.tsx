@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
+import { toast } from "sonner"
 
 type TrackedPrompt = {
   id: string
@@ -650,13 +651,13 @@ function TrackedPromptsPageInner() {
 
   const handleAddPrompt = async () => {
     const text = newPromptText.trim()
-    
+
     // Frontend validation (BUG-4)
     if (!text) {
       setErrorMessage('Please enter a prompt')
       return
     }
-    
+
     if (text.length > MAX_PROMPT_LENGTH) {
       setErrorMessage(`Prompt cannot exceed ${MAX_PROMPT_LENGTH} characters`)
       return
@@ -668,8 +669,33 @@ function TrackedPromptsPageInner() {
       return
     }
 
-    setIsAdding(true)
+    // Capture form values before resetting
+    const capturedIntent = newIntent
+    const capturedRunAnalysis = runAnalysisOnAdd
+
+    // Close dialog and reset form immediately
+    setAddOpen(false)
+    setNewPromptText("")
+    setNewIntent("Organic")
     setErrorMessage(null)
+
+    // Add optimistic pending prompt to the table right away
+    const optimisticId = `pending-${Date.now()}`
+    const pendingPrompt: TrackedPrompt = {
+      id: optimisticId,
+      prompt: text,
+      visibility: 0,
+      model: null,
+      models: [],
+      intent: capturedIntent,
+      sentiment: null,
+      position: null,
+      lastRun: null,
+      isPending: capturedRunAnalysis,
+    }
+    setData((prev) => [pendingPrompt, ...prev])
+
+    setIsAdding(true)
 
     try {
       const response = await fetch('/api/prompts/add', {
@@ -677,9 +703,9 @@ function TrackedPromptsPageInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           promptText: text,
-          category: newIntent,
+          category: capturedIntent,
           brandProfileId: profile.id,
-          runAnalysis: runAnalysisOnAdd, // BUG-3: Pass immediate analysis flag
+          runAnalysis: capturedRunAnalysis, // BUG-3: Pass immediate analysis flag
         }),
       })
 
@@ -690,14 +716,11 @@ function TrackedPromptsPageInner() {
         const analysisComplete = Boolean(result.data?.analysisComplete)
         console.log('✅ Prompt added successfully', analysisComplete ? `(analysis complete: ${result.data?.visibility}% visibility)` : result.data?.analysisTriggered ? '(analysis triggered)' : '')
 
-        // Close dialog and reset form
-        setAddOpen(false)
-        setNewPromptText("")
-        setNewIntent("Organic")
-        setErrorMessage(null)
-
-        const newPromptId = result.data?.prompt?.id?.toString() || `pending-${Date.now()}`
+        const newPromptId = result.data?.prompt?.id?.toString() || optimisticId
         const analysisTriggered = Boolean(result.data?.analysisTriggered)
+
+        // Replace optimistic prompt ID with real ID from server
+        setData((prev) => prev.map((p) => p.id === optimisticId ? { ...p, id: newPromptId, isPending: capturedRunAnalysis && analysisTriggered } : p))
 
         // If analysis completed synchronously, refresh data immediately
         if (analysisComplete) {
@@ -716,22 +739,7 @@ function TrackedPromptsPageInner() {
           return
         }
 
-        const pendingPrompt: TrackedPrompt = {
-          id: newPromptId,
-          prompt: text,
-          visibility: 0,
-          model: null,
-          models: [],
-          intent: newIntent,
-          sentiment: null,
-          position: null,
-          lastRun: null,
-          isPending: runAnalysisOnAdd && analysisTriggered,
-        }
-
-        setData((prev) => [pendingPrompt, ...prev])
-
-        if (runAnalysisOnAdd && analysisTriggered) {
+        if (capturedRunAnalysis && analysisTriggered) {
           // Fallback polling in case analysis was triggered but not yet complete
           const pollForResults = async (attempts: number = 0, maxAttempts: number = 18) => {
             const delay = attempts === 0 ? 3000 : 5000
@@ -778,18 +786,22 @@ function TrackedPromptsPageInner() {
           }
 
           pollForResults()
-        } else {
+        } else if (!capturedRunAnalysis) {
           // No analysis triggered: refetch from server to show prompt with actual state
           await fetchPrompts()
         }
       } else {
+        // API returned an error — remove the optimistic prompt and notify user
+        setData((prev) => prev.filter((p) => p.id !== optimisticId))
         const errorMsg = result.error?.message || result.message || 'Failed to add prompt'
-        setErrorMessage(errorMsg)
+        toast.error(errorMsg)
         console.error('❌ Add failed:', { status: response.status, result })
       }
     } catch (error) {
+      // Network/unexpected error — remove the optimistic prompt and notify user
+      setData((prev) => prev.filter((p) => p.id !== optimisticId))
+      toast.error('Failed to add prompt. Please try again.')
       console.error('❌ Error adding prompt:', error)
-      setErrorMessage('Failed to add prompt. Please try again.')
     } finally {
       setIsAdding(false)
     }
@@ -1241,10 +1253,7 @@ function TrackedPromptsPageInner() {
                 )}
 
                 {/* Add Prompt Dialog */}
-                <Dialog open={addOpen} onOpenChange={(open) => {
-                  if (!open && isAdding) return // prevent closing mid-operation
-                  setAddOpen(open)
-                }}>
+                <Dialog open={addOpen} onOpenChange={setAddOpen}>
                   <DialogContent className="sm:max-w-lg rounded-xl border-0 bg-dark-grey">
                     <DialogHeader>
                       <DialogTitle>Add Prompt</DialogTitle>

@@ -285,6 +285,13 @@ export default function PromptsPage() {
       }
 
       const savedPrompts = data.prompts
+      if (!Array.isArray(savedPrompts)) {
+        toast.error("Invalid response: prompts array missing")
+        setIsBatchGenerating(false)
+        setBatchProgress(prev => ({ ...prev, phase: 'idle' }))
+        return
+      }
+
       setBatchProgress({ phase: 'analyzing', generated: savedPrompts.length, analyzed: 0, total: savedPrompts.length })
       toast.success(`Generated ${savedPrompts.length} prompts! Starting analysis...`)
       await loadPrompts()

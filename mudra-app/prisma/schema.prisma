@@ -146,6 +146,7 @@ model Issue {
   
   // Deduplication
   issueHash          String?      @unique
+  checkCode          String?
 
   // Relations
   brandProfile       BrandProfile  @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)

@@ -318,6 +318,10 @@ function normalizeCompanyName(name: string): string {
 /**
  * Clean parenthetical content from LLM-extracted names in analysis objects.
  * e.g. "Y Combinator (Online/Hybrid)" → "Y Combinator"
+ * 
+ * Handles collisions (same company with different parentheticals):
+ * - For positions: keeps the minimum (best/lowest rank) to preserve best visibility
+ * - For sentiments: keeps the first occurrence to maintain consistency
  */
 function cleanLLMAnalysisNames(analysis: any): void {
   if (analysis.competitorsMentioned && Array.isArray(analysis.competitorsMentioned)) {
@@ -329,7 +333,15 @@ function cleanLLMAnalysisNames(analysis: any): void {
     const cleaned: Record<string, number> = {};
     for (const [name, pos] of Object.entries(analysis.competitorPositions)) {
       const clean = name.replace(/\s*\(.*$/, '').trim();
-      if (clean.length > 0) cleaned[clean] = pos as number;
+      if (clean.length > 0) {
+        const numPos = pos as number;
+        // On collision (same cleaned name): keep minimum position (best rank, lower is better)
+        if (clean in cleaned) {
+          cleaned[clean] = Math.min(cleaned[clean], numPos);
+        } else {
+          cleaned[clean] = numPos;
+        }
+      }
     }
     analysis.competitorPositions = cleaned;
   }
@@ -337,7 +349,12 @@ function cleanLLMAnalysisNames(analysis: any): void {
     const cleaned: Record<string, string> = {};
     for (const [name, sent] of Object.entries(analysis.competitorSentiments)) {
       const clean = name.replace(/\s*\(.*$/, '').trim();
-      if (clean.length > 0) cleaned[clean] = sent as string;
+      if (clean.length > 0) {
+        // On collision (same cleaned name): keep first occurrence for sentiment
+        if (!(clean in cleaned)) {
+          cleaned[clean] = sent as string;
+        }
+      }
     }
     analysis.competitorSentiments = cleaned;
   }

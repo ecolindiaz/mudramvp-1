@@ -32,28 +32,28 @@ export async function POST(request: NextRequest) {
     // Validate inputs
     if (!description || typeof description !== 'string' || description.trim().length === 0) {
       return NextResponse.json(
-        { error: 'description is required' },
+        { success: false, error: 'description is required' },
         { status: 400 }
       )
     }
 
     if (description.length > 500) {
       return NextResponse.json(
-        { error: 'description must be 500 characters or less' },
+        { success: false, error: 'description must be 500 characters or less' },
         { status: 400 }
       )
     }
 
     if (!VALID_COUNTS.includes(count)) {
       return NextResponse.json(
-        { error: 'count must be 3, 5, or 10' },
+        { success: false, error: 'count must be 3, 5, or 10' },
         { status: 400 }
       )
     }
 
     if (!brandInfo) {
       return NextResponse.json(
-        { error: 'brandInfo is required' },
+        { success: false, error: 'brandInfo is required' },
         { status: 400 }
       )
     }
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
     if (remainingSlots < count) {
       return NextResponse.json(
         {
+          success: false,
           error: `Not enough capacity. You can add ${remainingSlots} more prompt${remainingSlots === 1 ? '' : 's'} (current: ${limits.currentTotal}/${PROMPT_LIMITS.MAX_TOTAL_PROMPTS}).`,
           limits: {
             currentTotal: limits.currentTotal,
@@ -116,7 +117,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in batch-generate:', error)
     return NextResponse.json(
-      { error: 'Failed to generate prompts', details: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: 'Failed to generate prompts', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

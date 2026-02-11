@@ -1292,6 +1292,11 @@ function IssuesPageInner() {
 
   // Open issue detail dialog
   const handleIssueClick = (issue: Issue) => {
+    // Blur the focused card so Radix can safely apply aria-hidden
+    // to the kanban board when the dialog opens
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
     setSelectedIssue(issue)
     setIssueDetailDialogOpen(true)
   }

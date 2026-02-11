@@ -289,7 +289,13 @@ function SortableIssueCard({
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
-              onClick={(e) => { e.stopPropagation(); onDelete(issue); }}
+              onSelect={(e) => {
+                e.preventDefault()
+                // Delay opening the delete dialog so the dropdown fully
+                // unmounts first — prevents Radix dismiss-layer conflict
+                // that freezes the UI.
+                setTimeout(() => onDelete(issue), 0)
+              }}
               className="text-red-400 hover:bg-red-400/10 cursor-pointer"
             >
               <IconTrash className="w-4 h-4 mr-2" />
@@ -1310,8 +1316,10 @@ function IssuesPageInner() {
   const handleDeleteIssue = async () => {
     if (!deletingIssue) return
     
-    // Close dialog immediately for better UX
+    // Close all dialogs immediately for better UX
     setDeleteDialogOpen(false)
+    setIssueDetailDialogOpen(false)
+    setSelectedIssue(null)
     setIsSaving(true)
     
     try {
@@ -1409,6 +1417,9 @@ function IssuesPageInner() {
   }
 
   const handleDeleteClick = (issue: Issue) => {
+    // Close any open detail dialog first to prevent stacked backdrops
+    setIssueDetailDialogOpen(false)
+    setSelectedIssue(null)
     setDeletingIssue(issue)
     setDeleteDialogOpen(true)
   }

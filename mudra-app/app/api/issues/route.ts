@@ -56,39 +56,9 @@ export async function GET(request: NextRequest) {
       priority: priority || undefined
     })
 
-    // Progressive issue reveal: only show issues for pages that have been "unlocked"
-    // issueDiscoveryPageIndex tracks how many pages' issues are visible (incremented each analysis run)
+    // Show all issues (progressive reveal removed — all issues are created
+    // in Step 8.5 on every analysis run, so hiding them is counter-productive)
     let filteredIssues = issues
-    const unlockedPageCount = brandProfile.issueDiscoveryPageIndex ?? 0
-
-    if (unlockedPageCount > 0) {
-      // Get ordered page URLs from latest technical analysis metadata
-      const techAnalysis = await prisma.technicalStructureAnalysis.findFirst({
-        where: { brandProfileId: brandProfile.id },
-        orderBy: { createdAt: 'desc' },
-        select: { metadata: true },
-      })
-
-      let metadata = techAnalysis?.metadata as Record<string, unknown> | null
-      if (typeof metadata === 'string') {
-        try { metadata = JSON.parse(metadata) } catch { metadata = null }
-      }
-
-      const pageScores = (metadata?.multiPageAnalysis as { pageScores?: Array<{ page_url: string }> })?.pageScores
-      if (pageScores && pageScores.length > 0 && unlockedPageCount < pageScores.length) {
-        // Build set of unlocked page URLs
-        const unlockedUrls = new Set(
-          pageScores.slice(0, unlockedPageCount).map(ps => ps.page_url)
-        )
-
-        filteredIssues = issues.filter(issue => {
-          // Always show issues without a specific URL (AI visibility, conversation)
-          if (!issue.affectedUrl) return true
-          return unlockedUrls.has(issue.affectedUrl)
-        })
-      }
-      // If unlockedPageCount >= pageScores.length, all pages are unlocked - show everything
-    }
 
     // Additional filter by page param if requested
     if (page) {

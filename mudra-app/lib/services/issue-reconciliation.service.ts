@@ -68,6 +68,22 @@ export function extractCheckFromIssue(issue: { title: string; agentType: string 
 }
 
 /**
+ * Normalize a URL for consistent matching:
+ * - lowercase
+ * - strip trailing slash (unless it's just "/")
+ * - strip fragment
+ */
+function normalizeUrl(url: string): string {
+  let u = url.toLowerCase().trim()
+  // Strip fragment
+  const hashIdx = u.indexOf('#')
+  if (hashIdx !== -1) u = u.slice(0, hashIdx)
+  // Strip trailing slash (but keep root "/")
+  if (u.length > 1 && u.endsWith('/')) u = u.slice(0, -1)
+  return u
+}
+
+/**
  * Build a set of all currently failing checks across all pages
  * Format: "check_code:page_url" for per-page tracking
  */
@@ -77,8 +93,8 @@ function buildFailingCheckSet(pageScores: FullPageScore[]): Set<string> {
   for (const pageScore of pageScores) {
     const checks = getFailingChecks(pageScore)
     for (const check of checks) {
-      // Store as check:url for per-page matching
-      failingChecks.add(`${check}:${pageScore.page_url.toLowerCase()}`)
+      // Store as check:url for per-page matching (normalized)
+      failingChecks.add(`${check}:${normalizeUrl(pageScore.page_url)}`)
     }
   }
 
@@ -132,7 +148,7 @@ export async function reconcileIssuesWithScores(
     }
 
     // Check if this issue's check:url combo still fails
-    const pageUrl = issue.affectedUrl?.toLowerCase() || ''
+    const pageUrl = issue.affectedUrl ? normalizeUrl(issue.affectedUrl) : ''
     const checkKey = `${check}:${pageUrl}`
 
     if (failingChecks.has(checkKey)) {

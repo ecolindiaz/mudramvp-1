@@ -206,8 +206,8 @@ export async function createIssuesFromPageScore(
     })
 
     if (existing) {
-      // Only update if still in 'identified' status (not in progress or completed)
       if (existing.status === 'identified') {
+        // Update description/priority for still-open issues
         await prisma.issue.update({
           where: { id: existing.id },
           data: {
@@ -218,7 +218,23 @@ export async function createIssuesFromPageScore(
           }
         })
         updated++
+      } else if (existing.status === 'completed') {
+        // Re-open issues that were auto-closed by reconciliation but still fail
+        await prisma.issue.update({
+          where: { id: existing.id },
+          data: {
+            status: 'identified',
+            description: `${description}\n\nAffected page: ${pageScore.page_url}`,
+            priority: mapSeverityToPriority(issue.severity),
+            estimatedImpact: impact,
+            checkCode: check,
+            updatedAt: new Date()
+          }
+        })
+        updated++
+        console.log(`[IssueFromScoring] Re-opened auto-closed issue: ${title} (${pageScore.page_url})`)
       } else {
+        // in_progress or merged — don't touch
         skipped++
       }
       continue

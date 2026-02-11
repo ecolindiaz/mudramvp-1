@@ -656,9 +656,9 @@ function IssueDialog({
 }
 
 // Delete Confirmation Dialog
-// Uses modal={false} to prevent Radix from setting pointer-events:none
-// on document.body — which gets stuck when the dialog is opened from a
-// DropdownMenu and causes the entire page to become unclickable.
+// The useEffect safety net clears pointer-events:none on document.body
+// whenever the dialog closes, preventing the UI from getting stuck
+// due to Radix dismiss-layer teardown races with DropdownMenu.
 function DeleteDialog({
   open,
   onOpenChange,
@@ -680,14 +680,7 @@ function DeleteDialog({
   }, [open])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
-      {/* Render our own backdrop since modal={false} disables the built-in one */}
-      {open && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[2px]"
-          onClick={() => onOpenChange(false)}
-        />
-      )}
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-[#1a1a1a] border-white/10 text-white max-w-md">
         <DialogHeader>
           <DialogTitle>Delete Issue</DialogTitle>

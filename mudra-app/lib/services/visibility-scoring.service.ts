@@ -157,7 +157,7 @@ function calculateCategoryScore(categoryTests: PromptTestResult[]): {
     // Competitive tests: position-based scoring
     if (competitiveTests.length > 0) {
       for (const test of competitiveTests) {
-        if (test.brandPosition != null && test.brandPosition >= 0) {
+        if (test.brandPosition != null && test.brandPosition > 0) {
           // Position-based score: #1 = 100, #2 = 90, #3 = 80, etc.
           const positionScore = Math.max(0, 110 - (test.brandPosition * 10));
           totalScore += positionScore;
@@ -226,7 +226,7 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
   const rankedTests = mentionedTests.filter(t =>
     t.brandPosition !== undefined &&
     t.brandPosition !== null &&
-    t.brandPosition >= 0
+    t.brandPosition > 0
   );
 
   const averagePosition = rankedTests.length > 0
@@ -239,7 +239,7 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
   const firegeoScores = tests.map(t => {
     if (!t.brandMentioned) return 0;
     let score = 50;
-    if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition >= 0) {
+    if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0) {
       score += Math.max(0, (10 - t.brandPosition) / 10) * 50;
     }
     return Math.round(score);
@@ -300,7 +300,7 @@ export function calculatePerPromptScore(test: PromptTestResult): PerPromptScore 
     visibilityScore = 50;
 
     const pos = test.brandPosition;
-    if (pos !== undefined && pos !== null && pos >= 0) {
+    if (pos !== undefined && pos !== null && pos > 0) {
       position = pos;
       // Position bonus: 0-45 points based on position (Firegeo formula)
       // Position 1 = 45 points, Position 10 = 0 points

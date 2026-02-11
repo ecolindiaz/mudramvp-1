@@ -626,14 +626,14 @@ export async function GET(request: NextRequest) {
 
         // Get average position for this provider (for aggregate metrics)
         const rankedTests = mentionedTests.filter(t =>
-          t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition >= 0
+          t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0
         )
 
         // Per-test Firegeo scores averaged across ALL tests for this provider
         const firegeoScores = tests.map(t => {
           if (!t.brandMentioned) return 0
           let score = 50
-          if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition >= 0) {
+          if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0) {
             score += Math.max(0, (10 - t.brandPosition) / 10) * 50
           }
           return Math.round(score)

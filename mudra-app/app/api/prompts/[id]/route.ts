@@ -241,7 +241,7 @@ export async function GET(
     const brandFiregeoScores = filteredTestResults.map(r => {
       if (!r.brandMentioned) return 0
       let score = 50
-      if (r.brandPosition != null && r.brandPosition >= 0) {
+      if (r.brandPosition != null && r.brandPosition > 0) {
         score += Math.max(0, (10 - r.brandPosition) / 10) * 50
       }
       return Math.round(score)
@@ -296,7 +296,7 @@ export async function GET(
         // Calculate per-test Firegeo score for this competitor
         const compPosition = competitorPositions[competitor] ?? null
         let score = 50 // Base score for being mentioned
-        if (compPosition != null && compPosition >= 0) {
+        if (compPosition != null && compPosition > 0) {
           score += Math.max(0, (10 - compPosition) / 10) * 50
         }
         metrics.firegeoScores.push(Math.round(score))

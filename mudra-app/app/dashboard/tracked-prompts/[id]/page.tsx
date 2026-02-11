@@ -161,8 +161,9 @@ function highlightBrandInChildren(children: React.ReactNode, brandName: string |
     if (typeof child === 'string') {
       const parts = child.split(regex)
       if (parts.length === 1) return child
+      const testRegex = new RegExp(`^${escaped}$`, 'i')
       return parts.map((part, i) =>
-        regex.test(part) ? (
+        testRegex.test(part) ? (
           <mark key={i} className="bg-emerald-500/20 text-emerald-300 rounded-sm px-0.5">{part}</mark>
         ) : (
           <React.Fragment key={i}>{part}</React.Fragment>

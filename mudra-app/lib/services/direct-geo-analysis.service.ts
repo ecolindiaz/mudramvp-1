@@ -2108,7 +2108,7 @@ function calculateBrandMetrics(tests: PromptTest[]): {
   const rankedTests = mentionedTests.filter(t =>
     t.brandPosition !== undefined &&
     t.brandPosition !== null &&
-    t.brandPosition >= 0
+    t.brandPosition > 0
   );
   const averagePosition = rankedTests.length > 0
     ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition ?? 0), 0) / rankedTests.length) * 10) / 10
@@ -2120,7 +2120,7 @@ function calculateBrandMetrics(tests: PromptTest[]): {
   const firegeoScores = tests.map(t => {
     if (!t.brandMentioned) return 0;
     let score = 50;
-    if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition >= 0) {
+    if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0) {
       score += Math.max(0, (10 - t.brandPosition) / 10) * 50;
     }
     return Math.round(score);

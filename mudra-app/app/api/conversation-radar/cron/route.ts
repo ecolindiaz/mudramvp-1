@@ -30,16 +30,8 @@ const CRON_SECRET = process.env.CRON_SECRET;
  * 
  * Each 'combined' run produces: 1 proactive opportunity + 2 cited opportunities
  * 
- * Cron Schedule (Vercel):
- * vercel.json:
- * {
- *   "crons": [
- *     {
- *       "path": "/api/conversation-radar/cron",
- *       "schedule": "0 9 */3 * *"  // Every 3 days at 9am UTC
- *     }
- *   ]
- * }
+ * Cron Schedule (Vercel): "0 9 *\/3 * *" — Every 3 days at 9am UTC
+ * See vercel.json for configuration.
  */
 export async function POST(request: NextRequest) {
   try {

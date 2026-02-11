@@ -582,24 +582,31 @@ export async function getCitationAnalysisForPrompt(
     where: { id: brandProfileId }
   })
   
-  // Get analysis results with date filter
+  // Get all analysis results (no row-level date filter because single-prompt
+  // re-analysis appends to existing rows without updating their createdAt).
+  // Date filtering is applied per-entry using analyzedAt below.
   const analysisResults = await prisma.geoAnalysisResult.findMany({
     where: {
-      brandProfileId,
-      ...(startDate && { createdAt: { gte: startDate } })
+      brandProfileId
     },
     orderBy: { createdAt: 'desc' }
   })
-  
+
   // Extract test results for this specific prompt
   const allTestResults: any[] = []
-  
+
   for (const analysis of analysisResults) {
     const analyses = typeof analysis.analyses === 'string'
       ? JSON.parse(analysis.analyses)
       : (Array.isArray(analysis.analyses) ? analysis.analyses : [])
-    
+
     for (const item of analyses) {
+      // Per-entry date filtering: use analyzedAt if available, else row's createdAt
+      const entryDate = item.analyzedAt
+        ? new Date(item.analyzedAt)
+        : analysis.createdAt
+      if (startDate && entryDate < startDate) continue
+
       // Handle both analysis structures
       if (item.prompt && normalizeText(item.prompt) === normalizeText(prompt.text)) {
         // Apply platform filter if specified
@@ -607,10 +614,10 @@ export async function getCitationAnalysisForPrompt(
           const providerMatch = matchesPlatform(item.provider || item.model, platform)
           if (!providerMatch) continue
         }
-        
+
         allTestResults.push({
           ...item,
-          timestamp: item.timestamp || analysis.createdAt
+          timestamp: item.timestamp || entryDate
         })
       } else if (item.promptTests) {
         const matchingTest = item.promptTests.find((test: any) =>
@@ -622,11 +629,11 @@ export async function getCitationAnalysisForPrompt(
             const providerMatch = matchesPlatform(item.provider, platform)
             if (!providerMatch) continue
           }
-          
+
           allTestResults.push({
             ...matchingTest,
             provider: item.provider,
-            timestamp: matchingTest.timestamp || analysis.createdAt
+            timestamp: matchingTest.timestamp || entryDate
           })
         }
       }

@@ -84,11 +84,12 @@ export async function getPromptVisibilityHistory(
   
   const brandName = brandProfile?.companyName?.toLowerCase() || ''
   
-  // Get all analysis results within the date range
+  // Get all analysis results (no row-level date filter because single-prompt
+  // re-analysis appends to existing rows without updating their createdAt).
+  // Date filtering is applied per-entry using analyzedAt below.
   const analysisResults = await prisma.geoAnalysisResult.findMany({
     where: {
-      brandProfileId,
-      createdAt: { gte: startDate }
+      brandProfileId
     },
     orderBy: { createdAt: 'asc' }
   })
@@ -113,26 +114,34 @@ export async function getPromptVisibilityHistory(
   
   // Process each analysis result
   for (const analysis of analysisResults) {
-    const date = analysis.createdAt.toISOString().split('T')[0]
-    
-    if (!dailyData.has(date)) {
-      dailyData.set(date, {
-        brandScores: [],
-        brandMentions: 0,
-        totalResponses: 0,
-        brandPositions: [],
-        brandSentiments: [],
-        competitorData: new Map()
-      })
-    }
-    
-    const dayData = dailyData.get(date)!
-    
     const analyses = typeof analysis.analyses === 'string'
       ? JSON.parse(analysis.analyses)
       : (Array.isArray(analysis.analyses) ? analysis.analyses : [])
-    
+
     for (const item of analyses) {
+      // Use per-entry analyzedAt when available (set by single-prompt re-analysis),
+      // otherwise fall back to the GeoAnalysisResult row's createdAt
+      const entryDate = item.analyzedAt
+        ? new Date(item.analyzedAt)
+        : analysis.createdAt
+
+      // Skip entries outside the date range
+      if (entryDate < startDate) continue
+
+      const date = entryDate.toISOString().split('T')[0]
+
+      if (!dailyData.has(date)) {
+        dailyData.set(date, {
+          brandScores: [],
+          brandMentions: 0,
+          totalResponses: 0,
+          brandPositions: [],
+          brandSentiments: [],
+          competitorData: new Map()
+        })
+      }
+
+      const dayData = dailyData.get(date)!
       // Handle both analysis structures
       let matchingTest: any = null
       let providerName: string | null = null

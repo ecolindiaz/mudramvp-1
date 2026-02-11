@@ -323,12 +323,21 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       });
     }
 
+    // Stamp each analysis entry with analyzedAt so per-entry date filtering
+    // works correctly in the detail view (entries without analyzedAt fall back
+    // to the row's createdAt, which can cause them to disappear after 7 days)
+    const nowISO = new Date().toISOString()
+    const stampedAnalyses = (data.analyses || []).map((entry: any) => ({
+      ...entry,
+      analyzedAt: entry.analyzedAt || nowISO
+    }))
+
     // Save to database
     const geoAnalysis = await prisma.geoAnalysisResult.create({
       data: {
         brandProfileId: config.brandProfileId,
         overallScore: data.overallScore || 0,
-        analyses: (data.analyses || []) as unknown as Prisma.InputJsonValue,
+        analyses: stampedAnalyses as unknown as Prisma.InputJsonValue,
         summary: ({
           brandName: config.brandName,
           competitorData: data.competitorComparison || {},

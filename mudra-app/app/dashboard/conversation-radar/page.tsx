@@ -14,30 +14,10 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
 
-import { Loader2, Search, Radio, ChevronRight, BookOpen, Info, type LucideProps, MessageSquare, TrendingUp } from "lucide-react"
+import { Loader2, Search, Radio, ChevronRight, BookOpen, Info, MessageSquare, TrendingUp, Globe, Clock } from "lucide-react"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
-
-const RedditIcon = (props: LucideProps) => (
-  <svg
-    aria-hidden="true"
-    focusable="false"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <circle cx="12" cy="12" r="10" />
-    <circle cx="9" cy="12" r="1" />
-    <circle cx="15" cy="12" r="1" />
-    <path d="M7.5 13.5c.8 1 2.3 1.7 4.5 1.7s3.7-.7 4.5-1.7" />
-    <path d="M14.5 7.5 15 4.5l2.5.6" />
-  </svg>
-)
 
 interface Opportunity {
   id: string
@@ -67,10 +47,45 @@ function ConversationRadarPageInner() {
   const [searchQuery, setSearchQuery] = useState("")
   const [viewFilter, setViewFilter] = useState<"active" | "all">("active")
   const [isMounted, setIsMounted] = useState(false)
-  
+  const [cronInfo, setCronInfo] = useState<{ lastRun: string | null; nextRun: string | null } | null>(null)
+  const [cronFailed, setCronFailed] = useState(false)
+
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  // Fetch cron schedule info
+  useEffect(() => {
+    const fetchCronInfo = async () => {
+      try {
+        const res = await fetch('/api/conversation-radar/cron')
+        const data = await res.json()
+        if (data.success) {
+          setCronInfo({ lastRun: data.lastRun, nextRun: data.nextRun })
+          setCronFailed(false)
+        } else {
+          setCronFailed(true)
+        }
+      } catch {
+        setCronFailed(true)
+      }
+    }
+    fetchCronInfo()
+  }, [])
+
+  // Format relative time for timing indicator
+  const formatNextRun = (isoDate: string | null): string => {
+    if (!isoDate) return "Not scheduled"
+    const date = new Date(isoDate)
+    const now = new Date()
+    const diffMs = date.getTime() - now.getTime()
+    if (diffMs < 0) return "Soon"
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffHours / 24)
+    if (diffDays > 0) return `in ${diffDays}d ${diffHours % 24}h`
+    if (diffHours > 0) return `in ${diffHours}h`
+    return "Soon"
+  }
 
   // Calculate active opportunities count (70%+ relevance)
   const activeOpportunitiesCount = opportunities.filter((o) => {
@@ -202,26 +217,55 @@ function ConversationRadarPageInner() {
                   <p className="text-sm text-white/60">Find and engage with conversations about your brand</p>
                 </div>
                 
-                {/* Right side - buttons */}
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={runRadarSearch}
-                    disabled={isLoading}
-                    className="h-9 px-4 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Searching...
-                      </>
-                    ) : (
-                      <>
-                        <Radio className="w-4 h-4" />
-                        Run Radar
-                      </>
-                    )}
-                  </Button>
+                {/* Right side - buttons + timing */}
+                <div className="flex items-center gap-3">
+                  {/* Timing indicator */}
+                  {cronInfo && !cronFailed && (
+                    <div className="hidden sm:flex items-center gap-1.5 text-xs text-white/40">
+                      <Clock className="size-3" />
+                      <span>Next scan {formatNextRun(cronInfo.nextRun)}</span>
+                    </div>
+                  )}
+                  {(cronFailed || (!isInitialLoad && opportunities.length === 0)) && (
+                    <Button
+                      size="sm"
+                      onClick={runRadarSearch}
+                      disabled={isLoading}
+                      className="h-9 px-4 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <Radio className="w-4 h-4" />
+                          Run Radar
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {!cronFailed && !isInitialLoad && opportunities.length > 0 && (
+                    <Button
+                      size="sm"
+                      onClick={runRadarSearch}
+                      disabled={isLoading}
+                      className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-sm font-medium gap-2"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <Radio className="w-4 h-4" />
+                          Run Radar
+                        </>
+                      )}
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     onClick={() => window.open("https://docs.trymudra.com/agentic-features/conversation-radar", "_blank", "noopener")}
@@ -403,8 +447,19 @@ function ConversationRadarPageInner() {
 
               {/* Opportunities List */}
               {isInitialLoad ? (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 className="w-8 h-8 animate-spin text-white/40" />
+                <div className="rounded-xl border border-white/[0.04] bg-[#161616] overflow-hidden">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="px-5 py-4 flex items-center gap-4 border-b border-white/[0.03] last:border-b-0">
+                      <div className="size-8 rounded-lg bg-white/[0.06] animate-pulse flex-shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-3/4 rounded bg-white/[0.06] animate-pulse" />
+                      </div>
+                      <div className="h-4 w-10 rounded bg-white/[0.06] animate-pulse flex-shrink-0" />
+                      <div className="h-5 w-12 rounded-full bg-white/[0.06] animate-pulse flex-shrink-0" />
+                      <div className="size-2 rounded-full bg-white/[0.06] animate-pulse flex-shrink-0" />
+                      <div className="size-4 rounded bg-white/[0.06] animate-pulse flex-shrink-0" />
+                    </div>
+                  ))}
                 </div>
               ) : filteredOpportunities.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-6">
@@ -493,8 +548,8 @@ function ConversationRadarPageInner() {
                     >
                       <div className="px-5 py-4 flex items-center gap-4 transition-colors hover:bg-white/[0.02] border-b border-white/[0.03] last:border-b-0">
                         {/* Icon */}
-                        <div className="size-8 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0">
-                          <RedditIcon className="size-4 text-orange-400" />
+                        <div className="size-8 rounded-lg bg-white/[0.06] flex items-center justify-center flex-shrink-0">
+                          <Globe className="size-4 text-white/50" />
                         </div>
 
                         {/* Title */}

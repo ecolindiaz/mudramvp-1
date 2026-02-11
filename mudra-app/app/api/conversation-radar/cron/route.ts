@@ -30,13 +30,13 @@ const CRON_SECRET = process.env.CRON_SECRET;
  * 
  * Each 'combined' run produces: 1 proactive opportunity + 2 cited opportunities
  * 
- * Recommended Cron Schedule (Vercel):
+ * Cron Schedule (Vercel):
  * vercel.json:
  * {
  *   "crons": [
  *     {
  *       "path": "/api/conversation-radar/cron",
- *       "schedule": "0 9 * * 1,3,5"  // Mon, Wed, Fri at 9am UTC
+ *       "schedule": "0 9 */3 * *"  // Every 3 days at 9am UTC
  *     }
  *   ]
  * }
@@ -280,19 +280,53 @@ async function runProactiveMode(brandProfileId: number): Promise<{
 export async function GET(request: NextRequest) {
   try {
     const brands = await getBrandsForScheduledRun();
-    
+
+    // Get last radar run timestamp from the most recent opportunity
+    const lastOpportunity = await prisma.conversationOpportunity.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+
+    // Calculate next scheduled run (every 3 days at 9am UTC)
+    const CRON_INTERVAL_DAYS = 3;
+    const CRON_HOUR_UTC = 9;
+    let nextRun: string | null = null;
+
+    if (lastOpportunity) {
+      const lastRun = lastOpportunity.createdAt;
+      const next = new Date(lastRun);
+      next.setDate(next.getDate() + CRON_INTERVAL_DAYS);
+      next.setUTCHours(CRON_HOUR_UTC, 0, 0, 0);
+      // If calculated next run is in the past, use the next occurrence from now
+      if (next.getTime() < Date.now()) {
+        const now = new Date();
+        now.setUTCHours(CRON_HOUR_UTC, 0, 0, 0);
+        if (now.getTime() < Date.now()) {
+          now.setDate(now.getDate() + 1);
+        }
+        // Find next date divisible by 3 from epoch-day
+        const daysSinceEpoch = Math.floor(now.getTime() / 86400000);
+        const daysUntilNext = (CRON_INTERVAL_DAYS - (daysSinceEpoch % CRON_INTERVAL_DAYS)) % CRON_INTERVAL_DAYS;
+        now.setDate(now.getDate() + daysUntilNext);
+        nextRun = now.toISOString();
+      } else {
+        nextRun = next.toISOString();
+      }
+    }
+
     return NextResponse.json({
       success: true,
       config: SCHEDULER_CONFIG,
       activeBrands: brands.length,
+      lastRun: lastOpportunity?.createdAt?.toISOString() || null,
+      nextRun,
       schedule: {
         combined: {
-          frequency: '3x per week (Mon, Wed, Fri)',
-          cron: '0 9 * * 1,3,5',
+          frequency: 'Every 3 days',
+          cron: '0 9 */3 * *',
           description: 'Each run: 1 proactive opportunity + 2 cited opportunities',
-          output: '~3 opportunities per run, ~9 opportunities per week',
+          output: '~3 opportunities per run',
         },
-        // Legacy modes still available if needed
         cited: {
           description: 'Processes up to 2 Reddit URLs cited by AI models',
         },

@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
       url: opp.postUrl,
       platform: 'Reddit',
       postedAt: opp.postCreatedAt,
-      engagement: opp.engagementString,
+      engagement: { upvotes: opp.score ?? undefined, comments: opp.numComments ?? undefined },
       promptOrigin: opp.mode === 'cited' ? 'tracked' : 'search',
       relevanceScore: opp.relevanceScore,
       isPromotionalOpportunity: opp.isPromotionalOpportunity,

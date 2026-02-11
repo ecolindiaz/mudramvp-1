@@ -21,31 +21,13 @@ import {
   CheckCircle,
   Loader2,
   TrendingUp,
-  type LucideProps,
+  Globe,
+  Radio,
+  Hash,
+  Eye,
+  AlertTriangle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-// Custom Reddit icon
-const RedditIcon = (props: LucideProps) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <circle cx="12" cy="12" r="10" />
-    <path d="M14.5 17c-1.5 1-3.5 1-5 0" />
-    <circle cx="8.5" cy="12" r="1.5" fill="currentColor" />
-    <circle cx="15.5" cy="12" r="1.5" fill="currentColor" />
-    <path d="M18 8.5c0-.8-.7-1.5-1.5-1.5s-1.5.7-1.5 1.5c0 .4.2.8.5 1" />
-    <path d="M6 8.5c0-.8.7-1.5 1.5-1.5s1.5.7 1.5 1.5c0 .4-.2.8-.5 1" />
-    <path d="M12 7V3l3 2" />
-  </svg>
-)
 
 interface OpportunityData {
   id: number
@@ -64,6 +46,13 @@ interface OpportunityData {
   suggestedAngle?: string
   isPromotionalOpportunity?: boolean
   promotionalReason?: string
+  subreddit?: string
+  mode?: string
+  postTitle?: string
+  postBody?: string
+  score?: number
+  numComments?: number
+  searchQuery?: string
 }
 
 function OpportunityDetailPageInner() {
@@ -221,54 +210,96 @@ function OpportunityDetailPageInner() {
             {/* Content */}
             <div className="flex-1 px-4 lg:px-6 py-6">
               {isLoading ? (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 className="w-8 h-8 animate-spin text-white/40" />
+                /* Skeleton loading state */
+                <div className="max-w-4xl mx-auto space-y-5">
+                  {/* Header skeleton */}
+                  <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-white/[0.06] animate-pulse shrink-0" />
+                      <div className="flex-1 space-y-3">
+                        <div className="h-6 w-3/4 rounded bg-white/[0.06] animate-pulse" />
+                        <div className="flex items-center gap-3">
+                          <div className="h-4 w-20 rounded bg-white/[0.06] animate-pulse" />
+                          <div className="h-4 w-24 rounded bg-white/[0.06] animate-pulse" />
+                          <div className="h-5 w-16 rounded-full bg-white/[0.06] animate-pulse" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Metadata skeleton */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="rounded-xl border border-white/[0.04] bg-[#161616] p-4">
+                        <div className="h-3 w-16 rounded bg-white/[0.06] animate-pulse mb-2" />
+                        <div className="h-5 w-12 rounded bg-white/[0.06] animate-pulse" />
+                      </div>
+                    ))}
+                  </div>
+                  {/* Content skeleton */}
+                  <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-6 space-y-3">
+                    <div className="h-4 w-40 rounded bg-white/[0.06] animate-pulse" />
+                    <div className="space-y-2">
+                      <div className="h-3 w-full rounded bg-white/[0.06] animate-pulse" />
+                      <div className="h-3 w-5/6 rounded bg-white/[0.06] animate-pulse" />
+                      <div className="h-3 w-4/6 rounded bg-white/[0.06] animate-pulse" />
+                    </div>
+                  </div>
+                  {/* Why this matters skeleton */}
+                  <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-6 space-y-3">
+                    <div className="h-4 w-36 rounded bg-white/[0.06] animate-pulse" />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="size-1.5 rounded-full bg-white/[0.06] animate-pulse" />
+                        <div className="h-3 w-3/4 rounded bg-white/[0.06] animate-pulse" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="size-1.5 rounded-full bg-white/[0.06] animate-pulse" />
+                        <div className="h-3 w-2/3 rounded bg-white/[0.06] animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : !opportunity ? (
                 <div className="text-center py-20">
                   <p className="text-white/60">Opportunity not found</p>
                 </div>
               ) : (
-                <div className="max-w-4xl mx-auto space-y-6">
+                <div className="max-w-4xl mx-auto space-y-5">
                   {/* Header Card */}
                   <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-6">
                     <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
-                        <RedditIcon className="w-6 h-6 text-orange-400" />
+                      <div className="w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center shrink-0">
+                        <Globe className="w-5 h-5 text-white/50" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h1 className="text-xl font-semibold text-white mb-2">
-                          {opportunity.title}
+                        <h1 className="text-lg font-semibold text-white mb-2 leading-snug">
+                          {opportunity.postTitle || opportunity.title}
                         </h1>
-                        <div className="flex items-center gap-4 text-sm text-white/50 flex-wrap">
+                        <div className="flex items-center gap-3 text-sm text-white/50 flex-wrap">
+                          {opportunity.subreddit && (
+                            <span className="flex items-center gap-1.5 text-white/60">
+                              <Hash className="w-3.5 h-3.5" />
+                              r/{opportunity.subreddit}
+                            </span>
+                          )}
                           {opportunity.postedAt && (
                             <span className="flex items-center gap-1.5">
-                              <Calendar className="w-4 h-4" />
+                              <Calendar className="w-3.5 h-3.5" />
                               {formatRelativeTime(opportunity.postedAt)}
                             </span>
                           )}
-                          {opportunity.engagement && (
-                            <>
-                              {opportunity.engagement.upvotes !== undefined && (
-                                <span className="flex items-center gap-1.5">
-                                  <TrendingUp className="w-4 h-4" />
-                                  {opportunity.engagement.upvotes} upvotes
-                                </span>
-                              )}
-                              {opportunity.engagement.comments !== undefined && (
-                                <span className="flex items-center gap-1.5">
-                                  <MessageSquare className="w-4 h-4" />
-                                  {opportunity.engagement.comments} comments
-                                </span>
-                              )}
-                            </>
+                          {opportunity.mode && (
+                            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05] text-xs text-white/50">
+                              <Radio className="w-3 h-3" />
+                              {opportunity.mode === 'cited' ? 'Cited' : 'Proactive'}
+                            </span>
                           )}
                           {typeof opportunity.relevanceScore === 'number' && (
                             <span className={cn(
                               "px-2 py-0.5 rounded-full text-xs font-medium",
-                              opportunity.relevanceScore >= 80 
+                              opportunity.relevanceScore >= 80
                                 ? "bg-emerald-500/10 text-emerald-400"
-                                : opportunity.relevanceScore >= 70 
+                                : opportunity.relevanceScore >= 70
                                   ? "bg-amber-500/10 text-amber-400"
                                   : "bg-white/5 text-white/40"
                             )}>
@@ -276,71 +307,126 @@ function OpportunityDetailPageInner() {
                             </span>
                           )}
                         </div>
-                        
-                        {opportunity.url && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-4 gap-2"
-                            onClick={() => window.open(opportunity.url, '_blank', 'noopener')}
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                            View on Reddit
-                          </Button>
-                        )}
                       </div>
                     </div>
                   </div>
-                  
-                  {/* Tracked Prompt */}
-                  {opportunity.trackedPrompt && (
-                    <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-6">
+
+                  {/* Metadata Grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {opportunity.engagement?.upvotes !== undefined && (
+                      <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-4">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <TrendingUp className="w-3.5 h-3.5 text-white/40" />
+                          <span className="text-xs text-white/40">Upvotes</span>
+                        </div>
+                        <span className="text-lg font-medium text-white tabular-nums">{opportunity.engagement.upvotes}</span>
+                      </div>
+                    )}
+                    {opportunity.engagement?.comments !== undefined && (
+                      <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-4">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <MessageSquare className="w-3.5 h-3.5 text-white/40" />
+                          <span className="text-xs text-white/40">Comments</span>
+                        </div>
+                        <span className="text-lg font-medium text-white tabular-nums">{opportunity.engagement.comments}</span>
+                      </div>
+                    )}
+                    {typeof opportunity.relevanceScore === 'number' && (
+                      <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-4">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Eye className="w-3.5 h-3.5 text-white/40" />
+                          <span className="text-xs text-white/40">Relevance</span>
+                        </div>
+                        <span className={cn(
+                          "text-lg font-medium tabular-nums",
+                          opportunity.relevanceScore >= 80 ? "text-emerald-400" :
+                          opportunity.relevanceScore >= 70 ? "text-amber-400" : "text-white/60"
+                        )}>{opportunity.relevanceScore}%</span>
+                      </div>
+                    )}
+                    {opportunity.url && (
+                      <button
+                        onClick={() => window.open(opportunity.url, '_blank', 'noopener')}
+                        className="rounded-xl border border-white/[0.04] bg-[#161616] p-4 text-left hover:bg-white/[0.03] transition-colors"
+                      >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <ExternalLink className="w-3.5 h-3.5 text-white/40" />
+                          <span className="text-xs text-white/40">Source</span>
+                        </div>
+                        <span className="text-sm font-medium text-white/70">View Thread</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Tracked Prompt / Search Query */}
+                  {(opportunity.trackedPrompt || opportunity.searchQuery) && (
+                    <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-5">
                       <div className="flex items-center gap-2 mb-3">
                         <Sparkles className="w-4 h-4 text-amber-400" />
-                        <h2 className="text-sm font-semibold text-white">Tracked Prompt</h2>
+                        <h2 className="text-sm font-medium text-white">
+                          {opportunity.trackedPrompt ? 'Tracked Prompt' : 'Search Query'}
+                        </h2>
                       </div>
-                      <p className="text-sm text-white/70">{opportunity.trackedPrompt}</p>
+                      <p className="text-sm text-white/70 leading-relaxed">
+                        {opportunity.trackedPrompt || opportunity.searchQuery}
+                      </p>
                     </div>
                   )}
-                  
-                  {/* Conversation Snapshot */}
+
+                  {/* Conversation Summary */}
                   {opportunity.conversationSnapshot && (
-                    <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-6">
-                      <h2 className="text-sm font-semibold text-white mb-3">Conversation Summary</h2>
-                      <p className="text-sm text-white/70 whitespace-pre-wrap">
+                    <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-5">
+                      <h2 className="text-sm font-medium text-white mb-3">Conversation Summary</h2>
+                      <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">
                         {opportunity.conversationSnapshot}
                       </p>
                     </div>
                   )}
-                  
+
+                  {/* Original Post Body (if no snapshot) */}
+                  {!opportunity.conversationSnapshot && opportunity.postBody && (
+                    <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-5">
+                      <h2 className="text-sm font-medium text-white mb-3">Post Content</h2>
+                      <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap line-clamp-[12]">
+                        {opportunity.postBody}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Why This Matters */}
                   {opportunity.whyThisMatters && opportunity.whyThisMatters.length > 0 && (
-                    <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-6">
-                      <h2 className="text-sm font-semibold text-white mb-3">Why This Matters</h2>
-                      <ul className="space-y-2">
+                    <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-5">
+                      <h2 className="text-sm font-medium text-white mb-3">Why This Matters</h2>
+                      <ul className="space-y-2.5">
                         {opportunity.whyThisMatters.map((reason, idx) => (
-                          <li key={idx} className="text-sm text-white/70 flex items-start gap-2">
-                            <span className="text-amber-400 mt-1">•</span>
+                          <li key={idx} className="text-sm text-white/70 flex items-start gap-2.5 leading-relaxed">
+                            <span className="text-white/30 mt-0.5 shrink-0">-</span>
                             {reason}
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  
+
                   {/* Suggested Angle */}
                   {opportunity.suggestedAngle && (
-                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6">
-                      <h2 className="text-sm font-semibold text-emerald-400 mb-3">Suggested Response Angle</h2>
-                      <p className="text-sm text-white/80">{opportunity.suggestedAngle}</p>
+                    <div className="rounded-xl border border-emerald-500/10 bg-emerald-500/[0.03] p-5">
+                      <div className="flex items-center gap-2 mb-3">
+                        <CheckCircle className="w-4 h-4 text-emerald-400" />
+                        <h2 className="text-sm font-medium text-emerald-400">Suggested Response Angle</h2>
+                      </div>
+                      <p className="text-sm text-white/70 leading-relaxed">{opportunity.suggestedAngle}</p>
                     </div>
                   )}
-                  
+
                   {/* Promotional Warning */}
                   {opportunity.isPromotionalOpportunity && (
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-6">
-                      <h2 className="text-sm font-semibold text-amber-400 mb-2">⚠️ Promotional Opportunity</h2>
-                      <p className="text-sm text-white/70">
+                    <div className="rounded-xl border border-amber-500/10 bg-amber-500/[0.03] p-5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-400" />
+                        <h2 className="text-sm font-medium text-amber-400">Promotional Opportunity</h2>
+                      </div>
+                      <p className="text-sm text-white/60 leading-relaxed">
                         {opportunity.promotionalReason || "This appears to be a promotional opportunity. Engage carefully to avoid appearing spammy."}
                       </p>
                     </div>

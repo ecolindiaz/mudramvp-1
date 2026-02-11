@@ -8,7 +8,7 @@
  * 
  * Cron Schedule:
  * - Combined (default): Every 3 days at 9am UTC
- *   "0 9 */3 * *" → POST /api/conversation-radar/cron
+ *   Schedule: "0 9 *\/3 * *" — POST /api/conversation-radar/cron
  */
 
 import { prisma } from '@/lib/prisma';

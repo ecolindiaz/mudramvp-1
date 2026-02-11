@@ -176,11 +176,12 @@ export async function GET(
             provider: providerName,
             model: providerName,
             brandMentioned: matchingTest.brandMentioned || false,
-            brandPosition: matchingTest.brandPosition || null,
+            brandPosition: matchingTest.brandPosition ?? null,
             sentiment: matchingTest.sentiment || 'neutral',
             response: matchingTest.response || '',
             competitorsMentioned: competitors,
             competitorPositions: competitorPositions,
+            competitorSentiments: matchingTest.competitorSentiments || {},
             citations: citations,
             sources: sources,
             timestamp: matchingTest.timestamp || runDate,
@@ -260,8 +261,23 @@ export async function GET(
       sentimentCounts.Positive >= sentimentCounts.Neutral && sentimentCounts.Positive >= sentimentCounts.Negative ? 'positive' :
       sentimentCounts.Negative >= sentimentCounts.Neutral ? 'negative' : 'neutral'
 
+    // Normalize competitor names for aggregation to deduplicate variants
+    // e.g. "Scale AI" and "ScaleAI" → same entry
+    const normalizeForAggregation = (name: string): string => {
+      return name
+        .toLowerCase()
+        .trim()
+        .replace(/\s*\(.*?\)\s*$/, '')
+        .replace(/\s*(inc\.?|llc\.?|ltd\.?|corp\.?|co\.?|company)$/i, '')
+        .replace(/[,!?'"()&]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    }
+
     // Step 6: Calculate per-competitor metrics (from filtered data)
+    // Uses normalized keys to deduplicate variants, tracks best displayName
     const competitorMetrics = new Map<string, {
+      displayName: string
       mentions: number
       firegeoScores: number[]
       positions: number[]
@@ -281,8 +297,12 @@ export async function GET(
       const allCompetitorsInTest = new Set([...competitors, ...competitorsFromPositions, ...competitorsFromSentiments])
 
       allCompetitorsInTest.forEach((competitor: string) => {
-        if (!competitorMetrics.has(competitor)) {
-          competitorMetrics.set(competitor, {
+        const normalizedKey = normalizeForAggregation(competitor)
+        if (!normalizedKey) return
+
+        if (!competitorMetrics.has(normalizedKey)) {
+          competitorMetrics.set(normalizedKey, {
+            displayName: competitor,
             mentions: 0,
             firegeoScores: [],
             positions: [],
@@ -290,7 +310,7 @@ export async function GET(
           })
         }
 
-        const metrics = competitorMetrics.get(competitor)!
+        const metrics = competitorMetrics.get(normalizedKey)!
         metrics.mentions += 1
 
         // Calculate per-test Firegeo score for this competitor
@@ -315,7 +335,7 @@ export async function GET(
 
     // Calculate final metrics for each competitor using per-test Firegeo average
     // (Same formula as chart service for consistency)
-    const competitorsWithMetrics = Array.from(competitorMetrics.entries()).map(([name, metrics]) => {
+    const competitorsWithMetrics = Array.from(competitorMetrics.entries()).map(([_normalizedKey, metrics]) => {
       // Average position across all tests where this competitor had a position
       const avgPosition = metrics.positions.length > 0
         ? Math.round((metrics.positions.reduce((sum, pos) => sum + pos, 0) / metrics.positions.length) * 10) / 10
@@ -347,7 +367,7 @@ export async function GET(
       }
       
       return {
-        name,
+        name: metrics.displayName,
         visibility,
         mentions: metrics.mentions,
         position: avgPosition,
@@ -374,12 +394,13 @@ export async function GET(
     }))
 
     // Step 7: Build competitive landscape
-    const competitorsList = Array.from(allCompetitorMentions)
+    // Derive mentioned list and total from normalized competitorMetrics (no duplicates)
+    const normalizedCompetitorNames = competitorsWithMetrics.map(c => c.name)
     const competitiveLandscape = {
-      mentioned: competitorsList,
-      competitorsWithMetrics: competitorsWithDomains, // Add detailed metrics with domains
+      mentioned: normalizedCompetitorNames,
+      competitorsWithMetrics: competitorsWithDomains,
       brandPosition: averagePosition != null ? Math.round(averagePosition * 10) / 10 : null,
-      totalCompetitors: competitorsList.length
+      totalCompetitors: normalizedCompetitorNames.length
     }
 
     // Step 8: Format responses by provider (already filtered)

@@ -38,7 +38,7 @@ const geminiRedirectInFlight = new Map<string, Promise<{ url: string; title: str
 const REDIRECT_CACHE_TTL = 1000 * 60 * 60; // 1 hour cache TTL
 
 // Model used to extract brand/competitor entities from provider response text.
-const COMPETITOR_EXTRACTION_MODEL = 'gpt-5-mini-2025-08-07';
+const COMPETITOR_EXTRACTION_MODEL = 'gpt-5.2';
 
 /**
  * Resolves a Gemini grounding redirect URL to get the actual source URL.
@@ -409,15 +409,17 @@ function matchCompetitorNames(name1: string, name2: string): boolean {
  * (e.g., brand mentioned in prose before a list) as a ranking position.
  * In such cases, we return null to indicate no explicit ranking was found.
  */
+const MAX_VALID_POSITION = 20;
+
 function validateBrandPosition(position: number | null | undefined): number | undefined {
   if (position === null || position === undefined) {
     return undefined;
   }
-  // Position must be >= 1 to be a valid ranking (rankings start at 1, not 0)
-  if (position >= 1) {
+  // Position must be >= 1 and <= MAX_VALID_POSITION to be a valid ranking
+  if (position >= 1 && position <= MAX_VALID_POSITION) {
     return position;
   }
-  // Position 0 or negative = LLM error, treat as no ranking
+  // Position 0, negative, or > 20 = LLM error, treat as no ranking
   console.warn(`[Position Validation] Invalid position ${position} detected, treating as no ranking`);
   return undefined;
 }
@@ -624,6 +626,31 @@ export function filterValidCompetitors(competitors: string[], brandName: string)
       ' because ', ' since ', ' although ', ' though ', ' while ',
     ];
     if (actionPatterns.some(pattern => compLower.includes(pattern))) return false;
+
+    // Filter "&"/"and" category phrases like "AI-enhanced coding & collaboration"
+    // Keeps real companies like "AT&T", "H&M", "Ernst & Young"
+    if (compLower.includes('&') || compLower.includes(' and ')) {
+      const separator = compLower.includes('&') ? '&' : ' and ';
+      const parts = compLower.split(separator).map(p => p.trim());
+      if (parts.length === 2) {
+        const genericDescriptors = [
+          'coding', 'collaboration', 'development', 'deployment', 'testing',
+          'monitoring', 'analytics', 'automation', 'integration', 'optimization',
+          'management', 'security', 'performance', 'infrastructure', 'scaling',
+          'hosting', 'computing', 'networking', 'storage', 'processing',
+          'training', 'inference', 'modeling', 'visualization', 'reporting',
+        ];
+        const endsWithDescriptor = (s: string) => genericDescriptors.some(d => s.endsWith(d));
+        if (endsWithDescriptor(parts[0]) && endsWithDescriptor(parts[1])) return false;
+      }
+    }
+
+    // Filter hyphenated descriptive phrases like "AI-enhanced coding tools"
+    // Keeps real companies like "Micro-Star"
+    if (comp.includes('-') && words.length >= 3) {
+      const descriptorHyphens = ['-enhanced', '-powered', '-driven', '-based', '-enabled', '-native', '-first', '-focused', '-oriented', '-optimized'];
+      if (descriptorHyphens.some(h => compLower.includes(h))) return false;
+    }
 
     // Max 3 spaces (4 words) - company names rarely have more
     // Examples that pass: "The Home Depot", "JPMorgan Chase & Co"
@@ -1178,143 +1205,49 @@ Return ONLY a valid JSON object with these exact keys:
   "explanation": "brief reasoning"
 }`;
 
-    const analysisResponse = await openai.chat.completions.create({
-      model: COMPETITOR_EXTRACTION_MODEL,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully for both the brand and competitors. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
-        },
-        {
-          role: 'user',
-          content: analysisPrompt,
-        },
-      ],
-      max_completion_tokens: 2000,
-      response_format: { type: "json_object" }, // Force JSON output
-    });
-
-    const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
-
-    // Try to parse JSON, with fallback
-    let analysis;
-    try {
-      // Remove markdown code blocks if present
-      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
-      analysis = JSON.parse(cleanedText);
-      cleanLLMAnalysisNames(analysis);
-    } catch (parseError) {
-      console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
-
-      // Fallback: manual regex extraction with smart filtering
-      const brandNameLower = config.brandName.toLowerCase();
-      const textLower = text.toLowerCase();
-
-      // Remove common false positive contexts before checking
-      const cleanedTextForBrand = textLower
-        // Remove URLs (http://... or https://... or www...)
-        .replace(/https?:\/\/[^\s]+/g, '')
-        .replace(/www\.[^\s]+/g, '')
-        // Remove email addresses
-        .replace(/[\w.-]+@[\w.-]+\.\w+/g, '')
-        // Remove code blocks (markdown ``` or backticks)
-        .replace(/```[\s\S]*?```/g, '')
-        .replace(/`[^`]+`/g, '')
-        // Remove file paths (contains slashes)
-        .replace(/[a-z0-9_-]+\/[a-z0-9_\/-]+/gi, '');
-      
-      // Use word boundary regex to avoid matching partial words
-      const wordBoundaryRegex = new RegExp(`\\b${brandNameLower}\\b`, 'i');
-      const brandMentioned = wordBoundaryRegex.test(cleanedTextForBrand);
-      
-      // Try to extract position with regex
-      let brandPosition = null;
-      const positionPatterns = [
-        new RegExp(`(?:^|\\n)(?:###?\\s*)?([1-9]\\d?)(?:st|nd|rd|th)(?:\\s*[Pp]lace)?:?\\s*\\*?\\*?${config.brandName}`, 'i'),
-        new RegExp(`#([1-9]\\d?):\\s*${config.brandName}`, 'i'),
-        // More specific: "Brand is ranked #2" or "Brand ranked #2"
-        new RegExp(`${config.brandName}(?:\\s+is)?\\s+(?:ranked?|position(?:ed)?)\\s*#?([1-9]\\d?)`, 'i'),
-        // Numbered list: "2. Scale AI" or "## 2. Scale AI"
-        new RegExp(`(?:^|\\n)\\s*(?:#{1,3}\\s*)?(\\d+)\\.\\s+\\*?\\*?${config.brandName}\\b`, 'im'),
-      ];
-
-      for (const pattern of positionPatterns) {
-        const match = text.match(pattern);
-        if (match) {
-          brandPosition = parseInt(match[1], 10);
-          break;
-        }
-      }
-
-      // If no position found, try bullet list detection
-      if (brandPosition == null) {
-        brandPosition = extractBrandPositionFromBulletList(text, config.brandName);
-      }
-
-      // Heuristic sentiment analysis
-      let sentiment: 'positive' | 'neutral' | 'negative' = 'neutral';
-      if (brandMentioned) {
-        const positiveWords = ['best', 'top', 'leading', 'premier', 'excellent', 'outstanding', 'highly regarded', 'prestigious', 'renowned'];
-        const negativeWords = ['worst', 'poor', 'inadequate', 'failing', 'struggling'];
-        
-        const contextStart = Math.max(0, textLower.indexOf(brandNameLower) - 100);
-        const contextEnd = Math.min(textLower.length, textLower.indexOf(brandNameLower) + brandNameLower.length + 100);
-        const context = textLower.substring(contextStart, contextEnd);
-        
-        const hasPositive = positiveWords.some(word => context.includes(word));
-        const hasNegative = negativeWords.some(word => context.includes(word));
-        
-        if (hasPositive && !hasNegative) sentiment = 'positive';
-        else if (hasNegative && !hasPositive) sentiment = 'negative';
-        else if (brandPosition != null && brandPosition <= 3) sentiment = 'positive'; // Top 3 ranking = positive
-      }
-      
-      // Try to extract competitor names (basic heuristic)
-      const competitors: string[] = [];
-      
-      // Pattern 1: Numbered lists with company names (e.g., "2. Techstars")
-      const numberedListPattern = /(?:^|\n)\s*(?:[0-9]+[\.\)]|[-•])\s*\*?\*?([A-Z][A-Za-z0-9\s&]+(?:AI|Labs|Inc|LLC|Corp|Ltd)?)\*?\*?(?:\s*[-:]|\n|$)/g;
-      let match;
-      while ((match = numberedListPattern.exec(text)) !== null) {
-        const companyName = match[1].trim();
-        if (companyName !== config.brandName && companyName.length > 2 && companyName.length < 50) {
-          if (!competitors.includes(companyName)) {
-            competitors.push(companyName);
-          }
-        }
-      }
-      
-      // Pattern 2: Companies mentioned in comparisons (e.g., "including X, Y, and Z")
-      const comparisonPattern = /(?:including|such as|like|versus|vs|compared to|alternatives?:?)\s+([A-Z][A-Za-z0-9\s,&]+(?:AI|Labs|Inc|LLC|Corp|Ltd)?)/gi;
-      while ((match = comparisonPattern.exec(text)) !== null) {
-        const companyList = match[1].split(/,\s*(?:and\s+)?|(?:\s+and\s+)/);
-        companyList.forEach(name => {
-          const companyName = name.trim().replace(/\.$/, '');
-          if (companyName !== config.brandName && companyName.length > 2 && companyName.length < 50) {
-            if (!competitors.includes(companyName)) {
-              competitors.push(companyName);
-            }
-          }
+    // LLM extraction with retry (max 2 attempts, no regex fallback)
+    let analysis: any = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const analysisResponse = await openai.chat.completions.create({
+          model: COMPETITOR_EXTRACTION_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully for both the brand and competitors. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
+            },
+            {
+              role: 'user',
+              content: analysisPrompt,
+            },
+          ],
+          max_completion_tokens: 2000,
+          response_format: { type: "json_object" },
         });
+
+        const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
+        const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+        analysis = JSON.parse(cleanedText);
+        cleanLLMAnalysisNames(analysis);
+        break; // Success, exit retry loop
+      } catch (parseError) {
+        console.warn(`[OpenAI] Extraction attempt ${attempt}/2 failed:`, parseError);
+        if (attempt === 2) {
+          console.warn('[OpenAI] Both extraction attempts failed, using minimal safe fallback');
+          analysis = {
+            brandMentioned: validateBrandMention(text, config.brandName),
+            brandPosition: null,
+            competitorsMentioned: [],
+            competitorPositions: {},
+            competitorSentiments: {},
+            sentiment: 'neutral',
+            confidence: 0.3,
+          };
+        }
       }
-      
-      // Limit to top 10 competitors
-      const finalCompetitors = competitors.slice(0, 10);
-      
-      analysis = {
-        brandMentioned,
-        brandPosition,
-        competitorsMentioned: finalCompetitors,
-        competitorPositions: {}, // Fallback doesn't extract positions
-        sentiment,
-        confidence: 0.6,
-        explanation: 'Fallback regex extraction used',
-      };
     }
 
-    // Cross-validate LLM positions with regex extraction
-    const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
-    const mergedPositions = mergeCompetitorPositions(analysis, regexPositions, config.brandName, 'OpenAI');
+    const mergedPositions = analysis.competitorPositions || {};
 
     // POST-PROCESSING VALIDATION
     // 1. Validate brand mention using regex (more reliable than LLM)
@@ -1334,11 +1267,12 @@ Return ONLY a valid JSON object with these exact keys:
       console.warn(`[OpenAI] Filtered ${filtered.length} invalid competitors:`, filtered.slice(0, 5));
     }
 
-    // 3. Filter positions to only include validated competitors
+    // 3. Filter positions to only include validated competitors with valid range
     const validatedPositions: Record<string, number> = {};
     validatedCompetitors.forEach(comp => {
-      if (mergedPositions[comp]) {
-        validatedPositions[comp] = mergedPositions[comp];
+      const pos = mergedPositions[comp];
+      if (pos && pos >= 1 && pos <= MAX_VALID_POSITION) {
+        validatedPositions[comp] = pos;
       }
     });
 
@@ -1514,116 +1448,49 @@ Return ONLY a valid JSON object with these exact keys:
   "explanation": "brief reasoning"
 }`;
 
-    const analysisResponse = await openai.chat.completions.create({
-      model: COMPETITOR_EXTRACTION_MODEL,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully for both the brand and competitors. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
-        },
-        {
-          role: 'user',
-          content: analysisPrompt,
-        },
-      ],
-      max_completion_tokens: 2000,
-      response_format: { type: "json_object" },
-    });
-
-    const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
-
-    // Parse JSON
-    let analysis;
-    try {
-      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
-      analysis = JSON.parse(cleanedText);
-      cleanLLMAnalysisNames(analysis);
-    } catch (parseError) {
-      console.warn(`Failed to parse AI analysis, using fallback extraction:`, parseError);
-
-      // Fallback: manual regex extraction with smart filtering
-      const brandNameLower = config.brandName.toLowerCase();
-      const textLower = text.toLowerCase();
-
-      // Remove common false positive contexts before checking
-      const cleanedText = textLower
-        // Remove URLs (http://... or https://... or www...)
-        .replace(/https?:\/\/[^\s]+/g, '')
-        .replace(/www\.[^\s]+/g, '')
-        // Remove email addresses
-        .replace(/[\w.-]+@[\w.-]+\.\w+/g, '')
-        // Remove code blocks (markdown ``` or backticks)
-        .replace(/```[\s\S]*?```/g, '')
-        .replace(/`[^`]+`/g, '')
-        // Remove file paths (contains slashes)
-        .replace(/[a-z0-9_-]+\/[a-z0-9_\/-]+/gi, '');
-      
-      // Use word boundary regex to avoid matching partial words
-      const wordBoundaryRegex = new RegExp(`\\b${brandNameLower}\\b`, 'i');
-      const brandMentioned = wordBoundaryRegex.test(cleanedText);
-      
-      let brandPosition = null;
-      const positionPatterns = [
-        new RegExp(`(?:^|\\n)(?:###?\\s*)?([1-9]\\d?)(?:st|nd|rd|th)(?:\\s*[Pp]lace)?:?\\s*\\*?\\*?${config.brandName}`, 'i'),
-        new RegExp(`#([1-9]\\d?):\\s*${config.brandName}`, 'i'),
-        new RegExp(`(?:ranked?|position)\\s*#?([1-9]\\d?).*${config.brandName}`, 'i'),
-      ];
-
-      for (const pattern of positionPatterns) {
-        const match = text.match(pattern);
-        if (match && match[1]) {
-          brandPosition = parseInt(match[1], 10);
-          break;
-        }
-      }
-
-      const sentiment: 'positive' | 'neutral' | 'negative' = brandMentioned ? 'neutral' : 'neutral';
-
-      // Try to extract competitor names (basic heuristic)
-      const competitors: string[] = [];
-      
-      // Pattern 1: Numbered lists with company names
-      const numberedListPattern = /(?:^|\n)\s*(?:[0-9]+[\.\)]|[-•])\s*\*?\*?([A-Z][A-Za-z0-9\s&]+(?:AI|Labs|Inc|LLC|Corp|Ltd)?)\*?\*?(?:\s*[-:]|\n|$)/g;
-      let match;
-      while ((match = numberedListPattern.exec(text)) !== null) {
-        const companyName = match[1].trim();
-        if (companyName !== config.brandName && companyName.length > 2 && companyName.length < 50) {
-          if (!competitors.includes(companyName)) {
-            competitors.push(companyName);
-          }
-        }
-      }
-      
-      // Pattern 2: Companies in comparisons
-      const comparisonPattern = /(?:including|such as|like|versus|vs|compared to|alternatives?:?)\s+([A-Z][A-Za-z0-9\s,&]+(?:AI|Labs|Inc|LLC|Corp|Ltd)?)/gi;
-      while ((match = comparisonPattern.exec(text)) !== null) {
-        const companyList = match[1].split(/,\s*(?:and\s+)?|(?:\s+and\s+)/);
-        companyList.forEach(name => {
-          const companyName = name.trim().replace(/\.$/, '');
-          if (companyName !== config.brandName && companyName.length > 2 && companyName.length < 50) {
-            if (!competitors.includes(companyName)) {
-              competitors.push(companyName);
-            }
-          }
+    // LLM extraction with retry (max 2 attempts, no regex fallback)
+    let analysis: any = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const analysisResponse = await openai.chat.completions.create({
+          model: COMPETITOR_EXTRACTION_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert at analyzing AI responses for brand visibility. Extract position/ranking numbers carefully for both the brand and competitors. Respond ONLY with valid JSON - no markdown, no code blocks, just the JSON object.',
+            },
+            {
+              role: 'user',
+              content: analysisPrompt,
+            },
+          ],
+          max_completion_tokens: 2000,
+          response_format: { type: "json_object" },
         });
-      }
-      
-      const finalCompetitors = competitors.slice(0, 10);
 
-      analysis = {
-        brandMentioned,
-        brandPosition,
-        competitorsMentioned: finalCompetitors,
-        competitorPositions: {}, // Fallback doesn't extract positions
-        sentiment,
-        confidence: 0.6,
-        explanation: 'Fallback regex extraction used',
-      };
+        const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
+        const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+        analysis = JSON.parse(cleanedText);
+        cleanLLMAnalysisNames(analysis);
+        break;
+      } catch (parseError) {
+        console.warn(`[Perplexity] Extraction attempt ${attempt}/2 failed:`, parseError);
+        if (attempt === 2) {
+          console.warn('[Perplexity] Both extraction attempts failed, using minimal safe fallback');
+          analysis = {
+            brandMentioned: validateBrandMention(text, config.brandName),
+            brandPosition: null,
+            competitorsMentioned: [],
+            competitorPositions: {},
+            competitorSentiments: {},
+            sentiment: 'neutral',
+            confidence: 0.3,
+          };
+        }
+      }
     }
 
-    // Cross-validate LLM positions with regex extraction
-    const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
-    const mergedPositions = mergeCompetitorPositions(analysis, regexPositions, config.brandName, 'Perplexity');
+    const mergedPositions = analysis.competitorPositions || {};
 
     // CRITICAL: Validate brand mention using regex (not just LLM analysis)
     const regexBrandMentioned = validateBrandMention(text, config.brandName);
@@ -1634,7 +1501,8 @@ Return ONLY a valid JSON object with these exact keys:
     // Filter positions and sentiments to only include validated competitors
     const validatedPositions: Record<string, number> = {};
     validatedCompetitors.forEach(comp => {
-      if (mergedPositions[comp]) validatedPositions[comp] = mergedPositions[comp];
+      const pos = mergedPositions[comp];
+      if (pos && pos >= 1 && pos <= MAX_VALID_POSITION) validatedPositions[comp] = pos;
     });
     const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
     validatedCompetitors.forEach(comp => {
@@ -1815,44 +1683,49 @@ Return ONLY a valid JSON object with these exact keys:
   "confidence": number
 }`;
 
-    const analysisResponse = await openai.chat.completions.create({
-      model: COMPETITOR_EXTRACTION_MODEL,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert at analyzing AI responses for brand visibility. Respond ONLY with valid JSON.',
-        },
-        {
-          role: 'user',
-          content: analysisPrompt,
-        },
-      ],
-      max_completion_tokens: 2000,
-      response_format: { type: "json_object" },
-    });
+    // LLM extraction with retry (max 2 attempts, no regex fallback)
+    let analysis: any = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const analysisResponse = await openai.chat.completions.create({
+          model: COMPETITOR_EXTRACTION_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert at analyzing AI responses for brand visibility. Respond ONLY with valid JSON.',
+            },
+            {
+              role: 'user',
+              content: analysisPrompt,
+            },
+          ],
+          max_completion_tokens: 2000,
+          response_format: { type: "json_object" },
+        });
 
-    const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
-    let analysis;
-    try {
-      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
-      analysis = JSON.parse(cleanedText);
-      cleanLLMAnalysisNames(analysis);
-    } catch (parseError) {
-      console.warn('[Anthropic] Failed to parse analysis');
-      analysis = {
-        brandMentioned: validateBrandMention(text, config.brandName),
-        brandPosition: null,
-        competitorsMentioned: [],
-        competitorPositions: {},
-        competitorSentiments: {},
-        sentiment: 'neutral',
-        confidence: 0.5,
-      };
+        const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
+        const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+        analysis = JSON.parse(cleanedText);
+        cleanLLMAnalysisNames(analysis);
+        break;
+      } catch (parseError) {
+        console.warn(`[Anthropic] Extraction attempt ${attempt}/2 failed:`, parseError);
+        if (attempt === 2) {
+          console.warn('[Anthropic] Both extraction attempts failed, using minimal safe fallback');
+          analysis = {
+            brandMentioned: validateBrandMention(text, config.brandName),
+            brandPosition: null,
+            competitorsMentioned: [],
+            competitorPositions: {},
+            competitorSentiments: {},
+            sentiment: 'neutral',
+            confidence: 0.3,
+          };
+        }
+      }
     }
 
-    // Cross-validate LLM positions with regex extraction
-    const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
-    const mergedPositions = mergeCompetitorPositions(analysis, regexPositions, config.brandName, 'Anthropic');
+    const mergedPositions = analysis.competitorPositions || {};
 
     const regexBrandMentioned = validateBrandMention(text, config.brandName);
     const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
@@ -1860,7 +1733,8 @@ Return ONLY a valid JSON object with these exact keys:
     // Filter positions and sentiments to only include validated competitors
     const validatedPositions: Record<string, number> = {};
     validatedCompetitors.forEach(comp => {
-      if (mergedPositions[comp]) validatedPositions[comp] = mergedPositions[comp];
+      const pos = mergedPositions[comp];
+      if (pos && pos >= 1 && pos <= MAX_VALID_POSITION) validatedPositions[comp] = pos;
     });
     const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
     validatedCompetitors.forEach(comp => {
@@ -2019,44 +1893,49 @@ Return ONLY a valid JSON object with these exact keys:
   "confidence": number
 }`;
 
-    const analysisResponse = await openai.chat.completions.create({
-      model: COMPETITOR_EXTRACTION_MODEL,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert at analyzing AI responses for brand visibility. Respond ONLY with valid JSON.',
-        },
-        {
-          role: 'user',
-          content: analysisPrompt,
-        },
-      ],
-      max_completion_tokens: 2000,
-      response_format: { type: "json_object" },
-    });
+    // LLM extraction with retry (max 2 attempts, no regex fallback)
+    let analysis: any = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const analysisResponse = await openai.chat.completions.create({
+          model: COMPETITOR_EXTRACTION_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert at analyzing AI responses for brand visibility. Respond ONLY with valid JSON.',
+            },
+            {
+              role: 'user',
+              content: analysisPrompt,
+            },
+          ],
+          max_completion_tokens: 2000,
+          response_format: { type: "json_object" },
+        });
 
-    const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
-    let analysis;
-    try {
-      const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
-      analysis = JSON.parse(cleanedText);
-      cleanLLMAnalysisNames(analysis);
-    } catch (parseError) {
-      console.warn('[Google] Failed to parse analysis');
-      analysis = {
-        brandMentioned: validateBrandMention(text, config.brandName),
-        brandPosition: null,
-        competitorsMentioned: [],
-        competitorPositions: {},
-        competitorSentiments: {},
-        sentiment: 'neutral',
-        confidence: 0.5,
-      };
+        const analysisText = analysisResponse.choices[0]?.message?.content || '{}';
+        const cleanedText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
+        analysis = JSON.parse(cleanedText);
+        cleanLLMAnalysisNames(analysis);
+        break;
+      } catch (parseError) {
+        console.warn(`[Google] Extraction attempt ${attempt}/2 failed:`, parseError);
+        if (attempt === 2) {
+          console.warn('[Google] Both extraction attempts failed, using minimal safe fallback');
+          analysis = {
+            brandMentioned: validateBrandMention(text, config.brandName),
+            brandPosition: null,
+            competitorsMentioned: [],
+            competitorPositions: {},
+            competitorSentiments: {},
+            sentiment: 'neutral',
+            confidence: 0.3,
+          };
+        }
+      }
     }
 
-    // Cross-validate LLM positions with regex extraction
-    const regexPositions = extractCompetitorPositionsWithRegex(text, config.brandName);
-    const mergedPositions = mergeCompetitorPositions(analysis, regexPositions, config.brandName, 'Google');
+    const mergedPositions = analysis.competitorPositions || {};
 
     const regexBrandMentioned = validateBrandMention(text, config.brandName);
     const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
@@ -2064,7 +1943,8 @@ Return ONLY a valid JSON object with these exact keys:
     // Filter positions and sentiments to only include validated competitors
     const validatedPositions: Record<string, number> = {};
     validatedCompetitors.forEach(comp => {
-      if (mergedPositions[comp]) validatedPositions[comp] = mergedPositions[comp];
+      const pos = mergedPositions[comp];
+      if (pos && pos >= 1 && pos <= MAX_VALID_POSITION) validatedPositions[comp] = pos;
     });
     const validatedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
     validatedCompetitors.forEach(comp => {

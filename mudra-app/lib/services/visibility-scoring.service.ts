@@ -156,14 +156,8 @@ function calculateCategoryScore(categoryTests: PromptTestResult[]): {
     
     // Competitive tests: position-based scoring
     if (competitiveTests.length > 0) {
-      const rankedCompetitiveTests = competitiveTests.filter(t => 
-        t.brandPosition !== undefined && 
-        t.brandPosition !== null && 
-        t.brandPosition > 0
-      );
-      
       for (const test of competitiveTests) {
-        if (test.brandPosition && test.brandPosition > 0) {
+        if (test.brandPosition != null && test.brandPosition >= 0) {
           // Position-based score: #1 = 100, #2 = 90, #3 = 80, etc.
           const positionScore = Math.max(0, 110 - (test.brandPosition * 10));
           totalScore += positionScore;
@@ -229,14 +223,14 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
   const mentionRate = totalMentions / totalPrompts;
 
   // Calculate average position (only for tests with position data)
-  const rankedTests = mentionedTests.filter(t => 
-    t.brandPosition !== undefined && 
-    t.brandPosition !== null && 
-    t.brandPosition > 0
+  const rankedTests = mentionedTests.filter(t =>
+    t.brandPosition !== undefined &&
+    t.brandPosition !== null &&
+    t.brandPosition >= 0
   );
-  
+
   const averagePosition = rankedTests.length > 0
-    ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length) * 10) / 10
+    ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition ?? 0), 0) / rankedTests.length) * 10) / 10
     : 0;
 
   // Calculate visibility score using per-test Firegeo average
@@ -245,7 +239,7 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
   const firegeoScores = tests.map(t => {
     if (!t.brandMentioned) return 0;
     let score = 50;
-    if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0) {
+    if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition >= 0) {
       score += Math.max(0, (10 - t.brandPosition) / 10) * 50;
     }
     return Math.round(score);
@@ -306,7 +300,7 @@ export function calculatePerPromptScore(test: PromptTestResult): PerPromptScore 
     visibilityScore = 50;
 
     const pos = test.brandPosition;
-    if (pos !== undefined && pos !== null && pos > 0) {
+    if (pos !== undefined && pos !== null && pos >= 0) {
       position = pos;
       // Position bonus: 0-45 points based on position (Firegeo formula)
       // Position 1 = 45 points, Position 10 = 0 points

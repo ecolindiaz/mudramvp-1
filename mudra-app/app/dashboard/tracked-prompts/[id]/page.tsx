@@ -151,8 +151,35 @@ type CitationSource = {
   chatsWithCitation?: number
 }
 
+// Recursively highlight brand name in React children (for use inside ReactMarkdown output)
+function highlightBrandInChildren(children: React.ReactNode, brandName: string | undefined): React.ReactNode {
+  if (!brandName) return children
+  const escaped = brandName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(${escaped})`, 'gi')
+
+  return React.Children.map(children, (child) => {
+    if (typeof child === 'string') {
+      const parts = child.split(regex)
+      if (parts.length === 1) return child
+      return parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-emerald-500/20 text-emerald-300 rounded-sm px-0.5">{part}</mark>
+        ) : (
+          <React.Fragment key={i}>{part}</React.Fragment>
+        )
+      )
+    }
+    if (React.isValidElement(child) && child.props?.children) {
+      return React.cloneElement(child as React.ReactElement<any>, {
+        children: highlightBrandInChildren(child.props.children, brandName),
+      })
+    }
+    return child
+  })
+}
+
 // Response Renderer Component with copy, expand/collapse, and formatting
-function ResponseRenderer({ responseText }: { responseText: string }) {
+function ResponseRenderer({ responseText, brandName }: { responseText: string; brandName?: string }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -208,19 +235,19 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
           remarkPlugins={[remarkGfm]}
           components={{
             h1: ({ children }) => (
-              <h1 className="text-[16px] font-bold text-white/95 mt-5 mb-3 first:mt-0">{children}</h1>
+              <h1 className="text-[16px] font-bold text-white/95 mt-5 mb-3 first:mt-0">{highlightBrandInChildren(children, brandName)}</h1>
             ),
             h2: ({ children }) => (
-              <h2 className="text-[15px] font-semibold text-white/90 mt-5 mb-2.5 first:mt-0">{children}</h2>
+              <h2 className="text-[15px] font-semibold text-white/90 mt-5 mb-2.5 first:mt-0">{highlightBrandInChildren(children, brandName)}</h2>
             ),
             h3: ({ children }) => (
-              <h3 className="text-[14px] font-semibold text-white/90 mt-4 mb-2 first:mt-0">{children}</h3>
+              <h3 className="text-[14px] font-semibold text-white/90 mt-4 mb-2 first:mt-0">{highlightBrandInChildren(children, brandName)}</h3>
             ),
             h4: ({ children }) => (
-              <h4 className="text-[13px] font-semibold text-white/90 mt-3 mb-1.5">{children}</h4>
+              <h4 className="text-[13px] font-semibold text-white/90 mt-3 mb-1.5">{highlightBrandInChildren(children, brandName)}</h4>
             ),
             p: ({ children }) => (
-              <p className="mb-3 text-white/60 leading-[1.7] last:mb-0 break-words">{children}</p>
+              <p className="mb-3 text-white/60 leading-[1.7] last:mb-0 break-words">{highlightBrandInChildren(children, brandName)}</p>
             ),
             ul: ({ children }) => (
               <ul className="my-3 ml-4 space-y-2 list-disc list-outside">{children}</ul>
@@ -229,7 +256,7 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
               <ol className="my-3 ml-4 space-y-2 list-decimal list-outside">{children}</ol>
             ),
             li: ({ children }) => (
-              <li className="text-white/60 leading-[1.6] pl-1">{children}</li>
+              <li className="text-white/60 leading-[1.6] pl-1">{highlightBrandInChildren(children, brandName)}</li>
             ),
             strong: ({ children }) => (
               <strong className="text-white/90 font-medium">{children}</strong>
@@ -252,7 +279,7 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
               <pre className="bg-white/[0.04] border border-white/[0.08] rounded-lg my-4 p-4 overflow-x-auto max-w-full">{children}</pre>
             ),
             blockquote: ({ children }) => (
-              <blockquote className="border-l-2 border-white/20 pl-4 my-4 text-white/50 italic">{children}</blockquote>
+              <blockquote className="border-l-2 border-white/20 pl-4 my-4 text-white/50 italic">{highlightBrandInChildren(children, brandName)}</blockquote>
             ),
             a: ({ href, children }) => (
               <a href={href} className="text-emerald-400/80 hover:text-emerald-400 transition-colors break-words" target="_blank" rel="noopener noreferrer">{children}</a>
@@ -275,10 +302,10 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
               <tr className="hover:bg-white/[0.02] transition-colors">{children}</tr>
             ),
             th: ({ children }) => (
-              <th className="text-left text-white/80 font-medium px-3 py-2.5">{children}</th>
+              <th className="text-left text-white/80 font-medium px-3 py-2.5">{highlightBrandInChildren(children, brandName)}</th>
             ),
             td: ({ children }) => (
-              <td className="text-white/60 px-3 py-2.5">{children}</td>
+              <td className="text-white/60 px-3 py-2.5">{highlightBrandInChildren(children, brandName)}</td>
             ),
           }}
         >
@@ -379,7 +406,7 @@ type ChatHistoryEntry = {
   avgPosition: number
   date: string
   mentioned: boolean
-  position: number
+  position: number | null
   extraMentions: number
   fullResponse: string
   responseCitations?: { url: string; domain: string; title?: string; type?: 'Example' | 'Listicle' | 'Blog Post' | 'Case Study' | 'Docs' | 'Other' }[]
@@ -776,10 +803,10 @@ function TrackedPromptDeepViewInner() {
         snippet,
         rank: index + 1,
         timeAgo,
-        avgPosition: result.position || 0,
+        avgPosition: result.position ?? 0,
         date: analysisDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
         mentioned: result.mentioned || false,
-        position: result.position || 0,
+        position: result.position ?? null,
         extraMentions: result.competitorsMentioned?.length || 0,
         fullResponse: result.response || 'No response available',
         responseCitations,
@@ -854,7 +881,7 @@ function TrackedPromptDeepViewInner() {
       rank: 0,
       company: promptData?.brandProfile?.companyName || profile?.companyName || 'Your Brand',
       visibility: promptData?.visibility || 0,
-      position: promptData?.averagePosition || null,
+      position: promptData?.averagePosition ?? null,
       sentiment: (promptData?.sentiment as 'Positive' | 'Neutral' | 'Negative') || 'Neutral',
       isYou: true
     }
@@ -1962,7 +1989,7 @@ function TrackedPromptDeepViewInner() {
                                       )}
                                     </TableCell>
                                     <TableCell className="text-white/90">
-                                      <Badge variant="outline" className="h-6 px-2 text-[12px] rounded-md border-white/[0.04] bg-white/5 text-white/90">#{chat.position}</Badge>
+                                      <Badge variant="outline" className="h-6 px-2 text-[12px] rounded-md border-white/[0.04] bg-white/5 text-white/90">{chat.position != null ? `#${chat.position}` : '—'}</Badge>
                                     </TableCell>
                                     <TableCell>
                                       <div className="flex items-center justify-between gap-2">
@@ -1999,7 +2026,7 @@ function TrackedPromptDeepViewInner() {
                                           <span className="text-white/60">{chat.mentioned ? 'Mentioned' : 'Not mentioned'}</span>
                                         </div>
                                         <span className="text-white/20">·</span>
-                                        <span className="text-white/60">Position <span className="text-white/90">#{chat.position}</span></span>
+                                        <span className="text-white/60">Position <span className="text-white/90">{chat.position != null ? `#${chat.position}` : '—'}</span></span>
                                       </div>
                                     </div>
 
@@ -2010,7 +2037,7 @@ function TrackedPromptDeepViewInner() {
                                     </div>
 
                                     {/* Full Response */}
-                                    <ResponseRenderer responseText={chat.fullResponse || 'No response available'} />
+                                    <ResponseRenderer responseText={chat.fullResponse || 'No response available'} brandName={profile?.companyName} />
 
                                     {/* Citations */}
                                     <CitationsList citations={chat.responseCitations || []} />

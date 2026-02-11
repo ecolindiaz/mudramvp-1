@@ -902,6 +902,7 @@ function TrackedPromptsPageInner() {
   }
 
   const handleRunAnalysis = async () => {
+    if (!profile?.id) return
     setAiStep('running')
     analysisAbortRef.current = false
     const initStatus: Record<number, 'pending'> = {}
@@ -974,8 +975,9 @@ function TrackedPromptsPageInner() {
     // Auto-close if user hasn't already closed
     if (!analysisAbortRef.current) {
       setAddOpen(false)
-      resetAiState()
     }
+    // Always reset AI state after analysis completes so dialog doesn't reopen with stale state
+    resetAiState()
   }
 
   const handleEditPrompt = async () => {

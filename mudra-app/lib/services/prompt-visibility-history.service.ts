@@ -125,6 +125,9 @@ export async function getPromptVisibilityHistory(
         ? new Date(item.analyzedAt)
         : analysis.createdAt
 
+      // Skip invalid dates
+      if (!(entryDate instanceof Date) || isNaN(entryDate.getTime())) continue
+
       // Skip entries outside the date range
       if (entryDate < startDate) continue
 

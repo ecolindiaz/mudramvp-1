@@ -309,7 +309,7 @@ Generate exactly ${count} prompts now.`;
       { role: 'user', content: userPrompt },
     ],
     temperature: 0.7,
-    max_tokens: 2000,
+    max_completion_tokens: 2000,
     response_format: { type: 'json_object' },
   });
 

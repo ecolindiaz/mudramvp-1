@@ -66,14 +66,16 @@ export async function GET(
       )
     }
 
-    // Step 2: Get all GEO analysis results for this brand within date range
+    // Step 2: Get all GEO analysis results for this brand
+    // NOTE: We fetch ALL rows (no date filter on createdAt) because single-prompt
+    // re-analysis appends entries to an existing row without updating its createdAt.
+    // Date filtering is applied per-entry below using each entry's analyzedAt timestamp.
     const days = dateRange === '7d' ? 7 : dateRange === '14d' ? 14 : 30
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
 
     const allAnalysisResults = await prisma.geoAnalysisResult.findMany({
       where: {
-        brandProfileId: profileId,
-        createdAt: { gte: startDate }
+        brandProfileId: profileId
       },
       orderBy: {
         createdAt: 'desc'
@@ -123,7 +125,11 @@ export async function GET(
       }
     }
 
-    console.log(`🔍 Prompt detail: Looking for prompt ${promptId} in ${allAnalyses.length} analysis results from ${allAnalysisResults.length} runs`)
+    // Apply date range filter per-entry (not per-row) so that recently re-analyzed
+    // prompts appear even when the GeoAnalysisResult row was created outside the window
+    const dateFilteredAnalyses = allAnalyses.filter(entry => entry.runDate >= startDate)
+
+    console.log(`🔍 Prompt detail: Looking for prompt ${promptId} in ${dateFilteredAnalyses.length} analysis entries (${allAnalyses.length} total from ${allAnalysisResults.length} runs, filtered to ${days}d)`)
 
     const normalizeText = (text: string): string => {
       return text
@@ -136,61 +142,72 @@ export async function GET(
     const normalizedPromptText = normalizeText(prompt.text)
     console.log(`   Normalized prompt text: "${normalizedPromptText.substring(0, 50)}..."`)
 
-    // Collect all test results for this prompt across all providers and all analysis runs
-    const promptTestResults: any[] = []
-    const allCompetitorMentions = new Set<string>()
+    // Helper: extract matching test results from a set of analyses
+    const extractMatchingResults = (analyses: Array<{ data: any; runId: number; runDate: Date }>) => {
+      const results: any[] = []
+      const competitorMentions = new Set<string>()
+      for (const { data: item, runId, runDate } of analyses) {
+        let matchingTest: any = null
+        let providerName: string | null = null
 
-    for (const { data: item, runId, runDate } of allAnalyses) {
-      let matchingTest: any = null
-      let providerName: string | null = null
-
-      // Handle both analysis structures
-      if (item.prompt) {
-        const normalizedTestPrompt = normalizeText(item.prompt || '')
-        if (normalizedTestPrompt === normalizedPromptText) {
-          matchingTest = item
-          providerName = item.provider || item.model || 'ChatGPT'
-        }
-      } else if (item.promptTests) {
-        matchingTest = item.promptTests.find((test: any) => {
-          const normalizedTestPrompt = normalizeText(test.prompt || '')
-          return normalizedTestPrompt === normalizedPromptText
-        })
-        if (matchingTest) {
-          providerName = item.provider || null
-        }
-      }
-
-      if (matchingTest && providerName) {
-        // Note: DirectGEO returns 'competitors', not 'competitorsMentioned'
-        const competitors = matchingTest.competitors || matchingTest.competitorsMentioned || []
-        const competitorPositions = matchingTest.competitorPositions || {}
-        const citations = matchingTest.citations || []
-        const sources = matchingTest.sources || []
-
-        promptTestResults.push({
-          provider: providerName,
-          model: providerName,
-          brandMentioned: matchingTest.brandMentioned || false,
-          brandPosition: matchingTest.brandPosition || null,
-          sentiment: matchingTest.sentiment || 'neutral',
-          response: matchingTest.response || '',
-          competitorsMentioned: competitors,
-          competitorPositions: competitorPositions,
-          citations: citations,
-          sources: sources,
-          timestamp: matchingTest.timestamp || runDate,
-          analysisRunId: runId,
-          analysisRunDate: runDate
-        })
-
-        // Collect competitor mentions
-        if (competitors && competitors.length > 0) {
-          competitors.forEach((comp: string) => {
-            allCompetitorMentions.add(comp)
+        if (item.prompt) {
+          const normalizedTestPrompt = normalizeText(item.prompt || '')
+          if (normalizedTestPrompt === normalizedPromptText) {
+            matchingTest = item
+            providerName = item.provider || item.model || 'ChatGPT'
+          }
+        } else if (item.promptTests) {
+          matchingTest = item.promptTests.find((test: any) => {
+            const normalizedTestPrompt = normalizeText(test.prompt || '')
+            return normalizedTestPrompt === normalizedPromptText
           })
+          if (matchingTest) {
+            providerName = item.provider || null
+          }
+        }
+
+        if (matchingTest && providerName) {
+          const competitors = matchingTest.competitors || matchingTest.competitorsMentioned || []
+          const competitorPositions = matchingTest.competitorPositions || {}
+          const citations = matchingTest.citations || []
+          const sources = matchingTest.sources || []
+
+          results.push({
+            provider: providerName,
+            model: providerName,
+            brandMentioned: matchingTest.brandMentioned || false,
+            brandPosition: matchingTest.brandPosition || null,
+            sentiment: matchingTest.sentiment || 'neutral',
+            response: matchingTest.response || '',
+            competitorsMentioned: competitors,
+            competitorPositions: competitorPositions,
+            citations: citations,
+            sources: sources,
+            timestamp: matchingTest.timestamp || runDate,
+            analysisRunId: runId,
+            analysisRunDate: runDate
+          })
+
+          if (competitors && competitors.length > 0) {
+            competitors.forEach((comp: string) => competitorMentions.add(comp))
+          }
         }
       }
+      return { results, competitorMentions }
+    }
+
+    // First try with date-filtered entries
+    let { results: promptTestResults, competitorMentions } = extractMatchingResults(dateFilteredAnalyses)
+    let allCompetitorMentions = competitorMentions
+
+    // Fallback: if date filtering yields zero results for this prompt but unfiltered
+    // data exists, use ALL entries. This handles bulk-analysis entries that lack per-entry
+    // analyzedAt timestamps and would otherwise disappear after the row ages out.
+    if (promptTestResults.length === 0 && allAnalyses.length > dateFilteredAnalyses.length) {
+      console.log(`   ⚠️ No results in ${days}d window, falling back to all ${allAnalyses.length} entries`)
+      const fallback = extractMatchingResults(allAnalyses)
+      promptTestResults = fallback.results
+      allCompetitorMentions = fallback.competitorMentions
     }
 
     console.log(`   Found ${promptTestResults.length} matching test results for this prompt`)

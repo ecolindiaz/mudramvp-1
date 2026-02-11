@@ -307,6 +307,68 @@ function ResponseRenderer({ responseText }: { responseText: string }) {
   )
 }
 
+const CITATIONS_INITIAL_LIMIT = 10
+
+function CitationsList({ citations }: { citations: Array<{ url: string }> }) {
+  const [expanded, setExpanded] = useState(false)
+
+  const getDomain = (url: string) => {
+    try {
+      const parsed = new URL(url)
+      return parsed.host.replace(/^www\./, '')
+    } catch {
+      return ''
+    }
+  }
+
+  const visible = expanded ? citations : citations.slice(0, CITATIONS_INITIAL_LIMIT)
+  const remaining = citations.length - CITATIONS_INITIAL_LIMIT
+
+  return (
+    <div className="rounded-lg border border-white/[0.03] bg-white/[0.02] p-4">
+      <div className="text-xs text-white/40 mb-3">Citations ({citations.length} sources)</div>
+      {citations.length > 0 ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {visible.map((citation, index) => {
+              const domain = getDomain(citation.url)
+              return (
+                <a
+                  key={`${citation.url}-${index}`}
+                  href={citation.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={citation.url}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.04] text-[13px] text-white/70 hover:text-white/90 transition-all"
+                >
+                  {domain ? (
+                    <DomainLogo domain={domain} size={16} />
+                  ) : (
+                    <Globe className="h-4 w-4 flex-shrink-0 text-white/40" />
+                  )}
+                  <span className="truncate max-w-[180px]">{domain || citation.url.slice(0, 30)}</span>
+                </a>
+              )
+            })}
+          </div>
+          {remaining > 0 && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="text-xs text-white/40 hover:text-white/60 transition-colors pt-1"
+            >
+              {expanded ? 'Show less' : `+ ${remaining} more sources`}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="text-[13px] text-white/40">
+          No citations captured for this response
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Recent chats history
 type ChatHistoryEntry = {
   id: string
@@ -1951,46 +2013,7 @@ function TrackedPromptDeepViewInner() {
                                     <ResponseRenderer responseText={chat.fullResponse || 'No response available'} />
 
                                     {/* Citations */}
-                                    <div className="rounded-lg border border-white/[0.03] bg-white/[0.02] p-4">
-                                      <div className="text-xs text-white/40 mb-3">Citations ({(chat.responseCitations || []).length} sources)</div>
-                                      {(chat.responseCitations && chat.responseCitations.length > 0) ? (
-                                        <div className="flex flex-wrap gap-2">
-                                          {chat.responseCitations.map((citation, index) => {
-                                            // Extract domain from URL
-                                            const getDomain = (url: string) => {
-                                              try {
-                                                const parsed = new URL(url)
-                                                return parsed.host.replace(/^www\./, '')
-                                              } catch {
-                                                return ''
-                                              }
-                                            }
-                                            const domain = getDomain(citation.url)
-                                            return (
-                                              <a
-                                                key={`${citation.url}-${index}`}
-                                                href={citation.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                title={citation.url}
-                                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.04] text-[13px] text-white/70 hover:text-white/90 transition-all"
-                                              >
-                                                {domain ? (
-                                                  <DomainLogo domain={domain} size={16} />
-                                                ) : (
-                                                  <Globe className="h-4 w-4 flex-shrink-0 text-white/40" />
-                                                )}
-                                                <span className="truncate max-w-[180px]">{domain || citation.url.slice(0, 30)}</span>
-                                              </a>
-                                            )
-                                          })}
-                                        </div>
-                                      ) : (
-                                        <div className="text-[13px] text-white/40">
-                                          No citations captured for this response
-                                        </div>
-                                      )}
-                                    </div>
+                                    <CitationsList citations={chat.responseCitations || []} />
                                   </div>
                                 </DialogContent>
                               </Dialog>

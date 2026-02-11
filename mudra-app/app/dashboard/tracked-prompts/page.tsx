@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useRef } from "react"
 import {
   ColumnDef,
   flexRender,
@@ -11,7 +11,7 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, BookOpen, Building2, Download } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, BookOpen, Building2, Download, CheckCircle2, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
@@ -448,6 +448,17 @@ function TrackedPromptsPageInner() {
   const [isAdding, setIsAdding] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  // Unified AI generation state (inside Add Prompt dialog)
+  const [dialogMode, setDialogMode] = useState<'manual' | 'ai'>('manual')
+  const [aiStep, setAiStep] = useState<'describe' | 'preview' | 'running'>('describe')
+  const [aiDescription, setAiDescription] = useState("")
+  const [aiCount, setAiCount] = useState<3 | 5 | 10>(5)
+  const [isAiGenerating, setIsAiGenerating] = useState(false)
+  const [generatedPrompts, setGeneratedPrompts] = useState<{id: number, text: string, category: string}[]>([])
+  const [analysisStatus, setAnalysisStatus] = useState<Record<number, 'pending' | 'running' | 'done' | 'error'>>({})
+  const [analysisCompleted, setAnalysisCompleted] = useState(0)
+  const analysisAbortRef = useRef(false)
+
   // Fetch prompts function (extracted for reuse)
   const fetchPrompts = async () => {
     if (!profile?.id) {
@@ -815,6 +826,160 @@ function TrackedPromptsPageInner() {
     }
   }
 
+  const resetAiState = () => {
+    setDialogMode('manual')
+    setAiStep('describe')
+    setAiDescription("")
+    setAiCount(5)
+    setIsAiGenerating(false)
+    setGeneratedPrompts([])
+    setAnalysisStatus({})
+    setAnalysisCompleted(0)
+  }
+
+  const handleGenerate = async () => {
+    if (!aiDescription.trim()) {
+      toast.error("Please describe what prompts you want")
+      return
+    }
+    if (!profile?.id) return
+
+    setIsAiGenerating(true)
+
+    try {
+      const response = await fetch('/api/prompts/batch-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandProfileId: profile.id,
+          description: aiDescription,
+          count: aiCount,
+          brandInfo: {
+            companyName: profile.companyName || '',
+            companyDescription: profile.companyDescription || '',
+            industry: profile.companyIndustry || '',
+            productsServices: profile.companyServices
+              ? profile.companyServices.split(',').map((s: string) => s.trim())
+              : [],
+            idealCustomer: profile.companyICP || '',
+            competitors: profile.competitors || []
+          }
+        })
+      })
+
+      if (!response.ok) {
+        try {
+          const errorData = await response.json()
+          toast.error(errorData.error || "Failed to generate prompts")
+        } catch {
+          toast.error("Failed to generate prompts")
+        }
+        return
+      }
+
+      const result = await response.json()
+
+      if (!result.success) {
+        toast.error(result.error || "Failed to generate prompts")
+        return
+      }
+
+      const savedPrompts = result.prompts
+      if (!Array.isArray(savedPrompts)) {
+        toast.error("Invalid response: prompts array missing")
+        return
+      }
+
+      setGeneratedPrompts(savedPrompts.map((p: any) => ({ id: p.id, text: p.text, category: p.category || 'Organic' })))
+      await fetchPrompts()
+      setAiStep('preview')
+    } catch (error) {
+      console.error("Error generating prompts:", error)
+      toast.error("Failed to generate prompts")
+    } finally {
+      setIsAiGenerating(false)
+    }
+  }
+
+  const handleRunAnalysis = async () => {
+    if (!profile?.id) return
+    setAiStep('running')
+    analysisAbortRef.current = false
+    const initStatus: Record<number, 'pending'> = {}
+    generatedPrompts.forEach(p => { initStatus[p.id] = 'pending' })
+    setAnalysisStatus(initStatus)
+    setAnalysisCompleted(0)
+
+    // Mark all generated prompts as pending in the table immediately
+    const promptIds = new Set(generatedPrompts.map(p => p.id.toString()))
+    setData(prev => prev.map(p => promptIds.has(p.id) ? { ...p, isPending: true } : p))
+
+    let completed = 0
+    for (let i = 0; i < generatedPrompts.length; i++) {
+      const prompt = generatedPrompts[i]
+      setAnalysisStatus(prev => ({ ...prev, [prompt.id]: 'running' }))
+
+      let success = false
+      try {
+        const response = await fetch('/api/prompts', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            promptId: prompt.id.toString(),
+            text: prompt.text,
+            runAnalysis: true
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          console.error(`Failed to analyze prompt ${prompt.id}: ${response.status} ${errorData.error || 'Unknown error'}`)
+          setAnalysisStatus(prev => ({ ...prev, [prompt.id]: 'error' }))
+        } else {
+          const result = await response.json()
+          if (!result.success) {
+            console.error(`Failed to analyze prompt ${prompt.id}: ${result.error || 'Unknown error'}`)
+            setAnalysisStatus(prev => ({ ...prev, [prompt.id]: 'error' }))
+          } else {
+            setAnalysisStatus(prev => ({ ...prev, [prompt.id]: 'done' }))
+            success = true
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to analyze prompt ${prompt.id}:`, error)
+        setAnalysisStatus(prev => ({ ...prev, [prompt.id]: 'error' }))
+      }
+
+      completed++
+      setAnalysisCompleted(completed)
+
+      // Refresh table after each prompt so skeleton clears one-by-one
+      if (success || completed === generatedPrompts.length) {
+        try {
+          const refreshResponse = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
+          const refreshResult = await refreshResponse.json()
+          if (refreshResult.success && refreshResult.prompts) {
+            // Only keep isPending for prompts not yet analyzed in this batch
+            const remainingIds = new Set(generatedPrompts.slice(completed).map(p => p.id.toString()))
+            const transformedData = transformPromptsFromApi(refreshResult.prompts, refreshResult.analysisDate, remainingIds)
+            setData(transformedData)
+          }
+        } catch (err) {
+          console.error('Error refreshing after prompt analysis:', err)
+        }
+      }
+    }
+
+    window.dispatchEvent(new Event('mudra:analysis-complete'))
+
+    // Auto-close if user hasn't already closed
+    if (!analysisAbortRef.current) {
+      setAddOpen(false)
+    }
+    // Always reset AI state after analysis completes so dialog doesn't reopen with stale state
+    resetAiState()
+  }
+
   const handleEditPrompt = async () => {
     const text = editPromptText.trim()
 
@@ -960,9 +1125,9 @@ function TrackedPromptsPageInner() {
                   >
                     {showAll ? "Collapse" : "Expand"}
                   </Button>
-                  <Button 
-                    size="sm" 
-                    className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5" 
+                  <Button
+                    size="sm"
+                    className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5"
                     onClick={() => setAddOpen(true)}
                     disabled={isLoading || data.length >= 100}
                   >
@@ -1260,117 +1425,378 @@ function TrackedPromptsPageInner() {
                   </div>
                 )}
 
-                {/* Add Prompt Dialog */}
-                <Dialog open={addOpen} onOpenChange={setAddOpen}>
-                  <DialogContent className="sm:max-w-lg rounded-xl border-0 bg-dark-grey">
+                {/* Unified Add Prompt Dialog */}
+                <Dialog open={addOpen} onOpenChange={(open) => {
+                  if (!open) {
+                    if (aiStep === 'running') {
+                      // Analysis in progress — close dialog, mark unfinished prompts as pending in table
+                      analysisAbortRef.current = true
+                      const pendingIds = generatedPrompts
+                        .filter(p => analysisStatus[p.id] !== 'done' && analysisStatus[p.id] !== 'error')
+                        .map(p => p.id.toString())
+                      const pendingSet = new Set(pendingIds)
+                      setData(prev => prev.map(p => pendingSet.has(p.id) ? { ...p, isPending: true } : p))
+                      setAddOpen(false)
+                    } else {
+                      setAddOpen(false)
+                      resetAiState()
+                      setNewPromptText("")
+                      setNewIntent("Organic")
+                      setRunAnalysisOnAdd(true)
+                      setErrorMessage(null)
+                    }
+                  } else {
+                    setAddOpen(true)
+                  }
+                }}>
+                  <DialogContent className="sm:max-w-lg rounded-xl border-0 bg-dark-grey overflow-hidden">
                     <DialogHeader>
                       <DialogTitle>Add Prompt</DialogTitle>
                       <DialogDescription>
-                        Manually add a prompt to track ({data.length}/100 active prompts).
+                        {dialogMode === 'manual'
+                          ? `Manually add a prompt to track (${data.length}/100 active prompts).`
+                          : aiStep === 'describe'
+                            ? 'Describe what prompts you want and AI will generate them.'
+                            : aiStep === 'preview'
+                              ? `Review the generated prompts before analyzing.`
+                              : `Analyzing prompts against AI models...`
+                        }
                       </DialogDescription>
                     </DialogHeader>
-                    
-                    {errorMessage && (
-                      <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
-                        {errorMessage}
+
+                    {/* Mode toggle pill */}
+                    {aiStep !== 'running' && (
+                      <div className="p-1 rounded-lg bg-white/[0.04] flex">
+                        <button
+                          className={cn(
+                            "flex-1 text-sm font-medium py-1.5 rounded-md transition-colors",
+                            dialogMode === 'manual'
+                              ? "bg-white/10 text-white"
+                              : "text-white/50 hover:text-white/70"
+                          )}
+                          onClick={() => { setDialogMode('manual'); setErrorMessage(null) }}
+                          disabled={aiStep === 'preview'}
+                        >
+                          Manual
+                        </button>
+                        <button
+                          className={cn(
+                            "flex-1 text-sm font-medium py-1.5 rounded-md transition-colors flex items-center justify-center gap-1.5",
+                            dialogMode === 'ai'
+                              ? "bg-white/10 text-white"
+                              : "text-white/50 hover:text-white/70"
+                          )}
+                          onClick={() => { setDialogMode('ai'); setErrorMessage(null) }}
+                          disabled={aiStep === 'preview'}
+                        >
+                          AI Generate
+                        </button>
                       </div>
                     )}
-                    
-                    <div className="space-y-4 pt-2">
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <Label htmlFor="prompt-text">Prompt</Label>
-                          <span className={cn(
-                            "text-xs",
-                            newPromptText.length > MAX_PROMPT_LENGTH ? "text-red-400" : "text-muted-foreground"
-                          )}>
-                            {newPromptText.length}/{MAX_PROMPT_LENGTH}
-                          </span>
+
+                    {/* ─── Manual mode ─── */}
+                    {dialogMode === 'manual' && (
+                      <>
+                        {errorMessage && (
+                          <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
+                            {errorMessage}
+                          </div>
+                        )}
+
+                        <div className="space-y-4 pt-2">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <Label htmlFor="prompt-text">Prompt</Label>
+                              <span className={cn(
+                                "text-xs",
+                                newPromptText.length > MAX_PROMPT_LENGTH ? "text-red-400" : "text-muted-foreground"
+                              )}>
+                                {newPromptText.length}/{MAX_PROMPT_LENGTH}
+                              </span>
+                            </div>
+                            <Textarea
+                              id="prompt-text"
+                              value={newPromptText}
+                              onChange={(e) => setNewPromptText(e.target.value)}
+                              placeholder="Type your prompt..."
+                              className={cn(
+                                "min-h-[90px] rounded-lg border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none",
+                                newPromptText.length > MAX_PROMPT_LENGTH && "border-red-500/50"
+                              )}
+                              disabled={isAdding}
+                              maxLength={MAX_PROMPT_LENGTH + 50}
+                            />
+                            {newPromptText.length > MAX_PROMPT_LENGTH && (
+                              <p className="text-xs text-red-400">
+                                Prompt is too long. Please shorten it to {MAX_PROMPT_LENGTH} characters or less.
+                              </p>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="intent">Intent</Label>
+                            <Select
+                              value={newIntent}
+                              onValueChange={(v) => setNewIntent(v ?? "Organic")}
+                              disabled={isAdding}
+                            >
+                              <SelectTrigger id="intent" className="w-full rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 outline-none border-white/10">
+                                <SelectValue placeholder="Select intent" />
+                              </SelectTrigger>
+                              <SelectContent className="rounded-lg">
+                                <SelectItem value="How-to">How to</SelectItem>
+                                <SelectItem value="Organic">Organic</SelectItem>
+                                <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
+                                <SelectItem value="Competitor">Competitor</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex items-center space-x-2 pt-1">
+                            <Checkbox
+                              id="run-analysis"
+                              checked={runAnalysisOnAdd}
+                              onCheckedChange={(checked) => setRunAnalysisOnAdd(checked === true)}
+                              disabled={isAdding}
+                            />
+                            <Label
+                              htmlFor="run-analysis"
+                              className="text-sm font-normal cursor-pointer text-muted-foreground"
+                            >
+                              Run analysis immediately (test against all AI models)
+                            </Label>
+                          </div>
                         </div>
-                        <Textarea 
-                          id="prompt-text" 
-                          value={newPromptText} 
-                          onChange={(e) => setNewPromptText(e.target.value)} 
-                          placeholder="Type your prompt..." 
-                          className={cn(
-                            "min-h-[90px] rounded-lg border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none",
-                            newPromptText.length > MAX_PROMPT_LENGTH && "border-red-500/50"
-                          )}
-                          disabled={isAdding}
-                          maxLength={MAX_PROMPT_LENGTH + 50} // Allow slight overage to show error
-                        />
-                        {newPromptText.length > MAX_PROMPT_LENGTH && (
-                          <p className="text-xs text-red-400">
-                            Prompt is too long. Please shorten it to {MAX_PROMPT_LENGTH} characters or less.
-                          </p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="intent">Intent</Label>
-                        <Select 
-                          value={newIntent} 
-                          onValueChange={(v) => {
-                            // Ensure we always set a non-null string; fallback to "Organic"
-                            setNewIntent(v ?? "Organic")
-                          }}
-                          disabled={isAdding}
-                        >
-                          <SelectTrigger id="intent" className="w-full rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 outline-none border-white/10">
-                            <SelectValue placeholder="Select intent" />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-lg">
-                            <SelectItem value="How-to">How to</SelectItem>
-                            <SelectItem value="Organic">Organic</SelectItem>
-                            <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
-                            <SelectItem value="Competitor">Competitor</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {/* BUG-3 Enhancement: Option to run immediate analysis */}
-                      <div className="flex items-center space-x-2 pt-1">
-                        <Checkbox 
-                          id="run-analysis" 
-                          checked={runAnalysisOnAdd}
-                          onCheckedChange={(checked) => setRunAnalysisOnAdd(checked === true)}
-                          disabled={isAdding}
-                        />
-                        <Label 
-                          htmlFor="run-analysis" 
-                          className="text-sm font-normal cursor-pointer text-muted-foreground"
-                        >
-                          Run analysis immediately (test against all AI models)
-                        </Label>
-                      </div>
-                    </div>
-                    <div className="flex justify-end gap-2 pt-3">
-                      <Button 
-                        variant="outline" 
-                        onClick={() => {
-                          setAddOpen(false)
-                          setErrorMessage(null)
-                          setNewPromptText("")
-                          setRunAnalysisOnAdd(false)
-                        }} 
-                        className="h-9 rounded-lg"
-                        disabled={isAdding}
-                      >
-                        Cancel
-                      </Button>
-                      <Button 
-                        onClick={handleAddPrompt} 
-                        className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
-                        disabled={isAdding || !newPromptText.trim() || newPromptText.length > MAX_PROMPT_LENGTH}
-                      >
-                        {isAdding ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            {runAnalysisOnAdd ? 'Adding & Analyzing...' : 'Adding...'}
-                          </>
-                        ) : (
-                          runAnalysisOnAdd ? 'Add & Analyze' : 'Add Prompt'
-                        )}
-                      </Button>
-                    </div>
+                        <div className="flex justify-end gap-2 pt-3">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setAddOpen(false)
+                              setErrorMessage(null)
+                              setNewPromptText("")
+                              setRunAnalysisOnAdd(true)
+                              resetAiState()
+                            }}
+                            className="h-9 rounded-lg"
+                            disabled={isAdding}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={handleAddPrompt}
+                            className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
+                            disabled={isAdding || !newPromptText.trim() || newPromptText.length > MAX_PROMPT_LENGTH}
+                          >
+                            {isAdding ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                {runAnalysisOnAdd ? 'Adding & Analyzing...' : 'Adding...'}
+                              </>
+                            ) : (
+                              runAnalysisOnAdd ? 'Add & Analyze' : 'Add Prompt'
+                            )}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+
+                    {/* ─── AI: Describe step ─── */}
+                    {dialogMode === 'ai' && aiStep === 'describe' && (
+                      <>
+                        <div className="space-y-4 pt-2">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <Label htmlFor="ai-description">Describe what prompts you want</Label>
+                              <span className="text-xs text-muted-foreground">
+                                {aiDescription.length}/500
+                              </span>
+                            </div>
+                            <Textarea
+                              id="ai-description"
+                              value={aiDescription}
+                              onChange={(e) => setAiDescription(e.target.value)}
+                              placeholder="e.g., enterprise pricing and ROI comparisons, or questions about data security compliance"
+                              className="min-h-[90px] rounded-lg border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none"
+                              maxLength={500}
+                              disabled={isAiGenerating}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Number of prompts</Label>
+                            <div className="flex gap-2">
+                              {([3, 5, 10] as const).map(n => (
+                                <Button
+                                  key={n}
+                                  size="sm"
+                                  className={cn(
+                                    "h-9 rounded-lg border-0 transition-colors",
+                                    aiCount === n
+                                      ? "bg-white text-black hover:bg-white/90"
+                                      : "bg-white/5 text-white hover:bg-white/10"
+                                  )}
+                                  onClick={() => setAiCount(n)}
+                                  disabled={isAiGenerating}
+                                >
+                                  {n}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-3">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setAddOpen(false)
+                              resetAiState()
+                            }}
+                            className="h-9 rounded-lg"
+                            disabled={isAiGenerating}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={handleGenerate}
+                            className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5"
+                            disabled={isAiGenerating || !aiDescription.trim()}
+                          >
+                            {isAiGenerating ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>Generate {aiCount} Prompts</>
+                            )}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+
+                    {/* ─── AI: Preview step ─── */}
+                    {dialogMode === 'ai' && aiStep === 'preview' && (
+                      <>
+                        <div className="space-y-3 pt-2">
+                          <p className="text-sm text-white/70">{generatedPrompts.length} prompts generated — click to edit</p>
+                          <div className="max-h-[280px] overflow-y-auto space-y-2 pr-1">
+                            {generatedPrompts.map((p, idx) => (
+                              <div key={p.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 flex gap-2.5 overflow-hidden">
+                                <span className="text-white/30 text-sm font-medium shrink-0 pt-1.5">{idx + 1}</span>
+                                <div className="flex-1 min-w-0 overflow-hidden">
+                                  <Textarea
+                                    value={p.text}
+                                    onChange={(e) => {
+                                      setGeneratedPrompts(prev => prev.map((gp, i) =>
+                                        i === idx ? { ...gp, text: e.target.value } : gp
+                                      ))
+                                    }}
+                                    className="min-h-[52px] text-sm text-white/90 leading-relaxed bg-transparent border-white/[0.06] rounded-md resize-none focus-visible:ring-0 focus-visible:ring-offset-0 px-2 py-1.5"
+                                    maxLength={500}
+                                  />
+                                  <Badge className="mt-1.5 px-2 py-0.5 rounded text-xs font-medium bg-white/10 text-white/60 border-0">
+                                    {p.category}
+                                  </Badge>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex justify-between pt-3">
+                          <Button
+                            variant="outline"
+                            onClick={() => setAiStep('describe')}
+                            className="h-9 rounded-lg gap-1.5"
+                          >
+                            ← Back
+                          </Button>
+                          <Button
+                            onClick={handleRunAnalysis}
+                            className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
+                          >
+                            Run Analysis
+                          </Button>
+                        </div>
+                      </>
+                    )}
+
+                    {/* ─── AI: Running step ─── */}
+                    {dialogMode === 'ai' && aiStep === 'running' && (
+                      <>
+                        <div className="space-y-4 pt-1 overflow-hidden">
+                          {/* Progress header */}
+                          <div className="space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-white/60" />
+                                <span className="text-sm text-white/70">
+                                  {analysisCompleted}/{generatedPrompts.length} complete
+                                </span>
+                              </div>
+                              <span className="text-xs text-white/30 tabular-nums">
+                                {generatedPrompts.length > 0 ? Math.round((analysisCompleted / generatedPrompts.length) * 100) : 0}%
+                              </span>
+                            </div>
+                            <div className="w-full bg-white/[0.06] rounded-full h-1">
+                              <div
+                                className="bg-white/80 h-1 rounded-full transition-all duration-500 ease-out"
+                                style={{ width: `${generatedPrompts.length > 0 ? (analysisCompleted / generatedPrompts.length) * 100 : 0}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Prompt list */}
+                          <div className="max-h-[220px] overflow-y-auto -mx-1 px-1 space-y-1">
+                            {generatedPrompts.map((p, idx) => {
+                              const status = analysisStatus[p.id] || 'pending'
+                              return (
+                                <div
+                                  key={p.id}
+                                  className={cn(
+                                    "rounded-lg px-3 py-2 flex items-start gap-2.5 transition-colors overflow-hidden",
+                                    status === 'running' ? "bg-white/[0.04]" : "bg-transparent"
+                                  )}
+                                >
+                                  <div className="shrink-0 w-4 pt-0.5 flex justify-center">
+                                    {status === 'pending' && (
+                                      <span className="h-1.5 w-1.5 rounded-full bg-white/20" />
+                                    )}
+                                    {status === 'running' && (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin text-white/50" />
+                                    )}
+                                    {status === 'done' && (
+                                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400/80" />
+                                    )}
+                                    {status === 'error' && (
+                                      <AlertCircle className="h-3.5 w-3.5 text-red-400/80" />
+                                    )}
+                                  </div>
+                                  <p className={cn(
+                                    "flex-1 min-w-0 text-[13px] leading-relaxed break-words line-clamp-2",
+                                    status === 'done' ? "text-white/50" :
+                                    status === 'running' ? "text-white/80" :
+                                    "text-white/40"
+                                  )}>
+                                    {p.text}
+                                  </p>
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          <p className="text-xs text-white/30">You can close this — analysis continues in background.</p>
+                        </div>
+                        <div className="flex justify-end pt-1">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              analysisAbortRef.current = true
+                              setAddOpen(false)
+                            }}
+                            className="h-8 rounded-lg text-xs"
+                          >
+                            Close
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </DialogContent>
                 </Dialog>
 

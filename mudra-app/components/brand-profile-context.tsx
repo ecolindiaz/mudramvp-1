@@ -1,5 +1,5 @@
 "use client"
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react"
 
 const defaultProfile = {
   // ID from database
@@ -80,15 +80,19 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     }
   }, [profile]);
 
+  // Use a ref to track loading state without causing re-renders of the callback
+  const isLoadingRef = useRef(false);
+
   // Load profile from API with timeout and retry
-  const refreshBrandProfile = async () => {
+  const refreshBrandProfile = useCallback(async () => {
     // Don't refetch if already loading
-    if (isLoading) {
+    if (isLoadingRef.current) {
       console.log("⏭️ [BrandProfileContext] Skipping refresh - already loading");
       return;
     }
 
     try {
+      isLoadingRef.current = true;
       setIsLoading(true);
       console.log("🔄 [BrandProfileContext] Refreshing brand profile...")
       
@@ -109,12 +113,14 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
         const data = await response.json();
         if (data && typeof data === "object" && data.id) {
           // Only update state if data actually changed and has a valid ID
-          if (JSON.stringify(data) !== JSON.stringify(profile)) {
-            console.log("✅ [BrandProfileContext] Profile updated:", data.companyName, "id:", data.id);
-            setProfileState(data);
-          } else {
+          setProfileState((prev: typeof defaultProfile) => {
+            if (JSON.stringify(data) !== JSON.stringify(prev)) {
+              console.log("✅ [BrandProfileContext] Profile updated:", data.companyName, "id:", data.id);
+              return data;
+            }
             console.log("✨ [BrandProfileContext] Profile unchanged");
-          }
+            return prev;
+          });
           setRetryCount(0); // Reset retry count on success
         } else if (data === null) {
           // User is authenticated but has no brand profile yet (needs onboarding)
@@ -133,18 +139,20 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
         console.error("🔴 [BrandProfileContext] Error refreshing profile:", error);
         
         // Retry logic - max 3 attempts with exponential backoff
-        if (retryCount < 3) {
-          const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-          console.log(`🔄 [BrandProfileContext] Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
-          setTimeout(() => {
-            setRetryCount((prev: number) => prev + 1);
-          }, delay);
-        }
+        setRetryCount((prev: number) => {
+          if (prev < 3) {
+            const delay = Math.pow(2, prev) * 1000; // 1s, 2s, 4s
+            console.log(`🔄 [BrandProfileContext] Retrying in ${delay}ms... (attempt ${prev + 1}/3)`);
+            return prev + 1;
+          }
+          return prev;
+        });
       }
     } finally {
+      isLoadingRef.current = false;
       setIsLoading(false);
     }
-  };
+  }, []);
 
   // Load profile from API on mount - ALWAYS fetch immediately for security
   // Cache is used for initial render (prevents flicker) but server is source of truth
@@ -167,7 +175,7 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
   }, [retryCount]);
 
   // Save profile to API and update state
-  const setProfile = async (newProfile: typeof defaultProfile) => {
+  const setProfile = useCallback(async (newProfile: typeof defaultProfile) => {
     console.log("🟡 [BrandProfileContext] setProfile called with:", newProfile)
     
     // Update state immediately for optimistic UI
@@ -211,15 +219,17 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
       console.error("🔴 [BrandProfileContext] Error saving brand profile:", error.message || error);
       throw error;
     }
-  };
+  }, []);
+
+  const contextValue = useMemo(() => ({
+    brandProfile: profile,
+    profile,
+    setProfile, 
+    refreshBrandProfile 
+  }), [profile, setProfile, refreshBrandProfile]);
 
   return (
-    <BrandProfileContext.Provider value={{ 
-      brandProfile: profile,
-      profile,
-      setProfile, 
-      refreshBrandProfile 
-    }}>
+    <BrandProfileContext.Provider value={contextValue}>
       {children}
     </BrandProfileContext.Provider>
   );

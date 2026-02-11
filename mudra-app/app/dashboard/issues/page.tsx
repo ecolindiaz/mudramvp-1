@@ -766,6 +766,9 @@ function IssueDetailDialog({
             <DialogTitle className="text-[15px] font-medium text-white/90 leading-snug">
               {issue.title}
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Details for issue {issue.title}
+            </DialogDescription>
           </DialogHeader>
         </div>
 

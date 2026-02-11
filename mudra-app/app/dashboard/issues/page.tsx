@@ -656,6 +656,9 @@ function IssueDialog({
 }
 
 // Delete Confirmation Dialog
+// Uses modal={false} to prevent Radix from setting pointer-events:none
+// on document.body — which gets stuck when the dialog is opened from a
+// DropdownMenu and causes the entire page to become unclickable.
 function DeleteDialog({
   open,
   onOpenChange,
@@ -669,8 +672,22 @@ function DeleteDialog({
   onConfirm: () => void
   isLoading: boolean
 }) {
+  // Safety net: whenever the dialog closes, make sure body is interactive
+  React.useEffect(() => {
+    if (!open) {
+      document.body.style.pointerEvents = ''
+    }
+  }, [open])
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
+      {/* Render our own backdrop since modal={false} disables the built-in one */}
+      {open && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[2px]"
+          onClick={() => onOpenChange(false)}
+        />
+      )}
       <DialogContent className="bg-[#1a1a1a] border-white/10 text-white max-w-md">
         <DialogHeader>
           <DialogTitle>Delete Issue</DialogTitle>
@@ -1340,6 +1357,8 @@ function IssuesPageInner() {
       // Always reset state
       setDeletingIssue(null)
       setIsSaving(false)
+      // Safety net: ensure body is never left with pointer-events:none
+      document.body.style.pointerEvents = ''
     }
   }
 

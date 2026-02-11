@@ -169,10 +169,13 @@ function highlightBrandInChildren(children: React.ReactNode, brandName: string |
         )
       )
     }
-    if (React.isValidElement(child) && child.props?.children) {
-      return React.cloneElement(child as React.ReactElement<any>, {
-        children: highlightBrandInChildren(child.props.children, brandName),
-      })
+    if (React.isValidElement(child)) {
+      const props = child.props as Record<string, unknown>
+      if (props.children) {
+        return React.cloneElement(child as React.ReactElement<Record<string, unknown>>, {
+          children: highlightBrandInChildren(props.children as React.ReactNode, brandName),
+        })
+      }
     }
     return child
   })

@@ -220,7 +220,7 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
         )
       }
       const pos = row.getValue("position") as number | null
-      if (!pos) {
+      if (pos == null) {
         return (
           <div className="flex items-center pl-2">
             <span className="text-muted-foreground text-sm">—</span>

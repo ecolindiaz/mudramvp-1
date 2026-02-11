@@ -1247,7 +1247,7 @@ Return ONLY a valid JSON object with these exact keys:
       }
 
       // If no position found, try bullet list detection
-      if (!brandPosition) {
+      if (brandPosition == null) {
         brandPosition = extractBrandPositionFromBulletList(text, config.brandName);
       }
 
@@ -1266,7 +1266,7 @@ Return ONLY a valid JSON object with these exact keys:
         
         if (hasPositive && !hasNegative) sentiment = 'positive';
         else if (hasNegative && !hasPositive) sentiment = 'negative';
-        else if (brandPosition && brandPosition <= 3) sentiment = 'positive'; // Top 3 ranking = positive
+        else if (brandPosition != null && brandPosition <= 3) sentiment = 'positive'; // Top 3 ranking = positive
       }
       
       // Try to extract competitor names (basic heuristic)
@@ -2104,16 +2104,16 @@ function calculateBrandMetrics(tests: PromptTest[]): {
   const mentionRate = mentionedTests.length / totalTests;
   
   // Calculate average position (only for tests where brand was mentioned with valid position)
-  // Position must be defined, not null, and > 0 to be valid (consistent with visibility-scoring.service.ts)
+  // Position must be defined and not null to be valid (consistent with visibility-scoring.service.ts)
   const rankedTests = mentionedTests.filter(t =>
     t.brandPosition !== undefined &&
     t.brandPosition !== null &&
     t.brandPosition > 0
   );
   const averagePosition = rankedTests.length > 0
-    ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length) * 10) / 10
+    ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition ?? 0), 0) / rankedTests.length) * 10) / 10
     : 0;
-  
+
   // Calculate visibility score using per-test Firegeo average (0-100)
   // Each test: 0 if not mentioned, 50 + positionBonus if mentioned
   // Average across ALL tests (properly weights mention rate and position)

@@ -156,14 +156,8 @@ function calculateCategoryScore(categoryTests: PromptTestResult[]): {
     
     // Competitive tests: position-based scoring
     if (competitiveTests.length > 0) {
-      const rankedCompetitiveTests = competitiveTests.filter(t => 
-        t.brandPosition !== undefined && 
-        t.brandPosition !== null && 
-        t.brandPosition > 0
-      );
-      
       for (const test of competitiveTests) {
-        if (test.brandPosition && test.brandPosition > 0) {
+        if (test.brandPosition != null && test.brandPosition > 0) {
           // Position-based score: #1 = 100, #2 = 90, #3 = 80, etc.
           const positionScore = Math.max(0, 110 - (test.brandPosition * 10));
           totalScore += positionScore;
@@ -229,14 +223,14 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
   const mentionRate = totalMentions / totalPrompts;
 
   // Calculate average position (only for tests with position data)
-  const rankedTests = mentionedTests.filter(t => 
-    t.brandPosition !== undefined && 
-    t.brandPosition !== null && 
+  const rankedTests = mentionedTests.filter(t =>
+    t.brandPosition !== undefined &&
+    t.brandPosition !== null &&
     t.brandPosition > 0
   );
-  
+
   const averagePosition = rankedTests.length > 0
-    ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition || 0), 0) / rankedTests.length) * 10) / 10
+    ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition ?? 0), 0) / rankedTests.length) * 10) / 10
     : 0;
 
   // Calculate visibility score using per-test Firegeo average

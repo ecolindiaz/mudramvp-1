@@ -231,7 +231,7 @@ export async function GET(
     const mentionedCount = filteredTestResults.filter(r => r.brandMentioned).length
 
     const positions = filteredTestResults
-      .filter(r => r.brandMentioned && r.brandPosition)
+      .filter(r => r.brandMentioned && r.brandPosition != null)
       .map(r => r.brandPosition)
     const averagePosition = positions.length > 0
       ? positions.reduce((sum, pos) => sum + pos, 0) / positions.length
@@ -241,7 +241,7 @@ export async function GET(
     const brandFiregeoScores = filteredTestResults.map(r => {
       if (!r.brandMentioned) return 0
       let score = 50
-      if (r.brandPosition && r.brandPosition > 0) {
+      if (r.brandPosition != null && r.brandPosition > 0) {
         score += Math.max(0, (10 - r.brandPosition) / 10) * 50
       }
       return Math.round(score)
@@ -294,15 +294,15 @@ export async function GET(
         metrics.mentions += 1
 
         // Calculate per-test Firegeo score for this competitor
-        const compPosition = competitorPositions[competitor] || null
+        const compPosition = competitorPositions[competitor] ?? null
         let score = 50 // Base score for being mentioned
-        if (compPosition && compPosition > 0) {
+        if (compPosition != null && compPosition > 0) {
           score += Math.max(0, (10 - compPosition) / 10) * 50
         }
         metrics.firegeoScores.push(Math.round(score))
 
         // Track position if available for this competitor in this test
-        if (competitorPositions[competitor]) {
+        if (competitorPositions[competitor] != null) {
           metrics.positions.push(competitorPositions[competitor])
         }
 
@@ -378,7 +378,7 @@ export async function GET(
     const competitiveLandscape = {
       mentioned: competitorsList,
       competitorsWithMetrics: competitorsWithDomains, // Add detailed metrics with domains
-      brandPosition: averagePosition ? Math.round(averagePosition * 10) / 10 : null,
+      brandPosition: averagePosition != null ? Math.round(averagePosition * 10) / 10 : null,
       totalCompetitors: competitorsList.length
     }
 
@@ -428,7 +428,7 @@ export async function GET(
         name: brandName,
         visibility: visibilityPercentage,
         mentions: mentionedCount,
-        position: averagePosition ? Math.round(averagePosition * 10) / 10 : null,
+        position: averagePosition != null ? Math.round(averagePosition * 10) / 10 : null,
         sentiment: dominantSentiment,
         isYou: true,
         domain: brandDomain
@@ -454,7 +454,7 @@ export async function GET(
         
         // Aggregate metrics
         visibility: visibilityPercentage,
-        averagePosition: averagePosition ? Math.round(averagePosition * 10) / 10 : null,
+        averagePosition: averagePosition != null ? Math.round(averagePosition * 10) / 10 : null,
         sentiment: dominantSentiment,
         totalTests: filteredTestResults.length,
         mentionedIn: filteredTestResults.filter(r => r.brandMentioned).length,

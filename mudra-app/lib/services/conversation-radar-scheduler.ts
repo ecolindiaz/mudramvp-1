@@ -6,12 +6,9 @@
  * 2. Rotate through prompts evenly
  * 3. Control Apify credit usage
  * 
- * Recommended Cron Schedule:
- * - Citations: 3x/week (Mon, Wed, Fri at 9am UTC)
- *   "0 9 * * 1,3,5" → POST /api/conversation-radar/cron?mode=cited
- * 
- * - Proactive: 3x/week (Tue, Thu, Sat at 9am UTC)  
- *   "0 9 * * 2,4,6" → POST /api/conversation-radar/cron?mode=proactive
+ * Cron Schedule:
+ * - Combined (default): Every 3 days at 9am UTC
+ *   Schedule: "0 9 *\/3 * *" — POST /api/conversation-radar/cron
  */
 
 import { prisma } from '@/lib/prisma';

@@ -5,7 +5,8 @@ export type NotificationCategory =
   | 'issues_created'
   | 'content_ready'
   | 'radar_opportunity'
-  | 'report_ready';
+  | 'report_ready'
+  | 'agent_quality_alert';
 
 interface CreateNotificationInput {
   userId: string;

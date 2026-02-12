@@ -1137,6 +1137,8 @@ interface CreateOptimizationPRInput {
   title: string
   description: string
   issueTitle?: string // Used for branch naming - more descriptive than pageUrl
+  draft?: boolean // Create as draft PR (for quality gate failures)
+  labels?: string[] // Labels to add after PR creation
 }
 
 interface PRResult {
@@ -1149,7 +1151,7 @@ interface PRResult {
  * This properly creates a branch, commits files, then opens a PR
  */
 export async function createOptimizationPR(input: CreateOptimizationPRInput): Promise<PRResult> {
-  const { brandProfileId, pageUrl, improvements, title, description, issueTitle } = input
+  const { brandProfileId, pageUrl, improvements, title, description, issueTitle, draft, labels } = input
 
   // Get brand profile to access GitHub integration
   const brandProfile = await prisma.brandProfile.findUnique({
@@ -1487,6 +1489,7 @@ ${bodyContent}
         body: prBody,
         head: branchName,
         base: baseBranch,
+        draft: draft ?? false,
       }),
     })
 
@@ -1497,6 +1500,23 @@ ${bodyContent}
 
     const pr = await prResponse.json()
     console.log(`[GitHub] PR created successfully: ${pr.html_url}`)
+
+    // Apply labels if specified
+    if (labels?.length && pr.number) {
+      try {
+        await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${pr.number}/labels`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/vnd.github.v3+json',
+          },
+          body: JSON.stringify({ labels }),
+        })
+      } catch (labelError) {
+        console.warn('[GitHub] Failed to apply labels:', labelError)
+      }
+    }
 
     return {
       prUrl: pr.html_url,

@@ -169,6 +169,40 @@ export async function reviewGeneratedContent(input: ReviewInput): Promise<Review
     warnings.push(`CRITICAL: Generated code contains multiple page-level sections (${pageSections.map(([s, c]) => `${s}:${c}`).join(', ')}). This looks like a full page, not a targeted fix.`)
   }
   
+  // Issue 7: Structured data (FAQPage, HowTo) without matching visible content
+  // FAQPage schema requires actual FAQ content to be visible on the page
+  if (contentAnalysis.type === 'schema') {
+    try {
+      const parsed = JSON.parse(generatedCode)
+      const schemaType = parsed['@type']
+      
+      if (schemaType === 'FAQPage' && parsed.mainEntity?.length > 0) {
+        // Check if the FAQ questions look fabricated (all generic, not matching brand)
+        const questions: string[] = parsed.mainEntity.map((q: { name?: string }) => q.name || '')
+        const genericPatterns = [
+          /^what is .+\?$/i,
+          /^how does .+ work\?$/i,
+          /^who should use .+\?$/i,
+          /^what makes .+ different/i,
+          /^how .+ help/i,
+        ]
+        const genericCount = questions.filter(q => 
+          genericPatterns.some(p => p.test(q))
+        ).length
+        
+        if (genericCount === questions.length && questions.length >= 3) {
+          warnings.push(
+            'WARNING: All FAQPage questions appear to be generic/templated. ' +
+            'Structured data must match actual visible FAQ content on the page. ' +
+            'If the page has no FAQ section, the schema should not be added until one is created.'
+          )
+        }
+      }
+    } catch {
+      // Not valid JSON, skip this check
+    }
+  }
+  
   // Determine best file
   let suggestedFile = targetFile
   

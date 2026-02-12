@@ -144,6 +144,26 @@ model Issue {
   generatedOutput    String?      @db.Text  // Stores agent-generated content when PR creation fails
   outputType         String?      // "code", "content", "guidance"
   
+  // Eval Scoring (production quality tracking)
+  evalHallucinationScore  Float?     // 0=none, 1=fully hallucinated (lower is better)
+  evalFaithfulnessScore   Float?     // 0=unfaithful, 1=perfectly faithful
+  evalRelevancyScore      Float?     // 0=irrelevant, 1=perfectly relevant
+  evalAlignmentScore      Float?     // 0=misaligned, 1=perfectly aligned
+  evalScores              Json?      // Full scorer results with reasons
+  evalScoredAt            DateTime?  // When scoring completed
+
+  // Quality Gate tracking
+  evalCompositeScore      Float?     // Weighted composite 0-100
+  evalContentHash         String?    // SHA256 of prompt+code for caching
+  evalQualityGatePassed   Boolean?   // Did it pass quality thresholds?
+  evalQualityRetries      Int        @default(0)  // Outer quality retries used
+  evalQualityGateDetails  Json?      // { passed, failures[] }
+
+  // Human Feedback
+  userFeedbackScore       Int?       // 1-5 rating
+  userFeedbackNotes       String?    @db.Text
+  userReviewedAt          DateTime?
+
   // Deduplication
   issueHash          String?      @unique
   checkCode          String?
@@ -157,6 +177,7 @@ model Issue {
   @@index([brandProfileId, status])
   @@index([brandProfileId, category])
   @@index([category, discoveryTier])
+  @@index([evalContentHash])
   @@map("issues")
 }
 

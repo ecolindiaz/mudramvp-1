@@ -20,6 +20,29 @@ import {
 } from './e2b-sandbox.service'
 import { createOptimizationPR, checkExistingBlogFiles } from './github.service'
 import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
+import { getFirecrawlClient } from '@/mastra/tools/firecrawl-client'
+import {
+  hallucinationScorer,
+  faithfulnessScorer,
+  relevancyScorer,
+  promptAlignmentScorer,
+} from '@/mastra/evals'
+import type { ScorerRunInputForAgent, ScorerRunOutputForAgent } from '@mastra/core/evals'
+import { createHash } from 'crypto'
+
+// Max iterations for the generate→review→refine loop
+const MAX_REVIEW_ITERATIONS = 3
+
+// Outer loop: if eval scores fail quality gate, retry the entire generate→review→refine cycle
+const MAX_QUALITY_RETRIES = 2
+
+// Quality thresholds for the gate check
+const QUALITY_THRESHOLDS = {
+  minFaithfulness: 0.7,
+  maxHallucination: 0.3,
+  minRelevancy: 0.6,
+  minAlignment: 0.7,
+} as const
 
 // Timeout for agent generation (deploy route has maxDuration=300s on Vercel Pro)
 const AGENT_TIMEOUT_MS = 120_000
@@ -107,6 +130,161 @@ async function withTimeout<T>(
   }
 }
 
+/**
+ * Scrape the actual page content so agents can see what's already rendered.
+ * Returns markdown content or null if scraping fails.
+ */
+async function scrapePageContent(url: string): Promise<string | null> {
+  try {
+    const firecrawl = getFirecrawlClient()
+    const result = await firecrawl.scrapeUrl(url, {
+      formats: ['markdown'],
+      onlyMainContent: true,
+      timeout: 15000,
+    })
+    if (result.success && result.markdown) {
+      const content = result.markdown.length > 6000
+        ? result.markdown.slice(0, 6000) + '\n\n[...content truncated...]'
+        : result.markdown
+      console.log(`[IssueExecutor] Scraped page content: ${content.length} chars from ${url}`)
+      return content
+    }
+    console.warn(`[IssueExecutor] Scrape returned no content for ${url}`)
+    return null
+  } catch (err) {
+    console.warn(`[IssueExecutor] Failed to scrape ${url}:`, err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+/**
+ * Fetch the source code of the target file from the user's GitHub repo.
+ * This gives the agent the actual codebase context.
+ */
+async function fetchSourceFileFromGitHub(
+  brandProfileId: number,
+  filePath: string
+): Promise<string | null> {
+  try {
+    const brandProfile = await prisma.brandProfile.findUnique({
+      where: { id: brandProfileId },
+      include: { user: { include: { githubIntegration: true } } },
+    })
+    if (!brandProfile?.user?.githubIntegration) return null
+
+    const integration = brandProfile.user.githubIntegration
+
+    // Get token — import logic from github.service pattern
+    let accessToken: string
+    if (integration.integrationType === 'installation' && integration.installationId) {
+      // For app installations, the token is already managed
+      const { decryptToken } = await import('@/lib/crypto/token-encryption')
+      accessToken = decryptToken(integration.accessToken)
+    } else {
+      const { decryptToken } = await import('@/lib/crypto/token-encryption')
+      accessToken = decryptToken(integration.accessToken)
+    }
+
+    // Determine repo
+    let repoName: string | undefined
+    let baseBranch = 'main'
+    const agentSchedule = await prisma.agentSchedule.findFirst({
+      where: { brandProfileId, isEnabled: true },
+      orderBy: { createdAt: 'desc' },
+    })
+    if (agentSchedule?.config) {
+      const config = agentSchedule.config as Record<string, unknown>
+      if (config.githubRepo) {
+        repoName = config.githubRepo as string
+        baseBranch = (config.githubBranch as string) || 'main'
+      }
+    }
+    if (!repoName && integration.repositories) {
+      const repos = integration.repositories as string[]
+      if (repos.length > 0) repoName = repos[0]
+    }
+    if (!repoName) return null
+
+    const [owner, repo] = repoName.split('/')
+    if (!owner || !repo) return null
+
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${baseBranch}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      }
+    )
+    if (!res.ok) {
+      console.warn(`[IssueExecutor] File not found in repo: ${filePath} (${res.status})`)
+      return null
+    }
+
+    const data = await res.json()
+    if (data.content && data.encoding === 'base64') {
+      const decoded = Buffer.from(data.content, 'base64').toString('utf-8')
+      const truncated = decoded.length > 8000
+        ? decoded.slice(0, 8000) + '\n\n// [... file truncated ...]'
+        : decoded
+      console.log(`[IssueExecutor] Fetched source file: ${filePath} (${truncated.length} chars)`)
+      return truncated
+    }
+    return null
+  } catch (err) {
+    console.warn(`[IssueExecutor] Failed to fetch source file ${filePath}:`, err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+/**
+ * Gather full context for an issue: page content + source code + existing files.
+ * This is the "context enrichment" phase that runs before the agent generates code.
+ */
+async function gatherIssueContext(issue: {
+  affectedUrl: string | null
+  agentType: string | null
+  brandProfileId: number
+  brandProfile: {
+    companyWebsite: string | null
+  }
+}): Promise<{
+  pageContent: string | null
+  sourceFile: string | null
+  sourceFilePath: string | null
+  blogContext: string
+}> {
+  const targetUrl = issue.affectedUrl || issue.brandProfile.companyWebsite
+
+  // 1. Scrape live page content (what users actually see)
+  const pageContentPromise = targetUrl ? scrapePageContent(targetUrl) : Promise.resolve(null)
+
+  // 2. Fetch the source file that will be modified
+  const targetFilePath = getFilePathForAgentType(issue.agentType || 'schema_markup')
+  const sourceFilePromise = fetchSourceFileFromGitHub(issue.brandProfileId, targetFilePath)
+
+  // 3. Check blog context if applicable
+  let blogContext = ''
+  if (issue.agentType === 'blog_setup' || issue.agentType === 'blog_page_missing') {
+    try {
+      const blogCheck = await checkExistingBlogFiles(issue.brandProfileId)
+      if (blogCheck.hasBlog) {
+        blogContext = `\n## Existing Blog Detected\nBlog files already exist at: ${blogCheck.foundPaths.join(', ')}\nFramework: ${blogCheck.framework}\nDo NOT duplicate these. Only add what's missing.\n`
+      } else {
+        blogContext = `\n## Blog Status\nNo existing blog pages found. Framework: ${blogCheck.framework}\n`
+      }
+    } catch (err) {
+      console.error('[IssueExecutor] Failed to check existing blog files:', err)
+    }
+  }
+
+  // Run scrape + source file fetch in parallel
+  const [pageContent, sourceFile] = await Promise.all([pageContentPromise, sourceFilePromise])
+
+  return { pageContent, sourceFile, sourceFilePath: targetFilePath, blogContext }
+}
+
 // Agent type to Mastra agent name mapping
 const ISSUE_AGENT_MAP: Record<string, string> = {
   // Technical Structure
@@ -169,6 +347,16 @@ export interface ExecutionResult {
   // Common
   error?: string
   e2bValidation?: SandboxResult<SchemaValidationResult>
+  // Eval scores (production quality tracking)
+  evalScores?: {
+    hallucination?: number
+    faithfulness?: number
+    relevancy?: number
+    alignment?: number
+    compositeScore?: number
+    details?: Record<string, { score: number; reason: string }>
+  }
+  qualityGatePassed?: boolean
 }
 
 /**
@@ -210,92 +398,96 @@ export function getAgentForIssue(agentType: string): ReturnType<typeof mastra.ge
 }
 
 /**
- * Build context prompt for agent based on issue
+ * Build context-rich prompt for agent based on issue + gathered context.
+ * 
+ * This prompt is intentionally less prescriptive — the issue description
+ * already contains specific instructions (it's AI-generated). We focus on
+ * providing rich context so the agent can make informed decisions.
  */
-async function buildAgentPrompt(issue: {
-  id: number
-  title: string
-  description: string | null
-  affectedUrl: string | null
-  category: string | null
-  agentType: string | null
-  brandProfileId: number
-  brandProfile: {
-    companyName: string | null
-    companyWebsite: string | null
-    companyDescription: string | null
-    companyIndustry: string | null
-    companyServices: string | null
+async function buildAgentPrompt(
+  issue: {
+    id: number
+    title: string
+    description: string | null
+    affectedUrl: string | null
+    category: string | null
+    agentType: string | null
+    brandProfileId: number
+    brandProfile: {
+      companyName: string | null
+      companyWebsite: string | null
+      companyDescription: string | null
+      companyIndustry: string | null
+      companyServices: string | null
+    }
+  },
+  context: {
+    pageContent: string | null
+    sourceFile: string | null
+    sourceFilePath: string | null
+    blogContext: string
   }
-}): Promise<string> {
+): Promise<string> {
   const { brandProfile } = issue
 
-  // For blog_setup issues, check what blog files already exist in the repo
-  let blogContext = ''
-  if (issue.agentType === 'blog_setup' || issue.agentType === 'blog_page_missing') {
-    try {
-      const blogCheck = await checkExistingBlogFiles(issue.brandProfileId)
-      if (blogCheck.hasBlog) {
-        blogContext = `
-## ⚠️ EXISTING BLOG DETECTED
-The repository already has blog-related files at these paths:
-${blogCheck.foundPaths.map(p => `- ${p}`).join('\n')}
+  let prompt = `## Issue
+**${issue.title}**
 
-Detected framework: ${blogCheck.framework}
+${issue.description || 'No additional details.'}
 
-**CRITICAL: Do NOT create new blog pages that duplicate existing ones.**
-Instead, verify the existing blog works correctly and only generate supplementary files if something is missing (e.g. a [slug] page if only the index exists, or structured data if missing).
-If the blog is already fully set up, return a JSON response with:
-\`\`\`json
-{ "blogCheck": { "found": true, "existingPath": "${blogCheck.foundPaths[0]}", "techStack": "${blogCheck.framework}" }, "filesToCreate": [], "integrationGuide": "Your blog is already set up at /${blogCheck.foundPaths[0].split('/').slice(0, -1).join('/')}. No changes needed." }
-\`\`\`
-`
-      } else {
-        blogContext = `
-## Blog Status
-No existing blog pages were found in the repository.
-Detected framework: ${blogCheck.framework}
-Please generate the full blog infrastructure.
-`
-      }
-    } catch (err) {
-      console.error('[IssueExecutor] Failed to check existing blog files:', err)
-    }
-  }
-  
-  return `## Task
-Generate a TARGETED code snippet to fix this optimization issue. Your output will be INSERTED INTO an existing file — do NOT generate a full page or document.
-
-## Issue Details
-- **Title**: ${issue.title}
-- **Description**: ${issue.description || 'No additional details'}
-- **Affected URL**: ${issue.affectedUrl || brandProfile.companyWebsite || 'Homepage'}
-- **Category**: ${issue.category || 'General'}
-- **Issue Type**: ${issue.agentType || 'optimization'}
-
-## Brand Context
+## Brand
 - **Company**: ${brandProfile.companyName || 'Unknown'}
 - **Website**: ${brandProfile.companyWebsite || 'Unknown'}
 - **Industry**: ${brandProfile.companyIndustry || 'Unknown'}
 - **Services**: ${brandProfile.companyServices || 'Unknown'}
 - **Description**: ${brandProfile.companyDescription || 'No description available'}
-${blogContext}
-## CRITICAL RULES — Read carefully
-1. Generate ONLY the specific code snippet that fixes this issue
-2. Do NOT generate a full HTML page, full React component, or full document
-3. Do NOT include <html>, <head>, <body>, <!DOCTYPE>, or page-level wrapper tags
-4. Do NOT include headers, footers, navigation, forms, or marketing sections that are unrelated to the issue
-5. Do NOT duplicate existing page content — your code will be INJECTED into the existing page
-6. For schema markup (JSON-LD): output ONLY the JSON object (e.g. {"@context": "https://schema.org", ...})
-7. For meta tags: output ONLY the <meta> tags themselves
-8. For heading hierarchy fixes: output ONLY the <h1>/<h2>/<h3> elements with brief content
-9. For FAQ sections: output ONLY the FAQ content block (a <section> with question/answer pairs)
-10. For content structure: output ONLY the structural elements that need to be added
+`
 
-## Output Format
-Provide ONLY the targeted code snippet in a single code block.
-The snippet must be minimal and self-contained — it will be inserted into an existing file.
-Do NOT wrap it in a full page, component definition, or document structure.`
+  // Add page content context
+  if (context.pageContent) {
+    prompt += `
+## Live Page Content (${issue.affectedUrl || brandProfile.companyWebsite})
+This is what users currently see on the page. Base your work on this real content.
+
+\`\`\`markdown
+${context.pageContent}
+\`\`\`
+`
+  } else if (issue.affectedUrl || brandProfile.companyWebsite) {
+    prompt += `
+## Page Content
+Could not scrape the page at ${issue.affectedUrl || brandProfile.companyWebsite}. It may be a redirect, behind auth, or unreachable.
+`
+  }
+
+  // Add source file context
+  if (context.sourceFile && context.sourceFilePath) {
+    prompt += `
+## Source File: ${context.sourceFilePath}
+This is the current source code of the file that will be modified:
+
+\`\`\`tsx
+${context.sourceFile}
+\`\`\`
+`
+  }
+
+  // Add blog context if applicable
+  if (context.blogContext) {
+    prompt += context.blogContext
+  }
+
+  // Minimal output guidance — let the agent be dynamic
+  prompt += `
+## Output
+Provide your solution as a code block. Your output will be inserted into the codebase via an automated PR.
+- For JSON-LD: output the JSON object
+- For config files (robots.txt, llms.txt, sitemap): output the full file content
+- For content/markup: output the targeted snippet
+- For structured data: ensure it reflects content actually visible on the page above
+`
+
+  return prompt
 }
 
 /**
@@ -497,8 +689,280 @@ function getFilePathForAgentType(agentType: string): string {
   return FILE_PATHS[agentType] || 'app/page.tsx'
 }
 
+// ─── Production Eval Scoring ─────────────────────────────────────────────────
+
+/** Timeout for the entire scoring phase (all 4 scorers in parallel) */
+const SCORING_TIMEOUT_MS = 60_000
+
+interface ScoringResult {
+  hallucination?: number
+  faithfulness?: number
+  relevancy?: number
+  alignment?: number
+  details: Record<string, { score: number; reason: string }>
+}
+
 /**
- * Execute an agent to resolve an issue
+ * Run all eval scorers against a generated output in production.
+ * 
+ * Constructs ScorerRunInputForAgent / ScorerRunOutputForAgent from raw strings
+ * to match the prebuilt scorer type signatures.
+ * Runs scorers in parallel with a timeout. Individual scorer failures
+ * are logged but don't fail the overall execution.
+ * Returns partial results if some scorers fail/timeout.
+ */
+async function runProductionScoring(
+  prompt: string,
+  generatedCode: string,
+): Promise<ScoringResult> {
+  const result: ScoringResult = { details: {} }
+
+  // Convert raw strings to the message format expected by prebuilt scorers
+  const now = new Date()
+  const inputForScorer: ScorerRunInputForAgent = {
+    inputMessages: [{
+      id: `eval-input-${Date.now()}`,
+      role: 'user' as const,
+      content: {
+        format: 2 as const,
+        parts: [{ type: 'text' as const, text: prompt }],
+      },
+      createdAt: now,
+    }],
+    rememberedMessages: [],
+    systemMessages: [],
+    taggedSystemMessages: {},
+  }
+  const outputForScorer: ScorerRunOutputForAgent = [{
+    id: `eval-output-${Date.now()}`,
+    role: 'assistant' as const,
+    content: {
+      format: 2 as const,
+      parts: [{ type: 'text' as const, text: generatedCode }],
+    },
+    createdAt: now,
+  }]
+
+  const scorers = [
+    { key: 'hallucination', scorer: hallucinationScorer, field: 'hallucination' as const },
+    { key: 'faithfulness', scorer: faithfulnessScorer, field: 'faithfulness' as const },
+    { key: 'relevancy', scorer: relevancyScorer, field: 'relevancy' as const },
+    { key: 'alignment', scorer: promptAlignmentScorer, field: 'alignment' as const },
+  ]
+
+  const scorerPromises = scorers.map(async ({ key, scorer, field }) => {
+    try {
+      const scorerResult = await scorer.run({
+        input: inputForScorer,
+        output: outputForScorer,
+      })
+      const score = typeof scorerResult.score === 'number' ? scorerResult.score : NaN
+      const reason = scorerResult.reason || ''
+      if (!isNaN(score)) {
+        result[field] = score
+        result.details[key] = { score, reason }
+      }
+      console.log(`[IssueExecutor] Eval ${key}: ${score.toFixed(3)} — ${reason.slice(0, 120)}`)
+    } catch (err) {
+      console.warn(`[IssueExecutor] Scorer "${key}" failed:`, err instanceof Error ? err.message : err)
+    }
+  })
+
+  try {
+    await Promise.race([
+      Promise.allSettled(scorerPromises),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('Scoring phase timed out')), SCORING_TIMEOUT_MS)
+      ),
+    ])
+  } catch {
+    console.warn(`[IssueExecutor] Scoring phase timed out after ${SCORING_TIMEOUT_MS / 1000}s — returning partial results`)
+  }
+
+  return result
+}
+
+// ─── Composite Score ─────────────────────────────────────────────────────────
+
+const COMPOSITE_WEIGHTS = {
+  faithfulness: 0.35,
+  hallucination: 0.35, // inverted: (1 - score)
+  relevancy: 0.15,
+  alignment: 0.15,
+} as const
+
+/**
+ * Calculate weighted composite quality score (0-100).
+ * Hallucination is inverted since lower is better.
+ * Requires at least faithfulness + hallucination for a meaningful score.
+ */
+function calculateCompositeScore(scores: ScoringResult): number | null {
+  const { faithfulness, hallucination } = scores
+  if (faithfulness == null || hallucination == null) return null
+
+  const weighted =
+    faithfulness * COMPOSITE_WEIGHTS.faithfulness +
+    (1 - hallucination) * COMPOSITE_WEIGHTS.hallucination +
+    (scores.relevancy ?? 0) * COMPOSITE_WEIGHTS.relevancy +
+    (scores.alignment ?? 0) * COMPOSITE_WEIGHTS.alignment
+
+  return Math.round(weighted * 100 * 100) / 100 // 0-100, 2 decimal places
+}
+
+// ─── Eval Caching ────────────────────────────────────────────────────────────
+
+/**
+ * Compute SHA256 hash of prompt + generated code for eval caching.
+ */
+function computeEvalContentHash(prompt: string, generatedCode: string): string {
+  return createHash('sha256')
+    .update(prompt)
+    .update('||')
+    .update(generatedCode)
+    .digest('hex')
+}
+
+/**
+ * Check if we've already scored this exact content.
+ * Returns cached scores if a matching hash is found from the last 24 hours.
+ */
+async function getCachedScores(contentHash: string, currentIssueId: number): Promise<ScoringResult | null> {
+  try {
+    const cached = await prisma.issue.findFirst({
+      where: {
+        evalContentHash: contentHash,
+        id: { not: currentIssueId },
+        AND: [
+          { evalScoredAt: { not: null } },
+          { evalScoredAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+        ],
+      },
+      select: {
+        evalHallucinationScore: true,
+        evalFaithfulnessScore: true,
+        evalRelevancyScore: true,
+        evalAlignmentScore: true,
+        evalScores: true,
+      },
+    })
+
+    if (!cached || cached.evalScores == null) return null
+
+    console.log(`[IssueExecutor] Cache HIT for content hash ${contentHash.slice(0, 12)}...`)
+    return {
+      hallucination: cached.evalHallucinationScore ?? undefined,
+      faithfulness: cached.evalFaithfulnessScore ?? undefined,
+      relevancy: cached.evalRelevancyScore ?? undefined,
+      alignment: cached.evalAlignmentScore ?? undefined,
+      details: (cached.evalScores as Record<string, { score: number; reason: string }>) ?? {},
+    }
+  } catch (err) {
+    console.warn(`[IssueExecutor] Cache lookup failed:`, err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+// ─── Quality Gate ────────────────────────────────────────────────────────────
+
+interface QualityGateResult {
+  passed: boolean
+  failures: Array<{
+    scorer: string
+    actual: number
+    threshold: number
+    direction: 'above' | 'below'
+    reason: string
+  }>
+}
+
+/**
+ * Check if eval scores meet quality thresholds.
+ */
+function checkQualityGate(scores: ScoringResult): QualityGateResult {
+  const failures: QualityGateResult['failures'] = []
+
+  if (scores.faithfulness != null && scores.faithfulness < QUALITY_THRESHOLDS.minFaithfulness) {
+    failures.push({
+      scorer: 'faithfulness',
+      actual: scores.faithfulness,
+      threshold: QUALITY_THRESHOLDS.minFaithfulness,
+      direction: 'below',
+      reason: scores.details['faithfulness']?.reason || 'Score below threshold',
+    })
+  }
+
+  if (scores.hallucination != null && scores.hallucination > QUALITY_THRESHOLDS.maxHallucination) {
+    failures.push({
+      scorer: 'hallucination',
+      actual: scores.hallucination,
+      threshold: QUALITY_THRESHOLDS.maxHallucination,
+      direction: 'above',
+      reason: scores.details['hallucination']?.reason || 'Score above threshold',
+    })
+  }
+
+  if (scores.relevancy != null && scores.relevancy < QUALITY_THRESHOLDS.minRelevancy) {
+    failures.push({
+      scorer: 'relevancy',
+      actual: scores.relevancy,
+      threshold: QUALITY_THRESHOLDS.minRelevancy,
+      direction: 'below',
+      reason: scores.details['relevancy']?.reason || 'Score below threshold',
+    })
+  }
+
+  if (scores.alignment != null && scores.alignment < QUALITY_THRESHOLDS.minAlignment) {
+    failures.push({
+      scorer: 'alignment',
+      actual: scores.alignment,
+      threshold: QUALITY_THRESHOLDS.minAlignment,
+      direction: 'below',
+      reason: scores.details['alignment']?.reason || 'Score below threshold',
+    })
+  }
+
+  return { passed: failures.length === 0, failures }
+}
+
+/**
+ * Format quality gate failures into a prompt section for the next retry.
+ * Feeds scorer reasons directly into the agent so it knows what went wrong.
+ */
+function formatScorerFeedbackForPrompt(gate: QualityGateResult, retryNumber: number): string {
+  if (gate.passed || gate.failures.length === 0) return ''
+
+  const lines = gate.failures.map(f => {
+    const direction = f.direction === 'above'
+      ? `too high (${f.actual.toFixed(3)} > ${f.threshold})`
+      : `too low (${f.actual.toFixed(3)} < ${f.threshold})`
+    return `- **${f.scorer}** scorer: ${direction}\n  Reason: ${f.reason}`
+  })
+
+  return `
+
+## Quality Gate Failure (Retry ${retryNumber})
+The previous output was evaluated by automated quality scorers and FAILED the quality gate.
+You MUST address each issue listed below:
+
+${lines.join('\n\n')}
+
+Generate an improved version that specifically addresses all the quality concerns above.
+Do NOT fabricate information. Only use facts from the page content and brand context provided.
+`
+}
+
+/**
+ * Execute an agent to resolve an issue.
+ *
+ * Flow:
+ * 1. Gather context (scrape page, fetch source file, check existing files)
+ * 2. Build a context-rich prompt from issue + gathered context
+ * 3. OUTER LOOP (quality retries):
+ *    a. INNER LOOP (generate → review → refine, up to MAX_REVIEW_ITERATIONS)
+ *    b. Score the output with Mastra eval scorers (with cache check)
+ *    c. Check quality gate — if passed, break; if failed, feed scorer feedback
+ * 4. Create PR (draft if quality gate failed on final retry)
+ * 5. Persist scores async, send notification if quality gate failed
  */
 export async function executeIssueAgent(issueId: number): Promise<ExecutionResult> {
   console.log(`[IssueExecutor] Starting execution for issue ${issueId}`)
@@ -513,6 +977,7 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
         brandProfile: {
           select: {
             id: true,
+            userId: true,
             companyName: true,
             companyWebsite: true,
             companyDescription: true,
@@ -538,8 +1003,7 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
   
   console.log(`[IssueExecutor] Issue "${issue.title}" found with brand "${issue.brandProfile.companyName}"`)
   
-  // 2. Update status to in_progress (with timeout)
-  console.log(`[IssueExecutor] Updating issue status to in_progress...`)
+  // 2. Update status to in_progress
   try {
     await Promise.race([
       prisma.issue.update({
@@ -550,131 +1014,239 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
         setTimeout(() => reject(new Error('Status update timed out after 10s')), 10_000)
       )
     ])
-    console.log(`[IssueExecutor] Status updated`)
   } catch (updateError) {
     console.error(`[IssueExecutor] Failed to update status:`, updateError)
-    // Continue anyway - status update is not critical
   }
   
   try {
-    // 3. Get appropriate agent
     const agentType = issue.agentType || 'schema_markup'
     const agentStartTime = Date.now()
     
-    console.log(`[IssueExecutor] Looking up agent for type: "${agentType}"`)
-    console.log(`[IssueExecutor] Agent mapping exists: ${!!ISSUE_AGENT_MAP[agentType]}`)
-    
-    const agent = getAgentForIssue(agentType)
-    
-    if (!agent) {
-      console.error(`[IssueExecutor] Agent lookup failed for type: "${agentType}"`)
-      console.error(`[IssueExecutor] Available mappings: ${Object.keys(ISSUE_AGENT_MAP).join(', ')}`)
-      throw new Error(`No agent available for type: ${agentType}`)
-    }
-    
-    console.log(`[IssueExecutor] Using agent for type: ${agentType}`)
-    console.log(`[IssueExecutor] Issue details: title="${issue.title}", url="${issue.affectedUrl}"`)
-    
-    // 4. Build prompt and execute agent
-    console.log(`[IssueExecutor] Building agent prompt...`)
-    const prompt = await buildAgentPrompt({
-      ...issue,
-      brandProfile: issue.brandProfile
+    // 3. CONTEXT ENRICHMENT PHASE
+    console.log(`[IssueExecutor] Gathering context for issue...`)
+    const context = await gatherIssueContext({
+      affectedUrl: issue.affectedUrl,
+      agentType: issue.agentType,
+      brandProfileId: issue.brandProfileId,
+      brandProfile: issue.brandProfile,
     })
-    console.log(`[IssueExecutor] Prompt length: ${prompt.length} chars`)
-    console.log(`[IssueExecutor] Prompt preview: ${prompt.substring(0, 200)}...`)
+    console.log(`[IssueExecutor] Context gathered: pageContent=${!!context.pageContent}, sourceFile=${!!context.sourceFile}`)
     
     // Pre-flight check for API keys
     const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY
-    const hasOpenAIKey = !!process.env.OPENAI_API_KEY
-    console.log(`[IssueExecutor] API Keys available - Anthropic: ${hasAnthropicKey}, OpenAI: ${hasOpenAIKey}`)
-    
-    if (!hasAnthropicKey && !hasOpenAIKey) {
+    if (!hasAnthropicKey && !process.env.OPENAI_API_KEY) {
       throw new Error('No LLM API keys configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.')
     }
-    
-    console.log(`[IssueExecutor] Calling Anthropic directly (bypassing Mastra)...`)
-    console.log(`[IssueExecutor] Agent generate starting at ${new Date().toISOString()}`)
-    const generateStartTime = Date.now()
-    
-    let responseText: string
-    try {
-      // Use direct Anthropic call instead of Mastra agent
-      const systemPrompt = `You are a GEO (Generative Engine Optimization) code generation agent. You produce TARGETED code snippets that will be INSERTED INTO existing files via automated PR creation.
 
-CRITICAL CONSTRAINTS:
-- Output ONLY the specific snippet/fix — never a full HTML page or full React component
-- Your output gets injected into an existing codebase — do NOT include <!DOCTYPE>, <html>, <head>, <body>, or page-level wrappers
-- Do NOT include import statements, export statements, or component definitions — just the JSX/HTML content
-- Do NOT duplicate existing page elements (headers, footers, navigation, forms, marketing sections)
-- For JSON-LD: output the raw JSON object only (starting with { and ending with })
-- For meta tags: output only the <meta> tags
-- For heading/content fixes: output only the specific section elements
-- Keep output minimal and focused on the single issue being fixed`
+    // Handle conversation types (no iterative review needed)
+    if (isConversationType(agentType)) {
+      return await handleConversationIssue(issue, agentType, context)
+    }
 
-      responseText = await withTimeout(
-        callAnthropicDirect(prompt, systemPrompt),
-        AGENT_TIMEOUT_MS,
-        `Anthropic API call timed out after ${AGENT_TIMEOUT_MS/1000}s`
-      )
-      console.log(`[IssueExecutor] Anthropic API returned successfully`)
-    } catch (apiError) {
-      const elapsed = Date.now() - generateStartTime
-      console.error(`[IssueExecutor] Anthropic API failed after ${elapsed}ms at ${new Date().toISOString()}`)
-      console.error(`[IssueExecutor] Error details:`, apiError instanceof Error ? apiError.message : String(apiError))
-      throw apiError
-    }
-    
-    const generateDuration = Date.now() - generateStartTime
-    console.log(`[IssueExecutor] Anthropic call completed in ${generateDuration}ms at ${new Date().toISOString()}`)
-    
-    if (!responseText) {
-      console.error(`[IssueExecutor] Agent returned empty response`)
-      throw new Error('Agent returned empty response')
-    }
-    
-    console.log(`[IssueExecutor] Agent response length: ${responseText.length}`)
-    console.log(`[IssueExecutor] Response preview: ${responseText.substring(0, 300)}...`)
-    
-    // 5. Extract generated content
-    console.log(`[IssueExecutor] Extracting generated content...`)
-    const generatedContent = extractGeneratedContent(responseText)
-    console.log(`[IssueExecutor] Extracted content length: ${generatedContent.length}`)
-    
-    // 5b. For blog_setup: check if the agent determined blog already exists
-    if ((agentType === 'blog_setup' || agentType === 'blog_page_missing') && generatedContent) {
-      try {
-        const parsed = JSON.parse(generatedContent)
-        if (parsed.blogCheck?.found === true && (!parsed.filesToCreate || parsed.filesToCreate.length === 0)) {
-          console.log(`[IssueExecutor] Blog already exists at ${parsed.blogCheck.existingPath} — skipping PR creation`)
-          await prisma.issue.update({
-            where: { id: issueId },
-            data: {
-              status: 'merged', // Mark as complete so publishing is enabled
-              generatedOutput: generatedContent,
-              outputType: 'code',
-            },
-          })
-          return {
-            success: true,
-            generatedContent: parsed.integrationGuide || 'Blog already set up — no changes needed.',
-          }
+    // 4. OUTER QUALITY GATE LOOP
+    const basePrompt = await buildAgentPrompt({
+      ...issue,
+      brandProfile: issue.brandProfile
+    }, context)
+
+    const systemPrompt = `You are a GEO (Generative Engine Optimization) code generation agent. You generate code that will be committed to the user's repository via an automated PR.
+
+You will be given:
+- The issue to fix (already contains specific instructions)
+- The live page content (what users see)
+- The current source code of the target file
+
+Use this context to produce accurate, targeted code. Base structured data on actual page content. Your output will be inserted into the existing codebase.`
+
+    let currentCode = ''
+    let finalFilePath = getFilePathForAgentType(agentType)
+    let lastReview: ReviewResult | null = null
+    let evalScores: ScoringResult | undefined
+    let qualityGatePassed: boolean | null = null
+    let qualityRetryCount = 0
+    let qualityGateResult: QualityGateResult | undefined
+    let scorerFeedback = '' // accumulated from quality gate failures
+
+    for (let qualityRetry = 0; qualityRetry <= MAX_QUALITY_RETRIES; qualityRetry++) {
+      qualityRetryCount = qualityRetry
+
+      if (qualityRetry > 0) {
+        console.log(`[IssueExecutor] === QUALITY RETRY ${qualityRetry}/${MAX_QUALITY_RETRIES} ===`)
+      }
+
+      // ── Inner generate→review→refine loop ──
+      for (let iteration = 1; iteration <= MAX_REVIEW_ITERATIONS; iteration++) {
+        console.log(`[IssueExecutor] === Iteration ${iteration}/${MAX_REVIEW_ITERATIONS} (quality retry ${qualityRetry}) ===`)
+
+        // Build the prompt — include scorer feedback on quality retries + reviewer feedback on inner iterations
+        let iterationPrompt = basePrompt + scorerFeedback
+        if (iteration > 1 && lastReview) {
+          const feedback = [
+            ...lastReview.warnings.map(w => `- ${w}`),
+            lastReview.reasoning ? `Reviewer reasoning: ${lastReview.reasoning}` : '',
+            lastReview.suggestedFile && lastReview.suggestedFile !== finalFilePath
+              ? `Reviewer suggests placing code in: ${lastReview.suggestedFile}`
+              : '',
+          ].filter(Boolean).join('\n')
+
+          iterationPrompt = `${iterationPrompt}
+
+## Reviewer Feedback (Iteration ${iteration - 1})
+The previous output was reviewed and needs changes:
+
+${feedback}
+
+Previous output:
+\`\`\`
+${currentCode.slice(0, 2000)}
+\`\`\`
+
+Please generate an improved version addressing all the feedback above.`
         }
-      } catch {
-        // Not valid JSON, agent returned code — proceed as normal
+
+        // Generate
+        console.log(`[IssueExecutor] Generating code (iteration ${iteration})...`)
+        const responseText = await withTimeout(
+          callAnthropicDirect(iterationPrompt, systemPrompt),
+          AGENT_TIMEOUT_MS,
+          `Anthropic API call timed out after ${AGENT_TIMEOUT_MS / 1000}s`
+        )
+
+        if (!responseText) throw new Error('Agent returned empty response')
+
+        currentCode = extractGeneratedContent(responseText)
+        console.log(`[IssueExecutor] Generated ${currentCode.length} chars`)
+
+        // Review
+        console.log(`[IssueExecutor] Reviewing generated code...`)
+        try {
+          lastReview = await reviewGeneratedContent({
+            generatedCode: currentCode,
+            issueTitle: issue.title,
+            issueDescription: issue.description || '',
+            agentType,
+            targetFile: finalFilePath,
+            companyName: issue.brandProfile.companyName || '',
+            websiteUrl: issue.brandProfile.companyWebsite || ''
+          })
+
+          if (lastReview.suggestedFile && lastReview.suggestedFile !== finalFilePath) {
+            console.log(`[IssueExecutor] Reviewer suggests file: ${lastReview.suggestedFile}`)
+            finalFilePath = lastReview.suggestedFile
+          }
+
+          if (lastReview.improvedCode) {
+            currentCode = lastReview.improvedCode
+          }
+
+          const criticalWarnings = lastReview.warnings.filter(w => w.startsWith('CRITICAL'))
+          if (criticalWarnings.length === 0) {
+            console.log(`[IssueExecutor] Reviewer approved on iteration ${iteration}`)
+            break
+          }
+
+          console.log(`[IssueExecutor] Reviewer has ${criticalWarnings.length} critical warning(s), refining...`)
+
+          if (iteration === MAX_REVIEW_ITERATIONS) {
+            console.warn(`[IssueExecutor] Max inner iterations reached`)
+          }
+        } catch (reviewError) {
+          console.error(`[IssueExecutor] Review failed, using current code:`, reviewError)
+          break
+        }
+      }
+
+      // ── Scoring (with cache check) ──
+      const contentHash = computeEvalContentHash(basePrompt, currentCode)
+
+      const cachedScores = await getCachedScores(contentHash, issueId)
+      if (cachedScores) {
+        evalScores = cachedScores
+        console.log(`[IssueExecutor] Using cached eval scores`)
+      } else {
+        try {
+          console.log(`[IssueExecutor] Running production eval scoring...`)
+          evalScores = await runProductionScoring(basePrompt, currentCode)
+          const scoreCount = Object.keys(evalScores.details).length
+          console.log(`[IssueExecutor] Eval scoring complete: ${scoreCount}/4 scorers returned results`)
+        } catch (scoringError) {
+          console.warn(`[IssueExecutor] Scoring failed:`, scoringError instanceof Error ? scoringError.message : scoringError)
+          break // Can't check quality gate without scores
+        }
+      }
+
+      const compositeScore = calculateCompositeScore(evalScores)
+
+      // Persist scores + hash + composite immediately
+      await prisma.issue.update({
+        where: { id: issueId },
+        data: {
+          evalHallucinationScore: evalScores.hallucination ?? null,
+          evalFaithfulnessScore: evalScores.faithfulness ?? null,
+          evalRelevancyScore: evalScores.relevancy ?? null,
+          evalAlignmentScore: evalScores.alignment ?? null,
+          evalScores: evalScores.details as object,
+          evalScoredAt: new Date(),
+          evalContentHash: contentHash,
+          evalCompositeScore: compositeScore,
+          evalQualityRetries: qualityRetryCount,
+        },
+      })
+
+      // ── Quality gate check ──
+      qualityGateResult = checkQualityGate(evalScores)
+      qualityGatePassed = qualityGateResult.passed
+
+      if (qualityGateResult.passed) {
+        console.log(`[IssueExecutor] Quality gate PASSED on retry ${qualityRetry} (composite: ${compositeScore?.toFixed(1) ?? 'N/A'})`)
+        break
+      }
+
+      console.log(`[IssueExecutor] Quality gate FAILED with ${qualityGateResult.failures.length} failure(s)`)
+
+      if (qualityRetry < MAX_QUALITY_RETRIES) {
+        scorerFeedback = formatScorerFeedbackForPrompt(qualityGateResult, qualityRetry + 1)
+        lastReview = null // Reset reviewer state for next outer iteration
+      } else {
+        console.warn(`[IssueExecutor] Quality gate failed on final retry — proceeding with draft PR`)
       }
     }
-    
+
+    // Persist final quality gate status
+    await prisma.issue.update({
+      where: { id: issueId },
+      data: {
+        evalQualityGatePassed: qualityGatePassed,
+        evalQualityRetries: qualityRetryCount,
+        evalQualityGateDetails: qualityGateResult ? {
+          passed: qualityGateResult.passed,
+          failures: qualityGateResult.failures,
+        } as object : undefined,
+      },
+    })
+
+    // 5. Blog-specific early exit check
+    if ((agentType === 'blog_setup' || agentType === 'blog_page_missing') && currentCode) {
+      try {
+        const parsed = JSON.parse(currentCode)
+        if (parsed.blogCheck?.found === true && (!parsed.filesToCreate || parsed.filesToCreate.length === 0)) {
+          console.log(`[IssueExecutor] Blog already exists — skipping PR creation`)
+          await prisma.issue.update({
+            where: { id: issueId },
+            data: { status: 'merged', generatedOutput: currentCode, outputType: 'code' },
+          })
+          return { success: true, generatedContent: parsed.integrationGuide || 'Blog already set up.' }
+        }
+      } catch {
+        // Not JSON, proceed normally
+      }
+    }
+
     // 6. Validate with E2B if needed
     let e2bValidation: SandboxResult<SchemaValidationResult> | undefined
-    
     if (requiresE2bValidation(agentType)) {
       console.log(`[IssueExecutor] Running E2B validation for ${agentType}`)
-      const e2bStartTime = Date.now()
-      
-      e2bValidation = await validateSchemaInSandbox(generatedContent)
-      
-      // Update issue with E2B tracking
+      e2bValidation = await validateSchemaInSandbox(currentCode)
       await prisma.issue.update({
         where: { id: issueId },
         data: {
@@ -684,192 +1256,163 @@ CRITICAL CONSTRAINTS:
           e2bValidationResult: e2bValidation.data as object || null
         }
       })
-      
-      if (!e2bValidation.success) {
-        throw new Error(`E2B validation failed: ${e2bValidation.error}`)
-      }
-      
+      if (!e2bValidation.success) throw new Error(`E2B validation failed: ${e2bValidation.error}`)
       if (e2bValidation.data && !e2bValidation.data.valid) {
         throw new Error(`Schema validation failed: ${e2bValidation.data.errors.join(', ')}`)
       }
-      
       console.log(`[IssueExecutor] E2B validation passed in ${e2bValidation.executionMs}ms`)
     }
-    
-    // 7. Handle based on issue type
+
+    // 7. Create PR (draft if quality gate failed)
     let prUrl: string | undefined
     let prNumber: number | undefined
-    let conversationUrl: string | undefined
-    let engagementGuidance: string | undefined
-    let suggestedResponse: string | undefined
-    
-    if (isConversationType(agentType)) {
-      // CONVERSATION TYPE: Extract URL and engagement guidance from agent response
-      console.log(`[IssueExecutor] Processing conversation issue ${issueId}`)
-      
-      // The conversation URL should already be in the issue's affectedUrl
-      conversationUrl = issue.affectedUrl || undefined
-      
-      // Extract engagement guidance from agent response
-      const guidance = extractEngagementGuidance(responseText)
-      engagementGuidance = guidance.guidance
-      suggestedResponse = guidance.suggestedResponse
-      
-      // Update issue with conversation output
-      await prisma.issue.update({
-        where: { id: issueId },
-        data: {
-          status: 'completed',
-          generatedOutput: generatedContent, // Save raw agent output
-          outputType: 'guidance',
-          // Store the guidance in a JSON field or description
-          description: `${issue.description || ''}\n\n---\n**Engagement Guidance:**\n${engagementGuidance}\n\n**Suggested Response:**\n${suggestedResponse || 'See guidance above'}`
-        }
-      })
-      
-    } else if (createsPullRequest(agentType)) {
-      // PR-CREATING TYPE: Create GitHub PR with the generated content
-      console.log(`[IssueExecutor] Creating PR for issue ${issueId}`)
-      
+    const isDraftDueToQuality = qualityGatePassed === false
+    const compositeScore = evalScores ? calculateCompositeScore(evalScores) : null
+
+    if (createsPullRequest(agentType)) {
+      console.log(`[IssueExecutor] Creating PR for issue ${issueId}${isDraftDueToQuality ? ' (DRAFT - quality gate failed)' : ''}`)
       try {
-        // STEP 1: Review the generated content before creating PR
-        console.log(`[IssueExecutor] Running AI review on generated content...`)
-        const defaultFilePath = getFilePathForAgentType(agentType)
-        
-        let reviewResult: ReviewResult | null = null
-        let finalCode = generatedContent
-        let finalFilePath = defaultFilePath
-        
-        try {
-          reviewResult = await reviewGeneratedContent({
-            generatedCode: generatedContent,
-            issueTitle: issue.title,
-            issueDescription: issue.description || '',
-            agentType,
-            targetFile: defaultFilePath,
-            companyName: issue.brandProfile.companyName || '',
-            websiteUrl: issue.brandProfile.companyWebsite || ''
-          })
-          
-          // Apply review suggestions
-          if (reviewResult.warnings.length > 0) {
-            console.log(`[IssueExecutor] PR Review warnings: ${reviewResult.warnings.join(', ')}`)
-          }
-          
-          if (reviewResult.suggestedFile && reviewResult.suggestedFile !== defaultFilePath) {
-            console.log(`[IssueExecutor] Review suggests different file: ${reviewResult.suggestedFile} (was: ${defaultFilePath})`)
-            finalFilePath = reviewResult.suggestedFile
-          }
-          
-          if (reviewResult.improvedCode) {
-            console.log(`[IssueExecutor] Review provided improved code`)
-            finalCode = reviewResult.improvedCode
-          }
-          
-          console.log(`[IssueExecutor] Review reasoning: ${reviewResult.reasoning}`)
-          
-        } catch (reviewError) {
-          console.error(`[IssueExecutor] PR review failed, using defaults:`, reviewError)
-          // Continue with defaults if review fails
-        }
-        
-        // STEP 2: Create the PR with reviewed/improved content
+        const qualityWarning = isDraftDueToQuality && qualityGateResult
+          ? `\n\n## Warning: Quality Gate Failed\nThis PR was created as a **draft** because automated quality scoring did not meet thresholds.\n${qualityGateResult.failures.map(f => `- **${f.scorer}**: ${f.actual.toFixed(3)} (threshold: ${f.threshold})`).join('\n')}\n\nComposite score: ${compositeScore?.toFixed(1) ?? 'N/A'}/100\n\nPlease review carefully before merging.`
+          : ''
+
         const prResult = await createOptimizationPR({
           brandProfileId: issue.brandProfileId,
           pageUrl: issue.affectedUrl || issue.brandProfile.companyWebsite || '/',
           improvements: [{
             type: agentType,
             description: issue.title,
-            code: finalCode,
+            code: currentCode,
             impact: issue.estimatedImpact || 'medium',
             filePath: finalFilePath
           }],
           title: `[Mudra] ${issue.title}`,
-          description: `## Issue
-${issue.description || issue.title}
-
-## Generated by
-Mudra AI Agent: ${agentType}
-
-## Estimated Impact
-${issue.estimatedImpact || 'Improved AI visibility'}
-
-${e2bValidation ? `## E2B Validation
-✅ Validated in ${e2bValidation.executionMs}ms` : ''}
-
-${reviewResult?.warnings.length ? `## Pre-PR Review Notes
-${reviewResult.warnings.map(w => `- ⚠️ ${w}`).join('\n')}` : ''}
-${reviewResult?.reasoning ? `\n**Placement:** ${reviewResult.reasoning}` : ''}
-`,
-          issueTitle: issue.title // Use issue title for branch naming
+          description: `## Issue\n${issue.description || issue.title}\n\n## Generated by\nMudra AI Agent: ${agentType}\n\n## Estimated Impact\n${issue.estimatedImpact || 'Improved AI visibility'}${e2bValidation ? `\n\n## E2B Validation\n Validated in ${e2bValidation.executionMs}ms` : ''}${evalScores ? `\n\n## Eval Scores\n| Scorer | Score |\n|--------|-------|\n${evalScores.hallucination != null ? `| Hallucination | ${evalScores.hallucination.toFixed(3)} |\n` : ''}${evalScores.faithfulness != null ? `| Faithfulness | ${evalScores.faithfulness.toFixed(3)} |\n` : ''}${evalScores.relevancy != null ? `| Relevancy | ${evalScores.relevancy.toFixed(3)} |\n` : ''}${evalScores.alignment != null ? `| Alignment | ${evalScores.alignment.toFixed(3)} |\n` : ''}${compositeScore != null ? `| **Composite** | **${compositeScore.toFixed(1)}/100** |\n` : ''}` : ''}${lastReview?.warnings.length ? `\n\n## Review Notes\n${lastReview.warnings.map(w => `- ${w}`).join('\n')}` : ''}${lastReview?.reasoning ? `\n\n**Placement:** ${lastReview.reasoning}` : ''}${qualityWarning}\n`,
+          issueTitle: issue.title,
+          draft: isDraftDueToQuality,
+          labels: isDraftDueToQuality ? ['quality-gate-failed'] : undefined,
         })
-        
         prUrl = prResult.prUrl
         prNumber = prResult.prNumber
-        
         console.log(`[IssueExecutor] PR created: ${prUrl}`)
-        
       } catch (prError) {
-        // PR creation failed but content was generated - save content and mark as completed
         console.error(`[IssueExecutor] PR creation failed:`, prError)
-        console.log(`[IssueExecutor] Saving generated content to issue for manual use`)
-        // Content is saved below - user can copy it manually
       }
-      
-      // Update issue with PR info AND generated content (for cases where PR fails)
+
       await prisma.issue.update({
         where: { id: issueId },
         data: {
-          status: prUrl ? 'completed' : 'completed', // Still completed even without PR
+          status: 'completed',
           prUrl,
           prNumber,
           prStatus: prUrl ? 'open' : undefined,
-          generatedOutput: generatedContent, // Always save the generated content
+          generatedOutput: currentCode,
           outputType: 'code'
         }
       })
     } else {
-      // Generic completion for unknown types
       await prisma.issue.update({
         where: { id: issueId },
         data: { status: 'completed' }
       })
     }
-    
+
+    // 8. Send notification if quality gate failed (fire-and-forget)
+    const ownerUserId = issue.brandProfile.userId
+    if (isDraftDueToQuality && ownerUserId) {
+      import('@/lib/services/notification.service').then(({ createNotification }) =>
+        createNotification({
+          userId: ownerUserId,
+          brandProfileId: issue.brandProfileId,
+          type: 'warning',
+          category: 'agent_quality_alert',
+          title: `Quality check failed: ${issue.title}`,
+          message: `The generated code for "${issue.title}" did not pass automated quality checks (score: ${compositeScore?.toFixed(1) ?? 'N/A'}/100). ${prUrl ? 'A draft PR was created for review.' : 'Please review manually.'}`,
+          actionUrl: prUrl,
+          metadata: {
+            issueId,
+            prUrl,
+            prNumber,
+            compositeScore,
+            failures: qualityGateResult?.failures,
+          } as Record<string, unknown>,
+        })
+      ).catch(err => console.warn('[IssueExecutor] Failed to send quality alert:', err))
+    }
+
     const totalDuration = Date.now() - agentStartTime
-    console.log(`[IssueExecutor] Issue ${issueId} completed successfully in ${totalDuration}ms`)
-    console.log(`[IssueExecutor] Result summary: prUrl=${prUrl || 'none'}, contentLength=${generatedContent?.length || 0}`)
-    
+    console.log(`[IssueExecutor] Issue ${issueId} completed in ${totalDuration}ms (qualityGate: ${qualityGatePassed ?? 'no scores'})`)
+
     return {
       success: true,
       prUrl,
       prNumber,
-      generatedContent,
-      conversationUrl,
-      engagementGuidance,
-      suggestedResponse,
-      e2bValidation
+      generatedContent: currentCode,
+      e2bValidation,
+      evalScores: evalScores ? {
+        hallucination: evalScores.hallucination,
+        faithfulness: evalScores.faithfulness,
+        relevancy: evalScores.relevancy,
+        alignment: evalScores.alignment,
+        compositeScore: compositeScore ?? undefined,
+        details: evalScores.details,
+      } : undefined,
+      qualityGatePassed: qualityGatePassed ?? undefined,
     }
-    
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    const errorStack = error instanceof Error ? error.stack : undefined
-    
     console.error(`[IssueExecutor] Error executing issue ${issueId}:`, errorMessage)
-    if (errorStack) {
-      console.error(`[IssueExecutor] Stack trace:`, errorStack)
+    if (error instanceof Error && error.stack) {
+      console.error(`[IssueExecutor] Stack trace:`, error.stack)
     }
-    
-    // Mark as failed instead of resetting to identified
+
     await prisma.issue.update({
       where: { id: issueId },
       data: { status: 'failed' }
     })
-    
-    return {
-      success: false,
-      error: errorMessage
+
+    return { success: false, error: errorMessage }
+  }
+}
+
+/**
+ * Handle conversation-type issues (Reddit/social engagement).
+ * These don't need iterative review — just generate guidance.
+ */
+async function handleConversationIssue(
+  issue: { id: number; title: string; description: string | null; affectedUrl: string | null; brandProfileId: number; brandProfile: { companyName: string | null; companyWebsite: string | null; companyDescription: string | null; companyIndustry: string | null; companyServices: string | null } },
+  agentType: string,
+  context: { pageContent: string | null; sourceFile: string | null; sourceFilePath: string | null; blogContext: string }
+): Promise<ExecutionResult> {
+  console.log(`[IssueExecutor] Processing conversation issue ${issue.id}`)
+
+  const prompt = await buildAgentPrompt({ ...issue, brandProfile: issue.brandProfile, agentType, category: null }, context)
+  const responseText = await withTimeout(
+    callAnthropicDirect(prompt),
+    AGENT_TIMEOUT_MS,
+    `Anthropic API call timed out after ${AGENT_TIMEOUT_MS / 1000}s`
+  )
+
+  const generatedContent = extractGeneratedContent(responseText)
+  const guidance = extractEngagementGuidance(responseText)
+
+  await prisma.issue.update({
+    where: { id: issue.id },
+    data: {
+      status: 'completed',
+      generatedOutput: generatedContent,
+      outputType: 'guidance',
+      description: `${issue.description || ''}\n\n---\n**Engagement Guidance:**\n${guidance.guidance}\n\n**Suggested Response:**\n${guidance.suggestedResponse || 'See guidance above'}`
     }
+  })
+
+  return {
+    success: true,
+    generatedContent,
+    conversationUrl: issue.affectedUrl || undefined,
+    engagementGuidance: guidance.guidance,
+    suggestedResponse: guidance.suggestedResponse,
   }
 }
 
@@ -885,7 +1428,21 @@ export async function retryIssueExecution(issueId: number): Promise<ExecutionRes
       usedE2bSandbox: false,
       e2bSandboxId: null,
       e2bExecutionMs: null,
-      e2bValidationResult: undefined
+      e2bValidationResult: undefined,
+      evalHallucinationScore: null,
+      evalFaithfulnessScore: null,
+      evalRelevancyScore: null,
+      evalAlignmentScore: null,
+      evalScores: undefined,
+      evalScoredAt: null,
+      evalCompositeScore: null,
+      evalContentHash: null,
+      evalQualityGatePassed: null,
+      evalQualityRetries: 0,
+      evalQualityGateDetails: undefined,
+      userFeedbackScore: null,
+      userFeedbackNotes: null,
+      userReviewedAt: null,
     }
   })
   
@@ -908,6 +1465,20 @@ export async function getIssueExecutionStatus(issueId: number) {
       e2bSandboxId: true,
       e2bExecutionMs: true,
       e2bValidationResult: true,
+      evalHallucinationScore: true,
+      evalFaithfulnessScore: true,
+      evalRelevancyScore: true,
+      evalAlignmentScore: true,
+      evalScores: true,
+      evalScoredAt: true,
+      evalCompositeScore: true,
+      evalContentHash: true,
+      evalQualityGatePassed: true,
+      evalQualityRetries: true,
+      evalQualityGateDetails: true,
+      userFeedbackScore: true,
+      userFeedbackNotes: true,
+      userReviewedAt: true,
       deployedAgent: {
         select: {
           id: true,

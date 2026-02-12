@@ -482,6 +482,10 @@ export function filterValidCompetitors(competitors: string[], brandName: string)
       // Generic platform features
       'pro plan', 'enterprise plan', 'team plan', 'free tier',
       'managed infrastructure', 'infrastructure as code',
+      // Single-word abstract/category terms
+      'security', 'performance', 'reliability', 'scalability', 'compliance',
+      'governance', 'automation', 'integration', 'deployment', 'infrastructure',
+      'engagement', 'methodology', 'philosophy',
     ];
     if (genericProductNames.includes(compLower)) return false;
 
@@ -499,6 +503,30 @@ export function filterValidCompetitors(competitors: string[], brandName: string)
         const genericFirstWords = ['ai', 'edge', 'cloud', 'serverless', 'managed', 'global', 'auto', 'instant'];
         if (genericFirstWords.includes(words[0])) return false;
       }
+
+      // Filter comparison category headings / attribute labels
+      // e.g., "Core Identity", "Primary Strength", "Build Speed", "Engagement Model"
+      const abstractNouns = new Set([
+        'identity', 'strength', 'control', 'latency', 'speed', 'cost',
+        'generosity', 'pricing', 'tier', 'stage', 'assessment', 'evaluation',
+        'compliance', 'governance', 'scalability', 'flexibility', 'compatibility',
+        'reliability', 'accuracy', 'performance', 'management', 'deployment',
+        'integration', 'verification', 'automation', 'model', 'complexity',
+        'maturity', 'readiness', 'coverage', 'efficiency', 'quality',
+        'capability', 'capacity', 'overhead', 'footprint', 'posture',
+        'focus', 'approach', 'methodology', 'philosophy',
+        'security', 'experience', 'infrastructure',
+      ]);
+      const genericFirstForAbstract = new Set([
+        'core', 'primary', 'best', 'free', 'low', 'high', 'setup', 'build',
+        'deployment', 'infrastructure', 'security', 'model', 'engagement',
+        'data', 'network', 'api', 'cloud', 'cost', 'price', 'code',
+        'developer', 'user', 'platform', 'service', 'system', 'overall',
+        'total', 'key', 'main', 'top', 'base', 'resource', 'vendor',
+      ]);
+      // Also check hyphenated first words (e.g., "low-latency" → check "low")
+      const firstWordBase = words[0].split('-')[0];
+      if (abstractNouns.has(words[1]) && (genericFirstForAbstract.has(words[0]) || genericFirstForAbstract.has(firstWordBase))) return false;
     }
 
     if (comp.length < 2 || comp.length > 40) return false;
@@ -563,23 +591,16 @@ export function filterValidCompetitors(competitors: string[], brandName: string)
       'ecosystems', 'protocols', 'frameworks', 'offerings', 'alternatives', 'options',
     ];
     const lastWord = words[words.length - 1];
+    const genericFirstWordsForCategory = [
+      'ai', 'cloud', 'data', 'web', 'digital', 'enterprise', 'commercial',
+      'decentralized', 'centralized', 'distributed', 'gpu', 'compute',
+      'edge', 'serverless', 'managed', 'global', 'auto', 'instant',
+      'online', 'virtual', 'professional', 'technical', 'coding',
+      'career', 'job', 'industry', 'software', 'tech', 'open',
+      'annotation', 'labeling', 'training',
+    ];
     if (pluralCategoryNouns.includes(lastWord)) {
-      if (words.length >= 3) {
-        // 3+ words ending in plural category noun → always filter
-        return false;
-      }
-      if (words.length === 2) {
-        // 2-word: only filter if first word is also generic
-        const genericFirstWordsForCategory = [
-          'ai', 'cloud', 'data', 'web', 'digital', 'enterprise', 'commercial',
-          'decentralized', 'centralized', 'distributed', 'gpu', 'compute',
-          'edge', 'serverless', 'managed', 'global', 'auto', 'instant',
-          'online', 'virtual', 'professional', 'technical', 'coding',
-          'career', 'job', 'industry', 'software', 'tech', 'open',
-          'annotation', 'labeling', 'training',
-        ];
-        if (genericFirstWordsForCategory.includes(words[0])) return false;
-      }
+      if (words.length >= 2 && genericFirstWordsForCategory.includes(words[0])) return false;
     }
 
     // Expanded 3+ word generic combo: first word generic AND last word generic tech term → filter
@@ -588,12 +609,15 @@ export function filterValidCompetitors(competitors: string[], brandName: string)
         'ai', 'edge', 'cloud', 'serverless', 'managed', 'global', 'auto', 'instant',
         'decentralized', 'centralized', 'distributed', 'gpu', 'compute', 'data',
         'web', 'digital', 'enterprise', 'commercial', 'open',
+        'free', 'low', 'high', 'fast', 'setup', 'build', 'deploy',
       ];
       const genericLastSet = [
         'sdk', 'gateway', 'service', 'platform', 'runtime', 'functions',
         'network', 'cdn', 'edge', 'proxy', 'cache', 'dashboard', 'console',
         'portal', 'studio', 'hub', 'center', 'marketplace', 'provider',
         'solution', 'tool', 'system', 'framework', 'protocol', 'ecosystem',
+        'integration', 'automation', 'verification', 'deployment', 'management',
+        'generosity', 'performance', 'latency', 'speed', 'cost', 'pricing',
       ];
       if (genericFirstSet.includes(words[0]) && genericLastSet.includes(lastWord)) return false;
     }
@@ -659,7 +683,11 @@ export function filterValidCompetitors(competitors: string[], brandName: string)
     if (spaceCount > 3) return false;
     
     if (/[.!?:]$/.test(comp)) return false;
-    
+
+    // Filter entries containing commas — company names almost never have commas
+    // Catches: "Hands-on, cost-effective Linux VPS", "Fast, scalable hosting"
+    if (comp.includes(',')) return false;
+
     const knownLowercaseBrands = ['npm', 'github', 'gitlab', 'docker', 'kubernetes', 'redis', 'mongodb'];
     if (comp === compLower && !knownLowercaseBrands.includes(compLower)) {
       if (!/[A-Z]/.test(comp) && comp.length > 5) return false;
@@ -1160,6 +1188,8 @@ Extract the following information:
      * Action phrases like "Reach out directly" or "Sign up now"
      * Generic descriptions like "leading platform" or "top tool"
      * Category headings like "AI model/data marketplaces" or "GPU compute networks"
+     * Comparison categories or section headings like "Core Identity", "Primary Strength", "Best For"
+     * Feature/attribute labels like "Build speed", "Deployment latency", "Free tier generosity", "Infrastructure Control"
      * Marketing copy or testimonials
 
 4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
@@ -1398,6 +1428,7 @@ Extract the following information:
    - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "a16z", "Entrepreneurs First", "Boost VC")
    - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
    - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
+   - CRITICAL: Do NOT extract comparison categories, section headings, or feature/attribute labels as competitors (e.g., "Core Identity", "Primary Strength", "Build speed", "Free tier generosity"). Only extract actual company/brand names.
    - Return empty array [] if no competitors are mentioned
    - Examples:
      * From "Top 5 accelerators: 1. Y Combinator, 2. Techstars, 3. 500 Global, 4. Seedcamp, 5. MassChallenge"
@@ -1666,6 +1697,7 @@ Extract the following information:
    - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
    - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
    - Exclude category headings like "AI model/data marketplaces" or "GPU compute networks"
+   - CRITICAL: Do NOT extract comparison categories, section headings, or feature/attribute labels as competitors (e.g., "Core Identity", "Primary Strength", "Build speed", "Free tier generosity"). Only extract actual company/brand names.
    - Return empty array [] if no competitors are mentioned
 4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
@@ -1876,6 +1908,7 @@ Extract the following information:
    - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
    - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
    - Exclude category headings like "AI model/data marketplaces" or "GPU compute networks"
+   - CRITICAL: Do NOT extract comparison categories, section headings, or feature/attribute labels as competitors (e.g., "Core Identity", "Primary Strength", "Build speed", "Free tier generosity"). Only extract actual company/brand names.
    - Return empty array [] if no competitors are mentioned
 4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }

@@ -228,16 +228,18 @@ export async function POST(request: NextRequest) {
         : []
     };
 
-    // Fallback: if no competitors extracted, try AI suggestion
-    let competitorSource: 'extracted' | 'ai_suggested' = 'extracted';
+    // If fewer than 3 competitors extracted, supplement with AI suggestions
+    let competitorSource: 'extracted' | 'ai_suggested' | 'merged' = cleanedData.competitorUrls.length > 0 ? 'extracted' : 'extracted';
+    const MIN_COMPETITORS = 3;
 
     if (
-      cleanedData.competitorUrls.length === 0 &&
+      cleanedData.competitorUrls.length < MIN_COMPETITORS &&
       (cleanedData.companyDescription || cleanedData.industry) &&
       process.env.OPENAI_API_KEY
     ) {
       try {
-        console.log('🤖 No competitors found by Firecrawl, trying AI suggestion...');
+        const firecrawlCount = cleanedData.competitorUrls.length;
+        console.log(`🤖 Only ${firecrawlCount} competitor(s) from Firecrawl, supplementing with AI suggestion...`);
         const aiResult = await suggestCompetitorsWithAI({
           companyDescription: cleanedData.companyDescription,
           industry: cleanedData.industry,
@@ -245,13 +247,33 @@ export async function POST(request: NextRequest) {
           companyUrl: url,
         });
         if (aiResult.urls.length > 0) {
-          cleanedData.competitorUrls = aiResult.urls;
-          competitorSource = 'ai_suggested';
-          console.log(`🤖 AI suggested ${aiResult.urls.length} competitors:`, aiResult.urls);
+          if (firecrawlCount === 0) {
+            // No Firecrawl results — use AI suggestions directly
+            cleanedData.competitorUrls = aiResult.urls;
+            competitorSource = 'ai_suggested';
+          } else {
+            // Merge: keep Firecrawl results, add AI suggestions that aren't duplicates
+            const existingHostnames = new Set(
+              cleanedData.competitorUrls.map(u => {
+                try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; }
+              }).filter(Boolean)
+            );
+            const newUrls = aiResult.urls.filter(u => {
+              try {
+                const hostname = new URL(u).hostname.replace(/^www\./, '');
+                return !existingHostnames.has(hostname);
+              } catch { return false; }
+            });
+            if (newUrls.length > 0) {
+              cleanedData.competitorUrls = [...cleanedData.competitorUrls, ...newUrls];
+              competitorSource = 'merged';
+            }
+          }
+          console.log(`🤖 Final competitor list (${cleanedData.competitorUrls.length}):`, cleanedData.competitorUrls);
         }
       } catch (err) {
         console.log('🤖 AI competitor suggestion failed (graceful degradation):', err);
-        // Continue with empty competitors — not a critical failure
+        // Continue with whatever competitors we have — not a critical failure
       }
     }
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Sparkles, Target, BarChart3, Activity, Code } from "lucide-react"
+import { ArrowRight, Sparkles, Target, BarChart3, Activity, Code, MessageSquare } from "lucide-react"
 import { useAnalysisPipeline } from "@/hooks/use-analysis-pipeline"
 import { useBrandProfile } from "@/components/brand-profile-context"
 import { useOnboarding } from "./onboarding-context"
@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion"
 
 
 const LOADING_STEPS = [
+  { text: "Defining your prompts", icon: MessageSquare },
   { text: "Analyzing your brand", icon: Sparkles },
   { text: "Testing AI visibility", icon: Target },
   { text: "Scanning competitors", icon: BarChart3 },
@@ -180,6 +181,8 @@ export function PromptsForm() {
       // Mark analysis as running in AnalysisContext (persists across refresh)
       startAnalysis(profile.id)
 
+      // Step 1: Generate prompts via dedicated endpoint (non-blocking on failure)
+      // Step 2: Run unified analysis (finds existing prompts, skips generation)
       const config = {
         brandProfileId: profile.id,
         brandName: onboardingData.companyName,
@@ -187,16 +190,29 @@ export function PromptsForm() {
         industry: onboardingData.companyIndustry || undefined,
         description: onboardingData.companyDescription || undefined,
         competitors: onboardingData.competitors || [],
-      }
+      };
 
-      runPipeline(config)
-        .then(() => {
+      (async () => {
+        try {
+          console.log("[PromptsForm] Generating initial prompts...")
+          await fetch('/api/prompts/generate-initial', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ brandProfileId: profile.id }),
+          })
+          console.log("[PromptsForm] Initial prompts generated")
+        } catch (err) {
+          console.warn("[PromptsForm] Initial prompt generation failed, fallback will handle:", err)
+        }
+
+        try {
+          await runPipeline(config)
           completeAnalysis(true)
-        })
-        .catch((err) => {
+        } catch (err) {
           console.error("[PromptsForm] Pipeline failed:", err)
           completeAnalysis(false)
-        })
+        }
+      })()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recoveryState, analysisStarted, profile?.id])

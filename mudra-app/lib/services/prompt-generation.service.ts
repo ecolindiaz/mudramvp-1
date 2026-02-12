@@ -9,6 +9,11 @@ export interface BrandInfo {
   productsServices: string[];
   idealCustomer: string;
   competitors: string[];
+  // Enriched fields (optional — backward-compatible)
+  websiteUrl?: string;
+  productsWithDescriptions?: string[];   // "Product Name - Description" format
+  icpSegments?: string[];                // individual ICP segments as array
+  inferredBusinessType?: string;         // saas | ecommerce | agency | marketplace | enterprise | other
 }
 
 export interface GeneratedPrompts {
@@ -331,7 +336,7 @@ Generate exactly ${count} prompts now.`;
     );
   }
 
-  const validCategories = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific'];
+  const validCategories = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific', 'FAQ'];
   for (const prompt of parsed.prompts) {
     if (!prompt.text || typeof prompt.text !== 'string') {
       throw new Error('Invalid prompt: missing text');
@@ -346,6 +351,24 @@ Generate exactly ${count} prompts now.`;
 }
 
 /**
+ * Infer business type from industry, description, and services
+ */
+export function inferBusinessType(
+  industry: string,
+  description: string,
+  services: string[]
+): string {
+  const text = `${industry} ${description} ${services.join(' ')}`.toLowerCase();
+
+  if (/\b(saas|software as a service|subscription|platform|api|devtool|developer tool)\b/.test(text)) return 'saas';
+  if (/\b(ecommerce|e-commerce|shopify|store|retail|shop|merch|product catalog)\b/.test(text)) return 'ecommerce';
+  if (/\b(agency|consulting|consultancy|freelance|studio|services firm)\b/.test(text)) return 'agency';
+  if (/\b(marketplace|two.?sided|buyer.?seller|matchmak)\b/.test(text)) return 'marketplace';
+  if (/\b(enterprise|b2b|fortune\s?\d|large.?scale)\b/.test(text)) return 'enterprise';
+  return 'other';
+}
+
+/**
  * Convert brand profile to BrandInfo format
  */
 export function profileToBrandInfo(profile: any): BrandInfo {
@@ -356,13 +379,181 @@ export function profileToBrandInfo(profile: any): BrandInfo {
   } else if (typeof profile.competitors === 'string' && profile.competitors.trim()) {
     competitors = profile.competitors.split(',').map((c: string) => c.trim()).filter((c: string) => c);
   }
-  
+
+  const services = profile.companyServices
+    ? profile.companyServices.split(',').map((s: string) => s.trim())
+    : ['Software'];
+
+  const description = profile.companyDescription || 'A technology company';
+  const industry = profile.companyIndustry || 'Technology';
+  const icp = profile.companyICP || 'Small to medium businesses';
+
+  // Products with descriptions: keep items that contain " - " (Firecrawl format)
+  const productsWithDescriptions = services.some((s: string) => s.includes(' - '))
+    ? services
+    : undefined;
+
+  // ICP segments: split by comma if there are multiple
+  const icpSegments = icp.includes(',')
+    ? icp.split(',').map((s: string) => s.trim()).filter((s: string) => s)
+    : undefined;
+
   return {
     companyName: profile.companyName || 'Unknown Company',
-    companyDescription: profile.companyDescription || 'A technology company',
-    industry: profile.companyIndustry || 'Technology',
-    productsServices: profile.companyServices ? profile.companyServices.split(',').map((s: string) => s.trim()) : ['Software'],
-    idealCustomer: profile.companyICP || 'Small to medium businesses',
+    companyDescription: description,
+    industry,
+    productsServices: services,
+    idealCustomer: icp,
     competitors: competitors.length > 0 ? competitors : ['Industry competitors'],
+    websiteUrl: profile.companyWebsite || undefined,
+    productsWithDescriptions,
+    icpSegments,
+    inferredBusinessType: inferBusinessType(industry, description, services),
   };
+}
+
+// --- Initial prompt generation for onboarding (GPT-5.2, JSON, business-type-aware) ---
+
+export interface InitialGeneratedPrompt {
+  text: string;
+  category: 'Organic' | 'Competitor' | 'How-to Guides' | 'Brand-Specific' | 'FAQ';
+}
+
+function getBusinessTypeGuidance(type: string): string {
+  switch (type) {
+    case 'saas':
+      return `- Include prompts about pricing tiers, feature comparisons, integrations, and migration from competitors
+- Generate FAQ prompts around onboarding, security, and API capabilities
+- Add "best [category] software for [use case]" style organic queries`;
+    case 'ecommerce':
+      return `- Include prompts about product reviews, shipping, returns, and deals
+- Generate FAQ prompts around sizing, availability, and payment options
+- Add "best [product type] for [occasion/use case]" style organic queries`;
+    case 'agency':
+      return `- Include prompts about case studies, expertise, industry specialization, and ROI
+- Generate FAQ prompts around process, timelines, and deliverables
+- Add "best [service type] agency for [industry/need]" style organic queries`;
+    case 'marketplace':
+      return `- Include prompts about selection, trustworthiness, fees, and buyer/seller experiences
+- Generate FAQ prompts around listing, payments, and dispute resolution
+- Add "best marketplace for [category]" style organic queries`;
+    case 'enterprise':
+      return `- Include prompts about scalability, compliance, security certifications, and SLAs
+- Generate FAQ prompts around enterprise deployment, custom contracts, and support tiers
+- Add "enterprise [solution type] for [industry]" style organic queries`;
+    default:
+      return `- Generate a diverse mix of discovery, comparison, and informational queries
+- Include FAQ prompts derived from the company's specific products and services`;
+  }
+}
+
+/**
+ * Generate initial prompts for a brand during onboarding.
+ * Uses GPT-5.2 with JSON output, 5 categories including FAQ,
+ * business-type-aware guidance, and richer product/ICP context.
+ */
+export async function generateInitialPrompts(brandInfo: BrandInfo): Promise<InitialGeneratedPrompt[]> {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  const productCount = brandInfo.productsServices.length;
+  const icpCount = brandInfo.icpSegments?.length ?? 1;
+  const totalPrompts = Math.min(60, 40 + Math.min(productCount * 2, 10) + Math.min(icpCount * 2, 10));
+
+  const businessType = brandInfo.inferredBusinessType || 'other';
+  const businessGuidance = getBusinessTypeGuidance(businessType);
+
+  const systemPrompt = `You generate natural-language search queries to test a brand's visibility in generative AI engines (ChatGPT, Perplexity, Gemini, Claude).
+
+Generate exactly ${totalPrompts} unique search queries distributed across 5 categories:
+
+1. **Organic** (~50%): Generic discovery queries where the brand could naturally appear. Vary styles: "best X for Y", comparisons, reviews, recommendations.
+2. **Competitor** (~15%): Queries comparing or seeking alternatives to the brand's competitors.
+3. **How-to Guides** (~10%): Actionable task/how-to queries related to the brand's domain.
+4. **Brand-Specific** (~10%): Direct queries mentioning the brand name.
+5. **FAQ** (~15%): Question-style prompts derived from specific products/services and customer needs. These should be real questions a potential customer would ask — e.g., "How to safely test AI integrations before deployment?" or "What is the best way to monitor API uptime?"
+
+Business type: ${businessType}
+${businessGuidance}
+
+Rules:
+- Each query must be a natural search question or phrase (not a keyword)
+- Mention specific products/services by name in at least 30% of queries
+- Vary query complexity: short queries, detailed multi-part queries, and comparison queries
+- Keep queries concise (under 120 characters each)
+- FAQ queries must be phrased as questions (start with How, What, Why, Can, Is, etc.)
+
+Return valid JSON:
+{
+  "prompts": [
+    { "text": "query text", "category": "Organic" },
+    ...
+  ]
+}
+
+Categories must be exactly one of: "Organic", "Competitor", "How-to Guides", "Brand-Specific", "FAQ"`;
+
+  // Build rich user prompt with individual products and ICP segments
+  const productsSection = brandInfo.productsWithDescriptions
+    ? brandInfo.productsWithDescriptions.map((p, i) => `  ${i + 1}. ${p}`).join('\n')
+    : brandInfo.productsServices.map((p, i) => `  ${i + 1}. ${p}`).join('\n');
+
+  const icpSection = brandInfo.icpSegments
+    ? brandInfo.icpSegments.map((s, i) => `  ${i + 1}. ${s}`).join('\n')
+    : `  1. ${brandInfo.idealCustomer}`;
+
+  const userPrompt = `Brand: ${brandInfo.companyName}
+Website: ${brandInfo.websiteUrl || 'N/A'}
+Industry: ${brandInfo.industry}
+Description: ${brandInfo.companyDescription}
+
+Products/Services:
+${productsSection}
+
+Target Customer Segments:
+${icpSection}
+
+Competitors: ${brandInfo.competitors.join(', ')}
+
+Generate exactly ${totalPrompts} prompts now.`;
+
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  console.log(`[InitialPrompts] Generating ${totalPrompts} prompts via GPT-5.2 (business type: ${businessType})...`);
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-5.2',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.7,
+    max_completion_tokens: 4000,
+    response_format: { type: 'json_object' },
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error('Empty response from GPT-5.2');
+  }
+
+  let parsed: { prompts: InitialGeneratedPrompt[] };
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error('Failed to parse GPT-5.2 response as JSON');
+  }
+
+  if (!Array.isArray(parsed.prompts) || parsed.prompts.length === 0) {
+    throw new Error(`Expected ${totalPrompts} prompts but got ${parsed.prompts?.length ?? 0}`);
+  }
+
+  const validCategories = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific', 'FAQ'];
+  const validated = parsed.prompts.filter(
+    p => p.text && typeof p.text === 'string' && validCategories.includes(p.category)
+  );
+
+  console.log(`[InitialPrompts] Generated ${validated.length} valid prompts (requested ${totalPrompts})`);
+  return validated;
 }

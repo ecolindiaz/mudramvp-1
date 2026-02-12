@@ -57,6 +57,7 @@ Analyze the provided list of URLs and select the 20-25 MOST IMPORTANT marketing 
 - NOT: minor updates, changelog items, tutorials
 
 ## MUST EXCLUDE:
+- **Non-marketing subdomains**: app.*, security.*, portal.*, dashboard.*, admin.*, console.*, staging.*, dev.*, cdn.* — these are web applications, not marketing pages
 - Documentation (/docs, /reference, /api-reference, /guides with technical content)
 - Legal pages (/terms, /privacy, /legal)
 - Authentication (/login, /signup, /register)
@@ -65,6 +66,7 @@ Analyze the provided list of URLs and select the 20-25 MOST IMPORTANT marketing 
 - Status pages
 - Help/Support articles
 - Locale duplicates (prefer /pricing over /fr/pricing)
+- Only include pages from the BASE domain (e.g., example.com or www.example.com)
 
 ## PAGE TYPE DEFINITIONS:
 - **home**: Root landing page only

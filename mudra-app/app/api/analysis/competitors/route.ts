@@ -104,6 +104,10 @@ function isValidCompetitorName(name: string): boolean {
     'application', 'software', 'cloud', 'server', 'servers', 'hosting',
     'enterprise', 'startup', 'startups', 'company', 'companies', 'product',
     'products', 'website', 'websites', 'web', 'mobile', 'desktop', 'api',
+    // Single-word abstract/category terms
+    'security', 'performance', 'reliability', 'scalability', 'compliance',
+    'governance', 'automation', 'integration', 'deployment', 'infrastructure',
+    'engagement', 'methodology', 'philosophy',
   ]
   if (genericSingleWords.includes(compLower)) return false
 
@@ -145,6 +149,9 @@ function isValidCompetitorName(name: string): boolean {
   // Ends with punctuation (sentences, not company names)
   if (/[.!?:,;]$/.test(name)) return false
 
+  // Filter entries containing commas — company names almost never have commas
+  if (name.includes(',')) return false
+
   // Contains lowercase-only words longer than 15 chars (likely description)
   if (name === compLower && name.length > 15 && !/[A-Z0-9.]/.test(name)) return false
 
@@ -162,8 +169,16 @@ function isValidCompetitorName(name: string): boolean {
     'ecosystems', 'protocols', 'frameworks', 'offerings', 'alternatives', 'options',
   ]
   const lastWord = words[words.length - 1]
+  const genericFirstWordsForCategory = [
+    'ai', 'cloud', 'data', 'web', 'digital', 'enterprise', 'commercial',
+    'decentralized', 'centralized', 'distributed', 'gpu', 'compute',
+    'edge', 'serverless', 'managed', 'global', 'auto', 'instant',
+    'online', 'virtual', 'professional', 'technical', 'coding',
+    'career', 'job', 'industry', 'software', 'tech', 'open',
+    'annotation', 'labeling', 'training',
+  ]
   if (pluralCategoryNouns.includes(lastWord)) {
-    if (words.length >= 3) return false
+    if (words.length >= 2 && genericFirstWordsForCategory.includes(words[0])) return false
     if (words.length === 2) {
       const genericFirstWords = [
         'ai', 'cloud', 'data', 'web', 'digital', 'enterprise', 'commercial',
@@ -177,18 +192,47 @@ function isValidCompetitorName(name: string): boolean {
     }
   }
 
+  // Filter 2-word names that are comparison category headings / attribute labels
+  // e.g., "Core Identity", "Primary Strength", "Build Speed", "Engagement Model"
+  if (words.length === 2) {
+    const abstractNouns = new Set([
+      'identity', 'strength', 'control', 'latency', 'speed', 'cost',
+      'generosity', 'pricing', 'tier', 'stage', 'assessment', 'evaluation',
+      'compliance', 'governance', 'scalability', 'flexibility', 'compatibility',
+      'reliability', 'accuracy', 'performance', 'management', 'deployment',
+      'integration', 'verification', 'automation', 'model', 'complexity',
+      'maturity', 'readiness', 'coverage', 'efficiency', 'quality',
+      'capability', 'capacity', 'overhead', 'footprint', 'posture',
+      'focus', 'approach', 'methodology', 'philosophy',
+      'security', 'experience', 'infrastructure',
+    ]);
+    const genericFirstForAbstract = new Set([
+      'core', 'primary', 'best', 'free', 'low', 'high', 'setup', 'build',
+      'deployment', 'infrastructure', 'security', 'model', 'engagement',
+      'data', 'network', 'api', 'cloud', 'cost', 'price', 'code',
+      'developer', 'user', 'platform', 'service', 'system', 'overall',
+      'total', 'key', 'main', 'top', 'base', 'resource', 'vendor',
+    ]);
+    // Also check hyphenated first words (e.g., "low-latency" → check "low")
+    const firstWordBase = words[0].split('-')[0]
+    if (abstractNouns.has(words[1]) && (genericFirstForAbstract.has(words[0]) || genericFirstForAbstract.has(firstWordBase))) return false;
+  }
+
   // 3+ word generic combo: first word generic AND last word generic tech term → filter
   if (words.length >= 3) {
     const genericFirstSet = [
       'ai', 'edge', 'cloud', 'serverless', 'managed', 'global', 'auto', 'instant',
       'decentralized', 'centralized', 'distributed', 'gpu', 'compute', 'data',
       'web', 'digital', 'enterprise', 'commercial', 'open',
+      'free', 'low', 'high', 'fast', 'setup', 'build', 'deploy',
     ]
     const genericLastSet = [
       'sdk', 'gateway', 'service', 'platform', 'runtime', 'functions',
       'network', 'cdn', 'edge', 'proxy', 'cache', 'dashboard', 'console',
       'portal', 'studio', 'hub', 'center', 'marketplace', 'provider',
       'solution', 'tool', 'system', 'framework', 'protocol', 'ecosystem',
+      'integration', 'automation', 'verification', 'deployment', 'management',
+      'generosity', 'performance', 'latency', 'speed', 'cost', 'pricing',
     ]
     if (genericFirstSet.includes(words[0]) && genericLastSet.includes(lastWord)) return false
   }

@@ -642,6 +642,109 @@ function extractFAQsFromQuestionHeadings($: CheerioAPI): FAQItem[] {
 	return faqs;
 }
 
+/**
+ * Extracts FAQs by finding sections with FAQ-related heading text,
+ * regardless of CSS class/id naming. Handles sites that use generic
+ * class names (e.g., Webflow, Shopify) but have clear FAQ headings
+ * like "Frequently Asked Questions" or "FAQ".
+ */
+function extractFAQsFromTextHeadings($: CheerioAPI): FAQItem[] {
+	const faqs: FAQItem[] = [];
+	const faqHeadingPattern = /^(?:faq|f\.a\.q|frequently\s+asked\s+questions)/i;
+
+	// Find headings whose text matches FAQ patterns
+	$("h1, h2, h3, h4").each((_idx, heading) => {
+		const headingText = $(heading).text().trim();
+		if (!faqHeadingPattern.test(headingText)) return;
+
+		// Found an FAQ heading — look for Q&A in the section that follows
+		// Strategy: walk the parent container's children after this heading,
+		// or walk siblings if the heading is a direct child of a section/div
+		const parent = $(heading).parent();
+		if (!parent.length) return;
+
+		// Try: Q&A pairs as sibling elements after the heading
+		// Common pattern: heading followed by div/dl items containing question+answer
+		let current = $(heading).next();
+		while (current.length) {
+			// Stop if we hit another major heading (next section)
+			if (current.is("h1, h2") && !faqHeadingPattern.test(current.text().trim())) break;
+
+			// Pattern A: container with buttons (accordion-style)
+			current.find("button").each((_btnIdx, button) => {
+				const questionEl = $(button).find("span").first();
+				const question = questionEl.length
+					? questionEl.text().trim()
+					: $(button).clone().children("svg, div:has(svg), [class*='icon']").remove().end().text().trim();
+
+				if (!question || question.length < 5) return;
+
+				const btnParent = $(button).parent();
+				const answerContainer = btnParent.children("div").last();
+				let answer = "";
+				if (answerContainer.length && !answerContainer.find("button").length) {
+					const answerP = answerContainer.find("p").first();
+					answer = answerP.length ? answerP.text().trim() : answerContainer.text().trim();
+				}
+
+				if (question && answer && answer.length > 10) {
+					faqs.push({
+						question, answer,
+						question_length: question.length,
+						answer_length: answer.length,
+						source: "pattern",
+					});
+				}
+			});
+
+			// Pattern B: headings (h3/h4) with question text followed by answer paragraphs
+			current.find("h3, h4, h5").each((_hIdx, subHeading) => {
+				const question = $(subHeading).text().trim();
+				if (question.length < 5) return;
+
+				let answer = "";
+				let nextSib = $(subHeading).next();
+				while (nextSib.length && !nextSib.is("h1, h2, h3, h4, h5, h6")) {
+					if (nextSib.is("p, div, ul, ol")) {
+						answer += nextSib.text().trim() + " ";
+					}
+					nextSib = nextSib.next();
+				}
+				answer = answer.trim();
+
+				if (question && answer && answer.length > 10) {
+					faqs.push({
+						question, answer,
+						question_length: question.length,
+						answer_length: answer.length,
+						source: "pattern",
+					});
+				}
+			});
+
+			// Pattern C: dt/dd pairs (definition list)
+			current.find("dt").each((_dtIdx, dt) => {
+				const question = $(dt).text().trim();
+				const dd = $(dt).next("dd");
+				const answer = dd.text().trim();
+
+				if (question && answer && question.length > 5 && answer.length > 10) {
+					faqs.push({
+						question, answer,
+						question_length: question.length,
+						answer_length: answer.length,
+						source: "pattern",
+					});
+				}
+			});
+
+			current = current.next();
+		}
+	});
+
+	return faqs;
+}
+
 function deduplicateFAQs(faqs: FAQItem[]): FAQItem[] {
 	const seen = new Set<string>();
 	const unique: FAQItem[] = [];
@@ -664,9 +767,10 @@ function extractFAQs($: CheerioAPI): FAQExtraction {
 	const patternFaqs = extractFAQsFromPatterns($);
 	const accordionFaqs = extractFAQsFromAccordion($);
 	const headingFaqs = extractFAQsFromQuestionHeadings($);
+	const textHeadingFaqs = extractFAQsFromTextHeadings($);
 
-	// Combine pattern-based FAQs (accordion, headings, Q:/A: patterns)
-	const allPatternFaqs = [...patternFaqs, ...accordionFaqs, ...headingFaqs];
+	// Combine pattern-based FAQs (accordion, headings, Q:/A: patterns, text-based heading detection)
+	const allPatternFaqs = [...patternFaqs, ...accordionFaqs, ...headingFaqs, ...textHeadingFaqs];
 
 	const sources: FAQSources = {
 		jsonld_faq_schema: {

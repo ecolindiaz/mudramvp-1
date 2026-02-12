@@ -776,33 +776,45 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
       // Don't fail the whole analysis if reconciliation fails
     }
 
-    // Step 8.5: Create issues from ALL page scores at once
-    // (replaces the old pagination-based discovery that processed 1 page per click)
-    console.log('[Technical Core] Step 8.5: Creating issues from all page scores...');
-    try {
-      const { createIssuesFromMultiplePageScores } = await import('./issue-from-scoring.service');
-      const issueResult = await createIssuesFromMultiplePageScores(config.brandProfileId, pageScores);
-      console.log(`[Technical Core] Issues: ${issueResult.totalCreated} created, ${issueResult.totalUpdated} updated, ${issueResult.totalSkipped} skipped`);
-    } catch (issueError) {
-      console.warn('[Technical Core] Issue creation failed:', issueError);
-    }
-
-    // Increment page visibility index (controls progressive issue reveal on frontend)
+    // Step 8.5: Progressive issue discovery — create issues for pages up to current index
+    // First run = homepage only, each subsequent run reveals one more page's issues
+    console.log('[Technical Core] Step 8.5: Progressive issue discovery...');
     try {
       const currentProfile = await prisma.brandProfile.findUnique({
         where: { id: config.brandProfileId },
         select: { issueDiscoveryPageIndex: true },
       });
       const currentIndex = currentProfile?.issueDiscoveryPageIndex ?? 0;
+
+      // Sort pageScores: homepage first, then by type priority
+      const PAGE_TYPE_ORDER: Record<string, number> = {
+        home: 0, pricing: 1, features: 2, product: 3, solutions: 4,
+        about: 5, contact: 6, blog: 7, other: 8, documentation: 9,
+      };
+      const sortedScores = [...pageScores].sort((a, b) => {
+        return (PAGE_TYPE_ORDER[a.page_type] ?? 99) - (PAGE_TYPE_ORDER[b.page_type] ?? 99);
+      });
+
+      // Progressive slice: reveal one more page per analysis run
+      const newIndex = currentIndex + 1;
+      const pagesToReveal = sortedScores.slice(0, newIndex);
+
+      console.log(`[Technical Core] Revealing issues for ${pagesToReveal.length}/${sortedScores.length} pages (index ${currentIndex} -> ${newIndex})`);
+
+      const { createIssuesFromMultiplePageScores } = await import('./issue-from-scoring.service');
+      const issueResult = await createIssuesFromMultiplePageScores(config.brandProfileId, pagesToReveal);
+      console.log(`[Technical Core] Issues: ${issueResult.totalCreated} created, ${issueResult.totalUpdated} updated, ${issueResult.totalSkipped} skipped`);
+
+      // Update page index for next run
       await prisma.brandProfile.update({
         where: { id: config.brandProfileId },
         data: {
-          issueDiscoveryPageIndex: currentIndex + 1,
-          issueDiscoveryTotalPages: pageScores.length,
+          issueDiscoveryPageIndex: newIndex,
+          issueDiscoveryTotalPages: sortedScores.length,
         },
       });
-    } catch (updateError) {
-      console.warn('[Technical Core] Could not update page index:', updateError);
+    } catch (issueError) {
+      console.warn('[Technical Core] Issue creation failed:', issueError);
     }
 
     return {

@@ -510,6 +510,10 @@ export function quickValidateName(name: string): boolean {
     'asset optimization', 'monitoring & ci', 'infrastructure',
     'security & accessibility', 'scope & scale', 'session playback',
     'analytics vs monitoring', 'privacy & data ownership', 'budget & usability',
+    // Single-word abstract/category terms
+    'security', 'performance', 'reliability', 'scalability', 'compliance',
+    'governance', 'automation', 'integration', 'deployment',
+    'engagement', 'methodology', 'philosophy',
   ])
   if (genericWords.has(lower)) return false
 
@@ -535,12 +539,14 @@ export function quickValidateName(name: string): boolean {
     /^why\s/i,
     // Category labels
     /^(best for|strengths|unique advantages|why developers|why it stands out)/i,
+    // Comparison category headings / attribute labels (2-word: generic first + abstract second)
+    /^(core|primary|free|low|high|setup|build|deployment|infrastructure|security|model|engagement|data|network|api|cloud|cost|price|code|developer|user|platform|service|system|overall|total|key|main|base|resource|vendor)(-\w+)?\s+(identity|strength|control|latency|speed|cost|generosity|pricing|tier|stage|assessment|evaluation|compliance|governance|scalability|flexibility|compatibility|reliability|accuracy|performance|management|deployment|integration|verification|automation|model|complexity|maturity|readiness|coverage|efficiency|quality|capability|capacity|overhead|footprint|posture|focus|approach|methodology|philosophy|security|experience|infrastructure)$/i,
     // Contains parentheses with URLs or explanations (not company names)
     /\(\s*(https?:|by\s|e\.g\.|now\s)/i,
     // Contains " vs " (comparison, not company name)
     /\svs\s/i,
-    // 3+ word phrases ending in plural category nouns (category headings, not companies)
-    /^\S+\s+\S+\s+.*\b(marketplaces|networks|services|providers|platforms|solutions|tools|systems|agencies|organizations|ecosystems|protocols|frameworks|offerings|alternatives|options)$/i,
+    // 3+ word phrases ending in plural category nouns WHERE first word is generic (protects "Palo Alto Networks")
+    /^(ai|cloud|data|web|digital|enterprise|commercial|decentralized|centralized|distributed|gpu|compute|edge|serverless|managed|global|auto|instant|online|virtual|professional|technical|coding|career|job|industry|software|tech|open|annotation|labeling|training|free|low|high|fast|setup|build|deploy)\s+\S+\s+.*\b(marketplaces|networks|services|providers|platforms|solutions|tools|systems|agencies|organizations|ecosystems|protocols|frameworks|offerings|alternatives|options)$/i,
     // Names containing '/' that aren't known patterns like "ci/cd" — almost never companies
     /\/(?!cd\b)/i,
     // Action phrases
@@ -563,6 +569,9 @@ export function quickValidateName(name: string): boolean {
 
   // Ends with punctuation (sentences)
   if (/[.!?:,;]$/.test(name)) return false
+
+  // Filter entries containing commas — company names almost never have commas
+  if (name.includes(',')) return false
 
   // All lowercase and longer than 12 chars without any caps/numbers = likely a phrase
   if (name === lower && name.length > 12 && !/[A-Z0-9.]/.test(name)) return false

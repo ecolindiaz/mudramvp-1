@@ -10,7 +10,7 @@ export interface ExtractedCompanyInfo {
   servicesProducts: string[]
   idealCustomerProfiles: string[]
   competitorUrls: string[]
-  competitorSource?: 'extracted' | 'ai_suggested'
+  competitorSource?: 'extracted' | 'ai_suggested' | 'merged'
 }
 
 export type ExtractionStatus = 'idle' | 'extracting' | 'completed' | 'failed'

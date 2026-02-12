@@ -84,7 +84,7 @@ const CONTENT_TYPES: Array<{ value: ContentType; label: string; description: str
 ]
 
 // Intent categories
-const INTENT_CATEGORIES = ["Organic", "Competitor", "How-to", "Brand-Specific"]
+const INTENT_CATEGORIES = ["Organic", "Competitor", "How-to", "Brand-Specific", "FAQ"]
 
 function CampaignsPageInner() {
   const { profile } = useBrandProfile()

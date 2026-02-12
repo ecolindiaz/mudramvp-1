@@ -9,7 +9,7 @@ export const maxDuration = 120
 // Validation constants
 const MAX_PROMPT_LENGTH = 500
 const MAX_ACTIVE_PROMPTS = 100
-const VALID_CATEGORIES = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific']
+const VALID_CATEGORIES = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific', 'FAQ']
 
 export async function POST(request: NextRequest) {
   try {

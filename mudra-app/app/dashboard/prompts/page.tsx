@@ -8,19 +8,20 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { 
-  Plus, 
-  Search, 
-  Trash2, 
-  Edit, 
-  Sparkles, 
-  Target, 
-  Users, 
+import {
+  Plus,
+  Search,
+  Trash2,
+  Edit,
+  Sparkles,
+  Target,
+  Users,
   TrendingUp,
   FileText,
   Check,
   X,
-  Loader2
+  Loader2,
+  HelpCircle
 } from "lucide-react"
 import { useBrandProfile } from "@/components/brand-profile-context"
 import { toast } from "sonner"
@@ -41,6 +42,7 @@ const CATEGORIES = [
   { value: 'Competitor', label: 'Competitor', icon: Users, color: 'bg-purple-500' },
   { value: 'How-to Guides', label: 'How-to Guides', icon: FileText, color: 'bg-green-500' },
   { value: 'Brand-Specific', label: 'Brand-Specific', icon: Target, color: 'bg-orange-500' },
+  { value: 'FAQ', label: 'FAQ', icon: HelpCircle, color: 'bg-teal-500' },
 ]
 
 export default function PromptsPage() {

@@ -88,7 +88,10 @@ function calculateWeightedScore(tests: PromptTestResult[]): {
   const categories = {
     organic: tests.filter(t => t.promptCategory?.toLowerCase() === 'organic'),
     competitor: tests.filter(t => t.promptCategory?.toLowerCase() === 'competitor'),
-    howTo: tests.filter(t => t.promptCategory?.toLowerCase() === 'how-to guides'),
+    howTo: tests.filter(t => {
+      const cat = t.promptCategory?.toLowerCase();
+      return cat === 'how-to guides' || cat === 'faq';
+    }),
     brandSpecific: tests.filter(t => t.promptCategory?.toLowerCase() === 'brand-specific'),
   };
 

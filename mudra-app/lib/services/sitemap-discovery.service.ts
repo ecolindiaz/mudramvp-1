@@ -598,13 +598,11 @@ export async function discoverPages(
 				const parsed = new URL(url);
 				const hostname = parsed.hostname.toLowerCase();
 
-				// Must be same domain or www or trusted subdomains
+				// Only allow exact base domain or www — reject ALL other subdomains
+				// Marketing analysis should only cover the public-facing website,
+				// not web apps (app.*), security portals (security.*), etc.
 				if (hostname !== domainHost && hostname !== `www.${domainHost}`) {
-					if (!hostname.endsWith(`.${domainHost}`)) return false;
-					// Exclude docs/api subdomains
-					if (EXCLUDED_SUBDOMAINS.some((sub) => hostname.startsWith(`${sub}.`))) {
-						return false;
-					}
+					return false;
 				}
 
 				// Exclude docs, legal, and other non-marketing pages
@@ -648,8 +646,16 @@ export async function discoverPages(
 				timings.analysis = aiResult.duration;
 				aiPages = aiResult.pages;
 
+				// Post-AI domain validation: ensure AI didn't hallucinate URLs from other domains
+				const validAiPages = aiPages.filter((p) => {
+					try {
+						const h = new URL(p.url).hostname.toLowerCase();
+						return h === domainHost || h === `www.${domainHost}`;
+					} catch { return false; }
+				});
+
 				// Use AI-selected pages, limit to maxPages
-				selectedPages = aiPages.slice(0, maxPages);
+				selectedPages = validAiPages.slice(0, maxPages);
 			} else {
 				// Fallback to pattern matching
 				console.log(`[SitemapDiscovery] Falling back to pattern matching...`);

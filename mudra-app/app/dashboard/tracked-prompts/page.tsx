@@ -11,7 +11,7 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, BookOpen, Building2, Download, CheckCircle2, AlertCircle } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, BookOpen, Building2, Download, CheckCircle2, AlertCircle, HelpCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
@@ -356,6 +356,7 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
         "How-to": { icon: <BookOpen className="h-3.5 w-3.5" />, label: "How to" },
         "How-to Guides": { icon: <BookOpen className="h-3.5 w-3.5" />, label: "How to" },
         "Brand-Specific": { icon: <Building2 className="h-3.5 w-3.5" />, label: "Brand-Specific" },
+        "FAQ": { icon: <HelpCircle className="h-3.5 w-3.5" />, label: "FAQ" },
       }
       const config = intentConfig[intent] || { icon: null, label: intent }
       return (
@@ -1547,6 +1548,7 @@ function TrackedPromptsPageInner() {
                                 <SelectItem value="Organic">Organic</SelectItem>
                                 <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
                                 <SelectItem value="Competitor">Competitor</SelectItem>
+                                <SelectItem value="FAQ">FAQ</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1870,13 +1872,14 @@ function TrackedPromptsPageInner() {
                             <SelectItem value="Organic">Organic</SelectItem>
                             <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
                             <SelectItem value="Competitor">Competitor</SelectItem>
+                            <SelectItem value="FAQ">FAQ</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-3">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         onClick={() => {
                           setEditOpen(false)
                           setEditingPrompt(null)

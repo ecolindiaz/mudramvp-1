@@ -887,11 +887,12 @@ function TrackedPromptDeepViewInner() {
       visibility: promptData?.visibility || 0,
       position: promptData?.averagePosition ?? null,
       sentiment: (promptData?.sentiment as 'Positive' | 'Neutral' | 'Negative') || 'Neutral',
-      isYou: true
+      isYou: true,
+      domain: profile?.companyWebsite ? profile.companyWebsite.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0] : undefined
     }
     
     return [youRow, ...competitorsData.map(c => ({ ...c, isYou: false }))]
-  }, [promptData, competitorsData, profile?.companyName])
+  }, [promptData, competitorsData, profile?.companyName, profile?.companyWebsite])
 
   // Dynamic competitor series config (including "You" with special color)
   // Deduplicate by key, limit to top 10 brands by visibility
@@ -1450,7 +1451,11 @@ function TrackedPromptDeepViewInner() {
                                   <TableCell className="text-white/90 px-4 py-3.5 align-middle">
                                     {row.isYou ? (
                                       <div className="flex items-center gap-2">
-                                        <CompanyLogo company={row.company} size={20} />
+                                        {row.domain ? (
+                                          <DomainLogo domain={row.domain} size={20} />
+                                        ) : (
+                                          <CompanyLogo company={row.company} size={20} />
+                                        )}
                                         <span>{row.company} (You)</span>
                                       </div>
                                     ) : (

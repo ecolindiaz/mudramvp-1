@@ -44,6 +44,8 @@ export async function POST(request: NextRequest) {
       competitors,
       skipCooldown = false, // Dashboard enforces 24-hour cooldown by default
       generateReport = false,
+      country,     // Single country for re-analysis
+      countries,   // Multiple countries for onboarding
     } = body;
 
     // Validate required fields
@@ -69,6 +71,8 @@ export async function POST(request: NextRequest) {
       competitors: competitors || [],
       skipCooldown,
       generateReport,
+      country,
+      countries,
     });
 
     if (result.success) {

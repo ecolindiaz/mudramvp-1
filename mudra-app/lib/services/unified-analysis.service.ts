@@ -13,6 +13,7 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { runDirectGEOAnalysis, createDirectGEOConfig } from './direct-geo-analysis.service';
+import { type CountryCode, getLanguageForCountry, getUniqueLanguages, isAllowedCountry } from '@/lib/geo/country-config';
 
 export interface UnifiedAnalysisConfig {
   brandProfileId: number;
@@ -23,6 +24,11 @@ export interface UnifiedAnalysisConfig {
   competitors?: string[];
   skipCooldown?: boolean; // For dashboard re-runs
   generateReport?: boolean; // Generate natural language report
+  // Multi-country support
+  country?: string;         // Run GEO for this specific country only
+  countries?: string[];     // Run GEO for all these countries (onboarding)
+  language?: string;        // Prompt language override
+  isQueuedJob?: boolean;    // Whether this was triggered by the job queue
 }
 
 export interface UnifiedAnalysisResult {
@@ -83,6 +89,11 @@ export interface UnifiedAnalysisResult {
 /**
  * Run complete unified analysis
  * Used by both onboarding and dashboard
+ *
+ * Multi-country modes:
+ * - config.countries: Onboarding — run Technical once + GEO for first country sync, queue rest
+ * - config.country:   Single country run (queued job or dashboard re-run)
+ * - neither:          Legacy mode (implicit US)
  */
 export async function runUnifiedAnalysis(
   config: UnifiedAnalysisConfig
@@ -93,7 +104,32 @@ export async function runUnifiedAnalysis(
   };
 
   try {
-    console.log('[Unified Analysis] Starting for:', config.brandName);
+    // Determine the effective country for this run
+    const effectiveCountry = config.country
+      || (config.countries && config.countries.length > 0 ? config.countries[0] : undefined);
+
+    // If coming from a queued job with a specific country, set it on config
+    if (effectiveCountry && !config.country) {
+      config.country = effectiveCountry;
+    }
+
+    console.log(`[Unified Analysis] Starting for: ${config.brandName}${effectiveCountry ? ` (country: ${effectiveCountry})` : ''}`);
+
+    // For queued jobs: only run GEO analysis (Technical already ran once)
+    if (config.isQueuedJob) {
+      const geoResult = await runGeoAnalysisCore(config);
+
+      if (geoResult.success) {
+        result.geoAnalysisId = geoResult.id;
+        result.scores.aiVisibility = geoResult.score;
+        result.success = true;
+        console.log(`[Unified Analysis] Queued GEO completed for ${effectiveCountry}:`, geoResult.score);
+      } else {
+        result.error = geoResult.error || 'GEO analysis failed';
+        result.success = false;
+      }
+      return result;
+    }
 
     // Run GEO and Technical analyses in PARALLEL
     const [geoResult, technicalResult] = await Promise.allSettled([
@@ -207,6 +243,35 @@ export async function runUnifiedAnalysis(
       }
     }
 
+    // Queue remaining countries for background processing (multi-country onboarding)
+    if (result.success && config.countries && config.countries.length > 1) {
+      try {
+        const remainingCountries = config.countries.slice(1).filter(isAllowedCountry) as CountryCode[];
+        if (remainingCountries.length > 0) {
+          const { createAnalysisJobs } = await import('./analysis-job-queue');
+          const jobIds = await createAnalysisJobs({
+            brandProfileId: config.brandProfileId,
+            countries: remainingCountries,
+            jobType: 'geo',
+          });
+          console.log(`[Unified Analysis] Queued ${jobIds.length} background country jobs: ${remainingCountries.join(', ')}`);
+
+          // Fire-and-forget: trigger queue processing via internal API
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
+          if (appUrl) {
+            const baseUrl = appUrl.startsWith('http') ? appUrl : `https://${appUrl}`;
+            fetch(`${baseUrl}/api/analysis/process-queue`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ brandProfileId: config.brandProfileId }),
+            }).catch((e) => console.warn('[Unified Analysis] Failed to trigger queue:', e));
+          }
+        }
+      } catch (queueError) {
+        console.warn('[Unified Analysis] Failed to queue remaining countries (non-fatal):', queueError);
+      }
+    }
+
     // Notification: analysis complete
     if (result.success) {
       try {
@@ -263,11 +328,23 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       console.log('[GEO Core] ⚡ Development mode enabled - skipping cooldown');
     }
 
-    // Get or generate prompts
-    let prompts = await getActivePrompts(config.brandProfileId);
+    // Determine language from country or config
+    const country = config.country as CountryCode | undefined;
+    const language = config.language
+      || (country && isAllowedCountry(country) ? getLanguageForCountry(country as CountryCode) : 'en');
+
+    // Determine languages needed for prompt generation (onboarding with multiple countries)
+    const promptLanguages = config.countries
+      ? getUniqueLanguages(config.countries.filter(isAllowedCountry) as CountryCode[])
+      : [language as 'en' | 'es'];
+
+    // Get or generate prompts (filtered by language for this country)
+    let prompts = await getActivePrompts(config.brandProfileId, language);
     if (prompts.length === 0) {
-      console.log('[GEO Core] Generating initial prompts...');
-      prompts = await generateAndSaveInitialPrompts(config.brandProfileId);
+      console.log(`[GEO Core] Generating initial prompts (languages: ${promptLanguages.join(', ')})...`);
+      const allPrompts = await generateAndSaveInitialPrompts(config.brandProfileId, promptLanguages);
+      // Filter to only the prompts in the language we need for THIS run
+      prompts = allPrompts.filter(p => !p.language || p.language === language);
     }
 
     // Create analysis run
@@ -276,7 +353,8 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       promptsUsed: prompts.map(p => p.id),
       results: {},
       overallScore: 0,
-      status: 'running'
+      status: 'running',
+      country: country || 'US',
     });
 
     // Call DirectGEO service directly (avoids HTTP auth issues)
@@ -288,6 +366,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
         text: p.text,
         category: p.category || undefined, // Pass category for intent weighting (convert null to undefined)
       })),
+      country: country && isAllowedCountry(country) ? country as CountryCode : undefined,
     });
 
     let data;
@@ -337,6 +416,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       data: {
         brandProfileId: config.brandProfileId,
         overallScore: data.overallScore || 0,
+        country: country || 'US',
         analyses: stampedAnalyses as unknown as Prisma.InputJsonValue,
         summary: ({
           brandName: config.brandName,

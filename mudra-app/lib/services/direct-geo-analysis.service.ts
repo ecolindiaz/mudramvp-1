@@ -3,6 +3,8 @@ import { validateCompetitors, quickValidateName, type ValidatedCompetitor } from
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { type CountryCode, buildOpenAIGeoConfig, buildPerplexityGeoConfig, buildClaudeGeoConfig, isGeminiProxyNeeded, getLanguageForCountry } from '@/lib/geo/country-config';
+import { buildGeminiProxyUrl, buildGeminiRestEndpoint } from '@/lib/geo/brightdata-proxy';
 
 // Utility: Sleep function for retry delays
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -245,7 +247,8 @@ export interface DirectGEOConfig {
   competitors?: string[];
   targetAudience?: string;
   keyProducts?: string[];
-  customPrompts?: Array<string | { text: string; category?: string }>; // Support both string[] and objects with categories
+  customPrompts?: Array<string | { text: string; category?: string; language?: string }>; // Support both string[] and objects with categories
+  country?: CountryCode;           // Target country for geo-localized analysis
   apiKeys: {
     openai?: string;
     anthropic?: string;
@@ -261,6 +264,8 @@ export interface DirectGEOResult {
   competitorComparison: CompetitorAnalysis[];
   validatedCompetitors?: ValidatedCompetitor[]; // AI-validated competitors with confidence scores
   recommendations: string[];
+  country?: string;     // ISO code of the country this result is for
+  language?: string;    // Language used for prompts ("en" | "es")
   timestamp: Date;
 }
 
@@ -1046,6 +1051,7 @@ async function analyzeWithOpenAI(
               {
                 type: 'web_search',
                 search_context_size: 'high',
+                ...(config.country ? (() => { const geo = buildOpenAIGeoConfig(config.country!); return geo ? { user_location: geo } : {}; })() : {}),
               },
             ],
             tool_choice: { type: 'web_search' }, // Force web search
@@ -1331,6 +1337,8 @@ async function analyzeWithPerplexity(
     // Reference: https://docs.perplexity.ai/guides/model-cards
     console.log('[Perplexity] Testing prompt:', prompt.substring(0, 60) + '...');
     
+    const perplexityGeo = config.country ? buildPerplexityGeoConfig(config.country) : undefined;
+
     const response: any = await perplexity.chat.completions.create({
       model: 'sonar-pro', // Pro model with enhanced search and citations
       messages: [
@@ -1341,7 +1349,11 @@ async function analyzeWithPerplexity(
       ],
       temperature: 0.2,
       max_tokens: 1200,
-    });
+      ...(perplexityGeo ? {
+        web_search_options: { user_location: perplexityGeo.user_location },
+        search_language_filter: perplexityGeo.search_language_filter,
+      } : {}),
+    } as any);
 
     const text = response.choices[0]?.message?.content || '';
     console.log('[Perplexity] Response received:', text.substring(0, 100) + '...');
@@ -1573,6 +1585,7 @@ async function analyzeWithAnthropic(
                 type: 'web_search_20250305',
                 name: 'web_search',
                 max_uses: 5,
+                ...(config.country ? (() => { const geo = buildClaudeGeoConfig(config.country!); return geo ? { user_location: geo } : {}; })() : {}),
               } as any,
             ],
           },
@@ -1779,46 +1792,113 @@ async function analyzeWithGoogle(
   
   try {
     console.log('[Google] Testing prompt:', prompt.substring(0, 60) + '...');
-    
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
-      tools: [
-        {
-          googleSearch: {},
-        },
-      ] as any,
-    });
 
-    const result = await retryWithBackoff(async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+    // Gemini geo-targeting: use BrightData proxy for non-US countries
+    const needsProxy = config.country ? isGeminiProxyNeeded(config.country) : false;
+    let text = '';
+    let groundingMetadata: any = null;
 
-      try {
-        const res = await model.generateContent(prompt);
-        clearTimeout(timeoutId);
-        return res;
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
-          const timeoutError = new Error('Request timeout after 60 seconds');
-          (timeoutError as any).code = 'ETIMEDOUT';
-          throw timeoutError;
-        }
-        if (err.status || err.statusCode) {
-          (err as any).status = err.status || err.statusCode;
-        }
-        throw err;
+    if (needsProxy && config.country) {
+      // Proxied REST API call for geo-targeting
+      const proxyUrl = buildGeminiProxyUrl(config.country);
+      const endpoint = buildGeminiRestEndpoint('gemini-3-flash-preview');
+
+      if (proxyUrl) {
+        console.log(`[Google] Using BrightData proxy for country: ${config.country}`);
+        const { HttpsProxyAgent } = await import('https-proxy-agent');
+        const agent = new HttpsProxyAgent(proxyUrl);
+
+        const restResult = await retryWithBackoff(async () => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+          try {
+            const res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                tools: [{ googleSearch: {} }],
+              }),
+              signal: controller.signal,
+              // @ts-expect-error -- Node fetch accepts agent for proxy routing
+              agent,
+            });
+            clearTimeout(timeoutId);
+            if (!res.ok) {
+              const errText = await res.text();
+              const error = new Error(`Gemini proxied API error: ${res.status} - ${errText.substring(0, 200)}`);
+              (error as any).status = res.status;
+              throw error;
+            }
+            return res.json();
+          } catch (err: any) {
+            clearTimeout(timeoutId);
+            if (err.name === 'AbortError') {
+              const timeoutError = new Error('Request timeout after 60 seconds');
+              (timeoutError as any).code = 'ETIMEDOUT';
+              throw timeoutError;
+            }
+            throw err;
+          }
+        });
+
+        const candidate = restResult.candidates?.[0];
+        text = candidate?.content?.parts?.map((p: any) => p.text || '').join('') || '';
+        groundingMetadata = candidate?.groundingMetadata;
+      } else {
+        // BrightData not configured — fall back to SDK (no geo)
+        console.warn('[Google] BrightData not configured, falling back to SDK without geo-targeting');
+        const model = genAI.getGenerativeModel({
+          model: 'gemini-3-flash-preview',
+          tools: [{ googleSearch: {} }] as any,
+        });
+        const result = await retryWithBackoff(async () => {
+          const res = await model.generateContent(prompt);
+          return res;
+        });
+        const response = result.response;
+        text = response.text();
+        groundingMetadata = (response as any).candidates?.[0]?.groundingMetadata;
       }
-    });
-    
-    const response = result.response;
-    const text = response.text();
-    
+    } else {
+      // US or no country — use SDK directly (current behavior)
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-3-flash-preview',
+        tools: [{ googleSearch: {} }] as any,
+      });
+
+      const result = await retryWithBackoff(async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+        try {
+          const res = await model.generateContent(prompt);
+          clearTimeout(timeoutId);
+          return res;
+        } catch (err: any) {
+          clearTimeout(timeoutId);
+          if (err.name === 'AbortError') {
+            const timeoutError = new Error('Request timeout after 60 seconds');
+            (timeoutError as any).code = 'ETIMEDOUT';
+            throw timeoutError;
+          }
+          if (err.status || err.statusCode) {
+            (err as any).status = err.status || err.statusCode;
+          }
+          throw err;
+        }
+      });
+
+      const response = result.response;
+      text = response.text();
+      groundingMetadata = (response as any).candidates?.[0]?.groundingMetadata;
+    }
+
     console.log('[Google] Response received:', text.substring(0, 100) + '...');
-    
+
     // Extract raw citations from grounding metadata
     const rawCitations: Citation[] = [];
-    const groundingMetadata = (response as any).candidates?.[0]?.groundingMetadata;
 
     if (groundingMetadata?.groundingChunks) {
       groundingMetadata.groundingChunks.forEach((chunk: any, idx: number) => {
@@ -2246,6 +2326,8 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     competitorComparison: competitorStats,
     validatedCompetitors,
     recommendations,
+    country: config.country,
+    language: config.country ? getLanguageForCountry(config.country) : 'en',
     timestamp: new Date(),
   };
 }
@@ -2262,17 +2344,19 @@ export function createDirectGEOConfig(
     competitors?: string[];
     customPrompts?: Array<string | { text: string; category?: string }>;
     apiKeys?: Partial<DirectGEOConfig['apiKeys']>;
+    country?: CountryCode;
   } = {}
 ): DirectGEOConfig {
   // Get environment object safely (works in Node.js environment)
   const env = ((globalThis as any).process?.env ?? {});
-  
+
   return {
     brandName,
     industry: options.industry || 'technology',
     description: options.description || `${brandName} is a company in the ${options.industry || 'technology'} industry`,
     competitors: options.competitors || [],
     customPrompts: options.customPrompts,
+    country: options.country,
     apiKeys: {
       openai: options.apiKeys?.openai || env.OPENAI_API_KEY,
       anthropic: options.apiKeys?.anthropic || env.ANTHROPIC_API_KEY,

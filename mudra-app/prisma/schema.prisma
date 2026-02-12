@@ -61,10 +61,18 @@ model BrandProfile {
   conversationOpportunities  ConversationOpportunity[]
   issues                     Issue[]
   notifications              Notification[]
+  analysisJobs               AnalysisJob[]
 
   // Issue discovery pagination
   issueDiscoveryPageIndex    Int      @default(0)  // Current page index for issue discovery
   issueDiscoveryTotalPages   Int      @default(0)  // Total pages discovered
+
+  // Multi-country tracking
+  trackingCountries          String[] @default(["US"])  // ISO codes: ["US", "ES", "MX"]
+  primaryCountry             String   @default("US")     // Default dashboard view country
+
+  // Multi-monitor support
+  monitorOrder               Int      @default(0)        // Display order in sidebar (0 = primary)
 
   @@index([userId])
 }
@@ -74,6 +82,7 @@ model Prompt {
   brandProfileId Int
   text           String
   category       String?
+  language       String       @default("en")   // "en" | "es"
   isCustom       Boolean      @default(false)
   isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
@@ -92,6 +101,7 @@ model AnalysisRun {
   results        Json
   overallScore   Float        @default(0)
   status         String       @default("pending")
+  country        String       @default("US")     // ISO code for geo-scoped analysis
   ranAt          DateTime     @default(now())
   completedAt    DateTime?
   brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
@@ -364,12 +374,14 @@ model GeoAnalysisResult {
   overallScore   Float        @default(0)
   analyses       Json         @default("[]")
   summary        Json         @default("{}")
+  country        String       @default("US")     // ISO code for geo-scoped results
   timestamp      DateTime     @default(now())
   createdAt      DateTime     @default(now())
   brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
 
   @@index([brandProfileId])
   @@index([brandProfileId, timestamp])
+  @@index([brandProfileId, country])
 }
 
 model OrganicTrafficMetrics {
@@ -1068,4 +1080,32 @@ model Notification {
   @@index([userId, read])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+// ============================================================================
+// ANALYSIS JOB QUEUE (Multi-Country Geo Analysis)
+// ============================================================================
+
+model AnalysisJob {
+  id              Int          @id @default(autoincrement())
+  brandProfileId  Int
+  country         String                         // ISO code: "US", "ES", "MX", etc.
+  language        String                         // "en" | "es"
+  jobType         String                         // "geo" | "technical" | "full"
+  status          String       @default("pending")  // "pending" | "running" | "completed" | "failed"
+  priority        Int          @default(0)       // Lower = higher priority
+  parentJobId     Int?                           // For chaining jobs
+  error           String?
+  attempts        Int          @default(0)
+  maxAttempts     Int          @default(3)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  brandProfile    BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
+  @@index([status, priority])
+  @@index([brandProfileId, status])
+  @@map("analysis_jobs")
 }

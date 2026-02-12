@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
     const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
+    const countryFilter = searchParams.get('country') // Optional: filter by country (default: all)
 
     if (!brandProfileId) {
       return NextResponse.json(
@@ -79,7 +80,8 @@ export async function GET(request: NextRequest) {
     try {
       allAnalysisResults = await prisma.geoAnalysisResult.findMany({
         where: {
-          brandProfileId: profileId
+          brandProfileId: profileId,
+          ...(countryFilter ? { country: countryFilter } : {}),
         },
         orderBy: {
           createdAt: 'desc'
@@ -107,7 +109,8 @@ export async function GET(request: NextRequest) {
       latestAnalysisRun = await prisma.analysisRun.findFirst({
         where: {
           brandProfileId: profileId,
-          status: 'completed'
+          status: 'completed',
+          ...(countryFilter ? { country: countryFilter } : {}),
         },
         orderBy: {
           ranAt: 'desc'

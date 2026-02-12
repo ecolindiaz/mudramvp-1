@@ -19,21 +19,26 @@ export interface GeneratedPrompts {
 }
 
 /**
- * Load the prompt generation system from PromptGeneration.txt
+ * Load the prompt generation system from PromptGeneration.txt (or language-specific variant)
  */
-function getPromptGenerationSystem(): string {
+function getPromptGenerationSystem(language: 'en' | 'es' = 'en'): string {
   try {
-    const promptPath = join(process.cwd(), 'lib', 'Mudra Prompts', 'PromptGeneration.txt');
+    const fileName = language === 'es' ? 'PromptGeneration_ES.txt' : 'PromptGeneration.txt';
+    const promptPath = join(process.cwd(), 'lib', 'Mudra Prompts', fileName);
     return readFileSync(promptPath, 'utf-8');
   } catch (error) {
-    console.error('Failed to load PromptGeneration.txt:', error);
+    console.error(`Failed to load PromptGeneration${language === 'es' ? '_ES' : ''}.txt:`, error);
     // Fallback system prompt - uses the full 50-prompt specification
+    const langInstruction = language === 'es'
+      ? 'Generate ALL queries in Spanish (Español). Queries must sound natural in Spanish, not translated from English.'
+      : '';
     return `You generate natural-language search queries to test a brand's visibility in generative engines.
 Generate exactly 50 queries in 4 sections with this distribution:
 1) Organic: 30 queries (60%) - Generic discovery queries, include 5 detailed/specific ones
-2) Competitor: 8 queries (15%) - Queries comparing to competitors  
+2) Competitor: 8 queries (15%) - Queries comparing to competitors
 3) How-to Guides: 7 queries (15%) - Actionable task queries
 4) Brand-Specific: 5 queries (10%) - Direct brand queries
+${langInstruction}
 
 Output format:
 Organic
@@ -57,13 +62,17 @@ Brand-Specific
 /**
  * Generate sophisticated prompts using the Mudra prompt generation system
  */
-export async function generateSophisticatedPrompts(brandInfo: BrandInfo): Promise<GeneratedPrompts> {
+export async function generateSophisticatedPrompts(brandInfo: BrandInfo, language: 'en' | 'es' = 'en'): Promise<GeneratedPrompts> {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('OpenAI API key not configured');
   }
 
-  const systemPrompt = getPromptGenerationSystem();
-  
+  const systemPrompt = getPromptGenerationSystem(language);
+
+  const languageInstruction = language === 'es'
+    ? '\n\nIMPORTANT: Generate ALL prompts in Spanish (Español). The prompts should be phrased as a native Spanish speaker would naturally search. Do NOT simply translate English queries — use culturally appropriate phrasing.'
+    : '';
+
   const userPrompt = `INPUTS:
 COMPANY_NAME: ${brandInfo.companyName}
 COMPANY_DESCRIPTION: ${brandInfo.companyDescription}
@@ -72,14 +81,14 @@ PRODUCTS_SERVICES: ${brandInfo.productsServices.join(', ')}
 IDEAL_CUSTOMER: ${brandInfo.idealCustomer}
 COMPETITORS: ${brandInfo.competitors.join(', ')}
 
-Generate 50 queries now, grouped and counted exactly as specified in the system prompt.`;
+Generate 50 queries now, grouped and counted exactly as specified in the system prompt.${languageInstruction}`;
 
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    console.log('[PromptGeneration] Generating 50 prompts using PromptGeneration.txt specification...');
+    console.log(`[PromptGeneration] Generating 50 ${language === 'es' ? 'Spanish' : 'English'} prompts using PromptGeneration${language === 'es' ? '_ES' : ''}.txt specification...`);
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o', // Use more capable model for full 50-prompt generation

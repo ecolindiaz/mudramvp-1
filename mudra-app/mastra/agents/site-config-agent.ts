@@ -11,6 +11,7 @@
  */
 
 import { Agent } from "@mastra/core/agent";
+import { hallucinationScorer, relevancyScorer } from '../evals/scorers'
 
 const SITE_CONFIG_INSTRUCTIONS = `You are an expert at website configuration for SEO and AI optimization.
 
@@ -199,4 +200,8 @@ export const siteConfigAgent = new Agent({
   name: "Site Config Agent",
   instructions: SITE_CONFIG_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5",
+  scorers: {
+    hallucination: { scorer: hallucinationScorer, sampling: { type: 'ratio' as const, rate: 1.0 } },
+    relevancy: { scorer: relevancyScorer, sampling: { type: 'ratio' as const, rate: 1.0 } },
+  },
 });

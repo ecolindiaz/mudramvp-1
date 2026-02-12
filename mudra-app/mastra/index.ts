@@ -23,6 +23,14 @@ import { githubSearchTool } from "./tools/github-search";
 // Workflows
 import { aiContentWorkflow } from "./workflows/ai-content-workflow";
 
+// Evals — scorers for trace evaluation in Mastra Studio
+import {
+  hallucinationScorer,
+  faithfulnessScorer,
+  relevancyScorer,
+  promptAlignmentScorer,
+} from './evals/scorers'
+
 // Observability configuration with PostHog
 // Note: Requires POSTHOG_API_KEY environment variable
 const posthogApiKey = process.env.POSTHOG_API_KEY;
@@ -79,6 +87,13 @@ export const mastra = new Mastra({
   },
   workflows: {
     aiContentWorkflow,
+  },
+  // Scorers — available in Studio for trace evaluation
+  scorers: {
+    hallucinationScorer,
+    faithfulnessScorer,
+    relevancyScorer,
+    promptAlignmentScorer,
   },
   observability, // AI Tracing with PostHog
 });

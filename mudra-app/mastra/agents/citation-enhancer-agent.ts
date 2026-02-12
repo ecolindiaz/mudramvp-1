@@ -11,6 +11,7 @@
  */
 
 import { Agent } from "@mastra/core/agent";
+import { hallucinationScorer, relevancyScorer } from '../evals/scorers'
 
 const CITATION_ENHANCER_INSTRUCTIONS = `You are an expert at making content citation-worthy for AI systems.
 
@@ -181,4 +182,8 @@ export const citationEnhancerAgent = new Agent({
   name: "Citation Enhancer Agent",
   instructions: CITATION_ENHANCER_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5",
+  scorers: {
+    hallucination: { scorer: hallucinationScorer, sampling: { type: 'ratio' as const, rate: 1.0 } },
+    relevancy: { scorer: relevancyScorer, sampling: { type: 'ratio' as const, rate: 1.0 } },
+  },
 });

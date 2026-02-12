@@ -11,6 +11,7 @@
  */
 
 import { Agent } from "@mastra/core/agent";
+import { hallucinationScorer, relevancyScorer } from '../evals/scorers'
 
 const LLMS_TXT_INSTRUCTIONS = `You are an expert at creating llms.txt files - the robots.txt for AI.
 
@@ -135,4 +136,8 @@ export const llmsTxtAgent = new Agent({
   name: "LLMs.txt Agent",
   instructions: LLMS_TXT_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5",
+  scorers: {
+    hallucination: { scorer: hallucinationScorer, sampling: { type: 'ratio' as const, rate: 1.0 } },
+    relevancy: { scorer: relevancyScorer, sampling: { type: 'ratio' as const, rate: 1.0 } },
+  },
 });

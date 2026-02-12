@@ -12,6 +12,7 @@
  */
 
 import { Agent } from "@mastra/core/agent";
+import { hallucinationScorer, relevancyScorer } from '../evals/scorers'
 
 const SCHEMA_ARCHITECT_INSTRUCTIONS = `You are an expert Schema.org JSON-LD markup architect specializing in SEO and AI optimization.
 
@@ -166,4 +167,8 @@ export const schemaArchitectAgent = new Agent({
   name: "Schema Architect Agent",
   instructions: SCHEMA_ARCHITECT_INSTRUCTIONS,
   model: "anthropic/claude-sonnet-4-5",
+  scorers: {
+    hallucination: { scorer: hallucinationScorer, sampling: { type: 'ratio' as const, rate: 1.0 } },
+    relevancy: { scorer: relevancyScorer, sampling: { type: 'ratio' as const, rate: 1.0 } },
+  },
 });

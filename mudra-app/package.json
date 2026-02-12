@@ -54,6 +54,7 @@
     "@lexical/table": "^0.38.2",
     "@lexical/utils": "^0.38.2",
     "@mastra/core": "^1.1.0",
+    "@mastra/evals": "^1.1.1",
     "@mastra/loggers": "^1.0.1",
     "@mastra/memory": "^1.0.1",
     "@mastra/observability": "^1.1.0",

@@ -24,9 +24,64 @@ const PROTECTED_ROUTES = [
     '/api/auth/reset-password',
 ]
 
+/**
+ * Build a strict Content-Security-Policy header.
+ *
+ * • script-src uses a per-request nonce + 'strict-dynamic' so Next.js
+ *   framework scripts, page bundles, and any scripts they load are
+ *   automatically trusted.
+ * • 'unsafe-eval' is included **only** in development (React needs it for
+ *   enhanced error stack reconstruction).
+ * • 'unsafe-inline' is a no-op when a nonce is present in script-src, but
+ *   we omit it anyway for clarity.
+ * • style-src uses 'unsafe-inline' in development because HMR injects
+ *   styles without nonces; in production we use the nonce.
+ */
+function buildCsp(nonce: string): string {
+    const isDev = process.env.NODE_ENV === 'development'
+
+    const policy = [
+        `default-src 'self'`,
+        [
+            `script-src 'self'`,
+            `'nonce-${nonce}'`,
+            `'strict-dynamic'`,
+            isDev ? `'unsafe-eval'` : '',
+        ].filter(Boolean).join(' '),
+        [
+            `style-src 'self'`,
+            isDev ? `'unsafe-inline'` : `'nonce-${nonce}'`,
+        ].join(' '),
+        `img-src 'self' data: https:`,
+        `font-src 'self'`,
+        `connect-src 'self' https://accounts.google.com https://*.supabase.co https://us.i.posthog.com https://*.posthog.com`,
+        `frame-src 'self' https://accounts.google.com`,
+        `object-src 'none'`,
+        `base-uri 'self'`,
+        `form-action 'self'`,
+        `frame-ancestors 'none'`,
+    ]
+
+    return policy.join('; ')
+}
+
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl
-    const response = NextResponse.next()
+
+    // ----- Generate per-request CSP nonce -----
+    const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
+
+    // Build the CSP header value
+    const cspHeaderValue = buildCsp(nonce)
+
+    // Clone request headers so downstream Server Components can read the nonce
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-nonce', nonce)
+    requestHeaders.set('Content-Security-Policy', cspHeaderValue)
+
+    const response = NextResponse.next({
+        request: { headers: requestHeaders },
+    })
 
     // Check if route is public
     // Use exact match for '/' to prevent all routes from being treated as public
@@ -62,10 +117,7 @@ export async function middleware(request: NextRequest) {
     headers.set('X-Content-Type-Options', 'nosniff')
     headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
     headers.set('X-Permitted-Cross-Domain-Policies', 'none')
-    headers.set(
-        'Content-Security-Policy',
-        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://accounts.google.com https://*.supabase.co; frame-src 'self' https://accounts.google.com;"
-    )
+    headers.set('Content-Security-Policy', cspHeaderValue)
 
     // Handle CSRF protection for protected routes
     if (PROTECTED_ROUTES.includes(pathname)) {

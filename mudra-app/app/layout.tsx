@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import { Suspense } from "react";
 
 import { ThemeProvider } from "next-themes";
@@ -9,6 +10,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PostHogProvider } from "@/lib/providers/posthog-provider";
 import { PageViewTracker } from "@/components/analytics/page-view-tracker";
 import { AnalysisProvider } from "@/components/analysis-context";
+import { NonceCspProvider } from "@/lib/providers/nonce-provider";
 import "./globals.css";
 import NextAuthSessionProvider from "@/components/SessionProvider";
 
@@ -31,11 +33,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read the per-request nonce set by middleware
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
@@ -44,14 +49,16 @@ export default function RootLayout({
       >
         <NextAuthSessionProvider>
           <PostHogProvider>
-            <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">
-              <AnalysisProvider>
-                <Suspense fallback={null}>
-                  <PageViewTracker />
-                </Suspense>
-                {children}
-                <Toaster />
-              </AnalysisProvider>
+            <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark" nonce={nonce}>
+              <NonceCspProvider nonce={nonce ?? ""}>
+                <AnalysisProvider>
+                  <Suspense fallback={null}>
+                    <PageViewTracker />
+                  </Suspense>
+                  {children}
+                  <Toaster />
+                </AnalysisProvider>
+              </NonceCspProvider>
               <Analytics />
               <SpeedInsights />
             </ThemeProvider>

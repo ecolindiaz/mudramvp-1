@@ -3,10 +3,20 @@
 ## Overview
 This document details the security measures implemented for NextAuth session management and JWT token signing in the Mudra application.
 
-## Security Vulnerability Resolved
-**Issue**: Missing NEXTAUTH_SECRET validation
+## Security Vulnerabilities Resolved
+
+### 1. Missing NEXTAUTH_SECRET validation
 **Severity**: Medium
 **Status**: ✅ Resolved
+
+### 2. Dangerous OAuth Email Account Linking
+**Severity**: HIGH
+**Status**: ✅ Resolved (February 2026)
+**Issue**: `allowDangerousEmailAccountLinking: true` on the Google OAuth provider allowed an attacker to take over any credentials-based account by signing in with a Google account using the same email — no password required.
+**Fix**:
+- Set `allowDangerousEmailAccountLinking: false` on the Google provider
+- Added a `signIn` callback that explicitly blocks OAuth sign-in when the email belongs to an existing credentials-only user with no linked Google account
+- The user is redirected to `/login?error=OAuthAccountNotLinked` with a clear message
 
 ## Implementation Details
 
@@ -151,6 +161,7 @@ For production environments, store secrets in:
 | Cross-site attacks | NEXTAUTH_URL validation | ✅ Implemented |
 | Production misconfig | Environment-specific checks | ✅ Implemented |
 | Secret exposure | Documentation + .gitignore | ✅ Implemented |
+| OAuth account takeover | `allowDangerousEmailAccountLinking: false` + signIn callback | ✅ Implemented |
 
 ## Monitoring & Alerts
 

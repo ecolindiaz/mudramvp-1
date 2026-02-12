@@ -11,7 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import Image from 'next/image'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -24,6 +24,19 @@ export default function LoginPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [isGoogleLoading, setIsGoogleLoading] = useState(false)
     const router = useRouter()
+    const searchParams = useSearchParams()
+
+    // Map NextAuth error codes to user-friendly messages
+    const errorMessages: Record<string, string> = {
+        OAuthAccountNotLinked:
+            'An account with this email already exists. Please sign in with your email and password.',
+        CredentialsSignin: 'Invalid email or password.',
+        Default: 'An error occurred during sign in. Please try again.',
+    }
+    const authError = searchParams.get('error')
+    const authErrorMessage = authError
+        ? errorMessages[authError] ?? errorMessages.Default
+        : null
     
     const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
         resolver: zodResolver(loginSchema)
@@ -99,6 +112,12 @@ export default function LoginPage() {
                         <h1 className="text-2xl font-semibold text-white">Sign in to Mudra</h1>
                         <p className="text-base text-gray-400">Welcome back! Sign in to continue</p>
                     </div>
+
+                    {authErrorMessage && (
+                        <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+                            {authErrorMessage}
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 gap-3">
                         <Button

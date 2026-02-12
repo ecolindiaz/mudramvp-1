@@ -59,7 +59,7 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      allowDangerousEmailAccountLinking: true,
+      allowDangerousEmailAccountLinking: false,
     }),
     CredentialsProvider({
       name: "Credentials",
@@ -110,6 +110,34 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
+    async signIn({ user, account }) {
+      // Block OAuth sign-in when the email already belongs to a
+      // credentials-only account.  This prevents the account-takeover
+      // vector that allowDangerousEmailAccountLinking used to enable.
+      if (account?.provider === "google" && user?.email) {
+        const existing = await prisma.user.findUnique({
+          where: { email: user.email.toLowerCase() },
+          select: { id: true, password: true },
+        });
+
+        if (existing) {
+          // Check whether this Google account is already linked
+          const linked = await prisma.account.findFirst({
+            where: {
+              userId: existing.id,
+              provider: "google",
+            },
+          });
+
+          // Existing credentials-only user with NO linked Google account
+          if (!linked && existing.password) {
+            // Deny sign-in — user must log in with their password
+            return `/login?error=OAuthAccountNotLinked`;
+          }
+        }
+      }
+      return true;
+    },
     async jwt({ token, user, account, trigger }) {
       // Initial sign in
       if (user) {

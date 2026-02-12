@@ -15,6 +15,11 @@ export interface ExtractedCompanyInfo {
 
 export type ExtractionStatus = 'idle' | 'extracting' | 'completed' | 'failed'
 
+export interface DomainEntry {
+  domain: string
+  regions: string[]
+}
+
 interface OnboardingData {
   // Account data
   userId: number | null
@@ -23,7 +28,10 @@ interface OnboardingData {
   // Welcome form data
   companyName: string
   companyWebsite: string
+  companyDomains: string[]
   companySocialMedia: string
+  trackingRegions: string[]
+  domainEntries: DomainEntry[]
 
   // Profile form data
   userName: string
@@ -51,7 +59,10 @@ const defaultOnboardingData: OnboardingData = {
   username: "",
   companyName: "",
   companyWebsite: "",
+  companyDomains: [],
   companySocialMedia: "",
+  trackingRegions: [],
+  domainEntries: [{ domain: "", regions: [] }],
   userName: "",
   userRole: "",
   companyDescription: "",

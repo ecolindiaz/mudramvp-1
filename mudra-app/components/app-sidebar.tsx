@@ -2,8 +2,9 @@
 
 import * as React from "react"
 import { forwardRef } from "react"
-import { IconSearch, IconCreditCard, IconLogout, IconNotification, IconUserCircle, IconQuestionMark, IconCalendar, IconFileText, IconExternalLink } from "@tabler/icons-react"
+import { IconSearch, IconCreditCard, IconLogout, IconNotification, IconUserCircle, IconQuestionMark, IconCalendar, IconFileText, IconExternalLink, IconSettings, IconPlus } from "@tabler/icons-react"
 import { User, Link as LinkIcon, Radio } from "lucide-react"
+import { CircleFlag } from "react-circle-flags"
 import type { LucideProps } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -217,6 +218,7 @@ import {
   AvatarImage,
 } from "@/components/ui/avatar"
 import { DomainLogo } from "@/components/ui/company-logo"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 // Interface for company data
 interface CompanyData {
@@ -249,6 +251,16 @@ const extractDomain = (website: string | undefined): string | null => {
     return cleaned || null
   }
 }
+
+const REGIONS = [
+  { code: "US", label: "USA" },
+  { code: "GB", label: "United Kingdom" },
+  { code: "ES", label: "Spain" },
+  { code: "MX", label: "Mexico" },
+  { code: "AR", label: "Argentina" },
+  { code: "CO", label: "Colombia" },
+  { code: "PE", label: "Peru" },
+]
 
 const data = {
   user: {
@@ -312,6 +324,23 @@ const data = {
   navSecondary: [],
 }
 
+// Type for a monitor entry — ready for future backend implementation
+export interface MonitorEntry {
+  id?: number            // DB id, assigned by backend
+  domain: string         // e.g. "scale.ai"
+  label: string          // Display name, e.g. "Scale AI"
+  status: "active" | "paused" | "pending"
+  region: string         // Active region code, e.g. "US"
+  regions: string[]      // All available regions for this monitor
+  isCurrent?: boolean    // Currently selected in the UI
+}
+
+// Mock monitors data — will be replaced by API call to GET /api/monitors
+const MOCK_ADDITIONAL_MONITORS: Omit<MonitorEntry, 'isCurrent'>[] = [
+  { domain: "openai.com", label: "OpenAI", status: "active", region: "US", regions: ["US", "GB"] },
+  { domain: "anthropic.com", label: "Anthropic", status: "paused", region: "US", regions: ["US"] },
+]
+
 // Export custom icons for use in other components
 export { OverviewIcon, TrackedPromptsIcon, IssuesIcon, ContentLabIcon, AgentLabIcon, InboxIcon }
 
@@ -320,6 +349,9 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [inboxOpen, setInboxOpen] = React.useState(false)
   const [isMounted, setIsMounted] = React.useState(false)
+  const [geoPopoverOpen, setGeoPopoverOpen] = React.useState(false)
+  const [activeRegion, setActiveRegion] = React.useState("US")
+
 
   // Get brand profile data
   const { profile } = useBrandProfile()
@@ -401,6 +433,29 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
     [companyData.name]
   )
 
+  // Build monitors list: current brand domain first, then additional monitors
+  // TODO: Replace with API call: GET /api/monitors?brandProfileId=X
+  const monitors: MonitorEntry[] = React.useMemo(() => {
+    const currentDomain = companyData.domain || companyData.website?.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]
+    const currentMonitor: MonitorEntry = {
+      domain: currentDomain || '',
+      label: companyData.name,
+      status: "active",
+      region: "US",
+      regions: ["US"],
+      isCurrent: true,
+    }
+    return [
+      currentMonitor,
+      ...MOCK_ADDITIONAL_MONITORS.map(m => ({ ...m, isCurrent: false })),
+    ]
+  }, [companyData])
+
+  const selectRegion = React.useCallback((code: string) => {
+    setActiveRegion(code)
+    setGeoPopoverOpen(false)
+  }, [])
+
   return (
     <>
       <SearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
@@ -413,11 +468,11 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
       >
         <SidebarHeader className="pb-0 bg-sidebar-grey h-[var(--header-height)] flex items-center">
           {/* Company Header */}
-          <div className="px-2.5 w-full">
+          <div className="px-2.5 w-full flex items-center gap-1">
             <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="inline-flex items-center gap-2.5 px-0 py-2 rounded-lg cursor-pointer group/company w-full outline-none ring-0 border-0 focus:outline-none focus:ring-0 focus:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:border-0 data-[state=open]:outline-none data-[state=open]:ring-0 data-[state=closed]:outline-none data-[state=closed]:ring-0"
+                  className="inline-flex items-center gap-2.5 px-0 py-2 rounded-lg cursor-pointer group/company flex-1 min-w-0 outline-none ring-0 border-0 focus:outline-none focus:ring-0 focus:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:border-0 data-[state=open]:outline-none data-[state=open]:ring-0 data-[state=closed]:outline-none data-[state=closed]:ring-0"
                   aria-label={`Company menu for ${companyData.name}${companyData.website ? ` (${companyData.website})` : ''}`}
                   aria-expanded={isDropdownOpen}
                   aria-haspopup="menu"
@@ -445,84 +500,88 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                       </p>
                     </div>
                   </div>
-                  <svg
-                    className={`w-3 h-3 text-white/30 flex-shrink-0 ${
-                      isDropdownOpen ? 'rotate-180' : ''
-                    }`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg bg-dark-grey border-white/[0.08] backdrop-blur-sm [&[data-state=closed]]:!hidden"
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg bg-[#1a1a1a] border border-white/[0.08] [&[data-state=closed]]:!hidden"
                 side={isMobile ? "bottom" : "right"}
                 align="start"
                 sideOffset={4}
               >
-                <DropdownMenuLabel className="p-0 font-normal">
-                  <div className="flex items-center gap-2.5 px-3 py-2.5 text-left text-sm">
-                    <div className="w-7 h-7 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08] overflow-hidden">
-                      {companyData.domain ? (
-                        <DomainLogo domain={companyData.domain} size={28} className="rounded-full" />
-                      ) : companyData.logo ? (
-                        <img
-                          src={companyData.logo}
-                          alt={`${companyData.name} logo`}
-                          className="w-4 h-4 rounded object-cover"
-                        />
-                      ) : (
-                        <span className="text-white/80 font-semibold text-[10px]">
-                          {companyInitials}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 text-left text-sm">
-                      <span className="truncate font-medium text-white/90">{companyData.name}</span>
-                    </div>
-                  </div>
+                <DropdownMenuLabel className="px-3 py-2 text-[11px] font-medium text-white/40 uppercase tracking-wider">
+                  Monitors
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator className="!bg-white/[0.08] my-2 mx-2" />
                 <DropdownMenuGroup className="px-2 py-1 space-y-0.5">
-                  <DropdownMenuItem
-                    onClick={() => router.push('/dashboard/account')}
-                    className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
-                    <IconUserCircle className="w-4 h-4" />
-                    Account
-                  </DropdownMenuItem>
-                  {process.env.NODE_ENV !== 'production' && (
+                  {monitors.map((monitor) => (
                     <DropdownMenuItem
-                      onClick={() => router.push('/dashboard/billing')}
-                      className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
-                      <IconCreditCard className="w-4 h-4" />
-                      Billing
+                      key={monitor.domain || monitor.label}
+                      className={`rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-2.5 ${monitor.isCurrent ? 'bg-white/[0.04]' : ''}`}
+                    >
+                      <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08] overflow-hidden">
+                        {monitor.domain ? (
+                          <DomainLogo domain={monitor.domain} size={24} className="rounded-full" />
+                        ) : (
+                          <span className="text-white/80 font-semibold text-[9px]">
+                            {monitor.label.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <span className="flex-1 truncate text-sm">{monitor.domain || monitor.label}</span>
+                      {monitor.isCurrent && (
+                        <div className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />
+                      )}
                     </DropdownMenuItem>
-                  )}
-                  {process.env.NODE_ENV !== 'production' && (
-                    <DropdownMenuItem
-                      onClick={() => router.push('/dashboard/notifications')}
-                      className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
-                      <IconNotification className="w-4 h-4" />
-                      Notifications
-                    </DropdownMenuItem>
-                  )}
+                  ))}
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator className="!bg-white/[0.08] my-2 mx-2" />
                 <div className="px-2 py-1">
                   <DropdownMenuItem
-                    onClick={handleSignOut}
-                    onSelect={(e) => e.preventDefault()}
-                    className="rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 focus:text-red-300 cursor-pointer outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0">
-                    <IconLogout className="w-4 h-4" />
-                    Log out
+                    className="rounded-md text-white/50 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-2.5">
+                    <IconPlus className="w-4 h-4" />
+                    <span className="text-sm">Add Monitor</span>
                   </DropdownMenuItem>
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* Geolocation Filter */}
+            <Popover open={geoPopoverOpen} onOpenChange={setGeoPopoverOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/[0.06] transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                  aria-label={`Current region: ${REGIONS.find(r => r.code === activeRegion)?.label || activeRegion}. Click to change.`}
+                >
+                  <CircleFlag countryCode={activeRegion.toLowerCase()} height="18" width="18" className="flex-shrink-0" style={{ width: 18, height: 18 }} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                side="bottom"
+                sideOffset={8}
+                className="w-56 p-1 bg-[#1a1a1a] border border-white/[0.08] rounded-lg"
+              >
+                <div className="px-2.5 py-2 text-[11px] font-medium text-white/40 uppercase tracking-wider">
+                  Tracking Region
+                </div>
+                {REGIONS.map(region => (
+                  <button
+                    key={region.code}
+                    type="button"
+                    onClick={() => selectRegion(region.code)}
+                    className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md cursor-pointer hover:bg-white/[0.06] transition-colors w-full text-left ${
+                      activeRegion === region.code ? 'bg-white/[0.04]' : ''
+                    }`}
+                  >
+                    <CircleFlag countryCode={region.code.toLowerCase()} height="16" width="16" className="flex-shrink-0" style={{ width: 16, height: 16 }} />
+                    <span className="text-sm text-white/80 flex-1">{region.label}</span>
+                    {activeRegion === region.code && (
+                      <div className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />
+                    )}
+                  </button>
+                ))}
+              </PopoverContent>
+            </Popover>
           </div>
         </SidebarHeader>
 
@@ -568,7 +627,8 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
           <NavSecondary items={data.navSecondary} className="mt-auto" />
         </SidebarContent>
         <SidebarFooter className="bg-sidebar-grey pb-4">
-          <div className="px-3">
+          <div className="px-3 flex items-center gap-1">
+            {/* Help menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="w-9 h-9 flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.05] rounded-md transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0">
@@ -601,6 +661,56 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                     <IconExternalLink className="w-3.5 h-3.5 text-white/30" />
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Settings menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-9 h-9 flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.05] rounded-md transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0">
+                  <IconSettings strokeWidth={1.5} className="w-5 h-5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="min-w-52 rounded-lg bg-dark-grey border-white/[0.08] backdrop-blur-sm [&[data-state=closed]]:!hidden"
+                side="top"
+                align="start"
+                sideOffset={8}
+              >
+                <DropdownMenuGroup className="px-2 py-2 space-y-0.5">
+                  <DropdownMenuItem
+                    onClick={() => router.push('/dashboard/account')}
+                    className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
+                    <IconUserCircle className="w-4 h-4 text-white/50" />
+                    <span>Account</span>
+                  </DropdownMenuItem>
+                  {process.env.NODE_ENV !== 'production' && (
+                    <DropdownMenuItem
+                      onClick={() => router.push('/dashboard/billing')}
+                      className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
+                      <IconCreditCard className="w-4 h-4 text-white/50" />
+                      <span>Billing</span>
+                    </DropdownMenuItem>
+                  )}
+                  {process.env.NODE_ENV !== 'production' && (
+                    <DropdownMenuItem
+                      onClick={() => router.push('/dashboard/notifications')}
+                      className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
+                      <IconNotification className="w-4 h-4 text-white/50" />
+                      <span>Notifications</span>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator className="!bg-white/[0.08] my-1 mx-2" />
+                <div className="px-2 py-1">
+                  <DropdownMenuItem
+                    onClick={handleSignOut}
+                    onSelect={(e) => e.preventDefault()}
+                    className="rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 focus:text-red-300 cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
+                    <IconLogout className="w-4 h-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

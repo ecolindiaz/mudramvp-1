@@ -15,6 +15,7 @@ import {
   IconCheck
 } from "@tabler/icons-react"
 import { FileText, ArrowUpRight, ListOrdered, BookOpen, Newspaper, GraduationCap, Globe, MessageSquare, PlayCircle, Building2, Star, Share2, BookMarked, ExternalLink, X, ChevronRight, Expand } from "lucide-react"
+import { CircleFlag } from "react-circle-flags"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "react-hot-toast"
 import type { NlrSummaryJson } from '@/types/nlr'
@@ -1136,6 +1137,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                             alt={chat.model}
                             className="size-6 object-contain"
                           />
+                          <CircleFlag countryCode="us" height="14" width="14" className="flex-shrink-0" style={{ width: 14, height: 14 }} />
                           <span className="text-xs text-white/50">{chat.timestamp}</span>
                         </div>
                         <span className="text-xs text-white/40">{chat.time}</span>

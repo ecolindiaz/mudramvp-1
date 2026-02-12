@@ -12,6 +12,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, BookOpen, Building2, Download, CheckCircle2, AlertCircle } from "lucide-react"
+import { CircleFlag } from "react-circle-flags"
 import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
@@ -136,14 +137,25 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
         />
       </div>
     ),
-    size: 36,
+    size: 28,
+    enableSorting: false,
+  },
+  {
+    id: "region",
+    header: () => null,
+    cell: () => (
+      <div className="flex items-center justify-center">
+        <CircleFlag countryCode="us" height="16" width="16" style={{ width: 16, height: 16 }} />
+      </div>
+    ),
+    size: 24,
     enableSorting: false,
   },
   {
     header: () => (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="cursor-default">Prompt</div>
+          <div className="cursor-default -ml-14">Prompt</div>
         </TooltipTrigger>
         <TooltipContent>Query tested against AI models</TooltipContent>
       </Tooltip>
@@ -1281,6 +1293,12 @@ function TrackedPromptsPageInner() {
                             <TableCell style={{ width: '36px' }} className="py-3.5">
                               <div className="flex items-center justify-center">
                                 <Skeleton className="h-4 w-4 rounded bg-white/[0.06]" />
+                              </div>
+                            </TableCell>
+                            {/* Region flag */}
+                            <TableCell style={{ width: '32px' }} className="py-3.5">
+                              <div className="flex items-center justify-center">
+                                <Skeleton className="h-4 w-4 rounded-full bg-white/[0.06]" />
                               </div>
                             </TableCell>
                             {/* Prompt */}

@@ -80,6 +80,7 @@ interface OnboardingContextType {
   updateData: (updates: Partial<OnboardingData>) => void
   saveToProfile: () => Promise<void>
   isComplete: () => boolean
+  additionalMonitorIds: number[]
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined)
@@ -95,6 +96,7 @@ export function useOnboarding() {
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   // Always start with default data to ensure SSR/CSR match
   const [data, setData] = useState<OnboardingData>(defaultOnboardingData)
+  const [additionalMonitorIds, setAdditionalMonitorIds] = useState<number[]>([])
   const { setProfile } = useBrandProfile()
 
   // Load from localStorage after mount (client-side only)
@@ -123,14 +125,18 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const saveToProfile = useCallback(async () => {
+    // Primary domain entry (index 0)
+    const primaryEntry = data.domainEntries[0]
+    const primaryRegions = primaryEntry?.regions?.filter(Boolean) || []
+
     // Convert onboarding data to brand profile format
     const profile = {
       // ID (will be set by database or updated from existing)
       id: 0,
-      
+
       // User ID (from account creation)
       userId: data.userId,
-      
+
       // Company Information
       companyName: data.companyName,
       companyWebsite: data.companyWebsite,
@@ -155,15 +161,63 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       monthlySearchVolume: "",
       aiRecommendations: "",
 
+      // Multi-country tracking — use only the primary domain's regions
+      trackingCountries: primaryRegions.length > 0
+        ? primaryRegions
+        : data.trackingRegions.length > 0
+          ? data.trackingRegions
+          : ["US"],
+      primaryCountry: primaryRegions[0] || data.trackingRegions[0] || "US",
+
       // Extra fields for compatibility
       stage: "",
       resources: { teamSize: 0, budget: 0 }
     }
 
     console.log("Saving onboarding data to brand profile (with userId):", profile)
-    await setProfile(profile)
-    console.log("✅ Profile saved, waiting for ID to be available...")
-  }, [data, setProfile]) // Add dependencies so function is stable unless data or setProfile changes
+    const savedProfile = await setProfile(profile)
+    console.log("✅ Profile saved with ID:", savedProfile?.id)
+
+    // Create additional monitors for domain entries beyond the first
+    const extraEntries = data.domainEntries.slice(1).filter(e => e.domain.trim())
+    if (extraEntries.length > 0 && savedProfile?.id) {
+      const companyInfo = {
+        companyDescription: data.companyDescription,
+        companyIndustry: data.companyIndustry,
+        companyServices: data.servicesProducts.join(", "),
+        companyICP: data.companyICP.join(", "),
+        competitors: data.competitors.filter(c => c.trim() !== ""),
+      }
+
+      const monitorIds: number[] = []
+      for (const entry of extraEntries) {
+        try {
+          const regions = entry.regions.filter(Boolean)
+          const res = await fetch("/api/monitors", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              companyName: data.companyName,
+              companyWebsite: entry.domain,
+              trackingCountries: regions.length > 0 ? regions : ["US"],
+              primaryCountry: regions[0] || "US",
+              ...companyInfo,
+            }),
+          })
+          const result = await res.json()
+          if (result.success && result.monitor?.id) {
+            monitorIds.push(result.monitor.id)
+            console.log(`✅ Additional monitor created for ${entry.domain}, ID:`, result.monitor.id)
+          } else {
+            console.error(`Failed to create monitor for ${entry.domain}:`, result.error)
+          }
+        } catch (err) {
+          console.error(`Error creating monitor for ${entry.domain}:`, err)
+        }
+      }
+      setAdditionalMonitorIds(monitorIds)
+    }
+  }, [data, setProfile])
 
   const isComplete = () => {
     return !!(
@@ -177,7 +231,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <OnboardingContext.Provider value={{ data, updateData, saveToProfile, isComplete }}>
+    <OnboardingContext.Provider value={{ data, updateData, saveToProfile, isComplete, additionalMonitorIds }}>
       {children}
     </OnboardingContext.Provider>
   )

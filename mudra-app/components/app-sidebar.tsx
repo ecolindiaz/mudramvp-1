@@ -335,11 +335,7 @@ export interface MonitorEntry {
   isCurrent?: boolean    // Currently selected in the UI
 }
 
-// Mock monitors data — will be replaced by API call to GET /api/monitors
-const MOCK_ADDITIONAL_MONITORS: Omit<MonitorEntry, 'isCurrent'>[] = [
-  { domain: "openai.com", label: "OpenAI", status: "active", region: "US", regions: ["US", "GB"] },
-  { domain: "anthropic.com", label: "Anthropic", status: "paused", region: "US", regions: ["US"] },
-]
+// Monitor data fetched from API (no more mock data)
 
 // Export custom icons for use in other components
 export { OverviewIcon, TrackedPromptsIcon, IssuesIcon, ContentLabIcon, AgentLabIcon, InboxIcon }
@@ -350,11 +346,10 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
   const [inboxOpen, setInboxOpen] = React.useState(false)
   const [isMounted, setIsMounted] = React.useState(false)
   const [geoPopoverOpen, setGeoPopoverOpen] = React.useState(false)
-  const [activeRegion, setActiveRegion] = React.useState("US")
-
+  const [apiMonitors, setApiMonitors] = React.useState<any[]>([])
 
   // Get brand profile data
-  const { profile } = useBrandProfile()
+  const { profile, switchProfile, selectedCountry, setSelectedCountry } = useBrandProfile()
 
   // Get router and sidebar state
   const router = useRouter()
@@ -433,28 +428,69 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
     [companyData.name]
   )
 
-  // Build monitors list: current brand domain first, then additional monitors
-  // TODO: Replace with API call: GET /api/monitors?brandProfileId=X
+  // Fetch real monitors from API
+  React.useEffect(() => {
+    if (!isMounted) return
+    fetch('/api/monitors')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.monitors) setApiMonitors(data.monitors)
+      })
+      .catch(() => {})
+  }, [isMounted, profile?.id])
+
+  // Build monitors list from API data
   const monitors: MonitorEntry[] = React.useMemo(() => {
+    if (apiMonitors.length > 0) {
+      return apiMonitors.map(m => {
+        const domain = extractDomain(m.domain) || m.domain || ''
+        return {
+          id: m.id,
+          domain,
+          label: m.label || m.domain || 'Monitor',
+          status: "active" as const,
+          region: m.primaryCountry || "US",
+          regions: m.trackingCountries || ["US"],
+          isCurrent: m.id === profile?.id,
+        }
+      })
+    }
+    // Fallback to current profile
     const currentDomain = companyData.domain || companyData.website?.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]
-    const currentMonitor: MonitorEntry = {
+    return [{
       domain: currentDomain || '',
       label: companyData.name,
-      status: "active",
-      region: "US",
-      regions: ["US"],
+      status: "active" as const,
+      region: (profile as any)?.primaryCountry || "US",
+      regions: (profile as any)?.trackingCountries || ["US"],
       isCurrent: true,
+    }]
+  }, [apiMonitors, companyData, profile])
+
+  // Get the current monitor's regions for the region selector
+  const currentMonitor = monitors.find(m => m.isCurrent) || monitors[0]
+  const availableRegions = React.useMemo(() => {
+    const monitorRegions = currentMonitor?.regions || ["US"]
+    return REGIONS.filter(r => monitorRegions.includes(r.code))
+  }, [currentMonitor])
+
+  // Reset selectedCountry when switching monitors if the current region isn't available
+  React.useEffect(() => {
+    if (availableRegions.length > 0 && !availableRegions.some(r => r.code === selectedCountry)) {
+      setSelectedCountry(currentMonitor?.region || availableRegions[0].code)
     }
-    return [
-      currentMonitor,
-      ...MOCK_ADDITIONAL_MONITORS.map(m => ({ ...m, isCurrent: false })),
-    ]
-  }, [companyData])
+  }, [availableRegions, selectedCountry, currentMonitor, setSelectedCountry])
 
   const selectRegion = React.useCallback((code: string) => {
-    setActiveRegion(code)
+    setSelectedCountry(code)
     setGeoPopoverOpen(false)
-  }, [])
+  }, [setSelectedCountry])
+
+  const handleMonitorSwitch = React.useCallback(async (monitor: MonitorEntry) => {
+    if (monitor.isCurrent || !monitor.id) return
+    setIsDropdownOpen(false)
+    await switchProfile(monitor.id)
+  }, [switchProfile])
 
   return (
     <>
@@ -514,7 +550,8 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                 <DropdownMenuGroup className="px-2 py-1 space-y-0.5">
                   {monitors.map((monitor) => (
                     <DropdownMenuItem
-                      key={monitor.domain || monitor.label}
+                      key={monitor.id || monitor.domain || monitor.label}
+                      onClick={() => handleMonitorSwitch(monitor)}
                       className={`rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-2.5 ${monitor.isCurrent ? 'bg-white/[0.04]' : ''}`}
                     >
                       <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08] overflow-hidden">
@@ -550,9 +587,9 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                 <button
                   type="button"
                   className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/[0.06] transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-                  aria-label={`Current region: ${REGIONS.find(r => r.code === activeRegion)?.label || activeRegion}. Click to change.`}
+                  aria-label={`Current region: ${REGIONS.find(r => r.code === selectedCountry)?.label || selectedCountry}. Click to change.`}
                 >
-                  <CircleFlag countryCode={activeRegion.toLowerCase()} height="18" width="18" className="flex-shrink-0" style={{ width: 18, height: 18 }} />
+                  <CircleFlag countryCode={selectedCountry.toLowerCase()} height="18" width="18" className="flex-shrink-0" style={{ width: 18, height: 18 }} />
                 </button>
               </PopoverTrigger>
               <PopoverContent
@@ -564,18 +601,18 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                 <div className="px-2.5 py-2 text-[11px] font-medium text-white/40 uppercase tracking-wider">
                   Tracking Region
                 </div>
-                {REGIONS.map(region => (
+                {availableRegions.map(region => (
                   <button
                     key={region.code}
                     type="button"
                     onClick={() => selectRegion(region.code)}
                     className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md cursor-pointer hover:bg-white/[0.06] transition-colors w-full text-left ${
-                      activeRegion === region.code ? 'bg-white/[0.04]' : ''
+                      selectedCountry === region.code ? 'bg-white/[0.04]' : ''
                     }`}
                   >
                     <CircleFlag countryCode={region.code.toLowerCase()} height="16" width="16" className="flex-shrink-0" style={{ width: 16, height: 16 }} />
                     <span className="text-sm text-white/80 flex-1">{region.label}</span>
-                    {activeRegion === region.code && (
+                    {selectedCountry === region.code && (
                       <div className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />
                     )}
                   </button>

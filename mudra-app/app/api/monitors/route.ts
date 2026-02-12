@@ -87,7 +87,17 @@ export async function POST(req: NextRequest) {
 
     const userId = (session.user as any).id;
     const body = await req.json();
-    const { companyName, companyWebsite, trackingCountries, primaryCountry } = body;
+    const {
+      companyName,
+      companyWebsite,
+      trackingCountries,
+      primaryCountry,
+      companyDescription,
+      companyIndustry,
+      companyServices,
+      companyICP,
+      competitors,
+    } = body;
 
     if (!companyName || !companyWebsite) {
       return NextResponse.json(
@@ -120,6 +130,13 @@ export async function POST(req: NextRequest) {
         trackingCountries: countries,
         primaryCountry: primary,
         monitorOrder: existingCount,
+        ...(companyDescription && { companyDescription }),
+        ...(companyIndustry && { companyIndustry }),
+        ...(companyServices && { companyServices }),
+        ...(companyICP && { companyICP }),
+        ...(competitors?.length && {
+          competitors: Array.isArray(competitors) ? competitors.join(',') : competitors,
+        }),
       },
     });
 

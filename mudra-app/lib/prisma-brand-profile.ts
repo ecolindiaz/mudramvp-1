@@ -79,6 +79,16 @@ export async function getBrandProfileByUserId(userId: string) {
 }
 
 /**
+ * Get a specific brand profile by ID, ensuring it belongs to the user
+ */
+export async function getBrandProfileByIdForUser(userId: string, profileId: number) {
+  const dbProfile = await prisma.brandProfile.findFirst({
+    where: { id: profileId, userId },
+  });
+  return dbProfile ? deserializeProfile(dbProfile) : null;
+}
+
+/**
  * Save/update brand profile for a specific user (authenticated)
  */
 export async function saveBrandProfileForUser(userId: string, profile: any) {

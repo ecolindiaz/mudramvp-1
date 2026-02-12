@@ -42,13 +42,9 @@ export function WelcomeForm() {
       updateData({
         extractedCompanyInfo: extractedData,
         extractionStatus: 'completed',
-        companyName,
-        companyWebsite: domainEntries[0]?.domain || "",
-        domainEntries,
       })
-      router.push("/welcome/profile")
     }
-  }, [extractedData, startedExtractionThisSession, companyName, domainEntries, updateData, router])
+  }, [extractedData, startedExtractionThisSession, updateData])
 
   useEffect(() => {
     if (isExtracting) {
@@ -125,28 +121,6 @@ export function WelcomeForm() {
     return `${regions.length} regions selected`
   }
 
-  if (isExtracting) {
-    return (
-      <Card className="w-full max-w-[480px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
-        <CardContent className="py-16">
-          <div className="flex flex-col items-center justify-center space-y-6">
-            <div className="relative">
-              <div className="w-16 h-16 border-2 border-white/10 rounded-full"></div>
-              <div className="absolute inset-0 w-16 h-16 border-2 border-white/10 border-t-white rounded-full animate-spin"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-3 h-3 bg-white rounded-full animate-pulse shadow-[0_0_12px_rgba(255,255,255,0.4)]"></div>
-              </div>
-            </div>
-            <div className="text-center space-y-2">
-              <p className="text-white font-medium">Analyzing your website</p>
-              <p className="text-white/50 text-sm">Extracting company information...</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
     <Card className="w-full max-w-[480px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
       <CardHeader className="text-center pb-6">
@@ -187,6 +161,12 @@ export function WelcomeForm() {
                   onBlur={(e) => index === 0 && handleWebsiteBlur(e.target.value)}
                   className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20"
                 />
+                {index === 0 && isExtracting && (
+                  <div className="shrink-0 flex items-center gap-1.5 text-white/50">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span className="text-xs whitespace-nowrap">Analyzing...</span>
+                  </div>
+                )}
                 {index > 0 && (
                   <button
                     type="button"

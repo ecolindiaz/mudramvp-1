@@ -1,8 +1,8 @@
 # Multi-Domain & Geo-Localized Analysis — Implementation Plan
 
-> **Version:** 1.0
-> **Date:** February 2026
-> **Status:** Planning
+> **Version:** 2.0
+> **Date:** February 12, 2026
+> **Status:** Implemented (Phases 1–5 complete, Phase 6 complete)
 > **Dependencies:** GEOLOCATION_API_REFERENCE.md, BRIGHTDATA_RESIDENTIAL_PROXIES.md
 
 ---
@@ -1489,69 +1489,72 @@ Per the analysis in BRIGHTDATA_RESIDENTIAL_PROXIES.md Section 14.5:
 
 ## 17. Migration Strategy
 
-### Phase 1: Database + Configuration (Non-Breaking)
+### Phase 1: Database + Configuration (Non-Breaking) — DONE
 
 **Goal:** Add all new columns and tables without changing any behavior.
 
-1. Create and run Prisma migration (Section 4.2)
-2. Add `lib/geo/country-config.ts` module
-3. Add BrightData proxy module (unused yet)
-4. Deploy — existing functionality is 100% unchanged
+1. ~~Create and run Prisma migration (Section 4.2)~~ — `prisma db push` applied
+2. ~~Add `lib/geo/country-config.ts` module~~ — Implemented
+3. ~~Add BrightData proxy module (unused yet)~~ — Implemented
+4. ~~Deploy — existing functionality is 100% unchanged~~
 
-### Phase 2: Backend Services (Country-Aware)
+### Phase 2: Backend Services (Country-Aware) — DONE
 
 **Goal:** Make all backend services accept and use country params.
 
-1. Update `DirectGEOConfig` to accept `country`
-2. Add geo params to each provider's API call function
-3. Update `generateSophisticatedPrompts()` to accept `language`
-4. Update `generateAndSaveInitialPrompts()` to generate per language
-5. Create `PromptGeneration_ES.txt` system prompt
-6. Update `runUnifiedAnalysis()` to handle `country` and `countries` params
-7. Create `analysis-job-queue.ts` service
-8. Create `/api/analysis/process-queue` route
-9. Create `/api/analysis/job-status` route
-10. Deploy — services accept new params but nothing sends them yet
+1. ~~Update `DirectGEOConfig` to accept `country`~~ — Implemented
+2. ~~Add geo params to each provider's API call function~~ — OpenAI, Perplexity, Claude (native), Gemini (BrightData proxy)
+3. ~~Update `generateSophisticatedPrompts()` to accept `language`~~ — Implemented
+4. ~~Update `generateAndSaveInitialPrompts()` to generate per language~~ — Implemented
+5. ~~Create `PromptGeneration_ES.txt` system prompt~~ — Implemented
+6. ~~Update `runUnifiedAnalysis()` to handle `country` and `countries` params~~ — Implemented
+7. ~~Create `analysis-job-queue.ts` service~~ — Implemented
+8. ~~Create `/api/analysis/process-queue` route~~ — Implemented
+9. ~~Create `/api/analysis/job-status` route~~ — Implemented
 
-### Phase 3: API Routes (Country-Scoped)
+### Phase 3: API Routes (Country-Scoped) — DONE
 
 **Goal:** All API routes accept country params, data is scoped.
 
-1. Update `/api/analysis/unified` to accept countries
-2. Update `/api/prompts/with-results` to filter by country
-3. Update `/api/prompts/add` to accept language + country
-4. Update `/api/prompts/[id]` to filter by country
-5. Create `/api/monitors` endpoints
-6. Create `/api/monitors/[id]/countries` endpoints
-7. Deploy — APIs ready, frontend not sending new params yet
+1. ~~Update `/api/analysis/unified` to accept countries~~ — Implemented
+2. ~~Update `/api/prompts/with-results` to filter by country~~ — Implemented
+3. ~~Update `/api/prompts/add` to accept language + country~~ — Implemented
+4. ~~Create `/api/monitors` endpoints~~ — Implemented (GET + POST with company info)
+5. ~~Create `/api/monitors/[id]/countries` endpoints~~ — Implemented (GET + PATCH)
+6. ~~Update `/api/analysis/competitors` to filter by country~~ — Implemented
+7. ~~Update `/api/analysis/geo-history` to filter by country~~ — Implemented
+8. ~~Update `/api/analytics/citations` to filter by country~~ — Implemented
 
-### Phase 4: Onboarding Flow
+### Phase 4: Onboarding Flow — DONE
 
 **Goal:** Onboarding captures countries and triggers multi-country analysis.
 
-1. Wire `welcome-form.tsx` country selection to `saveToProfile()` → `trackingCountries`
-2. Update `prompts-form.tsx` to generate multilingual prompts and pass `countries` to unified analysis
-3. Add country progress indicators to onboarding UI
-4. Deploy — new users get multi-country, existing users unaffected
+1. ~~Wire `welcome-form.tsx` country selection to `saveToProfile()` → `trackingCountries`~~ — Implemented
+2. ~~Update `prompts-form.tsx` to pass `countries` to unified analysis~~ — Implemented
+3. ~~Create additional monitors for domains 2+3 during onboarding~~ — Implemented via POST /api/monitors
+4. ~~Fire-and-forget analysis for additional monitors~~ — Implemented in prompts-form.tsx
+5. ~~Inline extraction loading (replaced full-page spinner)~~ — Implemented in welcome-form.tsx
 
-### Phase 5: Dashboard + Sidebar
+### Phase 5: Dashboard + Sidebar — DONE
 
 **Goal:** Dashboard shows country-scoped data, sidebar enables switching.
 
-1. Add `selectedCountry` to BrandProfileContext
-2. Wire sidebar monitor picker to real API data
-3. Wire sidebar country flags to `selectedCountry` state
-4. Update all AI Visibility data-fetching to pass `country` param
-5. Update prompt add dialog to include language context
-6. Deploy — full feature available
+1. ~~Add `selectedCountry` to BrandProfileContext~~ — Implemented (shared state, syncs on profile switch)
+2. ~~Wire sidebar monitor picker to real API data~~ — Implemented (GET /api/monitors, removed mock data)
+3. ~~Wire sidebar country flags to `selectedCountry` state~~ — Implemented (reads/writes context, not local state)
+4. ~~Update all AI Visibility data-fetching to pass `country` param~~ — Implemented:
+   - `overview-metrics.tsx`: 3 fetch calls pass `&country=`
+   - `tracked-prompts/page.tsx`: passes `&country=`
+   - `natural-language-report.tsx`: 6 SWR fetches pass `&country=`
+5. ~~Add `switchProfile()` to BrandProfileContext~~ — Implemented (with GET /api/brand-profile?profileId=X)
+6. ~~Region selector scoped to current monitor's countries~~ — Implemented
 
-### Phase 6: Cron Jobs
+### Phase 6: Cron Jobs — DONE (in backend commit)
 
 **Goal:** Weekly analysis runs per country.
 
-1. Update `executeWeeklyAnalysis()` to create jobs per country
-2. Update cron route to trigger queue processor
-3. Deploy — automated multi-country analysis
+1. ~~Update `executeWeeklyAnalysis()` to use `trackingCountries`~~ — Implemented
+2. ~~Pass `countries` to unified analysis for queue processing~~ — Implemented
 
 ---
 
@@ -1572,6 +1575,8 @@ Per the analysis in BRIGHTDATA_RESIDENTIAL_PROXIES.md Section 14.5:
 
 ### Modified Files
 
+**Backend (commit `cead13c`):**
+
 | File | Change Summary |
 |------|---------------|
 | `prisma/schema.prisma` | Add fields to BrandProfile, Prompt, GeoAnalysisResult, AnalysisRun; add AnalysisJob model |
@@ -1579,19 +1584,31 @@ Per the analysis in BRIGHTDATA_RESIDENTIAL_PROXIES.md Section 14.5:
 | `lib/services/unified-analysis.service.ts` | Multi-country orchestration; create jobs for non-first countries |
 | `lib/services/prompt-generation.service.ts` | Accept `language` param; load language-specific system prompt |
 | `lib/services/prompt-storage.service.ts` | Generate prompts per language; tag with `language` field |
-| `lib/services/cron.service.ts` | Weekly analysis creates jobs per country instead of single run |
+| `lib/services/cron.service.ts` | Weekly analysis uses `trackingCountries` per brand profile |
+| `lib/services/analysis-run.service.ts` | Accept `country` in AnalysisRunData |
 | `app/api/analysis/unified/route.ts` | Accept `country`/`countries` in request body |
 | `app/api/prompts/with-results/route.ts` | Filter by `country` query param |
 | `app/api/prompts/add/route.ts` | Accept `language` and `country`; run analysis with geo config |
-| `app/api/prompts/[id]/route.ts` | Filter results by `country` query param |
-| `app/api/cron/weekly-analysis/route.ts` | Create per-country jobs instead of single unified call |
-| `components/onboarding/onboarding-context.tsx` | Wire `domainEntries[].regions` to `trackingCountries` on save |
-| `components/onboarding/prompts-form.tsx` | Pass `countries` to unified analysis; multilingual prompt generation |
-| `components/brand-profile-context.tsx` | Add `selectedCountry`, `trackingCountries`, `countryStatuses` |
-| `components/analysis-context.tsx` | Track per-country analysis state |
-| `components/app-sidebar.tsx` | Replace mock monitors with API data; wire country flags |
-| `components/dashboard/overview-metrics.tsx` | Pass `country` to AI Visibility fetches; ignore country for technical |
-| `vercel.json` | No changes needed (existing cron schedule works) |
+
+**Frontend wiring (commit `feat: wire multi-domain...`):**
+
+| File | Change Summary |
+|------|---------------|
+| `components/brand-profile-context.tsx` | Add `selectedCountry`/`setSelectedCountry` shared state; add `switchProfile(id)`; `setProfile` returns saved profile |
+| `components/app-sidebar.tsx` | Replace mock monitors with `GET /api/monitors`; wire country flags to `selectedCountry` context; add `handleMonitorSwitch`; scope region selector to current monitor |
+| `components/onboarding/onboarding-context.tsx` | `saveToProfile` sends `trackingCountries`/`primaryCountry`; creates additional monitors via `POST /api/monitors` |
+| `components/onboarding/prompts-form.tsx` | Pass `countries` to unified analysis; fire-and-forget analysis for additional monitors |
+| `components/onboarding/welcome-form.tsx` | Inline extraction spinner; fix extraction effect deps |
+| `components/dashboard/overview-metrics.tsx` | Pass `&country=` to all 3 AI Visibility fetch calls; re-fetch on country change |
+| `components/dashboard/natural-language-report.tsx` | Pass `&country=` to all 6 SWR fetches (prompts, citations, competitors) |
+| `app/dashboard/tracked-prompts/page.tsx` | Pass `&country=` to prompts fetch; re-fetch on country change |
+| `hooks/use-analysis-pipeline.ts` | Accept and pass `countries` in pipeline config |
+| `app/api/brand-profile/route.ts` | Accept `?profileId=X` for monitor switching |
+| `app/api/monitors/route.ts` | POST accepts company info fields (description, industry, services, ICP, competitors) |
+| `app/api/analysis/competitors/route.ts` | Accept `?country=` filter |
+| `app/api/analysis/geo-history/route.ts` | Accept `?country=` filter |
+| `app/api/analytics/citations/route.ts` | Accept `?country=` filter |
+| `lib/prisma-brand-profile.ts` | Add `getBrandProfileByIdForUser()` for secure profile switching |
 
 ---
 

@@ -222,6 +222,7 @@ export async function GET(request: NextRequest) {
     const limitParam = searchParams.get('limit')
     const limit = limitParam ? parseInt(limitParam) : null // null means no limit (return all)
     const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
+    const countryFilter = searchParams.get('country') // Optional: filter by country code
 
     // Helper to normalize model names for comparison
     const normalizeModelName = (name: string): string => {
@@ -258,7 +259,10 @@ export async function GET(request: NextRequest) {
 
     // Get ALL GEO analysis results for this brand profile
     const geoAnalyses = await prisma.geoAnalysisResult.findMany({
-      where: { brandProfileId: profileId },
+      where: {
+        brandProfileId: profileId,
+        ...(countryFilter ? { country: countryFilter } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,

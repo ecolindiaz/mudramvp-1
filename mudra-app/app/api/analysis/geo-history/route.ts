@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const brandProfileIdStr = searchParams.get('brandProfileId');
     const limit = parseInt(searchParams.get('limit') || '2');
+    const country = searchParams.get('country');
 
     // Require authentication and verify brand profile access
     const authResult = await requireAuthWithBrandAccess(brandProfileIdStr);
@@ -24,7 +25,8 @@ export async function GET(request: NextRequest) {
     // Fetch most recent GEO analysis results
     const results = await prisma.geoAnalysisResult.findMany({
       where: {
-        brandProfileId: brandProfileId
+        brandProfileId: brandProfileId,
+        ...(country ? { country } : {}),
       },
       orderBy: {
         timestamp: 'desc'

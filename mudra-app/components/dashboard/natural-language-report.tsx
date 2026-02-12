@@ -70,7 +70,7 @@ function CitationTypeIcon({ type }: { type: CitationType }) {
 
 export function NaturalLanguageReport({ className, timeRange, selectedModel, days = 30 }: NaturalLanguageReportProps) {
   const router = useRouter()
-  const { profile } = useBrandProfile()
+  const { profile, selectedCountry } = useBrandProfile()
   const [showReportHistory, setShowReportHistory] = React.useState(false)
   const [isMounted, setIsMounted] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
@@ -110,6 +110,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
 
   // Build model filter param for API calls
   const modelParam = selectedModel !== 'all' ? `&model=${selectedModel}` : ''
+  const countryParam = selectedCountry ? `&country=${selectedCountry}` : ''
 
   // Get brandProfileId from context (only after mount to avoid hydration mismatch)
   const brandProfileId = isMounted && profile?.id > 0 ? String(profile.id) : null
@@ -124,7 +125,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
 
   // Fetch recent prompts/chats with results (includes aggregate metrics)
   const { data: promptsData, isLoading: isLoadingPrompts, mutate: refreshPrompts } = useSWR(
-    brandProfileId ? `/api/prompts/with-results?brandProfileId=${brandProfileId}${modelParam}&days=${days}` : null,
+    brandProfileId ? `/api/prompts/with-results?brandProfileId=${brandProfileId}${modelParam}&days=${days}${countryParam}` : null,
     async (url: string) => {
       const res = await fetch(url)
       if (!res.ok) return null
@@ -344,7 +345,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
 
   // Fetch real citation data from aggregated prompt results (preview - top 5)
   const { data: citationsData, isLoading: isLoadingCitations } = useSWR(
-    brandProfileId ? `/api/analytics/citations?brandProfileId=${brandProfileId}&limit=5&days=${days}${modelParam}` : null,
+    brandProfileId ? `/api/analytics/citations?brandProfileId=${brandProfileId}&limit=5&days=${days}${modelParam}${countryParam}` : null,
     async (url: string) => {
       const res = await fetch(url)
       if (!res.ok) return null
@@ -356,7 +357,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
   // Fetch ALL citations for expansion modal (no limit)
   const { data: allCitationsData, isLoading: isLoadingAllCitations } = useSWR(
     showCitationsModal && brandProfileId
-      ? `/api/analytics/citations?brandProfileId=${brandProfileId}&days=${days}${modelParam}`
+      ? `/api/analytics/citations?brandProfileId=${brandProfileId}&days=${days}${modelParam}${countryParam}`
       : null,
     async (url: string) => {
       const res = await fetch(url)
@@ -446,7 +447,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
   // - Ranks by SOV (highest first)
   // - Returns Top 5 competitors for preview
   const { data: competitorsData, mutate: refreshCompetitors, isLoading: isLoadingCompetitors } = useSWR(
-    brandProfileId ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&limit=5&days=${days}${modelParam}` : null,
+    brandProfileId ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&limit=5&days=${days}${modelParam}${countryParam}` : null,
     async (url: string) => {
       const res = await fetch(url)
       if (!res.ok) return null
@@ -458,7 +459,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
   // Fetch ALL competitors for expansion modal (no limit)
   const { data: allCompetitorsData, isLoading: isLoadingAllCompetitors } = useSWR(
     showCompetitorRankingsModal && brandProfileId
-      ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&days=${days}${modelParam}`
+      ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&days=${days}${modelParam}${countryParam}`
       : null,
     async (url: string) => {
       const res = await fetch(url)

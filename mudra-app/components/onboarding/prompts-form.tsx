@@ -190,7 +190,7 @@ export function PromptsForm() {
         description: onboardingData.companyDescription || undefined,
         competitors: onboardingData.competitors || [],
         countries: primaryRegions && primaryRegions.length > 0 ? primaryRegions : ["US"],
-      }
+      };
 
       (async () => {
         try {

@@ -47,3 +47,6 @@ venv/
 /mudra-app/output/
 /llm/dataset/output/
 /output/
+
+# Claude Code temp files
+tmpclaude-*-cwd

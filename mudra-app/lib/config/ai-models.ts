@@ -137,21 +137,21 @@ export const AI_MODELS: Record<string, AIModelConfig> = {
     },
     bestFor: ['natural language reports', 'long-context summarization', 'policy-aware narrative synthesis']
   },
-  'gpt-5.2': {
-    id: 'gpt-5.2',
-    name: 'GPT-5.2',
-    provider: 'openai',
-    model: 'gpt-5.2',
-    description: 'Fast, cost-effective OpenAI model for structured generation tasks',
+  'claude-sonnet-4.5': {
+    id: 'claude-sonnet-4.5',
+    name: 'Claude Sonnet 4.5',
+    provider: 'anthropic',
+    model: 'claude-sonnet-4-5-20250929',
+    description: 'Fast, high-quality Anthropic model for structured generation tasks',
     capabilities: {
       reasoning: 'advanced',
       speed: 'fast',
-      contextWindow: 128000,
+      contextWindow: 200000,
       maxOutputTokens: 8192
     },
     pricing: {
-      inputCostPer1M: 0.50,
-      outputCostPer1M: 1.50
+      inputCostPer1M: 3.00,
+      outputCostPer1M: 15.00
     },
     settings: {
       defaultTemperature: 0.7,

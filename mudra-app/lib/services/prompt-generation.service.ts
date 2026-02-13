@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -251,7 +252,7 @@ export interface BatchGeneratedPrompt {
 
 /**
  * Generate a batch of prompts based on a user description, with auto-assigned categories.
- * Uses JSON response format for reliable parsing.
+ * Uses Claude Sonnet 4.5 for high-quality structured generation.
  */
 export async function generateBatchPrompts(
   description: string,
@@ -259,12 +260,12 @@ export async function generateBatchPrompts(
   existingPrompts: string[],
   brandInfo: BrandInfo
 ): Promise<BatchGeneratedPrompt[]> {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('OpenAI API key not configured');
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('Anthropic API key not configured');
   }
 
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+  const anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
   });
 
   const systemPrompt = `You generate natural-language search queries to test a brand's visibility in generative AI engines.
@@ -288,7 +289,7 @@ Rules:
 - Vary query styles: questions, comparisons, "best of" lists, how-tos, etc.
 - Keep queries concise (under 120 characters each)
 
-Return valid JSON in this exact format:
+Return ONLY valid JSON (no markdown, no code blocks) in this exact format:
 {
   "prompts": [
     { "text": "query text here", "category": "Organic" },
@@ -314,27 +315,31 @@ Brand context:
 
 Generate exactly ${count} prompts now.`;
 
-  console.log(`[BatchGeneration] Generating ${count} prompts with description: "${description}"`);
+  console.log(`[BatchGeneration] Generating ${count} prompts with Claude Sonnet 4.5, description: "${description}"`);
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-5.2',
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 2000,
+    system: systemPrompt,
     messages: [
-      { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    temperature: 0.7,
-    max_completion_tokens: 2000,
-    response_format: { type: 'json_object' },
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = response.content[0]?.type === 'text' ? response.content[0].text : '';
   if (!content) {
-    throw new Error('Empty response from AI model');
+    throw new Error('Empty response from Claude Sonnet 4.5');
+  }
+
+  // Extract JSON from response (Claude may wrap in markdown code blocks)
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Failed to extract JSON from Claude response');
   }
 
   let parsed: { prompts: BatchGeneratedPrompt[] };
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(jsonMatch[0]);
   } catch {
     throw new Error('Failed to parse AI response as JSON');
   }
@@ -421,7 +426,7 @@ export function profileToBrandInfo(profile: any): BrandInfo {
   };
 }
 
-// --- Initial prompt generation for onboarding (GPT-5.2, JSON, business-type-aware) ---
+// --- Initial prompt generation for onboarding (Claude Sonnet 4.5, JSON, business-type-aware) ---
 
 export interface InitialGeneratedPrompt {
   text: string;
@@ -458,12 +463,12 @@ function getBusinessTypeGuidance(type: string): string {
 
 /**
  * Generate initial prompts for a brand during onboarding.
- * Uses GPT-5.2 with JSON output, 5 categories including FAQ,
+ * Uses Claude Sonnet 4.5 with JSON output, 5 categories including FAQ,
  * business-type-aware guidance, and richer product/ICP context.
  */
 export async function generateInitialPrompts(brandInfo: BrandInfo): Promise<InitialGeneratedPrompt[]> {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('OpenAI API key not configured');
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('Anthropic API key not configured');
   }
 
   const productCount = brandInfo.productsServices.length;
@@ -493,7 +498,7 @@ Rules:
 - Keep queries concise (under 120 characters each)
 - FAQ queries must be phrased as questions (start with How, What, Why, Can, Is, etc.)
 
-Return valid JSON:
+Return ONLY valid JSON (no markdown, no code blocks):
 {
   "prompts": [
     { "text": "query text", "category": "Organic" },
@@ -527,31 +532,35 @@ Competitors: ${brandInfo.competitors.join(', ')}
 
 Generate exactly ${totalPrompts} prompts now.`;
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  console.log(`[InitialPrompts] Generating ${totalPrompts} prompts via GPT-5.2 (business type: ${businessType})...`);
+  console.log(`[InitialPrompts] Generating ${totalPrompts} prompts via Claude Sonnet 4.5 (business type: ${businessType})...`);
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-5.2',
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 4000,
+    system: systemPrompt,
     messages: [
-      { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    temperature: 0.7,
-    max_completion_tokens: 4000,
-    response_format: { type: 'json_object' },
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = response.content[0]?.type === 'text' ? response.content[0].text : '';
   if (!content) {
-    throw new Error('Empty response from GPT-5.2');
+    throw new Error('Empty response from Claude Sonnet 4.5');
+  }
+
+  // Extract JSON from response (Claude may wrap in markdown code blocks)
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Failed to extract JSON from Claude response');
   }
 
   let parsed: { prompts: InitialGeneratedPrompt[] };
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(jsonMatch[0]);
   } catch {
-    throw new Error('Failed to parse GPT-5.2 response as JSON');
+    throw new Error('Failed to parse Claude Sonnet 4.5 response as JSON');
   }
 
   if (!Array.isArray(parsed.prompts) || parsed.prompts.length === 0) {

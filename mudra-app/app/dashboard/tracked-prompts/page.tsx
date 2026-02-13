@@ -916,7 +916,15 @@ function TrackedPromptsPageInner() {
   }
 
   const handleRunAnalysis = async () => {
-    if (!profile?.id) return
+    if (!profile?.id) {
+      toast.error("Brand profile not loaded. Please refresh and try again.")
+      return
+    }
+    if (generatedPrompts.length === 0) {
+      toast.error("No prompts to analyze.")
+      return
+    }
+
     setAiStep('running')
     analysisAbortRef.current = false
     const initStatus: Record<number, 'pending'> = {}
@@ -929,7 +937,10 @@ function TrackedPromptsPageInner() {
     setData(prev => prev.map(p => promptIds.has(p.id) ? { ...p, isPending: true } : p))
 
     let completed = 0
+    let errorCount = 0
     for (let i = 0; i < generatedPrompts.length; i++) {
+      if (analysisAbortRef.current) break
+
       const prompt = generatedPrompts[i]
       setAnalysisStatus(prev => ({ ...prev, [prompt.id]: 'running' }))
 
@@ -941,19 +952,26 @@ function TrackedPromptsPageInner() {
           body: JSON.stringify({
             promptId: prompt.id.toString(),
             text: prompt.text,
+            category: prompt.category,
             runAnalysis: true
           })
         })
 
         if (!response.ok) {
-          const errorData = await response.json()
-          console.error(`Failed to analyze prompt ${prompt.id}: ${response.status} ${errorData.error || 'Unknown error'}`)
+          let errorMsg = 'Unknown error'
+          try {
+            const errorData = await response.json()
+            errorMsg = errorData.error || errorMsg
+          } catch { /* ignore parse error */ }
+          console.error(`Failed to analyze prompt ${prompt.id}: ${response.status} ${errorMsg}`)
           setAnalysisStatus(prev => ({ ...prev, [prompt.id]: 'error' }))
+          errorCount++
         } else {
           const result = await response.json()
           if (!result.success) {
             console.error(`Failed to analyze prompt ${prompt.id}: ${result.error || 'Unknown error'}`)
             setAnalysisStatus(prev => ({ ...prev, [prompt.id]: 'error' }))
+            errorCount++
           } else {
             setAnalysisStatus(prev => ({ ...prev, [prompt.id]: 'done' }))
             success = true
@@ -962,6 +980,7 @@ function TrackedPromptsPageInner() {
       } catch (error) {
         console.error(`Failed to analyze prompt ${prompt.id}:`, error)
         setAnalysisStatus(prev => ({ ...prev, [prompt.id]: 'error' }))
+        errorCount++
       }
 
       completed++
@@ -985,6 +1004,10 @@ function TrackedPromptsPageInner() {
     }
 
     window.dispatchEvent(new Event('mudra:analysis-complete'))
+
+    if (errorCount > 0) {
+      toast.error(`${errorCount} prompt${errorCount > 1 ? 's' : ''} failed to analyze. Check console for details.`)
+    }
 
     // Auto-close if user hasn't already closed
     if (!analysisAbortRef.current) {

@@ -57,5 +57,7 @@ export function buildGeminiRestEndpoint(model: string): string {
   if (!apiKey) {
     throw new Error('Gemini API key not configured (GEMINI_API_KEY)');
   }
-  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  // Preview models require v1beta; stable GA models use v1
+  const apiVersion = model.includes('preview') ? 'v1beta' : 'v1';
+  return `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`;
 }

@@ -29,13 +29,57 @@ export interface AIModelConfig {
 export const AI_MODELS: Record<string, AIModelConfig> = {
   'gemini-3-pro': {
     id: 'gemini-3-pro',
-    name: 'Gemini 3 Pro',
+    name: 'Gemini 3 Flash Preview',
     provider: 'google',
-    model: 'gemini-2.0-flash', // Using latest available Gemini model
+    model: 'gemini-3-flash-preview', // Preview model — highest quality, may 503 under load
     description: 'Google\'s most capable model for natural language reports and summaries',
     capabilities: {
       reasoning: 'highest',
       speed: 'fast',
+      contextWindow: 1000000,
+      maxOutputTokens: 8192
+    },
+    pricing: {
+      inputCostPer1M: 0.15, // $0.15 per 1M input tokens
+      outputCostPer1M: 0.60  // $0.60 per 1M output tokens
+    },
+    settings: {
+      defaultTemperature: 0.3,
+      defaultMaxTokens: 4000
+    },
+    bestFor: ['natural language reports', 'weekly summaries', 'long-context analysis', 'structured output']
+  },
+  'gemini-2.5-flash': {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    provider: 'google',
+    model: 'gemini-2.5-flash',
+    description: 'Stable GA model, first fallback when preview is unavailable',
+    capabilities: {
+      reasoning: 'highest',
+      speed: 'fast',
+      contextWindow: 1000000,
+      maxOutputTokens: 8192
+    },
+    pricing: {
+      inputCostPer1M: 0.15, // $0.15 per 1M input tokens
+      outputCostPer1M: 0.60  // $0.60 per 1M output tokens
+    },
+    settings: {
+      defaultTemperature: 0.3,
+      defaultMaxTokens: 4000
+    },
+    bestFor: ['stable generation', 'natural language reports', 'long-context analysis']
+  },
+  'gemini-2.5-flash-lite': {
+    id: 'gemini-2.5-flash-lite',
+    name: 'Gemini 2.5 Flash Lite',
+    provider: 'google',
+    model: 'gemini-2.5-flash-lite',
+    description: 'Lightweight fallback model for when primary Gemini is unavailable',
+    capabilities: {
+      reasoning: 'advanced',
+      speed: 'fastest',
       contextWindow: 1000000,
       maxOutputTokens: 8192
     },
@@ -47,7 +91,7 @@ export const AI_MODELS: Record<string, AIModelConfig> = {
       defaultTemperature: 0.3,
       defaultMaxTokens: 4000
     },
-    bestFor: ['natural language reports', 'weekly summaries', 'long-context analysis', 'structured output']
+    bestFor: ['fallback generation', 'high-availability scenarios', 'cost-effective analysis']
   },
   'gpt-4': {
     id: 'gpt-4',

@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getJobStatuses, hasActiveJobs } from '@/lib/services/analysis-job-queue';
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,6 +18,12 @@ export async function GET(req: NextRequest) {
         { error: 'brandProfileId query parameter is required' },
         { status: 400 }
       );
+    }
+
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
     const [jobs, active] = await Promise.all([

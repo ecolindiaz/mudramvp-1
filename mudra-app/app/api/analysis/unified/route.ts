@@ -11,7 +11,7 @@ import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 // Extended timeout for unified analysis - runs GEO + Technical analysis in parallel
 // GEO: 4 providers × multiple prompts (30-60s)
 // Technical: page discovery + scraping + DOM extraction (40-80s)
-export const maxDuration = 800; // Vercel Pro max
+export const maxDuration = 300; // Vercel Pro max
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting (analysis is expensive)

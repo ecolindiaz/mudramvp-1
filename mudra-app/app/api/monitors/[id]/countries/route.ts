@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isAllowedCountry, MAX_COUNTRIES_PER_MONITOR, COUNTRY_META, type CountryCode, getLanguageForCountry, getUniqueLanguages } from '@/lib/geo/country-config';
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 
 export async function GET(
   req: NextRequest,
@@ -17,6 +18,12 @@ export async function GET(
 
     if (isNaN(brandProfileId)) {
       return NextResponse.json({ error: 'Invalid monitor id' }, { status: 400 });
+    }
+
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
     const profile = await prisma.brandProfile.findUnique({
@@ -81,6 +88,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid monitor id' }, { status: 400 });
     }
 
+    // Require authentication and verify brand profile access
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
+    }
+
     const body = await req.json();
     const { action, country, primaryCountry } = body as {
       action: 'add' | 'remove' | 'set_primary';
@@ -135,9 +148,13 @@ export async function PATCH(
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
           if (appUrl) {
             const baseUrl = appUrl.startsWith('http') ? appUrl : `https://${appUrl}`;
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (process.env.INTERNAL_API_SECRET) {
+              headers['Authorization'] = `Bearer ${process.env.INTERNAL_API_SECRET}`;
+            }
             fetch(`${baseUrl}/api/analysis/process-queue`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers,
               body: JSON.stringify({ brandProfileId }),
             }).catch(() => {});
           }

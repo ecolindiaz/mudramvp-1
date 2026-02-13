@@ -7,8 +7,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { processNextJob } from '@/lib/services/analysis-job-queue';
+import { requireAuthWithBrandAccess, validateInternalApiSecret } from '@/lib/auth/require-auth';
 
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +23,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Allow either user auth OR internal API secret (for self-chaining calls)
+    const isInternalCall = validateInternalApiSecret(req.headers.get('authorization'));
+    if (!isInternalCall) {
+      const authResult = await requireAuthWithBrandAccess(brandProfileId);
+      if (!authResult.success) {
+        return authResult.response;
+      }
+    }
+
     console.log(`[ProcessQueue] Processing next job for brand ${brandProfileId}`);
 
     const hasMore = await processNextJob(brandProfileId);
@@ -29,9 +39,13 @@ export async function POST(req: NextRequest) {
     // Self-chain: if more jobs remain, trigger another call (fire-and-forget)
     if (hasMore) {
       const baseUrl = req.nextUrl.origin;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (process.env.INTERNAL_API_SECRET) {
+        headers['Authorization'] = `Bearer ${process.env.INTERNAL_API_SECRET}`;
+      }
       fetch(`${baseUrl}/api/analysis/process-queue`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ brandProfileId }),
       }).catch((e) => console.warn('[ProcessQueue] Self-chain failed:', e));
     }

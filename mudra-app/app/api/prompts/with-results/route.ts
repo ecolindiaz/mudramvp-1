@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
           orderBy: { createdAt: 'desc' }
         })
         if (allAnalysisResults.length > 0) {
-          effectiveCountryFilter = undefined
+          effectiveCountryFilter = null
         }
       }
 
@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
           orderBy: { ranAt: 'desc' }
         })
         if (latestAnalysisRun) {
-          effectiveCountryFilter = undefined
+          effectiveCountryFilter = null
         }
       }
 

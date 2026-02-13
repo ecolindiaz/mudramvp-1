@@ -52,6 +52,9 @@ interface OnboardingData {
   // Extracted company info from website
   extractedCompanyInfo: ExtractedCompanyInfo | null
   extractionStatus: ExtractionStatus
+
+  // Per-domain extracted info for additional domains (keyed by domain index 1, 2, etc.)
+  additionalDomainExtractions: Record<number, ExtractedCompanyInfo>
 }
 
 const defaultOnboardingData: OnboardingData = {
@@ -73,6 +76,7 @@ const defaultOnboardingData: OnboardingData = {
   knowledgeBaseFiles: [],
   extractedCompanyInfo: null,
   extractionStatus: 'idle',
+  additionalDomainExtractions: {},
 }
 
 interface OnboardingContextType {
@@ -181,16 +185,27 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     // Create additional monitors for domain entries beyond the first
     const extraEntries = data.domainEntries.slice(1).filter(e => e.domain.trim())
     if (extraEntries.length > 0 && savedProfile?.id) {
-      const companyInfo = {
-        companyDescription: data.companyDescription,
-        companyIndustry: data.companyIndustry,
-        companyServices: data.servicesProducts.join(", "),
-        companyICP: data.companyICP.join(", "),
-        competitors: data.competitors.filter(c => c.trim() !== ""),
-      }
-
       const monitorIds: number[] = []
-      for (const entry of extraEntries) {
+      for (let i = 0; i < extraEntries.length; i++) {
+        const entry = extraEntries[i]
+        const domainIndex = i + 1 // Original index in domainEntries (1-based for additional)
+        const domainExtraction = data.additionalDomainExtractions[domainIndex]
+
+        // Use per-domain extracted data if available, otherwise fall back to primary
+        const companyInfo = domainExtraction ? {
+          companyDescription: domainExtraction.companyDescription || data.companyDescription,
+          companyIndustry: domainExtraction.industry || data.companyIndustry,
+          companyServices: domainExtraction.servicesProducts?.join(", ") || data.servicesProducts.join(", "),
+          companyICP: domainExtraction.idealCustomerProfiles?.join(", ") || data.companyICP.join(", "),
+          competitors: domainExtraction.competitorUrls?.filter(c => c.trim() !== "") || data.competitors.filter(c => c.trim() !== ""),
+        } : {
+          companyDescription: data.companyDescription,
+          companyIndustry: data.companyIndustry,
+          companyServices: data.servicesProducts.join(", "),
+          companyICP: data.companyICP.join(", "),
+          competitors: data.competitors.filter(c => c.trim() !== ""),
+        }
+
         try {
           const regions = entry.regions.filter(Boolean)
           const res = await fetch("/api/monitors", {

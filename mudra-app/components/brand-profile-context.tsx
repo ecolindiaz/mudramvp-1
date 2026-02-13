@@ -116,17 +116,20 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     try { localStorage.setItem(ACTIVE_COUNTRY_KEY, country); } catch {}
   }, []);
 
-  // Sync selectedCountry to profile's primaryCountry when profile or its country changes.
-  // Tracks the last-synced value so we sync when:
-  //  - profile ID changes (switching profiles)
-  //  - primaryCountry appears (server response after cache hit)
-  //  - primaryCountry value changes (profile updated)
+  // Sync selectedCountry to profile's primaryCountry ONLY on initial load
+  // (when localStorage doesn't already have a user-chosen country) or
+  // when the user explicitly switches monitors via switchProfile().
+  // This prevents page navigation from resetting the user's region selection.
   const profileCountry: string | undefined = (profile as any).primaryCountry;
-  const lastSyncedCountry = useRef<string>("");
+  const hasInitializedCountry = useRef(false);
   useEffect(() => {
-    if (profile.id > 0 && profileCountry && profileCountry !== lastSyncedCountry.current) {
-      lastSyncedCountry.current = profileCountry;
-      setSelectedCountry(profileCountry);
+    if (profile.id > 0 && profileCountry && !hasInitializedCountry.current) {
+      hasInitializedCountry.current = true;
+      // Only set from profile if localStorage doesn't already have a user selection
+      const storedCountry = localStorage.getItem(ACTIVE_COUNTRY_KEY);
+      if (!storedCountry) {
+        setSelectedCountry(profileCountry);
+      }
     }
   }, [profile.id, profileCountry, setSelectedCountry]);
 

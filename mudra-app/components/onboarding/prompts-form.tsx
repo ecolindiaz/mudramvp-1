@@ -214,14 +214,16 @@ export function PromptsForm() {
         }
       })()
 
-      // Fire-and-forget analysis for additional monitors
+      // Fire-and-forget analysis for additional monitors (using per-domain extracted data)
       if (additionalMonitorIds.length > 0) {
         const extraEntries = onboardingData.domainEntries.slice(1).filter(e => e.domain.trim())
         additionalMonitorIds.forEach((monitorId, idx) => {
           const entry = extraEntries[idx]
           if (!entry) return
+          const domainIndex = idx + 1
+          const domainExtraction = onboardingData.additionalDomainExtractions?.[domainIndex]
           const countries = entry.regions.filter(Boolean)
-          console.log(`[PromptsForm] Triggering analysis for additional monitor ${monitorId} (${entry.domain})`)
+          console.log(`[PromptsForm] Triggering analysis for additional monitor ${monitorId} (${entry.domain})`, domainExtraction ? 'with per-domain data' : 'with shared data')
           fetch("/api/analysis/unified", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -229,9 +231,9 @@ export function PromptsForm() {
               brandProfileId: monitorId,
               brandName: onboardingData.companyName,
               website: entry.domain,
-              industry: onboardingData.companyIndustry || undefined,
-              description: onboardingData.companyDescription || undefined,
-              competitors: onboardingData.competitors || [],
+              industry: (domainExtraction?.industry || onboardingData.companyIndustry) || undefined,
+              description: (domainExtraction?.companyDescription || onboardingData.companyDescription) || undefined,
+              competitors: domainExtraction?.competitorUrls || onboardingData.competitors || [],
               countries: countries.length > 0 ? countries : ["US"],
               skipCooldown: true,
             }),

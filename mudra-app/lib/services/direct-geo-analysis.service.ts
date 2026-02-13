@@ -1178,12 +1178,14 @@ Extract the following information:
 2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given?
    - Look for patterns like "1st", "2nd", "3rd", "#1", "first place", "ranked 1", etc.
    - Extract ONLY the number (1, 2, 3, etc.)
-   - If no explicit position/ranking is found, return null
+   - **IMPORTANT**: If the response is primarily/entirely dedicated to "${config.brandName}" (e.g., the question was specifically about "${config.brandName}" and the response focuses on answering about them), assign position 1 — the brand IS the featured subject.
+   - If the response is a comparison/list and "${config.brandName}" is mentioned but has no explicit ranking, return null
    - Examples:
      * "### 1st: Y Combinator" → 1
      * "2nd Place: Y Combinator" → 2
      * "#3: Y Combinator" → 3
-     * "Y Combinator is mentioned but no ranking" → null
+     * Response entirely about Y Combinator (brand-specific question) → 1
+     * "Y Combinator is mentioned in a list but no ranking" → null
 
 3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
    - Extract ALL proper company/brand names that compete with or are alternatives to "${config.brandName}": ${config.description || config.keyProducts?.join(', ') || 'similar services'}
@@ -1434,12 +1436,14 @@ Extract the following information:
 2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given?
    - Look for patterns like "1st", "2nd", "3rd", "#1", "first place", "ranked 1", etc.
    - Extract ONLY the number (1, 2, 3, etc.)
-   - If no explicit position/ranking is found, return null
+   - **IMPORTANT**: If the response is primarily/entirely dedicated to "${config.brandName}" (e.g., the question was specifically about "${config.brandName}" and the response focuses on answering about them), assign position 1 — the brand IS the featured subject.
+   - If the response is a comparison/list and "${config.brandName}" is mentioned but has no explicit ranking, return null
    - Examples:
      * "### 1st: Y Combinator" → 1
-     * "2nd Place: Y Combinator" → 2  
+     * "2nd Place: Y Combinator" → 2
      * "#3: Y Combinator" → 3
-     * "Y Combinator is mentioned but no ranking" → null
+     * Response entirely about Y Combinator (brand-specific question) → 1
+     * "Y Combinator is mentioned in a list but no ranking" → null
 
 3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
    - Extract ALL proper company names that are competitors, alternatives, or mentioned alongside the brand
@@ -1708,7 +1712,7 @@ RESPONSE TEXT:
 Extract the following information:
 
 1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
-2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position
+2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position. IMPORTANT: If the response is primarily/entirely dedicated to "${config.brandName}" (brand-specific question), assign position 1.
 3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}")
    - Extract ALL proper company/brand names that compete with or are alternatives to "${config.brandName}"
    - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
@@ -2045,7 +2049,7 @@ RESPONSE TEXT:
 Extract the following information:
 
 1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
-2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position
+2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position. IMPORTANT: If the response is primarily/entirely dedicated to "${config.brandName}" (brand-specific question), assign position 1.
 3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}")
    - Extract ALL proper company/brand names that compete with or are alternatives to "${config.brandName}"
    - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}

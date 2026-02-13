@@ -35,6 +35,8 @@ const defaultProfile = {
 };
 
 const STORAGE_KEY = "mudra_brand_profile";
+const ACTIVE_PROFILE_ID_KEY = "mudra_active_profile_id";
+const ACTIVE_COUNTRY_KEY = "mudra_active_country";
 
 const BrandProfileContext = createContext({
   brandProfile: defaultProfile,
@@ -68,7 +70,23 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     return defaultProfile;
   });
 
-  const [selectedCountry, setSelectedCountry] = useState("US");
+  // Track the active profile ID so refreshBrandProfile always fetches the correct one
+  const profileIdRef = useRef<number>((() => {
+    if (typeof window !== 'undefined') {
+      const storedId = localStorage.getItem(ACTIVE_PROFILE_ID_KEY);
+      if (storedId) return parseInt(storedId, 10) || 0;
+    }
+    return 0;
+  })());
+
+  // Initialize selectedCountry from localStorage (persisted per-session)
+  const [selectedCountry, setSelectedCountryState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(ACTIVE_COUNTRY_KEY);
+      if (stored) return stored;
+    }
+    return "US";
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -84,12 +102,30 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     }
   }, [profile]);
 
-  // Sync selectedCountry to profile's primaryCountry when profile changes
+  // Keep profileIdRef in sync with profile state
   useEffect(() => {
-    if (profile.id > 0 && (profile as any).primaryCountry) {
-      setSelectedCountry((profile as any).primaryCountry);
+    if (profile.id > 0) {
+      profileIdRef.current = profile.id;
+      localStorage.setItem(ACTIVE_PROFILE_ID_KEY, String(profile.id));
     }
   }, [profile.id]);
+
+  // Wrap setSelectedCountry to also persist to localStorage
+  const setSelectedCountry = useCallback((country: string) => {
+    setSelectedCountryState(country);
+    try { localStorage.setItem(ACTIVE_COUNTRY_KEY, country); } catch {}
+  }, []);
+
+  // Sync selectedCountry to profile's primaryCountry when profile changes
+  // Only if no country was already persisted for this session
+  useEffect(() => {
+    if (profile.id > 0 && (profile as any).primaryCountry) {
+      const stored = localStorage.getItem(ACTIVE_COUNTRY_KEY);
+      if (!stored) {
+        setSelectedCountry((profile as any).primaryCountry);
+      }
+    }
+  }, [profile.id, setSelectedCountry]);
 
   // Use a ref to track loading state without causing re-renders of the callback
   const isLoadingRef = useRef(false);
@@ -105,12 +141,24 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     try {
       isLoadingRef.current = true;
       setIsLoading(true);
-      console.log("🔄 [BrandProfileContext] Refreshing brand profile...")
-      
+      // Use the tracked profile ID so we always fetch the user's selected profile
+      const activeId = profileIdRef.current || (() => {
+        try {
+          const stored = localStorage.getItem(ACTIVE_PROFILE_ID_KEY);
+          return stored ? parseInt(stored, 10) || 0 : 0;
+        } catch { return 0; }
+      })();
+
+      const url = activeId > 0
+        ? `/api/brand-profile?profileId=${activeId}`
+        : "/api/brand-profile";
+
+      console.log("🔄 [BrandProfileContext] Refreshing brand profile...", activeId > 0 ? `(profileId=${activeId})` : "(default)")
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      const response = await fetch("/api/brand-profile", {
+
+      const response = await fetch(url, {
         signal: controller.signal,
         // Add cache headers for browser caching
         headers: {
@@ -188,6 +236,10 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
   // Switch to a different brand profile by ID
   const switchProfile = useCallback(async (profileId: number) => {
     try {
+      // Persist the active profile ID immediately so navigation doesn't reset it
+      profileIdRef.current = profileId;
+      localStorage.setItem(ACTIVE_PROFILE_ID_KEY, String(profileId));
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       const response = await fetch(`/api/brand-profile?profileId=${profileId}`, {
@@ -199,13 +251,14 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
         if (data && data.id) {
           setProfileState(data);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-          setSelectedCountry(data.primaryCountry || "US");
+          const country = data.primaryCountry || "US";
+          setSelectedCountry(country);
         }
       }
     } catch (error) {
       console.error("[BrandProfileContext] Error switching profile:", error);
     }
-  }, []);
+  }, [setSelectedCountry]);
 
   // Save profile to API and update state
   const setProfile = useCallback(async (newProfile: typeof defaultProfile) => {

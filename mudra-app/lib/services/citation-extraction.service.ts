@@ -557,7 +557,8 @@ export async function getCitationAnalysisForPrompt(
   brandProfileId: number,
   promptId: number,
   dateRange?: '7d' | '14d' | '30d',
-  platform?: string
+  platform?: string,
+  country?: string
 ): Promise<CitationAnalysis> {
   // Calculate date filter
   const now = new Date()
@@ -587,7 +588,8 @@ export async function getCitationAnalysisForPrompt(
   // Date filtering is applied per-entry using analyzedAt below.
   const analysisResults = await prisma.geoAnalysisResult.findMany({
     where: {
-      brandProfileId
+      brandProfileId,
+      ...(country ? { country } : {}),
     },
     orderBy: { createdAt: 'desc' }
   })

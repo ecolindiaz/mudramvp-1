@@ -105,7 +105,7 @@ export async function processNextJob(brandProfileId: number): Promise<boolean> {
     // Dynamically import to avoid circular dependencies
     const { runUnifiedAnalysis } = await import('./unified-analysis.service')
 
-    await runUnifiedAnalysis({
+    const result = await runUnifiedAnalysis({
       brandProfileId: job.brandProfileId,
       brandName: profile.companyName,
       website: profile.companyWebsite,
@@ -120,6 +120,11 @@ export async function processNextJob(brandProfileId: number): Promise<boolean> {
       skipCooldown: true,
       generateReport: false,
     })
+
+    // If analysis returned success: false, treat as failure so the catch block retries
+    if (!result.success) {
+      throw new Error(result.error || 'Analysis returned success: false')
+    }
 
     // Mark complete
     await prisma.analysisJob.update({

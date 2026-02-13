@@ -123,7 +123,7 @@ const getModelDisplayName = (model: string): string => {
 }
 
 // Create columns function to access router
-const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedPrompt>[] => [
+const createColumns = (router: ReturnType<typeof useRouter>, selectedCountry: string): ColumnDef<TrackedPrompt>[] => [
   {
     id: "select",
     header: () => null,
@@ -145,7 +145,7 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
     header: () => null,
     cell: () => (
       <div className="flex items-center justify-center">
-        <CircleFlag countryCode="us" height="16" width="16" style={{ width: 16, height: 16 }} />
+        <CircleFlag countryCode={selectedCountry.toLowerCase()} height="16" width="16" style={{ width: 16, height: 16 }} />
       </div>
     ),
     size: 24,
@@ -445,7 +445,7 @@ function TrackedPromptsPageInner() {
   const [selectedIntent, setSelectedIntent] = useState<string>("all")
   
   // Create columns with router access
-  const columns = useMemo(() => createColumns(router), [router])
+  const columns = useMemo(() => createColumns(router, selectedCountry), [router, selectedCountry])
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,

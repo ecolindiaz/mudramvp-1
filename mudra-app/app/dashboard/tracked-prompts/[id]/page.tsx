@@ -633,7 +633,7 @@ function CitationCategoryIcon({ category }: { category: CitationCategory }) {
 }
 
 function TrackedPromptDeepViewInner() {
-  const { profile } = useBrandProfile()
+  const { profile, selectedCountry } = useBrandProfile()
   const [dateRange, setDateRange] = useState<'7d' | '14d' | '30d'>('7d')
   const params = useParams() as { id?: string } | undefined
   const promptId = params?.id
@@ -658,7 +658,7 @@ function TrackedPromptDeepViewInner() {
       
       try {
         // Include date range and platform in API request
-        const url = `/api/prompts/${promptId}?brandProfileId=${profile.id}&dateRange=${dateRange}&platform=${selectedPlatform}`
+        const url = `/api/prompts/${promptId}?brandProfileId=${profile.id}&dateRange=${dateRange}&platform=${selectedPlatform}&country=${selectedCountry}`
         const response = await fetch(url)
         const result = await response.json()
         
@@ -676,7 +676,7 @@ function TrackedPromptDeepViewInner() {
     }
 
     fetchPromptDetails()
-  }, [profile?.id, promptId, dateRange, selectedPlatform])  // Re-fetch when filters change
+  }, [profile?.id, promptId, dateRange, selectedPlatform, selectedCountry])  // Re-fetch when filters change
   
   const promptLabel = promptData?.text || (promptId ? `Prompt ${promptId}` : 'Current Prompt')
   const promptIntentRaw = promptData?.category
@@ -1996,7 +1996,7 @@ function TrackedPromptDeepViewInner() {
                                     </TableCell>
                                     <TableCell className="text-center">
                                       <div className="flex items-center justify-center">
-                                        <CircleFlag countryCode="us" height="16" width="16" className="flex-shrink-0" style={{ width: 16, height: 16 }} />
+                                        <CircleFlag countryCode={selectedCountry.toLowerCase()} height="16" width="16" className="flex-shrink-0" style={{ width: 16, height: 16 }} />
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-white/90">

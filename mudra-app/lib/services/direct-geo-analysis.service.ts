@@ -1339,21 +1339,23 @@ async function analyzeWithPerplexity(
     
     const perplexityGeo = config.country ? buildPerplexityGeoConfig(config.country) : undefined;
 
-    const response: any = await perplexity.chat.completions.create({
-      model: 'sonar-pro', // Pro model with enhanced search and citations
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.2,
-      max_tokens: 1200,
-      ...(perplexityGeo ? {
-        web_search_options: { user_location: perplexityGeo.user_location },
-        search_language_filter: perplexityGeo.search_language_filter,
-      } : {}),
-    } as any);
+    const response: any = await retryWithBackoff(async () => {
+      return perplexity.chat.completions.create({
+        model: 'sonar-pro', // Pro model with enhanced search and citations
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.2,
+        max_tokens: 1200,
+        ...(perplexityGeo ? {
+          web_search_options: { user_location: perplexityGeo.user_location },
+          search_language_filter: perplexityGeo.search_language_filter,
+        } : {}),
+      } as any);
+    }, 4, 2000);
 
     const text = response.choices[0]?.message?.content || '';
     console.log('[Perplexity] Response received:', text.substring(0, 100) + '...');
@@ -2192,8 +2194,8 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     
     console.log(`\n🔍 Analyzing with ${provider}: testing ${providerPrompts.length} prompts (${startIdx + 1}-${endIdx})...`);
     
-    // Gemini needs throttling (503 overload errors), other providers can run fully parallel
-    const concurrency = provider === 'google' ? 3 : providerPrompts.length;
+    // Gemini needs throttling (503 overload errors), Perplexity has strict rate limits (429)
+    const concurrency = provider === 'google' ? 3 : provider === 'perplexity' ? 2 : providerPrompts.length;
     const promptTestResults = await mapWithConcurrency(
       providerPrompts,
       async (promptObj) => {

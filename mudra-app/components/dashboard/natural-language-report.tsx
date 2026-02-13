@@ -1138,7 +1138,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                             alt={chat.model}
                             className="size-6 object-contain"
                           />
-                          <CircleFlag countryCode="us" height="14" width="14" className="flex-shrink-0" style={{ width: 14, height: 14 }} />
+                          <CircleFlag countryCode={selectedCountry.toLowerCase()} height="14" width="14" className="flex-shrink-0" style={{ width: 14, height: 14 }} />
                           <span className="text-xs text-white/50">{chat.timestamp}</span>
                         </div>
                         <span className="text-xs text-white/40">{chat.time}</span>

@@ -25,6 +25,7 @@ export async function GET(
     const dateRange = (searchParams.get('dateRange') as '7d' | '14d' | '30d') || '7d'
     // Accept both 'model' (new standard) and 'platform' (legacy) for backwards compatibility
     const model = searchParams.get('model') || searchParams.get('platform') || 'all'
+    const country = searchParams.get('country') // Optional: filter by country
 
     if (!brandProfileId) {
       return NextResponse.json(
@@ -75,7 +76,8 @@ export async function GET(
 
     const allAnalysisResults = await prisma.geoAnalysisResult.findMany({
       where: {
-        brandProfileId: profileId
+        brandProfileId: profileId,
+        ...(country ? { country } : {}),
       },
       orderBy: {
         createdAt: 'desc'
@@ -427,7 +429,8 @@ export async function GET(
       profileId,
       prompt.text,
       dateRange,
-      model
+      model,
+      country || undefined
     )
 
     // Step 10: Get citation analysis
@@ -435,7 +438,8 @@ export async function GET(
       profileId,
       promptId,
       dateRange,
-      model
+      model,
+      country || undefined
     )
 
     // Step 11: Build competitors with "You" row included

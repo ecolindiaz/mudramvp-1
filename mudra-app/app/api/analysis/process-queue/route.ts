@@ -28,15 +28,12 @@ export async function POST(req: NextRequest) {
 
     // Self-chain: if more jobs remain, trigger another call (fire-and-forget)
     if (hasMore) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
-      if (appUrl) {
-        const baseUrl = appUrl.startsWith('http') ? appUrl : `https://${appUrl}`;
-        fetch(`${baseUrl}/api/analysis/process-queue`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brandProfileId }),
-        }).catch((e) => console.warn('[ProcessQueue] Self-chain failed:', e));
-      }
+      const baseUrl = req.nextUrl.origin;
+      fetch(`${baseUrl}/api/analysis/process-queue`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandProfileId }),
+      }).catch((e) => console.warn('[ProcessQueue] Self-chain failed:', e));
     }
 
     return NextResponse.json({

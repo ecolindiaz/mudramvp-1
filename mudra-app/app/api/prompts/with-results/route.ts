@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { 
-  calculateAggregateScore, 
+import {
+  calculateAggregateScore,
   calculatePerPromptScore,
-  type PromptTestResult 
+  type PromptTestResult
 } from '@/lib/services/visibility-scoring.service'
+import { getLanguageForCountry, isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
 
 /**
  * GET /api/prompts/with-results?brandProfileId={id}
@@ -136,6 +137,11 @@ export async function GET(request: NextRequest) {
       // Continue processing with allAnalysisResults (skip the early return below)
     }
 
+    // Compute language filter from country so we only return prompts in the matching language
+    const promptLanguageFilter = countryFilter && isAllowedCountry(countryFilter as CountryCode)
+      ? getLanguageForCountry(countryFilter as CountryCode)
+      : undefined
+
     // Helper function to get and return prompts without results
     const getPromptsWithoutResults = async () => {
       let allPrompts = []
@@ -145,7 +151,8 @@ export async function GET(request: NextRequest) {
           allPrompts = await prisma.prompt.findMany({
             where: {
               brandProfileId: profileId,
-              isActive: true
+              isActive: true,
+              ...(promptLanguageFilter ? { language: promptLanguageFilter } : {}),
             },
             orderBy: [
               { category: 'asc' },
@@ -359,13 +366,15 @@ export async function GET(request: NextRequest) {
       allPrompts = await prisma.prompt.findMany({
         where: {
           brandProfileId: profileId,
-          isActive: true // Only show active prompts
+          isActive: true,
+          ...(promptLanguageFilter ? { language: promptLanguageFilter } : {}),
         }
       })
       deletedPrompts = await prisma.prompt.findMany({
         where: {
           brandProfileId: profileId,
-          isActive: false
+          isActive: false,
+          ...(promptLanguageFilter ? { language: promptLanguageFilter } : {}),
         },
         select: { text: true }
       })
@@ -458,8 +467,12 @@ export async function GET(request: NextRequest) {
 
     console.log(`📋 Including ${unmatchedPrompts.length} additional database prompts without analysis results`)
 
-    // Combine ALL prompts: matched (DB + results), unmatched tested (results only), and unmatched DB (DB only)
-    const prompts = [...matchedPrompts, ...unmatchedTestedPrompts, ...unmatchedPrompts]
+    // Combine prompts: matched (DB + results), unmatched tested (results only),
+    // and unmatched DB (DB only — excluded when country filter is active to avoid
+    // showing prompts from another language that have zero results for this country)
+    const prompts = countryFilter
+      ? [...matchedPrompts, ...unmatchedTestedPrompts]
+      : [...matchedPrompts, ...unmatchedTestedPrompts, ...unmatchedPrompts]
 
     // Build a map of prompts with their results (including ALL providers)
     const promptsWithResults = prompts.map((prompt: any) => {

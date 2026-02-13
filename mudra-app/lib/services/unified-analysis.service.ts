@@ -256,16 +256,21 @@ export async function runUnifiedAnalysis(
           });
           console.log(`[Unified Analysis] Queued ${jobIds.length} background country jobs: ${remainingCountries.join(', ')}`);
 
-          // Fire-and-forget: trigger queue processing via internal API
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
-          if (appUrl) {
-            const baseUrl = appUrl.startsWith('http') ? appUrl : `https://${appUrl}`;
-            fetch(`${baseUrl}/api/analysis/process-queue`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ brandProfileId: config.brandProfileId }),
-            }).catch((e) => console.warn('[Unified Analysis] Failed to trigger queue:', e));
-          }
+          // Process queued jobs directly in an unwaited async IIFE
+          // (avoids dependency on env vars for self-chaining HTTP calls)
+          const { processNextJob } = await import('./analysis-job-queue');
+          const bpId = config.brandProfileId;
+          (async () => {
+            try {
+              let hasMore = true;
+              while (hasMore) {
+                hasMore = await processNextJob(bpId);
+              }
+              console.log(`[Unified Analysis] All queued jobs processed for brand ${bpId}`);
+            } catch (e) {
+              console.warn('[Unified Analysis] Queue processing loop error:', e);
+            }
+          })();
         }
       } catch (queueError) {
         console.warn('[Unified Analysis] Failed to queue remaining countries (non-fatal):', queueError);

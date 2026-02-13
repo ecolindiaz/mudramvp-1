@@ -6,6 +6,7 @@ export interface SavedPrompt {
   brandProfileId: number
   text: string
   category: string | null
+  language?: string
   isCustom: boolean
   isActive: boolean
   createdAt: Date
@@ -13,9 +14,13 @@ export interface SavedPrompt {
 }
 
 /**
- * Generate and save initial prompts for a brand profile during onboarding
+ * Generate and save initial prompts for a brand profile during onboarding.
+ * Supports multi-language generation — generates one set of 50 prompts per language.
  */
-export async function generateAndSaveInitialPrompts(brandProfileId: number): Promise<SavedPrompt[]> {
+export async function generateAndSaveInitialPrompts(
+  brandProfileId: number,
+  languages: Array<'en' | 'es'> = ['en']
+): Promise<SavedPrompt[]> {
   try {
     // Get brand profile data
     const profile = await prisma.brandProfile.findUnique({
@@ -26,92 +31,121 @@ export async function generateAndSaveInitialPrompts(brandProfileId: number): Pro
       throw new Error(`Brand profile ${brandProfileId} not found`)
     }
 
-    console.log(`🎯 Generating initial prompts for ${profile.companyName}...`)
+    console.log(`🎯 Generating initial prompts for ${profile.companyName} (languages: ${languages.join(', ')})...`)
 
     // Convert profile to BrandInfo format
     const brandInfo = profileToBrandInfo(profile)
 
-    // Generate sophisticated prompts using AI
-    const generatedPrompts = await generateSophisticatedPrompts(brandInfo)
+    const allPrompts: SavedPrompt[] = []
 
-    // Prepare prompts for database insertion
-    const promptsToSave = [
-      ...generatedPrompts.organic.map(text => ({
-        brandProfileId,
-        text,
-        category: 'Organic',
-        isCustom: false,
-        isActive: true
-      })),
-      ...generatedPrompts.competitor.map(text => ({
-        brandProfileId,
-        text,
-        category: 'Competitor',
-        isCustom: false,
-        isActive: true
-      })),
-      ...generatedPrompts.howToGuides.map(text => ({
-        brandProfileId,
-        text,
-        category: 'How-to Guides',
-        isCustom: false,
-        isActive: true
-      })),
-      ...generatedPrompts.brandSpecific.map(text => ({
-        brandProfileId,
-        text,
-        category: 'Brand-Specific',
-        isCustom: false,
-        isActive: true
-      }))
-    ]
-
-    console.log(`📝 Saving ${promptsToSave.length} prompts to database...`)
-
-    try {
-      // Check if prompt table exists
-      if (!prisma.prompt) {
-        console.warn('⚠️ Prompt table does not exist yet. Returning generated prompts without saving.');
-        // Return prompts in the expected format even if we can't save them
-        return promptsToSave.map((p, index) => ({
-          id: index + 1,
-          ...p,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }));
-      }
-
-      // Save all prompts to database
-      const savedPrompts = await prisma.$transaction(
-        promptsToSave.map(prompt => 
-          prisma.prompt.create({
-            data: {
-              brandProfileId: prompt.brandProfileId,
-              text: prompt.text,
-              category: prompt.category,
-              isCustom: prompt.isCustom,
-              isActive: prompt.isActive,
-            }
+    for (const language of languages) {
+      // Check if prompts in this language already exist
+      try {
+        const existingCount = await prisma.prompt.count({
+          where: { brandProfileId, language, isActive: true }
+        })
+        if (existingCount >= 10) {
+          console.log(`⏭️ Skipping ${language} prompt generation — ${existingCount} prompts already exist`)
+          const existing = await prisma.prompt.findMany({
+            where: { brandProfileId, language, isActive: true },
+            orderBy: [{ category: 'asc' }, { createdAt: 'asc' }]
           })
-        )
-      )
-
-      console.log(`✅ Successfully saved ${savedPrompts.length} prompts`)
-
-      return savedPrompts
-    } catch (dbError: any) {
-      // If table doesn't exist, return generated prompts without saving
-      if (dbError.code === 'P2021' || dbError.message?.includes('does not exist') || dbError.message?.includes('undefined') || dbError.message?.includes('Null constraint violation')) {
-        console.warn('⚠️ Prompt table error, returning generated prompts without saving:', dbError.message)
-        return promptsToSave.map((p, index) => ({
-          id: index + 1,
-          ...p,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }));
+          allPrompts.push(...existing)
+          continue
+        }
+      } catch {
+        // Table may not exist, proceed to generate
       }
-      throw dbError;
+
+      // Generate sophisticated prompts using AI
+      const generatedPrompts = await generateSophisticatedPrompts(brandInfo, language)
+
+      // Prepare prompts for database insertion
+      const promptsToSave = [
+        ...generatedPrompts.organic.map(text => ({
+          brandProfileId,
+          text,
+          category: 'Organic',
+          language,
+          isCustom: false,
+          isActive: true
+        })),
+        ...generatedPrompts.competitor.map(text => ({
+          brandProfileId,
+          text,
+          category: 'Competitor',
+          language,
+          isCustom: false,
+          isActive: true
+        })),
+        ...generatedPrompts.howToGuides.map(text => ({
+          brandProfileId,
+          text,
+          category: 'How-to Guides',
+          language,
+          isCustom: false,
+          isActive: true
+        })),
+        ...generatedPrompts.brandSpecific.map(text => ({
+          brandProfileId,
+          text,
+          category: 'Brand-Specific',
+          language,
+          isCustom: false,
+          isActive: true
+        }))
+      ]
+
+      console.log(`📝 Saving ${promptsToSave.length} ${language} prompts to database...`)
+
+      try {
+        // Check if prompt table exists
+        if (!prisma.prompt) {
+          console.warn('⚠️ Prompt table does not exist yet. Returning generated prompts without saving.');
+          allPrompts.push(...promptsToSave.map((p, index) => ({
+            id: index + 1,
+            ...p,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })));
+          continue
+        }
+
+        // Save all prompts to database
+        const savedPrompts = await prisma.$transaction(
+          promptsToSave.map(prompt =>
+            prisma.prompt.create({
+              data: {
+                brandProfileId: prompt.brandProfileId,
+                text: prompt.text,
+                category: prompt.category,
+                language: prompt.language,
+                isCustom: prompt.isCustom,
+                isActive: prompt.isActive,
+              }
+            })
+          )
+        )
+
+        console.log(`✅ Successfully saved ${savedPrompts.length} ${language} prompts`)
+        allPrompts.push(...savedPrompts)
+      } catch (dbError: any) {
+        // If table doesn't exist, return generated prompts without saving
+        if (dbError.code === 'P2021' || dbError.message?.includes('does not exist') || dbError.message?.includes('undefined') || dbError.message?.includes('Null constraint violation')) {
+          console.warn('⚠️ Prompt table error, returning generated prompts without saving:', dbError.message)
+          allPrompts.push(...promptsToSave.map((p, index) => ({
+            id: index + 1,
+            ...p,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })));
+          continue
+        }
+        throw dbError;
+      }
     }
+
+    return allPrompts
   } catch (error) {
     console.error('Failed to generate and save initial prompts:', error)
     throw error
@@ -120,20 +154,21 @@ export async function generateAndSaveInitialPrompts(brandProfileId: number): Pro
 }
 
 /**
- * Get all active prompts for a brand profile
+ * Get all active prompts for a brand profile, optionally filtered by language
  */
-export async function getActivePrompts(brandProfileId: number): Promise<SavedPrompt[]> {
+export async function getActivePrompts(brandProfileId: number, language?: string): Promise<SavedPrompt[]> {
   try {
     // Check if the prompt table exists (migration may not be applied yet)
     if (!prisma.prompt) {
       console.warn('⚠️ Prompt table does not exist yet (migration not applied). Returning empty array.')
       return []
     }
-    
+
     return await prisma.prompt.findMany({
       where: {
         brandProfileId,
-        isActive: true
+        isActive: true,
+        ...(language ? { language } : {}),
       },
       orderBy: [
         { category: 'asc' },

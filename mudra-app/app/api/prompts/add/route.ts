@@ -14,7 +14,7 @@ const VALID_CATEGORIES = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Speci
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { promptText, category, brandProfileId, runAnalysis } = body
+    const { promptText, category, brandProfileId, runAnalysis, language, country } = body
 
     // === BUG-4 FIX: Input Validation ===
     if (!promptText || !brandProfileId) {
@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
           data: {
             text: trimmedText,
             category: canonicalCategory,
+            language: language || 'en',
             isCustom: true,
             isActive: true,
             brandProfileId: brandProfileId,
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
       const prismaError = error as { code?: string; message?: string }
       if (prismaError.code === 'P2021' || prismaError.message?.includes('does not exist') || prismaError.code === 'P2003') {
         console.log('⚠️ Prisma client error, using raw SQL fallback...')
-        newPrompt = await createPromptWithRawSQL(brandProfileId, trimmedText, canonicalCategory)
+        newPrompt = await createPromptWithRawSQL(brandProfileId, trimmedText, canonicalCategory, language || 'en')
       } else {
         throw error
       }
@@ -192,7 +193,8 @@ export async function POST(request: NextRequest) {
 async function createPromptWithRawSQL(
   brandProfileId: number,
   text: string,
-  category: string
+  category: string,
+  language: string = 'en'
 ): Promise<{
   id: number
   text: string
@@ -242,11 +244,12 @@ async function createPromptWithRawSQL(
     createdAt: Date
     updatedAt: Date
   }>>(
-    `INSERT INTO "Prompt" (text, category, "isCustom", "isActive", "brandProfileId", "createdAt", "updatedAt")
-     VALUES ($1, $2, true, true, $3, NOW(), NOW())
-     RETURNING id, text, category, "isCustom", "isActive", "createdAt", "updatedAt"`,
+    `INSERT INTO "Prompt" (text, category, language, "isCustom", "isActive", "brandProfileId", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, true, true, $4, NOW(), NOW())
+     RETURNING id, text, category, language, "isCustom", "isActive", "createdAt", "updatedAt"`,
     text,
     category,
+    language || 'en',
     brandProfileId
   )
 

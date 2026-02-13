@@ -3,6 +3,8 @@ import { validateCompetitors, quickValidateName, type ValidatedCompetitor } from
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { type CountryCode, buildOpenAIGeoConfig, buildPerplexityGeoConfig, buildClaudeGeoConfig, isGeminiProxyNeeded, getLanguageForCountry } from '@/lib/geo/country-config';
+import { buildGeminiProxyUrl, buildGeminiRestEndpoint } from '@/lib/geo/brightdata-proxy';
 
 // Utility: Sleep function for retry delays
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -36,6 +38,11 @@ const geminiRedirectCache = new Map<string, { url: string; title: string; resolv
 // Tracks active redirect resolutions so duplicate URLs don't trigger parallel retries/log spam
 const geminiRedirectInFlight = new Map<string, Promise<{ url: string; title: string }>>();
 const REDIRECT_CACHE_TTL = 1000 * 60 * 60; // 1 hour cache TTL
+
+// Gemini model configuration: preview primary with stable fallbacks
+const GEMINI_PRIMARY_MODEL = 'gemini-3-flash-preview';
+const GEMINI_FALLBACK_MODEL = 'gemini-2.5-flash';
+const GEMINI_FALLBACK_MODEL_LITE = 'gemini-2.5-flash-lite';
 
 // Model used to extract brand/competitor entities from provider response text.
 const COMPETITOR_EXTRACTION_MODEL = 'gpt-5.2';
@@ -245,7 +252,8 @@ export interface DirectGEOConfig {
   competitors?: string[];
   targetAudience?: string;
   keyProducts?: string[];
-  customPrompts?: Array<string | { text: string; category?: string }>; // Support both string[] and objects with categories
+  customPrompts?: Array<string | { text: string; category?: string; language?: string }>; // Support both string[] and objects with categories
+  country?: CountryCode;           // Target country for geo-localized analysis
   apiKeys: {
     openai?: string;
     anthropic?: string;
@@ -261,6 +269,8 @@ export interface DirectGEOResult {
   competitorComparison: CompetitorAnalysis[];
   validatedCompetitors?: ValidatedCompetitor[]; // AI-validated competitors with confidence scores
   recommendations: string[];
+  country?: string;     // ISO code of the country this result is for
+  language?: string;    // Language used for prompts ("en" | "es")
   timestamp: Date;
 }
 
@@ -1074,6 +1084,7 @@ async function analyzeWithOpenAI(
               {
                 type: 'web_search',
                 search_context_size: 'high',
+                ...(config.country ? (() => { const geo = buildOpenAIGeoConfig(config.country!); return geo ? { user_location: geo } : {}; })() : {}),
               },
             ],
             tool_choice: { type: 'web_search' }, // Force web search
@@ -1361,17 +1372,25 @@ async function analyzeWithPerplexity(
     // Reference: https://docs.perplexity.ai/guides/model-cards
     console.log('[Perplexity] Testing prompt:', prompt.substring(0, 60) + '...');
     
-    const response: any = await perplexity.chat.completions.create({
-      model: 'sonar-pro', // Pro model with enhanced search and citations
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.2,
-      max_tokens: 1200,
-    });
+    const perplexityGeo = config.country ? buildPerplexityGeoConfig(config.country) : undefined;
+
+    const response: any = await retryWithBackoff(async () => {
+      return perplexity.chat.completions.create({
+        model: 'sonar-pro', // Pro model with enhanced search and citations
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.2,
+        max_tokens: 1200,
+        ...(perplexityGeo ? {
+          web_search_options: { user_location: perplexityGeo.user_location },
+          search_language_filter: perplexityGeo.search_language_filter,
+        } : {}),
+      } as any);
+    }, 4, 2000);
 
     const text = response.choices[0]?.message?.content || '';
     console.log('[Perplexity] Response received:', text.substring(0, 100) + '...');
@@ -1604,6 +1623,7 @@ async function analyzeWithAnthropic(
                 type: 'web_search_20250305',
                 name: 'web_search',
                 max_uses: 5,
+                ...(config.country ? (() => { const geo = buildClaudeGeoConfig(config.country!); return geo ? { user_location: geo } : {}; })() : {}),
               } as any,
             ],
           },
@@ -1796,7 +1816,77 @@ Return ONLY a valid JSON object with these exact keys:
 }
 
 /**
+ * Checks if an error is a retryable overload/rate-limit error (503, 429).
+ */
+function isModelOverloadError(error: any): boolean {
+  const status = error.status || error.statusCode || error.httpCode;
+  return status === 503 || status === 429;
+}
+
+/**
+ * Calls Gemini via SDK with primary→fallback model cascade.
+ * Tries GEMINI_PRIMARY_MODEL first; if it fails with 503/429 after retries,
+ * falls back through GEMINI_FALLBACK_MODEL then GEMINI_FALLBACK_MODEL_LITE.
+ */
+async function callGeminiSdkWithFallback(
+  genAI: InstanceType<typeof GoogleGenerativeAI>,
+  prompt: string
+): Promise<{ text: string; groundingMetadata: any; usedModel: string }> {
+  const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODEL_LITE];
+
+  for (const modelName of modelsToTry) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        tools: [{ googleSearch: {} }] as any,
+      });
+
+      const result = await retryWithBackoff(async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+        try {
+          const res = await model.generateContent(prompt);
+          clearTimeout(timeoutId);
+          return res;
+        } catch (err: any) {
+          clearTimeout(timeoutId);
+          if (err.name === 'AbortError') {
+            const timeoutError = new Error('Request timeout after 60 seconds');
+            (timeoutError as any).code = 'ETIMEDOUT';
+            throw timeoutError;
+          }
+          if (err.status || err.statusCode) {
+            (err as any).status = err.status || err.statusCode;
+          }
+          throw err;
+        }
+      });
+
+      const response = result.response;
+      return {
+        text: response.text(),
+        groundingMetadata: (response as any).candidates?.[0]?.groundingMetadata,
+        usedModel: modelName,
+      };
+    } catch (err: any) {
+      const isLast = modelName === GEMINI_FALLBACK_MODEL_LITE;
+      if (!isLast && isModelOverloadError(err)) {
+        const nextModel = modelName === GEMINI_PRIMARY_MODEL ? GEMINI_FALLBACK_MODEL : GEMINI_FALLBACK_MODEL_LITE;
+        console.warn(`[Google] Model ${modelName} unavailable (${err.status}), falling back to ${nextModel}`);
+        continue;
+      }
+      throw err; // Non-overload error or all models exhausted
+    }
+  }
+
+  throw new Error(`All Gemini models exhausted (${[GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODEL_LITE].join(', ')})`);
+}
+
+/**
  * Analyze with Google (Gemini)
+ * Uses gemini-3-flash-preview as primary with gemini-2.5-flash and gemini-2.5-flash-lite as fallbacks.
+ * Each model attempt includes exponential backoff via retryWithBackoff.
  */
 async function analyzeWithGoogle(
   prompt: string,
@@ -1808,49 +1898,105 @@ async function analyzeWithGoogle(
 
   const apiKey = config.apiKeys.google;
   const genAI = new GoogleGenerativeAI(apiKey.trim());
-  
+
   try {
     console.log('[Google] Testing prompt:', prompt.substring(0, 60) + '...');
-    
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
-      tools: [
-        {
-          googleSearch: {},
-        },
-      ] as any,
-    });
 
-    const result = await retryWithBackoff(async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+    // Gemini geo-targeting: use BrightData proxy for non-US countries
+    const needsProxy = config.country ? isGeminiProxyNeeded(config.country) : false;
+    let text = '';
+    let groundingMetadata: any = null;
+    let usedModel = GEMINI_PRIMARY_MODEL;
 
-      try {
-        const res = await model.generateContent(prompt);
-        clearTimeout(timeoutId);
-        return res;
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
-          const timeoutError = new Error('Request timeout after 60 seconds');
-          (timeoutError as any).code = 'ETIMEDOUT';
-          throw timeoutError;
+    if (needsProxy && config.country) {
+      // Proxied REST API call for geo-targeting
+      const proxyUrl = buildGeminiProxyUrl(config.country);
+
+      if (proxyUrl) {
+        console.log(`[Google] Using BrightData proxy for country: ${config.country}`);
+        const { HttpsProxyAgent } = await import('https-proxy-agent');
+        const agent = new HttpsProxyAgent(proxyUrl);
+
+        // Try primary model, fall back through stable models on 503/429
+        const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODEL_LITE];
+        let lastError: any = null;
+
+        for (const modelName of modelsToTry) {
+          try {
+            const endpoint = buildGeminiRestEndpoint(modelName);
+            const restResult = await retryWithBackoff(async () => {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+              try {
+                const res = await fetch(endpoint, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    tools: [{ googleSearch: {} }],
+                  }),
+                  signal: controller.signal,
+                  // @ts-expect-error -- Node fetch accepts agent for proxy routing
+                  agent,
+                });
+                clearTimeout(timeoutId);
+                if (!res.ok) {
+                  const errText = await res.text();
+                  const error = new Error(`Gemini proxied API error: ${res.status} - ${errText.substring(0, 200)}`);
+                  (error as any).status = res.status;
+                  throw error;
+                }
+                return res.json();
+              } catch (err: any) {
+                clearTimeout(timeoutId);
+                if (err.name === 'AbortError') {
+                  const timeoutError = new Error('Request timeout after 60 seconds');
+                  (timeoutError as any).code = 'ETIMEDOUT';
+                  throw timeoutError;
+                }
+                throw err;
+              }
+            });
+
+            const candidate = restResult.candidates?.[0];
+            text = candidate?.content?.parts?.map((p: any) => p.text || '').join('') || '';
+            groundingMetadata = candidate?.groundingMetadata;
+            usedModel = modelName;
+            lastError = null;
+            break; // Success — stop trying models
+          } catch (err: any) {
+            lastError = err;
+            const isLast = modelName === GEMINI_FALLBACK_MODEL_LITE;
+            if (!isLast && isModelOverloadError(err)) {
+              const nextModel = modelName === GEMINI_PRIMARY_MODEL ? GEMINI_FALLBACK_MODEL : GEMINI_FALLBACK_MODEL_LITE;
+              console.warn(`[Google] Model ${modelName} unavailable (${err.status}), falling back to ${nextModel}`);
+              continue;
+            }
+            throw err; // Non-overload error or all models exhausted
+          }
         }
-        if (err.status || err.statusCode) {
-          (err as any).status = err.status || err.statusCode;
-        }
-        throw err;
+        if (lastError) throw lastError;
+      } else {
+        // BrightData not configured — fall back to SDK (no geo)
+        console.warn('[Google] BrightData not configured, falling back to SDK without geo-targeting');
+        const sdkResult = await callGeminiSdkWithFallback(genAI, prompt);
+        text = sdkResult.text;
+        groundingMetadata = sdkResult.groundingMetadata;
+        usedModel = sdkResult.usedModel;
       }
-    });
-    
-    const response = result.response;
-    const text = response.text();
-    
-    console.log('[Google] Response received:', text.substring(0, 100) + '...');
-    
+    } else {
+      // US or no country — use SDK directly
+      const sdkResult = await callGeminiSdkWithFallback(genAI, prompt);
+      text = sdkResult.text;
+      groundingMetadata = sdkResult.groundingMetadata;
+      usedModel = sdkResult.usedModel;
+    }
+
+    console.log(`[Google] Response received (model: ${usedModel}):`, text.substring(0, 100) + '...');
+
     // Extract raw citations from grounding metadata
     const rawCitations: Citation[] = [];
-    const groundingMetadata = (response as any).candidates?.[0]?.groundingMetadata;
 
     if (groundingMetadata?.groundingChunks) {
       groundingMetadata.groundingChunks.forEach((chunk: any, idx: number) => {
@@ -1998,7 +2144,12 @@ Return ONLY a valid JSON object with these exact keys:
       searchQueries: searchQueries.length > 0 ? searchQueries : undefined,
     };
   } catch (error: any) {
-    console.error(`❌ [Google] Error:`, error.message || error);
+    const status = error.status || error.statusCode;
+    const isOverload = status === 503 || status === 429;
+    console.error(
+      `❌ [Google] Error (all models failed: ${GEMINI_PRIMARY_MODEL}, ${GEMINI_FALLBACK_MODEL}, ${GEMINI_FALLBACK_MODEL_LITE}):`,
+      isOverload ? `Service overloaded (${status})` : error.message || error
+    );
     throw error;
   }
 }
@@ -2145,8 +2296,8 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     
     console.log(`\n🔍 Analyzing with ${provider}: testing ${providerPrompts.length} prompts (${startIdx + 1}-${endIdx})...`);
     
-    // Gemini needs throttling (503 overload errors), other providers can run fully parallel
-    const concurrency = provider === 'google' ? 3 : providerPrompts.length;
+    // Gemini needs throttling (503 overload errors), Perplexity has strict rate limits (429)
+    const concurrency = provider === 'google' ? 3 : provider === 'perplexity' ? 2 : providerPrompts.length;
     const promptTestResults = await mapWithConcurrency(
       providerPrompts,
       async (promptObj) => {
@@ -2279,6 +2430,8 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     competitorComparison: competitorStats,
     validatedCompetitors,
     recommendations,
+    country: config.country,
+    language: config.country ? getLanguageForCountry(config.country) : 'en',
     timestamp: new Date(),
   };
 }
@@ -2295,17 +2448,19 @@ export function createDirectGEOConfig(
     competitors?: string[];
     customPrompts?: Array<string | { text: string; category?: string }>;
     apiKeys?: Partial<DirectGEOConfig['apiKeys']>;
+    country?: CountryCode;
   } = {}
 ): DirectGEOConfig {
   // Get environment object safely (works in Node.js environment)
   const env = ((globalThis as any).process?.env ?? {});
-  
+
   return {
     brandName,
     industry: options.industry || 'technology',
     description: options.description || `${brandName} is a company in the ${options.industry || 'technology'} industry`,
     competitors: options.competitors || [],
     customPrompts: options.customPrompts,
+    country: options.country,
     apiKeys: {
       openai: options.apiKeys?.openai || env.OPENAI_API_KEY,
       anthropic: options.apiKeys?.anthropic || env.ANTHROPIC_API_KEY,

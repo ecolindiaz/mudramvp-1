@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { IconFilter, IconChevronLeft, IconChevronRight } from "@tabler/icons-react"
+import { CircleFlag } from "react-circle-flags"
 
 // Mock data for prompts - ready for backend integration
 const mockPrompts = [
@@ -32,7 +33,8 @@ const mockPrompts = [
     visibility: 95,
     language: "English",
     monitor: "Demo Monitor",
-    created: "26 May"
+    created: "26 May",
+    region: "US"
   },
   {
     id: 2,
@@ -43,7 +45,8 @@ const mockPrompts = [
     visibility: 78,
     language: "English",
     monitor: "Demo Monitor",
-    created: "26 May"
+    created: "26 May",
+    region: "US"
   },
   {
     id: 3,
@@ -54,7 +57,8 @@ const mockPrompts = [
     visibility: 92,
     language: "English",
     monitor: "Demo Monitor",
-    created: "26 May"
+    created: "26 May",
+    region: "US"
   },
   {
     id: 4,
@@ -65,7 +69,8 @@ const mockPrompts = [
     visibility: 95,
     language: "English",
     monitor: "Demo Monitor",
-    created: "26 May"
+    created: "26 May",
+    region: "US"
   },
   {
     id: 5,
@@ -76,7 +81,8 @@ const mockPrompts = [
     visibility: 0,
     language: "English",
     monitor: "Demo Monitor",
-    created: "26 May"
+    created: "26 May",
+    region: "US"
   },
   {
     id: 6,
@@ -87,7 +93,8 @@ const mockPrompts = [
     visibility: 70,
     language: "English",
     monitor: "Demo Monitor",
-    created: "26 May"
+    created: "26 May",
+    region: "US"
   },
   {
     id: 7,
@@ -98,7 +105,8 @@ const mockPrompts = [
     visibility: 0,
     language: "English",
     monitor: "Demo Monitor",
-    created: "26 May"
+    created: "26 May",
+    region: "US"
   },
   {
     id: 8,
@@ -109,7 +117,8 @@ const mockPrompts = [
     visibility: 0,
     language: "English",
     monitor: "Demo Monitor",
-    created: "26 May"
+    created: "26 May",
+    region: "US"
   },
   {
     id: 9,
@@ -120,7 +129,8 @@ const mockPrompts = [
     visibility: 78,
     language: "English",
     monitor: "Demo Monitor",
-    created: "26 May"
+    created: "26 May",
+    region: "US"
   },
   {
     id: 10,
@@ -131,7 +141,8 @@ const mockPrompts = [
     visibility: 78,
     language: "English",
     monitor: "Demo Monitor",
-    created: "26 May"
+    created: "26 May",
+    region: "US"
   }
 ]
 
@@ -267,7 +278,7 @@ export function TopPromptsTable() {
                 </TableCell>
                 <TableCell className="text-gray-300">
                   <div className="flex items-center gap-2">
-                    <span className="text-blue-400">🇺🇸</span>
+                    <CircleFlag countryCode={prompt.region.toLowerCase()} height="16" width="16" className="flex-shrink-0" style={{ width: 16, height: 16 }} />
                     {prompt.language}
                   </div>
                 </TableCell>

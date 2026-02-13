@@ -65,6 +65,7 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
         competitors: true,
         userId: true,
         createdAt: true,
+        trackingCountries: true,
       },
       orderBy: {
         createdAt: 'asc', // Process oldest first
@@ -95,6 +96,10 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
       }
 
       // Run unified analysis with cooldown bypass (cron jobs override cooldown)
+      // Pass trackingCountries for multi-country analysis
+      const countries = profile.trackingCountries && profile.trackingCountries.length > 0
+        ? profile.trackingCountries
+        : ['US'];
       const result = await runUnifiedAnalysis({
         brandProfileId: profile.id,
         brandName: profile.companyName,
@@ -104,6 +109,7 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
         competitors: profile.competitors ? profile.competitors.split(',').map(c => c.trim()) : undefined,
         skipCooldown: true,      // Cron jobs bypass 5-min cooldown
         generateReport: false,   // Don't generate NLR for automated runs
+        countries,               // Multi-country: first sync, rest queued
       });
 
       if (result.success) {

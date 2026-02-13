@@ -39,7 +39,7 @@ const timeRangeOptions = [
 ]
 
 function DashboardPageInner() {
-  const { profile } = useBrandProfile()
+  const { profile, selectedCountry } = useBrandProfile()
   const {
     isRunningAnalysis,
     startAnalysis,
@@ -140,6 +140,7 @@ function DashboardPageInner() {
           competitors: [],
           skipCooldown: false, // Enforce 24-hour cooldown
           generateReport: true, // Generate natural language report on each analysis
+          country: selectedCountry || 'US', // Run analysis for the currently selected geolocation
         }),
         signal: getAbortSignal(), // Allow cancellation if user navigates away
       })

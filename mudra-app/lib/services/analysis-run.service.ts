@@ -8,6 +8,7 @@ export interface AnalysisRunData {
   competitorData?: any
   status?: string
   errorMessage?: string
+  country?: string // ISO country code for geo-scoped runs
 }
 
 /**
@@ -34,6 +35,7 @@ export async function createAnalysisRun(data: AnalysisRunData) {
         results: JSON.stringify(data.results || {}),
         overallScore: data.overallScore || 0,
         status: data.status || 'running',
+        country: data.country || 'US',
         ranAt: new Date()
       }
     })

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBrandProfileByUserId, saveBrandProfileForUser } from "@/lib/prisma-brand-profile";
+import { getBrandProfileByUserId, getBrandProfileByIdForUser, saveBrandProfileForUser } from "@/lib/prisma-brand-profile";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { applyRateLimitAsync } from "@/lib/auth/rate-limiter-redis";
 import { logBrandProfileChange } from "@/lib/services/audit-log.service";
@@ -44,8 +44,14 @@ export async function GET(request: NextRequest) {
       return authResult.response;
     }
 
+    // Support switching profiles via ?profileId=X
+    const profileIdParam = request.nextUrl.searchParams.get('profileId');
+    const profileId = profileIdParam ? parseInt(profileIdParam, 10) : null;
+
     const profile = await withTimeout(
-      getBrandProfileByUserId(authResult.user.id),
+      profileId
+        ? getBrandProfileByIdForUser(authResult.user.id, profileId)
+        : getBrandProfileByUserId(authResult.user.id),
       REQUEST_TIMEOUT_MS,
       "getBrandProfile",
     );

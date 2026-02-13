@@ -5,6 +5,7 @@ import React, { useMemo, useState, useRef } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { ArrowLeft, TrendingUp, Target, Award, MessageSquare, MessageSquareText, Building2, GraduationCap, Globe, Clock, Maximize2, Tag, ChevronRight, CheckCircle, ChevronDown, ChevronUp, XCircle, ExternalLink, FileText, ListOrdered, BookOpen, HelpCircle, Copy, Check, Newspaper, PlayCircle, Star, Package, Users } from "lucide-react"
+import { CircleFlag } from "react-circle-flags"
 import Image from "next/image"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -632,7 +633,7 @@ function CitationCategoryIcon({ category }: { category: CitationCategory }) {
 }
 
 function TrackedPromptDeepViewInner() {
-  const { profile } = useBrandProfile()
+  const { profile, selectedCountry } = useBrandProfile()
   const [dateRange, setDateRange] = useState<'7d' | '14d' | '30d'>('7d')
   const params = useParams() as { id?: string } | undefined
   const promptId = params?.id
@@ -657,7 +658,7 @@ function TrackedPromptDeepViewInner() {
       
       try {
         // Include date range and platform in API request
-        const url = `/api/prompts/${promptId}?brandProfileId=${profile.id}&dateRange=${dateRange}&platform=${selectedPlatform}`
+        const url = `/api/prompts/${promptId}?brandProfileId=${profile.id}&dateRange=${dateRange}&platform=${selectedPlatform}&country=${selectedCountry}`
         const response = await fetch(url)
         const result = await response.json()
         
@@ -675,7 +676,7 @@ function TrackedPromptDeepViewInner() {
     }
 
     fetchPromptDetails()
-  }, [profile?.id, promptId, dateRange, selectedPlatform])  // Re-fetch when filters change
+  }, [profile?.id, promptId, dateRange, selectedPlatform, selectedCountry])  // Re-fetch when filters change
   
   const promptLabel = promptData?.text || (promptId ? `Prompt ${promptId}` : 'Current Prompt')
   const promptIntentRaw = promptData?.category
@@ -1920,12 +1921,20 @@ function TrackedPromptDeepViewInner() {
                         <Table className="w-full text-[14px] table-fixed">
                           <TableHeader className="sticky top-0 z-10 bg-white/[0.03] border-b border-white/[0.03] text-[13px]">
                             <TableRow className="hover:bg-transparent h-12">
-                              <TableHead className="w-[220px] text-white/50 font-medium px-4">
+                              <TableHead className="w-[200px] text-white/50 font-medium px-4">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="inline-flex items-center gap-1.5 cursor-help">Platform <HelpCircle className="h-3.5 w-3.5 opacity-50" /></span>
                                   </TooltipTrigger>
                                   <TooltipContent>Platform where the prompt was run.</TooltipContent>
+                                </Tooltip>
+                              </TableHead>
+                              <TableHead className="w-[80px] text-white/50 font-medium text-center">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-flex items-center gap-1.5 cursor-help">Region <HelpCircle className="h-3.5 w-3.5 opacity-50" /></span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Geolocation region the prompt was queried from</TooltipContent>
                                 </Tooltip>
                               </TableHead>
                               <TableHead className="w-[120px] text-white/50 font-medium">
@@ -1965,7 +1974,7 @@ function TrackedPromptDeepViewInner() {
                           <TableBody>
                             {visibleChats.length === 0 ? (
                               <TableRow className="hover:bg-transparent">
-                                <TableCell colSpan={5} className="h-32 text-center">
+                                <TableCell colSpan={6} className="h-32 text-center">
                                   <div className="flex flex-col items-center justify-center gap-2 text-white/60">
                                     <MessageSquare className="h-8 w-8 opacity-40" />
                                     <div className="text-sm">No chat responses found</div>
@@ -1988,6 +1997,11 @@ function TrackedPromptDeepViewInner() {
                                           <Image src={getProviderIconSrc(chat.provider)} alt={`${chat.provider} icon`} width={14} height={14} />
                                         </span>
                                         <span className="text-sm text-white/90">{getProviderDisplay(chat.provider)}</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      <div className="flex items-center justify-center">
+                                        <CircleFlag countryCode={selectedCountry.toLowerCase()} height="16" width="16" className="flex-shrink-0" style={{ width: 16, height: 16 }} />
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-white/90">

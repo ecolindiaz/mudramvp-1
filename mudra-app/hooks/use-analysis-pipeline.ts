@@ -30,6 +30,7 @@ export interface AnalysisPipelineConfig {
   description?: string;
   industry?: string;
   competitors?: string[];
+  countries?: string[];
 }
 
 export function useAnalysisPipeline() {
@@ -129,6 +130,7 @@ export function useAnalysisPipeline() {
         description: config.description,
         industry: config.industry,
         competitors: config.competitors || [],
+        countries: config.countries,
         skipCooldown: true, // Skip cooldown - onboarding is first analysis for new users
         generateReport: true, // Generate report during onboarding
       };

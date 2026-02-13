@@ -12,6 +12,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, BookOpen, Building2, Download, CheckCircle2, AlertCircle, HelpCircle } from "lucide-react"
+import { CircleFlag } from "react-circle-flags"
 import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
@@ -122,7 +123,7 @@ const getModelDisplayName = (model: string): string => {
 }
 
 // Create columns function to access router
-const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedPrompt>[] => [
+const createColumns = (router: ReturnType<typeof useRouter>, selectedCountry: string): ColumnDef<TrackedPrompt>[] => [
   {
     id: "select",
     header: () => null,
@@ -136,14 +137,25 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
         />
       </div>
     ),
-    size: 36,
+    size: 28,
+    enableSorting: false,
+  },
+  {
+    id: "region",
+    header: () => null,
+    cell: () => (
+      <div className="flex items-center justify-center">
+        <CircleFlag countryCode={selectedCountry.toLowerCase()} height="16" width="16" style={{ width: 16, height: 16 }} />
+      </div>
+    ),
+    size: 24,
     enableSorting: false,
   },
   {
     header: () => (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="cursor-default">Prompt</div>
+          <div className="cursor-default -ml-14">Prompt</div>
         </TooltipTrigger>
         <TooltipContent>Query tested against AI models</TooltipContent>
       </Tooltip>
@@ -413,7 +425,7 @@ const createColumns = (router: ReturnType<typeof useRouter>): ColumnDef<TrackedP
 
 function TrackedPromptsPageInner() {
   const router = useRouter()
-  const { profile } = useBrandProfile()
+  const { profile, selectedCountry } = useBrandProfile()
   const [data, setData] = useState<TrackedPrompt[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
@@ -434,7 +446,7 @@ function TrackedPromptsPageInner() {
   const [selectedIntent, setSelectedIntent] = useState<string>("all")
   
   // Create columns with router access
-  const columns = useMemo(() => createColumns(router), [router])
+  const columns = useMemo(() => createColumns(router, selectedCountry), [router, selectedCountry])
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -472,7 +484,8 @@ function TrackedPromptsPageInner() {
 
     try {
       const modelParam = selectedModel !== 'all' ? `&model=${encodeURIComponent(selectedModel)}` : ''
-      const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}`)
+      const countryParam = selectedCountry ? `&country=${selectedCountry}` : ''
+      const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}${countryParam}`)
       const result = await response.json()
       
       console.log('📥 Prompts API response:', {
@@ -514,7 +527,7 @@ function TrackedPromptsPageInner() {
   // Fetch prompts on mount and when profile or model filter changes
   useEffect(() => {
     fetchPrompts()
-  }, [profile?.id, selectedModel])
+  }, [profile?.id, selectedModel, selectedCountry])
 
   // Filter the data based on selected filters
   // Note: Model filtering is now handled at the API level for accurate metrics
@@ -1282,6 +1295,12 @@ function TrackedPromptsPageInner() {
                             <TableCell style={{ width: '36px' }} className="py-3.5">
                               <div className="flex items-center justify-center">
                                 <Skeleton className="h-4 w-4 rounded bg-white/[0.06]" />
+                              </div>
+                            </TableCell>
+                            {/* Region flag */}
+                            <TableCell style={{ width: '32px' }} className="py-3.5">
+                              <div className="flex items-center justify-center">
+                                <Skeleton className="h-4 w-4 rounded-full bg-white/[0.06]" />
                               </div>
                             </TableCell>
                             {/* Prompt */}

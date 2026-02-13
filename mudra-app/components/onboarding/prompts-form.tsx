@@ -30,7 +30,7 @@ type RecoveryState = 'none' | 'checking' | 'completed' | 'still-running'
 export function PromptsForm() {
   const router = useRouter()
   const { profile, refreshBrandProfile } = useBrandProfile()
-  const { data: onboardingData, saveToProfile } = useOnboarding()
+  const { data: onboardingData, saveToProfile, additionalMonitorIds } = useOnboarding()
   const { state, error, simulatedProgress, runPipeline } = useAnalysisPipeline()
   const {
     isRunningAnalysis,
@@ -181,8 +181,7 @@ export function PromptsForm() {
       // Mark analysis as running in AnalysisContext (persists across refresh)
       startAnalysis(profile.id)
 
-      // Step 1: Generate prompts via dedicated endpoint (non-blocking on failure)
-      // Step 2: Run unified analysis (finds existing prompts, skips generation)
+      const primaryRegions = onboardingData.domainEntries?.[0]?.regions?.filter(Boolean)
       const config = {
         brandProfileId: profile.id,
         brandName: onboardingData.companyName,
@@ -190,7 +189,8 @@ export function PromptsForm() {
         industry: onboardingData.companyIndustry || undefined,
         description: onboardingData.companyDescription || undefined,
         competitors: onboardingData.competitors || [],
-      };
+        countries: primaryRegions && primaryRegions.length > 0 ? primaryRegions : ["US"],
+      }
 
       (async () => {
         try {
@@ -213,6 +213,33 @@ export function PromptsForm() {
           completeAnalysis(false)
         }
       })()
+
+      // Fire-and-forget analysis for additional monitors
+      if (additionalMonitorIds.length > 0) {
+        const extraEntries = onboardingData.domainEntries.slice(1).filter(e => e.domain.trim())
+        additionalMonitorIds.forEach((monitorId, idx) => {
+          const entry = extraEntries[idx]
+          if (!entry) return
+          const countries = entry.regions.filter(Boolean)
+          console.log(`[PromptsForm] Triggering analysis for additional monitor ${monitorId} (${entry.domain})`)
+          fetch("/api/analysis/unified", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              brandProfileId: monitorId,
+              brandName: onboardingData.companyName,
+              website: entry.domain,
+              industry: onboardingData.companyIndustry || undefined,
+              description: onboardingData.companyDescription || undefined,
+              competitors: onboardingData.competitors || [],
+              countries: countries.length > 0 ? countries : ["US"],
+              skipCooldown: true,
+            }),
+          }).catch(err => {
+            console.error(`[PromptsForm] Additional monitor ${monitorId} analysis failed:`, err)
+          })
+        })
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recoveryState, analysisStarted, profile?.id])

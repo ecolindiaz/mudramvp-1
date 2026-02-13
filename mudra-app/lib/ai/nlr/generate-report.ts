@@ -72,8 +72,10 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
   const _ = rankChanges(nlrInput) // ranked already used inside prompt builder
   const { system, user } = buildNlrPrompt(nlrInput)
 
-  // 3) Call Gemini 3 Pro (fallback to GPT-4 if needed)
+  // 3) Call Gemini (preview → stable → lite fallback) then GPT-4 as last resort
   const gemini3Pro = getModelConfig('gemini-3-pro')
+  const geminiStable = getModelConfig('gemini-2.5-flash')
+  const geminiLite = getModelConfig('gemini-2.5-flash-lite')
   const gpt4 = getModelConfig('gpt-4')
 
   let content = ''
@@ -81,69 +83,121 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
   let tokensIn = 0
   let tokensOut = 0
 
-  try {
-    // Primary: Gemini 3 Pro
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '')
-    const model = genAI.getGenerativeModel({ 
-      model: gemini3Pro?.model || 'gemini-2.0-flash',
-      generationConfig: {
-        temperature: gemini3Pro?.settings.defaultTemperature || 0.3,
-        maxOutputTokens: gemini3Pro?.settings.defaultMaxTokens || 4000,
-      },
-    })
+  // Helper: check if error is a 503/429 overload
+  const isOverloadError = (err: any): boolean => {
+    const status = err?.status || err?.statusCode || err?.httpCode
+    return status === 503 || status === 429
+  }
 
-    const prompt = `${system}\n\n${user}`
-    const result = await model.generateContent(prompt)
-    const response = result.response
-    content = response.text() || ''
-    usedModelId = gemini3Pro?.id || 'gemini-3-pro'
+  // Helper: attempt Gemini generation with exponential backoff
+  const attemptGemini = async (modelId: string, modelName: string, maxRetries = 3): Promise<boolean> => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '')
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            temperature: gemini3Pro?.settings.defaultTemperature || 0.3,
+            maxOutputTokens: gemini3Pro?.settings.defaultMaxTokens || 4000,
+          },
+        })
 
-    // Extract token usage if available
-    const usageMetadata = response.usageMetadata
-    if (usageMetadata) {
-      tokensIn = usageMetadata.promptTokenCount || 0
-      tokensOut = usageMetadata.candidatesTokenCount || 0
+        const prompt = `${system}\n\n${user}`
+        const result = await model.generateContent(prompt)
+        const response = result.response
+        content = response.text() || ''
+        usedModelId = modelId
+
+        const usageMetadata = response.usageMetadata
+        if (usageMetadata) {
+          tokensIn = usageMetadata.promptTokenCount || 0
+          tokensOut = usageMetadata.candidatesTokenCount || 0
+        }
+
+        if (!content || content.length < 20) {
+          throw new Error(`Empty content from ${modelId}: length=${content.length}`)
+        }
+
+        // Log successful call
+        const costCents = Math.round(estimateAICost(modelId, tokensIn, tokensOut))
+        logAIModelCall({
+          feature: 'nlr',
+          endpoint: '/api/nlr/generate',
+          model: modelId,
+          provider: 'google',
+          status: 'success',
+          tokensIn,
+          tokensOut,
+          costCents,
+          metadata: { companyId, weekStartUtc: weekStart.toISOString() },
+        }).catch(() => {})
+
+        return true // success
+      } catch (err: any) {
+        const isLast = attempt === maxRetries - 1
+        const isRetryable = isOverloadError(err) || err?.code === 'ECONNRESET' || err?.code === 'ETIMEDOUT'
+
+        if (!isRetryable || isLast) {
+          // Log failure
+          logAIModelCall({
+            feature: 'nlr',
+            endpoint: '/api/nlr/generate',
+            model: modelId,
+            provider: 'google',
+            status: 'error',
+            errorMessage: (err as Error).message,
+            metadata: { companyId, weekStartUtc: weekStart.toISOString() },
+          }).catch(() => {})
+          throw err
+        }
+
+        const delay = 1000 * Math.pow(2, attempt)
+        console.warn(`⚠️  NLR: ${modelId} attempt ${attempt + 1}/${maxRetries} failed (${err.status || err.message}), retrying in ${delay}ms`)
+        await new Promise(r => setTimeout(r, delay))
+      }
     }
+    return false
+  }
 
-    if (!content || content.length < 20) {
-      throw new Error(`Empty content from Gemini 3 Pro: length=${content.length}`)
+  // Gemini model cascade: preview → stable → lite
+  const geminiModels: { id: string; model: string }[] = [
+    { id: gemini3Pro?.id || 'gemini-3-pro', model: gemini3Pro?.model || 'gemini-3-flash-preview' },
+    ...(geminiStable ? [{ id: geminiStable.id, model: geminiStable.model }] : []),
+    ...(geminiLite ? [{ id: geminiLite.id, model: geminiLite.model }] : []),
+  ]
+
+  let geminiSucceeded = false
+  for (let i = 0; i < geminiModels.length; i++) {
+    const { id, model: modelName } = geminiModels[i]
+    try {
+      await attemptGemini(id, modelName)
+      geminiSucceeded = true
+      break
+    } catch (err: any) {
+      const isLast = i === geminiModels.length - 1
+      if (!isLast && isOverloadError(err)) {
+        const next = geminiModels[i + 1]
+        console.warn(`NLR: ${id} unavailable (${err.status}), trying ${next.id}`)
+        continue
+      }
+      if (!isLast) {
+        // Non-overload error on non-last model — skip to GPT-4
+        console.error(`NLR: ${id} failed (non-overload), falling back to GPT-4:`, err.message)
+      } else {
+        console.error('NLR: All Gemini models failed, falling back to GPT-4:', err.message)
+      }
+      break
     }
-    
-    // Log successful Gemini call
-    const geminiCostCents = Math.round(estimateAICost('gemini-3-pro', tokensIn, tokensOut))
-    logAIModelCall({
-      feature: 'nlr',
-      endpoint: '/api/nlr/generate',
-      model: 'gemini-3-pro',
-      provider: 'google',
-      status: 'success',
-      tokensIn,
-      tokensOut,
-      costCents: geminiCostCents,
-      metadata: { companyId, weekStartUtc: weekStart.toISOString() },
-    }).catch(() => {}) // Fire and forget
-  } catch (err) {
-    // Log failed Gemini call
-    logAIModelCall({
-      feature: 'nlr',
-      endpoint: '/api/nlr/generate',
-      model: 'gemini-3-pro',
-      provider: 'google',
-      status: 'error',
-      errorMessage: (err as Error).message,
-      metadata: { companyId, weekStartUtc: weekStart.toISOString() },
-    }).catch(() => {})
-    
-    // eslint-disable-next-line no-console
-    console.error('NLR: Gemini 3 Pro failed, fallback to GPT-4:', err)
-    
-    // Fallback to GPT-4
+  }
+
+  if (!geminiSucceeded) {
+    // Final fallback: GPT-4
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
     const messages = [
       { role: 'system' as const, content: system },
       { role: 'user' as const, content: user },
     ]
-    
+
     const r = await openai.chat.completions.create({
       model: gpt4?.model || 'gpt-4',
       messages,
@@ -155,8 +209,7 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
     const usage: any = (r as any).usage || {}
     tokensIn = usage.prompt_tokens ?? usage.input_tokens ?? 0
     tokensOut = usage.completion_tokens ?? usage.output_tokens ?? 0
-    
-    // Log successful GPT-4 fallback call
+
     const gpt4CostCents = Math.round(estimateAICost('gpt-4', tokensIn, tokensOut))
     logAIModelCall({
       feature: 'nlr',

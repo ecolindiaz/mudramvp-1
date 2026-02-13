@@ -70,7 +70,8 @@ export async function getPromptVisibilityHistory(
   brandProfileId: number,
   promptText: string,
   dateRange: '7d' | '14d' | '30d' = '7d',
-  platform?: string
+  platform?: string,
+  country?: string
 ): Promise<PromptVisibilityData> {
   // Calculate date range
   const now = new Date()
@@ -89,7 +90,8 @@ export async function getPromptVisibilityHistory(
   // Date filtering is applied per-entry using analyzedAt below.
   const analysisResults = await prisma.geoAnalysisResult.findMany({
     where: {
-      brandProfileId
+      brandProfileId,
+      ...(country ? { country } : {}),
     },
     orderBy: { createdAt: 'asc' }
   })

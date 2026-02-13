@@ -288,6 +288,7 @@ export async function GET(request: NextRequest) {
     const limitParam = searchParams.get('limit')
     const daysParam = searchParams.get('days')
     const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
+    const countryFilter = searchParams.get('country') // Optional: filter by country code
 
     // Helper to normalize model names for comparison
     const normalizeModelName = (name: string): string => {
@@ -327,7 +328,8 @@ export async function GET(request: NextRequest) {
         brandProfileId,
         createdAt: {
           gte: since
-        }
+        },
+        ...(countryFilter ? { country: countryFilter } : {}),
       },
       orderBy: {
         createdAt: 'desc'

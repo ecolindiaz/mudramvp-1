@@ -3,7 +3,7 @@
  * Handles both onboarding and dashboard analysis requests
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { runUnifiedAnalysis } from '@/lib/services/unified-analysis.service';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
@@ -11,7 +11,7 @@ import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 // Extended timeout for unified analysis - runs GEO + Technical analysis in parallel
 // GEO: 4 providers × multiple prompts (30-60s)
 // Technical: page discovery + scraping + DOM extraction (40-80s)
-export const maxDuration = 800; // Vercel Pro max
+export const maxDuration = 300; // Vercel Pro max
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting (analysis is expensive)
@@ -44,6 +44,8 @@ export async function POST(request: NextRequest) {
       competitors,
       skipCooldown = false, // Dashboard enforces 24-hour cooldown by default
       generateReport = false,
+      country,     // Single country for re-analysis
+      countries,   // Multiple countries for onboarding
     } = body;
 
     // Validate required fields
@@ -69,7 +71,16 @@ export async function POST(request: NextRequest) {
       competitors: competitors || [],
       skipCooldown,
       generateReport,
+      country,
+      countries,
     });
+
+    // Keep the Vercel function alive until all queued country jobs complete.
+    // after() runs after the response is sent but keeps the function's execution context.
+    if (result.backgroundWork) {
+      const bgWork = result.backgroundWork;
+      after(async () => { await bgWork; });
+    }
 
     if (result.success) {
       console.log('[Unified Analysis API] Analysis completed successfully');

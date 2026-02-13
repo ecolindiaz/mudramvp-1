@@ -35,12 +35,17 @@ const defaultProfile = {
 };
 
 const STORAGE_KEY = "mudra_brand_profile";
+const ACTIVE_PROFILE_ID_KEY = "mudra_active_profile_id";
+const ACTIVE_COUNTRY_KEY = "mudra_active_country";
 
 const BrandProfileContext = createContext({
   brandProfile: defaultProfile,
   profile: defaultProfile,
-  setProfile: (profile: typeof defaultProfile) => {},
-  refreshBrandProfile: async () => {}
+  setProfile: async (profile: typeof defaultProfile) => defaultProfile,
+  refreshBrandProfile: async () => {},
+  switchProfile: async (profileId: number) => {},
+  selectedCountry: "US",
+  setSelectedCountry: (country: string) => {},
 })
 
 export function useBrandProfile() {
@@ -65,6 +70,23 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     return defaultProfile;
   });
 
+  // Track the active profile ID so refreshBrandProfile always fetches the correct one
+  const profileIdRef = useRef<number>((() => {
+    if (typeof window !== 'undefined') {
+      const storedId = localStorage.getItem(ACTIVE_PROFILE_ID_KEY);
+      if (storedId) return parseInt(storedId, 10) || 0;
+    }
+    return 0;
+  })());
+
+  // Initialize selectedCountry from localStorage (persisted per-session)
+  const [selectedCountry, setSelectedCountryState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(ACTIVE_COUNTRY_KEY);
+      if (stored) return stored;
+    }
+    return "US";
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -80,6 +102,34 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     }
   }, [profile]);
 
+  // Keep profileIdRef in sync with profile state
+  useEffect(() => {
+    if (profile.id > 0) {
+      profileIdRef.current = profile.id;
+      localStorage.setItem(ACTIVE_PROFILE_ID_KEY, String(profile.id));
+    }
+  }, [profile.id]);
+
+  // Wrap setSelectedCountry to also persist to localStorage
+  const setSelectedCountry = useCallback((country: string) => {
+    setSelectedCountryState(country);
+    try { localStorage.setItem(ACTIVE_COUNTRY_KEY, country); } catch {}
+  }, []);
+
+  // Sync selectedCountry to profile's primaryCountry when profile or its country changes.
+  // Tracks the last-synced value so we sync when:
+  //  - profile ID changes (switching profiles)
+  //  - primaryCountry appears (server response after cache hit)
+  //  - primaryCountry value changes (profile updated)
+  const profileCountry: string | undefined = (profile as any).primaryCountry;
+  const lastSyncedCountry = useRef<string>("");
+  useEffect(() => {
+    if (profile.id > 0 && profileCountry && profileCountry !== lastSyncedCountry.current) {
+      lastSyncedCountry.current = profileCountry;
+      setSelectedCountry(profileCountry);
+    }
+  }, [profile.id, profileCountry, setSelectedCountry]);
+
   // Use a ref to track loading state without causing re-renders of the callback
   const isLoadingRef = useRef(false);
 
@@ -94,12 +144,24 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     try {
       isLoadingRef.current = true;
       setIsLoading(true);
-      console.log("🔄 [BrandProfileContext] Refreshing brand profile...")
-      
+      // Use the tracked profile ID so we always fetch the user's selected profile
+      const activeId = profileIdRef.current || (() => {
+        try {
+          const stored = localStorage.getItem(ACTIVE_PROFILE_ID_KEY);
+          return stored ? parseInt(stored, 10) || 0 : 0;
+        } catch { return 0; }
+      })();
+
+      const url = activeId > 0
+        ? `/api/brand-profile?profileId=${activeId}`
+        : "/api/brand-profile";
+
+      console.log("🔄 [BrandProfileContext] Refreshing brand profile...", activeId > 0 ? `(profileId=${activeId})` : "(default)")
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      const response = await fetch("/api/brand-profile", {
+
+      const response = await fetch(url, {
         signal: controller.signal,
         // Add cache headers for browser caching
         headers: {
@@ -174,6 +236,33 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     }
   }, [retryCount]);
 
+  // Switch to a different brand profile by ID
+  const switchProfile = useCallback(async (profileId: number) => {
+    try {
+      // Persist the active profile ID immediately so navigation doesn't reset it
+      profileIdRef.current = profileId;
+      localStorage.setItem(ACTIVE_PROFILE_ID_KEY, String(profileId));
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`/api/brand-profile?profileId=${profileId}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.id) {
+          setProfileState(data);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          const country = data.primaryCountry || "US";
+          setSelectedCountry(country);
+        }
+      }
+    } catch (error) {
+      console.error("[BrandProfileContext] Error switching profile:", error);
+    }
+  }, [setSelectedCountry]);
+
   // Save profile to API and update state
   const setProfile = useCallback(async (newProfile: typeof defaultProfile) => {
     console.log("🟡 [BrandProfileContext] setProfile called with:", newProfile)
@@ -205,12 +294,14 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
       }
       
       console.log("🟡 [BrandProfileContext] ✅ Brand profile saved successfully, response:", data);
-      
+
       // Update state with the saved profile including the ID
       if (data.profile) {
         console.log("🟡 [BrandProfileContext] Updating state with profile ID:", data.profile.id)
         setProfileState(data.profile);
+        return data.profile;
       }
+      return newProfile;
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.error("🔴 [BrandProfileContext] Save request timed out");
@@ -224,9 +315,12 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
   const contextValue = useMemo(() => ({
     brandProfile: profile,
     profile,
-    setProfile, 
-    refreshBrandProfile 
-  }), [profile, setProfile, refreshBrandProfile]);
+    setProfile,
+    refreshBrandProfile,
+    switchProfile,
+    selectedCountry,
+    setSelectedCountry,
+  }), [profile, setProfile, refreshBrandProfile, switchProfile, selectedCountry]);
 
   return (
     <BrandProfileContext.Provider value={contextValue}>

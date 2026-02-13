@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { 
-  calculateAggregateScore, 
+import {
+  calculateAggregateScore,
   calculatePerPromptScore,
-  type PromptTestResult 
+  type PromptTestResult
 } from '@/lib/services/visibility-scoring.service'
+import { getLanguageForCountry, isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
 
 /**
  * GET /api/prompts/with-results?brandProfileId={id}
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const brandProfileId = searchParams.get('brandProfileId')
     const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
+    const countryFilter = searchParams.get('country') // Optional: filter by country (default: all)
 
     if (!brandProfileId) {
       return NextResponse.json(
@@ -76,15 +78,31 @@ export async function GET(request: NextRequest) {
     // This ensures List View matches Deep View which also uses all runs
     let allAnalysisResults: any[] = []
     let latestAnalysis: any = null
+    // Track whether we fell back to unfiltered results (affects prompt language filter)
+    let effectiveCountryFilter = countryFilter
     try {
       allAnalysisResults = await prisma.geoAnalysisResult.findMany({
         where: {
-          brandProfileId: profileId
+          brandProfileId: profileId,
+          ...(countryFilter ? { country: countryFilter } : {}),
         },
         orderBy: {
           createdAt: 'desc'
         }
       })
+
+      // Fallback: if country filter returned nothing, retry without it so data always renders
+      if (allAnalysisResults.length === 0 && countryFilter) {
+        console.log(`⚠️ No GeoAnalysisResults for country=${countryFilter}, falling back to all countries`)
+        allAnalysisResults = await prisma.geoAnalysisResult.findMany({
+          where: { brandProfileId: profileId },
+          orderBy: { createdAt: 'desc' }
+        })
+        if (allAnalysisResults.length > 0) {
+          effectiveCountryFilter = null
+        }
+      }
+
       if (allAnalysisResults.length > 0) {
         latestAnalysis = allAnalysisResults[0] // Keep reference to latest for metadata
         console.log(`✅ Found ${allAnalysisResults.length} GeoAnalysisResult(s) for brand profile ${profileId} (latest: ${latestAnalysis.createdAt})`)
@@ -107,12 +125,28 @@ export async function GET(request: NextRequest) {
       latestAnalysisRun = await prisma.analysisRun.findFirst({
         where: {
           brandProfileId: profileId,
-          status: 'completed'
+          status: 'completed',
+          ...(effectiveCountryFilter ? { country: effectiveCountryFilter } : {}),
         },
         orderBy: {
           ranAt: 'desc'
         }
       })
+
+      // Fallback: if country filter returned nothing, retry without it
+      if (!latestAnalysisRun && effectiveCountryFilter) {
+        latestAnalysisRun = await prisma.analysisRun.findFirst({
+          where: {
+            brandProfileId: profileId,
+            status: 'completed',
+          },
+          orderBy: { ranAt: 'desc' }
+        })
+        if (latestAnalysisRun) {
+          effectiveCountryFilter = null
+        }
+      }
+
       if (latestAnalysisRun) {
         console.log(`✅ Found completed AnalysisRun for brand profile ${profileId} (id: ${latestAnalysisRun.id})`)
       }
@@ -133,6 +167,12 @@ export async function GET(request: NextRequest) {
       // Continue processing with allAnalysisResults (skip the early return below)
     }
 
+    // Compute language filter from country so we only return prompts in the matching language
+    // Use effectiveCountryFilter so that when we fell back to all countries we also show all-language prompts
+    const promptLanguageFilter = effectiveCountryFilter && isAllowedCountry(effectiveCountryFilter as CountryCode)
+      ? getLanguageForCountry(effectiveCountryFilter as CountryCode)
+      : undefined
+
     // Helper function to get and return prompts without results
     const getPromptsWithoutResults = async () => {
       let allPrompts = []
@@ -142,7 +182,8 @@ export async function GET(request: NextRequest) {
           allPrompts = await prisma.prompt.findMany({
             where: {
               brandProfileId: profileId,
-              isActive: true
+              isActive: true,
+              ...(promptLanguageFilter ? { language: promptLanguageFilter } : {}),
             },
             orderBy: [
               { category: 'asc' },
@@ -356,13 +397,15 @@ export async function GET(request: NextRequest) {
       allPrompts = await prisma.prompt.findMany({
         where: {
           brandProfileId: profileId,
-          isActive: true // Only show active prompts
+          isActive: true,
+          ...(promptLanguageFilter ? { language: promptLanguageFilter } : {}),
         }
       })
       deletedPrompts = await prisma.prompt.findMany({
         where: {
           brandProfileId: profileId,
-          isActive: false
+          isActive: false,
+          ...(promptLanguageFilter ? { language: promptLanguageFilter } : {}),
         },
         select: { text: true }
       })
@@ -455,8 +498,12 @@ export async function GET(request: NextRequest) {
 
     console.log(`📋 Including ${unmatchedPrompts.length} additional database prompts without analysis results`)
 
-    // Combine ALL prompts: matched (DB + results), unmatched tested (results only), and unmatched DB (DB only)
-    const prompts = [...matchedPrompts, ...unmatchedTestedPrompts, ...unmatchedPrompts]
+    // Combine prompts: matched (DB + results), unmatched tested (results only),
+    // and unmatched DB (DB only — excluded when country filter is active to avoid
+    // showing prompts from another language that have zero results for this country)
+    const prompts = effectiveCountryFilter
+      ? [...matchedPrompts, ...unmatchedTestedPrompts]
+      : [...matchedPrompts, ...unmatchedTestedPrompts, ...unmatchedPrompts]
 
     // Build a map of prompts with their results (including ALL providers)
     const promptsWithResults = prompts.map((prompt: any) => {

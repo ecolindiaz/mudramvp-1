@@ -25,7 +25,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   // Suppress unused variable warnings for future use
   void timeRange
 
-  const { profile } = useBrandProfile()
+  const { profile, selectedCountry } = useBrandProfile()
   const { isRunningAnalysis } = useAnalysis()
 
   // Track when we last fetched data to detect if we need to refresh
@@ -389,8 +389,10 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       const controller1 = new AbortController()
       const timeoutId1 = setTimeout(() => controller1.abort(), 10000)
 
+      const countryParam = selectedCountry ? `&country=${selectedCountry}` : ''
+
       const currentResponse = await fetch(
-        `/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}&days=${days}`,
+        `/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}&days=${days}${countryParam}`,
         { signal: controller1.signal }
       )
       clearTimeout(timeoutId1)
@@ -447,7 +449,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         const timeoutId2 = setTimeout(() => controller2.abort(), 10000)
 
         const historyResponse = await fetch(
-          `/api/analysis/geo-history?brandProfileId=${profile.id}&limit=5&days=${days}`,
+          `/api/analysis/geo-history?brandProfileId=${profile.id}&limit=5&days=${days}${countryParam}`,
           { signal: controller2.signal }
         )
         clearTimeout(timeoutId2)
@@ -488,7 +490,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
           const prevTimeoutId = setTimeout(() => prevController.abort(), 10000)
 
           const prevPromptResponse = await fetch(
-            `/api/prompts/with-results?brandProfileId=${profile.id}&runId=${previous.id}`,
+            `/api/prompts/with-results?brandProfileId=${profile.id}&runId=${previous.id}${countryParam}`,
             { signal: prevController.signal }
           )
           clearTimeout(prevTimeoutId)
@@ -697,7 +699,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       setLoadingTechnical(false)
       setLoadingTraffic(false)
     }
-  }, [profile.id, selectedModel, days])
+  }, [profile.id, selectedModel, selectedCountry, days])
 
   // Listen for analysis completion events
   // Uses refs to always call the latest fetch functions (avoids stale closures)

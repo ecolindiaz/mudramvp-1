@@ -45,6 +45,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useState } from "react"
+import { CircleFlag } from "react-circle-flags"
 
 // Define types for tracked prompts
 type TrackedPrompt = {
@@ -63,6 +64,7 @@ type TrackedPrompt = {
   responseQuality: number
   citationRate: number
   competitorComparison: number
+  region: string
 }
 
 // Mock data for 25 tracked prompts
@@ -82,7 +84,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 78,
     citationRate: 45,
-    competitorComparison: 92
+    competitorComparison: 92,
+    region: "US"
   },
   {
     id: 2,
@@ -99,7 +102,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 85,
     citationRate: 38,
-    competitorComparison: 76
+    competitorComparison: 76,
+    region: "US"
   },
   {
     id: 3,
@@ -116,7 +120,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 92,
     citationRate: 58,
-    competitorComparison: 88
+    competitorComparison: 88,
+    region: "US"
   },
   {
     id: 4,
@@ -133,7 +138,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 71,
     citationRate: 22,
-    competitorComparison: 54
+    competitorComparison: 54,
+    region: "US"
   },
   {
     id: 5,
@@ -150,7 +156,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 82,
     citationRate: 34,
-    competitorComparison: 71
+    competitorComparison: 71,
+    region: "US"
   },
   {
     id: 6,
@@ -167,7 +174,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 75,
     citationRate: 28,
-    competitorComparison: 63
+    competitorComparison: 63,
+    region: "US"
   },
   {
     id: 7,
@@ -184,7 +192,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 89,
     citationRate: 52,
-    competitorComparison: 81
+    competitorComparison: 81,
+    region: "US"
   },
   {
     id: 8,
@@ -201,7 +210,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 83,
     citationRate: 41,
-    competitorComparison: 74
+    competitorComparison: 74,
+    region: "US"
   },
   {
     id: 9,
@@ -218,7 +228,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 68,
     citationRate: 19,
-    competitorComparison: 46
+    competitorComparison: 46,
+    region: "US"
   },
   {
     id: 10,
@@ -235,7 +246,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 79,
     citationRate: 35,
-    competitorComparison: 67
+    competitorComparison: 67,
+    region: "US"
   },
   {
     id: 11,
@@ -252,7 +264,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 88,
     citationRate: 49,
-    competitorComparison: 85
+    competitorComparison: 85,
+    region: "US"
   },
   {
     id: 12,
@@ -269,7 +282,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 72,
     citationRate: 26,
-    competitorComparison: 58
+    competitorComparison: 58,
+    region: "US"
   },
   {
     id: 13,
@@ -286,7 +300,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 87,
     citationRate: 46,
-    competitorComparison: 78
+    competitorComparison: 78,
+    region: "US"
   },
   {
     id: 14,
@@ -303,7 +318,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 84,
     citationRate: 43,
-    competitorComparison: 72
+    competitorComparison: 72,
+    region: "US"
   },
   {
     id: 15,
@@ -320,7 +336,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 76,
     citationRate: 31,
-    competitorComparison: 65
+    competitorComparison: 65,
+    region: "US"
   },
   {
     id: 16,
@@ -337,7 +354,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 73,
     citationRate: 27,
-    competitorComparison: 61
+    competitorComparison: 61,
+    region: "US"
   },
   {
     id: 17,
@@ -354,7 +372,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 81,
     citationRate: 37,
-    competitorComparison: 69
+    competitorComparison: 69,
+    region: "US"
   },
   {
     id: 18,
@@ -371,7 +390,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 86,
     citationRate: 48,
-    competitorComparison: 80
+    competitorComparison: 80,
+    region: "US"
   },
   {
     id: 19,
@@ -388,7 +408,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 80,
     citationRate: 36,
-    competitorComparison: 68
+    competitorComparison: 68,
+    region: "US"
   },
   {
     id: 20,
@@ -405,7 +426,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 74,
     citationRate: 25,
-    competitorComparison: 57
+    competitorComparison: 57,
+    region: "US"
   },
   {
     id: 21,
@@ -422,7 +444,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 91,
     citationRate: 55,
-    competitorComparison: 89
+    competitorComparison: 89,
+    region: "US"
   },
   {
     id: 22,
@@ -439,7 +462,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 77,
     citationRate: 33,
-    competitorComparison: 64
+    competitorComparison: 64,
+    region: "US"
   },
   {
     id: 23,
@@ -456,7 +480,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 85,
     citationRate: 44,
-    competitorComparison: 77
+    competitorComparison: 77,
+    region: "US"
   },
   {
     id: 24,
@@ -473,7 +498,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 69,
     citationRate: 21,
-    competitorComparison: 49
+    competitorComparison: 49,
+    region: "US"
   },
   {
     id: 25,
@@ -490,7 +516,8 @@ const trackedPrompts: TrackedPrompt[] = [
     createdDate: "2024-01-01T00:00:00Z",
     responseQuality: 78,
     citationRate: 29,
-    competitorComparison: 66
+    competitorComparison: 66,
+    region: "US"
   }
 ]
 
@@ -609,7 +636,8 @@ export function TrackedPromptsView({ prompts = [], analysis }: TrackedPromptsVie
       createdDate: prompt.createdAt || new Date().toISOString(),
       responseQuality: Math.round(60 + Math.random() * 40),
       citationRate: Math.round(20 + Math.random() * 50),
-      competitorComparison: Math.round(50 + Math.random() * 50)
+      competitorComparison: Math.round(50 + Math.random() * 50),
+      region: "US"
     }
   })
   
@@ -748,7 +776,9 @@ export function TrackedPromptsView({ prompts = [], analysis }: TrackedPromptsVie
                       <TableCell>
                         <DragHandle id={prompt.id} />
                       </TableCell>
-                      <TableCell></TableCell>
+                      <TableCell>
+                        <CircleFlag countryCode={prompt.region.toLowerCase()} height="16" width="16" className="flex-shrink-0" style={{ width: 16, height: 16 }} />
+                      </TableCell>
                     <TableCell className="font-medium">
                       <div className="max-w-[300px] truncate" title={prompt.prompt}>
                         {prompt.prompt}

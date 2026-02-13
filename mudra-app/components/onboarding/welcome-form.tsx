@@ -6,44 +6,46 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Loader2 } from "lucide-react"
-import { useOnboarding } from "./onboarding-context"
+import { ArrowRight, Loader2, ChevronDown, Plus, X } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Checkbox } from "@/components/ui/checkbox"
+import { CircleFlag } from "react-circle-flags"
+import { useOnboarding, type DomainEntry } from "./onboarding-context"
 import { useCompanyExtraction } from "@/hooks/use-company-extraction"
+
+const REGIONS = [
+  { code: "US", label: "USA" },
+  { code: "GB", label: "United Kingdom" },
+  { code: "ES", label: "Spain" },
+  { code: "MX", label: "Mexico" },
+  { code: "AR", label: "Argentina" },
+  { code: "CO", label: "Colombia" },
+  { code: "PE", label: "Peru" },
+]
 
 export function WelcomeForm() {
   const router = useRouter()
   const { data, updateData } = useOnboarding()
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    companyName: data.companyName,
-    companyWebsite: data.companyWebsite,
-    companySocialMedia: data.companySocialMedia
-  })
+  const [companyName, setCompanyName] = useState(data.companyName)
+  const [domainEntries, setDomainEntries] = useState<DomainEntry[]>(
+    data.domainEntries?.length
+      ? data.domainEntries
+      : [{ domain: data.companyWebsite || "", regions: data.trackingRegions || [] }]
+  )
 
-  // Company extraction hook
   const { isExtracting, extractedData, failed, startExtraction } = useCompanyExtraction()
-
-  // Track if we started extraction in this session (to know when to auto-redirect)
   const [startedExtractionThisSession, setStartedExtractionThisSession] = useState(false)
 
-  // Update context when extraction completes and auto-redirect
   useEffect(() => {
     if (extractedData && startedExtractionThisSession) {
-      // Save extracted data to context
       updateData({
         extractedCompanyInfo: extractedData,
         extractionStatus: 'completed',
-        // Also save form data
-        companyName: formData.companyName,
-        companyWebsite: formData.companyWebsite,
-        companySocialMedia: formData.companySocialMedia
       })
-      // Auto-redirect after extraction completes
-      router.push("/welcome/profile")
     }
-  }, [extractedData, startedExtractionThisSession, formData, updateData, router])
+  }, [extractedData, startedExtractionThisSession, updateData])
 
-  // Update extraction status in context
   useEffect(() => {
     if (isExtracting) {
       updateData({ extractionStatus: 'extracting' })
@@ -51,82 +53,72 @@ export function WelcomeForm() {
     }
   }, [isExtracting, updateData])
 
-  // Update context when extraction fails - allow user to proceed manually
   useEffect(() => {
     if (failed && startedExtractionThisSession) {
       updateData({ extractionStatus: 'failed' })
     }
   }, [failed, startedExtractionThisSession, updateData])
 
-  // Handle website URL blur to trigger extraction
-  const handleWebsiteBlur = () => {
-    const url = formData.companyWebsite.trim()
-    if (url) {
-      startExtraction(url)
-    }
+  const handleWebsiteBlur = (url: string) => {
+    const trimmed = url.trim()
+    if (trimmed) startExtraction(trimmed)
   }
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
+  const updateEntry = (index: number, field: keyof DomainEntry, value: string | string[]) => {
+    setDomainEntries(prev => prev.map((entry, i) =>
+      i === index ? { ...entry, [field]: value } : entry
+    ))
+  }
+
+  const toggleRegion = (entryIndex: number, code: string) => {
+    setDomainEntries(prev => prev.map((entry, i) => {
+      if (i !== entryIndex) return entry
+      const regions = entry.regions.includes(code)
+        ? entry.regions.filter(r => r !== code)
+        : [...entry.regions, code]
+      return { ...entry, regions }
     }))
   }
 
+  const addDomain = () => {
+    if (domainEntries.length < 3) {
+      setDomainEntries(prev => [...prev, { domain: "", regions: [] }])
+    }
+  }
+
+  const removeDomain = (index: number) => {
+    if (domainEntries.length > 1) {
+      setDomainEntries(prev => prev.filter((_, i) => i !== index))
+    }
+  }
+
   const handleNext = async () => {
-    console.log("🚀 handleNext called")
-    console.log("Form data:", formData)
     setIsLoading(true)
-    
     try {
-      // Save form data to onboarding context
       updateData({
-        companyName: formData.companyName,
-        companyWebsite: formData.companyWebsite,
-        companySocialMedia: formData.companySocialMedia
+        companyName,
+        companyWebsite: domainEntries[0]?.domain || "",
+        domainEntries,
       })
-      
-      console.log("✅ Welcome form data saved successfully")
       router.push("/welcome/profile")
     } catch (error) {
-      console.error("❌ Failed to save welcome form data", error)
-      alert("Failed to save data. Please try again.")
+      console.error("Failed to save welcome form data", error)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const isFormValid = formData.companyName.trim() !== "" && formData.companyWebsite.trim() !== ""
-  
-  useEffect(() => {
-    console.log("Form validation state:", {
-      companyName: formData.companyName,
-      companyWebsite: formData.companyWebsite,
-      isFormValid
-    })
-  }, [formData, isFormValid])
+  const isFormValid =
+    companyName.trim() !== "" &&
+    domainEntries[0]?.domain.trim() !== "" &&
+    domainEntries.every(e => e.regions.length > 0)
 
-  // Show loading overlay when extracting
-  if (isExtracting) {
-    return (
-      <Card className="w-full max-w-[480px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
-        <CardContent className="py-16">
-          <div className="flex flex-col items-center justify-center space-y-6">
-            <div className="relative">
-              <div className="w-16 h-16 border-2 border-white/10 rounded-full"></div>
-              <div className="absolute inset-0 w-16 h-16 border-2 border-white/10 border-t-white rounded-full animate-spin"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-3 h-3 bg-white rounded-full animate-pulse shadow-[0_0_12px_rgba(255,255,255,0.4)]"></div>
-              </div>
-            </div>
-            <div className="text-center space-y-2">
-              <p className="text-white font-medium">Analyzing your website</p>
-              <p className="text-white/50 text-sm">Extracting company information...</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    )
+  const regionSummary = (regions: string[]) => {
+    if (regions.length === 0) return null
+    if (regions.length <= 2) {
+      return REGIONS.filter(r => regions.includes(r.code)).map(r => r.label).join(", ")
+    }
+    return `${regions.length} regions selected`
   }
 
   return (
@@ -148,40 +140,98 @@ export function WelcomeForm() {
             id="companyName"
             type="text"
             placeholder="Enter your company name"
-            value={formData.companyName}
-            onChange={(e) => handleInputChange("companyName", e.target.value)}
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
             className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20"
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="companyWebsite" className="text-sm font-medium text-white/90">
-            Company Website
-          </Label>
-          <Input
-            id="companyWebsite"
-            type="url"
-            placeholder="https://yourcompany.com"
-            value={formData.companyWebsite}
-            onChange={(e) => handleInputChange("companyWebsite", e.target.value)}
-            onBlur={handleWebsiteBlur}
-            className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20"
-          />
-        </div>
+        {domainEntries.map((entry, index) => (
+          <div key={index} className="space-y-3">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-white/90">
+                {index === 0 ? "Company Domain" : `Domain ${index + 1}`}
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="url"
+                  placeholder="https://yourcompany.com"
+                  value={entry.domain}
+                  onChange={(e) => updateEntry(index, "domain", e.target.value)}
+                  onBlur={(e) => index === 0 && handleWebsiteBlur(e.target.value)}
+                  className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20"
+                />
+                {index === 0 && isExtracting && (
+                  <div className="shrink-0 flex items-center gap-1.5 text-white/50">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span className="text-xs whitespace-nowrap">Analyzing...</span>
+                  </div>
+                )}
+                {index > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => removeDomain(index)}
+                    className="shrink-0 p-1.5 rounded-md text-white/30 hover:text-white/70 hover:bg-white/[0.04] transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="companySocialMedia" className="text-sm font-medium text-white/90">
-            Company Social Media
-          </Label>
-          <Input
-            id="companySocialMedia"
-            type="url"
-            placeholder="https://twitter.com/yourcompany"
-            value={formData.companySocialMedia}
-            onChange={(e) => handleInputChange("companySocialMedia", e.target.value)}
-            className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20"
-          />
-        </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-white/90">
+                Tracking Regions
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none md:text-sm items-center justify-between bg-white/[0.03] border-white/[0.06] text-white rounded-lg focus:ring-white/20 focus:border-white/20"
+                  >
+                    <span className={`truncate ${entry.regions.length > 0 ? "text-white" : "text-white/40"}`}>
+                      {regionSummary(entry.regions) || "Select regions"}
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-white/40" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="w-[var(--radix-popover-trigger-width)] p-1 bg-[#1a1a1a] border border-white/[0.08] rounded-lg"
+                >
+                  {REGIONS.map(region => (
+                    <label
+                      key={region.code}
+                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-md cursor-pointer hover:bg-white/[0.04] transition-colors"
+                    >
+                      <Checkbox
+                        checked={entry.regions.includes(region.code)}
+                        onCheckedChange={() => toggleRegion(index, region.code)}
+                      />
+                      <CircleFlag countryCode={region.code.toLowerCase()} height="16" width="16" className="flex-shrink-0" style={{ width: 16, height: 16 }} />
+                      <span className="text-sm text-white/80">{region.label}</span>
+                    </label>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {index < domainEntries.length - 1 && (
+              <div className="border-t border-white/[0.06]" />
+            )}
+          </div>
+        ))}
+
+        {domainEntries.length < 3 && (
+          <button
+            type="button"
+            onClick={addDomain}
+            className="flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add another domain
+          </button>
+        )}
 
         <Button
           type="button"
@@ -206,4 +256,4 @@ export function WelcomeForm() {
       </CardContent>
     </Card>
   )
-} 
+}

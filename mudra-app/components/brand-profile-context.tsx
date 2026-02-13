@@ -116,16 +116,19 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     try { localStorage.setItem(ACTIVE_COUNTRY_KEY, country); } catch {}
   }, []);
 
-  // Sync selectedCountry to profile's primaryCountry when profile changes
-  // Only if no country was already persisted for this session
+  // Sync selectedCountry to profile's primaryCountry when profile or its country changes.
+  // Tracks the last-synced value so we sync when:
+  //  - profile ID changes (switching profiles)
+  //  - primaryCountry appears (server response after cache hit)
+  //  - primaryCountry value changes (profile updated)
+  const profileCountry: string | undefined = (profile as any).primaryCountry;
+  const lastSyncedCountry = useRef<string>("");
   useEffect(() => {
-    if (profile.id > 0 && (profile as any).primaryCountry) {
-      const stored = localStorage.getItem(ACTIVE_COUNTRY_KEY);
-      if (!stored) {
-        setSelectedCountry((profile as any).primaryCountry);
-      }
+    if (profile.id > 0 && profileCountry && profileCountry !== lastSyncedCountry.current) {
+      lastSyncedCountry.current = profileCountry;
+      setSelectedCountry(profileCountry);
     }
-  }, [profile.id, setSelectedCountry]);
+  }, [profile.id, profileCountry, setSelectedCountry]);
 
   // Use a ref to track loading state without causing re-renders of the callback
   const isLoadingRef = useRef(false);

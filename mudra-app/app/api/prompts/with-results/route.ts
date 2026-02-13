@@ -78,6 +78,8 @@ export async function GET(request: NextRequest) {
     // This ensures List View matches Deep View which also uses all runs
     let allAnalysisResults: any[] = []
     let latestAnalysis: any = null
+    // Track whether we fell back to unfiltered results (affects prompt language filter)
+    let effectiveCountryFilter = countryFilter
     try {
       allAnalysisResults = await prisma.geoAnalysisResult.findMany({
         where: {
@@ -88,6 +90,19 @@ export async function GET(request: NextRequest) {
           createdAt: 'desc'
         }
       })
+
+      // Fallback: if country filter returned nothing, retry without it so data always renders
+      if (allAnalysisResults.length === 0 && countryFilter) {
+        console.log(`⚠️ No GeoAnalysisResults for country=${countryFilter}, falling back to all countries`)
+        allAnalysisResults = await prisma.geoAnalysisResult.findMany({
+          where: { brandProfileId: profileId },
+          orderBy: { createdAt: 'desc' }
+        })
+        if (allAnalysisResults.length > 0) {
+          effectiveCountryFilter = undefined
+        }
+      }
+
       if (allAnalysisResults.length > 0) {
         latestAnalysis = allAnalysisResults[0] // Keep reference to latest for metadata
         console.log(`✅ Found ${allAnalysisResults.length} GeoAnalysisResult(s) for brand profile ${profileId} (latest: ${latestAnalysis.createdAt})`)
@@ -111,12 +126,27 @@ export async function GET(request: NextRequest) {
         where: {
           brandProfileId: profileId,
           status: 'completed',
-          ...(countryFilter ? { country: countryFilter } : {}),
+          ...(effectiveCountryFilter ? { country: effectiveCountryFilter } : {}),
         },
         orderBy: {
           ranAt: 'desc'
         }
       })
+
+      // Fallback: if country filter returned nothing, retry without it
+      if (!latestAnalysisRun && effectiveCountryFilter) {
+        latestAnalysisRun = await prisma.analysisRun.findFirst({
+          where: {
+            brandProfileId: profileId,
+            status: 'completed',
+          },
+          orderBy: { ranAt: 'desc' }
+        })
+        if (latestAnalysisRun) {
+          effectiveCountryFilter = undefined
+        }
+      }
+
       if (latestAnalysisRun) {
         console.log(`✅ Found completed AnalysisRun for brand profile ${profileId} (id: ${latestAnalysisRun.id})`)
       }
@@ -138,8 +168,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Compute language filter from country so we only return prompts in the matching language
-    const promptLanguageFilter = countryFilter && isAllowedCountry(countryFilter as CountryCode)
-      ? getLanguageForCountry(countryFilter as CountryCode)
+    // Use effectiveCountryFilter so that when we fell back to all countries we also show all-language prompts
+    const promptLanguageFilter = effectiveCountryFilter && isAllowedCountry(effectiveCountryFilter as CountryCode)
+      ? getLanguageForCountry(effectiveCountryFilter as CountryCode)
       : undefined
 
     // Helper function to get and return prompts without results
@@ -470,7 +501,7 @@ export async function GET(request: NextRequest) {
     // Combine prompts: matched (DB + results), unmatched tested (results only),
     // and unmatched DB (DB only — excluded when country filter is active to avoid
     // showing prompts from another language that have zero results for this country)
-    const prompts = countryFilter
+    const prompts = effectiveCountryFilter
       ? [...matchedPrompts, ...unmatchedTestedPrompts]
       : [...matchedPrompts, ...unmatchedTestedPrompts, ...unmatchedPrompts]
 

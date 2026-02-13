@@ -3,7 +3,7 @@
  * Handles both onboarding and dashboard analysis requests
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { runUnifiedAnalysis } from '@/lib/services/unified-analysis.service';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
@@ -74,6 +74,13 @@ export async function POST(request: NextRequest) {
       country,
       countries,
     });
+
+    // Keep the Vercel function alive until all queued country jobs complete.
+    // after() runs after the response is sent but keeps the function's execution context.
+    if (result.backgroundWork) {
+      const bgWork = result.backgroundWork;
+      after(async () => { await bgWork; });
+    }
 
     if (result.success) {
       console.log('[Unified Analysis API] Analysis completed successfully');

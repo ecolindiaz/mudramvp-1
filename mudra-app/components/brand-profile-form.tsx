@@ -70,10 +70,13 @@ export function BrandProfileForm() {
   // Load profile data from context on mount
   useEffect(() => {
     if (profile && profile.companyName) {
-      // Ensure arrays are properly parsed
+      // Filter out null/undefined values so DB nulls don't overwrite defaults
+      const nonNullProfile = Object.fromEntries(
+        Object.entries(profile).filter(([_, v]) => v != null)
+      )
       const profileData = {
         ...initialData,
-        ...profile,
+        ...nonNullProfile,
         companyServices: safeParseArray(profile.companyServices, initialData.companyServices),
         companyICP: safeParseArray(profile.companyICP, initialData.companyICP),
         competitors: safeParseArray(profile.competitors, initialData.competitors),
@@ -129,9 +132,12 @@ export function BrandProfileForm() {
 
   const handleCancel = () => {
     // Reset to last saved context, parsing arrays
+    const nonNullProfile = Object.fromEntries(
+      Object.entries(profile).filter(([_, v]) => v != null)
+    )
     const profileData = {
       ...initialData,
-      ...profile,
+      ...nonNullProfile,
       companyServices: safeParseArray(profile.companyServices, initialData.companyServices),
       companyICP: safeParseArray(profile.companyICP, initialData.companyICP),
       competitors: safeParseArray(profile.competitors, initialData.competitors),
@@ -247,7 +253,7 @@ export function BrandProfileForm() {
               <Avatar className="h-20 w-20">
                 <AvatarImage src={formData.userAvatar || undefined} />
                 <AvatarFallback className="text-lg">
-                  {formData.userName.split(' ').map(n => n[0]).join('')}
+                  {(formData.userName || '').split(' ').map(n => n[0]).join('')}
                 </AvatarFallback>
               </Avatar>
               {isEditing && (

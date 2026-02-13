@@ -38,6 +38,8 @@ export interface UnifiedAnalysisResult {
   reportId?: number;
   error?: string;
   errorCode?: string;
+  /** Promise for background queue processing (multi-country). Pass to next/server `after()` to keep the function alive. */
+  backgroundWork?: Promise<void>;
   scores: {
     aiVisibility?: number;
     technical?: number;
@@ -256,11 +258,11 @@ export async function runUnifiedAnalysis(
           });
           console.log(`[Unified Analysis] Queued ${jobIds.length} background country jobs: ${remainingCountries.join(', ')}`);
 
-          // Process queued jobs directly in an unwaited async IIFE
-          // (avoids dependency on env vars for self-chaining HTTP calls)
+          // Return a promise the caller can pass to next/server after() to keep
+          // the Vercel function alive while background jobs complete.
           const { processNextJob } = await import('./analysis-job-queue');
           const bpId = config.brandProfileId;
-          (async () => {
+          result.backgroundWork = (async () => {
             try {
               let hasMore = true;
               while (hasMore) {

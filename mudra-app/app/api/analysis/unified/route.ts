@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
       generateReport = false,
       country,     // Single country for re-analysis
       countries,   // Multiple countries for onboarding
+      isQueuedJob = false, // GEO-only run (Technical already completed for this monitor)
     } = body;
 
     // Validate required fields
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
       generateReport,
       country,
       countries,
+      isQueuedJob,
     });
 
     // Keep the Vercel function alive until all queued country jobs complete.

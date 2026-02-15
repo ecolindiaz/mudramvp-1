@@ -373,9 +373,11 @@ export async function getPromptVisibilityHistory(
  */
 function normalizeText(text: string): string {
   return text
+    .normalize('NFD')           // Decompose accents (á → a + combining accent)
+    .replace(/[\u0300-\u036f]/g, '') // Strip combining diacritical marks
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s]/g, '')
+    .replace(/[^\w\s]/g, '')    // Strip remaining non-alphanumeric
     .replace(/\s+/g, ' ')
 }
 

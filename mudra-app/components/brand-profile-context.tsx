@@ -79,16 +79,22 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
     return 0;
   })());
 
-  // Initialize selectedCountry from localStorage (persisted per-session)
-  const [selectedCountry, setSelectedCountryState] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(ACTIVE_COUNTRY_KEY);
-      if (stored) return stored;
-    }
-    return "US";
-  });
+  // Initialize selectedCountry as "US" for SSR, then hydrate from localStorage
+  const [selectedCountry, setSelectedCountryState] = useState("US");
   const [isLoading, setIsLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+
+  // Hydrate selectedCountry from localStorage after mount (avoids SSR mismatch)
+  const hasHydratedCountry = useRef(false);
+  useEffect(() => {
+    if (!hasHydratedCountry.current) {
+      hasHydratedCountry.current = true;
+      const stored = localStorage.getItem(ACTIVE_COUNTRY_KEY);
+      if (stored) {
+        setSelectedCountryState(stored);
+      }
+    }
+  }, []);
 
   // Save to localStorage whenever profile changes
   useEffect(() => {
@@ -117,15 +123,13 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
   }, []);
 
   // Sync selectedCountry to profile's primaryCountry ONLY on initial load
-  // (when localStorage doesn't already have a user-chosen country) or
-  // when the user explicitly switches monitors via switchProfile().
+  // when localStorage doesn't have a user-chosen country.
   // This prevents page navigation from resetting the user's region selection.
   const profileCountry: string | undefined = (profile as any).primaryCountry;
   const hasInitializedCountry = useRef(false);
   useEffect(() => {
     if (profile.id > 0 && profileCountry && !hasInitializedCountry.current) {
       hasInitializedCountry.current = true;
-      // Only set from profile if localStorage doesn't already have a user selection
       const storedCountry = localStorage.getItem(ACTIVE_COUNTRY_KEY);
       if (!storedCountry) {
         setSelectedCountry(profileCountry);

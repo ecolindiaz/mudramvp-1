@@ -167,10 +167,11 @@ export async function GET(request: NextRequest) {
       // Continue processing with allAnalysisResults (skip the early return below)
     }
 
-    // Compute language filter from country so we only return prompts in the matching language
-    // Use effectiveCountryFilter so that when we fell back to all countries we also show all-language prompts
-    const promptLanguageFilter = effectiveCountryFilter && isAllowedCountry(effectiveCountryFilter as CountryCode)
-      ? getLanguageForCountry(effectiveCountryFilter as CountryCode)
+    // Compute language filter from the ORIGINAL country filter (not the effective one)
+    // so prompts are always shown in the correct language for the selected region,
+    // even when analysis results fell back to a different country's data.
+    const promptLanguageFilter = countryFilter && isAllowedCountry(countryFilter as CountryCode)
+      ? getLanguageForCountry(countryFilter as CountryCode)
       : undefined
 
     // Helper function to get and return prompts without results
@@ -428,9 +429,11 @@ export async function GET(request: NextRequest) {
     // Step 5: Match prompt texts from analysis with Prompt records using normalized text
     const normalizeText = (text: string): string => {
       let normalized = text
+        .normalize('NFD')           // Decompose accents (á → a + combining accent)
+        .replace(/[\u0300-\u036f]/g, '') // Strip combining diacritical marks
         .toLowerCase()
         .trim()
-        .replace(/[^\w\s]/g, '')
+        .replace(/[^\w\s]/g, '')    // Strip remaining non-alphanumeric
         .replace(/\s+/g, ' ')
 
       // Strip common brand prefixes (Try*, Get*, Use*) to handle brand name changes
@@ -501,7 +504,7 @@ export async function GET(request: NextRequest) {
     // Combine prompts: matched (DB + results), unmatched tested (results only),
     // and unmatched DB (DB only — excluded when country filter is active to avoid
     // showing prompts from another language that have zero results for this country)
-    const prompts = effectiveCountryFilter
+    const prompts = countryFilter
       ? [...matchedPrompts, ...unmatchedTestedPrompts]
       : [...matchedPrompts, ...unmatchedTestedPrompts, ...unmatchedPrompts]
 

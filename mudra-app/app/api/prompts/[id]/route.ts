@@ -74,7 +74,7 @@ export async function GET(
     const days = dateRange === '7d' ? 7 : dateRange === '14d' ? 14 : 30
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
 
-    const allAnalysisResults = await prisma.geoAnalysisResult.findMany({
+    let allAnalysisResults = await prisma.geoAnalysisResult.findMany({
       where: {
         brandProfileId: profileId,
         ...(country ? { country } : {}),
@@ -83,6 +83,16 @@ export async function GET(
         createdAt: 'desc'
       }
     })
+
+    // Fallback: if country filter returned nothing, retry without it so data still renders
+    // (matches the fallback in prompts/with-results for consistency between list and deep view)
+    if (allAnalysisResults.length === 0 && country) {
+      console.log(`⚠️ [Prompt Detail] No GeoAnalysisResults for country=${country}, falling back to all countries`)
+      allAnalysisResults = await prisma.geoAnalysisResult.findMany({
+        where: { brandProfileId: profileId },
+        orderBy: { createdAt: 'desc' }
+      })
+    }
 
     if (!allAnalysisResults || allAnalysisResults.length === 0) {
       // Prompt exists but no analysis yet
@@ -135,9 +145,11 @@ export async function GET(
 
     const normalizeText = (text: string): string => {
       return text
+        .normalize('NFD')           // Decompose accents (á → a + combining accent)
+        .replace(/[\u0300-\u036f]/g, '') // Strip combining diacritical marks
         .toLowerCase()
         .trim()
-        .replace(/[^\w\s]/g, '')
+        .replace(/[^\w\s]/g, '')    // Strip remaining non-alphanumeric
         .replace(/\s+/g, ' ')
     }
 

@@ -182,11 +182,6 @@ export function PromptsForm() {
       startAnalysis(profile.id)
 
       const primaryRegions = onboardingData.domainEntries?.[0]?.regions?.filter(Boolean)
-      const allCountries = primaryRegions && primaryRegions.length > 0 ? primaryRegions : ["US"]
-      const firstCountry = allCountries[0]
-      const remainingCountries = allCountries.slice(1)
-
-      // Run first country with full pipeline (GEO + Technical), then remaining countries GEO-only
       const config = {
         brandProfileId: profile.id,
         brandName: onboardingData.companyName,
@@ -194,10 +189,10 @@ export function PromptsForm() {
         industry: onboardingData.companyIndustry || undefined,
         description: onboardingData.companyDescription || undefined,
         competitors: onboardingData.competitors || [],
-        countries: [firstCountry], // Only first country — we handle the rest sequentially below
-      };
+        countries: primaryRegions && primaryRegions.length > 0 ? primaryRegions : ["US"],
+      }
 
-      (async () => {
+      ;(async () => {
         try {
           console.log("[PromptsForm] Generating initial prompts...")
           await fetch('/api/prompts/generate-initial', {
@@ -211,40 +206,7 @@ export function PromptsForm() {
         }
 
         try {
-          // 1. Run first country (full: GEO + Technical)
           await runPipeline(config)
-          console.log(`[PromptsForm] First country (${firstCountry}) analysis complete`)
-
-          // 2. Run remaining countries sequentially (GEO-only, Technical already done)
-          for (const country of remainingCountries) {
-            console.log(`[PromptsForm] Starting analysis for country: ${country}`)
-            try {
-              const res = await fetch("/api/analysis/unified", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  brandProfileId: profile.id,
-                  brandName: onboardingData.companyName,
-                  website: onboardingData.companyWebsite,
-                  industry: onboardingData.companyIndustry || undefined,
-                  description: onboardingData.companyDescription || undefined,
-                  competitors: onboardingData.competitors || [],
-                  country,
-                  skipCooldown: true,
-                  isQueuedJob: true, // GEO-only, Technical already ran
-                }),
-              })
-              const result = await res.json()
-              if (result.success) {
-                console.log(`[PromptsForm] Country ${country} analysis complete`)
-              } else {
-                console.error(`[PromptsForm] Country ${country} analysis failed:`, result.error)
-              }
-            } catch (err) {
-              console.error(`[PromptsForm] Country ${country} analysis error:`, err)
-            }
-          }
-
           completeAnalysis(true)
         } catch (err) {
           console.error("[PromptsForm] Pipeline failed:", err)
@@ -252,52 +214,30 @@ export function PromptsForm() {
         }
       })()
 
-      // Fire-and-forget analysis for additional monitors (using per-domain extracted data)
-      // Each monitor runs all its countries sequentially
+      // Fire-and-forget analysis for additional monitors
       if (additionalMonitorIds.length > 0) {
         const extraEntries = onboardingData.domainEntries.slice(1).filter(e => e.domain.trim())
         additionalMonitorIds.forEach((monitorId, idx) => {
           const entry = extraEntries[idx]
           if (!entry) return
-          const domainIndex = idx + 1
-          const domainExtraction = onboardingData.additionalDomainExtractions?.[domainIndex]
-          const monitorCountries = entry.regions.filter(Boolean)
-          const countries = monitorCountries.length > 0 ? monitorCountries : ["US"]
-          console.log(`[PromptsForm] Triggering analysis for additional monitor ${monitorId} (${entry.domain})`, domainExtraction ? 'with per-domain data' : 'with shared data');
-
-          // Run each country sequentially for this additional monitor
-          (async () => {
-            for (let ci = 0; ci < countries.length; ci++) {
-              const country = countries[ci]
-              const isFirst = ci === 0
-              try {
-                console.log(`[PromptsForm] Monitor ${monitorId}: analyzing country ${country}${isFirst ? ' (full)' : ' (GEO-only)'}`)
-                const res = await fetch("/api/analysis/unified", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    brandProfileId: monitorId,
-                    brandName: onboardingData.companyName,
-                    website: entry.domain,
-                    industry: (domainExtraction?.industry || onboardingData.companyIndustry) || undefined,
-                    description: (domainExtraction?.companyDescription || onboardingData.companyDescription) || undefined,
-                    competitors: domainExtraction?.competitorUrls || onboardingData.competitors || [],
-                    country,
-                    skipCooldown: true,
-                    ...(isFirst ? {} : { isQueuedJob: true }), // Only first country does Technical
-                  }),
-                })
-                const result = await res.json()
-                if (result.success) {
-                  console.log(`[PromptsForm] Monitor ${monitorId}: country ${country} complete`)
-                } else {
-                  console.error(`[PromptsForm] Monitor ${monitorId}: country ${country} failed:`, result.error)
-                }
-              } catch (err) {
-                console.error(`[PromptsForm] Monitor ${monitorId}: country ${country} error:`, err)
-              }
-            }
-          })()
+          const countries = entry.regions.filter(Boolean)
+          console.log(`[PromptsForm] Triggering analysis for additional monitor ${monitorId} (${entry.domain})`)
+          fetch("/api/analysis/unified", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              brandProfileId: monitorId,
+              brandName: onboardingData.companyName,
+              website: entry.domain,
+              industry: onboardingData.companyIndustry || undefined,
+              description: onboardingData.companyDescription || undefined,
+              competitors: onboardingData.competitors || [],
+              countries: countries.length > 0 ? countries : ["US"],
+              skipCooldown: true,
+            }),
+          }).catch(err => {
+            console.error(`[PromptsForm] Additional monitor ${monitorId} analysis failed:`, err)
+          })
         })
       }
     }

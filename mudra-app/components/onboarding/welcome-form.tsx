@@ -10,7 +10,7 @@ import { ArrowRight, Loader2, ChevronDown, Plus, X } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CircleFlag } from "react-circle-flags"
-import { useOnboarding, type DomainEntry, type ExtractedCompanyInfo } from "./onboarding-context"
+import { useOnboarding, type DomainEntry } from "./onboarding-context"
 import { useCompanyExtraction } from "@/hooks/use-company-extraction"
 
 const REGIONS = [
@@ -36,7 +36,6 @@ export function WelcomeForm() {
 
   const { isExtracting, extractedData, failed, startExtraction } = useCompanyExtraction()
   const [startedExtractionThisSession, setStartedExtractionThisSession] = useState(false)
-  const [additionalExtracting, setAdditionalExtracting] = useState<Record<number, boolean>>({})
 
   useEffect(() => {
     if (extractedData && startedExtractionThisSession) {
@@ -63,47 +62,6 @@ export function WelcomeForm() {
   const handleWebsiteBlur = (url: string) => {
     const trimmed = url.trim()
     if (trimmed) startExtraction(trimmed)
-  }
-
-  // Extract company info for additional domains independently
-  const handleAdditionalDomainBlur = async (index: number, url: string) => {
-    const trimmed = url.trim()
-    if (!trimmed) return
-
-    let normalizedUrl = trimmed
-    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-      normalizedUrl = `https://${normalizedUrl}`
-    }
-    try { new URL(normalizedUrl) } catch { return }
-
-    setAdditionalExtracting(prev => ({ ...prev, [index]: true }))
-    try {
-      const response = await fetch('/api/onboarding/extract-company-info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: normalizedUrl }),
-      })
-      const result = await response.json()
-      if (result.success && result.data) {
-        const extracted: ExtractedCompanyInfo = {
-          ...result.data,
-          ...(result.meta?.competitorSource && { competitorSource: result.meta.competitorSource }),
-        }
-        updateData({
-          additionalDomainExtractions: {
-            ...data.additionalDomainExtractions,
-            [index]: extracted,
-          },
-        })
-        console.log(`✅ Extracted company info for domain ${index}: ${url}`)
-      } else {
-        console.log(`Company extraction failed for domain ${index}:`, result.error?.message || 'Unknown error')
-      }
-    } catch (err) {
-      console.log(`Company extraction network error for domain ${index}:`, err)
-    } finally {
-      setAdditionalExtracting(prev => ({ ...prev, [index]: false }))
-    }
   }
 
   const updateEntry = (index: number, field: keyof DomainEntry, value: string | string[]) => {
@@ -200,13 +158,10 @@ export function WelcomeForm() {
                   placeholder="https://yourcompany.com"
                   value={entry.domain}
                   onChange={(e) => updateEntry(index, "domain", e.target.value)}
-                  onBlur={(e) => {
-                    if (index === 0) handleWebsiteBlur(e.target.value)
-                    else handleAdditionalDomainBlur(index, e.target.value)
-                  }}
+                  onBlur={(e) => index === 0 && handleWebsiteBlur(e.target.value)}
                   className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20"
                 />
-                {((index === 0 && isExtracting) || (index > 0 && additionalExtracting[index])) && (
+                {index === 0 && isExtracting && (
                   <div className="shrink-0 flex items-center gap-1.5 text-white/50">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span className="text-xs whitespace-nowrap">Analyzing...</span>

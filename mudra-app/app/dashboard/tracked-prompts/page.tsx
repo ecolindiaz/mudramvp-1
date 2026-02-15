@@ -471,6 +471,7 @@ function TrackedPromptsPageInner() {
   const [analysisStatus, setAnalysisStatus] = useState<Record<number, 'pending' | 'running' | 'done' | 'error'>>({})
   const [analysisCompleted, setAnalysisCompleted] = useState(0)
   const analysisAbortRef = useRef(false)
+  const fetchAbortRef = useRef<AbortController | null>(null)
 
   // Fetch prompts function (extracted for reuse)
   const fetchPrompts = async () => {
@@ -479,15 +480,28 @@ function TrackedPromptsPageInner() {
       return
     }
 
-    console.log('📡 Fetching tracked prompts for brand:', profile.id, 'with model filter:', selectedModel)
+    // Abort any in-flight fetch to prevent stale responses from overwriting fresh data
+    if (fetchAbortRef.current) {
+      fetchAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    fetchAbortRef.current = controller
+
+    console.log('📡 Fetching tracked prompts for brand:', profile.id, 'with model filter:', selectedModel, 'country:', selectedCountry)
     setIsLoading(true)
 
     try {
       const modelParam = selectedModel !== 'all' ? `&model=${encodeURIComponent(selectedModel)}` : ''
       const countryParam = selectedCountry ? `&country=${selectedCountry}` : ''
-      const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}${countryParam}`)
+      const response = await fetch(
+        `/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}${countryParam}`,
+        { signal: controller.signal }
+      )
       const result = await response.json()
-      
+
+      // If this request was aborted while parsing, don't update state
+      if (controller.signal.aborted) return
+
       console.log('📥 Prompts API response:', {
         success: result.success,
         count: result.count,
@@ -507,7 +521,7 @@ function TrackedPromptsPageInner() {
             model: transformedData[0].model
           })
         }
-        
+
         setData(transformedData)
       } else if (!result.hasAnalysis) {
         console.warn('⚠️  No analysis run yet for this brand')
@@ -516,7 +530,8 @@ function TrackedPromptsPageInner() {
         console.warn('⚠️  No prompts found')
         setData([])
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') return // Expected when switching regions quickly
       console.error('❌ Error fetching prompts:', error)
       setErrorMessage('Failed to load prompts. Please try again.')
     } finally {
@@ -527,6 +542,12 @@ function TrackedPromptsPageInner() {
   // Fetch prompts on mount and when profile or model filter changes
   useEffect(() => {
     fetchPrompts()
+    return () => {
+      // Cleanup: abort fetch when deps change or unmount
+      if (fetchAbortRef.current) {
+        fetchAbortRef.current.abort()
+      }
+    }
   }, [profile?.id, selectedModel, selectedCountry])
 
   // Filter the data based on selected filters

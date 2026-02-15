@@ -504,8 +504,13 @@ export async function GET(request: NextRequest) {
     // Combine prompts: matched (DB + results), unmatched tested (results only),
     // and unmatched DB (DB only — excluded when country filter is active to avoid
     // showing prompts from another language that have zero results for this country)
+    // When we fell back to all countries (effectiveCountryFilter is null but countryFilter is set),
+    // exclude unmatchedTestedPrompts because they may contain prompts from other languages/countries.
+    const inFallback = countryFilter && !effectiveCountryFilter
     const prompts = countryFilter
-      ? [...matchedPrompts, ...unmatchedTestedPrompts]
+      ? (inFallback
+          ? [...matchedPrompts]                               // Fallback: only DB-matched (already language-filtered)
+          : [...matchedPrompts, ...unmatchedTestedPrompts])   // Normal: include tested prompts too
       : [...matchedPrompts, ...unmatchedTestedPrompts, ...unmatchedPrompts]
 
     // Build a map of prompts with their results (including ALL providers)

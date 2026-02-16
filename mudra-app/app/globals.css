@@ -185,6 +185,18 @@
   }
 }
 
+/* Sidebar layout – plain CSS fallback so the main content is always
+   pushed right when the sidebar is expanded, regardless of whether
+   Tailwind compiles the peer-data-* utility correctly. */
+@media (min-width: 768px) {
+  [data-slot="sidebar"][data-state="expanded"] ~ [data-slot="sidebar-inset"] {
+    margin-left: var(--sidebar-width, 16rem);
+  }
+  [data-slot="sidebar"][data-state="collapsed"] ~ [data-slot="sidebar-inset"] {
+    margin-left: 0;
+  }
+}
+
 /* Gradient Button Styles */
 @layer components {
   .rotatingGradient {

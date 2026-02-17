@@ -349,13 +349,18 @@ function extractSchema($: CheerioAPI): SchemaExtraction {
 		const content = $(el).html() || "";
 		try {
 			const data = JSON.parse(content);
+			const rootContext = data["@context"];
 
-			// Handle both single objects and arrays
-			const items = Array.isArray(data) ? data : [data];
+			// Handle @graph arrays (used by Yoast, Stripe, WordPress, etc.),
+			// plain arrays, and single objects
+			const items = Array.isArray(data["@graph"])
+				? data["@graph"]
+				: Array.isArray(data) ? data : [data];
 
 			for (const item of items) {
 				const type = item["@type"] || "Unknown";
-				const hasContext = !!item["@context"];
+				// @context can live at the root level when using @graph
+				const hasContext = !!item["@context"] || !!rootContext;
 				const hasType = !!item["@type"];
 				const valid = hasContext && hasType;
 

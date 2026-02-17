@@ -215,6 +215,63 @@ function parseFaqDataFromDescription(desc: string | null | undefined): Array<{ q
 	return [];
 }
 
+/**
+ * Extract the page type from an issue description.
+ * The scorer embeds `<!-- PAGE_TYPE: ... -->` in FAQ_count issues.
+ */
+function parsePageTypeFromDescription(desc: string | null | undefined): string | null {
+	if (!desc) return null;
+	const match = desc.match(/<!-- PAGE_TYPE: (\S+) -->/);
+	return match ? match[1] : null;
+}
+
+/**
+ * Page-type-specific FAQ placeholder questions and answers.
+ * Used when no real FAQ data is available in the issue description.
+ */
+const FAQ_PLACEHOLDERS: Record<string, Array<{ question: string; answer: string }>> = {
+	home: [
+		{ question: "What does [Company] do?", answer: "[Replace with your company's core value proposition from the homepage hero section.]" },
+		{ question: "Who is [Product] built for?", answer: "[Replace with your target audience — reference the personas or industries mentioned on this page.]" },
+		{ question: "How do I get started?", answer: "[Replace with your onboarding steps or CTA — reference the signup/demo flow on this page.]" },
+	],
+	pricing: [
+		{ question: "How much does [Product] cost?", answer: "[Replace with your actual plan names and prices visible on this page.]" },
+		{ question: "Is there a free trial or free plan?", answer: "[Replace with your free tier or trial details from this page.]" },
+		{ question: "What's included in each plan?", answer: "[Replace with the key feature differences between your plans as shown on this page.]" },
+	],
+	features: [
+		{ question: "What are the key features of [Product]?", answer: "[Replace with the top 3–4 features listed on this page.]" },
+		{ question: "Does [Product] integrate with other tools?", answer: "[Replace with integration details if listed on this page.]" },
+		{ question: "How does [Feature] work?", answer: "[Replace with the explanation of a specific feature from this page.]" },
+	],
+	product: [
+		{ question: "What is [Product]?", answer: "[Replace with the product description from the headline and overview section.]" },
+		{ question: "How does [Product] help with [Use Case]?", answer: "[Replace with the specific use case or benefit described on this page.]" },
+		{ question: "What do I need to get started?", answer: "[Replace with requirements or next steps mentioned on this page.]" },
+	],
+	solutions: [
+		{ question: "How does [Company] solve [Problem]?", answer: "[Replace with the solution overview from this page.]" },
+		{ question: "What results can I expect?", answer: "[Replace with specific outcomes or metrics mentioned on this page.]" },
+		{ question: "Who uses [Product] for this?", answer: "[Replace with customer types or industries mentioned on this page.]" },
+	],
+	blog: [
+		{ question: "What is [Topic]?", answer: "[Replace with the article's definition or key concept.]" },
+		{ question: "Why does [Topic] matter?", answer: "[Replace with the key insight or motivation from this article.]" },
+		{ question: "What are the key takeaways?", answer: "[Replace with the main points or conclusions from this article.]" },
+	],
+	"use-cases": [
+		{ question: "How does [Product] help with [Use Case]?", answer: "[Replace with the use case description from this page.]" },
+		{ question: "What results have customers achieved?", answer: "[Replace with specific metrics or outcomes mentioned on this page.]" },
+		{ question: "How do I get started with [Use Case]?", answer: "[Replace with the next steps or CTA from this page.]" },
+	],
+	customers: [
+		{ question: "Who uses [Product]?", answer: "[Replace with the customer names, industries, or segments shown on this page.]" },
+		{ question: "What results have customers achieved?", answer: "[Replace with specific metrics or outcomes mentioned on this page.]" },
+		{ question: "Are there case studies available?", answer: "[Replace with case study references if mentioned on this page.]" },
+	],
+};
+
 function buildSchemaObject(
 	schemaType: string,
 	targetUrl: string,
@@ -556,7 +613,17 @@ function buildFaqScript(
 		).join("\n");
 		faqHtml = `<section class="faq-section">\n  <h2>Frequently Asked Questions</h2>\n${itemsHtml}\n</section>`;
 	} else {
-		faqHtml = `<section class="faq-section">
+		// Use page-type-specific placeholders when available
+		const pageType = parsePageTypeFromDescription(issue.description);
+		const placeholders = pageType ? FAQ_PLACEHOLDERS[pageType] : null;
+
+		if (placeholders) {
+			const itemsHtml = placeholders.map(faq =>
+				`  <div class="faq-item">\n    <h3>${escapeHtml(faq.question)}</h3>\n    <p>${escapeHtml(faq.answer)}</p>\n  </div>`
+			).join("\n");
+			faqHtml = `<section class="faq-section">\n  <h2>Frequently Asked Questions</h2>\n  <!-- Replace the placeholder questions below with your actual FAQ content -->\n${itemsHtml}\n</section>`;
+		} else {
+			faqHtml = `<section class="faq-section">
   <h2>Frequently Asked Questions</h2>
   <!-- Replace these with your actual FAQ content -->
   <div class="faq-item">
@@ -568,6 +635,7 @@ function buildFaqScript(
     <p>Your answer here.</p>
   </div>
 </section>`;
+		}
 	}
 
 	const faqSchema = buildSchemaObject(

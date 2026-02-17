@@ -84,6 +84,10 @@ const TOPIC_TO_FILE: Record<string, string> = {
 	"testimonials": "content-rules.md",
 	"entities": "content-rules.md",
 	"answer-first writing": "content-rules.md",
+
+	// FAQ Templates
+	"faq templates": "faq-templates.md",
+	"faq generation": "faq-templates.md",
 };
 
 function normalizeTopic(topic: string): string {
@@ -213,6 +217,58 @@ export async function readSchemaKnowledge(issueText: string): Promise<string> {
 
 	const parts = [header, ...sectionTexts, tail].filter(Boolean);
 	return parts.join("\n\n---\n\n");
+}
+
+// Page type header patterns in faq-templates.md
+const FAQ_PAGE_TYPE_HEADERS: Record<string, string> = {
+	home: "## home",
+	pricing: "## pricing",
+	features: "## features",
+	product: "## product",
+	solutions: "## solutions",
+	blog: "## blog",
+	"use-cases": "## use-cases",
+	customers: "## customers",
+};
+
+/**
+ * Read FAQ generation templates for a specific page type.
+ *
+ * Extracts the general constraints header plus the section matching the given
+ * page type from faq-templates.md. Returns empty string if the file or section
+ * is not found.
+ */
+export async function readFaqTemplates(pageType: string): Promise<string> {
+	const kbRoot = await resolveKbRoot();
+	let fullDoc: string;
+	try {
+		fullDoc = await fs.readFile(path.join(kbRoot, "faq-templates.md"), "utf8");
+	} catch {
+		return "";
+	}
+
+	// Always include the header (grounding rule + general constraints)
+	const firstSectionIdx = fullDoc.indexOf("\n## home");
+	const header = firstSectionIdx > 0 ? fullDoc.slice(0, firstSectionIdx).trim() : "";
+
+	// Find the matching page type section
+	const sectionHeader = FAQ_PAGE_TYPE_HEADERS[pageType];
+	if (!sectionHeader) {
+		return header;
+	}
+
+	const start = fullDoc.indexOf(sectionHeader);
+	if (start < 0) {
+		return header;
+	}
+
+	// Find the end: next "---" divider after this section
+	const afterHeader = start + sectionHeader.length;
+	const nextDivider = fullDoc.indexOf("\n---\n", afterHeader);
+	const end = nextDivider > 0 ? nextDivider : fullDoc.length;
+	const sectionText = fullDoc.slice(start, end).trim();
+
+	return [header, sectionText].filter(Boolean).join("\n\n---\n\n");
 }
 
 export { TOPIC_TO_FILE };

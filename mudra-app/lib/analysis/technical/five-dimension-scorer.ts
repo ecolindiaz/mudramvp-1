@@ -596,7 +596,8 @@ function generateIssues(
 	// recommended schemas when FAQ content exists, avoiding duplicate issues.
 	if (FAQ_RELEVANT_PAGE_TYPES.has(extraction.page_type)) {
 		if (faqScore.score === 0) {
-			issues.push(createIssue("FAQ_count", "faq", "medium", "No FAQ content found", pageUrl));
+			issues.push(createIssue("FAQ_count", "faq", "medium",
+				`No FAQ content found\n<!-- PAGE_TYPE: ${extraction.page_type} -->`, pageUrl));
 		}
 	}
 

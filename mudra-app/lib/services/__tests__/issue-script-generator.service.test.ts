@@ -9,6 +9,7 @@ import {
 	generateScriptForIssue,
 	isScriptGenerationSupported,
 } from "../issue-script-generator.service";
+import { detectFrameworkFromContext } from "../issue-agent-executor.service";
 
 describe("issue-script-generator", () => {
 	it("supports schema/meta/faq issue types", () => {
@@ -141,6 +142,104 @@ describe("issue-script-generator", () => {
 		expect(result.generatedOutput).not.toContain("What is Acme?");
 	});
 
+	it("generates pricing-page-specific FAQ placeholders when PAGE_TYPE is pricing", () => {
+		const result = generateScriptForIssue(
+			{
+				id: 110,
+				title: "Add FAQ Content",
+				description: "No FAQ content found\n<!-- PAGE_TYPE: pricing -->",
+				agentType: "faq_sections",
+				checkCode: "FAQ_count",
+				affectedUrl: "https://acme.com/pricing",
+			},
+			{
+				companyName: "Acme",
+				companyWebsite: "https://acme.com",
+				companyDescription: "Acme builds AI sales tools.",
+			}
+		);
+
+		expect(result.outputType).toBe("code");
+		expect(result.generatedOutput).toContain("<section class=\"faq-section\">");
+		// Should contain pricing-specific placeholder questions
+		expect(result.generatedOutput).toContain("How much does [Product] cost?");
+		expect(result.generatedOutput).toContain("Is there a free trial or free plan?");
+		// Should NOT contain generic placeholders
+		expect(result.generatedOutput).not.toContain("Your first question here?");
+		expect(result.generatedOutput).not.toContain("Your second question here?");
+	});
+
+	it("generates home-page-specific FAQ placeholders when PAGE_TYPE is home", () => {
+		const result = generateScriptForIssue(
+			{
+				id: 111,
+				title: "Add FAQ Content",
+				description: "No FAQ content found\n<!-- PAGE_TYPE: home -->",
+				agentType: "faq_sections",
+				checkCode: "FAQ_count",
+				affectedUrl: "https://acme.com/",
+			},
+			{
+				companyName: "Acme",
+				companyWebsite: "https://acme.com",
+				companyDescription: "Acme builds AI sales tools.",
+			}
+		);
+
+		expect(result.outputType).toBe("code");
+		// Should contain home-specific placeholder questions
+		expect(result.generatedOutput).toContain("What does [Company] do?");
+		expect(result.generatedOutput).toContain("Who is [Product] built for?");
+		// Should NOT contain pricing-specific or generic placeholders
+		expect(result.generatedOutput).not.toContain("How much does [Product] cost?");
+		expect(result.generatedOutput).not.toContain("Your first question here?");
+	});
+
+	it("generates features-page-specific FAQ placeholders when PAGE_TYPE is features", () => {
+		const result = generateScriptForIssue(
+			{
+				id: 112,
+				title: "Add FAQ Content",
+				description: "No FAQ content found\n<!-- PAGE_TYPE: features -->",
+				agentType: "faq_sections",
+				checkCode: "FAQ_count",
+				affectedUrl: "https://acme.com/features",
+			},
+			{
+				companyName: "Acme",
+				companyWebsite: "https://acme.com",
+				companyDescription: "Acme builds AI sales tools.",
+			}
+		);
+
+		expect(result.outputType).toBe("code");
+		expect(result.generatedOutput).toContain("What are the key features of [Product]?");
+		expect(result.generatedOutput).not.toContain("Your first question here?");
+	});
+
+	it("falls back to generic placeholders when no PAGE_TYPE is present", () => {
+		const result = generateScriptForIssue(
+			{
+				id: 113,
+				title: "Add FAQ Content",
+				description: "No FAQ content found",
+				agentType: "faq_sections",
+				checkCode: "FAQ_count",
+				affectedUrl: "https://acme.com/features",
+			},
+			{
+				companyName: "Acme",
+				companyWebsite: "https://acme.com",
+				companyDescription: "Acme builds AI sales tools.",
+			}
+		);
+
+		expect(result.outputType).toBe("code");
+		// Should fall back to generic placeholders
+		expect(result.generatedOutput).toContain("Your first question here?");
+		expect(result.generatedOutput).toContain("Your second question here?");
+	});
+
 	it("uses real FAQ data in faq_sections agent type", () => {
 		const faqData = JSON.stringify([
 			{ question: "Is there a free trial?", answer: "Yes, we offer a 14-day free trial." },
@@ -164,5 +263,47 @@ describe("issue-script-generator", () => {
 		expect(result.outputType).toBe("code");
 		expect(result.generatedOutput).toContain("Is there a free trial?");
 		expect(result.generatedOutput).toContain("Yes, we offer a 14-day free trial.");
+	});
+});
+
+describe("detectFrameworkFromContext", () => {
+	it("returns Next.js for .tsx with next/ import", () => {
+		expect(
+			detectFrameworkFromContext("app/pricing/page.tsx", 'import Link from "next/link"')
+		).toBe("Next.js (React/JSX)");
+	});
+
+	it("returns Next.js for .tsx in app/ directory", () => {
+		expect(
+			detectFrameworkFromContext("app/page.tsx", "<div>Hello</div>")
+		).toBe("Next.js (React/JSX)");
+	});
+
+	it("returns React for .jsx without next/ imports", () => {
+		expect(
+			detectFrameworkFromContext("src/components/FAQ.jsx", 'import React from "react"')
+		).toBe("React (JSX)");
+	});
+
+	it("returns Astro for .astro files", () => {
+		expect(
+			detectFrameworkFromContext("src/pages/index.astro", "---\nconst title = 'Home'\n---")
+		).toBe("Astro");
+	});
+
+	it("returns Vue for .vue files", () => {
+		expect(
+			detectFrameworkFromContext("src/pages/Home.vue", "<template><div></div></template>")
+		).toBe("Vue");
+	});
+
+	it("returns HTML for .html files", () => {
+		expect(
+			detectFrameworkFromContext("public/index.html", "<html><body></body></html>")
+		).toBe("HTML");
+	});
+
+	it("returns HTML when filePath is null", () => {
+		expect(detectFrameworkFromContext(null, null)).toBe("HTML");
 	});
 });

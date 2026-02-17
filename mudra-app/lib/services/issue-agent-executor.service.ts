@@ -12,11 +12,13 @@
 import { prisma } from '@/lib/prisma'
 import { mastra } from '@/mastra'
 import Anthropic from '@anthropic-ai/sdk'
-import { 
-  validateSchemaInSandbox, 
+import {
+  validateSchemaInSandbox,
+  validateFaqInSandbox,
   requiresE2bValidation,
   type SandboxResult,
-  type SchemaValidationResult
+  type SchemaValidationResult,
+  type FaqValidationResult
 } from './e2b-sandbox.service'
 import { createOptimizationPR, checkExistingBlogFiles } from './github.service'
 import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
@@ -29,7 +31,7 @@ import {
 } from '@/mastra/evals'
 import type { ScorerRunInputForAgent, ScorerRunOutputForAgent } from '@mastra/core/evals'
 import { createHash } from 'crypto'
-import { readSchemaKnowledge } from '@/lib/analysis/technical/knowledge'
+import { readSchemaKnowledge, readFaqTemplates } from '@/lib/analysis/technical/knowledge'
 
 // Max iterations for the generate→review→refine loop
 const MAX_REVIEW_ITERATIONS = 3
@@ -376,6 +378,31 @@ function isSchemaAgentType(agentType: string): boolean {
   return agentType === 'schema_markup'
 }
 
+/**
+ * Extract the page type from an issue description.
+ * The scorer embeds `<!-- PAGE_TYPE: ... -->` in FAQ_count issues.
+ */
+function parsePageTypeFromDescription(description: string | null): string | null {
+  if (!description) return null
+  const match = description.match(/<!-- PAGE_TYPE: (\S+) -->/)
+  return match ? match[1] : null
+}
+
+/**
+ * Detect the frontend framework from file path and content.
+ * Used to give the LLM explicit guidance on code style.
+ */
+export function detectFrameworkFromContext(filePath: string | null, content: string | null): string {
+  if (!filePath) return 'HTML'
+  if (filePath.endsWith('.astro')) return 'Astro'
+  if (filePath.endsWith('.vue')) return 'Vue'
+  if (filePath.endsWith('.tsx') || filePath.endsWith('.jsx')) {
+    if (content?.includes('next/') || filePath.includes('app/')) return 'Next.js (React/JSX)'
+    return 'React (JSX)'
+  }
+  return 'HTML'
+}
+
 export interface ExecutionResult {
   success: boolean
   // For PR-creating agents
@@ -389,6 +416,7 @@ export interface ExecutionResult {
   // Common
   error?: string
   e2bValidation?: SandboxResult<SchemaValidationResult>
+  faqValidation?: SandboxResult<FaqValidationResult>
   // Eval scores (production quality tracking)
   evalScores?: {
     hallucination?: number
@@ -1106,6 +1134,44 @@ You will be given:
 Use the knowledge base below as your authoritative reference for which properties to include, their types, and validation rules. Base all property values on actual page content.
 
 ${schemaKb}`
+    } else if (agentType === 'faq_sections') {
+      const pageType = parsePageTypeFromDescription(issue.description) || 'home'
+      const faqKb = await readFaqTemplates(pageType)
+
+      const framework = detectFrameworkFromContext(context.sourceFilePath, context.sourceFile)
+
+      systemPrompt = `You are an FAQ content specialist. You generate page-type-aware FAQ sections that will be committed to the user's repository via an automated PR.
+
+GROUNDING RULE: Only generate FAQ questions that a real visitor to this page would ask. Pull answers exclusively from visible page content. Never fabricate data, pricing, features, or capabilities not present on the page.
+
+FRONTEND RULES:
+- You are generating code for a **${framework}** project
+- MATCH the existing code style in the source file: same CSS approach, same component patterns, same naming conventions
+- If the source file uses Tailwind classes, use Tailwind for your FAQ section
+- If it uses CSS modules or styled-components, follow that pattern
+- If it uses plain HTML with inline styles or custom classes, match those
+- For React/Next.js (TSX/JSX): output JSX (className, htmlFor, self-closing tags, no HTML comments)
+- For plain HTML: output standard HTML
+- For Astro: output HTML (Astro components use HTML syntax)
+- NEVER introduce a new CSS framework or styling library
+- NEVER use generic class names like "faq-section" if the existing code uses a different naming pattern
+- Wrap FAQ in a semantic <section> with an id="faq" for anchor linking
+
+CONSTRAINTS:
+- Generate exactly 3–5 Q&As
+- Keep each answer to 1–3 sentences, directly quotable
+- Questions must reflect what the ICP would ask on THIS page type
+- Start answers with a direct response (no preamble)
+
+You will be given:
+- The issue to fix (already contains specific instructions)
+- The live page content (what users see)
+- The current source code of the target file
+- FAQ generation templates for this page type
+
+Use the templates below as guidance for what kinds of questions to generate. Adapt them to the actual page content.
+
+${faqKb}`
     } else {
       systemPrompt = `You are a GEO (Generative Engine Optimization) code generation agent. You generate code that will be committed to the user's repository via an automated PR.
 
@@ -1303,23 +1369,43 @@ Please generate an improved version addressing all the feedback above.`
 
     // 6. Validate with E2B if needed
     let e2bValidation: SandboxResult<SchemaValidationResult> | undefined
+    let faqValidation: SandboxResult<FaqValidationResult> | undefined
     if (requiresE2bValidation(agentType)) {
       console.log(`[IssueExecutor] Running E2B validation for ${agentType}`)
-      e2bValidation = await validateSchemaInSandbox(currentCode)
-      await prisma.issue.update({
-        where: { id: issueId },
-        data: {
-          usedE2bSandbox: true,
-          e2bSandboxId: e2bValidation.sandboxId,
-          e2bExecutionMs: e2bValidation.executionMs,
-          e2bValidationResult: e2bValidation.data as object || null
+
+      if (agentType === 'faq_sections') {
+        faqValidation = await validateFaqInSandbox(currentCode)
+        await prisma.issue.update({
+          where: { id: issueId },
+          data: {
+            usedE2bSandbox: true,
+            e2bSandboxId: faqValidation.sandboxId,
+            e2bExecutionMs: faqValidation.executionMs,
+            e2bValidationResult: faqValidation.data as object || null
+          }
+        })
+        if (!faqValidation.success) throw new Error(`E2B FAQ validation failed: ${faqValidation.error}`)
+        if (faqValidation.data && !faqValidation.data.valid) {
+          throw new Error(`FAQ validation failed: ${faqValidation.data.errors.join(', ')}`)
         }
-      })
-      if (!e2bValidation.success) throw new Error(`E2B validation failed: ${e2bValidation.error}`)
-      if (e2bValidation.data && !e2bValidation.data.valid) {
-        throw new Error(`Schema validation failed: ${e2bValidation.data.errors.join(', ')}`)
+        console.log(`[IssueExecutor] FAQ validation passed in ${faqValidation.executionMs}ms (${faqValidation.data?.faqCount ?? 0} Q&As)`)
+      } else {
+        e2bValidation = await validateSchemaInSandbox(currentCode)
+        await prisma.issue.update({
+          where: { id: issueId },
+          data: {
+            usedE2bSandbox: true,
+            e2bSandboxId: e2bValidation.sandboxId,
+            e2bExecutionMs: e2bValidation.executionMs,
+            e2bValidationResult: e2bValidation.data as object || null
+          }
+        })
+        if (!e2bValidation.success) throw new Error(`E2B validation failed: ${e2bValidation.error}`)
+        if (e2bValidation.data && !e2bValidation.data.valid) {
+          throw new Error(`Schema validation failed: ${e2bValidation.data.errors.join(', ')}`)
+        }
+        console.log(`[IssueExecutor] E2B validation passed in ${e2bValidation.executionMs}ms`)
       }
-      console.log(`[IssueExecutor] E2B validation passed in ${e2bValidation.executionMs}ms`)
     }
 
     // 6b. Schema verification for schema_markup agents
@@ -1452,6 +1538,7 @@ Please generate an improved version addressing all the feedback above.`
       prNumber,
       generatedContent: currentCode,
       e2bValidation,
+      faqValidation,
       evalScores: evalScores ? {
         hallucination: evalScores.hallucination,
         faithfulness: evalScores.faithfulness,

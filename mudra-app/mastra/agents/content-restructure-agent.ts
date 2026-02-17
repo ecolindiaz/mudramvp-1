@@ -102,11 +102,12 @@ AI systems prefer question-based headings because they match search queries.
 \`\`\`
 
 ### FAQ Best Practices
-1. 5-10 questions per page
+1. 3–5 questions per page
 2. Start answers with direct response
-3. Keep answers 30-100 words
-4. Include keywords naturally
-5. Order by importance/frequency
+3. Keep each answer to 1–3 sentences, directly quotable
+4. Questions must predict what an ideal customer would ask on this specific page
+5. Include keywords naturally
+6. Order by importance/frequency
 
 ## Content Formatting
 

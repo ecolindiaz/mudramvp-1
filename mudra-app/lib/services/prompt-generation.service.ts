@@ -466,7 +466,7 @@ function getBusinessTypeGuidance(type: string): string {
  * Uses Claude Sonnet 4.5 with JSON output, 5 categories including FAQ,
  * business-type-aware guidance, and richer product/ICP context.
  */
-export async function generateInitialPrompts(brandInfo: BrandInfo): Promise<InitialGeneratedPrompt[]> {
+export async function generateInitialPrompts(brandInfo: BrandInfo, redditContext?: string | null): Promise<InitialGeneratedPrompt[]> {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('Anthropic API key not configured');
   }
@@ -517,6 +517,12 @@ Categories must be exactly one of: "Organic", "Competitor", "How-to Guides", "Br
     ? brandInfo.icpSegments.map((s, i) => `  ${i + 1}. ${s}`).join('\n')
     : `  1. ${brandInfo.idealCustomer}`;
 
+  const redditSection = redditContext
+    ? `\n\nReal conversations from Reddit:
+Below are real discussions from people searching for solutions in this space. Use their language style, phrasing, pain points, and the way they describe problems to make generated prompts sound natural and colloquial — like real searches, not marketing copy.
+${redditContext}`
+    : '';
+
   const userPrompt = `Brand: ${brandInfo.companyName}
 Website: ${brandInfo.websiteUrl || 'N/A'}
 Industry: ${brandInfo.industry}
@@ -528,7 +534,7 @@ ${productsSection}
 Target Customer Segments:
 ${icpSection}
 
-Competitors: ${brandInfo.competitors.join(', ')}
+Competitors: ${brandInfo.competitors.join(', ')}${redditSection}
 
 Generate exactly ${totalPrompts} prompts now.`;
 

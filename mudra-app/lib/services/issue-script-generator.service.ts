@@ -198,12 +198,30 @@ function buildBreadcrumbList(pageUrl: string) {
 	}
 }
 
+/**
+ * Parse extracted FAQ data from an issue description.
+ * The scorer embeds `<!-- FAQ_DATA: [...] -->` when real FAQ content was extracted.
+ */
+function parseFaqDataFromDescription(desc: string | null | undefined): Array<{ question: string; answer: string }> {
+	if (!desc) return [];
+	const match = desc.match(/<!-- FAQ_DATA: (\[[\s\S]*?\]) -->/);
+	if (!match) return [];
+	try {
+		const parsed = JSON.parse(match[1]);
+		if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].question) {
+			return parsed;
+		}
+	} catch { /* invalid JSON, ignore */ }
+	return [];
+}
+
 function buildSchemaObject(
 	schemaType: string,
 	targetUrl: string,
 	brandName: string,
 	description: string,
-	pageLabel: string
+	pageLabel: string,
+	faqItems?: Array<{ question: string; answer: string }>
 ): Record<string, unknown> {
 	const siteRoot = getSiteRoot(targetUrl);
 
@@ -230,24 +248,32 @@ function buildSchemaObject(
 				itemListElement: buildBreadcrumbList(targetUrl),
 			};
 		case "FAQPage":
+			if (faqItems && faqItems.length > 0) {
+				return {
+					"@context": "https://schema.org",
+					"@type": "FAQPage",
+					mainEntity: faqItems.map(faq => ({
+						"@type": "Question",
+						name: faq.question,
+						acceptedAnswer: {
+							"@type": "Answer",
+							text: faq.answer,
+						},
+					})),
+				};
+			}
+			// No real FAQ data available — generate a placeholder with clear instructions
 			return {
 				"@context": "https://schema.org",
 				"@type": "FAQPage",
+				"_comment": "Replace the questions and answers below with your actual FAQ content from the page.",
 				mainEntity: [
 					{
 						"@type": "Question",
-						name: `What is ${brandName}?`,
+						name: "Replace with your first FAQ question",
 						acceptedAnswer: {
 							"@type": "Answer",
-							text: description,
-						},
-					},
-					{
-						"@type": "Question",
-						name: `How does ${brandName} help with ${pageLabel.toLowerCase()}?`,
-						acceptedAnswer: {
-							"@type": "Answer",
-							text: "Update this answer to match the visible FAQ content on the page.",
+							text: "Replace with the answer visible on the page.",
 						},
 					},
 				],
@@ -415,11 +441,14 @@ function buildSchemaScript(
 		schemaTypes.add("Organization");
 	}
 
+	// Parse real FAQ data from the issue description (embedded by the scorer)
+	const faqItems = parseFaqDataFromDescription(issue.description);
+
 	const scriptBlocks = Array.from(schemaTypes)
 		.filter((type) => KNOWN_SCHEMA_TYPES.has(type))
 		.map((type) =>
 			`<script type="application/ld+json">\n${JSON.stringify(
-				buildSchemaObject(type, targetUrl, brandName, description, pageLabel),
+				buildSchemaObject(type, targetUrl, brandName, description, pageLabel, type === "FAQPage" ? faqItems : undefined),
 				null,
 				2
 			)}\n</script>`
@@ -517,24 +546,37 @@ function buildFaqScript(
 	const brandName = getBrandName(brandProfile, targetUrl);
 	const description = getDescription(brandProfile, pageLabel);
 
-	const faqHtml = `<section class="faq-section">
+	// Use real FAQ data if available from the issue description
+	const faqItems = parseFaqDataFromDescription(issue.description);
+
+	let faqHtml: string;
+	if (faqItems.length > 0) {
+		const itemsHtml = faqItems.map(faq =>
+			`  <div class="faq-item">\n    <h3>${escapeHtml(faq.question)}</h3>\n    <p>${escapeHtml(faq.answer)}</p>\n  </div>`
+		).join("\n");
+		faqHtml = `<section class="faq-section">\n  <h2>Frequently Asked Questions</h2>\n${itemsHtml}\n</section>`;
+	} else {
+		faqHtml = `<section class="faq-section">
   <h2>Frequently Asked Questions</h2>
+  <!-- Replace these with your actual FAQ content -->
   <div class="faq-item">
-    <h3>What is ${brandName}?</h3>
-    <p>${description}</p>
+    <h3>Your first question here?</h3>
+    <p>Your answer here.</p>
   </div>
   <div class="faq-item">
-    <h3>How does ${brandName} help with ${pageLabel.toLowerCase()}?</h3>
-    <p>Replace this answer with your real on-page FAQ answer.</p>
+    <h3>Your second question here?</h3>
+    <p>Your answer here.</p>
   </div>
 </section>`;
+	}
 
 	const faqSchema = buildSchemaObject(
 		"FAQPage",
 		targetUrl,
 		brandName,
 		description,
-		pageLabel
+		pageLabel,
+		faqItems.length > 0 ? faqItems : undefined
 	);
 
 	return {
@@ -548,4 +590,12 @@ ${JSON.stringify(faqSchema, null, 2)}
 </script>`,
 		outputType: "code",
 	};
+}
+
+function escapeHtml(text: string): string {
+	return text
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
 }

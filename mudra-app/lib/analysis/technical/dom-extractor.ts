@@ -489,9 +489,15 @@ function extractFAQsFromJsonLD($: CheerioAPI): FAQItem[] {
 function extractFAQsFromDetails($: CheerioAPI): FAQItem[] {
 	const faqs: FAQItem[] = [];
 
-	$("details").each((_, el) => {
+	// FAQ-context containers where <details> is definitely FAQ-like
+	const faqContainerSelector = [
+		'#faq', '[data-section="faq"]', '.faq', '.faqs',
+		'.faq-section', '[class*="faq-"]', '[id*="faq"]',
+	].join(', ');
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const extractDetail = (_: number, el: any) => {
 		const summary = $(el).find("summary").first().text().trim();
-		// Get the content excluding the summary
 		const detailsClone = $(el).clone();
 		detailsClone.find("summary").remove();
 		const content = detailsClone.text().trim();
@@ -505,7 +511,27 @@ function extractFAQsFromDetails($: CheerioAPI): FAQItem[] {
 				source: "details_summary",
 			});
 		}
+	};
+
+	// Strategy 1: <details> inside an explicit FAQ container — always extract
+	$(faqContainerSelector).find("details").each(extractDetail);
+
+	if (faqs.length > 0) return faqs;
+
+	// Strategy 2: Sibling cluster — 2+ <details> elements that share a parent
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const parents: any[] = [];
+	$("details").each((_, el) => {
+		const parent = $(el).parent().get(0);
+		if (parent && !parents.includes(parent)) parents.push(parent);
 	});
+
+	for (let i = 0; i < parents.length; i++) {
+		const siblings = $(parents[i]).children("details");
+		if (siblings.length >= 2) {
+			siblings.each(extractDetail);
+		}
+	}
 
 	return faqs;
 }
@@ -587,25 +613,6 @@ function extractFAQsFromAccordion($: CheerioAPI): FAQItem[] {
 				});
 			}
 		});
-	});
-
-	// Also check for accordion-item patterns outside explicit FAQ sections
-	$('[class*="accordion-item"], [class*="collapse-item"]').each((_itemIndex, item) => {
-		const header = $(item).find('[class*="header"], [class*="title"], button').first();
-		const content = $(item).find('[class*="content"], [class*="body"], [class*="panel"]').first();
-
-		const question = header.text().trim();
-		const answer = content.text().trim();
-
-		if (question && answer && question.length > 5 && answer.length > 10 && question.length < 200) {
-			faqs.push({
-				question,
-				answer,
-				question_length: question.length,
-				answer_length: answer.length,
-				source: "pattern",
-			});
-		}
 	});
 
 	return faqs;
@@ -820,19 +827,33 @@ function extractFAQs($: CheerioAPI): FAQExtraction {
 	const totalAnswerLength = combined.reduce((sum, faq) => sum + faq.answer_length, 0);
 	const avgAnswerLength = combined.length > 0 ? Math.round(totalAnswerLength / combined.length) : 0;
 
+	// Confidence threshold for non-schema FAQs:
+	// JSON-LD FAQs are always trusted (the site explicitly declared them).
+	// For DOM-extracted FAQs, require at least 2 items AND at least one
+	// substantive answer (>= 20 chars) to avoid false positives from
+	// accordion-like UI elements that aren't actually FAQs.
+	const domFaqs = combined.filter(f => f.source !== "jsonld");
+	const hasJsonLdFaqs = jsonldFaqs.length > 0;
+	const domFaqsPassThreshold =
+		domFaqs.length >= 2 && domFaqs.some(f => f.answer_length >= 20);
+	const hasFaqContent = hasJsonLdFaqs || domFaqsPassThreshold;
+
+	// If DOM FAQs don't pass threshold, exclude them from combined
+	const filteredCombined = hasFaqContent ? combined : jsonldFaqs;
+
 	const analysis: FAQAnalysis = {
-		faq_content_exists: combined.length > 0,
+		faq_content_exists: filteredCombined.length > 0,
 		faq_schema_implemented: jsonldFaqs.length > 0,
 		uses_semantic_html: detailsFaqs.length > 0,
 		average_answer_length: avgAnswerLength,
-		schema_gap: combined.length > 0 && jsonldFaqs.length === 0,
+		schema_gap: filteredCombined.length > 0 && jsonldFaqs.length === 0,
 	};
 
 	return {
 		sources,
-		combined_faqs: combined,
-		total_faq_count: combined.length,
-		has_faq_content: combined.length > 0,
+		combined_faqs: filteredCombined,
+		total_faq_count: filteredCombined.length,
+		has_faq_content: hasFaqContent,
 		has_faq_schema: jsonldFaqs.length > 0,
 		analysis,
 	};

@@ -529,11 +529,20 @@ function generateIssues(
 	if (!schemaScore.checks.J1_present?.passed) {
 		const recommendedSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
 		const schemaList = recommendedSchemas.join(' + ');
+		let message = `No JSON-LD schema found. Recommended for this page: ${schemaList}`;
+		// Embed extracted FAQ data so downstream script generators can use real content
+		if (recommendedSchemas.includes("FAQPage") && extraction.extraction.faqs.combined_faqs.length > 0) {
+			const faqData = extraction.extraction.faqs.combined_faqs.map(f => ({
+				question: f.question,
+				answer: f.answer,
+			}));
+			message += `\n<!-- FAQ_DATA: ${JSON.stringify(faqData)} -->`;
+		}
 		issues.push(createIssue(
 			"J1_present",
 			"schema",
 			"high",
-			`No JSON-LD schema found. Recommended for this page: ${schemaList}`,
+			message,
 			pageUrl
 		));
 	}
@@ -563,22 +572,31 @@ function generateIssues(
 		const missingSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
 		if (missingSchemas.length > 0) {
 			const currentTypes = extraction.extraction.schema.schema_types.join(', ');
+			let message = `Additional schemas recommended (current: ${currentTypes}). Add: ${missingSchemas.join(' + ')}`;
+			// Embed extracted FAQ data so downstream script generators can use real content
+			if (missingSchemas.includes("FAQPage") && extraction.extraction.faqs.combined_faqs.length > 0) {
+				const faqData = extraction.extraction.faqs.combined_faqs.map(f => ({
+					question: f.question,
+					answer: f.answer,
+				}));
+				message += `\n<!-- FAQ_DATA: ${JSON.stringify(faqData)} -->`;
+			}
 			issues.push(createIssue(
 				"J4_coverage",
 				"schema",
 				"medium",
-				`Additional schemas recommended (current: ${currentTypes}). Add: ${missingSchemas.join(' + ')}`,
+				message,
 				pageUrl
 			));
 		}
 	}
 
 	// FAQ issues (only for FAQ-relevant page types)
+	// Note: FAQ_schema_gap was removed — FAQPage is already included in J1/J4
+	// recommended schemas when FAQ content exists, avoiding duplicate issues.
 	if (FAQ_RELEVANT_PAGE_TYPES.has(extraction.page_type)) {
 		if (faqScore.score === 0) {
 			issues.push(createIssue("FAQ_count", "faq", "medium", "No FAQ content found", pageUrl));
-		} else if (extraction.extraction.faqs.analysis.schema_gap) {
-			issues.push(createIssue("FAQ_schema_gap", "faq", "medium", "FAQ content exists but no FAQPage schema", pageUrl));
 		}
 	}
 
@@ -702,6 +720,7 @@ function generateInterventions(
 	}
 
 	// FAQ interventions (only for FAQ-relevant page types)
+	// Note: FAQ_schema_gap intervention removed — FAQPage flows through J1/J4.
 	if (FAQ_RELEVANT_PAGE_TYPES.has(extraction.page_type)) {
 		if (faqScore.score === 0) {
 			interventions.push(
@@ -712,17 +731,6 @@ function generateInterventions(
 					"body > main",
 					"+20 points",
 					"Generate FAQ section with 3-5 Q&As + FAQPage schema"
-				)
-			);
-		} else if (extraction.extraction.faqs.analysis.schema_gap) {
-			interventions.push(
-				createIntervention(
-					"FAQ_schema_gap",
-					"medium",
-					"add_faqpage_schema",
-					"head",
-					"Improved rich results",
-					"Add FAQPage JSON-LD for existing FAQ content"
 				)
 			);
 		} else if (faqScore.score < 20) {
@@ -796,15 +804,28 @@ export function getRecommendedSchemas(
 	// When precomputed schemas are available (from LLM), use them directly
 	// but still filter out existing schemas
 	if (precomputedSchemas && precomputedSchemas.length > 0) {
+		let filtered: string[];
 		if (extraction) {
 			const expandedExisting = new Set(extraction.schema.schema_types);
 			for (const t of extraction.schema.schema_types) {
 				const parent = SUBTYPE_TO_PARENT.get(t);
 				if (parent) expandedExisting.add(parent);
 			}
-			return precomputedSchemas.filter((s) => !expandedExisting.has(s));
+			filtered = precomputedSchemas.filter((s) => !expandedExisting.has(s));
+		} else {
+			filtered = [...precomputedSchemas];
 		}
-		return [...precomputedSchemas];
+
+		// Post-filter: remove content-dependent types when extraction signals are absent
+		if (extraction) {
+			filtered = filtered.filter(s => {
+				if (s === "VideoObject" && !extraction.has_video_primary_content) return false;
+				if (s === "Review" && !extraction.has_testimonial_content) return false;
+				return true;
+			});
+		}
+
+		return filtered;
 	}
 
 	// Heuristic fallback — single source of truth from schema-recommender

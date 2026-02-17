@@ -362,7 +362,7 @@ export async function getCurrentSnapshot(
 }
 
 /**
- * Save page score with 5-dimension scores
+ * Save page score with 4-dimension scores
  * Maps the new scoring dimensions to the database fields:
  * - structured_data_score → Metadata (25 pts)
  * - semantic_html_score → Headings (20 pts)
@@ -800,4 +800,3 @@ export async function completeScrapeJob(
     },
   });
 }
-

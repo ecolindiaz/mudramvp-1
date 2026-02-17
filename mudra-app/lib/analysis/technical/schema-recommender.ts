@@ -159,8 +159,6 @@ export function heuristicRecommendedSchemas(
 			schemas.push("Product", "OfferCatalog");
 			break;
 		case "features":
-			// No core schema — too ambiguous without LLM context.
-			// SoftwareApplication is wrong for non-software companies.
 			break;
 		case "documentation":
 			schemas.push("Article");
@@ -173,6 +171,30 @@ export function heuristicRecommendedSchemas(
 			break;
 		case "solutions":
 			schemas.push("Service");
+			break;
+		case "use-cases":
+			schemas.push("Service");
+			break;
+		case "integrations":
+			schemas.push("ItemList");
+			break;
+		case "customers":
+			schemas.push("Organization");
+			break;
+		case "resources":
+			schemas.push("CollectionPage");
+			break;
+		case "changelog":
+			schemas.push("Article");
+			break;
+		case "careers":
+			schemas.push("Organization");
+			break;
+		case "legal":
+		case "demo":
+		case "login":
+		case "signup":
+			// No core schemas for these page types
 			break;
 		case "other":
 			schemas.push("Organization");
@@ -211,9 +233,9 @@ function applyDeterministicRules(
 		}
 	}
 
-	// VideoObject when video embeds detected
+	// VideoObject only when video is primary content (not incidental embeds)
 	if (
-		extraction.extraction.has_video_content &&
+		extraction.extraction.has_video_primary_content &&
 		!extraction.extraction.schema.analysis.has_video_schema
 	) {
 		if (!schemas.includes("VideoObject")) {

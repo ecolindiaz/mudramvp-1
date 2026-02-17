@@ -1322,6 +1322,50 @@ Please generate an improved version addressing all the feedback above.`
       console.log(`[IssueExecutor] E2B validation passed in ${e2bValidation.executionMs}ms`)
     }
 
+    // 6b. Schema verification for schema_markup agents
+    if (isSchemaAgentType(agentType)) {
+      try {
+        const { verifyInjectedSchemas } = await import('@/lib/analysis/technical/schema-verifier')
+        const { htmlToExtraction } = await import('@/lib/analysis/technical/dom-extractor')
+
+        // Parse JSON-LD blocks from generated code
+        const jsonLdMatches = currentCode.match(/\{[\s\S]*?"@context"[\s\S]*?"@type"[\s\S]*?\}/g)
+        if (jsonLdMatches) {
+          const schemas: unknown[] = []
+          for (const match of jsonLdMatches) {
+            try { schemas.push(JSON.parse(match)) } catch { /* skip unparseable */ }
+          }
+
+          if (schemas.length > 0) {
+            // Build minimal extraction from page content if available
+            const targetUrl = issue.affectedUrl || issue.brandProfile.companyWebsite || '/'
+            const minimalHtml = context.pageContent
+              ? `<html><head><title>${issue.brandProfile.companyName || ''}</title></head><body>${context.pageContent}</body></html>`
+              : '<html><head></head><body></body></html>'
+            const extraction = htmlToExtraction(minimalHtml, targetUrl)
+
+            const verification = verifyInjectedSchemas(schemas, extraction.extraction, targetUrl)
+
+            const errors = verification.warnings.filter(w => w.severity === 'error')
+            if (errors.length > 0) {
+              console.error(`[IssueExecutor] Schema verification failed with ${errors.length} error(s):`, errors.map(e => e.message).join('; '))
+              throw new Error(`Schema verification failed: ${errors.map(e => e.message).join('; ')}`)
+            }
+
+            const warningsOnly = verification.warnings.filter(w => w.severity === 'warning')
+            if (warningsOnly.length > 0) {
+              console.warn(`[IssueExecutor] Schema verification warnings: ${warningsOnly.map(w => w.message).join('; ')}`)
+            }
+          }
+        }
+      } catch (verifyError) {
+        if (verifyError instanceof Error && verifyError.message.startsWith('Schema verification failed:')) {
+          throw verifyError // Re-throw to trigger retry loop
+        }
+        console.warn('[IssueExecutor] Schema verification skipped:', verifyError instanceof Error ? verifyError.message : verifyError)
+      }
+    }
+
     // 7. Create PR (draft if quality gate failed)
     let prUrl: string | undefined
     let prNumber: number | undefined

@@ -940,7 +940,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
 }
 
 /**
- * Generate action from issue (new 5-dimension system)
+ * Generate action from issue (new 4-dimension system)
  */
 function generateActionFromIssue(issue: { check: string; dimension: string; message: string }): string {
   const actionMap: Record<string, string> = {

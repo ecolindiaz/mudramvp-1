@@ -1,7 +1,7 @@
 /**
  * DOM Extractor Module
  *
- * Uses Cheerio to extract structured data from HTML for the 5-dimension scoring system.
+ * Uses Cheerio to extract structured data from HTML for the 4-dimension scoring system.
  * This module is designed to be a pure function that converts HTML strings into
  * structured DOMExtraction objects.
  */
@@ -57,12 +57,24 @@ export function detectPageType(url: string): PageType {
 
 		if (path === "/" || path === "") return "home";
 		if (/\/(blog|posts?|articles?)($|\/)/.test(path)) return "blog";
-		if (/\/docs($|\/)/.test(path) || path.includes("/documentation") || path.includes("/help") || path.includes("/guide")) return "documentation";
+		// Resources before documentation so /ebook/guide doesn't match /guide
+		if (path.includes("/resource") || path.includes("/whitepaper") || path.includes("/ebook") || path.includes("/webinar")) return "resources";
+		if (/\/docs($|\/)/.test(path) || path.includes("/documentation") || path.includes("/help") || /\/guides?($|\/)/.test(path)) return "documentation";
 		if (path.includes("/pricing")) return "pricing";
 		if (path.includes("/features")) return "features";
 		if (/\/products?($|\/)/.test(path)) return "product";
 		if (path.includes("/solution")) return "solutions";
-		if (path.includes("/about") || path.includes("/team") || path.includes("/careers") || path.includes("/company")) return "about";
+		// New page types — check before "about" so /careers doesn't fall into "about"
+		if (/\/use-?cases?($|\/)/.test(path)) return "use-cases";
+		if (path.includes("/integration")) return "integrations";
+		if (path.includes("/customer") || path.includes("/case-stud") || path.includes("/success-stor")) return "customers";
+		if (path.includes("/changelog") || path.includes("/release-notes")) return "changelog";
+		if (path.includes("/career") || path.includes("/jobs") || path.includes("/openings")) return "careers";
+		if (/\/(demo|request-demo|book-demo)($|\/)/.test(path)) return "demo";
+		if (/\/(login|signin|sign-in)($|\/)/.test(path)) return "login";
+		if (/\/(signup|sign-up|register|get-started)($|\/)/.test(path)) return "signup";
+		if (path.includes("/legal") || path.includes("/privacy") || path.includes("/terms") || path.includes("/cookie") || path.includes("/gdpr")) return "legal";
+		if (path.includes("/about") || path.includes("/team") || path.includes("/company")) return "about";
 		if (path.includes("/contact")) return "contact";
 		return "other";
 	} catch {
@@ -351,7 +363,23 @@ function extractSchema($: CheerioAPI): SchemaExtraction {
 			const data = JSON.parse(content);
 
 			// Handle both single objects and arrays
-			const items = Array.isArray(data) ? data : [data];
+			const topItems = Array.isArray(data) ? data : [data];
+
+			// Expand @graph wrappers: if an item has @graph array, include its children
+			const items: Record<string, unknown>[] = [];
+			for (const topItem of topItems) {
+				if (Array.isArray(topItem["@graph"])) {
+					for (const graphItem of topItem["@graph"]) {
+						// Graph items inherit @context from parent if not set
+						if (!graphItem["@context"] && topItem["@context"]) {
+							graphItem["@context"] = topItem["@context"];
+						}
+						items.push(graphItem);
+					}
+				} else {
+					items.push(topItem);
+				}
+			}
 
 			for (const item of items) {
 				const type = item["@type"] || "Unknown";
@@ -360,13 +388,13 @@ function extractSchema($: CheerioAPI): SchemaExtraction {
 				const valid = hasContext && hasType;
 
 				// Track unique types
-				if (type && !schemaTypes.includes(type)) {
-					schemaTypes.push(type);
+				if (type && !schemaTypes.includes(type as string)) {
+					schemaTypes.push(type as string);
 				}
 
 				jsonldBlocks.push({
 					index: jsonldBlocks.length,
-					type,
+					type: type as string,
 					valid,
 					data: item,
 				});
@@ -888,36 +916,101 @@ function extractContentSnapshot($: CheerioAPI, pageUrl: string): ContentSnapshot
 // VIDEO & TESTIMONIAL DETECTION
 // ============================================================================
 
-function detectVideoContent($: CheerioAPI): boolean {
-	if ($("video").length > 0) return true;
-	const iframeSrcs = $("iframe").map((_, el) => $(el).attr("src") || "").get();
-	return iframeSrcs.some(src =>
-		/youtube|vimeo|wistia|loom/i.test(src)
-	);
+interface VideoDetectionResult {
+	hasVideo: boolean;
+	isPrimaryContent: boolean;
+	videoCount: number;
+	inMainContent: boolean;
+}
+
+function detectVideoContent($: CheerioAPI): VideoDetectionResult {
+	const videoHostPattern = /youtube|vimeo|wistia|loom|vidyard/i;
+
+	// Count native video elements
+	const nativeVideoCount = $("video").length;
+
+	// Count video-hosting iframes
+	const videoIframes = $("iframe").filter((_, el) => {
+		const src = $(el).attr("src") || "";
+		return videoHostPattern.test(src);
+	});
+	const iframeVideoCount = videoIframes.length;
+
+	const videoCount = nativeVideoCount + iframeVideoCount;
+	const hasVideo = videoCount > 0;
+
+	if (!hasVideo) {
+		return { hasVideo: false, isPrimaryContent: false, videoCount: 0, inMainContent: false };
+	}
+
+	// Check if any video is in main content area
+	const mainContentSelector = "main, article, [role='main']";
+	const videosInMain = $("video").filter((_, el) => $(el).closest(mainContentSelector).length > 0).length;
+	const iframesInMain = videoIframes.filter((_, el) => $(el).closest(mainContentSelector).length > 0).length;
+	const inMainContent = (videosInMain + iframesInMain) > 0;
+
+	// Determine if video is primary content:
+	// (a) 2+ videos, OR
+	// (b) video in main content AND title/H1 contains video keywords, OR
+	// (c) video in main AND minimal surrounding text (< 200 words)
+	const videoKeywords = /video|watch|tutorial|webinar|demo|episode/i;
+	const titleText = $("title").first().text() || "";
+	const h1Text = $("h1").first().text() || "";
+	const titleHasVideoKeyword = videoKeywords.test(titleText) || videoKeywords.test(h1Text);
+
+	const mainText = $(mainContentSelector).first().text() || "";
+	const wordCount = mainText.split(/\s+/).filter(w => w.length > 0).length;
+	const minimalSurroundingText = wordCount < 200;
+
+	const isPrimaryContent =
+		videoCount >= 2 ||
+		(inMainContent && titleHasVideoKeyword) ||
+		(inMainContent && minimalSurroundingText);
+
+	return { hasVideo, isPrimaryContent, videoCount, inMainContent };
 }
 
 function detectTestimonialContent($: CheerioAPI): boolean {
-	// Check for sections with testimonial-related class/id
-	const testimonialSelectors = [
-		'[class*="testimonial"]',
-		'[class*="review"]',
-		'[class*="quote"]',
-		'[class*="customer-story"]',
-		'[id*="testimonial"]',
-		'[id*="review"]',
-		'[id*="quote"]',
-		'[id*="customer-story"]',
-	].join(", ");
-	if ($(testimonialSelectors).length > 0) return true;
+	let signals = 0;
 
-	// Check for blockquote elements with attribution (cite or footer)
-	const blockquotes = $("blockquote");
-	for (let i = 0; i < blockquotes.length; i++) {
-		const bq = $(blockquotes[i]);
-		if (bq.find("cite, footer, figcaption").length > 0) return true;
-	}
+	// Check for testimonial-related class/id, excluding false positives
+	const elements = $('[class*="testimonial"], [class*="customer-story"], [id*="testimonial"], [id*="customer-story"]');
+	if (elements.length > 0) signals++;
 
-	return false;
+	// Check [class*="review"] but exclude false positives like code-review, peer-review, pull-request-review
+	const reviewElements = $('[class*="review"], [id*="review"]');
+	const falsePositivePattern = /code.?review|peer.?review|pull.?request/i;
+	let hasRealReview = false;
+	reviewElements.each((_, el) => {
+		const cls = $(el).attr("class") || "";
+		const id = $(el).attr("id") || "";
+		if (!falsePositivePattern.test(cls) && !falsePositivePattern.test(id)) {
+			hasRealReview = true;
+		}
+	});
+	if (hasRealReview) signals++;
+
+	// Check [class*="quote"] only inside testimonial-context parent
+	const quoteElements = $('[class*="quote"]');
+	let hasTestimonialQuote = false;
+	quoteElements.each((_, el) => {
+		const parent = $(el).closest('[class*="testimonial"], [class*="customer"], [class*="review"], [id*="testimonial"]');
+		if (parent.length > 0) hasTestimonialQuote = true;
+	});
+	if (hasTestimonialQuote) signals++;
+
+	// Check for attributed blockquotes — require 2+
+	let attributedBlockquoteCount = 0;
+	$("blockquote").each((_, el) => {
+		const bq = $(el);
+		if (bq.find("cite, footer, figcaption").length > 0) {
+			attributedBlockquoteCount++;
+		}
+	});
+	if (attributedBlockquoteCount >= 2) signals++;
+
+	// Require >= 2 signals to confirm testimonial content
+	return signals >= 2;
 }
 
 // ============================================================================
@@ -934,6 +1027,7 @@ function detectTestimonialContent($: CheerioAPI): boolean {
 export function htmlToExtraction(html: string, pageUrl: string): DOMExtraction {
 	const $: CheerioAPI = cheerio.load(html);
 
+	const videoResult = detectVideoContent($);
 	const extraction: DOMExtractionData = {
 		metadata: extractMetadata($),
 		headings: extractHeadings($),
@@ -941,7 +1035,8 @@ export function htmlToExtraction(html: string, pageUrl: string): DOMExtraction {
 		schema: extractSchema($),
 		faqs: extractFAQs($),
 		content_snapshot: extractContentSnapshot($, pageUrl),
-		has_video_content: detectVideoContent($),
+		has_video_content: videoResult.hasVideo,
+		has_video_primary_content: videoResult.isPrimaryContent,
 		has_testimonial_content: detectTestimonialContent($),
 	};
 

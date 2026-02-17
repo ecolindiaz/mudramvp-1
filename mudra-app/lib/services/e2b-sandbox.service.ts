@@ -131,16 +131,31 @@ try:
     if schema_type and schema_type not in valid_types:
         warnings.append(f"Uncommon @type: {schema_type} (may still be valid)")
     
-    # Check for common properties based on type
-    if schema_type == 'Organization':
-        if 'name' not in parsed:
-            warnings.append("Organization should have 'name' property")
-    elif schema_type == 'Product':
-        if 'name' not in parsed:
-            warnings.append("Product should have 'name' property")
-    elif schema_type == 'FAQPage':
-        if 'mainEntity' not in parsed:
-            warnings.append("FAQPage should have 'mainEntity' property")
+    # Required properties per type (Google structured data requirements)
+    REQUIRED_PROPS = {
+        'Organization': ['name', 'url'],
+        'WebSite': ['name', 'url'],
+        'Product': ['name'],
+        'Service': ['name'],
+        'Article': ['headline'],
+        'BlogPosting': ['headline'],
+        'FAQPage': ['mainEntity'],
+        'BreadcrumbList': ['itemListElement'],
+        'HowTo': ['name', 'step'],
+        'SoftwareApplication': ['name'],
+        'WebApplication': ['name'],
+        'CollectionPage': ['name'],
+        'OfferCatalog': ['name'],
+        'VideoObject': ['name', 'thumbnailUrl', 'uploadDate'],
+        'ItemList': ['itemListElement'],
+        'Review': ['author', 'itemReviewed', 'reviewRating'],
+        'Person': ['name'],
+    }
+
+    required = REQUIRED_PROPS.get(schema_type, [])
+    for prop in required:
+        if prop not in parsed:
+            warnings.append(f"{schema_type} should have '{prop}' property")
     
     result = {
         "valid": len(errors) == 0, 

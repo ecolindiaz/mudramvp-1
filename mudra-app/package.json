@@ -16,8 +16,6 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:scoring": "tsx lib/tests/technical-scoring.test.ts",
-    "test:vercel-recrawl": "node --import tsx scripts/test-vercel-recrawl-rescore.ts",
-    "test:schema-audit": "node --import tsx scripts/audit-schema-pages.ts",
     "test:load": "node lib/tests/load-test-scraper.js",
     "test:all": "npm run test:scoring && npm run test:load",
     "enhanced-geo": "tsx lib/scrapers/enhanced-geo-scraper.ts",

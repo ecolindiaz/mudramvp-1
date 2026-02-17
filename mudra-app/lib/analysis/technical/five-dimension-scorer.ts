@@ -25,6 +25,7 @@ import type {
 } from "./types";
 import { isRelevantSchemaType, SUBTYPE_TO_PARENT } from "./dom-extractor";
 import { heuristicRecommendedSchemas } from "./schema-recommender";
+import { validateRequiredProperties } from "./schema-required-properties";
 
 // ============================================================================
 // CONSTANTS
@@ -67,7 +68,8 @@ const CONTENT_WEIGHTS = {
  */
 const SCHEMA_WEIGHTS = {
 	J1_present: 10,
-	J2_valid: 8,
+	J2a_valid_structure: 4,
+	J2b_required_properties: 4,
 	J3_relevant: 11,
 	J4_coverage: 11,
 } as const;
@@ -78,6 +80,7 @@ const SCHEMA_WEIGHTS = {
  */
 const FAQ_RELEVANT_PAGE_TYPES = new Set<string>([
 	"home", "pricing", "features", "product", "solutions", "blog",
+	"use-cases", "customers",
 ]);
 
 // ============================================================================
@@ -305,20 +308,45 @@ export function scoreSchema(extraction: DOMExtraction): DimensionScore {
 		passedCount++;
 	}
 
-	// J2 - Valid structure (@context AND @type)
+	// J2a - Valid structure (@context AND @type)
 	const validBlocks = schema.jsonld_blocks.filter((b) => b.valid);
-	const j2Passed = validBlocks.length > 0;
-	checks.J2_valid = createCheckResult(
-		j2Passed,
-		SCHEMA_WEIGHTS.J2_valid,
-		j2Passed
+	const j2aPassed = validBlocks.length > 0;
+	checks.J2a_valid_structure = createCheckResult(
+		j2aPassed,
+		SCHEMA_WEIGHTS.J2a_valid_structure,
+		j2aPassed
 			? `Valid JSON-LD structure (${validBlocks.length} valid blocks)`
 			: schema.jsonld_blocks.length > 0
 				? "JSON-LD found but invalid structure (missing @context or @type)"
 				: "No JSON-LD to validate"
 	);
-	if (j2Passed) {
-		totalScore += SCHEMA_WEIGHTS.J2_valid;
+	if (j2aPassed) {
+		totalScore += SCHEMA_WEIGHTS.J2a_valid_structure;
+		passedCount++;
+	}
+
+	// J2b - Required properties present for each type
+	let allRequiredPresent = true;
+	const missingProps: string[] = [];
+	for (const block of validBlocks) {
+		const result = validateRequiredProperties(block.data);
+		if (result.missing.length > 0) {
+			allRequiredPresent = false;
+			missingProps.push(`${result.type}: missing ${result.missing.map(m => m.property).join(", ")}`);
+		}
+	}
+	const j2bPassed = j2aPassed && allRequiredPresent;
+	checks.J2b_required_properties = createCheckResult(
+		j2bPassed,
+		SCHEMA_WEIGHTS.J2b_required_properties,
+		j2bPassed
+			? "All valid schemas have required properties"
+			: !j2aPassed
+				? "No valid schemas to check required properties"
+				: `Missing required properties: ${missingProps.join("; ")}`
+	);
+	if (j2bPassed) {
+		totalScore += SCHEMA_WEIGHTS.J2b_required_properties;
 		passedCount++;
 	}
 
@@ -362,7 +390,7 @@ export function scoreSchema(extraction: DOMExtraction): DimensionScore {
 		max_score: DIMENSION_WEIGHTS.schema,
 		checks,
 		passed_count: passedCount,
-		total_count: 4,
+		total_count: 5,
 	};
 }
 
@@ -509,10 +537,13 @@ function generateIssues(
 			pageUrl
 		));
 	}
-	if (!schemaScore.checks.J2_valid?.passed && extraction.extraction.schema.jsonld_blocks.length > 0) {
+	if (!schemaScore.checks.J2a_valid_structure?.passed && extraction.extraction.schema.jsonld_blocks.length > 0) {
 		const existingTypes = extraction.extraction.schema.schema_types;
 		const typeInfo = existingTypes.length > 0 ? `. Current types: ${existingTypes.join(', ')}` : '';
-		issues.push(createIssue("J2_valid", "schema", "high", `Invalid JSON-LD structure (missing @context or @type)${typeInfo}`, pageUrl));
+		issues.push(createIssue("J2a_valid_structure", "schema", "high", `Invalid JSON-LD structure (missing @context or @type)${typeInfo}`, pageUrl));
+	}
+	if (!schemaScore.checks.J2b_required_properties?.passed && schemaScore.checks.J2a_valid_structure?.passed) {
+		issues.push(createIssue("J2b_required_properties", "schema", "medium", `Schema blocks missing required properties — check Google structured data requirements`, pageUrl));
 	}
 	if (!schemaScore.checks.J3_relevant?.passed && extraction.extraction.schema.has_schema) {
 		const recommended = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
@@ -642,8 +673,11 @@ function generateInterventions(
 			)
 		);
 	}
-	if (!schemaScore.checks.J2_valid?.passed && extraction.extraction.schema.jsonld_blocks.length > 0) {
-		interventions.push(createIntervention("J2_valid", "high", "fix_jsonld_syntax", "head", "+8 points"));
+	if (!schemaScore.checks.J2a_valid_structure?.passed && extraction.extraction.schema.jsonld_blocks.length > 0) {
+		interventions.push(createIntervention("J2a_valid_structure", "high", "fix_jsonld_syntax", "head", "+4 points"));
+	}
+	if (!schemaScore.checks.J2b_required_properties?.passed && schemaScore.checks.J2a_valid_structure?.passed) {
+		interventions.push(createIntervention("J2b_required_properties", "medium", "add_required_schema_properties", "head", "+4 points"));
 	}
 	if (!schemaScore.checks.J3_relevant?.passed && extraction.extraction.schema.has_schema) {
 		interventions.push(
@@ -806,7 +840,7 @@ export function getRecommendedSchemas(
 // ============================================================================
 
 /**
- * Computes the complete page score using the 5-dimension system
+ * Computes the complete page score using the 4-dimension system
  *
  * @param extraction - The DOMExtraction result from htmlToExtraction
  * @returns FullPageScore with all dimension scores, issues, and interventions

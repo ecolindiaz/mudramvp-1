@@ -134,6 +134,7 @@ interface Issue {
   id: number
   title: string
   description?: string | null
+  checkCode?: string | null
   status: "identified" | "in_progress" | "completed" | "merged" | "failed" | "dismissed"
   priority: "low" | "medium" | "high"
   order: number
@@ -190,23 +191,35 @@ const priorityConfig = {
   high: { color: "text-red-400", bg: "bg-red-400/10" },
 }
 
+function canGenerateScript(issue: Issue): boolean {
+  return issue.status === "identified" && (
+    issue.agentType === "schema_markup" ||
+    issue.agentType === "meta_optimization" ||
+    issue.agentType === "faq_sections"
+  )
+}
+
 // Sortable Issue Card Component
 function SortableIssueCard({
   issue,
   onDelete,
   onFix,
+  onGenerateScript,
   onRetry,
   onViewOutput,
   onClick,
   isDeploying,
+  isGeneratingScript,
 }: {
   issue: Issue
   onDelete: (issue: Issue) => void
   onFix?: (issueId: number) => void
+  onGenerateScript?: (issueId: number) => void
   onRetry?: (issueId: number) => void
   onViewOutput?: (issue: Issue) => void
   onClick?: (issue: Issue) => void
   isDeploying?: boolean
+  isGeneratingScript?: boolean
 }) {
   const {
     attributes,
@@ -265,6 +278,21 @@ function SortableIssueCard({
               >
                 <IconWand className="w-4 h-4 mr-2" />
                 Fix
+              </DropdownMenuItem>
+            )}
+            {/* Generate Script - for supported identified issues */}
+            {canGenerateScript(issue) && onGenerateScript && (
+              <DropdownMenuItem
+                onClick={(e) => { e.stopPropagation(); onGenerateScript(issue.id); }}
+                className="text-purple-400 hover:bg-purple-400/10 cursor-pointer"
+                disabled={isGeneratingScript}
+              >
+                {isGeneratingScript ? (
+                  <IconLoader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <IconCode className="w-4 h-4 mr-2" />
+                )}
+                Generate Script
               </DropdownMenuItem>
             )}
             {/* Retry - for failed issues */}
@@ -716,17 +744,21 @@ function IssueDetailDialog({
   onOpenChange,
   issue,
   onDeploy,
+  onGenerateScript,
   onRetry,
   onViewOutput,
   isDeploying,
+  isGeneratingScript,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   issue: Issue | null
   onDeploy?: (issueId: number) => void
+  onGenerateScript?: (issueId: number) => void
   onRetry?: (issueId: number) => void
   onViewOutput?: (issue: Issue) => void
   isDeploying?: boolean
+  isGeneratingScript?: boolean
 }) {
   if (!issue) return null
 
@@ -739,6 +771,7 @@ function IssueDetailDialog({
   const canRetry = issue.status === "failed"
   const hasPR = issue.prUrl && issue.prNumber
   const hasOutput = issue.generatedOutput
+  const canGenerate = canGenerateScript(issue)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -838,6 +871,22 @@ function IssueDetailDialog({
                 View Output
               </Button>
             )}
+            {canGenerate && (
+              <Button
+                onClick={() => { onGenerateScript?.(issue.id); onOpenChange(false); }}
+                disabled={isGeneratingScript}
+                variant="ghost"
+                size="sm"
+                className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+              >
+                {isGeneratingScript ? (
+                  <IconLoader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <IconCode className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                Generate Script
+              </Button>
+            )}
           </div>
           {canDeploy && (
             <Button
@@ -870,10 +919,12 @@ function IssueColumnWithHandlers({
   onAddClick,
   onDelete,
   onFix,
+  onGenerateScript,
   onRetry,
   onViewOutput,
   onIssueClick,
   deployingId,
+  generatingScriptId,
 }: {
   title: string
   issues: Issue[]
@@ -881,10 +932,12 @@ function IssueColumnWithHandlers({
   onAddClick: (status: string) => void
   onDelete: (issue: Issue) => void
   onFix?: (issueId: number) => void
+  onGenerateScript?: (issueId: number) => void
   onRetry?: (issueId: number) => void
   onViewOutput?: (issue: Issue) => void
   onIssueClick?: (issue: Issue) => void
   deployingId?: number | null
+  generatingScriptId?: number | null
 }) {
   const config = statusConfig[status]
   const StatusIcon = config.icon
@@ -914,16 +967,18 @@ function IssueColumnWithHandlers({
       <SortableContext items={issues.map(i => i.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-3 min-h-[100px]" data-status={status}>
           {issues.map((issue) => (
-            <SortableIssueCard
-              key={issue.id}
-              issue={issue}
-              onDelete={onDelete}
-              onFix={onFix}
-              onRetry={onRetry}
-              onViewOutput={onViewOutput}
-              onClick={onIssueClick}
-              isDeploying={deployingId === issue.id}
-            />
+              <SortableIssueCard
+                key={issue.id}
+                issue={issue}
+                onDelete={onDelete}
+                onFix={onFix}
+                onGenerateScript={onGenerateScript}
+                onRetry={onRetry}
+                onViewOutput={onViewOutput}
+                onClick={onIssueClick}
+                isDeploying={deployingId === issue.id}
+                isGeneratingScript={generatingScriptId === issue.id}
+              />
           ))}
           {issues.length === 0 && (
             <div className="text-[13px] text-white/30 py-8 text-center border border-dashed border-white/[0.08] rounded-xl">
@@ -971,6 +1026,7 @@ function IssuesPageInner() {
 
   // Agent deployment state
   const [deployingId, setDeployingId] = React.useState<number | null>(null)
+  const [generatingScriptId, setGeneratingScriptId] = React.useState<number | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1190,6 +1246,60 @@ function IssuesPageInner() {
       toast.error("Deployment failed")
       await fetchIssues()
       setDeployingId(null)
+    }
+  }
+
+  // Generate script snippet for manual injection
+  const handleGenerateScript = async (issueId: number) => {
+    setGeneratingScriptId(issueId)
+    try {
+      const response = await fetch(`/api/issues/${issueId}/generate-script`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      const result = await response.json()
+
+      if (!result.success) {
+        toast.error("Script generation failed", {
+          description: result.error?.message || "Could not generate script for this issue.",
+        })
+        return
+      }
+
+      const generatedOutput = result.data?.generatedOutput as string | null
+      const outputType = result.data?.outputType as string | null
+
+      setIssues((prev) =>
+        prev.map((issue) =>
+          issue.id === issueId
+            ? {
+                ...issue,
+                generatedOutput: generatedOutput ?? issue.generatedOutput ?? null,
+                outputType: outputType ?? issue.outputType ?? null,
+              }
+            : issue
+        )
+      )
+
+      const current = issues.find((issue) => issue.id === issueId)
+      if (current && generatedOutput) {
+        setViewingOutputIssue({
+          ...current,
+          generatedOutput,
+          outputType,
+        })
+        setCopiedOutput(false)
+        setOutputDialogOpen(true)
+      }
+
+      toast.success("Script generated", {
+        description: "Use View Output to copy and paste the snippet.",
+      })
+    } catch (error) {
+      console.error("Failed to generate script:", error)
+      toast.error("Script generation failed")
+    } finally {
+      setGeneratingScriptId(null)
     }
   }
 
@@ -1605,10 +1715,12 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onDelete={handleDeleteClick}
                         onFix={handleDeployAgent}
+                        onGenerateScript={handleGenerateScript}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
                         onIssueClick={handleIssueClick}
                         deployingId={deployingId}
+                        generatingScriptId={generatingScriptId}
                       />
                       <IssueColumnWithHandlers
                         title="In Progress"
@@ -1617,10 +1729,12 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onDelete={handleDeleteClick}
                         onFix={handleDeployAgent}
+                        onGenerateScript={handleGenerateScript}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
                         onIssueClick={handleIssueClick}
                         deployingId={deployingId}
+                        generatingScriptId={generatingScriptId}
                       />
                       <IssueColumnWithHandlers
                         title="Completed"
@@ -1629,10 +1743,12 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onDelete={handleDeleteClick}
                         onFix={handleDeployAgent}
+                        onGenerateScript={handleGenerateScript}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
                         onIssueClick={handleIssueClick}
                         deployingId={deployingId}
+                        generatingScriptId={generatingScriptId}
                       />
                       <IssueColumnWithHandlers
                         title="Merged"
@@ -1641,10 +1757,12 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onDelete={handleDeleteClick}
                         onFix={handleDeployAgent}
+                        onGenerateScript={handleGenerateScript}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
                         onIssueClick={handleIssueClick}
                         deployingId={deployingId}
+                        generatingScriptId={generatingScriptId}
                       />
                     </div>
                   </div>
@@ -1692,9 +1810,11 @@ function IssuesPageInner() {
         onOpenChange={setIssueDetailDialogOpen}
         issue={selectedIssue}
         onDeploy={handleDeployAgent}
+        onGenerateScript={handleGenerateScript}
         onRetry={handleRetryAgent}
         onViewOutput={handleViewOutput}
         isDeploying={deployingId === selectedIssue?.id}
+        isGeneratingScript={generatingScriptId === selectedIssue?.id}
       />
 
       {/* View Generated Output Dialog */}

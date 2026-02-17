@@ -177,6 +177,15 @@ export async function createIssuesFromPageScore(
       description = `This page has no JSON-LD schema markup. Structured data is critical for AI systems to understand your content.\n\nRecommended schemas: ${schemaMatch?.[1] || 'appropriate type for this page'}.`
     }
 
+    // J2_valid: Include existing schema types so KB extraction works
+    if (check === 'J2_valid') {
+      const typeMatch = issue.message.match(/Current types: (.+)$/)
+      if (typeMatch) {
+        title = `Fix ${typeMatch[1]} JSON-LD Syntax`
+        description = `${ISSUE_DESCRIPTIONS[check]}\n\nExisting schema types on this page: ${typeMatch[1]}. Fix the invalid structure.`
+      }
+    }
+
     // J4_coverage: Extract missing schemas from message for dynamic title
     if (check === 'J4_coverage') {
       const addMatch = issue.message.match(/Add: (.+)$/)

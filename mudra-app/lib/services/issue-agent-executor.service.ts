@@ -29,6 +29,7 @@ import {
 } from '@/mastra/evals'
 import type { ScorerRunInputForAgent, ScorerRunOutputForAgent } from '@mastra/core/evals'
 import { createHash } from 'crypto'
+import { readSchemaKnowledge } from '@/lib/analysis/technical/knowledge'
 
 // Max iterations for the generate→review→refine loop
 const MAX_REVIEW_ITERATIONS = 3
@@ -239,6 +240,43 @@ async function fetchSourceFileFromGitHub(
 }
 
 /**
+ * Resolve the source file path for the agent to read.
+ *
+ * For page-specific agents (schema_markup, heading_hierarchy, etc.), derives
+ * the file path from the affected URL. E.g. https://acme.com/pricing →
+ * app/pricing/page.tsx. Falls back to getFilePathForAgentType() for non-page
+ * agents or when no URL is available.
+ */
+function resolveSourceFilePath(agentType: string, affectedUrl: string | null): string {
+  const PAGE_SPECIFIC_AGENTS = [
+    'schema_markup', 'heading_hierarchy', 'content_structure', 'faq_sections',
+    'meta_optimization', 'citation_signals', 'ai_content_optimizer',
+    'authority_building', 'brand_messaging', 'navigation', 'nav_optimization',
+  ]
+
+  if (!affectedUrl || !PAGE_SPECIFIC_AGENTS.includes(agentType)) {
+    return getFilePathForAgentType(agentType)
+  }
+
+  // Strip domain + protocol, normalize
+  let urlPath = affectedUrl
+    .replace(/^https?:\/\/[^/]+/, '')
+    .replace(/^\//, '')
+    .replace(/\/$/, '')
+    .replace(/\.[^/.]+$/, '')  // remove .html etc.
+
+  if (!urlPath || urlPath === '') {
+    // Homepage
+    return 'app/page.tsx'
+  }
+
+  // Convert URL path to Next.js App Router file path
+  // e.g. "pricing" → "app/pricing/page.tsx"
+  //      "blog/my-post" → "app/blog/my-post/page.tsx"
+  return `app/${urlPath}/page.tsx`
+}
+
+/**
  * Gather full context for an issue: page content + source code + existing files.
  * This is the "context enrichment" phase that runs before the agent generates code.
  */
@@ -261,7 +299,10 @@ async function gatherIssueContext(issue: {
   const pageContentPromise = targetUrl ? scrapePageContent(targetUrl) : Promise.resolve(null)
 
   // 2. Fetch the source file that will be modified
-  const targetFilePath = getFilePathForAgentType(issue.agentType || 'schema_markup')
+  //    For schema agents, derive the path from the affected URL instead of
+  //    using the hardcoded 'app/page.tsx' default — a /pricing issue needs
+  //    app/pricing/page.tsx, not the homepage source.
+  const targetFilePath = resolveSourceFilePath(issue.agentType || 'schema_markup', issue.affectedUrl)
   const sourceFilePromise = fetchSourceFileFromGitHub(issue.brandProfileId, targetFilePath)
 
   // 3. Check blog context if applicable
@@ -289,9 +330,6 @@ async function gatherIssueContext(issue: {
 const ISSUE_AGENT_MAP: Record<string, string> = {
   // Technical Structure
   'schema_markup': 'schemaArchitectAgent',
-  'schema_architect': 'schemaArchitectAgent',
-  'json_ld_generation': 'schemaArchitectAgent',
-  'structured_data': 'schemaArchitectAgent',
   'heading_hierarchy': 'contentRestructureAgent',
   'content_structure': 'contentRestructureAgent',
   'faq_sections': 'contentRestructureAgent',
@@ -322,7 +360,7 @@ const ISSUE_AGENT_MAP: Record<string, string> = {
 
 // Issue types that create PRs vs those that return links/content
 const PR_CREATING_TYPES = [
-  'schema_markup', 'schema_architect', 'json_ld_generation', 'structured_data',
+  'schema_markup',
   'heading_hierarchy', 'content_structure', 'faq_sections',
   'site_config', 'robots_txt', 'sitemap', 'meta_optimization',
   'llms_txt', 'llms_txt_missing', 'llms_txt_optimizer',
@@ -333,6 +371,10 @@ const PR_CREATING_TYPES = [
 const CONVERSATION_TYPES = [
   'conversation_engagement', 'reddit_opportunity', 'social_opportunity'
 ]
+
+function isSchemaAgentType(agentType: string): boolean {
+  return agentType === 'schema_markup'
+}
 
 export interface ExecutionResult {
   success: boolean
@@ -648,9 +690,6 @@ function getFilePathForAgentType(agentType: string): string {
     // Schema markup - depends on schema type (Organization goes to layout, others to page)
     // Default to page.tsx, GitHub service will analyze content for Organization/WebSite
     'schema_markup': 'app/page.tsx',
-    'schema_architect': 'app/page.tsx',
-    'json_ld_generation': 'app/page.tsx',
-    'structured_data': 'app/page.tsx',
     
     // Content structure - always page-specific
     'heading_hierarchy': 'app/page.tsx',
@@ -1049,7 +1088,26 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
       brandProfile: issue.brandProfile
     }, context)
 
-    const systemPrompt = `You are a GEO (Generative Engine Optimization) code generation agent. You generate code that will be committed to the user's repository via an automated PR.
+    // Build system prompt — schema agents get KB-grounded instructions
+    let systemPrompt: string
+    if (isSchemaAgentType(agentType)) {
+      const issueText = `${issue.title} ${issue.description || ''}`
+      const schemaKb = await readSchemaKnowledge(issueText)
+      systemPrompt = `You are an expert Schema.org JSON-LD markup architect. You generate production-ready structured data that will be committed to the user's repository via an automated PR.
+
+GROUNDING RULE: Only generate schema properties for data that actually exists on the page. Never fabricate URLs, ratings, prices, dates, authors, or any property values. If a property's value cannot be determined from the page content, omit it.
+
+You will be given:
+- The issue to fix (already contains specific instructions)
+- The live page content (what users see)
+- The current source code of the target file
+- A schema knowledge base with required/recommended properties, examples, and restrictions
+
+Use the knowledge base below as your authoritative reference for which properties to include, their types, and validation rules. Base all property values on actual page content.
+
+${schemaKb}`
+    } else {
+      systemPrompt = `You are a GEO (Generative Engine Optimization) code generation agent. You generate code that will be committed to the user's repository via an automated PR.
 
 You will be given:
 - The issue to fix (already contains specific instructions)
@@ -1057,9 +1115,10 @@ You will be given:
 - The current source code of the target file
 
 Use this context to produce accurate, targeted code. Base structured data on actual page content. Your output will be inserted into the existing codebase.`
+    }
 
     let currentCode = ''
-    let finalFilePath = getFilePathForAgentType(agentType)
+    let finalFilePath = resolveSourceFilePath(agentType, issue.affectedUrl)
     let lastReview: ReviewResult | null = null
     let evalScores: ScoringResult | undefined
     let qualityGatePassed: boolean | null = null

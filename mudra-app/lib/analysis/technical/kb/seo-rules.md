@@ -27,41 +27,13 @@ Disallow:
   - Headings should be descriptive (e.g., "How it works", "Pricing & Plans")
 
 ### JSON-LD basics
-- Goal: at least one valid JSON-LD block. Prefer consolidated, minimal objects.
-- Core types:
-  - Organization (site-level, homepages)
-  - WebSite (homepages only)
-  - FAQPage (when you have on-page FAQs)
-  - Product / OfferCatalog (product + pricing pages)
-  - Article / BlogPosting (content pages)
-  - Service (solutions/service pages)
-- Additional schema types:
-  - WebApplication: For SaaS/web-based tools with interactive functionality (dashboards, editors, platforms)
-  - OfferCatalog: For pricing pages with multiple tiers/plans
-  - VideoObject: For pages with prominent video content (demos, tutorials, webinars) — added automatically when video embeds are detected
-  - ItemList: For feature comparison tables, integration directories, product catalogs
-  - Review: For testimonial sections — added automatically when testimonial patterns are detected. NOT for product review pages.
-  - Person: For blog posts with author bylines, team/about pages with individual profiles
+- Goal: at least one valid JSON-LD block per page. Prefer consolidated, minimal objects.
+- **See `schema-types.md` for comprehensive reference** covering all 17 schema types with required/recommended properties, examples, and restrictions.
+- Core types: Organization, WebSite, Product, Service, Article, BlogPosting, FAQPage, BreadcrumbList, HowTo, SoftwareApplication, WebApplication, OfferCatalog, VideoObject, ItemList, Review, Person, CollectionPage
 - Tips:
-  - Keep to supported properties; valid JSON; embed via <script type="application/ld+json"> in <head>
+  - Keep to supported properties; valid JSON; embed via `<script type="application/ld+json">` in `<head>`
   - Prefer one object per type rather than many duplicates
-
-FAQPage skeleton (pattern):
-```json
-{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
-  {"@type":"Question","name":"{Q1}","acceptedAnswer":{"@type":"Answer","text":"{A1}"}}
-]}
-```
-
-VideoObject skeleton (pattern):
-```json
-{"@context":"https://schema.org","@type":"VideoObject","name":"{title}","description":"{desc}","thumbnailUrl":"{thumb}","uploadDate":"{date}"}
-```
-
-Review skeleton (pattern):
-```json
-{"@context":"https://schema.org","@type":"Review","author":{"@type":"Person","name":"{name}"},"reviewBody":"{text}","itemReviewed":{"@type":"Product","name":"{product}"}}
-```
+  - Only generate properties for data that actually exists on the page
 
 ### Favicon / icons (minimal set)
 - Goal: cross-browser icons with simple tags, long-cacheable.

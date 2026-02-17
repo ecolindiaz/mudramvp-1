@@ -117,7 +117,13 @@ export function verifyGitHubWebhookSignature(
  */
 export async function handlePullRequestEvent(
   event: GitHubPullRequestEvent
-): Promise<{ processed: boolean; issuesUpdated: number; details?: string }> {
+): Promise<{
+  processed: boolean
+  issuesUpdated: number
+  details?: string
+  isMerged?: boolean
+  mergedBrandProfileIds?: number[]
+}> {
   const { action, pull_request: pr } = event
   const repoFullName = event.repository.full_name
 
@@ -125,7 +131,13 @@ export async function handlePullRequestEvent(
 
   // Only handle 'closed' events (which include merges)
   if (action !== 'closed') {
-    return { processed: false, issuesUpdated: 0, details: `Ignored action: ${action}` }
+    return {
+      processed: false,
+      issuesUpdated: 0,
+      details: `Ignored action: ${action}`,
+      isMerged: false,
+      mergedBrandProfileIds: [],
+    }
   }
 
   const isMerged = pr.merged === true
@@ -168,7 +180,13 @@ export async function handlePullRequestEvent(
 
     if (matchByUrl.length === 0) {
       console.log(`[GitHubWebhook] No matching issues found for PR #${pr.number} (${pr.html_url})`)
-      return { processed: true, issuesUpdated: 0, details: 'No matching issues' }
+      return {
+        processed: true,
+        issuesUpdated: 0,
+        details: 'No matching issues',
+        isMerged,
+        mergedBrandProfileIds: [],
+      }
     }
 
     // Use URL-matched issues
@@ -200,6 +218,9 @@ export async function handlePullRequestEvent(
   })
 
   const results = await Promise.all(updatePromises)
+  const mergedBrandProfileIds = isMerged
+    ? [...new Set(matchingIssues.map((issue) => issue.brandProfileId))]
+    : []
 
   return {
     processed: true,
@@ -207,7 +228,95 @@ export async function handlePullRequestEvent(
     details: isMerged
       ? `Merged: ${results.map(r => `#${r.id}`).join(', ')}`
       : `Closed: ${results.map(r => `#${r.id}`).join(', ')}`,
+    isMerged,
+    mergedBrandProfileIds,
   }
+}
+
+/**
+ * Trigger unified re-analysis for all provided brand profiles.
+ *
+ * Used after a PR merge so score deltas reflect newly deployed changes.
+ * Runs sequentially to reduce API pressure and keep logs readable.
+ */
+export async function triggerPostMergeReanalysis(brandProfileIds: number[]): Promise<{
+  triggered: number
+  failed: number
+  errors: string[]
+}> {
+  const uniqueIds = [...new Set(brandProfileIds)].filter((id) => Number.isFinite(id))
+  const result = { triggered: 0, failed: 0, errors: [] as string[] }
+
+  if (uniqueIds.length === 0) {
+    return result
+  }
+
+  const { runUnifiedAnalysis } = await import('./unified-analysis.service')
+
+  for (const brandProfileId of uniqueIds) {
+    try {
+      const profile = await prisma.brandProfile.findUnique({
+        where: { id: brandProfileId },
+        select: {
+          id: true,
+          companyName: true,
+          companyWebsite: true,
+          companyDescription: true,
+          companyIndustry: true,
+          competitors: true,
+          trackingCountries: true,
+        },
+      })
+
+      if (!profile?.companyName || !profile.companyWebsite) {
+        throw new Error('Missing companyName/companyWebsite on brand profile')
+      }
+
+      const competitors = profile.competitors
+        ? profile.competitors.split(',').map((c) => c.trim()).filter(Boolean)
+        : []
+      const countries = profile.trackingCountries?.length
+        ? profile.trackingCountries
+        : ['US']
+
+      console.log(`[GitHubWebhook] Triggering post-merge re-analysis for brand ${brandProfileId} (${profile.companyName})`)
+
+      const analysis = await runUnifiedAnalysis({
+        brandProfileId: profile.id,
+        brandName: profile.companyName,
+        website: profile.companyWebsite,
+        description: profile.companyDescription || undefined,
+        industry: profile.companyIndustry || undefined,
+        competitors,
+        skipCooldown: true,
+        generateReport: false,
+        countries,
+      })
+
+      if (!analysis.success) {
+        throw new Error(analysis.error || 'Unified analysis returned success=false')
+      }
+
+      // runUnifiedAnalysis may queue additional country jobs and expose
+      // a backgroundWork promise the API route normally passes to after().
+      // Since we're calling the service directly here, explicitly await it.
+      if (analysis.backgroundWork) {
+        await analysis.backgroundWork
+      }
+
+      result.triggered++
+      console.log(
+        `[GitHubWebhook] Re-analysis completed for brand ${brandProfileId}: technical=${analysis.scores.technical ?? 'n/a'}, aiVisibility=${analysis.scores.aiVisibility ?? 'n/a'}`
+      )
+    } catch (error) {
+      result.failed++
+      const message = error instanceof Error ? error.message : String(error)
+      result.errors.push(`brand ${brandProfileId}: ${message}`)
+      console.error(`[GitHubWebhook] Re-analysis failed for brand ${brandProfileId}:`, message)
+    }
+  }
+
+  return result
 }
 
 // ─── PR Status Sync (Polling Fallback) ──────────────────────────────────────

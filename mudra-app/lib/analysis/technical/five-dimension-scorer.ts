@@ -510,7 +510,9 @@ function generateIssues(
 		));
 	}
 	if (!schemaScore.checks.J2_valid?.passed && extraction.extraction.schema.jsonld_blocks.length > 0) {
-		issues.push(createIssue("J2_valid", "schema", "high", "Invalid JSON-LD structure", pageUrl));
+		const existingTypes = extraction.extraction.schema.schema_types;
+		const typeInfo = existingTypes.length > 0 ? `. Current types: ${existingTypes.join(', ')}` : '';
+		issues.push(createIssue("J2_valid", "schema", "high", `Invalid JSON-LD structure (missing @context or @type)${typeInfo}`, pageUrl));
 	}
 	if (!schemaScore.checks.J3_relevant?.passed && extraction.extraction.schema.has_schema) {
 		const recommended = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);

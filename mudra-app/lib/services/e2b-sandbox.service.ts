@@ -297,10 +297,7 @@ print(json.dumps({
 export function requiresE2bValidation(agentType: string): boolean {
   const E2B_REQUIRED_TYPES = [
     'schema_markup',
-    'schema_architect',
     'ai_readable_content',
-    'json_ld_generation',
-    'structured_data'
   ]
   return E2B_REQUIRED_TYPES.includes(agentType)
 }

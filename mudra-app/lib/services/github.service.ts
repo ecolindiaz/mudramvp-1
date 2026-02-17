@@ -137,7 +137,12 @@ function hasExistingOptimization(content: string, newCode: string, contentType: 
   
   // Check for specific schema types already present
   if (contentType === 'json-ld') {
-    const schemaTypes = ['Organization', 'Product', 'FAQPage', 'Article', 'WebSite', 'BreadcrumbList'];
+    const schemaTypes = [
+      'Organization', 'WebSite', 'Product', 'Service', 'Article',
+      'BlogPosting', 'FAQPage', 'BreadcrumbList', 'HowTo',
+      'SoftwareApplication', 'WebApplication', 'OfferCatalog',
+      'ItemList', 'VideoObject', 'Review', 'Person', 'CollectionPage',
+    ];
     for (const schemaType of schemaTypes) {
       if (newCode.includes(`"@type":"${schemaType}"`) || newCode.includes(`"@type": "${schemaType}"`)) {
         // Check if this schema type already exists in the file
@@ -637,10 +642,10 @@ function insertCodeIntoFile(existingContent: string, newCode: string, filePath: 
   
   console.log(`[GitHub] Inserting ${contentType} into ${framework} file: ${filePath}`);
   
-  // Check for existing optimizations
+  // Check for existing optimizations — skip insertion to prevent duplicates
   if (hasExistingOptimization(existingContent, newCode, contentType)) {
-    console.log('[GitHub] Similar optimization already exists, updating instead of adding');
-    // For now, still add - but we could implement update logic here
+    console.log('[GitHub] Similar optimization already exists — skipping to prevent duplicate insertion');
+    return existingContent;
   }
   
   // Clean up the code - remove instruction comments

@@ -3,6 +3,7 @@ import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 import { getActivePrompts } from '@/lib/services/prompt-storage.service'
 import { profileToBrandInfo, generateInitialPrompts } from '@/lib/services/prompt-generation.service'
+import { fetchRedditContext } from '@/lib/services/reddit-context.service'
 import { prisma } from '@/lib/prisma'
 
 export const maxDuration = 60
@@ -59,7 +60,16 @@ export async function POST(request: NextRequest) {
     }
 
     const brandInfo = profileToBrandInfo(profile)
-    const generated = await generateInitialPrompts(brandInfo)
+
+    // Fetch Reddit context in parallel with prompt generation prep
+    // This is non-blocking: if it fails or returns null, prompts generate normally
+    const redditContext = await fetchRedditContext(brandInfo)
+
+    if (redditContext) {
+      console.log(`[InitialPrompts] Reddit context enrichment enabled (${redditContext.length} chars)`)
+    }
+
+    const generated = await generateInitialPrompts(brandInfo, redditContext)
 
     // Save all prompts in a single transaction
     const saved = await prisma.$transaction(

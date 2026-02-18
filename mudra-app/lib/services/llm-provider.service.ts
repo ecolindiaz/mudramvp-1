@@ -17,10 +17,12 @@ export interface LlmCallOptions {
 export interface LlmCallResult {
 	text: string;
 	provider: string;
+	model: string;
 }
 
 interface ProviderConfig {
 	name: string;
+	model: string;
 	call: (opts: LlmCallOptions) => Promise<string>;
 }
 
@@ -55,13 +57,14 @@ function buildProviders(): ProviderConfig[] {
 	// Anthropic
 	const anthropicKey = process.env.ANTHROPIC_API_KEY;
 	if (anthropicKey) {
+		const model =
+			process.env.SCRIPT_GEN_ANTHROPIC_MODEL ||
+			"claude-sonnet-4-5-20250929";
 		providers.push({
 			name: "anthropic",
+			model,
 			call: async (opts) => {
 				const client = new Anthropic({ apiKey: anthropicKey });
-				const model =
-					process.env.SCRIPT_GEN_ANTHROPIC_MODEL ||
-					"claude-sonnet-4-5-20250929";
 				const response = await client.messages.create({
 					model,
 					max_tokens: opts.maxTokens ?? 2048,
@@ -79,13 +82,13 @@ function buildProviders(): ProviderConfig[] {
 	// OpenAI
 	const openaiKey = process.env.OPENAI_API_KEY;
 	if (openaiKey) {
+		const model = process.env.SCRIPT_GEN_OPENAI_MODEL || "gpt-4o";
 		providers.push({
 			name: "openai",
+			model,
 			call: async (opts) => {
 				const { default: OpenAI } = await import("openai");
 				const client = new OpenAI({ apiKey: openaiKey });
-				const model =
-					process.env.SCRIPT_GEN_OPENAI_MODEL || "gpt-4o";
 				const response = await client.chat.completions.create({
 					model,
 					max_tokens: opts.maxTokens ?? 2048,
@@ -107,16 +110,17 @@ function buildProviders(): ProviderConfig[] {
 		process.env.GOOGLE_API_KEY ||
 		process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 	if (googleKey) {
+		const model =
+			process.env.SCRIPT_GEN_GOOGLE_MODEL ||
+			"gemini-2.0-flash";
 		providers.push({
 			name: "google",
+			model,
 			call: async (opts) => {
 				const { GoogleGenerativeAI } = await import(
 					"@google/generative-ai"
 				);
 				const genAI = new GoogleGenerativeAI(googleKey);
-				const model =
-					process.env.SCRIPT_GEN_GOOGLE_MODEL ||
-					"gemini-2.0-flash";
 				const genModel = genAI.getGenerativeModel({ model });
 				const result = await genModel.generateContent({
 					systemInstruction: opts.systemPrompt,
@@ -154,7 +158,7 @@ export async function callLlm(
 			console.log(
 				`[LlmProvider] ${provider.name} succeeded (${text.length} chars)`
 			);
-			return { text, provider: provider.name };
+			return { text, provider: provider.name, model: provider.model };
 		} catch (err) {
 			if (isRateLimitOrOverload(err)) {
 				const retryMs = getRetryAfterMs(err);
@@ -165,7 +169,7 @@ export async function callLlm(
 					await sleep(retryMs);
 					try {
 						const text = await provider.call(opts);
-						return { text, provider: provider.name };
+						return { text, provider: provider.name, model: provider.model };
 					} catch (retryErr) {
 						console.warn(
 							`[LlmProvider] ${provider.name} retry failed, falling through`,

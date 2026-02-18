@@ -16,7 +16,7 @@ The Sitemap Discovery Service discovers and categorizes pages on a website for t
        │                        │                       │
        v                        v                       v
    Raw URLs              Filtered URLs           Categorized Pages
-   (up to 500)           (marketing only)        (20-25 selected)
+   (up to 500)           (marketing only)        (30-35 selected)
 ```
 
 ## Performance
@@ -45,7 +45,7 @@ The Sitemap Discovery Service discovers and categorizes pages on a website for t
 ### Step 3: AI Analysis (OpenAI)
 - Sends top 100 filtered URLs to GPT-5.2
 - Uses structured output (JSON schema) for reliable parsing
-- AI selects 20-25 most important marketing pages
+- AI selects 30-35 most important marketing pages
 - Each page gets: `pageType`, `title`, `reason`, `importance`
 
 ### Fallback: Pattern Matching
@@ -67,8 +67,8 @@ When AI analysis is unavailable (no API key, rate limit, errors), the service fa
 
 ```typescript
 interface AIDiscoveryOptions {
-  maxPages?: number;      // Max pages to return (default: 20)
-  maxBlogs?: number;      // Max blog posts (default: 10)
+  maxPages?: number;      // Max pages to return (default: 35)
+  maxBlogs?: number;      // Max blog posts (default: 15)
   sitemap?: "include" | "only" | "skip";
   useAI?: boolean;        // Enable AI analysis (default: true)
   aiModel?: string;       // OpenAI model (default: "gpt-5.2")

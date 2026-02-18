@@ -51,13 +51,6 @@ export function extractCheckFromIssue(issue: { title: string; agentType: string 
     return TITLE_TO_CHECK[cleanTitle]
   }
 
-  // Handle dynamic J1_present titles like "Add Organization + WebSite Schema"
-  // These are generated with page-type-specific schema names instead of the
-  // static "Add JSON-LD Schema" title.
-  if (cleanTitle.startsWith('Add ') && cleanTitle.endsWith(' Schema')) {
-    return 'J1_present'
-  }
-
   // Fall back to finding a check from the agent type
   if (issue.agentType && AGENT_TO_CHECKS[issue.agentType]) {
     // Return the first matching check (not perfect but reasonable fallback)

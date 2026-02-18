@@ -10,7 +10,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { CountdownBadge } from "@/components/dashboard/countdown-badge"
-import { IconPlus, IconTrash, IconLoader2, IconSparkles, IconRotate, IconExternalLink, IconGitPullRequest, IconCode, IconCopy, IconCheck, IconWand } from "@tabler/icons-react"
+import { IconPlus, IconTrash, IconLoader2, IconSparkles, IconRotate, IconExternalLink, IconGitPullRequest, IconCode, IconCopy, IconCheck, IconWand, IconChevronDown } from "@tabler/icons-react"
 import {
   Dialog,
   DialogContent,
@@ -187,9 +187,9 @@ const statusConfig = {
 }
 
 const priorityConfig = {
-  low: { color: "text-white/40", bg: "bg-white/5" },
-  medium: { color: "text-amber-400", bg: "bg-amber-400/10" },
-  high: { color: "text-red-400", bg: "bg-red-400/10" },
+  low: { color: "text-white/40", bg: "bg-white/5", dot: "bg-white/40" },
+  medium: { color: "text-amber-400", bg: "bg-amber-400/10", dot: "bg-amber-400" },
+  high: { color: "text-red-400", bg: "bg-red-400/10", dot: "bg-red-400" },
 }
 
 function canGenerateScript(issue: Issue): boolean {
@@ -354,9 +354,10 @@ function SortableIssueCard({
             <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
             <span className="text-[11px] text-white/50">{categoryConf.label}</span>
           </span>
-          {issue.priority && issue.priority !== "medium" && priorityConfig[issue.priority] && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded ${priorityConfig[issue.priority].bg} ${priorityConfig[issue.priority].color}`}>
-              {issue.priority}
+          {issue.priority && priorityConfig[issue.priority] && (
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]">
+              <span className={`w-1.5 h-1.5 rounded-full ${priorityConfig[issue.priority].dot}`} />
+              <span className="text-[11px] text-white/50 capitalize">{issue.priority}</span>
             </span>
           )}
         </div>
@@ -782,17 +783,33 @@ function IssueDetailDialog({
   isDeploying?: boolean
   isGeneratingScript?: boolean
 }) {
+  const [scriptExpanded, setScriptExpanded] = React.useState(false)
+  const [scriptCopied, setScriptCopied] = React.useState(false)
+
+  // Reset expand state when dialog opens with a new issue
+  React.useEffect(() => {
+    if (!open) setScriptExpanded(false)
+  }, [open])
+
   if (!issue) return null
 
   const categoryConf = categoryConfig[issue.category as keyof typeof categoryConfig] || categoryConfig.technical_structure
   const statusConf = statusConfig[issue.status]
   const StatusIcon = statusConf.icon
   const priorityConf = issue.priority && priorityConfig[issue.priority] ? priorityConfig[issue.priority] : priorityConfig.medium
-  
+
   const canDeploy = issue.status === "identified" && issue.agentType
   const canRetry = issue.status === "failed"
   const hasPR = issue.prUrl && issue.prNumber
   const hasOutput = issue.generatedOutput
+
+  const handleCopyScript = async () => {
+    if (issue.generatedOutput) {
+      await navigator.clipboard.writeText(issue.generatedOutput)
+      setScriptCopied(true)
+      setTimeout(() => setScriptCopied(false), 2000)
+    }
+  }
   const canGenerate = canGenerateScript(issue)
 
   return (
@@ -856,13 +873,56 @@ function IssueDetailDialog({
            </a>
          )}
 
-         {/* Generated Output Preview */}
+         {/* Generated Script — preview visible, expandable to full */}
          {hasOutput && !hasPR && (
-           <div className="relative min-w-0 overflow-hidden">
-            <pre className="bg-white/[0.03] rounded-lg p-3 text-[11px] text-white/50 max-h-[100px] overflow-hidden font-mono break-all whitespace-pre-wrap w-full">
-               {issue.generatedOutput?.slice(0, 200)}
-               {(issue.generatedOutput?.length || 0) > 200 && "..."}
-             </pre>
+           <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+             <div className="flex items-center justify-between px-3 py-2">
+               <div className="flex items-center gap-2">
+                 <IconCode className="w-3.5 h-3.5 text-white/50" />
+                 <span className="text-[12px] text-white/50">Generated Script</span>
+                 {issue.scriptSource === "llm" && (
+                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300">AI</span>
+                 )}
+               </div>
+               <Button
+                 variant="ghost"
+                 size="sm"
+                 onClick={handleCopyScript}
+                 className="text-white/30 hover:text-white/70 hover:bg-white/[0.05] h-7 w-7 p-0"
+               >
+                 {scriptCopied ? (
+                   <IconCheck className="w-3.5 h-3.5 text-emerald-400" />
+                 ) : (
+                   <IconCopy className="w-3.5 h-3.5" />
+                 )}
+               </Button>
+             </div>
+             <div className="relative px-3 pb-3">
+               <pre
+                 onClick={() => setScriptExpanded(!scriptExpanded)}
+                 className={`bg-white/[0.03] border border-white/[0.06] rounded-lg p-3 text-[12px] text-white/80 font-mono whitespace-pre-wrap break-words cursor-pointer transition-all ${scriptExpanded ? 'max-h-[300px] overflow-auto' : 'max-h-[80px] overflow-hidden'}`}
+               >
+                 {issue.generatedOutput}
+               </pre>
+               {!scriptExpanded && (
+                 <button
+                   onClick={() => setScriptExpanded(true)}
+                   className="flex items-center justify-center gap-1 w-full pt-2 text-[11px] text-white/30 hover:text-white/50 transition-colors"
+                 >
+                   <span>Show more</span>
+                   <IconChevronDown className="w-3 h-3" />
+                 </button>
+               )}
+               {scriptExpanded && (
+                 <button
+                   onClick={() => setScriptExpanded(false)}
+                   className="flex items-center justify-center gap-1 w-full pt-2 text-[11px] text-white/30 hover:text-white/50 transition-colors"
+                 >
+                   <span>Show less</span>
+                   <IconChevronDown className="w-3 h-3 rotate-180" />
+                 </button>
+               )}
+             </div>
            </div>
          )}
        </div>
@@ -880,17 +940,6 @@ function IssueDetailDialog({
              >
                <IconRotate className="w-3.5 h-3.5 mr-1.5" />
                Retry
-             </Button>
-           )}
-           {hasOutput && (
-             <Button
-               onClick={() => { onViewOutput?.(issue); onOpenChange(false); }}
-               variant="ghost"
-               size="sm"
-               className="text-white/50 hover:text-white/70 hover:bg-white/[0.05]"
-             >
-               <IconCode className="w-3.5 h-3.5 mr-1.5" />
-               View Output
              </Button>
            )}
            {canGenerate && (

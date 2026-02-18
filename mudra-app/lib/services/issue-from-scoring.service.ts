@@ -13,6 +13,7 @@
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import type { FullPageScore } from '@/lib/analysis/technical/types'
+import { buildRequiredSchemaTypesMarker } from './schema-contracts'
 
 // Types
 export type IssuePriority = 'low' | 'medium' | 'high'
@@ -47,10 +48,10 @@ export const CHECK_TO_AGENT_MAP: Record<string, string> = {
  * Mapping from check codes to human-readable issue titles
  */
 export const ISSUE_TITLES: Record<string, string> = {
-  'J1_present': 'Add JSON-LD Schema',
+  'J1_present': 'Add Required JSON-LD Schema',
   'J2_valid': 'Fix JSON-LD Syntax',
   'J3_relevant': 'Use AEO-Relevant Schema Types',
-  'J4_coverage': 'Add Additional Schema Types',
+  'J4_coverage': 'Expand Required JSON-LD Coverage',
   'M1_title': 'Add Page Title Tag',
   'M2_description': 'Add Meta Description',
   'M3_canonical': 'Add Canonical URL',
@@ -167,12 +168,9 @@ export async function createIssuesFromPageScore(
     let description = ISSUE_DESCRIPTIONS[check] || issue.message
     let impact = ISSUE_IMPACTS[check] || 'Improved AEO score'
 
-    // J1_present: Use page-type-specific title and full schema impact
+    // J1_present: fixed title, explicit required schema contract marker
     if (check === 'J1_present') {
       const schemaMatch = issue.message.match(/Recommended for this page: (.+)$/)
-      if (schemaMatch) {
-        title = `Add ${schemaMatch[1]} Schema`
-      }
       impact = '+25 points (full schema dimension)'
       description = `This page has no JSON-LD schema markup. Structured data is critical for AI systems to understand your content.\n\nRecommended schemas: ${schemaMatch?.[1] || 'appropriate type for this page'}.`
     }
@@ -186,13 +184,15 @@ export async function createIssuesFromPageScore(
       }
     }
 
-    // J4_coverage: Extract missing schemas from message for dynamic title
+    // J4_coverage: fixed title, never derive required types from scorer free text
     if (check === 'J4_coverage') {
-      const addMatch = issue.message.match(/Add: (.+)$/)
-      if (addMatch) {
-        title = `Add ${addMatch[1]} Schema`
-      }
       description = `${ISSUE_DESCRIPTIONS[check]}\n\n${issue.message}`
+    }
+
+    // Add explicit schema contract marker for downstream script generation.
+    const schemaContractMarker = buildRequiredSchemaTypesMarker(check)
+    if (schemaContractMarker) {
+      description = `${description}\n\n${schemaContractMarker}`
     }
 
     if (!agentType) {
@@ -323,6 +323,10 @@ export async function createIssuesFromMultiplePageScores(
 export function getCheckFromTitle(title: string): string | null {
   // Remove page name suffix like "(Homepage)" or "(about)"
   const cleanTitle = title.replace(/\s*\([^)]+\)$/, '').trim()
+
+  // Backward compatibility with legacy issue titles
+  if (cleanTitle === 'Add JSON-LD Schema') return 'J1_present'
+  if (cleanTitle === 'Add Additional Schema Types') return 'J4_coverage'
 
   for (const [check, issueTitle] of Object.entries(ISSUE_TITLES)) {
     if (cleanTitle === issueTitle) {

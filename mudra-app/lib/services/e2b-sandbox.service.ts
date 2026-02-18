@@ -14,6 +14,23 @@ import { Sandbox } from '@e2b/code-interpreter'
 
 const E2B_TIMEOUT_MS = 30000 // 30 second timeout
 
+/**
+ * Escape a string for safe embedding inside a JS template literal
+ * that contains a Python triple-quoted string ('''...''').
+ *
+ * Handles: backslashes, single quotes, newlines,
+ * backticks (close the template literal), ${} (JS expression interpolation),
+ * and triple-single-quotes (close the Python string).
+ */
+function escapeForPythonInTemplateLiteral(s: string): string {
+  return s
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$/g, '\\$')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+}
+
 export interface SandboxResult<T> {
   success: boolean
   data?: T
@@ -92,11 +109,7 @@ export async function validateSchemaInSandbox(
   jsonLdSchema: string
 ): Promise<SandboxResult<SchemaValidationResult>> {
   return withSandbox(async (sandbox) => {
-    // Escape the schema for Python string
-    const escapedSchema = jsonLdSchema
-      .replace(/\\/g, '\\\\')
-      .replace(/'/g, "\\'")
-      .replace(/\n/g, '\\n')
+    const escapedSchema = escapeForPythonInTemplateLiteral(jsonLdSchema)
     
     // Validate JSON-LD structure without fetching remote contexts
     // E2B sandboxes have limited internet access, so we skip expansion
@@ -200,7 +213,7 @@ export async function testGeneratedCode(
 import subprocess
 import json
 
-code = '''${code.replace(/'/g, "\\'")}'''
+code = '''${escapeForPythonInTemplateLiteral(code)}'''
 
 # Write to temp file and run with Node
 with open('/tmp/test.js', 'w') as f:
@@ -233,11 +246,7 @@ export async function validateHtmlStructure(
     // Install beautifulsoup4
     await sandbox.runCode('!pip install beautifulsoup4 -q')
     
-    // Escape HTML for Python
-    const escapedHtml = html
-      .replace(/\\/g, '\\\\')
-      .replace(/'/g, "\\'")
-      .replace(/\n/g, '\\n')
+    const escapedHtml = escapeForPythonInTemplateLiteral(html)
     
     const result = await sandbox.runCode(`
 import json
@@ -325,10 +334,7 @@ export async function validateFaqInSandbox(
   return withSandbox(async (sandbox) => {
     await sandbox.runCode('!pip install beautifulsoup4 -q')
 
-    const escapedHtml = faqHtml
-      .replace(/\\/g, '\\\\')
-      .replace(/'/g, "\\'")
-      .replace(/\n/g, '\\n')
+    const escapedHtml = escapeForPythonInTemplateLiteral(faqHtml)
 
     const result = await sandbox.runCode(`
 import json

@@ -36,7 +36,7 @@ import { readSchemaKnowledge, readFaqTemplates } from '@/lib/analysis/technical/
 // Max iterations for the generate→review→refine loop
 const MAX_REVIEW_ITERATIONS = 3
 
-// Outer loop: if eval scores fail quality gate, retry the entire generate→review→refine cycle
+// Outer loop: if eval scores or schema verification fail, retry the generate→review→refine cycle
 const MAX_QUALITY_RETRIES = 2
 
 // Quality thresholds for the gate check
@@ -249,23 +249,73 @@ async function fetchSourceFileFromGitHub(
  * app/pricing/page.tsx. Falls back to getFilePathForAgentType() for non-page
  * agents or when no URL is available.
  */
+function getSafeUrlPathFromAffectedUrl(affectedUrl: string): string | null {
+  let pathname: string
+
+  try {
+    pathname = new URL(affectedUrl).pathname
+  } catch {
+    // Support relative paths or missing protocol values
+    try {
+      pathname = new URL(affectedUrl, 'https://example.com').pathname
+    } catch {
+      return null
+    }
+  }
+
+  const rawSegments = pathname.split('/').filter(Boolean)
+  if (rawSegments.length === 0) return ''
+
+  const safeSegments: string[] = []
+
+  for (const rawSegment of rawSegments) {
+    let decodedSegment = rawSegment
+    try {
+      decodedSegment = decodeURIComponent(rawSegment)
+    } catch {
+      return null
+    }
+
+    const segment = decodedSegment.trim()
+    if (!segment || segment === '.') continue
+
+    // Reject traversal and encoded separators before constructing repo paths.
+    if (segment === '..' || segment.includes('/') || segment.includes('\\')) {
+      return null
+    }
+
+    safeSegments.push(segment)
+  }
+
+  if (safeSegments.length === 0) return ''
+
+  // Remove extension from the last segment (e.g. /pricing.html -> /pricing).
+  const lastIndex = safeSegments.length - 1
+  safeSegments[lastIndex] = safeSegments[lastIndex].replace(/\.[^/.]+$/, '')
+  if (!safeSegments[lastIndex]) {
+    safeSegments.pop()
+  }
+
+  return safeSegments.join('/')
+}
+
 function resolveSourceFilePath(agentType: string, affectedUrl: string | null): string {
   const PAGE_SPECIFIC_AGENTS = [
     'schema_markup', 'heading_hierarchy', 'content_structure', 'faq_sections',
     'meta_optimization', 'citation_signals', 'ai_content_optimizer',
     'authority_building', 'brand_messaging', 'navigation', 'nav_optimization',
   ]
+  const fallbackPath = getFilePathForAgentType(agentType)
 
   if (!affectedUrl || !PAGE_SPECIFIC_AGENTS.includes(agentType)) {
-    return getFilePathForAgentType(agentType)
+    return fallbackPath
   }
 
-  // Strip domain + protocol, normalize
-  let urlPath = affectedUrl
-    .replace(/^https?:\/\/[^/]+/, '')
-    .replace(/^\//, '')
-    .replace(/\/$/, '')
-    .replace(/\.[^/.]+$/, '')  // remove .html etc.
+  const urlPath = getSafeUrlPathFromAffectedUrl(affectedUrl)
+  if (urlPath === null) {
+    console.warn(`[IssueExecutor] Unsafe affectedUrl path detected, using fallback file path. affectedUrl=${affectedUrl}`)
+    return fallbackPath
+  }
 
   if (!urlPath || urlPath === '') {
     // Homepage
@@ -558,6 +608,67 @@ Provide your solution as a code block. Your output will be inserted into the cod
 `
 
   return prompt
+}
+
+/**
+ * Extract JSON-LD schemas from generated code.
+ *
+ * 1. Looks for <script type="application/ld+json"> blocks (the common case).
+ * 2. Falls back to brace-counted extraction for bare JSON objects containing "@context".
+ */
+function extractJsonLdFromCode(code: string): unknown[] {
+  const schemas: unknown[] = []
+
+  // Strategy 1: extract from <script type="application/ld+json"> tags
+  const scriptRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let scriptMatch
+  while ((scriptMatch = scriptRegex.exec(code)) !== null) {
+    const content = (scriptMatch[1] || '').trim()
+    if (!content) continue
+    try { schemas.push(JSON.parse(content)) } catch { /* skip unparseable */ }
+  }
+
+  if (schemas.length > 0) return schemas
+
+  // Strategy 2: brace-counted extraction for raw JSON-LD (e.g. Next.js structured data objects)
+  // Find each "@context" occurrence, walk back to the opening brace, then count braces to find the end.
+  const contextPattern = /"@context"/g
+  let contextMatch
+  while ((contextMatch = contextPattern.exec(code)) !== null) {
+    // Walk backwards to find the opening brace
+    let start = contextMatch.index
+    while (start > 0 && code[start] !== '{') start--
+    if (code[start] !== '{') continue
+
+    // Walk forwards with brace counting to find the balanced closing brace
+    let depth = 0
+    let end = start
+    let inString = false
+    let escaped = false
+    while (end < code.length) {
+      const ch = code[end]
+      if (escaped) { escaped = false; end++; continue }
+      if (ch === '\\' && inString) { escaped = true; end++; continue }
+      if (ch === '"' && !escaped) { inString = !inString; end++; continue }
+      if (!inString) {
+        if (ch === '{') depth++
+        else if (ch === '}') { depth--; if (depth === 0) break }
+      }
+      end++
+    }
+
+    if (depth === 0) {
+      const candidate = code.slice(start, end + 1)
+      try {
+        const parsed = JSON.parse(candidate)
+        if (parsed && typeof parsed === 'object' && parsed['@context']) {
+          schemas.push(parsed)
+        }
+      } catch { /* skip unparseable */ }
+    }
+  }
+
+  return schemas
 }
 
 /**
@@ -1019,6 +1130,26 @@ Do NOT fabricate information. Only use facts from the page content and brand con
 }
 
 /**
+ * Format schema verification failures into a prompt section for the next retry.
+ * Feeds verifier errors directly into the agent so it can correct schema output.
+ */
+function formatSchemaVerificationFeedbackForPrompt(errors: string[], retryNumber: number): string {
+  if (errors.length === 0) return ''
+
+  const lines = errors.map(error => `- ${error}`)
+
+  return `
+
+## Schema Verification Failure (Retry ${retryNumber})
+The previous output failed schema verification. You MUST fix each error below:
+
+${lines.join('\n')}
+
+Return corrected schema markup that stays grounded in visible page content.
+`
+}
+
+/**
  * Execute an agent to resolve an issue.
  *
  * Flow:
@@ -1027,7 +1158,8 @@ Do NOT fabricate information. Only use facts from the page content and brand con
  * 3. OUTER LOOP (quality retries):
  *    a. INNER LOOP (generate → review → refine, up to MAX_REVIEW_ITERATIONS)
  *    b. Score the output with Mastra eval scorers (with cache check)
- *    c. Check quality gate — if passed, break; if failed, feed scorer feedback
+ *    c. Check quality gate + schema verification (for schema agents)
+ *    d. If checks fail, feed feedback into next retry
  * 4. Create PR (draft if quality gate failed on final retry)
  * 5. Persist scores async, send notification if quality gate failed
  */
@@ -1191,6 +1323,7 @@ Use this context to produce accurate, targeted code. Base structured data on act
     let qualityRetryCount = 0
     let qualityGateResult: QualityGateResult | undefined
     let scorerFeedback = '' // accumulated from quality gate failures
+    let schemaVerificationFeedback = '' // accumulated from schema verification failures
 
     for (let qualityRetry = 0; qualityRetry <= MAX_QUALITY_RETRIES; qualityRetry++) {
       qualityRetryCount = qualityRetry
@@ -1203,8 +1336,8 @@ Use this context to produce accurate, targeted code. Base structured data on act
       for (let iteration = 1; iteration <= MAX_REVIEW_ITERATIONS; iteration++) {
         console.log(`[IssueExecutor] === Iteration ${iteration}/${MAX_REVIEW_ITERATIONS} (quality retry ${qualityRetry}) ===`)
 
-        // Build the prompt — include scorer feedback on quality retries + reviewer feedback on inner iterations
-        let iterationPrompt = basePrompt + scorerFeedback
+        // Build the prompt — include retry feedback + reviewer feedback on inner iterations
+        let iterationPrompt = basePrompt + scorerFeedback + schemaVerificationFeedback
         if (iteration > 1 && lastReview) {
           const feedback = [
             ...lastReview.warnings.map(w => `- ${w}`),
@@ -1322,17 +1455,68 @@ Please generate an improved version addressing all the feedback above.`
       qualityGateResult = checkQualityGate(evalScores)
       qualityGatePassed = qualityGateResult.passed
 
-      if (qualityGateResult.passed) {
+      // ── Schema verification check (schema agents only) ──
+      let schemaVerificationPassed = true
+      let schemaVerificationErrors: string[] = []
+
+      if (isSchemaAgentType(agentType)) {
+        try {
+          const { verifyInjectedSchemas } = await import('@/lib/analysis/technical/schema-verifier')
+          const { htmlToExtraction } = await import('@/lib/analysis/technical/dom-extractor')
+
+          // Parse JSON-LD blocks from generated code
+          const schemas = extractJsonLdFromCode(currentCode)
+          if (schemas.length > 0) {
+            // Build minimal extraction from page content if available
+            const targetUrl = issue.affectedUrl || issue.brandProfile.companyWebsite || '/'
+            const minimalHtml = context.pageContent
+              ? `<html><head><title>${issue.brandProfile.companyName || ''}</title></head><body>${context.pageContent}</body></html>`
+              : '<html><head></head><body></body></html>'
+            const extraction = htmlToExtraction(minimalHtml, targetUrl)
+
+            const verification = verifyInjectedSchemas(schemas, extraction.extraction, targetUrl)
+
+            const errors = verification.warnings.filter(w => w.severity === 'error')
+            if (errors.length > 0) {
+              schemaVerificationPassed = false
+              schemaVerificationErrors = errors.map(error => error.message)
+              console.error(`[IssueExecutor] Schema verification failed with ${errors.length} error(s):`, schemaVerificationErrors.join('; '))
+            }
+
+            const warningsOnly = verification.warnings.filter(w => w.severity === 'warning')
+            if (warningsOnly.length > 0) {
+              console.warn(`[IssueExecutor] Schema verification warnings: ${warningsOnly.map(w => w.message).join('; ')}`)
+            }
+          }
+        } catch (verifyError) {
+          console.warn('[IssueExecutor] Schema verification skipped:', verifyError instanceof Error ? verifyError.message : verifyError)
+        }
+      }
+
+      if (qualityGateResult.passed && schemaVerificationPassed) {
         console.log(`[IssueExecutor] Quality gate PASSED on retry ${qualityRetry} (composite: ${compositeScore?.toFixed(1) ?? 'N/A'})`)
         break
       }
 
-      console.log(`[IssueExecutor] Quality gate FAILED with ${qualityGateResult.failures.length} failure(s)`)
+      if (!qualityGateResult.passed) {
+        console.log(`[IssueExecutor] Quality gate FAILED with ${qualityGateResult.failures.length} failure(s)`)
+      }
+      if (!schemaVerificationPassed) {
+        console.log(`[IssueExecutor] Schema verification FAILED with ${schemaVerificationErrors.length} error(s)`)
+      }
 
       if (qualityRetry < MAX_QUALITY_RETRIES) {
-        scorerFeedback = formatScorerFeedbackForPrompt(qualityGateResult, qualityRetry + 1)
+        scorerFeedback = qualityGateResult.passed
+          ? ''
+          : formatScorerFeedbackForPrompt(qualityGateResult, qualityRetry + 1)
+        schemaVerificationFeedback = schemaVerificationPassed
+          ? ''
+          : formatSchemaVerificationFeedbackForPrompt(schemaVerificationErrors, qualityRetry + 1)
         lastReview = null // Reset reviewer state for next outer iteration
       } else {
+        if (!schemaVerificationPassed) {
+          throw new Error(`Schema verification failed: ${schemaVerificationErrors.join('; ')}`)
+        }
         console.warn(`[IssueExecutor] Quality gate failed on final retry — proceeding with draft PR`)
       }
     }
@@ -1405,50 +1589,6 @@ Please generate an improved version addressing all the feedback above.`
           throw new Error(`Schema validation failed: ${e2bValidation.data.errors.join(', ')}`)
         }
         console.log(`[IssueExecutor] E2B validation passed in ${e2bValidation.executionMs}ms`)
-      }
-    }
-
-    // 6b. Schema verification for schema_markup agents
-    if (isSchemaAgentType(agentType)) {
-      try {
-        const { verifyInjectedSchemas } = await import('@/lib/analysis/technical/schema-verifier')
-        const { htmlToExtraction } = await import('@/lib/analysis/technical/dom-extractor')
-
-        // Parse JSON-LD blocks from generated code
-        const jsonLdMatches = currentCode.match(/\{[\s\S]*?"@context"[\s\S]*?"@type"[\s\S]*?\}/g)
-        if (jsonLdMatches) {
-          const schemas: unknown[] = []
-          for (const match of jsonLdMatches) {
-            try { schemas.push(JSON.parse(match)) } catch { /* skip unparseable */ }
-          }
-
-          if (schemas.length > 0) {
-            // Build minimal extraction from page content if available
-            const targetUrl = issue.affectedUrl || issue.brandProfile.companyWebsite || '/'
-            const minimalHtml = context.pageContent
-              ? `<html><head><title>${issue.brandProfile.companyName || ''}</title></head><body>${context.pageContent}</body></html>`
-              : '<html><head></head><body></body></html>'
-            const extraction = htmlToExtraction(minimalHtml, targetUrl)
-
-            const verification = verifyInjectedSchemas(schemas, extraction.extraction, targetUrl)
-
-            const errors = verification.warnings.filter(w => w.severity === 'error')
-            if (errors.length > 0) {
-              console.error(`[IssueExecutor] Schema verification failed with ${errors.length} error(s):`, errors.map(e => e.message).join('; '))
-              throw new Error(`Schema verification failed: ${errors.map(e => e.message).join('; ')}`)
-            }
-
-            const warningsOnly = verification.warnings.filter(w => w.severity === 'warning')
-            if (warningsOnly.length > 0) {
-              console.warn(`[IssueExecutor] Schema verification warnings: ${warningsOnly.map(w => w.message).join('; ')}`)
-            }
-          }
-        }
-      } catch (verifyError) {
-        if (verifyError instanceof Error && verifyError.message.startsWith('Schema verification failed:')) {
-          throw verifyError // Re-throw to trigger retry loop
-        }
-        console.warn('[IssueExecutor] Schema verification skipped:', verifyError instanceof Error ? verifyError.message : verifyError)
       }
     }
 

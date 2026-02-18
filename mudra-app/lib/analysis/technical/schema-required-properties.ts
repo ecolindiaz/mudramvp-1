@@ -96,6 +96,22 @@ export interface ValidationResult {
 	missing: RequiredPropertySpec[];
 }
 
+function normalizeSchemaTypes(typeValue: unknown): string[] {
+	if (typeof typeValue === "string") {
+		const trimmed = typeValue.trim();
+		return trimmed ? [trimmed] : [];
+	}
+
+	if (Array.isArray(typeValue)) {
+		return typeValue
+			.filter((entry): entry is string => typeof entry === "string")
+			.map((entry) => entry.trim())
+			.filter(Boolean);
+	}
+
+	return [];
+}
+
 /**
  * Validate that a JSON-LD data object has all required properties
  * for its @type. Returns the list of missing required properties.
@@ -104,7 +120,11 @@ export interface ValidationResult {
 export function validateRequiredProperties(
 	data: Record<string, unknown>
 ): ValidationResult {
-	const type = (data["@type"] as string) || "Unknown";
+	const types = normalizeSchemaTypes(data["@type"]);
+	const type =
+		types.find((candidate) => !!SCHEMA_REQUIRED_PROPERTIES[candidate]) ||
+		types[0] ||
+		"Unknown";
 	const required = SCHEMA_REQUIRED_PROPERTIES[type];
 
 	if (!required) {

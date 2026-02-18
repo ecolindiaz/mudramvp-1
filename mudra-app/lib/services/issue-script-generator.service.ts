@@ -208,9 +208,20 @@ function parseFaqDataFromDescription(desc: string | null | undefined): Array<{ q
 	if (!match) return [];
 	try {
 		const parsed = JSON.parse(match[1]);
-		if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].question) {
-			return parsed;
-		}
+		if (!Array.isArray(parsed)) return [];
+
+		return parsed
+			.map((item) => {
+				if (!item || typeof item !== "object") return null;
+				const candidate = item as Record<string, unknown>;
+				const question =
+					typeof candidate.question === "string" ? candidate.question.trim() : "";
+				const answer =
+					typeof candidate.answer === "string" ? candidate.answer.trim() : "";
+				if (!question || !answer) return null;
+				return { question, answer };
+			})
+			.filter((item): item is { question: string; answer: string } => item !== null);
 	} catch { /* invalid JSON, ignore */ }
 	return [];
 }
@@ -559,33 +570,37 @@ function buildMetaScript(
 	const pageLabel = getPageLabel(targetUrl);
 	const brandName = getBrandName(brandProfile, targetUrl);
 	const description = getDescription(brandProfile, pageLabel);
+	const titleText = `${pageLabel} | ${brandName}`;
+	const escapedTitle = escapeHtml(titleText);
+	const escapedDescription = escapeHtml(description);
+	const escapedTargetUrl = escapeHtml(targetUrl);
 
 	const tags: string[] = [];
 	const check = issue.checkCode || "";
 
 	if (check === "M1_title" || !check) {
-		tags.push(`<title>${pageLabel} | ${brandName}</title>`);
+		tags.push(`<title>${escapedTitle}</title>`);
 	}
 	if (check === "M2_description" || !check) {
-		tags.push(`<meta name="description" content="${description}">`);
+		tags.push(`<meta name="description" content="${escapedDescription}">`);
 	}
 	if (check === "M3_canonical" || !check) {
-		tags.push(`<link rel="canonical" href="${targetUrl}">`);
+		tags.push(`<link rel="canonical" href="${escapedTargetUrl}">`);
 	}
 	if (check === "M4_opengraph" || !check) {
-		tags.push(`<meta property="og:title" content="${pageLabel} | ${brandName}">`);
-		tags.push(`<meta property="og:description" content="${description}">`);
-		tags.push(`<meta property="og:url" content="${targetUrl}">`);
+		tags.push(`<meta property="og:title" content="${escapedTitle}">`);
+		tags.push(`<meta property="og:description" content="${escapedDescription}">`);
+		tags.push(`<meta property="og:url" content="${escapedTargetUrl}">`);
 		tags.push(`<meta property="og:type" content="website">`);
 	}
 	if (check === "M5_twitter" || !check) {
 		tags.push(`<meta name="twitter:card" content="summary_large_image">`);
-		tags.push(`<meta name="twitter:title" content="${pageLabel} | ${brandName}">`);
-		tags.push(`<meta name="twitter:description" content="${description}">`);
+		tags.push(`<meta name="twitter:title" content="${escapedTitle}">`);
+		tags.push(`<meta name="twitter:description" content="${escapedDescription}">`);
 	}
 
 	if (tags.length === 0) {
-		tags.push(`<meta name="description" content="${description}">`);
+		tags.push(`<meta name="description" content="${escapedDescription}">`);
 	}
 
 	return {

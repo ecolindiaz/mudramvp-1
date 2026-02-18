@@ -363,12 +363,12 @@ export async function getCurrentSnapshot(
 
 /**
  * Save page score with 4-dimension scores
- * Maps the new scoring dimensions to the database fields:
- * - structured_data_score → Metadata (25 pts)
- * - semantic_html_score → Headings (20 pts)
- * - citability_score → Semantic (15 pts)
- * - accessibility_score → Schema (25 pts)
- * - answer_engine_score → FAQ (15 pts)
+ * Maps current scoring dimensions to legacy database fields:
+ * - accessibility_score → Schema (40 pts)
+ * - structured_data_score → Metadata (30 pts)
+ * - answer_engine_score → FAQ (20 pts)
+ * - citability_score → Content (10 pts)
+ * - semantic_html_score → Deprecated (headings dimension removed; always 0)
  */
 export async function savePageScore(
   brandProfileId: number,

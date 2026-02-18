@@ -216,15 +216,12 @@ export function buildSchemaForType(
 		}
 
 		case "OfferCatalog": {
-			const name = title?.replace(/\s*\|.+$/, "").trim() || h1;
-			const schema: Record<string, unknown> = {
-				"@context": "https://schema.org",
-				"@type": "OfferCatalog",
-				url,
-				itemListElement: [],
+			// Skip until we can reliably extract real pricing tiers/offers.
+			// Empty itemListElement is a placeholder and violates "no placeholders".
+			return {
+				skipped: true,
+				reason: "OfferCatalog requires real itemListElement offers that cannot be reliably extracted from current page data",
 			};
-			if (name) schema.name = name;
-			return { schema };
 		}
 
 		case "ItemList": {

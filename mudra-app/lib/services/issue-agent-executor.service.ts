@@ -23,6 +23,7 @@ import {
 import { createOptimizationPR, checkExistingBlogFiles } from './github.service'
 import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
 import { getFirecrawlClient } from '@/mastra/tools/firecrawl-client'
+import { scrapePageContent } from './page-scrape-context.service'
 import {
   hallucinationScorer,
   faithfulnessScorer,
@@ -133,32 +134,7 @@ async function withTimeout<T>(
   }
 }
 
-/**
- * Scrape the actual page content so agents can see what's already rendered.
- * Returns markdown content or null if scraping fails.
- */
-async function scrapePageContent(url: string): Promise<string | null> {
-  try {
-    const firecrawl = getFirecrawlClient()
-    const result = await firecrawl.scrapeUrl(url, {
-      formats: ['markdown'],
-      onlyMainContent: true,
-      timeout: 15000,
-    })
-    if (result.success && result.markdown) {
-      const content = result.markdown.length > 6000
-        ? result.markdown.slice(0, 6000) + '\n\n[...content truncated...]'
-        : result.markdown
-      console.log(`[IssueExecutor] Scraped page content: ${content.length} chars from ${url}`)
-      return content
-    }
-    console.warn(`[IssueExecutor] Scrape returned no content for ${url}`)
-    return null
-  } catch (err) {
-    console.warn(`[IssueExecutor] Failed to scrape ${url}:`, err instanceof Error ? err.message : err)
-    return null
-  }
-}
+// scrapePageContent imported from './page-scrape-context.service'
 
 /**
  * Fetch the source code of the target file from the user's GitHub repo.

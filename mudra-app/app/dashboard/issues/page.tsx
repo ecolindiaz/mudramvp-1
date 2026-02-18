@@ -145,6 +145,7 @@ interface Issue {
   prNumber?: number | null
   generatedOutput?: string | null
   outputType?: string | null
+  scriptSource?: string | null
   category?: string | null
 }
 
@@ -1289,6 +1290,7 @@ function IssuesPageInner() {
 
       const generatedOutput = result.data?.generatedOutput as string | null
       const outputType = result.data?.outputType as string | null
+      const scriptSource = result.data?.scriptSource as string | null
 
       setIssues((prev) =>
         prev.map((issue) =>
@@ -1297,6 +1299,7 @@ function IssuesPageInner() {
                 ...issue,
                 generatedOutput: generatedOutput ?? issue.generatedOutput ?? null,
                 outputType: outputType ?? issue.outputType ?? null,
+                scriptSource: scriptSource ?? issue.scriptSource ?? null,
               }
             : issue
         )
@@ -1308,6 +1311,7 @@ function IssuesPageInner() {
           ...current,
           generatedOutput,
           outputType,
+          scriptSource,
         })
         setCopiedOutput(false)
         setOutputDialogOpen(true)
@@ -1881,6 +1885,15 @@ function IssuesPageInner() {
                 <span className="text-[11px] px-2 py-0.5 rounded bg-white/[0.05] text-white/50">
                   {viewingOutputIssue.outputType}
                 </span>
+                {viewingOutputIssue.scriptSource === "llm" ? (
+                  <span className="text-[11px] px-2 py-0.5 rounded bg-violet-500/20 text-violet-300">
+                    AI Generated
+                  </span>
+                ) : (
+                  <span className="text-[11px] px-2 py-0.5 rounded bg-white/[0.05] text-white/30">
+                    Template
+                  </span>
+                )}
               </div>
             )}
           </div>

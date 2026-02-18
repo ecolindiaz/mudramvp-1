@@ -361,6 +361,10 @@ function extractSchema($: CheerioAPI): SchemaExtraction {
 		const content = $(el).html() || "";
 		try {
 			const data = JSON.parse(content);
+			const rootContext =
+				data && typeof data === "object" && !Array.isArray(data)
+					? (data as Record<string, unknown>)["@context"]
+					: undefined;
 
 			// Handle both single objects and arrays
 			const topItems = Array.isArray(data) ? data : [data];
@@ -368,33 +372,48 @@ function extractSchema($: CheerioAPI): SchemaExtraction {
 			// Expand @graph wrappers: if an item has @graph array, include its children
 			const items: Record<string, unknown>[] = [];
 			for (const topItem of topItems) {
-				if (Array.isArray(topItem["@graph"])) {
-					for (const graphItem of topItem["@graph"]) {
+				if (!topItem || typeof topItem !== "object") continue;
+				const topObject = topItem as Record<string, unknown>;
+
+				if (Array.isArray(topObject["@graph"])) {
+					for (const graphItem of topObject["@graph"]) {
+						if (!graphItem || typeof graphItem !== "object") continue;
+						const graphObject = graphItem as Record<string, unknown>;
 						// Graph items inherit @context from parent if not set
-						if (!graphItem["@context"] && topItem["@context"]) {
-							graphItem["@context"] = topItem["@context"];
+						if (!graphObject["@context"] && topObject["@context"]) {
+							graphObject["@context"] = topObject["@context"];
 						}
-						items.push(graphItem);
+						items.push(graphObject);
 					}
 				} else {
-					items.push(topItem);
+					items.push(topObject);
 				}
 			}
 
 			for (const item of items) {
-				const type = item["@type"] || "Unknown";
-				const hasContext = !!item["@context"];
-				const hasType = !!item["@type"];
+				const rawType = item["@type"];
+				const typeValues = Array.isArray(rawType)
+					? rawType.filter((t): t is string => typeof t === "string" && t.length > 0)
+					: typeof rawType === "string" && rawType.length > 0
+						? [rawType]
+						: [];
+				const primaryType = typeValues[0] || "Unknown";
+				// @context can live at the root level when using @graph
+				const hasContext = !!item["@context"] || !!rootContext;
+				const hasType = typeValues.length > 0;
 				const valid = hasContext && hasType;
 
 				// Track unique types
-				if (type && !schemaTypes.includes(type as string)) {
-					schemaTypes.push(type as string);
+				const typesToTrack = hasType ? typeValues : [primaryType];
+				for (const type of typesToTrack) {
+					if (!schemaTypes.includes(type)) {
+						schemaTypes.push(type);
+					}
 				}
 
 				jsonldBlocks.push({
 					index: jsonldBlocks.length,
-					type: type as string,
+					type: primaryType,
 					valid,
 					data: item,
 				});

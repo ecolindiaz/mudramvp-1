@@ -72,12 +72,21 @@ Analyze the provided list of URLs and select the 20-25 MOST IMPORTANT marketing 
 - **home**: Root landing page only
 - **pricing**: Plans, pricing, cost pages
 - **product**: Core product offerings, platform pages, individual products
-- **features**: Capabilities, integrations, security, performance features
-- **solutions**: Use cases, industries, customer segments
+- **features**: Capabilities, security, performance features
+- **solutions**: Industry solutions, customer segments
+- **use-cases**: Specific use-case detail pages (e.g., /use-cases/account-research)
+- **integrations**: Integration directories and individual integration pages
+- **customers**: Customer logos, case studies, testimonials, success stories
+- **resources**: Resource hubs, whitepapers, ebooks, webinars
 - **about**: Company story, team, mission, values
-- **contact**: Contact forms, sales, demo requests
-- **customers**: Customer logos, case studies, testimonials
+- **careers**: Job listings, career pages, openings
+- **contact**: Contact forms, sales pages
+- **demo**: Demo request, book-a-demo pages
+- **changelog**: Changelog, release notes
 - **blog**: Articles, announcements (high-value only)
+- **legal**: Terms of service, privacy policy, cookie policy
+- **login**: Login, sign-in pages
+- **signup**: Registration, sign-up, get-started pages
 - **other**: Important pages that don't fit above (e.g., trust center, compliance)
 
 ## OUTPUT FORMAT:
@@ -118,10 +127,19 @@ export const PAGE_ANALYSIS_SCHEMA = {
 								"product",
 								"features",
 								"solutions",
-								"about",
-								"contact",
+								"use-cases",
+								"integrations",
 								"customers",
+								"resources",
+								"about",
+								"careers",
+								"contact",
+								"demo",
+								"changelog",
 								"blog",
+								"legal",
+								"login",
+								"signup",
 								"other",
 							],
 						},
@@ -168,8 +186,5 @@ export function buildAnalysisUserMessage(
 export function normalizePageType(
 	pageType: string
 ): PageType {
-	if (pageType === "customers") {
-		return "solutions";
-	}
 	return pageType as PageType;
 }

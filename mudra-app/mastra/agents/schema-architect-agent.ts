@@ -1,14 +1,10 @@
 /**
  * Schema Architect Agent
- * 
- * Generates and validates JSON-LD schema markup for websites.
- * Uses E2B sandbox for validation before committing.
- * 
- * Issue Types Handled:
- * - schema_markup
- * - schema_architect
- * - json_ld_generation
- * - structured_data
+ *
+ * Generates JSON-LD schema markup for websites.
+ * Knowledge base: kb/schema-types.md (injected via issue-agent-executor)
+ *
+ * Issue Type: schema_markup
  */
 
 import { Agent } from "@mastra/core/agent";

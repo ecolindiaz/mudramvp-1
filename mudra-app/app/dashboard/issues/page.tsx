@@ -134,6 +134,7 @@ interface Issue {
   id: number
   title: string
   description?: string | null
+  checkCode?: string | null
   status: "identified" | "in_progress" | "completed" | "merged" | "failed" | "dismissed"
   priority: "low" | "medium" | "high"
   order: number
@@ -190,23 +191,35 @@ const priorityConfig = {
   high: { color: "text-red-400", bg: "bg-red-400/10" },
 }
 
+function canGenerateScript(issue: Issue): boolean {
+  return issue.status === "identified" && (
+    issue.agentType === "schema_markup" ||
+    issue.agentType === "meta_optimization" ||
+    issue.agentType === "faq_sections"
+  )
+}
+
 // Sortable Issue Card Component
 function SortableIssueCard({
   issue,
   onDelete,
   onFix,
+  onGenerateScript,
   onRetry,
   onViewOutput,
   onClick,
   isDeploying,
+  isGeneratingScript,
 }: {
   issue: Issue
   onDelete: (issue: Issue) => void
   onFix?: (issueId: number) => void
+  onGenerateScript?: (issueId: number) => void
   onRetry?: (issueId: number) => void
   onViewOutput?: (issue: Issue) => void
   onClick?: (issue: Issue) => void
   isDeploying?: boolean
+  isGeneratingScript?: boolean
 }) {
   const {
     attributes,
@@ -267,6 +280,21 @@ function SortableIssueCard({
                 Fix
               </DropdownMenuItem>
             )}
+            {/* Generate Script - for supported identified issues */}
+            {canGenerateScript(issue) && onGenerateScript && (
+              <DropdownMenuItem
+                onClick={(e) => { e.stopPropagation(); onGenerateScript(issue.id); }}
+                className="text-white/60 hover:bg-white/[0.05] cursor-pointer"
+                disabled={isGeneratingScript}
+              >
+                {isGeneratingScript ? (
+                  <IconLoader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <IconCode className="w-4 h-4 mr-2" />
+                )}
+                Generate Script
+              </DropdownMenuItem>
+            )}
             {/* Retry - for failed issues */}
             {issue.status === "failed" && onRetry && (
               <DropdownMenuItem
@@ -319,17 +347,6 @@ function SortableIssueCard({
           <IconExternalLink className="w-3 h-3 opacity-60" />
         </a>
       )}
-      {/* Generated Output Badge - for issues with output but no PR */}
-      {!issue.prUrl && issue.generatedOutput && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onViewOutput?.(issue); }}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="flex items-center gap-1.5 ml-7 mb-2 px-2 py-1 rounded-md bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors w-fit"
-        >
-          <IconCode className="w-3.5 h-3.5" />
-          <span className="text-[11px] font-medium">View Output</span>
-        </button>
-      )}
       <div className="flex items-center justify-between pl-7">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]">
@@ -342,9 +359,43 @@ function SortableIssueCard({
             </span>
           )}
         </div>
-        <span className="text-[11px] text-white/30 group-hover:text-white/50 transition-colors">
-          ISS-{String(issue.id).padStart(2, "0")}
-        </span>
+        {(issue.status === "identified" && issue.agentType) || (!issue.prUrl && issue.generatedOutput) ? (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white text-black hover:bg-white/90 transition-colors text-[11px] font-medium"
+              >
+                <IconWand className="w-3 h-3" />
+                Fix
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-[#1a1a1a] border-white/10">
+              {issue.status === "identified" && issue.agentType && onFix && (
+                <DropdownMenuItem
+                  onClick={(e) => { e.stopPropagation(); onFix(issue.id); }}
+                  className="text-white hover:bg-white/10 cursor-pointer"
+                  disabled={isDeploying}
+                >
+                  <IconWand className="w-4 h-4 mr-2" />
+                  Fix with Agent
+                </DropdownMenuItem>
+              )}
+              {!issue.prUrl && issue.generatedOutput && (
+                <DropdownMenuItem
+                  onClick={(e) => { e.stopPropagation(); onViewOutput?.(issue); }}
+                  className="text-white hover:bg-white/10 cursor-pointer"
+                >
+                  <IconCode className="w-4 h-4 mr-2" />
+                  See Code
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <span className="text-[11px] text-white/20">{issue.agentType}</span>
+        )}
       </div>
     </div>
   )
@@ -369,9 +420,7 @@ function IssueCardOverlay({ issue }: { issue: Issue }) {
           <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
           <span className="text-[11px] text-white/50">{categoryConf.label}</span>
         </span>
-        <span className="text-[11px] text-white/30">
-          ISS-{String(issue.id).padStart(2, "0")}
-        </span>
+        <span className="text-[11px] text-white/20">{issue.agentType}</span>
       </div>
     </div>
   )
@@ -716,17 +765,21 @@ function IssueDetailDialog({
   onOpenChange,
   issue,
   onDeploy,
+  onGenerateScript,
   onRetry,
   onViewOutput,
   isDeploying,
+  isGeneratingScript,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   issue: Issue | null
   onDeploy?: (issueId: number) => void
+  onGenerateScript?: (issueId: number) => void
   onRetry?: (issueId: number) => void
   onViewOutput?: (issue: Issue) => void
   isDeploying?: boolean
+  isGeneratingScript?: boolean
 }) {
   if (!issue) return null
 
@@ -739,124 +792,141 @@ function IssueDetailDialog({
   const canRetry = issue.status === "failed"
   const hasPR = issue.prUrl && issue.prNumber
   const hasOutput = issue.generatedOutput
+  const canGenerate = canGenerateScript(issue)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#141414] border-white/[0.06] text-white max-w-md p-0 overflow-hidden">
-        {/* Header */}
-        <div className="px-5 pt-5 pb-4">
-          <div className="flex items-center gap-2 mb-3">
-            <StatusIcon className={`w-4 h-4 ${statusConf.color}`} animate={issue.status === "in_progress"} />
-            <span className={`text-[11px] ${statusConf.color} capitalize`}>
-              {issue.status.replace("_", " ")}
-            </span>
-            <span className="text-[11px] text-white/30">·</span>
-            <span className="text-[11px] text-white/30">
-              ISS-{String(issue.id).padStart(2, "0")}
-            </span>
-          </div>
-          <DialogHeader className="p-0">
-            <DialogTitle className="text-[15px] font-medium text-white/90 leading-snug">
-              {issue.title}
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              Details for issue {issue.title}
-            </DialogDescription>
-          </DialogHeader>
-        </div>
+      <DialogContent className="bg-[#141414] border-white/[0.06] text-white w-[calc(100%-2rem)] max-w-md p-0 overflow-hidden min-w-0">
+       {/* Header */}
+       <div className="px-5 pt-5 pb-4">
+         <div className="flex items-center gap-2 mb-3">
+           <StatusIcon className={`w-4 h-4 ${statusConf.color}`} animate={issue.status === "in_progress"} />
+           <span className={`text-[11px] ${statusConf.color} capitalize`}>
+             {issue.status.replace("_", " ")}
+           </span>
+           <span className="text-[11px] text-white/30">·</span>
+           <span className="text-[11px] text-white/30">
+             ISS-{String(issue.id).padStart(2, "0")}
+           </span>
+         </div>
+         <DialogHeader className="p-0">
+           <DialogTitle className="text-[15px] font-medium text-white/90 leading-snug">
+             {issue.title}
+           </DialogTitle>
+           <DialogDescription className="sr-only">
+             Details for issue {issue.title}
+           </DialogDescription>
+         </DialogHeader>
+       </div>
 
-        {/* Content */}
-        <div className="px-5 pb-5 space-y-4">
-          {/* Description */}
-          {issue.description && (
-            <p className="text-[13px] text-white/50 leading-relaxed">{issue.description}</p>
-          )}
+       {/* Content */}
+       <div className="px-5 pb-5 space-y-4 min-w-0 overflow-hidden">
+         {/* Description */}
+         {issue.description && (
+           <p className="text-[13px] text-white/50 leading-relaxed">{issue.description}</p>
+         )}
 
-          {/* Metadata */}
-          <div className="flex items-center gap-3 text-[12px]">
-            <span className="inline-flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
-              <span className="text-white/50">{categoryConf.label}</span>
-            </span>
-            <span className={`${priorityConf.color} capitalize`}>{issue.priority}</span>
-            {issue.agentType && (
-              <>
-                <span className="text-white/20">·</span>
-                <span className="text-white/40">{issue.agentType}</span>
-              </>
-            )}
-          </div>
+         {/* Metadata */}
+         <div className="flex flex-wrap items-center gap-3 text-[12px]">
+           <span className="inline-flex items-center gap-1.5">
+             <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
+             <span className="text-white/50">{categoryConf.label}</span>
+           </span>
+           <span className={`${priorityConf.color} capitalize`}>{issue.priority}</span>
+           {issue.agentType && (
+             <>
+               <span className="text-white/20">·</span>
+               <span className="text-white/40">{issue.agentType}</span>
+             </>
+           )}
+         </div>
 
-          {/* PR Link */}
-          {hasPR && (
-            <a
-              href={issue.prUrl!}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-[12px] text-sky-400 hover:text-sky-300 transition-colors"
-            >
-              <IconGitPullRequest className="w-3.5 h-3.5" />
-              <span>PR #{issue.prNumber}</span>
-              <IconExternalLink className="w-3 h-3 opacity-50" />
-            </a>
-          )}
+         {/* PR Link */}
+         {hasPR && (
+           <a
+             href={issue.prUrl!}
+             target="_blank"
+             rel="noopener noreferrer"
+             className="flex items-center gap-2 text-[12px] text-sky-400 hover:text-sky-300 transition-colors"
+           >
+             <IconGitPullRequest className="w-3.5 h-3.5" />
+             <span>PR #{issue.prNumber}</span>
+             <IconExternalLink className="w-3 h-3 opacity-50" />
+           </a>
+         )}
 
-          {/* Generated Output Preview */}
-          {hasOutput && !hasPR && (
-            <div className="relative">
-              <pre className="bg-white/[0.03] rounded-lg p-3 text-[11px] text-white/50 max-h-[100px] overflow-hidden font-mono">
-                {issue.generatedOutput?.slice(0, 200)}
-                {(issue.generatedOutput?.length || 0) > 200 && "..."}
-              </pre>
-            </div>
-          )}
-        </div>
+         {/* Generated Output Preview */}
+         {hasOutput && !hasPR && (
+           <div className="relative min-w-0 overflow-hidden">
+            <pre className="bg-white/[0.03] rounded-lg p-3 text-[11px] text-white/50 max-h-[100px] overflow-hidden font-mono break-all whitespace-pre-wrap w-full">
+               {issue.generatedOutput?.slice(0, 200)}
+               {(issue.generatedOutput?.length || 0) > 200 && "..."}
+             </pre>
+           </div>
+         )}
+       </div>
 
-        {/* Footer */}
-        <div className="px-5 py-4 border-t border-white/[0.06] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {canRetry && (
-              <Button
-                onClick={() => { onRetry?.(issue.id); onOpenChange(false); }}
-                disabled={isDeploying}
-                variant="ghost"
-                size="sm"
-                className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-              >
-                <IconRotate className="w-3.5 h-3.5 mr-1.5" />
-                Retry
-              </Button>
-            )}
-            {hasOutput && (
-              <Button
-                onClick={() => { onViewOutput?.(issue); onOpenChange(false); }}
-                variant="ghost"
-                size="sm"
-                className="text-white/50 hover:text-white/70 hover:bg-white/[0.05]"
-              >
-                <IconCode className="w-3.5 h-3.5 mr-1.5" />
-                View Output
-              </Button>
-            )}
-          </div>
-          {canDeploy && (
-            <Button
-              onClick={() => { onDeploy?.(issue.id); onOpenChange(false); }}
-              disabled={isDeploying}
-              size="sm"
-              className="bg-white text-black hover:bg-white/90 font-medium"
-            >
-              {isDeploying ? (
-                <>
-                  <IconLoader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                  Deploying...
-                </>
-              ) : (
-                "Deploy Agent"
-              )}
-            </Button>
-          )}
-        </div>
+       {/* Footer */}
+       <div className="px-5 py-4 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-2">
+         <div className="flex flex-wrap items-center gap-2">
+           {canRetry && (
+             <Button
+               onClick={() => { onRetry?.(issue.id); onOpenChange(false); }}
+               disabled={isDeploying}
+               variant="ghost"
+               size="sm"
+               className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+             >
+               <IconRotate className="w-3.5 h-3.5 mr-1.5" />
+               Retry
+             </Button>
+           )}
+           {hasOutput && (
+             <Button
+               onClick={() => { onViewOutput?.(issue); onOpenChange(false); }}
+               variant="ghost"
+               size="sm"
+               className="text-white/50 hover:text-white/70 hover:bg-white/[0.05]"
+             >
+               <IconCode className="w-3.5 h-3.5 mr-1.5" />
+               View Output
+             </Button>
+           )}
+           {canGenerate && (
+             <Button
+               onClick={() => { onGenerateScript?.(issue.id); onOpenChange(false); }}
+               disabled={isGeneratingScript}
+               variant="ghost"
+               size="sm"
+               className="text-white/50 hover:text-white/70 hover:bg-white/[0.05]"
+             >
+               {isGeneratingScript ? (
+                 <IconLoader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+               ) : (
+                 <IconCode className="w-3.5 h-3.5 mr-1.5" />
+               )}
+               Generate Script
+             </Button>
+           )}
+         </div>
+         {canDeploy && (
+           <Button
+             onClick={() => { onDeploy?.(issue.id); onOpenChange(false); }}
+             disabled={isDeploying}
+             size="sm"
+             className="bg-white text-black hover:bg-white/90 font-medium"
+           >
+             {isDeploying ? (
+               <>
+                 <IconLoader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                 Deploying...
+               </>
+             ) : (
+               "Deploy Agent"
+             )}
+           </Button>
+         )}
+       </div>
       </DialogContent>
     </Dialog>
   )
@@ -870,10 +940,12 @@ function IssueColumnWithHandlers({
   onAddClick,
   onDelete,
   onFix,
+  onGenerateScript,
   onRetry,
   onViewOutput,
   onIssueClick,
   deployingId,
+  generatingScriptId,
 }: {
   title: string
   issues: Issue[]
@@ -881,10 +953,12 @@ function IssueColumnWithHandlers({
   onAddClick: (status: string) => void
   onDelete: (issue: Issue) => void
   onFix?: (issueId: number) => void
+  onGenerateScript?: (issueId: number) => void
   onRetry?: (issueId: number) => void
   onViewOutput?: (issue: Issue) => void
   onIssueClick?: (issue: Issue) => void
   deployingId?: number | null
+  generatingScriptId?: number | null
 }) {
   const config = statusConfig[status]
   const StatusIcon = config.icon
@@ -914,16 +988,18 @@ function IssueColumnWithHandlers({
       <SortableContext items={issues.map(i => i.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-3 min-h-[100px]" data-status={status}>
           {issues.map((issue) => (
-            <SortableIssueCard
-              key={issue.id}
-              issue={issue}
-              onDelete={onDelete}
-              onFix={onFix}
-              onRetry={onRetry}
-              onViewOutput={onViewOutput}
-              onClick={onIssueClick}
-              isDeploying={deployingId === issue.id}
-            />
+              <SortableIssueCard
+                key={issue.id}
+                issue={issue}
+                onDelete={onDelete}
+                onFix={onFix}
+                onGenerateScript={onGenerateScript}
+                onRetry={onRetry}
+                onViewOutput={onViewOutput}
+                onClick={onIssueClick}
+                isDeploying={deployingId === issue.id}
+                isGeneratingScript={generatingScriptId === issue.id}
+              />
           ))}
           {issues.length === 0 && (
             <div className="text-[13px] text-white/30 py-8 text-center border border-dashed border-white/[0.08] rounded-xl">
@@ -971,6 +1047,7 @@ function IssuesPageInner() {
 
   // Agent deployment state
   const [deployingId, setDeployingId] = React.useState<number | null>(null)
+  const [generatingScriptId, setGeneratingScriptId] = React.useState<number | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1190,6 +1267,60 @@ function IssuesPageInner() {
       toast.error("Deployment failed")
       await fetchIssues()
       setDeployingId(null)
+    }
+  }
+
+  // Generate script snippet for manual injection
+  const handleGenerateScript = async (issueId: number) => {
+    setGeneratingScriptId(issueId)
+    try {
+      const response = await fetch(`/api/issues/${issueId}/generate-script`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      const result = await response.json()
+
+      if (!result.success) {
+        toast.error("Script generation failed", {
+          description: result.error?.message || "Could not generate script for this issue.",
+        })
+        return
+      }
+
+      const generatedOutput = result.data?.generatedOutput as string | null
+      const outputType = result.data?.outputType as string | null
+
+      setIssues((prev) =>
+        prev.map((issue) =>
+          issue.id === issueId
+            ? {
+                ...issue,
+                generatedOutput: generatedOutput ?? issue.generatedOutput ?? null,
+                outputType: outputType ?? issue.outputType ?? null,
+              }
+            : issue
+        )
+      )
+
+      const current = issues.find((issue) => issue.id === issueId)
+      if (current && generatedOutput) {
+        setViewingOutputIssue({
+          ...current,
+          generatedOutput,
+          outputType,
+        })
+        setCopiedOutput(false)
+        setOutputDialogOpen(true)
+      }
+
+      toast.success("Script generated", {
+        description: "Use View Output to copy and paste the snippet.",
+      })
+    } catch (error) {
+      console.error("Failed to generate script:", error)
+      toast.error("Script generation failed")
+    } finally {
+      setGeneratingScriptId(null)
     }
   }
 
@@ -1605,10 +1736,12 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onDelete={handleDeleteClick}
                         onFix={handleDeployAgent}
+                        onGenerateScript={handleGenerateScript}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
                         onIssueClick={handleIssueClick}
                         deployingId={deployingId}
+                        generatingScriptId={generatingScriptId}
                       />
                       <IssueColumnWithHandlers
                         title="In Progress"
@@ -1617,10 +1750,12 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onDelete={handleDeleteClick}
                         onFix={handleDeployAgent}
+                        onGenerateScript={handleGenerateScript}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
                         onIssueClick={handleIssueClick}
                         deployingId={deployingId}
+                        generatingScriptId={generatingScriptId}
                       />
                       <IssueColumnWithHandlers
                         title="Completed"
@@ -1629,10 +1764,12 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onDelete={handleDeleteClick}
                         onFix={handleDeployAgent}
+                        onGenerateScript={handleGenerateScript}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
                         onIssueClick={handleIssueClick}
                         deployingId={deployingId}
+                        generatingScriptId={generatingScriptId}
                       />
                       <IssueColumnWithHandlers
                         title="Merged"
@@ -1641,10 +1778,12 @@ function IssuesPageInner() {
                         onAddClick={handleAddClick}
                         onDelete={handleDeleteClick}
                         onFix={handleDeployAgent}
+                        onGenerateScript={handleGenerateScript}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
                         onIssueClick={handleIssueClick}
                         deployingId={deployingId}
+                        generatingScriptId={generatingScriptId}
                       />
                     </div>
                   </div>
@@ -1692,68 +1831,87 @@ function IssuesPageInner() {
         onOpenChange={setIssueDetailDialogOpen}
         issue={selectedIssue}
         onDeploy={handleDeployAgent}
+        onGenerateScript={handleGenerateScript}
         onRetry={handleRetryAgent}
         onViewOutput={handleViewOutput}
         isDeploying={deployingId === selectedIssue?.id}
+        isGeneratingScript={generatingScriptId === selectedIssue?.id}
       />
 
       {/* View Generated Output Dialog */}
       <Dialog open={outputDialogOpen} onOpenChange={setOutputDialogOpen}>
-        <DialogContent className="bg-zinc-900 border-white/10 text-white max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <IconCode className="w-5 h-5 text-purple-400" />
-              Generated Output
-            </DialogTitle>
-            <DialogDescription className="text-white/50">
-              {viewingOutputIssue?.title}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="bg-[#141414] border-white/[0.06] text-white w-[calc(100%-2rem)] max-w-2xl p-0 overflow-hidden flex flex-col max-h-[80vh]">
+          <div className="px-5 pt-5 pb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <IconCode className="w-4 h-4 text-white/50" />
+              <span className="text-[11px] text-white/50">Generated Output</span>
+            </div>
+            <DialogHeader className="p-0">
+              <DialogTitle className="text-[15px] font-medium text-white/90 leading-snug">
+                {viewingOutputIssue?.title}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                Generated output for {viewingOutputIssue?.title}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
           
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto px-5 pb-5">
             <div className="relative">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleCopyOutput}
-                className="absolute top-2 right-2 text-white/60 hover:text-white hover:bg-white/10"
+                className="absolute top-2 right-2 text-white/40 hover:text-white/70 hover:bg-white/[0.05]"
               >
                 {copiedOutput ? (
-                  <IconCheck className="w-4 h-4 text-green-400" />
+                  <IconCheck className="w-4 h-4 text-emerald-400" />
                 ) : (
                   <IconCopy className="w-4 h-4" />
                 )}
               </Button>
-              <pre className="bg-black/30 border border-white/10 rounded-lg p-4 text-sm text-white/80 overflow-auto max-h-[50vh] whitespace-pre-wrap">
+              <pre className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-4 text-[13px] text-white overflow-auto max-h-[50vh] whitespace-pre-wrap break-words font-mono">
                 {viewingOutputIssue?.generatedOutput || "No output available"}
               </pre>
             </div>
             
             {viewingOutputIssue?.outputType && (
               <div className="mt-3 flex items-center gap-2">
-                <span className="text-xs text-white/40">Type:</span>
-                <span className="text-xs px-2 py-0.5 rounded bg-purple-500/10 text-purple-400">
+                <span className="text-[11px] text-white/30">Type:</span>
+                <span className="text-[11px] px-2 py-0.5 rounded bg-white/[0.05] text-white/50">
                   {viewingOutputIssue.outputType}
                 </span>
               </div>
             )}
           </div>
           
-          <DialogFooter className="mt-4">
+          <div className="px-5 py-4 border-t border-white/[0.06] flex items-center justify-between">
             <Button
               variant="ghost"
+              size="sm"
               onClick={() => setOutputDialogOpen(false)}
-              className="text-white/60 hover:text-white hover:bg-white/10"
+              className="text-white/50 hover:text-white/70 hover:bg-white/[0.05]"
             >
               Close
             </Button>
-            <Button
-              onClick={handleCopyOutput}
-              className="bg-purple-600 text-white hover:bg-purple-700"
-            >
-              {copiedOutput ? "Copied!" : "Copy to Clipboard"}
-            </Button>
-          </DialogFooter>
+            {viewingOutputIssue && viewingOutputIssue.status === "identified" && viewingOutputIssue.agentType && (
+              <Button
+                size="sm"
+                onClick={() => { handleDeployAgent(viewingOutputIssue.id); setOutputDialogOpen(false); }}
+                disabled={deployingId === viewingOutputIssue.id}
+                className="bg-white text-black hover:bg-white/90 font-medium"
+              >
+                {deployingId === viewingOutputIssue.id ? (
+                  <>
+                    <IconLoader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    Deploying...
+                  </>
+                ) : (
+                  "Deploy Agent"
+                )}
+              </Button>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </SidebarProvider>
@@ -1766,7 +1924,7 @@ export default function IssuesPage() {
       <React.Suspense fallback={
         <div className="flex h-screen items-center justify-center bg-black">
           <div className="flex flex-col items-center gap-4">
-            <IconLoader2 className="h-8 w-8 animate-spin text-purple-500" />
+            <IconLoader2 className="h-8 w-8 animate-spin text-white/40" />
             <p className="text-sm text-white/60">Loading issues...</p>
           </div>
         </div>

@@ -4,7 +4,9 @@
  * POST /api/webhooks/github
  * 
  * Receives webhook events from the Mudra GitHub App.
- * Currently handles: pull_request events (merge/close detection)
+ * Currently handles:
+ * - pull_request events (merge/close detection)
+ * - automatic post-merge re-analysis trigger (can disable with GITHUB_PR_MERGE_AUTO_REANALYZE=false)
  * 
  * Setup:
  * 1. In your GitHub App settings, set Webhook URL to:
@@ -13,13 +15,15 @@
  * 3. Subscribe to "Pull requests" events
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import {
   verifyGitHubWebhookSignature,
   handlePullRequestEvent,
+  triggerPostMergeReanalysis,
 } from '@/lib/services/github-webhook.service'
 
-export const maxDuration = 30
+// Allow enough time for background post-merge re-analysis via after()
+export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,11 +67,26 @@ export async function POST(request: NextRequest) {
     // Handle pull_request events
     if (event === 'pull_request') {
       const result = await handlePullRequestEvent(body)
+      const mergedBrandProfileIds = result.mergedBrandProfileIds || []
+      const autoReanalysisEnabled = process.env.GITHUB_PR_MERGE_AUTO_REANALYZE !== 'false'
+      const shouldQueueReanalysis = autoReanalysisEnabled && result.isMerged === true && mergedBrandProfileIds.length > 0
+
+      if (shouldQueueReanalysis) {
+        after(async () => {
+          try {
+            const summary = await triggerPostMergeReanalysis(mergedBrandProfileIds)
+            console.log('[GitHubWebhook] Post-merge re-analysis summary:', summary)
+          } catch (reanalysisError) {
+            console.error('[GitHubWebhook] Post-merge re-analysis failed:', reanalysisError)
+          }
+        })
+      }
 
       console.log(`[GitHubWebhook] PR event processed:`, result)
 
       return NextResponse.json({
         success: true,
+        autoReanalysisQueued: shouldQueueReanalysis,
         ...result,
       })
     }

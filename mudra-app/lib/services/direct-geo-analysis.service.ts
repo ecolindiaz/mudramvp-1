@@ -437,17 +437,41 @@ function validateBrandPosition(position: number | null | undefined): number | un
 /**
  * Validate brand mention using regex with word boundaries
  */
-function validateBrandMention(text: string, brandName: string): boolean {
-  const escapedBrand = brandName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`\\b${escapedBrand}\\b`, 'i');
-  
+export function validateBrandMention(text: string, brandName: string): boolean {
+  const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedBrand = escapeRegex(brandName.trim());
+  if (!escapedBrand) return false;
+
   const cleanedText = text
-    .replace(/https?:\/\/[^\s]+/g, '')
-    .replace(/www\.[^\s]+/g, '')
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/`[^`]+`/g, '');
-  
-  return pattern.test(cleanedText);
+    .replace(/https?:\/\/[^\s]+/g, ' ')
+    .replace(/www\.[^\s]+/g, ' ')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`]+`/g, ' ')
+    // Also strip bare domains like "scaleai.ca" to avoid domain-only false positives.
+    .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // 1) Exact mention match (preserves strict behavior for straightforward names)
+  const exactPattern = new RegExp(`\\b${escapedBrand}\\b`, 'i');
+  if (exactPattern.test(cleanedText)) return true;
+
+  // 2) Variant-aware fallback for merged/split brand forms (e.g. "ScaleAI" <-> "Scale AI")
+  const brandTokens = brandName
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2') // split camel-case boundaries
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (brandTokens.length <= 1) return false;
+
+  const flexiblePattern = new RegExp(
+    `\\b${brandTokens.map(token => escapeRegex(token)).join('[\\s\\-_]*')}\\b`,
+    'i'
+  );
+  return flexiblePattern.test(cleanedText);
 }
 
 /**

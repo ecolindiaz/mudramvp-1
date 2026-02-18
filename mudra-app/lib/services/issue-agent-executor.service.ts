@@ -12,11 +12,13 @@
 import { prisma } from '@/lib/prisma'
 import { mastra } from '@/mastra'
 import Anthropic from '@anthropic-ai/sdk'
-import { 
-  validateSchemaInSandbox, 
+import {
+  validateSchemaInSandbox,
+  validateFaqInSandbox,
   requiresE2bValidation,
   type SandboxResult,
-  type SchemaValidationResult
+  type SchemaValidationResult,
+  type FaqValidationResult
 } from './e2b-sandbox.service'
 import { createOptimizationPR, checkExistingBlogFiles } from './github.service'
 import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
@@ -29,11 +31,12 @@ import {
 } from '@/mastra/evals'
 import type { ScorerRunInputForAgent, ScorerRunOutputForAgent } from '@mastra/core/evals'
 import { createHash } from 'crypto'
+import { readSchemaKnowledge, readFaqTemplates } from '@/lib/analysis/technical/knowledge'
 
 // Max iterations for the generate→review→refine loop
 const MAX_REVIEW_ITERATIONS = 3
 
-// Outer loop: if eval scores fail quality gate, retry the entire generate→review→refine cycle
+// Outer loop: if eval scores or schema verification fail, retry the generate→review→refine cycle
 const MAX_QUALITY_RETRIES = 2
 
 // Quality thresholds for the gate check
@@ -239,6 +242,93 @@ async function fetchSourceFileFromGitHub(
 }
 
 /**
+ * Resolve the source file path for the agent to read.
+ *
+ * For page-specific agents (schema_markup, heading_hierarchy, etc.), derives
+ * the file path from the affected URL. E.g. https://acme.com/pricing →
+ * app/pricing/page.tsx. Falls back to getFilePathForAgentType() for non-page
+ * agents or when no URL is available.
+ */
+function getSafeUrlPathFromAffectedUrl(affectedUrl: string): string | null {
+  let pathname: string
+
+  try {
+    pathname = new URL(affectedUrl).pathname
+  } catch {
+    // Support relative paths or missing protocol values
+    try {
+      pathname = new URL(affectedUrl, 'https://example.com').pathname
+    } catch {
+      return null
+    }
+  }
+
+  const rawSegments = pathname.split('/').filter(Boolean)
+  if (rawSegments.length === 0) return ''
+
+  const safeSegments: string[] = []
+
+  for (const rawSegment of rawSegments) {
+    let decodedSegment = rawSegment
+    try {
+      decodedSegment = decodeURIComponent(rawSegment)
+    } catch {
+      return null
+    }
+
+    const segment = decodedSegment.trim()
+    if (!segment || segment === '.') continue
+
+    // Reject traversal and encoded separators before constructing repo paths.
+    if (segment === '..' || segment.includes('/') || segment.includes('\\')) {
+      return null
+    }
+
+    safeSegments.push(segment)
+  }
+
+  if (safeSegments.length === 0) return ''
+
+  // Remove extension from the last segment (e.g. /pricing.html -> /pricing).
+  const lastIndex = safeSegments.length - 1
+  safeSegments[lastIndex] = safeSegments[lastIndex].replace(/\.[^/.]+$/, '')
+  if (!safeSegments[lastIndex]) {
+    safeSegments.pop()
+  }
+
+  return safeSegments.join('/')
+}
+
+function resolveSourceFilePath(agentType: string, affectedUrl: string | null): string {
+  const PAGE_SPECIFIC_AGENTS = [
+    'schema_markup', 'heading_hierarchy', 'content_structure', 'faq_sections',
+    'meta_optimization', 'citation_signals', 'ai_content_optimizer',
+    'authority_building', 'brand_messaging', 'navigation', 'nav_optimization',
+  ]
+  const fallbackPath = getFilePathForAgentType(agentType)
+
+  if (!affectedUrl || !PAGE_SPECIFIC_AGENTS.includes(agentType)) {
+    return fallbackPath
+  }
+
+  const urlPath = getSafeUrlPathFromAffectedUrl(affectedUrl)
+  if (urlPath === null) {
+    console.warn(`[IssueExecutor] Unsafe affectedUrl path detected, using fallback file path. affectedUrl=${affectedUrl}`)
+    return fallbackPath
+  }
+
+  if (!urlPath || urlPath === '') {
+    // Homepage
+    return 'app/page.tsx'
+  }
+
+  // Convert URL path to Next.js App Router file path
+  // e.g. "pricing" → "app/pricing/page.tsx"
+  //      "blog/my-post" → "app/blog/my-post/page.tsx"
+  return `app/${urlPath}/page.tsx`
+}
+
+/**
  * Gather full context for an issue: page content + source code + existing files.
  * This is the "context enrichment" phase that runs before the agent generates code.
  */
@@ -261,7 +351,10 @@ async function gatherIssueContext(issue: {
   const pageContentPromise = targetUrl ? scrapePageContent(targetUrl) : Promise.resolve(null)
 
   // 2. Fetch the source file that will be modified
-  const targetFilePath = getFilePathForAgentType(issue.agentType || 'schema_markup')
+  //    For schema agents, derive the path from the affected URL instead of
+  //    using the hardcoded 'app/page.tsx' default — a /pricing issue needs
+  //    app/pricing/page.tsx, not the homepage source.
+  const targetFilePath = resolveSourceFilePath(issue.agentType || 'schema_markup', issue.affectedUrl)
   const sourceFilePromise = fetchSourceFileFromGitHub(issue.brandProfileId, targetFilePath)
 
   // 3. Check blog context if applicable
@@ -289,9 +382,6 @@ async function gatherIssueContext(issue: {
 const ISSUE_AGENT_MAP: Record<string, string> = {
   // Technical Structure
   'schema_markup': 'schemaArchitectAgent',
-  'schema_architect': 'schemaArchitectAgent',
-  'json_ld_generation': 'schemaArchitectAgent',
-  'structured_data': 'schemaArchitectAgent',
   'heading_hierarchy': 'contentRestructureAgent',
   'content_structure': 'contentRestructureAgent',
   'faq_sections': 'contentRestructureAgent',
@@ -322,7 +412,7 @@ const ISSUE_AGENT_MAP: Record<string, string> = {
 
 // Issue types that create PRs vs those that return links/content
 const PR_CREATING_TYPES = [
-  'schema_markup', 'schema_architect', 'json_ld_generation', 'structured_data',
+  'schema_markup',
   'heading_hierarchy', 'content_structure', 'faq_sections',
   'site_config', 'robots_txt', 'sitemap', 'meta_optimization',
   'llms_txt', 'llms_txt_missing', 'llms_txt_optimizer',
@@ -333,6 +423,35 @@ const PR_CREATING_TYPES = [
 const CONVERSATION_TYPES = [
   'conversation_engagement', 'reddit_opportunity', 'social_opportunity'
 ]
+
+function isSchemaAgentType(agentType: string): boolean {
+  return agentType === 'schema_markup'
+}
+
+/**
+ * Extract the page type from an issue description.
+ * The scorer embeds `<!-- PAGE_TYPE: ... -->` in FAQ_count issues.
+ */
+function parsePageTypeFromDescription(description: string | null): string | null {
+  if (!description) return null
+  const match = description.match(/<!-- PAGE_TYPE: (\S+) -->/)
+  return match ? match[1] : null
+}
+
+/**
+ * Detect the frontend framework from file path and content.
+ * Used to give the LLM explicit guidance on code style.
+ */
+export function detectFrameworkFromContext(filePath: string | null, content: string | null): string {
+  if (!filePath) return 'HTML'
+  if (filePath.endsWith('.astro')) return 'Astro'
+  if (filePath.endsWith('.vue')) return 'Vue'
+  if (filePath.endsWith('.tsx') || filePath.endsWith('.jsx')) {
+    if (content?.includes('next/') || filePath.includes('app/')) return 'Next.js (React/JSX)'
+    return 'React (JSX)'
+  }
+  return 'HTML'
+}
 
 export interface ExecutionResult {
   success: boolean
@@ -347,6 +466,7 @@ export interface ExecutionResult {
   // Common
   error?: string
   e2bValidation?: SandboxResult<SchemaValidationResult>
+  faqValidation?: SandboxResult<FaqValidationResult>
   // Eval scores (production quality tracking)
   evalScores?: {
     hallucination?: number
@@ -488,6 +608,67 @@ Provide your solution as a code block. Your output will be inserted into the cod
 `
 
   return prompt
+}
+
+/**
+ * Extract JSON-LD schemas from generated code.
+ *
+ * 1. Looks for <script type="application/ld+json"> blocks (the common case).
+ * 2. Falls back to brace-counted extraction for bare JSON objects containing "@context".
+ */
+function extractJsonLdFromCode(code: string): unknown[] {
+  const schemas: unknown[] = []
+
+  // Strategy 1: extract from <script type="application/ld+json"> tags
+  const scriptRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let scriptMatch
+  while ((scriptMatch = scriptRegex.exec(code)) !== null) {
+    const content = (scriptMatch[1] || '').trim()
+    if (!content) continue
+    try { schemas.push(JSON.parse(content)) } catch { /* skip unparseable */ }
+  }
+
+  if (schemas.length > 0) return schemas
+
+  // Strategy 2: brace-counted extraction for raw JSON-LD (e.g. Next.js structured data objects)
+  // Find each "@context" occurrence, walk back to the opening brace, then count braces to find the end.
+  const contextPattern = /"@context"/g
+  let contextMatch
+  while ((contextMatch = contextPattern.exec(code)) !== null) {
+    // Walk backwards to find the opening brace
+    let start = contextMatch.index
+    while (start > 0 && code[start] !== '{') start--
+    if (code[start] !== '{') continue
+
+    // Walk forwards with brace counting to find the balanced closing brace
+    let depth = 0
+    let end = start
+    let inString = false
+    let escaped = false
+    while (end < code.length) {
+      const ch = code[end]
+      if (escaped) { escaped = false; end++; continue }
+      if (ch === '\\' && inString) { escaped = true; end++; continue }
+      if (ch === '"' && !escaped) { inString = !inString; end++; continue }
+      if (!inString) {
+        if (ch === '{') depth++
+        else if (ch === '}') { depth--; if (depth === 0) break }
+      }
+      end++
+    }
+
+    if (depth === 0) {
+      const candidate = code.slice(start, end + 1)
+      try {
+        const parsed = JSON.parse(candidate)
+        if (parsed && typeof parsed === 'object' && parsed['@context']) {
+          schemas.push(parsed)
+        }
+      } catch { /* skip unparseable */ }
+    }
+  }
+
+  return schemas
 }
 
 /**
@@ -648,9 +829,6 @@ function getFilePathForAgentType(agentType: string): string {
     // Schema markup - depends on schema type (Organization goes to layout, others to page)
     // Default to page.tsx, GitHub service will analyze content for Organization/WebSite
     'schema_markup': 'app/page.tsx',
-    'schema_architect': 'app/page.tsx',
-    'json_ld_generation': 'app/page.tsx',
-    'structured_data': 'app/page.tsx',
     
     // Content structure - always page-specific
     'heading_hierarchy': 'app/page.tsx',
@@ -952,6 +1130,26 @@ Do NOT fabricate information. Only use facts from the page content and brand con
 }
 
 /**
+ * Format schema verification failures into a prompt section for the next retry.
+ * Feeds verifier errors directly into the agent so it can correct schema output.
+ */
+function formatSchemaVerificationFeedbackForPrompt(errors: string[], retryNumber: number): string {
+  if (errors.length === 0) return ''
+
+  const lines = errors.map(error => `- ${error}`)
+
+  return `
+
+## Schema Verification Failure (Retry ${retryNumber})
+The previous output failed schema verification. You MUST fix each error below:
+
+${lines.join('\n')}
+
+Return corrected schema markup that stays grounded in visible page content.
+`
+}
+
+/**
  * Execute an agent to resolve an issue.
  *
  * Flow:
@@ -960,7 +1158,8 @@ Do NOT fabricate information. Only use facts from the page content and brand con
  * 3. OUTER LOOP (quality retries):
  *    a. INNER LOOP (generate → review → refine, up to MAX_REVIEW_ITERATIONS)
  *    b. Score the output with Mastra eval scorers (with cache check)
- *    c. Check quality gate — if passed, break; if failed, feed scorer feedback
+ *    c. Check quality gate + schema verification (for schema agents)
+ *    d. If checks fail, feed feedback into next retry
  * 4. Create PR (draft if quality gate failed on final retry)
  * 5. Persist scores async, send notification if quality gate failed
  */
@@ -1049,7 +1248,64 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
       brandProfile: issue.brandProfile
     }, context)
 
-    const systemPrompt = `You are a GEO (Generative Engine Optimization) code generation agent. You generate code that will be committed to the user's repository via an automated PR.
+    // Build system prompt — schema agents get KB-grounded instructions
+    let systemPrompt: string
+    if (isSchemaAgentType(agentType)) {
+      const issueText = `${issue.title} ${issue.description || ''}`
+      const schemaKb = await readSchemaKnowledge(issueText)
+      systemPrompt = `You are an expert Schema.org JSON-LD markup architect. You generate production-ready structured data that will be committed to the user's repository via an automated PR.
+
+GROUNDING RULE: Only generate schema properties for data that actually exists on the page. Never fabricate URLs, ratings, prices, dates, authors, or any property values. If a property's value cannot be determined from the page content, omit it.
+
+You will be given:
+- The issue to fix (already contains specific instructions)
+- The live page content (what users see)
+- The current source code of the target file
+- A schema knowledge base with required/recommended properties, examples, and restrictions
+
+Use the knowledge base below as your authoritative reference for which properties to include, their types, and validation rules. Base all property values on actual page content.
+
+${schemaKb}`
+    } else if (agentType === 'faq_sections') {
+      const pageType = parsePageTypeFromDescription(issue.description) || 'home'
+      const faqKb = await readFaqTemplates(pageType)
+
+      const framework = detectFrameworkFromContext(context.sourceFilePath, context.sourceFile)
+
+      systemPrompt = `You are an FAQ content specialist. You generate page-type-aware FAQ sections that will be committed to the user's repository via an automated PR.
+
+GROUNDING RULE: Only generate FAQ questions that a real visitor to this page would ask. Pull answers exclusively from visible page content. Never fabricate data, pricing, features, or capabilities not present on the page.
+
+FRONTEND RULES:
+- You are generating code for a **${framework}** project
+- MATCH the existing code style in the source file: same CSS approach, same component patterns, same naming conventions
+- If the source file uses Tailwind classes, use Tailwind for your FAQ section
+- If it uses CSS modules or styled-components, follow that pattern
+- If it uses plain HTML with inline styles or custom classes, match those
+- For React/Next.js (TSX/JSX): output JSX (className, htmlFor, self-closing tags, no HTML comments)
+- For plain HTML: output standard HTML
+- For Astro: output HTML (Astro components use HTML syntax)
+- NEVER introduce a new CSS framework or styling library
+- NEVER use generic class names like "faq-section" if the existing code uses a different naming pattern
+- Wrap FAQ in a semantic <section> with an id="faq" for anchor linking
+
+CONSTRAINTS:
+- Generate exactly 3–5 Q&As
+- Keep each answer to 1–3 sentences, directly quotable
+- Questions must reflect what the ICP would ask on THIS page type
+- Start answers with a direct response (no preamble)
+
+You will be given:
+- The issue to fix (already contains specific instructions)
+- The live page content (what users see)
+- The current source code of the target file
+- FAQ generation templates for this page type
+
+Use the templates below as guidance for what kinds of questions to generate. Adapt them to the actual page content.
+
+${faqKb}`
+    } else {
+      systemPrompt = `You are a GEO (Generative Engine Optimization) code generation agent. You generate code that will be committed to the user's repository via an automated PR.
 
 You will be given:
 - The issue to fix (already contains specific instructions)
@@ -1057,15 +1313,17 @@ You will be given:
 - The current source code of the target file
 
 Use this context to produce accurate, targeted code. Base structured data on actual page content. Your output will be inserted into the existing codebase.`
+    }
 
     let currentCode = ''
-    let finalFilePath = getFilePathForAgentType(agentType)
+    let finalFilePath = resolveSourceFilePath(agentType, issue.affectedUrl)
     let lastReview: ReviewResult | null = null
     let evalScores: ScoringResult | undefined
     let qualityGatePassed: boolean | null = null
     let qualityRetryCount = 0
     let qualityGateResult: QualityGateResult | undefined
     let scorerFeedback = '' // accumulated from quality gate failures
+    let schemaVerificationFeedback = '' // accumulated from schema verification failures
 
     for (let qualityRetry = 0; qualityRetry <= MAX_QUALITY_RETRIES; qualityRetry++) {
       qualityRetryCount = qualityRetry
@@ -1078,8 +1336,8 @@ Use this context to produce accurate, targeted code. Base structured data on act
       for (let iteration = 1; iteration <= MAX_REVIEW_ITERATIONS; iteration++) {
         console.log(`[IssueExecutor] === Iteration ${iteration}/${MAX_REVIEW_ITERATIONS} (quality retry ${qualityRetry}) ===`)
 
-        // Build the prompt — include scorer feedback on quality retries + reviewer feedback on inner iterations
-        let iterationPrompt = basePrompt + scorerFeedback
+        // Build the prompt — include retry feedback + reviewer feedback on inner iterations
+        let iterationPrompt = basePrompt + scorerFeedback + schemaVerificationFeedback
         if (iteration > 1 && lastReview) {
           const feedback = [
             ...lastReview.warnings.map(w => `- ${w}`),
@@ -1197,17 +1455,68 @@ Please generate an improved version addressing all the feedback above.`
       qualityGateResult = checkQualityGate(evalScores)
       qualityGatePassed = qualityGateResult.passed
 
-      if (qualityGateResult.passed) {
+      // ── Schema verification check (schema agents only) ──
+      let schemaVerificationPassed = true
+      let schemaVerificationErrors: string[] = []
+
+      if (isSchemaAgentType(agentType)) {
+        try {
+          const { verifyInjectedSchemas } = await import('@/lib/analysis/technical/schema-verifier')
+          const { htmlToExtraction } = await import('@/lib/analysis/technical/dom-extractor')
+
+          // Parse JSON-LD blocks from generated code
+          const schemas = extractJsonLdFromCode(currentCode)
+          if (schemas.length > 0) {
+            // Build minimal extraction from page content if available
+            const targetUrl = issue.affectedUrl || issue.brandProfile.companyWebsite || '/'
+            const minimalHtml = context.pageContent
+              ? `<html><head><title>${issue.brandProfile.companyName || ''}</title></head><body>${context.pageContent}</body></html>`
+              : '<html><head></head><body></body></html>'
+            const extraction = htmlToExtraction(minimalHtml, targetUrl)
+
+            const verification = verifyInjectedSchemas(schemas, extraction.extraction, targetUrl)
+
+            const errors = verification.warnings.filter(w => w.severity === 'error')
+            if (errors.length > 0) {
+              schemaVerificationPassed = false
+              schemaVerificationErrors = errors.map(error => error.message)
+              console.error(`[IssueExecutor] Schema verification failed with ${errors.length} error(s):`, schemaVerificationErrors.join('; '))
+            }
+
+            const warningsOnly = verification.warnings.filter(w => w.severity === 'warning')
+            if (warningsOnly.length > 0) {
+              console.warn(`[IssueExecutor] Schema verification warnings: ${warningsOnly.map(w => w.message).join('; ')}`)
+            }
+          }
+        } catch (verifyError) {
+          console.warn('[IssueExecutor] Schema verification skipped:', verifyError instanceof Error ? verifyError.message : verifyError)
+        }
+      }
+
+      if (qualityGateResult.passed && schemaVerificationPassed) {
         console.log(`[IssueExecutor] Quality gate PASSED on retry ${qualityRetry} (composite: ${compositeScore?.toFixed(1) ?? 'N/A'})`)
         break
       }
 
-      console.log(`[IssueExecutor] Quality gate FAILED with ${qualityGateResult.failures.length} failure(s)`)
+      if (!qualityGateResult.passed) {
+        console.log(`[IssueExecutor] Quality gate FAILED with ${qualityGateResult.failures.length} failure(s)`)
+      }
+      if (!schemaVerificationPassed) {
+        console.log(`[IssueExecutor] Schema verification FAILED with ${schemaVerificationErrors.length} error(s)`)
+      }
 
       if (qualityRetry < MAX_QUALITY_RETRIES) {
-        scorerFeedback = formatScorerFeedbackForPrompt(qualityGateResult, qualityRetry + 1)
+        scorerFeedback = qualityGateResult.passed
+          ? ''
+          : formatScorerFeedbackForPrompt(qualityGateResult, qualityRetry + 1)
+        schemaVerificationFeedback = schemaVerificationPassed
+          ? ''
+          : formatSchemaVerificationFeedbackForPrompt(schemaVerificationErrors, qualityRetry + 1)
         lastReview = null // Reset reviewer state for next outer iteration
       } else {
+        if (!schemaVerificationPassed) {
+          throw new Error(`Schema verification failed: ${schemaVerificationErrors.join('; ')}`)
+        }
         console.warn(`[IssueExecutor] Quality gate failed on final retry — proceeding with draft PR`)
       }
     }
@@ -1244,23 +1553,43 @@ Please generate an improved version addressing all the feedback above.`
 
     // 6. Validate with E2B if needed
     let e2bValidation: SandboxResult<SchemaValidationResult> | undefined
+    let faqValidation: SandboxResult<FaqValidationResult> | undefined
     if (requiresE2bValidation(agentType)) {
       console.log(`[IssueExecutor] Running E2B validation for ${agentType}`)
-      e2bValidation = await validateSchemaInSandbox(currentCode)
-      await prisma.issue.update({
-        where: { id: issueId },
-        data: {
-          usedE2bSandbox: true,
-          e2bSandboxId: e2bValidation.sandboxId,
-          e2bExecutionMs: e2bValidation.executionMs,
-          e2bValidationResult: e2bValidation.data as object || null
+
+      if (agentType === 'faq_sections') {
+        faqValidation = await validateFaqInSandbox(currentCode)
+        await prisma.issue.update({
+          where: { id: issueId },
+          data: {
+            usedE2bSandbox: true,
+            e2bSandboxId: faqValidation.sandboxId,
+            e2bExecutionMs: faqValidation.executionMs,
+            e2bValidationResult: faqValidation.data as object || null
+          }
+        })
+        if (!faqValidation.success) throw new Error(`E2B FAQ validation failed: ${faqValidation.error}`)
+        if (faqValidation.data && !faqValidation.data.valid) {
+          throw new Error(`FAQ validation failed: ${faqValidation.data.errors.join(', ')}`)
         }
-      })
-      if (!e2bValidation.success) throw new Error(`E2B validation failed: ${e2bValidation.error}`)
-      if (e2bValidation.data && !e2bValidation.data.valid) {
-        throw new Error(`Schema validation failed: ${e2bValidation.data.errors.join(', ')}`)
+        console.log(`[IssueExecutor] FAQ validation passed in ${faqValidation.executionMs}ms (${faqValidation.data?.faqCount ?? 0} Q&As)`)
+      } else {
+        e2bValidation = await validateSchemaInSandbox(currentCode)
+        await prisma.issue.update({
+          where: { id: issueId },
+          data: {
+            usedE2bSandbox: true,
+            e2bSandboxId: e2bValidation.sandboxId,
+            e2bExecutionMs: e2bValidation.executionMs,
+            e2bValidationResult: e2bValidation.data as object || null
+          }
+        })
+        if (!e2bValidation.success) throw new Error(`E2B validation failed: ${e2bValidation.error}`)
+        if (e2bValidation.data && !e2bValidation.data.valid) {
+          throw new Error(`Schema validation failed: ${e2bValidation.data.errors.join(', ')}`)
+        }
+        console.log(`[IssueExecutor] E2B validation passed in ${e2bValidation.executionMs}ms`)
       }
-      console.log(`[IssueExecutor] E2B validation passed in ${e2bValidation.executionMs}ms`)
     }
 
     // 7. Create PR (draft if quality gate failed)
@@ -1349,6 +1678,7 @@ Please generate an improved version addressing all the feedback above.`
       prNumber,
       generatedContent: currentCode,
       e2bValidation,
+      faqValidation,
       evalScores: evalScores ? {
         hallucination: evalScores.hallucination,
         faithfulness: evalScores.faithfulness,

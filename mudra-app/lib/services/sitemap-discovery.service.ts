@@ -63,28 +63,13 @@ const EXCLUDED_PATH_PATTERNS = [
 	'/help/',
 	'/support/',
 	'/status/',
-	'/legal/',
-	'/terms',
-	'/privacy',
 	'/robots.txt',
 	'/sitemap',
 	'.xml',
 	'.json',
 	'.pdf',
-	'/changelog/',
-	'/changelog',
-	'/careers/',
-	'/careers',
-	'/jobs/',
-	'/jobs',
 	'/templates/',
 	'/new/',
-	'/login',
-	'/signup',
-	'/sign-up',
-	'/sign-in',
-	'/signin',
-	'/register',
 ];
 
 // Common locale prefixes to strip when matching patterns
@@ -105,14 +90,18 @@ const HIGH_VALUE_PATH_PATTERNS = [
 	{ pattern: /^\/contact\/?$/i, type: 'contact' as PageType, priority: 1 },
 	{ pattern: /^\/contact-us\/?$/i, type: 'contact' as PageType, priority: 1 },
 	{ pattern: /^\/blog\/?$/i, type: 'blog' as PageType, priority: 1 },
-	{ pattern: /^\/use-cases?\/?$/i, type: 'solutions' as PageType, priority: 1 },
-	{ pattern: /^\/customers?\/?$/i, type: 'solutions' as PageType, priority: 1 },
-	{ pattern: /^\/case-studies?\/?$/i, type: 'solutions' as PageType, priority: 1 },
+	{ pattern: /^\/use-cases?\/?$/i, type: 'use-cases' as PageType, priority: 1 },
+	{ pattern: /^\/customers?\/?$/i, type: 'customers' as PageType, priority: 1 },
+	{ pattern: /^\/case-studies?\/?$/i, type: 'customers' as PageType, priority: 1 },
 	{ pattern: /^\/enterprise\/?$/i, type: 'product' as PageType, priority: 1 },
-	{ pattern: /^\/integrations?\/?$/i, type: 'features' as PageType, priority: 1 },
+	{ pattern: /^\/integrations?\/?$/i, type: 'integrations' as PageType, priority: 1 },
 	{ pattern: /^\/platform\/?$/i, type: 'product' as PageType, priority: 1 },
-	{ pattern: /^\/resources?\/?$/i, type: 'other' as PageType, priority: 2 },
+	{ pattern: /^\/resources?\/?$/i, type: 'resources' as PageType, priority: 2 },
 	{ pattern: /^\/guides?\/?$/i, type: 'other' as PageType, priority: 2 },
+	{ pattern: /^\/careers?\/?$/i, type: 'careers' as PageType, priority: 2 },
+	{ pattern: /^\/jobs\/?$/i, type: 'careers' as PageType, priority: 2 },
+	{ pattern: /^\/changelog\/?$/i, type: 'changelog' as PageType, priority: 2 },
+	{ pattern: /^\/demo\/?$/i, type: 'demo' as PageType, priority: 1 },
 
 	// Nested but still important (lower priority)
 	{ pattern: /^\/pricing\/.+/i, type: 'pricing' as PageType, priority: 3 },
@@ -120,7 +109,9 @@ const HIGH_VALUE_PATH_PATTERNS = [
 	{ pattern: /^\/product\/[^/]+\/?$/i, type: 'product' as PageType, priority: 3 },
 	{ pattern: /^\/products\/[^/]+\/?$/i, type: 'product' as PageType, priority: 3 },
 	{ pattern: /^\/solutions\/[^/]+\/?$/i, type: 'solutions' as PageType, priority: 3 },
-	{ pattern: /^\/use-cases\/[^/]+\/?$/i, type: 'solutions' as PageType, priority: 3 },
+	{ pattern: /^\/use-cases\/[^/]+\/?$/i, type: 'use-cases' as PageType, priority: 3 },
+	{ pattern: /^\/integrations\/[^/]+\/?$/i, type: 'integrations' as PageType, priority: 3 },
+	{ pattern: /^\/customers\/[^/]+\/?$/i, type: 'customers' as PageType, priority: 3 },
 
 	// Blog posts
 	{ pattern: /^\/blog\/.+/i, type: 'blog' as PageType, priority: 4 },
@@ -400,16 +391,10 @@ function filterAndPrioritizePagesLegacy(
 
 	// Track counts per type
 	const typeCounts: Record<PageType, number> = {
-		home: 0,
-		pricing: 0,
-		features: 0,
-		product: 0,
-		solutions: 0,
-		about: 0,
-		contact: 0,
-		blog: 0,
-		documentation: 0,
-		other: 0,
+		home: 0, pricing: 0, features: 0, product: 0, solutions: 0,
+		"use-cases": 0, integrations: 0, customers: 0, resources: 0,
+		about: 0, careers: 0, contact: 0, demo: 0, changelog: 0,
+		blog: 0, documentation: 0, legal: 0, login: 0, signup: 0, other: 0,
 	};
 
 	const selected: DiscoveredPage[] = [];
@@ -480,16 +465,10 @@ function filterAndPrioritizePages(
  */
 function countByType(pages: DiscoveredPage[]): Record<PageType, number> {
 	const counts: Record<PageType, number> = {
-		home: 0,
-		pricing: 0,
-		features: 0,
-		product: 0,
-		solutions: 0,
-		about: 0,
-		contact: 0,
-		blog: 0,
-		documentation: 0,
-		other: 0,
+		home: 0, pricing: 0, features: 0, product: 0, solutions: 0,
+		"use-cases": 0, integrations: 0, customers: 0, resources: 0,
+		about: 0, careers: 0, contact: 0, demo: 0, changelog: 0,
+		blog: 0, documentation: 0, legal: 0, login: 0, signup: 0, other: 0,
 	};
 
 	for (const page of pages) {

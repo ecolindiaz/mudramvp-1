@@ -4,7 +4,7 @@ export type TaskCategory = "SEO" | "GEO" | "Content";
 export type TaskImpact = "High" | "Medium" | "Low";
 
 // ============================================================================
-// NEW TYPES FOR MULTI-PAGE 5-DIMENSION SCORING SYSTEM
+// NEW TYPES FOR MULTI-PAGE 4-DIMENSION SCORING SYSTEM
 // ============================================================================
 
 /**
@@ -20,10 +20,20 @@ export type PageType =
 	| "about"
 	| "contact"
 	| "documentation"
+	| "use-cases"
+	| "integrations"
+	| "customers"
+	| "resources"
+	| "legal"
+	| "changelog"
+	| "careers"
+	| "demo"
+	| "login"
+	| "signup"
 	| "other";
 
 /**
- * Scoring dimension names for the 5-dimension system
+ * Scoring dimension names for the 4-dimension system
  */
 export type ScoringDimension = "schema" | "metadata" | "faq" | "content";
 
@@ -193,6 +203,7 @@ export type RelevantSchemaType =
 	| "BreadcrumbList"
 	| "HowTo"
 	| "SoftwareApplication"
+	| "CollectionPage"
 	| "WebApplication"
 	| "OfferCatalog"
 	| "VideoObject"
@@ -311,6 +322,7 @@ export interface DOMExtractionData {
 	faqs: FAQExtraction;
 	content_snapshot: ContentSnapshot;
 	has_video_content: boolean;
+	has_video_primary_content: boolean;
 	has_testimonial_content: boolean;
 }
 
@@ -423,16 +435,26 @@ export interface SiteStructureScoreResult {
  * Page priority for URL selection during sitemap discovery
  */
 export const PAGE_PRIORITY: Record<PageType, number> = {
-	home: 1, // Always include
-	pricing: 2, // Always include if exists
-	features: 3, // Always include if exists
-	product: 4, // Include up to 5
-	solutions: 5, // Include up to 3
-	about: 6, // Include if exists
-	contact: 7, // Include if exists
-	blog: 8, // Include up to 10 (most recent preferred)
-	documentation: 9, // Include if available
-	other: 10, // Fill remaining slots
+	home: 1,
+	pricing: 2,
+	features: 3,
+	product: 4,
+	solutions: 5,
+	"use-cases": 5,
+	integrations: 5,
+	customers: 5,
+	about: 6,
+	careers: 6,
+	contact: 7,
+	demo: 7,
+	resources: 8,
+	blog: 8,
+	changelog: 9,
+	documentation: 9,
+	login: 10,
+	signup: 10,
+	legal: 10,
+	other: 10,
 };
 
 /**
@@ -538,7 +560,7 @@ export interface AIDiscoveryResult extends DiscoveryResult {
 export interface OpenAIPageAnalysisResponse {
 	pages: Array<{
 		url: string;
-		pageType: PageType | "customers";
+		pageType: PageType;
 		title: string;
 		reason: string;
 		importance: number;
@@ -708,5 +730,4 @@ export interface TaskInstance {
 	confidence: number; // 0..1
 	verificationCheck: TaskTemplate["verificationCheck"];
 }
-
 

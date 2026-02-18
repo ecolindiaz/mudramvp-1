@@ -14,6 +14,23 @@ import { Sandbox } from '@e2b/code-interpreter'
 
 const E2B_TIMEOUT_MS = 30000 // 30 second timeout
 
+/**
+ * Escape a string for safe embedding inside a JS template literal
+ * that contains a Python triple-quoted string ('''...''').
+ *
+ * Handles: backslashes, single quotes, newlines,
+ * backticks (close the template literal), ${} (JS expression interpolation),
+ * and triple-single-quotes (close the Python string).
+ */
+function escapeForPythonInTemplateLiteral(s: string): string {
+  return s
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$/g, '\\$')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+}
+
 export interface SandboxResult<T> {
   success: boolean
   data?: T
@@ -92,11 +109,7 @@ export async function validateSchemaInSandbox(
   jsonLdSchema: string
 ): Promise<SandboxResult<SchemaValidationResult>> {
   return withSandbox(async (sandbox) => {
-    // Escape the schema for Python string
-    const escapedSchema = jsonLdSchema
-      .replace(/\\/g, '\\\\')
-      .replace(/'/g, "\\'")
-      .replace(/\n/g, '\\n')
+    const escapedSchema = escapeForPythonInTemplateLiteral(jsonLdSchema)
     
     // Validate JSON-LD structure without fetching remote contexts
     // E2B sandboxes have limited internet access, so we skip expansion
@@ -131,16 +144,31 @@ try:
     if schema_type and schema_type not in valid_types:
         warnings.append(f"Uncommon @type: {schema_type} (may still be valid)")
     
-    # Check for common properties based on type
-    if schema_type == 'Organization':
-        if 'name' not in parsed:
-            warnings.append("Organization should have 'name' property")
-    elif schema_type == 'Product':
-        if 'name' not in parsed:
-            warnings.append("Product should have 'name' property")
-    elif schema_type == 'FAQPage':
-        if 'mainEntity' not in parsed:
-            warnings.append("FAQPage should have 'mainEntity' property")
+    # Required properties per type (Google structured data requirements)
+    REQUIRED_PROPS = {
+        'Organization': ['name', 'url'],
+        'WebSite': ['name', 'url'],
+        'Product': ['name'],
+        'Service': ['name'],
+        'Article': ['headline'],
+        'BlogPosting': ['headline'],
+        'FAQPage': ['mainEntity'],
+        'BreadcrumbList': ['itemListElement'],
+        'HowTo': ['name', 'step'],
+        'SoftwareApplication': ['name'],
+        'WebApplication': ['name'],
+        'CollectionPage': ['name'],
+        'OfferCatalog': ['name'],
+        'VideoObject': ['name', 'thumbnailUrl', 'uploadDate'],
+        'ItemList': ['itemListElement'],
+        'Review': ['author', 'itemReviewed', 'reviewRating'],
+        'Person': ['name'],
+    }
+
+    required = REQUIRED_PROPS.get(schema_type, [])
+    for prop in required:
+        if prop not in parsed:
+            warnings.append(f"{schema_type} should have '{prop}' property")
     
     result = {
         "valid": len(errors) == 0, 
@@ -185,7 +213,7 @@ export async function testGeneratedCode(
 import subprocess
 import json
 
-code = '''${code.replace(/'/g, "\\'")}'''
+code = '''${escapeForPythonInTemplateLiteral(code)}'''
 
 # Write to temp file and run with Node
 with open('/tmp/test.js', 'w') as f:
@@ -218,11 +246,7 @@ export async function validateHtmlStructure(
     // Install beautifulsoup4
     await sandbox.runCode('!pip install beautifulsoup4 -q')
     
-    // Escape HTML for Python
-    const escapedHtml = html
-      .replace(/\\/g, '\\\\')
-      .replace(/'/g, "\\'")
-      .replace(/\n/g, '\\n')
+    const escapedHtml = escapeForPythonInTemplateLiteral(html)
     
     const result = await sandbox.runCode(`
 import json
@@ -291,16 +315,179 @@ print(json.dumps({
   })
 }
 
+export interface FaqValidationResult {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+  faqCount: number
+  hasPlaceholders: boolean
+}
+
+/**
+ * Validate FAQ HTML/JSX in sandbox using BeautifulSoup.
+ * Checks: HTML parses, 3-5 Q&A pairs, no placeholders, answers non-empty & ≤ 3 sentences,
+ * no broken tags, semantic wrapper present.
+ */
+export async function validateFaqInSandbox(
+  faqHtml: string
+): Promise<SandboxResult<FaqValidationResult>> {
+  return withSandbox(async (sandbox) => {
+    await sandbox.runCode('!pip install beautifulsoup4 -q')
+
+    const escapedHtml = escapeForPythonInTemplateLiteral(faqHtml)
+
+    const result = await sandbox.runCode(`
+import json
+from bs4 import BeautifulSoup
+import re
+
+html = '''${escapedHtml}'''
+errors = []
+warnings = []
+faq_count = 0
+has_placeholders = False
+
+# 1. Parse HTML
+try:
+    soup = BeautifulSoup(html, 'html.parser')
+except Exception as e:
+    errors.append(f"HTML parse error: {str(e)}")
+    print(json.dumps({"valid": False, "errors": errors, "warnings": [], "faqCount": 0, "hasPlaceholders": False}))
+    raise SystemExit
+
+# 2. Check for broken/unclosed tags
+raw_open = len(re.findall(r'<[a-zA-Z][^/>]*(?<!/)>', html))
+raw_close = len(re.findall(r'</[a-zA-Z][^>]*>', html))
+self_closing = len(re.findall(r'<[a-zA-Z][^>]*/\\s*>', html))
+if abs(raw_open - self_closing - raw_close) > 2:
+    warnings.append(f"Possible unclosed tags: {raw_open} opens, {raw_close} closes, {self_closing} self-closing")
+
+# 3. Detect Q&A pairs via multiple patterns — try all, keep best
+all_results = {}
+
+# Pattern A: dt/dd
+dt_pairs = []
+for dl in soup.find_all('dl'):
+    dts = dl.find_all('dt')
+    dds = dl.find_all('dd')
+    for dt, dd in zip(dts, dds):
+        dt_pairs.append((dt.get_text().strip(), dd.get_text().strip()))
+if dt_pairs:
+    all_results['dt_dd'] = dt_pairs
+
+# Pattern B: details/summary (check BEFORE heading pattern to avoid false match)
+detail_pairs = []
+for details in soup.find_all('details'):
+    summary = details.find('summary')
+    if summary:
+        answer_text = details.get_text().replace(summary.get_text(), '').strip()
+        if answer_text:
+            detail_pairs.append((summary.get_text().strip(), answer_text))
+if detail_pairs:
+    all_results['details'] = detail_pairs
+
+# Pattern C: h3 (or h2/h4) + following p (common FAQ pattern)
+heading_pairs = []
+for heading in soup.find_all(['h2', 'h3', 'h4']):
+    answer_parts = []
+    sibling = heading.find_next_sibling()
+    while sibling and sibling.name in ['p', 'div', 'span']:
+        # Skip if sibling contains details elements (handled by Pattern B)
+        if sibling.find('details') or sibling.name == 'details':
+            break
+        answer_parts.append(sibling.get_text().strip())
+        sibling = sibling.find_next_sibling()
+        if sibling and sibling.name in ['h2', 'h3', 'h4']:
+            break
+    if answer_parts:
+        heading_pairs.append((heading.get_text().strip(), ' '.join(answer_parts)))
+if heading_pairs:
+    all_results['heading'] = heading_pairs
+
+# Pattern D: elements with question/answer classes or itemscope
+scope_pairs = []
+for q_elem in soup.find_all(attrs={"itemprop": "name"}):
+    parent = q_elem.find_parent(attrs={"itemscope": True})
+    if parent:
+        a_elem = parent.find(attrs={"itemprop": "acceptedAnswer"})
+        if a_elem:
+            scope_pairs.append((q_elem.get_text().strip(), a_elem.get_text().strip()))
+if scope_pairs:
+    all_results['itemscope'] = scope_pairs
+
+# Pick the pattern that found the most Q&A pairs
+qa_pairs = []
+if all_results:
+    best_key = max(all_results, key=lambda k: len(all_results[k]))
+    qa_pairs = all_results[best_key]
+
+faq_count = len(qa_pairs)
+
+if faq_count < 3:
+    errors.append(f"Expected 3-5 Q&A pairs, found {faq_count}")
+elif faq_count > 5:
+    warnings.append(f"Expected 3-5 Q&A pairs, found {faq_count}")
+
+# 4. Placeholder detection
+placeholder_patterns = [
+    r'\\[Replace', r'\\[Your', r'\\[Insert', r'TODO', r'PLACEHOLDER',
+    r'Your question here', r'Your answer here', r'Lorem ipsum',
+    r'\\[Company\\]', r'\\[Product\\]',
+]
+full_text = soup.get_text()
+for pat in placeholder_patterns:
+    if re.search(pat, full_text, re.IGNORECASE):
+        has_placeholders = True
+        warnings.append(f"Placeholder text detected: {pat}")
+        break
+
+# 5. Answer quality checks
+for q, a in qa_pairs:
+    if not a or len(a) < 10:
+        warnings.append(f"Empty or too-short answer for: {q[:50]}")
+    sentence_count = len(re.split(r'[.!?]+', a.strip()))
+    if sentence_count > 4:
+        warnings.append(f"Answer too long ({sentence_count} sentences) for: {q[:50]}")
+
+# 6. Semantic wrapper check
+has_wrapper = bool(soup.find('section') or soup.find('div') or soup.find('aside'))
+if not has_wrapper and not html.strip().startswith('<'):
+    warnings.append("No semantic wrapper element found (expected <section>, <div>, or similar)")
+
+valid = len(errors) == 0
+print(json.dumps({
+    "valid": valid,
+    "errors": errors,
+    "warnings": warnings,
+    "faqCount": faq_count,
+    "hasPlaceholders": has_placeholders,
+}))
+    `)
+
+    const output = result.logs?.stdout?.join('') || ''
+
+    try {
+      return JSON.parse(output.trim())
+    } catch {
+      return {
+        valid: false,
+        errors: [`Failed to parse validation output: ${output}`],
+        warnings: [],
+        faqCount: 0,
+        hasPlaceholders: false,
+      }
+    }
+  })
+}
+
 /**
  * Check if an issue type requires E2B validation
  */
 export function requiresE2bValidation(agentType: string): boolean {
   const E2B_REQUIRED_TYPES = [
     'schema_markup',
-    'schema_architect',
     'ai_readable_content',
-    'json_ld_generation',
-    'structured_data'
+    'faq_sections',
   ]
   return E2B_REQUIRED_TYPES.includes(agentType)
 }

@@ -272,8 +272,13 @@ export async function GET(
       Negative: filteredTestResults.filter(r => r.sentiment === 'negative').length
     }
     const dominantSentiment =
-      sentimentCounts.Positive >= sentimentCounts.Neutral && sentimentCounts.Positive >= sentimentCounts.Negative ? 'positive' :
-      sentimentCounts.Negative >= sentimentCounts.Neutral ? 'negative' : 'neutral'
+      filteredTestResults.length === 0
+        ? 'neutral'
+        : sentimentCounts.Positive > sentimentCounts.Neutral && sentimentCounts.Positive > sentimentCounts.Negative
+          ? 'positive'
+          : sentimentCounts.Negative > sentimentCounts.Neutral && sentimentCounts.Negative > sentimentCounts.Positive
+            ? 'negative'
+            : 'neutral'
 
     // Normalize competitor names for aggregation to deduplicate variants
     // e.g. "Scale AI" and "ScaleAI" → same entry

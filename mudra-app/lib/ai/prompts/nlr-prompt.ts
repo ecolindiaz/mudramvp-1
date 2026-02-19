@@ -139,7 +139,10 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
 
   // Opportunities from real ConversationOpportunity data
   const opps = input.opportunities;
-  const opportunitiesCount = opps ? opps.activeCount + opps.newThisWeek : 0;
+  // Avoid double-counting overlap between active and newly-created opportunities.
+  const opportunitiesCount = opps
+    ? (opps.newThisWeek > 0 ? opps.newThisWeek : opps.activeCount)
+    : 0;
   const opportunitiesSummary = opps
     ? opps.newThisWeek > 0
       ? `Conversation Radar found ${opps.newThisWeek} new opportunities this week. ${opps.activeCount} active, ${opps.engagedThisWeek} engaged.`

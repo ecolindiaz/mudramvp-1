@@ -1073,7 +1073,7 @@ async function generateReportContent(data: {
   }
 
   // Add a quality assessment
-  const scores = [data.geoAnalysis?.overallScore, data.technicalAnalysis?.overallScore].filter(Boolean) as number[];
+  const scores = [data.geoAnalysis?.overallScore, data.technicalAnalysis?.overallScore].filter((s): s is number => s != null);
   if (scores.length > 0) {
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
     const quality = avg >= 75 ? 'excellent' : avg >= 50 ? 'good' : 'needs improvement';

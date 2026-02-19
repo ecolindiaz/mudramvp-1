@@ -32,30 +32,47 @@ function pctDelta(current: number | null, previous: number | null) {
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url)
-    let companyId = url.searchParams.get('companyId')
+    const requestedCompanyId = url.searchParams.get('companyId')
+    let companyId = requestedCompanyId
     const brandProfileIdStr = url.searchParams.get('brandProfileId')
     const weekStartStr = url.searchParams.get('weekStartUtc')
     const country = url.searchParams.get('country')
 
     let resolvedBrandProfileId: number | null = null
+    const adminRequest = isAdmin(req)
 
     // brandProfileId-based lookup (used by dashboard)
-    if (!companyId && brandProfileIdStr) {
-      // Authenticate via session + verify ownership
-      const authResult = await requireAuthWithBrandAccess(brandProfileIdStr)
-      if (!authResult.success) {
-        return authResult.response
+    if (brandProfileIdStr) {
+      if (!adminRequest) {
+        // Authenticate via session + verify ownership
+        const authResult = await requireAuthWithBrandAccess(brandProfileIdStr)
+        if (!authResult.success) {
+          return authResult.response
+        }
+        resolvedBrandProfileId = authResult.brandProfileId!
+      } else {
+        // Admin/cron callers may request by brandProfileId without a user session
+        const parsedBrandProfileId = Number.parseInt(brandProfileIdStr, 10)
+        if (Number.isNaN(parsedBrandProfileId)) {
+          return NextResponse.json({ success: false, error: { message: 'Invalid brandProfileId' } }, { status: 400 })
+        }
+        resolvedBrandProfileId = parsedBrandProfileId
       }
-      resolvedBrandProfileId = authResult.brandProfileId!
-      companyId = await resolveCompanyIdFromBrandProfile(resolvedBrandProfileId)
-    }
 
-    if (!companyId) {
+      const resolvedCompanyId = await resolveCompanyIdFromBrandProfile(resolvedBrandProfileId)
+      if (!resolvedCompanyId) {
+        return NextResponse.json({ success: false, error: { message: 'No company found for brandProfileId' } }, { status: 404 })
+      }
+
+      if (requestedCompanyId && requestedCompanyId !== resolvedCompanyId) {
+        return NextResponse.json({ success: false, error: { message: 'companyId does not match brandProfileId' } }, { status: 400 })
+      }
+
+      companyId = resolvedCompanyId
+    } else if (!companyId) {
       return NextResponse.json({ success: false, error: { message: 'companyId or brandProfileId is required' } }, { status: 400 })
-    }
-
-    // For companyId-based requests (admin/cron), check admin token
-    if (!brandProfileIdStr && !isAdmin(req)) {
+    } else if (!adminRequest) {
+      // companyId-only requests are reserved for admin/cron
       return NextResponse.json({ success: false, error: { message: 'Unauthorized' } }, { status: 401 })
     }
 

@@ -169,12 +169,12 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
   )
 
   // Fetch WeeklyReport via brandProfileId (with country overlay when selected)
-  const { report: weeklyReport, countryOverlay, isLoading: isLoadingNlr, refresh: refreshNlr } = useNlr({ brandProfileId, country: selectedCountry || null })
+  const { report: weeklyReport, countryOverlay, error: nlrError, isLoading: isLoadingNlr, refresh: refreshNlr } = useNlr({ brandProfileId, country: selectedCountry || null })
 
   // Fallback: legacy NaturalLanguageReport from analysis results
   const nlrReport = analysisResultsData?.report || null
   const isLoading = isLoadingAnalysis || isLoadingNlr
-  const error = analysisError
+  const error = analysisError || nlrError
 
   // Listen for refresh events from Generate Report button
   React.useEffect(() => {

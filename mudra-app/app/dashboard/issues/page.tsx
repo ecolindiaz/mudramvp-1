@@ -56,61 +56,55 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { toast } from "sonner"
 
+function UnicodeStatusGlyph({ glyph, className }: { glyph: string; className?: string }) {
+  return (
+    <span aria-hidden className={`inline-flex items-center justify-center font-mono text-[15px] leading-none align-middle select-none ${className || ""}`}>
+      {glyph}
+    </span>
+  )
+}
+
+const EXECUTION_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const
+
+function UnicodeExecutionSpinner({ className = "" }: { className?: string }) {
+  const [frameIndex, setFrameIndex] = React.useState(0)
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      setFrameIndex((prev) => (prev + 1) % EXECUTION_SPINNER_FRAMES.length)
+    }, 80)
+
+    return () => window.clearInterval(timer)
+  }, [])
+
+  return (
+    <span aria-hidden className={`inline-flex w-4 justify-center font-mono text-[15px] leading-none align-middle select-none ${className}`}>
+      {EXECUTION_SPINNER_FRAMES[frameIndex]}
+    </span>
+  )
+}
+
 // Custom status icons
 const IdentifiedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M10.1 2.182a10 10 0 0 1 3.8 0"/>
-    <path d="M13.9 21.818a10 10 0 0 1-3.8 0"/>
-    <path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"/>
-    <path d="M2.182 13.9a10 10 0 0 1 0-3.8"/>
-    <path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"/>
-    <path d="M21.818 10.1a10 10 0 0 1 0 3.8"/>
-    <path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"/>
-    <path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"/>
-  </svg>
+  <UnicodeStatusGlyph glyph="⠒" className={className} />
 )
 
 const InProgressIcon = ({ className, animate = false }: { className?: string; animate?: boolean }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <style>
-      {animate ? `
-        @keyframes dotPulse {
-          0%, 100% { opacity: 0.3; }
-          50% { opacity: 1; }
-        }
-        .dot-top { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0s; }
-        .dot-mid-1 { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0.2s; }
-        .dot-mid-2 { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0.3s; }
-        .dot-bot-1 { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0.5s; }
-        .dot-bot-2 { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0.6s; }
-        .dot-bot-3 { animation: dotPulse 1.5s ease-in-out infinite; animation-delay: 0.7s; }
-      ` : ''}
-    </style>
-    {/* Top dot */}
-    <circle cx="12" cy="5" r="2" className={animate ? "dot-top" : ""} />
-    {/* Middle dots */}
-    <circle cx="8" cy="12" r="2" className={animate ? "dot-mid-1" : ""} />
-    <circle cx="16" cy="12" r="2" className={animate ? "dot-mid-2" : ""} />
-    {/* Bottom dots */}
-    <circle cx="4" cy="19" r="2" className={animate ? "dot-bot-1" : ""} />
-    <circle cx="12" cy="19" r="2" className={animate ? "dot-bot-2" : ""} />
-    <circle cx="20" cy="19" r="2" className={animate ? "dot-bot-3" : ""} />
-  </svg>
+  animate
+    ? <UnicodeExecutionSpinner className={className} />
+    : <UnicodeStatusGlyph glyph="⠶" className={className} />
 )
 
 const CompletedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M21.801 10A10 10 0 1 1 17 3.335"/>
-    <path d="m9 11 3 3L22 4"/>
-  </svg>
+  <UnicodeStatusGlyph glyph="⠿" className={className} />
 )
 
 const MergedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <circle cx="18" cy="18" r="3"/>
-    <circle cx="6" cy="6" r="3"/>
-    <path d="M6 21V9a9 9 0 0 0 9 9"/>
-  </svg>
+  <UnicodeStatusGlyph glyph="⠯" className={className} />
 )
 
 const FailedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
@@ -289,7 +283,7 @@ function SortableIssueCard({
                 disabled={isGeneratingScript}
               >
                 {isGeneratingScript ? (
-                  <IconLoader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <UnicodeExecutionSpinner className="mr-2 text-white/60" />
                 ) : (
                   <IconCode className="w-4 h-4 mr-2" />
                 )}
@@ -951,7 +945,7 @@ function IssueDetailDialog({
                className="text-white/50 hover:text-white/70 hover:bg-white/[0.05]"
              >
                {isGeneratingScript ? (
-                 <IconLoader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                 <UnicodeExecutionSpinner className="mr-1.5 text-white/60" />
                ) : (
                  <IconCode className="w-3.5 h-3.5 mr-1.5" />
                )}
@@ -968,7 +962,7 @@ function IssueDetailDialog({
            >
              {isDeploying ? (
                <>
-                 <IconLoader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                 <UnicodeExecutionSpinner className="mr-1.5 text-black/80" />
                  Deploying...
                </>
              ) : (
@@ -1018,9 +1012,7 @@ function IssueColumnWithHandlers({
       {/* Column Header */}
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2.5">
-          <div className={`p-1.5 rounded-lg ${config.bg}`}>
-            <StatusIcon className={`w-3.5 h-3.5 ${config.color}`} />
-          </div>
+          <StatusIcon className={`w-[18px] h-[18px] ${config.color}`} />
           <span className="text-[13px] font-medium text-white/80">{title}</span>
           <span className="text-[11px] text-white/40 bg-white/[0.05] px-1.5 py-0.5 rounded-md">
             {issues.length}
@@ -1965,7 +1957,7 @@ function IssuesPageInner() {
               >
                 {deployingId === viewingOutputIssue.id ? (
                   <>
-                    <IconLoader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    <UnicodeExecutionSpinner className="mr-1.5 text-black/80" />
                     Deploying...
                   </>
                 ) : (

@@ -1,7 +1,8 @@
 import type { NlrInput } from "@/lib/analysis/nlr/types";
 import { mapAiVisibility } from "@/lib/analysis/nlr/mappers/ai-visibility";
 import { mapTechnicalStructure } from "@/lib/analysis/nlr/mappers/technical-structure";
-import { mapTasks } from "@/lib/analysis/nlr/mappers/tasks";
+import { mapIssues } from "@/lib/analysis/nlr/mappers/issues";
+import { mapOpportunities } from "@/lib/analysis/nlr/mappers/opportunities";
 import { mapAiReferralTraffic } from "@/lib/analysis/nlr/mappers/ai-referral-traffic";
 import { mapAgentDeployments } from "@/lib/analysis/nlr/mappers/agent-deployments";
 
@@ -9,10 +10,11 @@ export async function collectNlrInputs(
   companyId: string,
   weekStartUtc: Date | string
 ): Promise<NlrInput> {
-  const [aiVisibility, technical, tasks, aiReferralTraffic, agentDeployments] = await Promise.all([
+  const [aiVisibility, technical, tasks, opportunities, aiReferralTraffic, agentDeployments] = await Promise.all([
     mapAiVisibility(companyId, weekStartUtc),
     mapTechnicalStructure(companyId),
-    mapTasks(companyId, weekStartUtc),
+    mapIssues(companyId, weekStartUtc),
+    mapOpportunities(companyId, weekStartUtc),
     mapAiReferralTraffic(companyId, weekStartUtc),
     mapAgentDeployments(companyId, weekStartUtc),
   ]);
@@ -23,7 +25,8 @@ export async function collectNlrInputs(
     aiVisibility,
     technical,
     tasks,
-    external: null, // not implemented yet
+    opportunities,
+    external: null,
     aiReferralTraffic,
     agentDeployments,
   };

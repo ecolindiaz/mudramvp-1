@@ -1,13 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import type { AgentDeploymentsSummary, EvidenceRef } from "@/lib/analysis/nlr/types";
+import { resolveBrandProfileIds } from "@/lib/analysis/nlr/mappers/resolve-brand-profiles";
 
 /**
  * Map Agent Lab deployments/executions for NLR
- * Fetches from AgentExecution and DeployedAgent tables
  * Only includes completed executions from the week (shipped deployments)
- * 
- * Note: companyId here refers to the Company.id (cuid) which links to Site.companyId
- * We need to find brandProfiles that have sites under this company.
  */
 export async function mapAgentDeployments(
   companyId: string,
@@ -17,31 +14,8 @@ export async function mapAgentDeployments(
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 7);
 
-  // Find sites for this company, then get brandProfiles with matching domains
-  const sites = await prisma.site.findMany({
-    where: { companyId },
-    select: { id: true, domain: true },
-  });
-
-  if (sites.length === 0) return null;
-
-  const siteDomains = sites.map(s => s.domain);
-  
-  // Find brand profiles that match these domains
-  const brandProfiles = await prisma.brandProfile.findMany({
-    where: {
-      OR: [
-        { companyWebsite: { in: siteDomains.map(d => `https://${d}`) } },
-        { companyWebsite: { in: siteDomains.map(d => `http://${d}`) } },
-        { companyWebsite: { in: siteDomains } },
-      ]
-    },
-    select: { id: true },
-  });
-
-  if (brandProfiles.length === 0) return null;
-
-  const brandProfileIds = brandProfiles.map((bp) => bp.id);
+  const brandProfileIds = await resolveBrandProfileIds(companyId);
+  if (brandProfileIds.length === 0) return null;
 
   // Fetch completed agent executions this week (shipped deployments only)
   const executions = await prisma.agentExecution.findMany({

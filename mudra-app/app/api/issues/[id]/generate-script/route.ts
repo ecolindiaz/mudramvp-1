@@ -3,6 +3,7 @@
  *
  * POST /api/issues/[id]/generate-script
  * Generates a copy/paste-ready code snippet for manual implementation.
+ * Uses LLM-first approach with template fallback.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -10,7 +11,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
-	generateScriptForIssue,
+	generateScriptWithLlm,
 	isScriptGenerationSupported,
 } from "@/lib/services/issue-script-generator.service";
 
@@ -77,7 +78,7 @@ export async function POST(
 			);
 		}
 
-		const generated = generateScriptForIssue(
+		const generated = await generateScriptWithLlm(
 			{
 				id: issue.id,
 				title: issue.title,
@@ -98,11 +99,13 @@ export async function POST(
 			data: {
 				generatedOutput: generated.generatedOutput,
 				outputType: generated.outputType,
+				scriptSource: generated.source,
 			},
 			select: {
 				id: true,
 				generatedOutput: true,
 				outputType: true,
+				scriptSource: true,
 				updatedAt: true,
 			},
 		});

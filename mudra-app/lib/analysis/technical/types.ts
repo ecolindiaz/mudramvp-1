@@ -470,9 +470,9 @@ export const PAGE_TYPE_LIMITS: Partial<Record<PageType, number>> = {
  * Options for sitemap discovery
  */
 export interface DiscoveryOptions {
-	/** Maximum total pages to discover (default: 20) */
+	/** Maximum total pages to discover (default: 35) */
 	maxPages?: number;
-	/** Maximum blog posts to include (default: 10) */
+	/** Maximum blog posts to include (default: 15) */
 	maxBlogs?: number;
 	/** Include sitemap in discovery (default: 'include') */
 	sitemap?: "include" | "only" | "skip";

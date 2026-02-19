@@ -153,6 +153,7 @@ model Issue {
   // Agent Output Storage
   generatedOutput    String?      @db.Text  // Stores agent-generated content when PR creation fails
   outputType         String?      // "code", "content", "guidance"
+  scriptSource       String?      // "llm", "template" — how generatedOutput was produced
   
   // Eval Scoring (production quality tracking)
   evalHallucinationScore  Float?     // 0=none, 1=fully hallucinated (lower is better)

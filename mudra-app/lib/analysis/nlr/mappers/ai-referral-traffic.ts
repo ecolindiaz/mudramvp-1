@@ -1,12 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import type { AIReferralTrafficSummary, Delta } from "@/lib/analysis/nlr/types";
+import { resolveBrandProfileIds } from "@/lib/analysis/nlr/mappers/resolve-brand-profiles";
 
 /**
  * Map AI Referral Traffic data for NLR
  * Fetches from AIReferralVisit and AIReferralMetrics tables
- * 
- * Note: companyId here refers to the Company.id (cuid) which links to Site.companyId
- * We need to find brandProfiles that have tracking configured for sites under this company.
  */
 export async function mapAiReferralTraffic(
   companyId: string,
@@ -21,32 +19,8 @@ export async function mapAiReferralTraffic(
   prevWeekStart.setDate(prevWeekStart.getDate() - 7);
   const prevWeekEnd = weekStart;
 
-  // Find sites for this company, then get brandProfiles with matching trackingSiteId
-  const sites = await prisma.site.findMany({
-    where: { companyId },
-    select: { id: true, domain: true },
-  });
-
-  if (sites.length === 0) return null;
-
-  const siteDomains = sites.map(s => s.domain);
-  
-  // Find brand profiles that have tracking configured for these domains
-  const brandProfiles = await prisma.brandProfile.findMany({
-    where: {
-      OR: [
-        { trackingSiteId: { not: null } },
-        { companyWebsite: { in: siteDomains.map(d => `https://${d}`) } },
-        { companyWebsite: { in: siteDomains.map(d => `http://${d}`) } },
-        { companyWebsite: { in: siteDomains } },
-      ]
-    },
-    select: { id: true },
-  });
-
-  if (brandProfiles.length === 0) return null;
-
-  const brandProfileIds = brandProfiles.map((bp) => bp.id);
+  const brandProfileIds = await resolveBrandProfileIds(companyId);
+  if (brandProfileIds.length === 0) return null;
 
   // Fetch current week visits by provider
   const currentWeekVisits = await prisma.aIReferralVisit.groupBy({

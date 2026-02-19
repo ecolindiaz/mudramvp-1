@@ -41,8 +41,8 @@ import {
 // CONSTANTS
 // ============================================================================
 
-const DEFAULT_MAX_PAGES = 20;
-const DEFAULT_MAX_BLOGS = 10;
+const DEFAULT_MAX_PAGES = 35;
+const DEFAULT_MAX_BLOGS = 15;
 const DEFAULT_MAP_LIMIT = 500; // Fetch up to 500 URLs from Firecrawl in single call
 const DEFAULT_MAX_URLS_FOR_AI = 100; // Send top 100 URLs to AI for analysis
 const DEFAULT_AI_MODEL = "gpt-5.2"; // Default OpenAI model for analysis

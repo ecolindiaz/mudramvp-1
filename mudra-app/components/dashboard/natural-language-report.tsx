@@ -14,7 +14,7 @@ import {
   IconInfoCircle,
   IconCheck
 } from "@tabler/icons-react"
-import { FileText, ArrowUpRight, ListOrdered, BookOpen, Newspaper, GraduationCap, Globe, MessageSquare, PlayCircle, Building2, Star, Share2, BookMarked, ExternalLink, X, ChevronRight, Expand } from "lucide-react"
+import { FileText, ArrowUpRight, ListOrdered, BookOpen, Newspaper, GraduationCap, Globe, MessageSquare, PlayCircle, Building2, Star, Share2, BookMarked, ExternalLink, X, ChevronRight, Expand, Radio } from "lucide-react"
 import { CircleFlag } from "react-circle-flags"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "react-hot-toast"
@@ -22,9 +22,12 @@ import type { NlrSummaryJson } from '@/types/nlr'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 import { useBrandProfile } from "@/components/brand-profile-context"
+import { useNlr } from "@/hooks/use-nlr"
 import { ExpansionModal, type ExpansionModalColumn } from "./expansion-modal"
 import { CompanyLogo, DomainLogo } from "@/components/ui/company-logo"
 import { getCompanyDomain } from "@/lib/logo"
+import { buildExecutiveSummaryFromJson, isJsonLikeText } from "@/lib/analysis/nlr/narrative"
+import { IssuesIcon, ContentLabIcon } from "@/components/icons"
 
 interface NaturalLanguageReportProps {
   className?: string
@@ -66,6 +69,28 @@ function CitationTypeIcon({ type }: { type: CitationType }) {
       return <Globe className={iconClass} />
   }
 }
+
+const reportActionWidgets: Array<{
+  title: string;
+  href: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}> = [
+  {
+    title: "Fix Issues",
+    href: "/dashboard/issues",
+    Icon: IssuesIcon,
+  },
+  {
+    title: "Engineer Content",
+    href: "/dashboard/campaigns",
+    Icon: ContentLabIcon,
+  },
+  {
+    title: "Find Opportunities",
+    href: "/dashboard/conversation-radar",
+    Icon: Radio,
+  },
+]
 
 
 export function NaturalLanguageReport({ className, timeRange, selectedModel, days = 30 }: NaturalLanguageReportProps) {
@@ -143,16 +168,20 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
     }
   )
 
-  // Weekly report via Company/Site not currently used
+  // Fetch WeeklyReport via brandProfileId (with country overlay when selected)
+  const { report: weeklyReport, countryOverlay, error: nlrError, isLoading: isLoadingNlr, refresh: refreshNlr } = useNlr({ brandProfileId, country: selectedCountry || null })
+
+  // Fallback: legacy NaturalLanguageReport from analysis results
   const nlrReport = analysisResultsData?.report || null
-  const isLoading = isLoadingAnalysis
-  const error = analysisError
+  const isLoading = isLoadingAnalysis || isLoadingNlr
+  const error = analysisError || nlrError
 
   // Listen for refresh events from Generate Report button
   React.useEffect(() => {
     const handleRefresh = () => {
       if (refreshAnalysis) refreshAnalysis()
       if (refreshPrompts) refreshPrompts()
+      if (refreshNlr) refreshNlr()
     }
 
     window.addEventListener('mudra:nlr-refresh', handleRefresh)
@@ -163,184 +192,79 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
       window.removeEventListener('mudra:analysis-complete', handleRefresh)
       window.removeEventListener('mudra:website-analyzed', handleRefresh)
     }
-  }, [refreshAnalysis, refreshPrompts])
+  }, [refreshAnalysis, refreshPrompts, refreshNlr])
 
-  // Build summary from NaturalLanguageReport (WeeklyReport via Company/Site not currently used)
-  const summaryJson = null as NlrSummaryJson | null
-  const summaryFromModel = ''
+  // WeeklyReport structured data — build one effective object with country overlay merged in.
+  // Every consumer (summary builder, markdown export, etc.) reads from this single source.
+  const baseSummaryJson: NlrSummaryJson | null = weeklyReport?.summaryJson ? (weeklyReport.summaryJson as NlrSummaryJson) : null
+  const summaryJson: NlrSummaryJson | null = React.useMemo(() => {
+    if (!baseSummaryJson) return null
+    if (!countryOverlay) return baseSummaryJson
+
+    // Deep-merge country overlay into the base JSON
+    const overlayScore = countryOverlay.aiVisibility?.score
+    const overlayPos = countryOverlay.aiVisibility?.averagePosition
+
+    return {
+      ...baseSummaryJson,
+      sections: {
+        ...baseSummaryJson.sections,
+        // Override AI Visibility with country-specific values
+        ai_visibility: {
+          ...baseSummaryJson.sections.ai_visibility,
+          score_change: overlayScore
+            ? {
+                previous: overlayScore.previous,
+                current: overlayScore.current,
+                direction: overlayScore.direction,
+                relative: overlayScore.relative,
+                absolute: overlayScore.absolute,
+                formatted: '',
+              }
+            : baseSummaryJson.sections.ai_visibility.score_change,
+        },
+        // Override Average Position with country-specific values
+        average_position: overlayPos
+          ? {
+              current: overlayPos.current,
+              previous: overlayPos.previous,
+              direction: overlayPos.direction,
+              delta: overlayPos.absolute,
+              formatted: '',
+            }
+          : baseSummaryJson.sections.average_position,
+      },
+    }
+  }, [baseSummaryJson, countryOverlay])
+
+  const summaryFromModel: string = weeklyReport?.summaryMarkdown || ''
 
   // Fallback: Use NaturalLanguageReport text if no WeeklyReport
   const nlrReportText = nlrReport?.reportText || ''
   const nlrMetadata = nlrReport?.metadata ? (typeof nlrReport.metadata === 'string' ? JSON.parse(nlrReport.metadata) : nlrReport.metadata) : null
   const nlrSummary = nlrMetadata?.summary || nlrReportText
 
-  const whatsChanged = summaryJson?.sections?.whats_changed ?? []
-  const highlights = summaryJson?.sections?.highlights ?? []
-
-  // Helper to format score delta in "previous → current (+X% ↑)" format
-  // Returns "-" when no previous data (first run after onboarding) or no change
-  function formatScoreDelta(change: { previous?: number | null; current?: number | null; relative?: number | null; direction?: string | null; formatted?: string } | null | undefined): string {
-    if (!change) return "-"
-
-    // No previous data (first run after onboarding) - show dash
-    if (change.previous == null) return "-"
-
-    // No change in scores - show dash
-    if (change.previous === change.current) return "-"
-
-    // Use pre-formatted string if available
-    if (change.formatted) return change.formatted
-
-    // Otherwise build the delta format
-    const prev = change.previous
-    const curr = change.current ?? 0
-    const pct = change.relative != null ? Math.round(change.relative * 100) : Math.round(((curr - prev) / (prev || 1)) * 100)
-    const arrow = change.direction === "up" ? "↑" : change.direction === "down" ? "↓" : ""
-    const sign = pct >= 0 ? "+" : ""
-    return `${prev} → ${curr} (${sign}${pct}% ${arrow})`
-  }
-
   function buildDigestibleSummary(): string {
-    // First try WeeklyReport structured data
     if (summaryJson) {
-      const parts: string[] = []
-
-      // Agent Lab section
-      const agentLab = summaryJson.sections?.agent_lab
-      if (agentLab?.deployments && agentLab.deployments.length > 0) {
-        const deploymentStr = agentLab.deployments.map(d => `${d.agent_name} ${d.what_changed}`).join('. ')
-        parts.push(`**Agent Lab:** ${deploymentStr}.`)
-      }
-
-    // Opportunities section
-    const opportunities = summaryJson.sections?.opportunities
-    if (opportunities?.count && opportunities.count > 0) {
-      parts.push(`**Opportunities:** ${opportunities.summary || `Conversation Radar agent identified ${opportunities.count} high-value opportunities your brand should participate on.`}`)
+      const generated = buildExecutiveSummaryFromJson(summaryJson)
+      if (generated) return generated
     }
 
-    // Score Changes with new format: "58 → 71 (+22% ↑)"
-    const scoreChangeParts: string[] = []
-    const aiVis = summaryJson.sections?.ai_visibility?.score_change
-    if (aiVis && (aiVis.current != null || aiVis.formatted)) {
-      scoreChangeParts.push(`AI Visibility: ${formatScoreDelta(aiVis)}`)
-    }
-    const tech = summaryJson.sections?.technical_structure?.overall_change
-    if (tech && (tech.current != null || tech.formatted)) {
-      scoreChangeParts.push(`Technical Structure: ${formatScoreDelta(tech)}`)
-    }
-    if (scoreChangeParts.length > 0) {
-      parts.push(`**Score Changes:** ${scoreChangeParts.join('. ')}.`)
+    const modelText = summaryFromModel?.trim()
+    if (modelText && !isJsonLikeText(modelText)) {
+      return modelText
     }
 
-    // AI Traffic section
-    const aiTraffic = summaryJson.sections?.ai_traffic
-    if (aiTraffic && aiTraffic.total_visits > 0) {
-      if (aiTraffic.formatted) {
-        parts.push(`**AI Traffic:** ${aiTraffic.formatted}`)
-      } else {
-        const providerStr = aiTraffic.by_provider?.map(p => `${p.provider} (${p.visits})`).join(' · ') || ''
-        const boostSign = aiTraffic.weekly_boost >= 0 ? '+' : ''
-        parts.push(`**AI Traffic:** ${aiTraffic.total_visits} visits from AI sources (${boostSign}${aiTraffic.weekly_boost} vs. last week)${providerStr ? ` — ${providerStr}` : ''}.`)
-      }
+    const legacyText = nlrSummary?.trim()
+    if (legacyText && !isJsonLikeText(legacyText)) {
+      return legacyText
     }
 
-    // Use highlights for additional context
-    const bullets = (highlights?.length ? highlights : whatsChanged.map((w: { label: string }) => w.label)).slice(0, 2)
-    if (bullets.length > 0 && parts.length < 3) {
-      parts.push(bullets.join(' '))
-    }
-
-    // Technical Snapshot Narrative (70–120 words)
-    const keyFindings = summaryJson.sections.technical_structure?.key_findings || []
-    if (keyFindings.length > 0) {
-      const lower = (s: string) => s.toLowerCase()
-      const findBy = (substr: string) => keyFindings.find(k => lower(k.title).includes(substr))
-
-      const robots = findBy('robots.txt')
-      const llms = findBy('llms.txt')
-      const jsonld = keyFindings.find(k => lower(k.title).includes('json-ld'))
-      const faq = keyFindings.find(k => lower(k.title).includes('faq'))
-      const headings = keyFindings.find(k => lower(k.title).includes('heading structure'))
-      const h1 = keyFindings.find(k => lower(k.title).startsWith('h1 '))
-
-      const jsonLdCountMatch = jsonld?.title.match(/\((\d+)\)/)
-      const faqCountMatch = faq?.title.match(/\((\d+)\)/)
-
-      const clauses: string[] = []
-      if (robots) clauses.push(robots.title.toLowerCase().includes('missing') ? 'robots.txt is missing' : 'robots.txt is present')
-      if (llms) clauses.push(llms.title.toLowerCase().includes('missing') ? 'llms.txt is missing' : 'llms.txt is present')
-      if (jsonld) {
-        if (lower(jsonld.title).includes('detected')) {
-          clauses.push(jsonLdCountMatch ? `JSON-LD detected (${jsonLdCountMatch[1]})` : 'JSON-LD detected')
-        } else {
-          clauses.push('no JSON-LD detected')
-        }
-      }
-      if (faq) {
-        if (lower(faq.title).includes('present')) {
-          clauses.push(faqCountMatch ? `FAQ content present (${faqCountMatch[1]})` : 'FAQ content present')
-        } else {
-          clauses.push('no FAQ content detected')
-        }
-      }
-      if (headings) clauses.push(lower(headings.title).includes('sane') ? 'headings look sane' : 'headings may be problematic')
-      if (h1) {
-        if (lower(h1.title).includes('present')) {
-          const m = h1.title.match(/\((\d+)\)/)
-          clauses.push(m ? `H1 count ${m[1]}` : 'H1 present')
-        } else {
-          clauses.push('no H1 detected')
-        }
-      }
-
-      const narrativeParts: string[] = []
-      if (clauses.length > 0) {
-        narrativeParts.push(`The crawler snapshot confirms ${clauses.join(', ')}.`)
-      }
-      if (jsonld || faq) {
-        narrativeParts.push('Structured signals like JSON-LD and FAQs help search and AI models understand your entities and answers.')
-      }
-      if (headings || h1) {
-        narrativeParts.push('Clear heading structure and a single primary H1 improve parsing and ranking consistency across pages.')
-      }
-      narrativeParts.push('Addressing gaps here increases the likelihood of being cited or summarized accurately in AI-generated answers.')
-
-      let narrative = narrativeParts.join(' ')
-      const nextTip = summaryJson.sections.risks_next_steps?.[0]
-      if (nextTip) narrative += ` Next: ${nextTip}.`
-
-      const wordCount = (s: string) => s.trim().split(/\s+/).filter(Boolean).length
-      const minWords = 70
-      const maxWords = 120
-
-      if (wordCount(narrative) < minWords) {
-        const topTasks = summaryJson.sections.tasks?.top_open?.map(t => t.title).slice(0, 3) || []
-        if (topTasks.length > 0) {
-          narrative += ` Prioritize: ${topTasks.join('; ')}.`
-        }
-      }
-      if (wordCount(narrative) > maxWords) {
-        const words = narrative.split(/\s+/).slice(0, maxWords)
-        narrative = words.join(' ').replace(/[;,]$/,'').trim() + '.'
-      }
-
-      parts.push(narrative)
-    }
-
-    const next = summaryJson.sections.risks_next_steps?.[0]
-    if (next) parts.push(`Next: ${next}.`)
-
-    const text = parts.filter(Boolean).join(' ').trim()
-    return text || summaryFromModel || nlrSummary
-    }
-  
-    // No WeeklyReport data - fallback to NaturalLanguageReport or summaryFromModel
-    return summaryFromModel || nlrSummary || ''
+    return ''
   }
 
   // Build final summary - prioritize WeeklyReport, fallback to NaturalLanguageReport
   const summary = buildDigestibleSummary() || nlrSummary
-  
   // Note: brandProfileId is already defined above (line ~51)
 
   // Fetch real citation data from aggregated prompt results (preview - top 5)
@@ -595,13 +519,15 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
       day: 'numeric'
     })
 
-    // Get metrics from promptsData aggregate
-    const aiVisibility = promptsData?.aggregate?.overallScore
-      ? `${Math.round(promptsData.aggregate.overallScore)}%`
-      : '—'
-    const avgPosition = promptsData?.aggregate?.averagePosition
-      ? `#${promptsData.aggregate.averagePosition.toFixed(1)}`
-      : '—'
+    // Get metrics from effectiveSummaryJson (country overlay already merged), with promptsData fallback
+    const aiVisScore = summaryJson?.sections?.ai_visibility?.score_change?.current
+    const aiVisibility = aiVisScore != null
+      ? `${Math.round(aiVisScore)}%`
+      : (promptsData?.aggregate?.overallScore ? `${Math.round(promptsData.aggregate.overallScore)}%` : '—')
+    const avgPosValue = summaryJson?.sections?.average_position?.current
+    const avgPosition = avgPosValue != null
+      ? `#${avgPosValue}`
+      : (promptsData?.aggregate?.averagePosition ? `#${promptsData.aggregate.averagePosition.toFixed(1)}` : '—')
     const technicalScore = technicalData?.data?.[0]?.overallScore
       ? `${technicalData.data[0].overallScore}%`
       : '—'
@@ -845,7 +771,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
             </Tooltip>
           </div>
 
-          <div className="p-5 flex-1 flex flex-col min-h-[200px]">
+	          <div className="p-5 flex-1 flex flex-col min-h-[200px]">
             <div className="flex-1">
               {isLoading ? (
                 <div className="space-y-3">
@@ -873,15 +799,59 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                 </div>
               ) : (
                 <div className="relative">
-                  <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-white/50 to-transparent" />
-                  <p className="text-[15px] leading-7 text-white/85 pl-4">
-                    {summary}
+                  <p className="text-[14.4px] leading-[2] text-white">
+                    {summary.split(/(\*\*[^*]+\*\*|(?:rose|increased|improved)\b|(?:fell|declined|decreased)\b|(?:held at)\b|#\d+(?:\.\d+)?|\b\d+(?:\.\d+)?%|\(\+[^)]+\)|\(-[^)]+\))/gi).map((part: string, i: number) => {
+                      if (/^\*\*(.+)\*\*$/.test(part)) {
+                        return <span key={i} className="font-medium text-white/90">{part.slice(2, -2)}</span>
+                      }
+                      if (/^(rose|increased|improved)$/i.test(part)) {
+                        return <span key={i} className="text-white/90 font-medium">{part}</span>
+                      }
+                      if (/^(fell|declined|decreased)$/i.test(part)) {
+                        return <span key={i} className="text-white/90 font-medium">{part}</span>
+                      }
+                      if (/^held at$/i.test(part)) {
+                        return <span key={i} className="text-white/90 font-medium">{part}</span>
+                      }
+                      if (/^\(\+/.test(part)) {
+                        return <Badge key={i} variant="outline" className="text-[11px] px-1.5 py-0 bg-gray-500/10 text-green-300/80 border-transparent tabular-nums align-middle mx-0.5">{part}</Badge>
+                      }
+                      if (/^\(-/.test(part)) {
+                        return <Badge key={i} variant="outline" className="text-[11px] px-1.5 py-0 bg-gray-500/10 text-red-400 border-transparent tabular-nums align-middle mx-0.5">{part}</Badge>
+                      }
+                      if (/^\d+(?:\.\d+)?%$/.test(part)) {
+                        return <Badge key={i} variant="outline" className="text-[11px] px-1.5 py-0 bg-gray-500/10 text-white border-transparent tabular-nums align-middle mx-0.5">{part}</Badge>
+                      }
+                      if (/^#?\d+(?:\.\d+)?$/.test(part)) {
+                        return <Badge key={i} variant="outline" className="text-[11px] px-1.5 py-0 bg-gray-500/10 text-white border-transparent tabular-nums align-middle mx-0.5">{part}</Badge>
+                      }
+                      return part
+                    })}
                   </p>
                 </div>
               )}
             </div>
-
-          </div>
+		            {summary && (
+		              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+		                {reportActionWidgets.map((widget) => {
+		                  const WidgetIcon = widget.Icon
+		                  return (
+		                    <button
+		                      key={`summary-${widget.title}`}
+		                      type="button"
+		                      onClick={() => router.push(widget.href)}
+		                      className="inline-flex w-full items-center justify-center gap-1.5 px-2.5 py-[5px] rounded-md bg-white/[0.05] text-[11.5px] text-white/60 hover:text-white/80 hover:bg-white/[0.08] transition-colors"
+		                      aria-label={widget.title}
+		                    >
+		                      <WidgetIcon className="w-3.5 h-3.5" />
+		                      <span>{widget.title}</span>
+		                    </button>
+		                  )
+		                })}
+	              </div>
+	            )}
+	
+	          </div>
           <div className="flex justify-end px-5 py-3 border-t border-white/[0.06]">
             <Button
               variant="ghost"
@@ -1658,5 +1628,3 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
     </div>
   )
 }
-
-

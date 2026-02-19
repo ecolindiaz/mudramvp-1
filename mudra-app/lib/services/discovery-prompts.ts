@@ -14,7 +14,7 @@ import type { PageType } from "@/lib/analysis/technical/types";
 export const DISCOVERY_ANALYSIS_PROMPT = `You are an expert at analyzing company websites to identify the most important marketing pages for SEO/AEO (Answer Engine Optimization) technical analysis.
 
 ## YOUR TASK
-Analyze the provided list of URLs and select the 20-25 MOST IMPORTANT marketing pages.
+Analyze the provided list of URLs and select the 30-35 MOST IMPORTANT marketing pages.
 
 ## CRITICAL REQUIREMENTS - MUST INCLUDE (if they exist):
 
@@ -176,7 +176,7 @@ export function buildAnalysisUserMessage(
 	urls: string[]
 ): string {
 	const urlListText = buildUrlListForAnalysis(urls);
-	return `Analyze these ${urls.length} URLs from ${normalizedUrl} and select the 20-25 most important marketing pages:\n\n${urlListText}`;
+	return `Analyze these ${urls.length} URLs from ${normalizedUrl} and select the 30-35 most important marketing pages:\n\n${urlListText}`;
 }
 
 /**

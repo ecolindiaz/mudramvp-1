@@ -21,6 +21,18 @@ function formatScoreDelta(delta: Delta<number> | null | undefined): string {
   return `${prev} → ${curr} (${sign}${pct}% ${arrow})`;
 }
 
+function formatPositionDelta(delta: Delta<number> | null | undefined): string {
+  if (!delta || delta.current == null) return "N/A";
+  const prev = delta.previous;
+  const curr = delta.current;
+  if (prev == null) return `#${curr}`;
+  const diff = curr - prev;
+  // Lower position = better, so negative diff is improvement
+  const arrow = diff < 0 ? "↑" : diff > 0 ? "↓" : "";
+  const sign = diff <= 0 ? "" : "+";
+  return `#${prev} → #${curr} (${sign}${diff} ${arrow})`;
+}
+
 export function buildNlrPrompt(input: NlrInput): NlrPrompt {
   const ranked = rankChanges(input);
 
@@ -38,8 +50,11 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
     "",
     "IMPORTANT OUTPUT FORMAT:",
     "- Score Changes must use format: 'AI Visibility: 58 → 71 (+22% ↑)' with previous → current plus percent and arrow.",
+    "- Average Position must use format: '#3.2 → #2.8 (-0.4 ↑)' where lower is better.",
     "- Agent Lab section should list ONLY shipped deployments with agent name + what changed.",
     "- AI Traffic section should show total visits, boost vs last week, and breakdown by provider.",
+    "- Active Issues should summarize new + fixed counts with top open issues.",
+    "- Opportunities should reference Conversation Radar data when available.",
   ];
 
   const jsonSchema = {
@@ -53,18 +68,28 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
       },
       opportunities: {
         count: "number",
-        summary: "string|null"
+        summary: "string|null",
+        active_count: "number",
+        new_this_week: "number",
+        engaged_this_week: "number"
       },
       ai_visibility: {
         score_change: {
           previous: "number|null",
           current: "number|null",
           direction: "up|down|flat|null",
-          relative: "number|null", // 0.12 = +12%
+          relative: "number|null",
           absolute: "number|null",
-          formatted: "string" // "58 → 71 (+22% ↑)"
+          formatted: "string"
         },
         notes: ["string"]
+      },
+      average_position: {
+        current: "number|null",
+        previous: "number|null",
+        direction: "up|down|flat|null",
+        delta: "number|null",
+        formatted: "string"
       },
       technical_structure: {
         overall_change: {
@@ -73,15 +98,16 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
           direction: "up|down|flat|null",
           relative: "number|null",
           absolute: "number|null",
-          formatted: "string" // "54 → 67 (+24% ↑)"
+          formatted: "string"
         },
-        key_findings: [{ title: "string", importance: "high|medium|low" }]
+        key_findings: [{ title: "string", importance: "high|medium|low" }],
+        page_deltas: [{ url: "string", current: "number", previous: "number|null", delta: "number|null" }]
       },
       ai_traffic: {
         total_visits: "number",
-        weekly_boost: "number", // +30 vs last week
+        weekly_boost: "number",
         by_provider: [{ provider: "string", visits: "number" }],
-        formatted: "string" // "143 visits from AI sources (+30 vs. last week) — ChatGPT (64) · Perplexity (51) · Claude (28)"
+        formatted: "string"
       },
       tasks: {
         opened_this_week: "number",
@@ -111,13 +137,22 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
     what_changed: d.whatChanged,
   })) ?? [];
 
-  // Extract Conversation Radar opportunities count
-  const conversationRadarDeployment = input.agentDeployments?.deployments?.find(
-    d => d.agentName.toLowerCase().includes("conversation") || d.agentName.toLowerCase().includes("radar")
-  );
-  const opportunitiesCount = conversationRadarDeployment
-    ? parseInt(conversationRadarDeployment.whatChanged.match(/\d+/)?.[0] || "0")
+  // Opportunities from real ConversationOpportunity data
+  const opps = input.opportunities;
+  // Avoid double-counting overlap between active and newly-created opportunities.
+  const opportunitiesCount = opps
+    ? (opps.newThisWeek > 0 ? opps.newThisWeek : opps.activeCount)
     : 0;
+  const opportunitiesSummary = opps
+    ? opps.newThisWeek > 0
+      ? `Conversation Radar found ${opps.newThisWeek} new opportunities this week. ${opps.activeCount} active, ${opps.engagedThisWeek} engaged.`
+      : opps.activeCount > 0
+        ? `${opps.activeCount} active opportunities. ${opps.engagedThisWeek} engaged this week.`
+        : null
+    : null;
+
+  // Average position from AI Visibility
+  const avgPos = input.aiVisibility?.averagePosition;
 
   const precomputed = {
     week_start_utc: input.weekStartUtc,
@@ -128,9 +163,10 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
     },
     opportunities: {
       count: opportunitiesCount,
-      summary: opportunitiesCount > 0
-        ? `Conversation Radar agent identified ${opportunitiesCount} high-value opportunities your brand should participate on.`
-        : null,
+      summary: opportunitiesSummary,
+      active_count: opps?.activeCount ?? 0,
+      new_this_week: opps?.newThisWeek ?? 0,
+      engaged_this_week: opps?.engagedThisWeek ?? 0,
     },
     ai_visibility: input.aiVisibility ? {
       score_change: {
@@ -143,6 +179,13 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
       },
       notes: input.aiVisibility.notes ?? []
     } : null,
+    average_position: avgPos ? {
+      current: avgPos.current,
+      previous: avgPos.previous,
+      direction: avgPos.direction ?? null,
+      delta: avgPos.absolute ?? null,
+      formatted: formatPositionDelta(avgPos),
+    } : null,
     technical_structure: input.technical ? {
       overall_change: {
         previous: input.technical.overallScore?.previous ?? null,
@@ -152,7 +195,13 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
         absolute: input.technical.overallScore?.absolute ?? null,
         formatted: formatScoreDelta(input.technical.overallScore),
       },
-      key_findings: (input.technical.keyFindings ?? []).map(k => ({ title: k.title, importance: k.importance ?? "medium" }))
+      key_findings: (input.technical.keyFindings ?? []).map(k => ({ title: k.title, importance: k.importance ?? "medium" })),
+      page_deltas: (input.technical.pageDeltas ?? []).map(p => ({
+        url: p.url,
+        current: p.current,
+        previous: p.previous,
+        delta: p.delta,
+      })),
     } : null,
     ai_traffic: aiTraffic ? {
       total_visits: aiTraffic.totalVisits.current ?? 0,
@@ -184,35 +233,33 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
   userLines.push("```");
 
   userLines.push("\nREQUIRED MARKDOWN SECTIONS (after summary_json):");
-  userLines.push("1. Agent Lab (list only shipped deployments with agent name + what changed)");
-  userLines.push("2. Opportunities (from Conversation Radar if any)");
-  userLines.push("3. Score Changes (use format: 'AI Visibility: 58 → 71 (+22% ↑). Technical Structure: 54 → 67 (+24% ↑).')");
-  userLines.push("4. AI Traffic (format: '143 visits from AI sources (+30 vs. last week) — ChatGPT (64) · Perplexity (51) · Claude (28)')");
-  userLines.push("5. This Week's Highlights");
-  userLines.push("6. Technical Structure");
-  userLines.push("7. Tasks");
-  userLines.push("8. Risks & Next Steps");
+  userLines.push("1. AI Visibility Delta (score change + newly mentioned prompts)");
+  userLines.push("2. Average Position (overall avg position delta)");
+  userLines.push("3. Technical Structure Score (overall + per-page changes if available)");
+  userLines.push("4. AI Referred Traffic (by provider, weekly boost, delta)");
+  userLines.push("5. Active Issues (new + fixed this week, top open issues)");
+  userLines.push("6. Opportunities (from Conversation Radar — active, new, engaged counts)");
+  userLines.push("7. Risks & Next Steps");
 
   userLines.push("\nRules:");
   userLines.push(`- Limit 'What's Changed' to top ${Math.min(LENGTH.whatsChangedMaxItems, NOTABILITY.maxItems)} items.`);
   userLines.push(`- Use short sentences (<= ${LENGTH.perSentenceMaxWords} words). No fluff.`);
   userLines.push("- If a section is null or empty, write a single line: 'No data this week.'");
   userLines.push("- After summary_json, output the Markdown sections with headings exactly as listed.");
-  userLines.push("- Agent Lab: Start with 'Agent Lab:' followed by deployments. Example: 'Agent Lab: Indexer Agent deployed llms.txt to 8 pages.'");
-  userLines.push("- Opportunities: Start with 'Opportunities:' if any. Example: 'Opportunities: Conversation Radar agent identified 2 high-value opportunities your brand should participate on.'");
-  userLines.push("- Score Changes: Always use the 'previous → current (+X% ↑/↓)' format for both AI Visibility and Technical Structure.");
+  userLines.push("- AI Visibility Delta: Use 'previous → current (+X% ↑/↓)' format. List newly mentioned prompts if any.");
+  userLines.push("- Average Position: Use '#prev → #current (delta ↑/↓)' format. Lower is better.");
+  userLines.push("- Technical Structure: Include overall score change and top page deltas. Add a 70–120 word Technical Snapshot Digest.");
   userLines.push("- AI Traffic: Show total, boost vs last week, then provider breakdown with counts.");
-  userLines.push("- In the Technical Structure section, include a 70–120 word 'Technical Snapshot Digest' explaining the crawl snapshot.");
+  userLines.push("- Active Issues: Show new/resolved counts. List top open issues briefly.");
+  userLines.push("- Opportunities: Show active/new/engaged counts from Conversation Radar. Mention top opportunities briefly.");
   userLines.push(`- The first Summary paragraph must not exceed ${LENGTH.summaryMaxTokens} tokens. Keep it crisp and conversational.`);
   userLines.push(`- Aim for ${LENGTH.markdownWordMin}-${LENGTH.markdownWordMax} words total.`);
 
   userLines.push("\nOUTPUT EXAMPLE:");
-  userLines.push("**Agent Lab:** Indexer Agent deployed llms.txt to 8 pages. **Opportunities:** Conversation Radar agent identified 2 high-value opportunities your brand should participate on. **Score Changes:** AI Visibility: 58 → 71 (+22% ↑). Technical Structure: 54 → 67 (+24% ↑). **AI Traffic:** 143 visits from AI sources (+30 vs. last week) — ChatGPT (64) · Perplexity (51) · Claude (28).");
+  userLines.push("**AI Visibility Delta:** AI Visibility: 58 → 71 (+22% ↑). Brand newly mentioned in 3 prompts. **Average Position:** #3.2 → #2.8 (-0.4 ↑). **Technical Structure:** Technical: 54 → 67 (+24% ↑). /pricing improved +12 pts. **AI Traffic:** 143 visits from AI sources (+30 vs. last week) — ChatGPT (64) · Perplexity (51) · Claude (28). **Active Issues:** 4 new issues, 2 resolved. **Opportunities:** 5 active, 3 new this week.");
 
   return {
     system: systemLines.join("\n"),
     user: userLines.join("\n"),
   };
 }
-
-

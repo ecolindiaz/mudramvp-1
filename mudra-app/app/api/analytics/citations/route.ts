@@ -515,13 +515,13 @@ export async function GET(request: NextRequest) {
 
         // Build urlsWithPrompts array - each URL with its specific citing prompts
         const allUrls = Array.from(data.urls)
-        const urlsArray = allUrls.slice(0, 10)
+        const urlsArray = allUrls
         const urlsWithPrompts: UrlWithPrompts[] = urlsArray.map(url => {
           const urlPromptsMap = data.urlPrompts.get(url)
           const allUrlPrompts = urlPromptsMap ? Array.from(urlPromptsMap.values()) : []
           return {
             url,
-            prompts: allUrlPrompts.slice(0, 10),
+            prompts: allUrlPrompts,
             totalPrompts: allUrlPrompts.length
           }
         })
@@ -538,7 +538,7 @@ export async function GET(request: NextRequest) {
           totalUrls: allUrls.length, // Total before truncation
           urlsWithPrompts, // NEW: URLs with their specific prompts
           type: dominantType,
-          prompts: allDomainPrompts.slice(0, 10), // Domain-level prompts (backwards compat)
+          prompts: allDomainPrompts, // Domain-level prompts (backwards compat)
           totalPrompts: allDomainPrompts.length, // Total before truncation
           sourceType,
           citationCount: data.citationCount,

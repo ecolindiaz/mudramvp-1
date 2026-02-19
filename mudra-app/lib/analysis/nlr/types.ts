@@ -17,11 +17,11 @@ export interface Delta<T> {
 }
 
 export interface AiVisibilitySummary {
-  // Keep flexible for now since AI Visibility pipeline is evolving
   score?: Delta<number>;
+  averagePosition?: Delta<number>;
   topImprovedQueries?: Array<{ query: string; delta: number; evidence?: EvidenceRef[] }>;
   topDeclinedQueries?: Array<{ query: string; delta: number; evidence?: EvidenceRef[] }>;
-  notes?: string[]; // short bullet points from the pipeline
+  notes?: string[];
 }
 
 export interface TechnicalStructureSummary {
@@ -36,6 +36,12 @@ export interface TechnicalStructureSummary {
     title: string;
     importance?: "high" | "medium" | "low";
     evidence?: EvidenceRef[];
+  }>;
+  pageDeltas?: Array<{
+    url: string;
+    current: number;
+    previous: number | null;
+    delta: number | null;
   }>;
 }
 
@@ -85,15 +91,28 @@ export interface AgentDeploymentsSummary {
   totalExecutions: number;
 }
 
+export interface OpportunitiesSummary {
+  activeCount: number;
+  newThisWeek: number;
+  engagedThisWeek: number;
+  dismissedThisWeek: number;
+  topNew: Array<{
+    id: number;
+    postTitle: string | null;
+    platform: string;
+    relevanceScore: number | null;
+    subreddit: string | null;
+  }>;
+}
+
 export interface NlrInput {
   companyId: string;
   weekStartUtc: string; // ISO string for stability in prompts
-  // Available sections; any can be null if pipeline hasn’t produced data yet
   aiVisibility: AiVisibilitySummary | null;
   technical: TechnicalStructureSummary | null;
   tasks: TasksSummary | null;
+  opportunities: OpportunitiesSummary | null;
   external: ExternalFootprintSummary | null;
-  // New sections for full implementation
   aiReferralTraffic: AIReferralTrafficSummary | null;
   agentDeployments: AgentDeploymentsSummary | null;
   // Ranked or pre-filtered developments across sections for fast prompting

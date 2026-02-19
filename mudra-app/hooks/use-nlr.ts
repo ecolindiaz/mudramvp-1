@@ -1,14 +1,28 @@
 "use client"
 import useSWR from 'swr'
-import type { NlrLatestResponse } from '@/types/nlr'
+import type { NlrLatestResponse, NlrCountryOverlay } from '@/types/nlr'
 
-export function useNlr(companyId: string | null) {
-  const shouldFetch = Boolean(companyId)
+interface UseNlrParams {
+  companyId?: string | null
+  brandProfileId?: string | null
+  country?: string | null
+}
+
+export function useNlr(params: UseNlrParams) {
+  const { companyId, brandProfileId, country } = params
+  const hasId = Boolean(companyId || brandProfileId)
+
   const { data, error, isLoading, mutate } = useSWR<NlrLatestResponse>(
-    shouldFetch ? ["/api/nlr/latest", companyId] : null,
-    async ([url, cid]: [string, string]) => {
-      const qs = `?companyId=${encodeURIComponent(cid)}`
-      const res = await fetch(`${url}${qs}`, { headers: { 'x-company-id': cid } })
+    hasId ? ["/api/nlr/latest", companyId, brandProfileId, country] : null,
+    async ([url]: [string, string | null | undefined, string | null | undefined, string | null | undefined]) => {
+      const qsParts: string[] = []
+      if (companyId) qsParts.push(`companyId=${encodeURIComponent(companyId)}`)
+      if (brandProfileId) qsParts.push(`brandProfileId=${encodeURIComponent(brandProfileId)}`)
+      if (country) qsParts.push(`country=${encodeURIComponent(country)}`)
+      const qs = qsParts.length > 0 ? `?${qsParts.join('&')}` : ''
+      const headers: Record<string, string> = {}
+      if (companyId) headers['x-company-id'] = companyId
+      const res = await fetch(`${url}${qs}`, { headers })
       if (!res.ok) throw new Error(`Failed to fetch NLR: ${res.status}`)
       return res.json()
     },
@@ -16,7 +30,6 @@ export function useNlr(companyId: string | null) {
   )
 
   const report = data?.data?.report ?? null
-  return { report, sections: data?.data?.sections ?? [], error, isLoading, refresh: mutate }
+  const countryOverlay: NlrCountryOverlay | null = data?.data?.countryOverlay ?? null
+  return { report, sections: data?.data?.sections ?? [], countryOverlay, error, isLoading, refresh: mutate }
 }
-
-

@@ -4,9 +4,13 @@ import { getModelConfig, estimateCost } from '@/lib/config/ai-models'
 import { logNlrJob } from '@/lib/services/observability.service'
 import { logAIModelCall, estimateAICost } from '@/lib/services/ai-model-logging.service'
 import { collectNlrInputs } from '@/lib/analysis/nlr/mappers'
+import type { NlrInput } from '@/lib/analysis/nlr/types'
 import { rankChanges } from '@/lib/analysis/nlr/diff'
+import { buildExecutiveSummaryFromJson, isJsonLikeText } from '@/lib/analysis/nlr/narrative'
 import { buildNlrPrompt } from '@/lib/ai/prompts/nlr-prompt'
+import type { NlrSummaryJson } from '@/types/nlr'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 function toDate(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value)
@@ -14,19 +18,62 @@ function toDate(value: Date | string): Date {
 
 function extractJsonAndMarkdown(text: string): { json: any | null; markdown: string } {
   if (!text) return { json: null, markdown: '' }
-  let json: any | null = null
-  let endIdx = -1
-  try {
-    const start = text.indexOf('{')
-    const end = text.lastIndexOf('}')
-    if (start >= 0 && end > start) {
-      const candidate = text.slice(start, end + 1)
-      json = JSON.parse(candidate)
-      endIdx = end
+
+  const trimmed = text.trim()
+
+  // Best case: explicit fenced JSON block.
+  const fencedJson = trimmed.match(/```json\s*([\s\S]*?)```/i)
+  if (fencedJson?.[1]) {
+    try {
+      const json = JSON.parse(fencedJson[1].trim())
+      const markdown = trimmed.replace(fencedJson[0], '').trim()
+      return { json, markdown }
+    } catch {
+      // continue to generic parser
     }
-  } catch {}
-  const markdown = endIdx >= 0 ? text.slice(endIdx + 1).trim() : text
-  return { json, markdown }
+  }
+
+  // Fallback: locate first valid top-level JSON object by brace depth.
+  const start = trimmed.indexOf('{')
+  if (start >= 0) {
+    let depth = 0
+    let inString = false
+    let escaped = false
+    for (let index = start; index < trimmed.length; index++) {
+      const char = trimmed[index]
+
+      if (inString) {
+        if (escaped) {
+          escaped = false
+        } else if (char === '\\') {
+          escaped = true
+        } else if (char === '"') {
+          inString = false
+        }
+        continue
+      }
+
+      if (char === '"') {
+        inString = true
+        continue
+      }
+      if (char === '{') depth += 1
+      if (char === '}') depth -= 1
+
+      if (depth === 0) {
+        const candidate = trimmed.slice(start, index + 1)
+        try {
+          const json = JSON.parse(candidate)
+          const markdown = trimmed.slice(index + 1).trim()
+          return { json, markdown }
+        } catch {
+          break
+        }
+      }
+    }
+  }
+
+  return { json: null, markdown: trimmed }
 }
 
 function sanitizeMarkdown(md: string): string {
@@ -43,9 +90,99 @@ function sanitizeMarkdown(md: string): string {
 function validateSummaryJson(candidate: unknown): boolean {
   if (!candidate || typeof candidate !== 'object') return false
   const j = candidate as any
-  // Minimal checks; keep permissive for MVP
-  if (j.sections && typeof j.sections !== 'object') return false
+  if (!j.sections || typeof j.sections !== 'object') return false
   return true
+}
+
+function buildSummaryJsonFromInput(input: NlrInput): NlrSummaryJson {
+  const ranked = rankChanges(input).slice(0, 4)
+  const opportunities = input.opportunities
+  const aiTraffic = input.aiReferralTraffic
+  const agentDeployments = input.agentDeployments
+  const tasks = input.tasks
+  const aiVisibility = input.aiVisibility
+  const technical = input.technical
+
+  return {
+    week_start_utc: input.weekStartUtc,
+    sections: {
+      whats_changed: ranked.map((item) => ({
+        label: item.label,
+        importance: item.importance,
+      })),
+      highlights: [
+        ...(aiVisibility?.notes?.slice(0, 2) ?? []),
+        ...(technical?.keyFindings?.slice(0, 1).map((finding) => finding.title) ?? []),
+      ].filter(Boolean),
+      agent_lab: {
+        deployments: (agentDeployments?.deployments ?? []).slice(0, 5).map((deployment) => ({
+          agent_name: deployment.agentName,
+          what_changed: deployment.whatChanged,
+        })),
+        total_executions: agentDeployments?.totalExecutions ?? 0,
+      },
+      opportunities: {
+        count: opportunities ? opportunities.activeCount + opportunities.newThisWeek : 0,
+        summary: null,
+        active_count: opportunities?.activeCount ?? 0,
+        new_this_week: opportunities?.newThisWeek ?? 0,
+        engaged_this_week: opportunities?.engagedThisWeek ?? 0,
+      },
+      ai_visibility: {
+        score_change: {
+          previous: aiVisibility?.score?.previous ?? null,
+          current: aiVisibility?.score?.current ?? null,
+          direction: aiVisibility?.score?.direction ?? null,
+          relative: aiVisibility?.score?.relative ?? null,
+          absolute: aiVisibility?.score?.absolute ?? null,
+          formatted: '',
+        },
+        notes: aiVisibility?.notes ?? [],
+      },
+      average_position: {
+        current: aiVisibility?.averagePosition?.current ?? null,
+        previous: aiVisibility?.averagePosition?.previous ?? null,
+        direction: aiVisibility?.averagePosition?.direction ?? null,
+        delta: aiVisibility?.averagePosition?.absolute ?? null,
+        formatted: '',
+      },
+      technical_structure: {
+        overall_change: {
+          previous: technical?.overallScore?.previous ?? null,
+          current: technical?.overallScore?.current ?? null,
+          direction: technical?.overallScore?.direction ?? null,
+          relative: technical?.overallScore?.relative ?? null,
+          absolute: technical?.overallScore?.absolute ?? null,
+          formatted: '',
+        },
+        key_findings: (technical?.keyFindings ?? []).slice(0, 8).map((finding) => ({
+          title: finding.title,
+          importance: finding.importance ?? 'medium',
+        })),
+        page_deltas: technical?.pageDeltas ?? [],
+      },
+      ai_traffic: {
+        total_visits: aiTraffic?.totalVisits?.current ?? 0,
+        weekly_boost: aiTraffic?.weeklyBoost ?? 0,
+        by_provider: aiTraffic?.byProvider ?? [],
+        formatted: '',
+      },
+      tasks: {
+        opened_this_week: tasks?.openedThisWeek ?? 0,
+        completed_this_week: tasks?.completedThisWeek ?? 0,
+        verification_rate_change: {
+          direction: tasks?.verificationPassRate?.direction ?? null,
+          relative: tasks?.verificationPassRate?.relative ?? null,
+          absolute: tasks?.verificationPassRate?.absolute ?? null,
+        },
+        top_open: (tasks?.topImpactTasks ?? []).slice(0, 5).map((task) => ({
+          id: task.id,
+          title: task.title,
+        })),
+      },
+      risks_next_steps: [],
+    },
+  }
 }
 
 export async function generateWeeklyReport(params: { companyId: string; weekStartUtc: Date | string }) {
@@ -69,7 +206,7 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
 
   // 2) Collect inputs and prepare prompt
   const nlrInput = await collectNlrInputs(companyId, weekStart)
-  const _ = rankChanges(nlrInput) // ranked already used inside prompt builder
+  const fallbackSummaryJson = buildSummaryJsonFromInput(nlrInput)
   const { system, user } = buildNlrPrompt(nlrInput)
 
   // 3) Call Gemini (preview → stable → lite fallback) then GPT-4 as last resort
@@ -227,8 +364,12 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
   // 4) Extract JSON + Markdown
   const { json, markdown } = extractJsonAndMarkdown(content)
   const inner = json && (json.summary_json || json.summaryJson || json)
-  const summaryJson = validateSummaryJson(inner) ? inner : null
-  const summaryMarkdown = sanitizeMarkdown(markdown)
+  const parsedSummaryJson = validateSummaryJson(inner) ? (inner as NlrSummaryJson) : null
+  const summaryJson: NlrSummaryJson = parsedSummaryJson ?? fallbackSummaryJson
+  const modelMarkdown = sanitizeMarkdown(markdown)
+  const deterministicSummary = buildExecutiveSummaryFromJson(summaryJson)
+  const summaryMarkdown = deterministicSummary
+    || (!isJsonLikeText(modelMarkdown) ? modelMarkdown : '')
 
   // 4.5) Cost estimation
   const costUsd = estimateCost(usedModelId, tokensIn, tokensOut)
@@ -239,7 +380,7 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
     where: { id: report.id },
     data: {
       model: usedModelId,
-      summaryJson: summaryJson ?? undefined,
+      summaryJson: summaryJson as unknown as Prisma.InputJsonValue,
       summaryMarkdown: summaryMarkdown || null,
       tokensIn: tokensIn || undefined,
       tokensOut: tokensOut || undefined,
@@ -251,11 +392,17 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
   await logNlrJob({ companyId, weekStartUtc: weekStart.toISOString(), status: 'ready', modelId: usedModelId, tokenIn: tokensIn, tokenOut: tokensOut, costCents })
 
   // Notification: report ready
+  // Resolve BrandProfile via Company.domain → Site → BrandProfile.companyWebsite
+  // (BrandProfile.siteId is a tracking token, NOT a Site.id)
   try {
-    const profile = await prisma.brandProfile.findFirst({
-      where: { siteId: companyId },
-      select: { id: true, userId: true },
-    });
+    const { resolveBrandProfileIds } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
+    const bpIds = await resolveBrandProfileIds(companyId);
+    const profile = bpIds.length > 0
+      ? await prisma.brandProfile.findFirst({
+          where: { id: { in: bpIds } },
+          select: { id: true, userId: true },
+        })
+      : null;
     if (profile?.userId) {
       const { createNotification } = await import('@/lib/services/notification.service');
       await createNotification({
@@ -271,10 +418,17 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
     }
   } catch (e) { console.warn('[Notification] Failed to create report notification:', e); }
 
-  // Minimal sections: What's Changed + Highlights placeholders (extend later)
+  const whatsChangedBody = (summaryJson?.sections?.whats_changed ?? [])
+    .map((item: any) => `- ${item.label}`)
+    .join('\n')
+  const highlightsBody = (summaryJson?.sections?.highlights ?? [])
+    .map((item: string) => `- ${item}`)
+    .join('\n')
+
+  // Persist lightweight section bodies used by dashboard/history.
   const sections: { key: string; title: string; bodyMarkdown: string }[] = []
-  sections.push({ key: 'whats_changed', title: "What's Changed", bodyMarkdown: '' })
-  sections.push({ key: 'highlights', title: "This Week's Highlights", bodyMarkdown: '' })
+  sections.push({ key: 'whats_changed', title: "What's Changed", bodyMarkdown: whatsChangedBody })
+  sections.push({ key: 'highlights', title: "This Week's Highlights", bodyMarkdown: highlightsBody })
 
   // Replace existing sections
   await prisma.weeklyReportSection.deleteMany({ where: { reportId: report.id } })
@@ -287,5 +441,3 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
 
   return prisma.weeklyReport.findUnique({ where: { id: report.id }, include: { sections: true } })
 }
-
-

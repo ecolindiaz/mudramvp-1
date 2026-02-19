@@ -14,7 +14,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sparkles,
-  Loader2,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -35,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAIContentGeneration } from "@/hooks/use-ai-content-generation";
 import { useRouter } from "next/navigation";
+import { UnicodeLoader } from "@/components/ui/unicode-loader";
 
 interface TrackedPrompt {
   id: string;
@@ -755,7 +755,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                   <div className="rounded-xl bg-[#111111] overflow-hidden">
                 {isLoadingICPs ? (
                   <div className="px-6 py-12 text-center">
-                    <Loader2 className="h-6 w-6 text-white/40 animate-spin mx-auto mb-2" />
+                    <UnicodeLoader className="w-6 text-[18px] text-white/40 mx-auto mb-2" animate />
                     <p className="text-sm text-white/50">Loading customer profiles...</p>
                   </div>
                 ) : icpSuggestions.length === 0 ? (
@@ -860,7 +860,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                           {isLoadingCitations ? (
                             <tr>
                               <td colSpan={5} className="px-5 py-8 text-center">
-                                <Loader2 className="h-5 w-5 text-white/40 animate-spin mx-auto mb-2" />
+                                <UnicodeLoader className="w-5 text-[16px] text-white/40 mx-auto mb-2" animate />
                                 <p className="text-sm text-white/50">Loading citations from AI models...</p>
                               </td>
                             </tr>
@@ -1019,7 +1019,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                             {status === "complete" ? (
                               <CheckCircle2 className="size-4 text-emerald-400" />
                             ) : status === "active" ? (
-                              <Loader2 className="size-4 text-white animate-spin" />
+                              <UnicodeLoader className="w-4 text-[14px] text-white" animate />
                             ) : (
                               <Icon
                                 className={cn(
@@ -1061,7 +1061,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                   {result && !error && (
                     <div className="rounded-lg bg-white/[0.03] p-4 space-y-3">
                       <div className="flex items-center gap-3">
-                        <Loader2 className="size-4 text-white animate-spin" />
+                        <UnicodeLoader className="w-4 text-[14px] text-white" animate />
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-white">
                             Loading piece of content
@@ -1101,4 +1101,3 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
     </Dialog>
   );
 }
-

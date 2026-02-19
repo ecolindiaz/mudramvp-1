@@ -493,7 +493,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
 
     // Step 1: Discover pages via Firecrawl /map
     console.log('[Technical Core] Step 1: Discovering pages...');
-    let discovery = await discoverPages(domain, { maxPages: 20, maxBlogs: 10 });
+    let discovery = await discoverPages(domain, { maxPages: 35, maxBlogs: 15 });
 
     if (!discovery.success || discovery.pages.length === 0) {
       console.log('[Technical Core] Firecrawl discovery failed, using fallback...');
@@ -509,7 +509,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
         domain,
         'full_site',
         discovery.selectedCount,
-        { maxPages: 20, maxBlogs: 10 }
+        { maxPages: 35, maxBlogs: 15 }
       );
       jobId = job.id;
       await updateScrapeJobProgress(jobId, { status: 'running' });
@@ -1052,7 +1052,37 @@ async function generateReportContent(data: {
     });
   }
 
-  const summary = `This report provides an overview of your brand's online presence across AI visibility and technical SEO. ${sections.length} analysis sections have been completed.`;
+  // Build a data-driven summary from actual scores
+  const summaryParts: string[] = [];
+
+  if (data.geoAnalysis) {
+    const geoScore = data.geoAnalysis.overallScore;
+    // Calculate average mention rate from provider-level analyses
+    const analyses = Array.isArray(data.geoAnalysis.analyses) ? data.geoAnalysis.analyses : [];
+    let mentionPart = '';
+    if (analyses.length > 0) {
+      const avgMentionRate = analyses.reduce((sum: number, a: any) => sum + (a.mentionRate || 0), 0) / analyses.length;
+      mentionPart = ` with a ${Math.round(avgMentionRate * 100)}% mention rate across ${analyses.length} AI provider${analyses.length !== 1 ? 's' : ''}`;
+    }
+    summaryParts.push(`Your AI visibility score is ${geoScore.toFixed(1)}/100${mentionPart}.`);
+  }
+
+  if (data.technicalAnalysis) {
+    const techScore = data.technicalAnalysis.overallScore;
+    summaryParts.push(`Your technical structure scores ${techScore}/100.`);
+  }
+
+  // Add a quality assessment
+  const scores = [data.geoAnalysis?.overallScore, data.technicalAnalysis?.overallScore].filter((s): s is number => s != null);
+  if (scores.length > 0) {
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const quality = avg >= 75 ? 'excellent' : avg >= 50 ? 'good' : 'needs improvement';
+    summaryParts.push(`Overall, your online presence is ${quality}.`);
+  }
+
+  const summary = summaryParts.length > 0
+    ? summaryParts.join(' ')
+    : `Analysis completed with ${sections.length} sections.`;
   const fullReport = sections.map(s => `## ${s.title}\n\n${s.content}`).join('\n\n');
 
   return {

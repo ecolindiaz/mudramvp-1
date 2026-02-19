@@ -187,7 +187,10 @@ const priorityConfig = {
 }
 
 function canGenerateScript(issue: Issue): boolean {
-  return issue.status === "identified" && (
+  const hasGeneratedOutput =
+    typeof issue.generatedOutput === "string" && issue.generatedOutput.trim().length > 0
+
+  return issue.status === "identified" && !hasGeneratedOutput && (
     issue.agentType === "schema_markup" ||
     issue.agentType === "meta_optimization" ||
     issue.agentType === "faq_sections"
@@ -871,26 +874,23 @@ function IssueDetailDialog({
          {hasOutput && !hasPR && (
            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
              <div className="flex items-center justify-between px-3 py-2">
-               <div className="flex items-center gap-2">
-                 <IconCode className="w-3.5 h-3.5 text-white/50" />
-                 <span className="text-[12px] text-white/50">Generated Script</span>
-                 {issue.scriptSource === "llm" && (
-                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300">AI</span>
-                 )}
-               </div>
-               <Button
-                 variant="ghost"
-                 size="sm"
-                 onClick={handleCopyScript}
-                 className="text-white/30 hover:text-white/70 hover:bg-white/[0.05] h-7 w-7 p-0"
-               >
-                 {scriptCopied ? (
-                   <IconCheck className="w-3.5 h-3.5 text-emerald-400" />
-                 ) : (
-                   <IconCopy className="w-3.5 h-3.5" />
-                 )}
-               </Button>
-             </div>
+                <div className="flex items-center gap-2">
+                  <IconCode className="w-3.5 h-3.5 text-white/50" />
+                  <span className="text-[12px] text-white/50">Generated Script</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyScript}
+                  className="text-white/30 hover:text-white/70 hover:bg-white/[0.05] h-7 w-7 p-0"
+                >
+                  {scriptCopied ? (
+                    <IconCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <IconCopy className="w-3.5 h-3.5" />
+                  )}
+                </Button>
+              </div>
              <div className="relative px-3 pb-3">
                <pre
                  onClick={() => setScriptExpanded(!scriptExpanded)}
@@ -1926,15 +1926,6 @@ function IssuesPageInner() {
                 <span className="text-[11px] px-2 py-0.5 rounded bg-white/[0.05] text-white/50">
                   {viewingOutputIssue.outputType}
                 </span>
-                {viewingOutputIssue.scriptSource === "llm" ? (
-                  <span className="text-[11px] px-2 py-0.5 rounded bg-violet-500/20 text-violet-300">
-                    AI Generated
-                  </span>
-                ) : (
-                  <span className="text-[11px] px-2 py-0.5 rounded bg-white/[0.05] text-white/30">
-                    Template
-                  </span>
-                )}
               </div>
             )}
           </div>

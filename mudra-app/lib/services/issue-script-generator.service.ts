@@ -716,9 +716,8 @@ function buildSchemaScript(
 	)}\n</script>`;
 
 	const header = [
-		`<!-- Issue #${issue.id}: ${issue.title} -->`,
+		`<!-- Issue: ${issue.title} -->`,
 		"<!-- Paste this into the page <head> (Webflow/Framer custom code is fine). -->",
-		`<!-- Target page: ${targetUrl} -->`,
 	];
 
 	return {
@@ -799,7 +798,7 @@ function buildMetaScript(
 	}
 
 	return {
-		generatedOutput: `<!-- Issue #${issue.id}: ${issue.title} -->\n<!-- Paste into <head> -->\n${tags.join("\n")}`,
+		generatedOutput: `<!-- Issue: ${issue.title} -->\n<!-- Paste into <head> -->\n${tags.join("\n")}`,
 		outputType: "code",
 		source: "template",
 	};
@@ -845,7 +844,7 @@ function buildFaqScript(
 	}
 
 	return {
-		generatedOutput: `<!-- Issue #${issue.id}: ${issue.title} -->
+		generatedOutput: `<!-- Issue: ${issue.title} -->
 <!-- Add this FAQ section where content should appear on ${targetUrl} -->
 ${faqHtml}`,
 		outputType: "code",
@@ -1438,24 +1437,17 @@ export async function generateScriptWithLlm(
 
 		// 6. Extract and normalize
 		let output = extractScriptFromLlmResponse(llmResult.text);
-		let removedFacts: string[] = [];
 
 		const isSchemaCheck = SCHEMA_CHECK_CODES.has(issue.checkCode || "");
 		if (isSchemaCheck) {
 			const normalized = normalizeSchemaOutput(output, issue, evidence);
 			output = normalized.output;
-			removedFacts = normalized.removedFacts;
 		}
 
 		// 7. Validate
 		const validation = validateGeneratedScript(output, issue, evidence);
 		if (validation.valid) {
-			const header = [
-				`<!-- Issue #${issue.id}: ${issue.title} -->`,
-				`<!-- AI-generated via ${llmResult.provider}/${llmResult.model} -->`,
-				`<!-- Target page: ${targetUrl} -->`,
-				`<!-- Grounding scrub removed ${removedFacts.length} unsupported field(s) -->`,
-			].join("\n");
+			const header = `<!-- Issue: ${issue.title} -->`;
 
 			return {
 				generatedOutput: `${header}\n\n${output}`,
@@ -1487,11 +1479,9 @@ Fix these errors and return the corrected output. Follow the same output contrac
 
 		if (repairResult) {
 			let repairedOutput = extractScriptFromLlmResponse(repairResult.text);
-			let repairRemovedFacts: string[] = [];
 			if (isSchemaCheck) {
 				const normalized = normalizeSchemaOutput(repairedOutput, issue, evidence);
 				repairedOutput = normalized.output;
-				repairRemovedFacts = normalized.removedFacts;
 			}
 
 			const repairValidation = validateGeneratedScript(
@@ -1500,12 +1490,7 @@ Fix these errors and return the corrected output. Follow the same output contrac
 				evidence
 			);
 			if (repairValidation.valid) {
-				const header = [
-					`<!-- Issue #${issue.id}: ${issue.title} -->`,
-					`<!-- AI-generated via ${repairResult.provider}/${repairResult.model} (repaired) -->`,
-					`<!-- Target page: ${targetUrl} -->`,
-					`<!-- Grounding scrub removed ${repairRemovedFacts.length} unsupported field(s) -->`,
-				].join("\n");
+				const header = `<!-- Issue: ${issue.title} -->`;
 
 				return {
 					generatedOutput: `${header}\n\n${repairedOutput}`,

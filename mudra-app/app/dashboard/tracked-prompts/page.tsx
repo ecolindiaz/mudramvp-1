@@ -427,7 +427,8 @@ function TrackedPromptsPageInner() {
   const router = useRouter()
   const { profile, selectedCountry } = useBrandProfile()
   const [data, setData] = useState<TrackedPrompt[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [newPromptText, setNewPromptText] = useState("")
   const [newIntent, setNewIntent] = useState<string>("Organic")
@@ -472,6 +473,10 @@ function TrackedPromptsPageInner() {
   const [analysisCompleted, setAnalysisCompleted] = useState(0)
   const analysisAbortRef = useRef(false)
   const fetchAbortRef = useRef<AbortController | null>(null)
+  const latestFetchRequestIdRef = useRef(0)
+  const hasCompletedFirstFetchRef = useRef(false)
+
+  const isLoading = isInitialLoading || isRefreshing
 
   // Fetch prompts function (extracted for reuse)
   const fetchPrompts = async () => {
@@ -480,6 +485,22 @@ function TrackedPromptsPageInner() {
       return
     }
 
+    const requestId = latestFetchRequestIdRef.current + 1
+    latestFetchRequestIdRef.current = requestId
+    const isFirstFetch = !hasCompletedFirstFetchRef.current
+
+    if (isFirstFetch) {
+      setIsInitialLoading(true)
+      setIsRefreshing(false)
+    } else {
+      setIsRefreshing(true)
+    }
+
+    // IMPORTANT: keep AbortController + request-id guard together.
+    // Abort prevents stale response data from being applied, but aborted requests
+    // still execute `finally`. Without request-id checks, an older aborted request
+    // can clear loading while the newest request is still running, which hides
+    // loading indicators and reintroduces race-condition UX during rapid region switches.
     // Abort any in-flight fetch to prevent stale responses from overwriting fresh data
     if (fetchAbortRef.current) {
       fetchAbortRef.current.abort()
@@ -488,7 +509,6 @@ function TrackedPromptsPageInner() {
     fetchAbortRef.current = controller
 
     console.log('📡 Fetching tracked prompts for brand:', profile.id, 'with model filter:', selectedModel, 'country:', selectedCountry)
-    setIsLoading(true)
 
     try {
       const modelParam = selectedModel !== 'all' ? `&model=${encodeURIComponent(selectedModel)}` : ''
@@ -500,7 +520,7 @@ function TrackedPromptsPageInner() {
       const result = await response.json()
 
       // If this request was aborted while parsing, don't update state
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted || requestId !== latestFetchRequestIdRef.current) return
 
       console.log('📥 Prompts API response:', {
         success: result.success,
@@ -523,19 +543,26 @@ function TrackedPromptsPageInner() {
         }
 
         setData(transformedData)
+        setErrorMessage(null)
       } else if (!result.hasAnalysis) {
         console.warn('⚠️  No analysis run yet for this brand')
         setData([])
+        setErrorMessage(null)
       } else {
         console.warn('⚠️  No prompts found')
         setData([])
+        setErrorMessage(null)
       }
     } catch (error: any) {
       if (error.name === 'AbortError') return // Expected when switching regions quickly
+      if (requestId !== latestFetchRequestIdRef.current) return
       console.error('❌ Error fetching prompts:', error)
       setErrorMessage('Failed to load prompts. Please try again.')
     } finally {
-      setIsLoading(false)
+      if (requestId !== latestFetchRequestIdRef.current) return
+      hasCompletedFirstFetchRef.current = true
+      setIsInitialLoading(false)
+      setIsRefreshing(false)
     }
   }
 
@@ -1265,6 +1292,12 @@ function TrackedPromptsPageInner() {
                     </Button>
                   )}
                   <div className="ml-auto flex items-center gap-2">
+                    {isRefreshing && (
+                      <div className="inline-flex items-center gap-1.5 text-xs text-white/50">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Updating
+                      </div>
+                    )}
                     <div className={`px-2.5 py-1 rounded-md text-sm font-medium ${
                       data.length >= 100
                         ? 'bg-amber-500/15 text-amber-400'
@@ -1331,7 +1364,7 @@ function TrackedPromptsPageInner() {
                       ))}
                     </TableHeader>
                     <TableBody>
-                      {isLoading ? (
+                      {isInitialLoading ? (
                         // Skeleton loading rows
                         Array.from({ length: 6 }).map((_, i) => (
                           <TableRow key={`skeleton-${i}`} className="border-white/[0.06]">
@@ -1988,5 +2021,4 @@ export default function TrackedPromptsPage() {
     </BrandProfileProvider>
   )
 }
-
 

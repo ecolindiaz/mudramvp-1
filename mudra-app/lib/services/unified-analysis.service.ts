@@ -1052,7 +1052,37 @@ async function generateReportContent(data: {
     });
   }
 
-  const summary = `This report provides an overview of your brand's online presence across AI visibility and technical SEO. ${sections.length} analysis sections have been completed.`;
+  // Build a data-driven summary from actual scores
+  const summaryParts: string[] = [];
+
+  if (data.geoAnalysis) {
+    const geoScore = data.geoAnalysis.overallScore;
+    // Calculate average mention rate from provider-level analyses
+    const analyses = Array.isArray(data.geoAnalysis.analyses) ? data.geoAnalysis.analyses : [];
+    let mentionPart = '';
+    if (analyses.length > 0) {
+      const avgMentionRate = analyses.reduce((sum: number, a: any) => sum + (a.mentionRate || 0), 0) / analyses.length;
+      mentionPart = ` with a ${Math.round(avgMentionRate * 100)}% mention rate across ${analyses.length} AI provider${analyses.length !== 1 ? 's' : ''}`;
+    }
+    summaryParts.push(`Your AI visibility score is ${geoScore.toFixed(1)}/100${mentionPart}.`);
+  }
+
+  if (data.technicalAnalysis) {
+    const techScore = data.technicalAnalysis.overallScore;
+    summaryParts.push(`Your technical structure scores ${techScore}/100.`);
+  }
+
+  // Add a quality assessment
+  const scores = [data.geoAnalysis?.overallScore, data.technicalAnalysis?.overallScore].filter(Boolean) as number[];
+  if (scores.length > 0) {
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const quality = avg >= 75 ? 'excellent' : avg >= 50 ? 'good' : 'needs improvement';
+    summaryParts.push(`Overall, your online presence is ${quality}.`);
+  }
+
+  const summary = summaryParts.length > 0
+    ? summaryParts.join(' ')
+    : `Analysis completed with ${sections.length} sections.`;
   const fullReport = sections.map(s => `## ${s.title}\n\n${s.content}`).join('\n\n');
 
   return {

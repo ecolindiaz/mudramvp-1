@@ -122,7 +122,7 @@ function buildSummaryJsonFromInput(input: NlrInput): NlrSummaryJson {
         total_executions: agentDeployments?.totalExecutions ?? 0,
       },
       opportunities: {
-        count: opportunities ? opportunities.activeCount + opportunities.newThisWeek : 0,
+        count: opportunities ? (opportunities.newThisWeek > 0 ? opportunities.newThisWeek : opportunities.activeCount) : 0,
         summary: null,
         active_count: opportunities?.activeCount ?? 0,
         new_this_week: opportunities?.newThisWeek ?? 0,

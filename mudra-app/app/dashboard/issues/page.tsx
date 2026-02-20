@@ -1012,9 +1012,9 @@ function IssueColumnWithHandlers({
   const StatusIcon = config.icon
 
   return (
-    <div className="flex-1 min-w-[260px] max-w-[300px]">
+    <div className="flex-1 min-w-[260px] max-w-[300px] flex flex-col min-h-0 h-full">
       {/* Column Header */}
-      <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/[0.06] flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <StatusIcon className={`w-[18px] h-[18px] ${config.color}`} />
           <span className="text-[13px] font-medium text-white/80">{title}</span>
@@ -1032,7 +1032,7 @@ function IssueColumnWithHandlers({
 
       {/* Issues List */}
       <SortableContext items={issues.map(i => i.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-3 min-h-[100px]" data-status={status}>
+        <div className="space-y-3 min-h-0 flex-1 overflow-y-auto pr-1 scrollbar-thin" data-status={status}>
           {issues.map((issue) => (
               <SortableIssueCard
                 key={issue.id}
@@ -1626,7 +1626,7 @@ function IssuesPageInner() {
 
   return (
     <SidebarProvider
-      className="bg-dark-grey"
+      className="bg-dark-grey !h-svh !min-h-0 overflow-hidden"
       style={
         {
           "--sidebar-width": "16rem",
@@ -1634,13 +1634,13 @@ function IssuesPageInner() {
       }
     >
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="overflow-hidden">
         <SiteHeader />
         <Separator className="w-full border-border" />
-        <div className="flex flex-1 flex-col bg-dark-grey">
-          <div className="@container/main flex flex-1 flex-col bg-dark-grey">
+        <div className="flex flex-1 flex-col bg-dark-grey overflow-hidden min-h-0">
+          <div className="@container/main flex flex-1 flex-col bg-dark-grey overflow-hidden">
             {/* Page Header */}
-            <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
+            <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight text-white">Issues</h1>
@@ -1675,10 +1675,10 @@ function IssuesPageInner() {
             </div>
 
             {/* Divider Line - Full Width */}
-            <div className="h-[0.5px] bg-white/10" />
+            <div className="h-[0.5px] bg-white/10 flex-shrink-0" />
 
             {/* Tabs Row */}
-            <div className="px-4 lg:px-6 py-3.5 flex items-center justify-between">
+            <div className="px-4 lg:px-6 py-3.5 flex items-center justify-between flex-shrink-0">
               {/* Left side - Filter tags */}
               {viewMode === "issues" && (
                 <div className="flex items-center gap-1.5">
@@ -1758,11 +1758,11 @@ function IssuesPageInner() {
             </div>
 
             {/* Divider Line - Full Width */}
-            <div className="h-[0.5px] bg-white/10" />
+            <div className="h-[0.5px] bg-white/10 flex-shrink-0" />
 
             {/* Loading State */}
             {isLoading && viewMode === "issues" && (
-              <div className="flex-1 flex items-center justify-center">
+              <div className="flex-1 flex items-center justify-center min-h-0">
                 <IconLoader2 className="w-6 h-6 text-white/40 animate-spin" />
               </div>
             )}
@@ -1775,9 +1775,9 @@ function IssuesPageInner() {
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
               >
-                <div className="flex-1 overflow-x-auto">
-                  <div className="px-4 lg:px-6 py-6">
-                    <div className="flex gap-6 min-w-max">
+                <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                  <div className="px-4 lg:px-6 py-6 flex-1 overflow-x-auto min-h-0">
+                    <div className="flex gap-6 min-w-max h-full">
                       <IssueColumnWithHandlers
                         title="Identified"
                         issues={identifiedIssues}
@@ -1845,7 +1845,9 @@ function IssuesPageInner() {
 
             {/* Analysis View */}
             {viewMode === "analysis" && (
-              <AnalysisView stats={stats} isLoading={isStatsLoading} />
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <AnalysisView stats={stats} isLoading={isStatsLoading} />
+              </div>
             )}
           </div>
         </div>

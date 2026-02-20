@@ -214,7 +214,7 @@ function IntegrationsPageInner() {
                   <Button
                     variant={filterView === 'all' ? 'default' : 'ghost'}
                     size="sm"
-                    className={filterView === 'all' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#161616] hover:bg-[#1c1c1c] text-white/70 hover:text-white border-0 transition-all duration-200'}
+                    className={filterView === 'all' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
                     onClick={() => setFilterView('all')}
                   >
                     All
@@ -222,7 +222,7 @@ function IntegrationsPageInner() {
                   <Button
                     variant={filterView === 'installed' ? 'default' : 'ghost'}
                     size="sm"
-                    className={filterView === 'installed' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#161616] hover:bg-[#1c1c1c] text-white/70 hover:text-white border-0 transition-all duration-200'}
+                    className={filterView === 'installed' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
                     onClick={() => setFilterView('installed')}
                   >
                     Installed {githubConnected ? 1 : 0}
@@ -237,7 +237,7 @@ function IntegrationsPageInner() {
               <div className="text-sm text-white/70 mb-3">Source Control</div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* GitHub */}
-                <Card className="group relative overflow-hidden bg-[#161616] rounded-lg border border-white/[0.04]">
+                <Card className="group relative overflow-hidden bg-[#1b1b1b] rounded-lg border border-white/[0.04]">
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">
@@ -364,7 +364,7 @@ function IntegrationsPageInner() {
                 </Card>
 
                 {/* GitLab */}
-                <Card className="group relative overflow-hidden bg-[#161616] rounded-lg border border-white/[0.04]">
+                <Card className="group relative overflow-hidden bg-[#1b1b1b] rounded-lg border border-white/[0.04]">
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">
@@ -389,7 +389,7 @@ function IntegrationsPageInner() {
                 </Card>
 
                 {/* Slack */}
-                <Card className="group relative overflow-hidden bg-[#161616] rounded-lg border border-white/[0.04]">
+                <Card className="group relative overflow-hidden bg-[#1b1b1b] rounded-lg border border-white/[0.04]">
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">

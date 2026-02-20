@@ -1055,7 +1055,7 @@ function AgentsLabPageInner() {
                           value={taskSearchQuery}
                           onChange={(e) => setTaskSearchQuery(e.target.value)}
                           placeholder={isConversationRadar ? "Search Opportunity" : "Search Task"}
-                          className="h-9 rounded-full !bg-[#161616] border border-white/[0.04] text-xs text-white/80 placeholder:text-white/50 pl-8 pr-3 focus-visible:ring-0 focus-visible:border-white/20 focus-visible:!bg-[#161616]"
+                          className="h-9 rounded-full !bg-[#1b1b1b] border border-white/[0.04] text-xs text-white/80 placeholder:text-white/50 pl-8 pr-3 focus-visible:ring-0 focus-visible:border-white/20 focus-visible:!bg-[#1b1b1b]"
                         />
                       </div>
                   </div>
@@ -1153,7 +1153,7 @@ function AgentsLabPageInner() {
                 {isDetailView && isConversationRadar ? (
                   <>
                     {/* Active Opportunities */}
-                    <div className="bg-[#161616] rounded-xl p-5 min-h-[140px] flex flex-col">
+                    <div className="bg-[#1b1b1b] rounded-xl p-5 min-h-[140px] flex flex-col">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Radio className="size-4 text-amber-400/80" />
@@ -1190,7 +1190,7 @@ function AgentsLabPageInner() {
                     </div>
 
                     {/* Total Discovered */}
-                    <div className="bg-[#161616] rounded-xl p-5 min-h-[140px] flex flex-col">
+                    <div className="bg-[#1b1b1b] rounded-xl p-5 min-h-[140px] flex flex-col">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <MessageSquare className="size-4 text-violet-400/80" />
@@ -1227,7 +1227,7 @@ function AgentsLabPageInner() {
                     </div>
 
                     {/* High Relevance */}
-                    <div className="bg-[#161616] rounded-xl p-5 min-h-[140px] flex flex-col">
+                    <div className="bg-[#1b1b1b] rounded-xl p-5 min-h-[140px] flex flex-col">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <TrendingUp className="size-4 text-emerald-400/80" />
@@ -1386,7 +1386,7 @@ function AgentsLabPageInner() {
                                     <ChevronDown className="w-3 h-3" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent className="w-80 bg-[#161616] border-white/10 p-0" align="end">
+                                <DropdownMenuContent className="w-80 bg-[#1b1b1b] border-white/10 p-0" align="end">
                                   <div className="p-2 border-b border-white/10">
                                     <div className="relative">
                                       <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-white/40" />
@@ -1550,7 +1550,7 @@ function AgentsLabPageInner() {
                       {selectedAgent.agentName === "Content Optimizer" ? (
                         <div className="space-y-4">
                           {/* Run Optimizer Buttons */}
-                          <div className="rounded-xl border border-white/[0.04] bg-[#161616] p-6 shadow-sm">
+                          <div className="rounded-xl border border-white/[0.04] bg-[#1b1b1b] p-6 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
                               <div>
                                 <h3 className="text-lg font-semibold text-white mb-1">Run Optimization</h3>
@@ -1590,7 +1590,7 @@ function AgentsLabPageInner() {
 
                           {/* Optimization Results */}
                           {optimizerResults.length > 0 && (
-                            <div className="rounded-xl border border-white/[0.04] bg-[#161616] overflow-hidden shadow-sm">
+                            <div className="rounded-xl border border-white/[0.04] bg-[#1b1b1b] overflow-hidden shadow-sm">
                               <div className="px-6 py-4 border-b border-white/[0.03]">
                                 <h3 className="text-sm font-semibold text-white">
                                   Optimization Results ({optimizerResults.filter(r => r.prUrl).length} of {optimizerResults.length} successful)
@@ -1655,7 +1655,7 @@ function AgentsLabPageInner() {
                         </div>
                       ) : (
                         /* Regular Task View for Other Agents */
-                      <div className="rounded-xl border border-white/[0.04] bg-[#161616] overflow-hidden shadow-sm">
+                      <div className="rounded-xl border border-white/[0.04] bg-[#1b1b1b] overflow-hidden shadow-sm">
                         {filteredTasks.length > 0 ? (
                           filteredTasks.map((task, index) => {
                             const Icon = task.icon
@@ -1937,7 +1937,7 @@ function AgentsLabPageInner() {
                     </div>
                   ) : filteredDeployedAgents.length > 0 ? (
                     <div className="space-y-2">
-                      <div className="rounded-xl border border-white/[0.04] bg-[#161616] overflow-hidden shadow-sm">
+                      <div className="rounded-xl border border-white/[0.04] bg-[#1b1b1b] overflow-hidden shadow-sm">
                         {filteredDeployedAgents.map((agent) => {
                           const Icon = agent.icon
                           const isLocked = agent.status !== "active"
@@ -2045,7 +2045,7 @@ function AgentsLabPageInner() {
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent
                                       align="end"
-                                      className="w-44 bg-[#161616] border-white/10"
+                                      className="w-44 bg-[#1b1b1b] border-white/10"
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       {agent.status === "active" || agent.status === "deploying" ? (
@@ -2120,7 +2120,7 @@ function AgentsLabPageInner() {
                 <Loader2 className="w-6 h-6 animate-spin text-white/40" />
               </div>
             ) : activePullRequests.length === 0 ? (
-              <div className="rounded-lg border border-white/[0.04] bg-[#161616] p-6 text-center">
+              <div className="rounded-lg border border-white/[0.04] bg-[#1b1b1b] p-6 text-center">
                 <p className="text-sm text-white/60">
                   {prRepository
                     ? "No open pull requests in this repository."
@@ -2134,7 +2134,7 @@ function AgentsLabPageInner() {
                   href={pr.htmlUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block rounded-lg border border-white/[0.04] bg-[#161616] p-4 hover:border-white/[0.2] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
+                  className="block rounded-lg border border-white/[0.04] bg-[#1b1b1b] p-4 hover:border-white/[0.2] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">

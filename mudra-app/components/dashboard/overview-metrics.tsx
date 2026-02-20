@@ -750,7 +750,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
     <div className="grid grid-cols-1 gap-4 md:gap-5 px-4 lg:px-6 @xl/main:grid-cols-2 @3xl/main:grid-cols-4">
       {/* AI Visibility Score */}
       <div 
-        className="bg-[#161616]  rounded-xl p-5 flex flex-col cursor-pointer transition-all"
+        className="bg-[#1b1b1b]  rounded-xl p-5 flex flex-col cursor-pointer transition-all"
         onClick={() => setAiVisibilityExpanded(!aiVisibilityExpanded)}
       >
         <div className="flex items-center justify-between mb-2">
@@ -900,7 +900,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       </div>
 
       {/* Average Position */}
-      <div className="bg-[#161616]  rounded-xl p-5 min-h-[140px] flex flex-col">
+      <div className="bg-[#1b1b1b]  rounded-xl p-5 min-h-[140px] flex flex-col">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-white/50 font-medium">Avg Position</span>
           <Tooltip>
@@ -946,7 +946,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
 
       {/* Technical Structure Score */}
       <div 
-        className="bg-[#161616]  rounded-xl p-5 flex flex-col cursor-pointer transition-all"
+        className="bg-[#1b1b1b]  rounded-xl p-5 flex flex-col cursor-pointer transition-all"
         onClick={() => setTechnicalScoreExpanded(!technicalScoreExpanded)}
       >
         <div className="flex items-center justify-between mb-2">
@@ -1103,7 +1103,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       </div>
 
       {/* AI Referral Traffic */}
-      <div className="bg-[#161616]  rounded-xl p-5 min-h-[140px] flex flex-col">
+      <div className="bg-[#1b1b1b]  rounded-xl p-5 min-h-[140px] flex flex-col">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-white/50 font-medium">AI Referral</span>
           <Tooltip>
@@ -1187,7 +1187,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
 
       {/* AI Referral Tracking Setup Modal */}
       <Dialog open={showTrackingModal} onOpenChange={setShowTrackingModal}>
-        <DialogContent className={`${modalView === 'traffic' && isTrackingConnected ? '!max-w-md' : '!max-w-lg'} bg-[#161616] border-white/[0.08] p-0 !rounded-xl overflow-hidden [&>button]:hidden`}>
+        <DialogContent className={`${modalView === 'traffic' && isTrackingConnected ? '!max-w-md' : '!max-w-lg'} bg-[#1b1b1b] border-white/[0.08] p-0 !rounded-xl overflow-hidden [&>button]:hidden`}>
           <DialogHeader className="sr-only">
             <DialogTitle>AI Referral Tracking</DialogTitle>
           </DialogHeader>
@@ -1315,7 +1315,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
                             <SelectTrigger className="w-full h-8 bg-white/[0.03] border-white/[0.06] text-white text-xs">
                               <SelectValue placeholder="Select repository" />
                             </SelectTrigger>
-                            <SelectContent className="bg-[#161616] border-white/[0.08]">
+                            <SelectContent className="bg-[#1b1b1b] border-white/[0.08]">
                               {repositories.map((repo) => (
                                 <SelectItem key={repo.fullName} value={repo.fullName} className="text-white text-xs focus:bg-white/[0.06]">
                                   {repo.fullName}

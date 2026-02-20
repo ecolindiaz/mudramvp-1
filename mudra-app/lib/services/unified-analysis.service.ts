@@ -199,7 +199,7 @@ export async function runUnifiedAnalysis(
       }
     }
 
-    // Step 9: Auto-discover AI visibility + conversation issues
+    // Step 9: Auto-discover AI visibility issues
     if (result.geoAnalysisId || result.technicalAnalysisId) {
       try {
         const { discoverIssues } = await import('./issue-discovery.service');

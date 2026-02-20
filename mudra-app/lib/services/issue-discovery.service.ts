@@ -8,7 +8,6 @@
  * Features:
  * - Technical issues created automatically during analysis (Step 8.5)
  * - AI visibility issues from policy file checks
- * - Conversation issues from Conversation Radar
  * - Progressive discovery based on score tiers
  */
 
@@ -20,7 +19,7 @@ import {
 import type { FullPageScore } from '@/lib/analysis/technical/types'
 
 // Types
-export type IssueCategory = 'technical_structure' | 'ai_visibility' | 'conversation'
+export type IssueCategory = 'technical_structure' | 'ai_visibility'
 export type DiscoveryTier = 'fundamental' | 'intermediate' | 'advanced' | 'polish'
 export type IssuePriority = 'low' | 'medium' | 'high'
 
@@ -262,35 +261,6 @@ async function discoverAIVisibilityIssues(
 }
 
 /**
- * Discover conversation opportunities from Conversation Radar
- */
-async function discoverConversationOpportunities(
-  brandProfileId: number
-): Promise<DiscoveredIssue[]> {
-  // Get active conversation opportunities that haven't been converted to issues
-  const opportunities = await prisma.conversationOpportunity.findMany({
-    where: {
-      brandProfileId,
-      status: 'new'
-    },
-    orderBy: { relevanceScore: 'desc' },
-    take: 5
-  })
-
-  return opportunities.map(opp => ({
-    title: `Engage: ${opp.postTitle?.slice(0, 50) || 'Conversation Opportunity'}`,
-    description: `${opp.platform} opportunity with relevance score ${opp.relevanceScore || 0}. ${opp.conversationSnapshot || ''}`,
-    priority: (opp.relevanceScore || 0) >= 80 ? 'high' : (opp.relevanceScore || 0) >= 50 ? 'medium' : 'low' as IssuePriority,
-    agentType: 'conversation_engagement',
-    estimatedImpact: 'Brand visibility boost',
-    affectedUrl: opp.postUrl || undefined,
-    category: 'conversation' as const,
-    discoveryTier: 'fundamental' as const,
-    discoveredFromScore: opp.relevanceScore ?? undefined
-  }))
-}
-
-/**
  * Upsert discovered issues with deduplication
  */
 async function upsertDiscoveredIssues(
@@ -340,9 +310,7 @@ async function upsertDiscoveredIssues(
         discoveredFromScore: issue.discoveredFromScore,
         sourceAnalysis: issue.category === 'technical_structure'
           ? 'technical_analysis'
-          : issue.category === 'ai_visibility'
-            ? 'geo_analysis'
-            : 'conversation_radar',
+          : 'geo_analysis',
         issueHash: hash
       }
     })
@@ -358,7 +326,7 @@ async function upsertDiscoveredIssues(
  *
  * Technical structure issues are now created automatically during analysis
  * (unified-analysis.service.ts Step 8.5 calls createIssuesFromMultiplePageScores).
- * This function only discovers AI visibility and conversation issues.
+ * This function only discovers AI visibility issues.
  */
 export async function discoverIssues(brandProfileId: number): Promise<DiscoveryResult> {
   console.log(`[IssueDiscovery] Starting discovery for brand ${brandProfileId}`)
@@ -367,22 +335,13 @@ export async function discoverIssues(brandProfileId: number): Promise<DiscoveryR
   const aiVisibilityScore = await getLatestAIVisibilityScore(brandProfileId)
   console.log(`[IssueDiscovery] AI Visibility Score: ${aiVisibilityScore}`)
 
-  // 2. Technical structure issues are now created automatically during analysis
-  //    (unified-analysis.service.ts Step 8.5 calls createIssuesFromMultiplePageScores)
-  //    Only discover AI visibility and conversation issues here.
-  const [aiVisibilityIssues, conversationIssues] = await Promise.all([
-    discoverAIVisibilityIssues(brandProfileId, aiVisibilityScore),
-    discoverConversationOpportunities(brandProfileId)
-  ])
-
+  // 2. Discover AI visibility issues (technical issues created during analysis)
+  const aiVisibilityIssues = await discoverAIVisibilityIssues(brandProfileId, aiVisibilityScore)
   console.log(`[IssueDiscovery] AI Visibility: ${aiVisibilityIssues.length} found`)
-  console.log(`[IssueDiscovery] Conversation: ${conversationIssues.length} found`)
 
-  // 3. Upsert AI visibility and conversation issues
-  const otherIssues = [...aiVisibilityIssues, ...conversationIssues]
-  const otherCreated = await upsertDiscoveredIssues(brandProfileId, otherIssues)
-
-  console.log(`[IssueDiscovery] Total created: ${otherCreated}`)
+  // 3. Upsert AI visibility issues
+  const created = await upsertDiscoveredIssues(brandProfileId, aiVisibilityIssues)
+  console.log(`[IssueDiscovery] Total created: ${created}`)
 
   // 4. Calculate tier distribution
   const tierCounts: Record<DiscoveryTier, number> = {
@@ -392,16 +351,15 @@ export async function discoverIssues(brandProfileId: number): Promise<DiscoveryR
     polish: 0
   }
 
-  for (const issue of otherIssues) {
+  for (const issue of aiVisibilityIssues) {
     tierCounts[issue.discoveryTier]++
   }
 
   return {
-    discovered: otherCreated,
+    discovered: created,
     categories: {
       technical_structure: 0, // Created during analysis, not here
       ai_visibility: aiVisibilityIssues.length,
-      conversation: conversationIssues.length
     },
     tiers: tierCounts
   }

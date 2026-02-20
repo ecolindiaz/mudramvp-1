@@ -51,13 +51,11 @@ const priorityColors: Record<IssuePriority, string> = {
 const categoryLabels: Record<IssueCategory, string> = {
   technical_structure: "Technical",
   ai_visibility: "AI Visibility",
-  conversation: "Conversation",
 }
 
 const categoryColors: Record<IssueCategory, string> = {
   technical_structure: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   ai_visibility: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  conversation: "bg-green-500/10 text-green-400 border-green-500/20",
 }
 
 const statusIcons: Record<IssueStatus, React.ReactNode> = {

@@ -44,7 +44,6 @@ const priorityColors: Record<IssuePriority, string> = {
 const categoryLabels: Record<IssueCategory, string> = {
   technical_structure: "Technical",
   ai_visibility: "AI Visibility",
-  conversation: "Conversation",
 }
 
 export function IssueDetailSheet({

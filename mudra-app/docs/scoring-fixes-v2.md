@@ -25,7 +25,7 @@ A reverse lookup (`SUBTYPE_TO_PARENT`) is exported for use in the scorer.
 
 **Changes:**
 - `dom-extractor.ts`: Added `SCHEMA_SUBTYPE_MAP`, `SUBTYPE_TO_PARENT` (exported), `hasSchemaTypeOrSubtype()` helper. Updated `isRelevantSchemaType()` and `SchemaAnalysis` booleans.
-- `five-dimension-scorer.ts`: `getRecommendedSchemas()` expands existing types with parent types before filtering, so a page with `TechArticle` won't get `Article` recommended.
+- `four-dimension-scorer.ts`: `getRecommendedSchemas()` expands existing types with parent types before filtering, so a page with `TechArticle` won't get `Article` recommended.
 
 ---
 
@@ -73,7 +73,7 @@ For non-relevant page types:
 This means an about page with perfect metadata, schema, and content scores 100/100 instead of being capped.
 
 **Changes:**
-- `five-dimension-scorer.ts`: Added `FAQ_RELEVANT_PAGE_TYPES`. Updated `scoreFaq()`, `computePageScore()`, `generateIssues()`, and `generateInterventions()`.
+- `four-dimension-scorer.ts`: Added `FAQ_RELEVANT_PAGE_TYPES`. Updated `scoreFaq()`, `computePageScore()`, `generateIssues()`, and `generateInterventions()`.
 
 ---
 
@@ -102,7 +102,7 @@ Before the scoring loop in `unified-analysis.service.ts`:
 S2 now only checks for `<footer>`. Rationale: `<footer>` is the stronger structural signal for AI systems. `<header>` is nice-to-have but not penalized.
 
 **Changes:**
-- `five-dimension-scorer.ts`: S2 condition, rationale, issue message, and intervention updated.
+- `four-dimension-scorer.ts`: S2 condition, rationale, issue message, and intervention updated.
 - `issue-from-scoring.service.ts`: Title → "Add Footer Element", description updated.
 - `unified-analysis.service.ts`: Action map updated.
 
@@ -127,16 +127,16 @@ When FAQ is excluded (`max_score = 0`), `maxPossible` is 80 instead of 100, so t
 | File | Fixes |
 |---|---|
 | `lib/analysis/technical/dom-extractor.ts` | 1, 2, 3 |
-| `lib/analysis/technical/five-dimension-scorer.ts` | 1, 4, 6 |
+| `lib/analysis/technical/four-dimension-scorer.ts` | 1, 4, 6 |
 | `lib/analysis/technical/schema-recommender.ts` | 2 |
 | `lib/services/unified-analysis.service.ts` | 5, 6 |
 | `lib/services/issue-from-scoring.service.ts` | 6 |
 | `lib/analysis/technical/__tests__/dom-extractor.test.ts` | 1, 2, 3 |
-| `lib/analysis/technical/__tests__/five-dimension-scorer.test.ts` | 1, 4, 6 |
+| `lib/analysis/technical/__tests__/four-dimension-scorer.test.ts` | 1, 4, 6 |
 
 ## Test Coverage
 
-128 tests pass across `dom-extractor.test.ts` and `five-dimension-scorer.test.ts`.
+128 tests pass across `dom-extractor.test.ts` and `four-dimension-scorer.test.ts`.
 
 New tests added:
 - `isRelevantSchemaType` for subtypes (TechArticle, WebApplication, RandomType)

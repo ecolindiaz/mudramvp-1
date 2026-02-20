@@ -561,7 +561,7 @@ if (executorSource) {
 }
 
 // Gap 2: J2 issues include existing schema types for KB extraction
-const scorerPath = path.resolve(moduleDir, "../lib/analysis/technical/five-dimension-scorer.ts");
+const scorerPath = path.resolve(moduleDir, "../lib/analysis/technical/four-dimension-scorer.ts");
 let scorerSource = "";
 try { scorerSource = await fs.readFile(scorerPath, "utf8"); } catch {}
 if (scorerSource) {

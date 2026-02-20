@@ -10,7 +10,7 @@ import { getServerSession } from 'next-auth';
 // Update the import path to match the actual location of authOptions
 import { authOptions } from '../../../../lib/auth';
 import { prisma } from '../../../../lib/prisma';
-import { getScoreGrade, getDimensionDisplayName } from '../../../../lib/services/scoring/five-dimension-scoring';
+import { getScoreGrade, getDimensionDisplayName } from '../../../../lib/services/scoring/four-dimension-scoring';
 
 export async function GET(request: NextRequest) {
   try {

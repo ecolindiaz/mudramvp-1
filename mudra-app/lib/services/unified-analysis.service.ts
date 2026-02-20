@@ -461,7 +461,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
     const { discoverPages, getUrlsFromDiscovery, createFallbackDiscovery } = await import('./sitemap-discovery.service');
     const { scrapePages, getSuccessfulScrapes } = await import('./multi-page-scraper.service');
     const { htmlToExtraction } = await import('@/lib/analysis/technical/dom-extractor');
-    const { computePageScore, computeSiteScore } = await import('@/lib/analysis/technical/five-dimension-scorer');
+    const { computePageScore, computeSiteScore } = await import('@/lib/analysis/technical/four-dimension-scorer');
     const {
       saveSitemapPages,
       savePageSnapshot,

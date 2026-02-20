@@ -10,7 +10,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { runSiteWideScraping } from '@/lib/services/site-scraping-orchestrator.service';
-import { computePageScore, computeSiteScore } from '@/lib/analysis/technical/five-dimension-scorer';
+import { computePageScore, computeSiteScore } from '@/lib/analysis/technical/four-dimension-scorer';
 import type { ScrapeJobConfig } from '@/lib/types/site-scraping.types';
 
 export async function POST(request: NextRequest) {

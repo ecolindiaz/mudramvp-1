@@ -12,7 +12,7 @@ Content quality scoring ensures pages have substantive content that AI systems c
 
 ### Content Dimension (10 points)
 
-**Location:** `lib/analysis/technical/five-dimension-scorer.ts` → `scoreContent()`
+**Location:** `lib/analysis/technical/four-dimension-scorer.ts` → `scoreContent()`
 
 | Check | Points | Criteria |
 |-------|--------|----------|
@@ -37,7 +37,7 @@ const c2Passed = content_snapshot.paragraphs.length >= 3;
 
 ## Issue Generation
 
-**Location:** `lib/analysis/technical/five-dimension-scorer.ts` → `generateIssues()`
+**Location:** `lib/analysis/technical/four-dimension-scorer.ts` → `generateIssues()`
 
 When C1 fails:
 - Check code: `C1_word_count`

@@ -17,7 +17,7 @@
     },
     {
       "path": "/api/conversation-radar/cron",
-      "schedule": "0 9 */3 * *"
+      "schedule": "0 9 * * *"
     }
   ],
   "functions": {

@@ -7,14 +7,15 @@
  * 3. Control Apify credit usage
  * 
  * Cron Schedule:
- * - Combined (default): Every 3 days at 9am UTC
- *   Schedule: "0 9 *\/3 * *" — POST /api/conversation-radar/cron
+ * - Daily at 9am UTC: "0 9 * * *" — POST /api/conversation-radar/cron
+ *   Each brand runs every radarIntervalDays (default 3) from its lastRadarRunAt
  */
 
 import { prisma } from '@/lib/prisma';
 
 // Configuration
 export const SCHEDULER_CONFIG = {
+  radarIntervalDays: 3,           // Days between automated runs per brand
   // Proactive mode settings
   proactive: {
     promptsPerRun: 5,           // Max prompts to process per run
@@ -121,18 +122,33 @@ export async function updateProactiveOffset(
 
 /**
  * Get all active brand profiles that should run the radar
+ *
+ * When onlyDue is true (automated cron), only returns brands where:
+ * - lastRadarRunAt is NOT null (brand has been initialized via manual run)
+ * - lastRadarRunAt is older than radarIntervalDays
+ *
+ * When onlyDue is false (default), returns all brands with active prompts.
  */
-export async function getBrandsForScheduledRun(): Promise<{
+export async function getBrandsForScheduledRun(opts?: { onlyDue?: boolean }): Promise<{
   id: number;
   companyName: string | null;
   promptCount: number;
 }[]> {
+  const onlyDue = opts?.onlyDue ?? false;
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - SCHEDULER_CONFIG.radarIntervalDays);
+
   const brands = await prisma.brandProfile.findMany({
     where: {
       // Only brands with active prompts
       prompts: {
         some: { isActive: true },
       },
+      // When onlyDue: only brands that have been initialized AND are past the interval
+      ...(onlyDue ? {
+        lastRadarRunAt: { not: null, lt: cutoff },
+      } : {}),
     },
     include: {
       _count: {
@@ -140,12 +156,23 @@ export async function getBrandsForScheduledRun(): Promise<{
       },
     },
   });
-  
+
   return brands.map(b => ({
     id: b.id,
     companyName: b.companyName,
     promptCount: b._count.prompts,
   }));
+}
+
+/**
+ * Stamp lastRadarRunAt = now() on a brand profile.
+ * Called after a successful radar run (both manual and cron).
+ */
+export async function updateLastRadarRun(brandProfileId: number): Promise<void> {
+  await prisma.brandProfile.update({
+    where: { id: brandProfileId },
+    data: { lastRadarRunAt: new Date() },
+  });
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   analyzeNewOpportunities,
   getLatestAnalysisRun,
 } from '@/lib/services/conversation-radar.service';
+import { updateLastRadarRun } from '@/lib/services/conversation-radar-scheduler';
 
 export const maxDuration = 120; // 2 minutes - Apify + LLM analysis
 
@@ -65,7 +66,10 @@ export async function POST(req: NextRequest) {
     // 3. Analyze new unanalyzed opportunities with LLM
     const analysisResult = await analyzeNewOpportunities(brandProfileId, { limit: 5 });
 
-    // 4. Return updated counts
+    // 4. Stamp lastRadarRunAt (initializes cycle on first click, resets on subsequent)
+    await updateLastRadarRun(brandProfileId);
+
+    // 5. Return updated counts
     const counts = await getOpportunityCounts(brandProfileId);
 
     return NextResponse.json({

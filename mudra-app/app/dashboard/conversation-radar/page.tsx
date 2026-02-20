@@ -16,8 +16,26 @@ import { Input } from "@/components/ui/input"
 
 import { Loader2, Search, Radio, ChevronRight, BookOpen, Info, MessageSquare, TrendingUp, Globe, Clock } from "lucide-react"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { cn } from "@/lib/utils"
+
+const RADAR_RUNNING_KEY = 'mudra_radar_running'
+const RADAR_RUN_TIMEOUT = 150_000 // 150s (backend maxDuration is 120s + buffer)
+
+function getRadarRunState(): { startedAt: number; brandProfileId: number } | null {
+  try {
+    const stored = localStorage.getItem(RADAR_RUNNING_KEY)
+    if (!stored) return null
+    const parsed = JSON.parse(stored)
+    if (Date.now() - parsed.startedAt > RADAR_RUN_TIMEOUT) {
+      localStorage.removeItem(RADAR_RUNNING_KEY)
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
 
 interface Opportunity {
   id: string
@@ -54,24 +72,26 @@ function ConversationRadarPageInner() {
     setIsMounted(true)
   }, [])
 
-  // Fetch cron schedule info
-  useEffect(() => {
-    const fetchCronInfo = async () => {
-      try {
-        const res = await fetch('/api/conversation-radar/cron')
-        const data = await res.json()
-        if (data.success) {
-          setCronInfo({ lastRun: data.lastRun, nextRun: data.nextRun })
-          setCronFailed(false)
-        } else {
-          setCronFailed(true)
-        }
-      } catch {
+  // Fetch cron schedule info (per-brand)
+  const fetchCronInfo = useCallback(async () => {
+    if (!profile.id) return
+    try {
+      const res = await fetch(`/api/conversation-radar/cron?brandProfileId=${profile.id}`)
+      const data = await res.json()
+      if (data.success) {
+        setCronInfo({ lastRun: data.lastRun, nextRun: data.nextRun })
+        setCronFailed(false)
+      } else {
         setCronFailed(true)
       }
+    } catch {
+      setCronFailed(true)
     }
+  }, [profile.id])
+
+  useEffect(() => {
     fetchCronInfo()
-  }, [])
+  }, [fetchCronInfo])
 
   // Format relative time for timing indicator
   const formatNextRun = (isoDate: string | null): string => {
@@ -94,15 +114,18 @@ function ConversationRadarPageInner() {
     return isActive && scoreOk
   }).length
 
-  // Fetch opportunities
-  const fetchOpportunities = async () => {
+  // Show "Run Radar" when: cron failed, overdue, never run (nextRun null), or no opportunities yet
+  const isCronOverdue = cronInfo?.nextRun ? new Date(cronInfo.nextRun).getTime() < Date.now() : false
+  const neverRun = cronInfo !== null && cronInfo.nextRun === null
+  const showManualRun = cronFailed || isCronOverdue || neverRun || (!isInitialLoad && opportunities.length === 0)
+
+  // Refresh opportunities data without touching loading state
+  const refreshData = useCallback(async () => {
     if (!profile.id) return
-    
-    setIsLoading(true)
     try {
       const response = await fetch(`/api/conversation-radar/opportunities?brandProfileId=${profile.id}&status=all&limit=50`)
       const result = await response.json()
-      
+
       if (result.success && result.data) {
         const mapped: Opportunity[] = result.data.map((opp: any) => ({
           id: opp.id,
@@ -122,11 +145,11 @@ function ConversationRadarPageInner() {
         }))
         setOpportunities(mapped)
       }
-      
-      // Fetch stats
+
+      // Fetch stats + last run time
       const statsResponse = await fetch(`/api/conversation-radar/run?brandProfileId=${profile.id}`)
       const statsResult = await statsResponse.json()
-      
+
       if (statsResult.success && statsResult.data) {
         setStats({
           total: statsResult.data.counts.total,
@@ -135,24 +158,61 @@ function ConversationRadarPageInner() {
       }
     } catch (error) {
       console.error('Error fetching opportunities:', error)
+    }
+  }, [profile.id])
+
+  // Fetch opportunities (with loading state - used for initial load)
+  const fetchOpportunities = useCallback(async () => {
+    if (!profile.id) return
+    setIsLoading(true)
+    try {
+      await refreshData()
     } finally {
       setIsLoading(false)
       setIsInitialLoad(false)
     }
-  }
+  }, [profile.id, refreshData])
 
-  // Fetch on mount
+  // Fetch on mount + restore loading state if a radar run was in progress
   useEffect(() => {
-    if (profile.id) {
+    if (!profile.id) return
+
+    const runState = getRadarRunState()
+    const isRunInProgress = runState && runState.brandProfileId === profile.id
+
+    if (isRunInProgress) {
+      // A run is still active - show loading and poll for completion
+      setIsLoading(true)
+      setIsInitialLoad(false)
+      refreshData() // Fetch current data immediately (without resetting loading)
+      const pollInterval = setInterval(() => {
+        const current = getRadarRunState()
+        if (!current) {
+          // Run completed (cleared by the original fetch) or timed out
+          setIsLoading(false)
+          clearInterval(pollInterval)
+          refreshData()
+          return
+        }
+        // Refresh data while waiting so user sees progress incrementally
+        refreshData()
+      }, 8_000)
+      return () => clearInterval(pollInterval)
+    } else {
+      // No active run - normal initial load
       fetchOpportunities()
     }
-  }, [profile.id])
+  }, [profile.id, refreshData, fetchOpportunities])
 
   // Run radar search
   const runRadarSearch = async () => {
     if (isLoading || !profile.id) return
-    
+
     setIsLoading(true)
+    localStorage.setItem(RADAR_RUNNING_KEY, JSON.stringify({
+      startedAt: Date.now(),
+      brandProfileId: profile.id,
+    }))
     try {
       console.log('🔄 Running Conversation Radar search...')
       const response = await fetch('/api/conversation-radar/run', {
@@ -167,10 +227,12 @@ function ConversationRadarPageInner() {
       })
       const result = await response.json()
       console.log('📊 Radar run result:', result)
-      await fetchOpportunities()
+      await refreshData()
+      await fetchCronInfo() // Refresh "Next scan" after run stamps lastRadarRunAt
     } catch (error) {
       console.error('❌ Error running radar:', error)
     } finally {
+      localStorage.removeItem(RADAR_RUNNING_KEY)
       setIsLoading(false)
     }
   }
@@ -226,32 +288,12 @@ function ConversationRadarPageInner() {
                       <span>Next scan {formatNextRun(cronInfo.nextRun)}</span>
                     </div>
                   )}
-                  {(cronFailed || (!isInitialLoad && opportunities.length === 0)) && (
+                  {showManualRun && (
                     <Button
                       size="sm"
                       onClick={runRadarSearch}
                       disabled={isLoading}
-                      className="h-9 px-4 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Searching...
-                        </>
-                      ) : (
-                        <>
-                          <Radio className="w-4 h-4" />
-                          Run Radar
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  {!cronFailed && !isInitialLoad && opportunities.length > 0 && (
-                    <Button
-                      size="sm"
-                      onClick={runRadarSearch}
-                      disabled={isLoading}
-                      className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-sm font-medium gap-2"
+                      className="h-9 px-4 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2 disabled:opacity-50"
                     >
                       {isLoading ? (
                         <>

@@ -103,7 +103,7 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
                 keywords={item.keywords}
               >
                 <item.icon className="w-4 h-4 text-white/40 group-data-[selected=true]:text-white/60" />
-                <span className="flex-1 text-[12px]">{item.title}</span>
+                <span className="flex-1 text-[12px] font-semibold">{item.title}</span>
                 <ArrowRight className="w-3 h-3 opacity-0 -translate-x-1 group-data-[selected=true]:opacity-40 group-data-[selected=true]:translate-x-0 transition-all duration-150" />
               </CommandItem>
             ))}
@@ -116,7 +116,7 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
               keywords={["help", "docs", "support"]}
             >
               <HelpCircle className="w-4 h-4 text-white/40 group-data-[selected=true]:text-white/60" />
-              <span className="flex-1 text-[12px]">Documentation</span>
+              <span className="flex-1 text-[12px] font-semibold">Documentation</span>
               <ArrowRight className="w-3 h-3 opacity-0 -translate-x-1 group-data-[selected=true]:opacity-40 group-data-[selected=true]:translate-x-0 transition-all duration-150" />
             </CommandItem>
           </CommandGroup>

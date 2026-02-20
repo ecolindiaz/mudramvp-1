@@ -1618,7 +1618,7 @@ function TrackedPromptsPageInner() {
                               onChange={(e) => setNewPromptText(e.target.value)}
                               placeholder="Type your prompt..."
                               className={cn(
-                                "min-h-[90px] rounded-lg border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none",
+                                "min-h-[90px] rounded-lg border-[1.5px] border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500 outline-none",
                                 newPromptText.length > MAX_PROMPT_LENGTH && "border-red-500/50"
                               )}
                               disabled={isAdding}
@@ -1713,7 +1713,7 @@ function TrackedPromptsPageInner() {
                               value={aiDescription}
                               onChange={(e) => setAiDescription(e.target.value)}
                               placeholder="e.g., enterprise pricing and ROI comparisons, or questions about data security compliance"
-                              className="min-h-[90px] rounded-lg border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none"
+                              className="min-h-[90px] rounded-lg border-[1.5px] border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500 outline-none"
                               maxLength={500}
                               disabled={isAiGenerating}
                             />
@@ -1940,7 +1940,7 @@ function TrackedPromptsPageInner() {
                           onChange={(e) => setEditPromptText(e.target.value)} 
                           placeholder="Type your prompt..." 
                           className={cn(
-                            "min-h-[90px] rounded-lg border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none",
+                            "min-h-[90px] rounded-lg border-[1.5px] border-white/10 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500 outline-none",
                             editPromptText.length > MAX_PROMPT_LENGTH && "border-red-500/50"
                           )}
                           disabled={isEditing}

@@ -609,7 +609,7 @@ function ConversationRadarPageInner() {
                               {opportunity.engagement.comments}
                             </span>
                           )}
-                          {!opportunity.engagement?.upvotes && !opportunity.engagement?.comments && (
+                          {opportunity.engagement?.upvotes === undefined && opportunity.engagement?.comments === undefined && (
                             <span className="text-white/20">—</span>
                           )}
                         </div>

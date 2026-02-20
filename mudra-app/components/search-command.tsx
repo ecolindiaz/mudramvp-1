@@ -111,7 +111,7 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
 
           <CommandGroup heading="Help" className={`mt-1 ${groupHeadingStyles}`}>
             <CommandItem
-              onSelect={() => runCommand(() => window.open("https://docs.mudra.com", "_blank"))}
+              onSelect={() => runCommand(() => window.open("https://docs.mudra.com", "_blank", "noopener,noreferrer"))}
               className={itemStyles}
               keywords={["help", "docs", "support"]}
             >

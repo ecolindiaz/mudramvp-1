@@ -41,7 +41,7 @@ function MultiRowInput({
             value={v}
             onChange={(e) => update(i, e.target.value)}
             placeholder={placeholder}
-            className="flex-1 bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20"
+            className="flex-1 bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500"
           />
           {rows.length > 1 && (
             <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-lg border-white/[0.08] hover:bg-white/[0.04]" onClick={() => removeRow(i)}>
@@ -227,7 +227,7 @@ export function CompanyForm() {
             placeholder="Describe what your company does..."
             value={formData.companyDescription}
             onChange={(e) => handleInputChange("companyDescription", e.target.value)}
-            className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20 min-h-[80px]"
+            className="w-full bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500 min-h-[80px]"
           />
         </div>
 
@@ -236,7 +236,7 @@ export function CompanyForm() {
             Company Industry
           </Label>
           <Select value={formData.companyIndustry} onValueChange={(value) => handleInputChange("companyIndustry", value)}>
-            <SelectTrigger className="w-full bg-white/[0.03] border-white/[0.06] text-white rounded-lg">
+            <SelectTrigger className="w-full bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500">
               <SelectValue placeholder="Select your industry" />
             </SelectTrigger>
             <SelectContent className="bg-[#161616] border-white/[0.06]">
@@ -252,7 +252,7 @@ export function CompanyForm() {
               placeholder="Enter your industry"
               value={customIndustry}
               onChange={(e) => setCustomIndustry(e.target.value)}
-              className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20 mt-2"
+              className="w-full bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500 mt-2"
             />
           )}
         </div>

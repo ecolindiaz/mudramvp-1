@@ -142,7 +142,7 @@ export function WelcomeForm() {
             placeholder="Enter your company name"
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
-            className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20"
+            className="w-full bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500"
           />
         </div>
 
@@ -159,7 +159,7 @@ export function WelcomeForm() {
                   value={entry.domain}
                   onChange={(e) => updateEntry(index, "domain", e.target.value)}
                   onBlur={(e) => index === 0 && handleWebsiteBlur(e.target.value)}
-                  className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20"
+                  className="w-full bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500"
                 />
                 {index === 0 && isExtracting && (
                   <div className="shrink-0 flex items-center gap-1.5 text-white/50">
@@ -187,7 +187,7 @@ export function WelcomeForm() {
                 <PopoverTrigger asChild>
                   <button
                     type="button"
-                    className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none md:text-sm items-center justify-between bg-white/[0.03] border-white/[0.06] text-white rounded-lg focus:ring-white/20 focus:border-white/20"
+                    className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border-[1.5px] bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none md:text-sm items-center justify-between bg-white/[0.03] border-white/[0.06] text-white rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500"
                   >
                     <span className={`truncate ${entry.regions.length > 0 ? "text-white" : "text-white/40"}`}>
                       {regionSummary(entry.regions) || "Select regions"}
@@ -236,7 +236,7 @@ export function WelcomeForm() {
         <Button
           type="button"
           onClick={handleNext}
-          disabled={!isFormValid || isLoading}
+          disabled={!isFormValid || isLoading || isExtracting}
           className="w-full h-10 bg-white text-black border border-white hover:bg-white/90 shadow-none rounded-lg disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
         >
           <div className="flex items-center justify-center gap-2">

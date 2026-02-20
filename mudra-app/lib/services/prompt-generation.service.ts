@@ -426,7 +426,7 @@ export function profileToBrandInfo(profile: any): BrandInfo {
   };
 }
 
-// --- Initial prompt generation for onboarding (Claude Sonnet 4.5, JSON, business-type-aware) ---
+// --- Initial prompt generation for onboarding (GPT-5.1, JSON, business-type-aware) ---
 
 export interface InitialGeneratedPrompt {
   text: string;
@@ -463,12 +463,12 @@ function getBusinessTypeGuidance(type: string): string {
 
 /**
  * Generate initial prompts for a brand during onboarding.
- * Uses Claude Sonnet 4.5 with JSON output, 5 categories including FAQ,
+ * Uses GPT-5.1 with JSON output, 5 categories including FAQ,
  * business-type-aware guidance, and richer product/ICP context.
  */
 export async function generateInitialPrompts(brandInfo: BrandInfo, redditContext?: string | null): Promise<InitialGeneratedPrompt[]> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('Anthropic API key not configured');
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured');
   }
 
   const productCount = brandInfo.productsServices.length;
@@ -538,35 +538,36 @@ Competitors: ${brandInfo.competitors.join(', ')}${redditSection}
 
 Generate exactly ${totalPrompts} prompts now.`;
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  console.log(`[InitialPrompts] Generating ${totalPrompts} prompts via Claude Sonnet 4.5 (business type: ${businessType})...`);
+  console.log(`[InitialPrompts] Generating ${totalPrompts} prompts via GPT-5.1 (business type: ${businessType})...`);
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5-20250929',
-    max_tokens: 4000,
-    system: systemPrompt,
+  const response = await openai.chat.completions.create({
+    model: 'gpt-5.1',
     messages: [
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
+    temperature: 0.7,
+    max_tokens: 4000,
   });
 
-  const content = response.content[0]?.type === 'text' ? response.content[0].text : '';
+  const content = response.choices[0]?.message?.content || '';
   if (!content) {
-    throw new Error('Empty response from Claude Sonnet 4.5');
+    throw new Error('Empty response from GPT-5.1');
   }
 
-  // Extract JSON from response (Claude may wrap in markdown code blocks)
+  // Extract JSON from response (model may wrap in markdown code blocks)
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error('Failed to extract JSON from Claude response');
+    throw new Error('Failed to extract JSON from GPT-5.1 response');
   }
 
   let parsed: { prompts: InitialGeneratedPrompt[] };
   try {
     parsed = JSON.parse(jsonMatch[0]);
   } catch {
-    throw new Error('Failed to parse Claude Sonnet 4.5 response as JSON');
+    throw new Error('Failed to parse GPT-5.1 response as JSON');
   }
 
   if (!Array.isArray(parsed.prompts) || parsed.prompts.length === 0) {

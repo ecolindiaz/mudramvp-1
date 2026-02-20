@@ -127,7 +127,7 @@ export function CompetitorsForm() {
               placeholder="https://competitor.com"
               value={competitor}
               onChange={(e) => handleCompetitorChange(index, e.target.value)}
-              className="w-full bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus:ring-white/20 focus:border-white/20"
+              className="w-full bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500"
             />
           </div>
         ))}

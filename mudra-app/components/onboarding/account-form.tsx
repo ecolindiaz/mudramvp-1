@@ -149,7 +149,7 @@ export function AccountForm() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="johndoe"
-                  className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
+                  className="bg-white/5 border-[1.5px] border-white/20 text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500"
                   disabled={isLoading}
                 />
                 <p className="text-xs text-white/50">
@@ -165,7 +165,7 @@ export function AccountForm() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="john@example.com"
-                  className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
+                  className="bg-white/5 border-[1.5px] border-white/20 text-white placeholder:text-white/40 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500"
                   disabled={isLoading}
                 />
                 <p className="text-xs text-white/50">

@@ -13,6 +13,7 @@
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import type { FullPageScore } from '@/lib/analysis/technical/types'
+import { NON_MARKETING_PAGE_TYPES } from '@/lib/analysis/technical/four-dimension-scorer'
 import { buildRequiredSchemaTypesMarker } from './schema-contracts'
 
 // Types
@@ -157,6 +158,11 @@ export async function createIssuesFromPageScore(
   brandProfileId: number,
   pageScore: FullPageScore
 ): Promise<{ created: number; updated: number; skipped: number }> {
+  // Skip non-marketing pages — they produce irrelevant issues
+  if (NON_MARKETING_PAGE_TYPES.has(pageScore.page_type)) {
+    return { created: 0, updated: 0, skipped: 0 }
+  }
+
   let created = 0
   let updated = 0
   let skipped = 0

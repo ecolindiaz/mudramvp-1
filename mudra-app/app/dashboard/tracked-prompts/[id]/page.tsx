@@ -304,7 +304,7 @@ function ResponseRenderer({ responseText, brandName }: { responseText: string; b
               <tbody className="divide-y divide-white/[0.06]">{children}</tbody>
             ),
             tr: ({ children }) => (
-              <tr className="hover:bg-white/[0.02] transition-colors">{children}</tr>
+              <tr className="hover:bg-white/[0.06] transition-colors [&>td:first-child]:rounded-l-xl [&>td:last-child]:rounded-r-xl">{children}</tr>
             ),
             th: ({ children }) => (
               <th className="text-left text-white/80 font-medium px-3 py-2.5">{highlightBrandInChildren(children, brandName)}</th>
@@ -1233,10 +1233,10 @@ function TrackedPromptDeepViewInner() {
                 </div>
                 <div className="hidden md:flex items-center gap-3 flex-shrink-0">
                   <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                    <SelectTrigger className="w-[140px] h-8 text-[13px] !bg-[#161616] hover:!bg-[#1c1c1c] !border-0 text-white rounded-lg transition-all duration-200 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
+                    <SelectTrigger className="w-[140px] h-8 text-[13px] !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-lg transition-all duration-200 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
                       <SelectValue placeholder="All Platforms" />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#161616] border-0">
+                    <SelectContent className="bg-[#1b1b1b] border-0">
                       <SelectItem value="all" className="focus:bg-white/10 outline-none">
                         All Platforms
                       </SelectItem>
@@ -1412,7 +1412,7 @@ function TrackedPromptDeepViewInner() {
                         </table>
                       </div>
                       <div className="overflow-y-auto flex-1 max-h-[320px] md:max-h-[360px]">
-                        <Table className="w-full text-sm">
+                        <Table className="w-full text-sm px-2 [&_tbody>tr:hover>td]:bg-white/[0.06]" style={{ borderSpacing: '0 4px' }}>
                           <TableHeader className="sr-only">
                             <TableRow>
                               <TableHead></TableHead>
@@ -1437,7 +1437,7 @@ function TrackedPromptDeepViewInner() {
                               competitorsDataWithYou.map((row, index) => (
                                 <TableRow 
                                   key={row.isYou ? 'you-row' : row.rank} 
-                                  className="border-white/[0.03] hover:bg-white/[0.03] transition-colors"
+                                  className="border-white/[0.03] transition-colors"
                                 >
                                   <TableCell className="px-4 py-3.5 align-middle">
                                     <Checkbox
@@ -1511,7 +1511,7 @@ function TrackedPromptDeepViewInner() {
                     <Button
                       variant={bottomView === 'chats' ? 'default' : 'ghost'}
                       size="sm"
-                      className={bottomView === 'chats' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#161616] hover:bg-[#1c1c1c] text-white/70 hover:text-white border-0 transition-all duration-200'}
+                      className={bottomView === 'chats' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
                       onClick={() => setBottomView('chats')}
                     >
                       Recent Chats
@@ -1519,7 +1519,7 @@ function TrackedPromptDeepViewInner() {
                     <Button
                       variant={bottomView === 'sources' ? 'default' : 'ghost'}
                       size="sm"
-                      className={bottomView === 'sources' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#161616] hover:bg-[#1c1c1c] text-white/70 hover:text-white border-0 transition-all duration-200'}
+                      className={bottomView === 'sources' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
                       onClick={() => setBottomView('sources')}
                     >
                       Sources
@@ -1531,9 +1531,10 @@ function TrackedPromptDeepViewInner() {
                   <CardContent className="p-0">
                     
                     {bottomView === 'sources' ? (
-                      <div>
-                        <Table className="w-full text-[14px] table-fixed">
-                          <TableHeader className="sticky top-0 z-10 bg-white/[0.03] border-b border-white/[0.03] text-[13px]">
+                      <div className="relative">
+                        <div className="absolute top-0 left-0 right-0 h-12 bg-white/[0.03] pointer-events-none" />
+                        <Table className="relative w-full text-[14px] table-fixed px-2 [&_thead>tr>th]:pb-3 [&_tbody>tr:hover>td]:bg-white/[0.06]" style={{ borderSpacing: '0 4px' }}>
+                          <TableHeader className="sticky top-0 z-10 border-b border-white/[0.03] text-[13px]">
                             <TableRow className="hover:bg-transparent h-12">
                               <TableHead className="w-[56px] text-center text-white/50 font-medium px-2">#</TableHead>
                               <TableHead className="w-[50%] text-white/50 font-medium pl-2 pr-4">
@@ -1580,11 +1581,11 @@ function TrackedPromptDeepViewInner() {
                             ) : visibleSources.map((row, idx) => (
                               <Dialog key={`${row.domain}-${row.citationType}-${idx}`}>
                                 <DialogTrigger asChild>
-                              <TableRow className={`group transition-colors duration-150 hover:bg-white/[0.04] odd:bg-transparent even:bg-white/[0.015] border-b border-white/[0.04] last:border-b-0 ${rowHeightClass} cursor-pointer`}>
-                                    <TableCell className="w-[56px] text-center text-white/40 group-hover:text-white/60 px-2 transition-colors">
+                              <TableRow className={`group border-b border-white/[0.04] last:border-b-0 ${rowHeightClass} cursor-pointer`}>
+                                    <TableCell className="w-[56px] text-center text-white/40 group-hover:text-white/60 px-2">
                                       {idx + 1}
                                     </TableCell>
-                                    <TableCell className="w-[50%] text-white/80 group-hover:text-white/95 pl-2 pr-4 max-w-0 transition-colors">
+                                    <TableCell className="w-[50%] text-white/80 group-hover:text-white/95 pl-2 pr-4 max-w-0">
                                       <div className="flex items-center gap-2 min-w-0">
                                         <DomainLogo domain={row.domain} size={18} />
                                         <span className="truncate">{row.domain}</span>
@@ -1690,7 +1691,7 @@ function TrackedPromptDeepViewInner() {
                                             <DialogTrigger asChild>
                                               <button 
                                                 type="button"
-                                                className="w-full text-left rounded-lg border border-white/[0.03] bg-white/[0.02] p-4 hover:bg-white/[0.04] hover:border-white/[0.06] transition-colors cursor-pointer group"
+                                                className="w-full text-left rounded-xl border border-white/[0.03] bg-white/[0.02] p-4 hover:bg-white/[0.06] hover:border-white/[0.06] transition-colors cursor-pointer group"
                                               >
                                                 <div className="flex items-center justify-between mb-2">
                                                   <div className="flex items-center gap-2">
@@ -1728,7 +1729,7 @@ function TrackedPromptDeepViewInner() {
                                                     <DialogTrigger asChild>
                                                       <button 
                                                         type="button"
-                                                        className="w-full text-left px-4 py-3 hover:bg-white/[0.02] transition-colors cursor-pointer group"
+                                                        className="w-full text-left px-4 py-3 hover:bg-white/[0.06] transition-colors cursor-pointer group"
                                                       >
                                                         <div className="flex items-start gap-3">
                                                           {/* Model logo */}
@@ -1839,7 +1840,7 @@ function TrackedPromptDeepViewInner() {
                                                     }
                                                   }
                                                   return (
-                                                    <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 transition-colors">
+                                                    <TableRow key={`${item.url}-${idx}`} className="hover:bg-white/[0.06] border-b border-white/[0.04] last:border-b-0 transition-colors">
                                                       <TableCell className="px-4 py-3">
                                                         <a
                                                           href={item.url}
@@ -1917,9 +1918,10 @@ function TrackedPromptDeepViewInner() {
                         </div>
                       </div>
                     ) : (
-                      <div>
-                        <Table className="w-full text-[14px] table-fixed">
-                          <TableHeader className="sticky top-0 z-10 bg-white/[0.03] border-b border-white/[0.03] text-[13px]">
+                      <div className="relative">
+                        <div className="absolute top-0 left-0 right-0 h-12 bg-white/[0.03] pointer-events-none" />
+                        <Table className="relative w-full text-[14px] table-fixed px-2 [&_thead>tr>th]:pb-3 [&_tbody>tr:hover>td]:bg-white/[0.06]" style={{ borderSpacing: '0 4px' }}>
+                          <TableHeader className="sticky top-0 z-10 border-b border-white/[0.03] text-[13px]">
                             <TableRow className="hover:bg-transparent h-12">
                               <TableHead className="w-[200px] text-white/50 font-medium px-4">
                                 <Tooltip>
@@ -1990,7 +1992,7 @@ function TrackedPromptDeepViewInner() {
                             ) : visibleChats.map((chat) => (
                               <Dialog key={chat.id}>
                                 <DialogTrigger asChild>
-                                  <TableRow className={`group hover:bg-white/10 even:bg-white/[0.03] border-b border-white/[0.04] last:border-b-0 ${rowHeightClass} cursor-pointer`}>
+                                  <TableRow className={`group border-b border-white/[0.04] last:border-b-0 ${rowHeightClass} cursor-pointer`}>
                                     <TableCell className="px-4">
                                       <div className="flex items-center gap-2">
                                         <span className="inline-flex h-6 w-6 items-center justify-center rounded-[4px] ring-1 ring-white/15 overflow-hidden bg-white/5">

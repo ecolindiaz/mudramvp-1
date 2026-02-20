@@ -1,4 +1,5 @@
-import { PrismaClient, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import type {
   ScrapeSnapshot,
   ScoreResult,
@@ -10,10 +11,7 @@ import type {
   PageType,
 } from "@/lib/analysis/technical/types";
 
-// Singleton Prisma client (works in Next.js app router)
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-export const prisma: PrismaClient = globalForPrisma.prisma ?? new PrismaClient();
-if (!globalForPrisma.prisma) globalForPrisma.prisma = prisma;
+export { prisma };
 
 export async function ensureCompanyAndSiteForUrl(siteId: string, url: string) {
   const domain = (() => { try { return new URL(url).host; } catch { return url; } })();
@@ -166,43 +164,54 @@ export async function saveSitemapPages(
   domain: string,
   pages: DiscoveredPage[]
 ): Promise<{ created: number; updated: number }> {
+  if (pages.length === 0) {
+    return { created: 0, updated: 0 };
+  }
+
   let created = 0;
   let updated = 0;
 
-  // Use transaction for atomicity
-  await prisma.$transaction(async (tx) => {
-    for (const page of pages) {
-      const result = await tx.sitemapPage.upsert({
-        where: {
-          brand_profile_id_domain_page_url: {
+  // Use batched upserts to avoid interactive-transaction expiry (P2028) on remote DBs.
+  const batchSize = 50;
+  for (let i = 0; i < pages.length; i += batchSize) {
+    const batch = pages.slice(i, i + batchSize);
+    const results = await Promise.allSettled(
+      batch.map((page) =>
+        prisma.sitemapPage.upsert({
+          where: {
+            brand_profile_id_domain_page_url: {
+              brand_profile_id: brandProfileId,
+              domain,
+              page_url: page.url,
+            },
+          },
+          update: {
+            page_type: page.pageType,
+            priority: page.priority,
+            updated_at: new Date(),
+          },
+          create: {
             brand_profile_id: brandProfileId,
             domain,
             page_url: page.url,
+            page_type: page.pageType,
+            priority: page.priority,
+            scrape_status: "pending",
           },
-        },
-        update: {
-          page_type: page.pageType,
-          priority: page.priority,
-          updated_at: new Date(),
-        },
-        create: {
-          brand_profile_id: brandProfileId,
-          domain,
-          page_url: page.url,
-          page_type: page.pageType,
-          priority: page.priority,
-          scrape_status: "pending",
-        },
-      });
+        })
+      )
+    );
 
-      // Check if it was an insert vs update by comparing created_at and updated_at
-      if (result.created_at.getTime() === result.updated_at.getTime()) {
-        created++;
-      } else {
-        updated++;
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        if (result.value.created_at.getTime() === result.value.updated_at.getTime()) {
+          created++;
+        } else {
+          updated++;
+        }
       }
     }
-  });
+  }
 
   return { created, updated };
 }

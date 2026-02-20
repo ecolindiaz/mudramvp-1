@@ -87,8 +87,6 @@ const HIGH_VALUE_PATH_PATTERNS = [
 	{ pattern: /^\/solutions?\/?$/i, type: 'solutions' as PageType, priority: 1 },
 	{ pattern: /^\/about\/?$/i, type: 'about' as PageType, priority: 1 },
 	{ pattern: /^\/about-us\/?$/i, type: 'about' as PageType, priority: 1 },
-	{ pattern: /^\/contact\/?$/i, type: 'contact' as PageType, priority: 1 },
-	{ pattern: /^\/contact-us\/?$/i, type: 'contact' as PageType, priority: 1 },
 	{ pattern: /^\/blog\/?$/i, type: 'blog' as PageType, priority: 1 },
 	{ pattern: /^\/use-cases?\/?$/i, type: 'use-cases' as PageType, priority: 1 },
 	{ pattern: /^\/customers?\/?$/i, type: 'customers' as PageType, priority: 1 },
@@ -401,7 +399,7 @@ function filterAndPrioritizePagesLegacy(
 	const seenTypes = new Set<PageType>();
 
 	// First pass: Select the BEST page for each high-priority type (one each)
-	const highPriorityTypes: PageType[] = ['home', 'pricing', 'features', 'product', 'solutions', 'about', 'contact'];
+	const highPriorityTypes: PageType[] = ['home', 'pricing', 'features', 'product', 'solutions', 'about'];
 	for (const page of sorted) {
 		if (highPriorityTypes.includes(page.pageType) && !seenTypes.has(page.pageType)) {
 			selected.push(page);

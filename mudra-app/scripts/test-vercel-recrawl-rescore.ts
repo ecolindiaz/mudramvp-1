@@ -2,7 +2,7 @@ import { config } from "dotenv";
 import path from "node:path";
 import { createFirecrawlApp } from "../lib/config/firecrawl-config";
 import { htmlToExtraction } from "../lib/analysis/technical/dom-extractor";
-import { computePageScore, getRecommendedSchemas } from "../lib/analysis/technical/five-dimension-scorer";
+import { computePageScore, getRecommendedSchemas } from "../lib/analysis/technical/four-dimension-scorer";
 
 config({ path: path.resolve(process.cwd(), ".env.local") });
 config({ path: path.resolve(process.cwd(), ".env") });

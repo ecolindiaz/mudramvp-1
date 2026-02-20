@@ -839,8 +839,9 @@ export async function analyzeNewOpportunities(
   
   // Update database with results
   let analyzed = 0;
+  let relevant = 0;
   let errors = 0;
-  
+
   for (const [id, analysis] of results) {
     try {
       await prisma.conversationOpportunity.update({
@@ -855,16 +856,17 @@ export async function analyzeNewOpportunities(
         },
       });
       analyzed++;
+      if (analysis.relevanceScore >= 70) relevant++;
     } catch (error) {
       console.error(`[Conversation Radar] Failed to update opportunity ${id}:`, error);
       errors++;
     }
   }
-  
-  console.log(`[Conversation Radar] Analysis complete: ${analyzed} analyzed, ${errors} errors`);
 
-  // Notification: new opportunities analyzed
-  if (analyzed > 0) {
+  console.log(`[Conversation Radar] Analysis complete: ${analyzed} analyzed (${relevant} relevant), ${errors} errors`);
+
+  // Notification: only count opportunities visible in the default "Active" view (70%+ relevance)
+  if (relevant > 0) {
     try {
       const profile = await prisma.brandProfile.findUnique({
         where: { id: brandProfileId },
@@ -877,10 +879,10 @@ export async function analyzeNewOpportunities(
           brandProfileId,
           type: 'info',
           category: 'radar_opportunity',
-          title: `${analyzed} New Conversation ${analyzed === 1 ? 'Opportunity' : 'Opportunities'}`,
-          message: `We found ${analyzed} new Reddit conversations relevant to your brand.`,
+          title: `${relevant} New Conversation ${relevant === 1 ? 'Opportunity' : 'Opportunities'}`,
+          message: `We found ${relevant} new Reddit conversations relevant to your brand.`,
           actionUrl: '/dashboard/conversation-radar',
-          metadata: { analyzed, errors },
+          metadata: { analyzed, relevant, errors },
         });
       }
     } catch (e) { console.warn('[Notification] Failed to create radar notification:', e); }

@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { CodeBlock } from "@/components/ui/code-block"
 import {
   Select,
   SelectContent,
@@ -811,7 +812,7 @@ function IssueDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#141414] border-white/[0.06] text-white w-[calc(100%-2rem)] max-w-md p-0 overflow-hidden min-w-0">
+      <DialogContent className="bg-[#141414] border-white/[0.06] text-white w-[calc(100%-2rem)] max-w-[620px] sm:max-w-[620px] p-0 overflow-hidden min-w-0">
        {/* Header */}
        <div className="px-5 pt-5 pb-4">
          <div className="flex items-center gap-2 mb-3">
@@ -892,12 +893,15 @@ function IssueDetailDialog({
                 </Button>
               </div>
              <div className="relative px-3 pb-3">
-               <pre
+               <div
                  onClick={() => setScriptExpanded(!scriptExpanded)}
-                 className={`bg-white/[0.03] border border-white/[0.06] rounded-lg p-3 text-[12px] text-white/80 font-mono whitespace-pre-wrap break-words cursor-pointer transition-all ${scriptExpanded ? 'max-h-[300px] overflow-auto' : 'max-h-[80px] overflow-hidden'}`}
+                 className={`cursor-pointer transition-all ${scriptExpanded ? '' : 'max-h-[160px] overflow-hidden'}`}
                >
-                 {issue.generatedOutput}
-               </pre>
+                 <CodeBlock
+                   code={issue.generatedOutput!}
+                   maxHeight={scriptExpanded ? "300px" : "160px"}
+                 />
+               </div>
                {!scriptExpanded && (
                  <button
                    onClick={() => setScriptExpanded(true)}
@@ -1008,9 +1012,9 @@ function IssueColumnWithHandlers({
   const StatusIcon = config.icon
 
   return (
-    <div className="flex-1 min-w-[260px] max-w-[300px]">
+    <div className="flex-1 min-w-[260px] max-w-[300px] flex flex-col min-h-0 h-full">
       {/* Column Header */}
-      <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/[0.06] flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <StatusIcon className={`w-[18px] h-[18px] ${config.color}`} />
           <span className="text-[13px] font-medium text-white/80">{title}</span>
@@ -1028,7 +1032,7 @@ function IssueColumnWithHandlers({
 
       {/* Issues List */}
       <SortableContext items={issues.map(i => i.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-3 min-h-[100px]" data-status={status}>
+        <div className="space-y-3 min-h-0 flex-1 overflow-y-auto pr-1 scrollbar-thin" data-status={status}>
           {issues.map((issue) => (
               <SortableIssueCard
                 key={issue.id}
@@ -1622,7 +1626,7 @@ function IssuesPageInner() {
 
   return (
     <SidebarProvider
-      className="bg-dark-grey"
+      className="bg-dark-grey !h-svh !min-h-0 overflow-hidden"
       style={
         {
           "--sidebar-width": "16rem",
@@ -1630,13 +1634,13 @@ function IssuesPageInner() {
       }
     >
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="overflow-hidden">
         <SiteHeader />
         <Separator className="w-full border-border" />
-        <div className="flex flex-1 flex-col bg-dark-grey">
-          <div className="@container/main flex flex-1 flex-col bg-dark-grey">
+        <div className="flex flex-1 flex-col bg-dark-grey overflow-hidden min-h-0">
+          <div className="@container/main flex flex-1 flex-col bg-dark-grey overflow-hidden">
             {/* Page Header */}
-            <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
+            <div className="px-4 lg:px-6 pt-4 md:pt-6 pb-4 md:pb-6 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight text-white">Issues</h1>
@@ -1671,10 +1675,10 @@ function IssuesPageInner() {
             </div>
 
             {/* Divider Line - Full Width */}
-            <div className="h-[0.5px] bg-white/10" />
+            <div className="h-[0.5px] bg-white/10 flex-shrink-0" />
 
             {/* Tabs Row */}
-            <div className="px-4 lg:px-6 py-3.5 flex items-center justify-between">
+            <div className="px-4 lg:px-6 py-3.5 flex items-center justify-between flex-shrink-0">
               {/* Left side - Filter tags */}
               {viewMode === "issues" && (
                 <div className="flex items-center gap-1.5">
@@ -1754,11 +1758,11 @@ function IssuesPageInner() {
             </div>
 
             {/* Divider Line - Full Width */}
-            <div className="h-[0.5px] bg-white/10" />
+            <div className="h-[0.5px] bg-white/10 flex-shrink-0" />
 
             {/* Loading State */}
             {isLoading && viewMode === "issues" && (
-              <div className="flex-1 flex items-center justify-center">
+              <div className="flex-1 flex items-center justify-center min-h-0">
                 <IconLoader2 className="w-6 h-6 text-white/40 animate-spin" />
               </div>
             )}
@@ -1771,9 +1775,9 @@ function IssuesPageInner() {
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
               >
-                <div className="flex-1 overflow-x-auto">
-                  <div className="px-4 lg:px-6 py-6">
-                    <div className="flex gap-6 min-w-max">
+                <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                  <div className="px-4 lg:px-6 py-6 flex-1 overflow-x-auto min-h-0">
+                    <div className="flex gap-6 min-w-max h-full">
                       <IssueColumnWithHandlers
                         title="Identified"
                         issues={identifiedIssues}
@@ -1841,7 +1845,9 @@ function IssuesPageInner() {
 
             {/* Analysis View */}
             {viewMode === "analysis" && (
-              <AnalysisView stats={stats} isLoading={isStatsLoading} />
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <AnalysisView stats={stats} isLoading={isStatsLoading} />
+              </div>
             )}
           </div>
         </div>
@@ -1907,7 +1913,7 @@ function IssuesPageInner() {
                 variant="ghost"
                 size="sm"
                 onClick={handleCopyOutput}
-                className="absolute top-2 right-2 text-white/40 hover:text-white/70 hover:bg-white/[0.05]"
+                className="absolute top-2 right-2 z-10 text-white/40 hover:text-white/70 hover:bg-white/[0.05]"
               >
                 {copiedOutput ? (
                   <IconCheck className="w-4 h-4 text-emerald-400" />
@@ -1915,9 +1921,10 @@ function IssuesPageInner() {
                   <IconCopy className="w-4 h-4" />
                 )}
               </Button>
-              <pre className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-4 text-[13px] text-white overflow-auto max-h-[50vh] whitespace-pre-wrap break-words font-mono">
-                {viewingOutputIssue?.generatedOutput || "No output available"}
-              </pre>
+              <CodeBlock
+                code={viewingOutputIssue?.generatedOutput || "No output available"}
+                maxHeight="50vh"
+              />
             </div>
             
             {viewingOutputIssue?.outputType && (

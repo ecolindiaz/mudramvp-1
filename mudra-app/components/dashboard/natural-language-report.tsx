@@ -758,12 +758,12 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Summary */}
-        <div className="rounded-xl bg-[#161616] overflow-hidden flex flex-col">
+        <div className="rounded-xl bg-[#1b1b1b] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
             <div className="text-base font-medium text-white">Summary</div>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center justify-center size-7 rounded-lg hover:bg-white/[0.04] transition-colors cursor-default">
+                <span className="inline-flex items-center justify-center size-7 rounded-lg hover:bg-white/[0.06] transition-colors cursor-default">
                   <IconInfoCircle className="size-4 text-white/50 hover:text-white/80 transition-colors" />
                 </span>
               </TooltipTrigger>
@@ -868,7 +868,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
           
           <div className="flex flex-col gap-5">
             {/* Competitor Rankings Table - Share of Voice */}
-            <div className="rounded-xl bg-[#161616] overflow-hidden">
+            <div className="rounded-xl bg-[#1b1b1b] overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-2">
                   <div className="text-base font-medium text-white/90">Competitor Rankings</div>
@@ -919,6 +919,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                     </div>
                   ) : (
                     <>
+                      <div className="px-2 py-1">
                       {(isCompetitorRankingsExpanded ? competitorRankings : competitorRankings.slice(0, 5)).map((competitor, idx) => {
                         return (
                           <a
@@ -926,7 +927,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                             href={`https://${competitor.domain || getCompanyDomain(competitor.name)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.02] group"
+                            className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-3 py-3.5 transition-colors hover:bg-white/[0.06] rounded-xl group"
                           >
                             <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
                             <div className="flex items-center gap-2.5 min-w-0">
@@ -940,6 +941,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                           </a>
                         )
                       })}
+                      </div>
                       {competitorRankings.length > 5 && (
                         <div className="flex justify-end px-5 py-3 border-t border-white/[0.06]">
                           <button
@@ -957,7 +959,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
           </div>
 
           {/* Citations list */}
-          <div className="rounded-xl bg-[#161616] overflow-hidden">
+          <div className="rounded-xl bg-[#1b1b1b] overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
               <div className="flex items-center gap-2">
                 <div className="text-base font-medium text-white/90">Citations</div>
@@ -1010,10 +1012,11 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                 </div>
               ) : (
                 <>
+                  <div className="px-2 py-1">
                   {(isCitationsExpanded ? citations : citations.slice(0, 5)).map((c, idx) => (
                     <div
                       key={idx}
-                      className="grid grid-cols-[auto_1fr_100px_130px] items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                      className="grid grid-cols-[auto_1fr_100px_130px] items-center gap-4 px-3 py-3.5 hover:bg-white/[0.06] rounded-xl transition-colors cursor-pointer"
                       onClick={() => {
                         setCameFromCitationsModal(false)
                         setSelectedSource({
@@ -1041,6 +1044,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                       <div className="text-sm tabular-nums text-white/70 font-medium text-right">{c.used}%</div>
                     </div>
                   ))}
+                  </div>
                   {citations.length > 5 && (
                     <div className="flex justify-end px-5 py-3 border-t border-white/[0.06]">
                       <button
@@ -1057,7 +1061,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
           </div>
           
           {/* Recent Chats - right column */}
-          <div className="rounded-xl bg-[#161616] overflow-hidden">
+          <div className="rounded-xl bg-[#1b1b1b] overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
               <div className="flex items-center gap-2">
                 <div className="text-base font-medium text-white/90">Recent Chats</div>
@@ -1320,7 +1324,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
       <Dialog open={!!selectedSource} onOpenChange={(open) => { if (!open) { setSelectedSource(null); setCameFromCitationsModal(false) } }}>
         <DialogContent 
           showCloseButton={false}
-          className="!max-w-3xl bg-[#161616] border-white/[0.08] p-0 !rounded-2xl overflow-hidden"
+          className="!max-w-3xl bg-[#1b1b1b] border-white/[0.08] p-0 !rounded-2xl overflow-hidden"
         >
           <DialogHeader className="sr-only">
             <DialogTitle>URLs for {selectedSource?.domain}</DialogTitle>
@@ -1494,7 +1498,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
       <Sheet open={!!selectedUrl} onOpenChange={(open) => { if (!open) setSelectedUrl(null) }}>
         <SheetContent
           side="right"
-          className="!w-[576px] !max-w-[90vw] bg-[#161616] border-l border-white/[0.08] p-0 gap-0 [&>button]:hidden rounded-l-2xl"
+          className="!w-[576px] !max-w-[90vw] bg-[#1b1b1b] border-l border-white/[0.08] p-0 gap-0 [&>button]:hidden rounded-l-2xl"
         >
           <SheetTitle className="sr-only">Prompts citing {selectedUrl?.url}</SheetTitle>
           <SheetDescription className="sr-only">List of prompts that cited this URL</SheetDescription>

@@ -199,7 +199,7 @@ export async function runUnifiedAnalysis(
       }
     }
 
-    // Step 9: Auto-discover AI visibility + conversation issues
+    // Step 9: Auto-discover AI visibility issues
     if (result.geoAnalysisId || result.technicalAnalysisId) {
       try {
         const { discoverIssues } = await import('./issue-discovery.service');
@@ -461,7 +461,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
     const { discoverPages, getUrlsFromDiscovery, createFallbackDiscovery } = await import('./sitemap-discovery.service');
     const { scrapePages, getSuccessfulScrapes } = await import('./multi-page-scraper.service');
     const { htmlToExtraction } = await import('@/lib/analysis/technical/dom-extractor');
-    const { computePageScore, computeSiteScore } = await import('@/lib/analysis/technical/five-dimension-scorer');
+    const { computePageScore, computeSiteScore } = await import('@/lib/analysis/technical/four-dimension-scorer');
     const {
       saveSitemapPages,
       savePageSnapshot,

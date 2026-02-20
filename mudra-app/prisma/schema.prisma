@@ -29,6 +29,7 @@ model BrandProfile {
   stage                      String?
   resources                  String?
   lastAnalysisRunAt          DateTime?
+  lastRadarRunAt             DateTime?
   createdAt                  DateTime                     @default(now())
   updatedAt                  DateTime                     @updatedAt
   trackingError              String?

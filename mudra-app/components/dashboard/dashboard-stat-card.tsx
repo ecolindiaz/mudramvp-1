@@ -94,7 +94,7 @@ export function DashboardStatCard({
   const showEmpty = emptyValue && value === 0
 
   return (
-    <Card style={cardStyle} className={cn("group relative overflow-hidden bg-[#161616] rounded-xl border-0 transition-all duration-200 gap-3", className)}>
+    <Card style={cardStyle} className={cn("group relative overflow-hidden bg-[#1b1b1b] rounded-xl border-0 transition-all duration-200 gap-3", className)}>
 
 
       <CardHeader className="border-0">

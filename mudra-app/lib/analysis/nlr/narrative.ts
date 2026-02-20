@@ -204,13 +204,38 @@ function buildTechnicalSentence(summary: NlrSummaryJson): string | null {
     sentence += ` after improvements on ${joinNatural(improvedPages)}`
   }
 
-  const topOpen = summary.sections.tasks?.top_open ?? []
+  return sentence
+}
+
+function buildIssuesSentence(summary: NlrSummaryJson): string | null {
+  const tasks = summary.sections.tasks
+  if (!tasks) return null
+
+  const opened = tasks.opened_this_week ?? 0
+  const completed = tasks.completed_this_week ?? 0
+  const topOpen = tasks.top_open ?? []
+
+  if (opened === 0 && completed === 0 && topOpen.length === 0) return null
+
+  const parts: string[] = []
+  if (opened > 0) parts.push(`${opened} new`)
+  if (completed > 0) parts.push(`${completed} resolved`)
+
+  let sentence = ''
+  if (parts.length > 0) {
+    sentence = `Issues: ${parts.join(', ')}`
+  }
+
   if (topOpen.length > 0) {
     const top = topOpen
       .slice(0, 2)
       .map((item) => compactIssueTitle(item.title))
       .join(' and ')
-    sentence += `, but ${topOpen.length} active issues remain (top: ${top})`
+    if (sentence) {
+      sentence += `; ${topOpen.length} active (top: ${top})`
+    } else {
+      sentence = `Issues: ${topOpen.length} active (top: ${top})`
+    }
   }
 
   return sentence
@@ -281,6 +306,7 @@ export function buildExecutiveSummaryFromJson(
   const sentences = [
     buildVisibilitySentence(summary),
     buildTechnicalSentence(summary),
+    buildIssuesSentence(summary),
     buildTrafficSentence(summary),
     buildOpportunitiesSentence(summary),
   ].filter(Boolean) as string[]

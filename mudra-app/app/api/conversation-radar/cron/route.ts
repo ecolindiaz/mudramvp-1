@@ -11,6 +11,7 @@ import {
   getBrandsForScheduledRun,
   getNextPromptsForProactive,
   updateProactiveOffset,
+  updateLastRadarRun,
 } from '@/lib/services/conversation-radar-scheduler';
 
 // Verify cron secret for security
@@ -29,9 +30,10 @@ const CRON_SECRET = process.env.CRON_SECRET;
  * - Authorization: Bearer <CRON_SECRET>
  * 
  * Each 'combined' run produces: 1 proactive opportunity + 2 cited opportunities
- * 
- * Cron Schedule (Vercel): "0 9 *\/3 * *" — Every 3 days at 9am UTC
- * See vercel.json for configuration.
+ *
+ * Cron Schedule (Vercel): "0 9 * * *" — Daily at 9am UTC
+ * Per-brand interval: each brand runs every SCHEDULER_CONFIG.radarIntervalDays
+ * from its lastRadarRunAt timestamp. Brands with null lastRadarRunAt are skipped.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -61,20 +63,20 @@ export async function POST(request: NextRequest) {
     let brands: { id: number; companyName: string | null; promptCount: number }[];
     
     if (brandId) {
-      // Single brand
+      // Single brand (manual trigger via brandId param — no interval check)
       const brand = await prisma.brandProfile.findUnique({
         where: { id: parseInt(brandId) },
         include: { _count: { select: { prompts: true } } },
       });
-      
+
       if (!brand) {
         return NextResponse.json({ success: false, error: 'Brand not found' }, { status: 404 });
       }
-      
+
       brands = [{ id: brand.id, companyName: brand.companyName, promptCount: brand._count.prompts }];
     } else {
-      // All active brands
-      brands = await getBrandsForScheduledRun();
+      // Automated cron — only brands that are due (lastRadarRunAt initialized + older than interval)
+      brands = await getBrandsForScheduledRun({ onlyDue: true });
     }
     
     console.log(`[Cron] Processing ${brands.length} brand(s)`);
@@ -94,6 +96,7 @@ export async function POST(request: NextRequest) {
         if (effectiveMode === 'combined') {
           // Run BOTH: 1 proactive + 2 cited (the default scheduled behavior)
           const result = await runCombinedMode(brand.id);
+          await updateLastRadarRun(brand.id);
           results.push({
             brandId: brand.id,
             brandName: brand.companyName,
@@ -105,6 +108,7 @@ export async function POST(request: NextRequest) {
         } else if (effectiveMode === 'cited') {
           // Run citation mode only
           const result = await runCitedMode(brand.id);
+          await updateLastRadarRun(brand.id);
           results.push({
             brandId: brand.id,
             brandName: brand.companyName,
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
         } else {
           // Run proactive mode only with prompt rotation
           const result = await runProactiveMode(brand.id);
+          await updateLastRadarRun(brand.id);
           results.push({
             brandId: brand.id,
             brandName: brand.companyName,
@@ -266,65 +271,55 @@ async function runProactiveMode(brandProfileId: number): Promise<{
 
 /**
  * GET /api/conversation-radar/cron
- * 
- * Get cron job status and schedule info
+ *
+ * Get cron job status and schedule info.
+ *
+ * Query params:
+ * - brandProfileId (optional): return per-brand lastRun/nextRun based on lastRadarRunAt
+ *   When omitted: returns aggregate info (backward compat)
  */
 export async function GET(request: NextRequest) {
   try {
-    const brands = await getBrandsForScheduledRun();
+    const { searchParams } = new URL(request.url);
+    const brandProfileId = searchParams.get('brandProfileId');
 
-    // Get last radar run timestamp from the most recent opportunity
-    const lastOpportunity = await prisma.conversationOpportunity.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    });
+    if (brandProfileId) {
+      // Per-brand schedule info
+      const brand = await prisma.brandProfile.findUnique({
+        where: { id: parseInt(brandProfileId) },
+        select: { lastRadarRunAt: true },
+      });
 
-    // Calculate next scheduled run (every 3 days at 9am UTC)
-    const CRON_INTERVAL_DAYS = 3;
-    const CRON_HOUR_UTC = 9;
-    let nextRun: string | null = null;
+      const lastRun = brand?.lastRadarRunAt?.toISOString() ?? null;
+      let nextRun: string | null = null;
 
-    if (lastOpportunity) {
-      const lastRun = lastOpportunity.createdAt;
-      const next = new Date(lastRun);
-      next.setDate(next.getDate() + CRON_INTERVAL_DAYS);
-      next.setUTCHours(CRON_HOUR_UTC, 0, 0, 0);
-      // If calculated next run is in the past, use the next occurrence from now
-      if (next.getTime() < Date.now()) {
-        const now = new Date();
-        now.setUTCHours(CRON_HOUR_UTC, 0, 0, 0);
-        if (now.getTime() < Date.now()) {
-          now.setDate(now.getDate() + 1);
-        }
-        // Find next date divisible by 3 from epoch-day
-        const daysSinceEpoch = Math.floor(now.getTime() / 86400000);
-        const daysUntilNext = (CRON_INTERVAL_DAYS - (daysSinceEpoch % CRON_INTERVAL_DAYS)) % CRON_INTERVAL_DAYS;
-        now.setDate(now.getDate() + daysUntilNext);
-        nextRun = now.toISOString();
-      } else {
+      if (brand?.lastRadarRunAt) {
+        const next = new Date(brand.lastRadarRunAt);
+        next.setDate(next.getDate() + SCHEDULER_CONFIG.radarIntervalDays);
         nextRun = next.toISOString();
       }
+
+      return NextResponse.json({
+        success: true,
+        lastRun,
+        nextRun,
+        intervalDays: SCHEDULER_CONFIG.radarIntervalDays,
+      });
     }
+
+    // Aggregate info (backward compat)
+    const brands = await getBrandsForScheduledRun();
 
     return NextResponse.json({
       success: true,
       config: SCHEDULER_CONFIG,
       activeBrands: brands.length,
-      lastRun: lastOpportunity?.createdAt?.toISOString() || null,
-      nextRun,
       schedule: {
         combined: {
-          frequency: 'Every 3 days',
-          cron: '0 9 */3 * *',
-          description: 'Each run: 1 proactive opportunity + 2 cited opportunities',
+          frequency: `Every ${SCHEDULER_CONFIG.radarIntervalDays} days per brand`,
+          cron: '0 9 * * *',
+          description: 'Daily cron checks per-brand intervals',
           output: '~3 opportunities per run',
-        },
-        cited: {
-          description: 'Processes up to 2 Reddit URLs cited by AI models',
-        },
-        proactive: {
-          description: 'Searches Reddit using 1 tracked prompt',
-          promptRotation: 'Rotates through prompts each run',
         },
       },
     });

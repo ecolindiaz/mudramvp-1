@@ -2,7 +2,7 @@
  * Site-Wide Scraping & Scoring Types
  * 
  * Types for the comprehensive technical structure analysis system
- * that scrapes all pages, parses DOM, and computes five-dimension scores.
+ * that scrapes all pages, parses DOM, and computes four-dimension scores.
  */
 
 // ============================================
@@ -270,10 +270,10 @@ export interface ValidationResult {
 }
 
 // ============================================
-// Five-Dimension Scoring Types
+// Four-Dimension Scoring Types
 // ============================================
 
-export interface FiveDimensionScore {
+export interface FourDimensionScore {
   overall: number;          // 0-100
   
   // Dimension 1: Structured Data Compliance
@@ -497,6 +497,6 @@ export interface PageSnapshotOutput {
   version: number;
   pageUrl: string;
   extraction: DOMExtractionResult;
-  score: FiveDimensionScore;
+  score: FourDimensionScore;
   scrapedAt: Date;
 }

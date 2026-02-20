@@ -1235,10 +1235,10 @@ function TrackedPromptsPageInner() {
                     <span className="text-sm text-muted-foreground">Filter by:</span>
                   </div>
                   <Select value={selectedModel} onValueChange={setSelectedModel}>
-                    <SelectTrigger className="w-[160px] h-9 !bg-[#161616] hover:!bg-[#1c1c1c] !border-0 text-white rounded-lg transition-all duration-200">
+                    <SelectTrigger className="w-[160px] h-9 !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-lg transition-all duration-200">
                       <SelectValue placeholder="All Models" />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#161616] border-0">
+                    <SelectContent className="bg-[#1b1b1b] border-0">
                       <SelectItem value="all">
                         All Models
                       </SelectItem>
@@ -1263,10 +1263,10 @@ function TrackedPromptsPageInner() {
                     </SelectContent>
                   </Select>
                   <Select value={selectedIntent} onValueChange={setSelectedIntent}>
-                    <SelectTrigger className="w-[180px] h-9 !bg-[#161616] hover:!bg-[#1c1c1c] !border-0 text-white rounded-lg transition-all duration-200">
+                    <SelectTrigger className="w-[180px] h-9 !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-lg transition-all duration-200">
                       <SelectValue placeholder="All Intents" />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#161616] border-0">
+                    <SelectContent className="bg-[#1b1b1b] border-0">
                       <SelectItem value="all">All Intents</SelectItem>
                       {availableIntents
                         .filter((intent): intent is string => intent !== null)
@@ -1316,16 +1316,17 @@ function TrackedPromptsPageInner() {
                     </Button>
                   </div>
                 </div>
-                <div className="overflow-hidden rounded-xl border border-white/[0.04]">
-                  <Table className="table-fixed text-sm">
-                    <TableHeader className="bg-white/[0.04]">
+                <div className="overflow-hidden rounded-xl border border-white/[0.04] relative">
+                  <div className="absolute top-0 left-0 right-0 h-12 bg-white/[0.04] pointer-events-none" />
+                  <Table className="relative table-fixed text-sm px-2 [&_tbody>tr:hover>td]:bg-white/[0.06]" style={{ borderSpacing: '0 4px' }}>
+                    <TableHeader>
                       {table.getHeaderGroups().map((headerGroup) => (
                         <TableRow key={headerGroup.id} className="hover:bg-transparent border-white/[0.06]">
                           {headerGroup.headers.map((header) => (
                             <TableHead
                               key={header.id}
                               style={{ width: `${header.getSize()}px` }}
-                              className="h-11 md:h-12 text-white/80"
+                              className="h-11 md:h-12 text-white/80 pb-3"
                             >
                               {header.isPlaceholder ? null : header.column.getCanSort() ? (
                                 <div
@@ -1367,7 +1368,7 @@ function TrackedPromptsPageInner() {
                       {isInitialLoading ? (
                         // Skeleton loading rows
                         Array.from({ length: 6 }).map((_, i) => (
-                          <TableRow key={`skeleton-${i}`} className="border-white/[0.06]">
+                          <TableRow key={`skeleton-${i}`} className="border-white/[0.06] pointer-events-none">
                             {/* Checkbox */}
                             <TableCell style={{ width: '36px' }} className="py-3.5">
                               <div className="flex items-center justify-center">
@@ -1428,7 +1429,7 @@ function TrackedPromptsPageInner() {
                           <TableRow 
                             key={row.id} 
                             data-state={row.getIsSelected() && "selected"} 
-                            className="border-white/[0.06] hover:bg-white/[0.03] transition-colors"
+                            className="border-white/[0.06] transition-colors"
                           >
                             {row.getVisibleCells().map((cell) => (
                               <TableCell 
@@ -1963,7 +1964,7 @@ function TrackedPromptsPageInner() {
                           <SelectTrigger id="edit-intent" className="w-full rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 outline-none border-white/10">
                             <SelectValue placeholder="Select intent" />
                           </SelectTrigger>
-                          <SelectContent className="rounded-lg bg-[#161616] border-0">
+                          <SelectContent className="rounded-lg bg-[#1b1b1b] border-0">
                             <SelectItem value="How-to">How to</SelectItem>
                             <SelectItem value="Organic">Organic</SelectItem>
                             <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>

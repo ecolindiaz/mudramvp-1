@@ -1,7 +1,7 @@
 /**
  * @deprecated This service references models (TechnicalAnalysis, Website, StructuredData, etc.)
  * that no longer exist in the Prisma schema. The functionality has been replaced by:
- * - lib/analysis/technical/five-dimension-scorer.ts (per-page scoring)
+ * - lib/analysis/technical/four-dimension-scorer.ts (per-page scoring)
  * - lib/services/unified-analysis.service.ts (unified analysis pipeline)
  * - lib/services/dom-parser.service.ts (HTML extraction)
  *
@@ -15,7 +15,7 @@ export type Website = Record<string, unknown>;
 
 // Stub functions that throw errors if called
 export async function saveAnalysisResults(): Promise<never> {
-  throw new Error('DEPRECATED: saveAnalysisResults is no longer available. Use lib/analysis/technical/five-dimension-scorer.ts instead.');
+  throw new Error('DEPRECATED: saveAnalysisResults is no longer available. Use lib/analysis/technical/four-dimension-scorer.ts instead.');
 }
 
 export async function createWebsiteIfNotExists(): Promise<never> {

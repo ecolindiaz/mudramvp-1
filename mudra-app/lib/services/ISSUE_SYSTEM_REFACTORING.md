@@ -241,7 +241,7 @@ The system is now **deterministic** (same input = same output), **per-page** (gr
 | 3 | Delta analysis broken | Dimension scores hardcoded to 0 | Reads actual scores from stored analysis data |
 | 4 | No auto-close on re-analysis | Issues stayed open forever | Auto-closes when checks pass on re-analysis |
 | 5 | No per-page issue tracking | Brand-level issues only | Per-page issues with pagination (1 page per run) |
-| 6 | Duplicate scoring file | `five-dimension-scoring.service.ts` unused | Deleted the file |
+| 6 | Duplicate scoring file | `four-dimension-scoring.service.ts` unused | Deleted the file |
 
 ---
 
@@ -503,11 +503,11 @@ metadata: {
 
 ### Deleted Files
 
-#### `lib/services/five-dimension-scoring.service.ts`
+#### `lib/services/four-dimension-scoring.service.ts`
 
 This file was deleted as it was unused. It contained a different 5-dimension system (Structured Data, Semantic HTML, Citability, Accessibility, Answer Engine) that was not being used anywhere.
 
-The actual scorer is `lib/analysis/technical/five-dimension-scorer.ts` which uses the correct dimensions:
+The actual scorer is `lib/analysis/technical/four-dimension-scorer.ts` which uses the correct dimensions:
 - Metadata (25 pts)
 - Headings (20 pts)
 - Semantic (15 pts)

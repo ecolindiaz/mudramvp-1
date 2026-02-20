@@ -144,7 +144,7 @@ export function ExpansionModal<T extends Record<string, unknown>>({
       <DialogContent
         showCloseButton={false}
         className={cn(
-          "!max-w-3xl bg-[#161616] border-white/[0.08] p-0 !rounded-2xl overflow-hidden",
+          "!max-w-3xl bg-[#1b1b1b] border-white/[0.08] p-0 !rounded-2xl overflow-hidden",
           className
         )}
       >
@@ -249,7 +249,7 @@ export function ExpansionModal<T extends Record<string, unknown>>({
               <>
                 {/* Table Header */}
                 <div
-                  className="grid items-center gap-4 px-6 py-3 border-b border-white/[0.06] bg-[#161616] sticky top-0 z-10"
+                  className="grid items-center gap-4 px-6 py-3 border-b border-white/[0.06] bg-[#1b1b1b] sticky top-0 z-10"
                   style={{
                     gridTemplateColumns: columns
                       .map((c) => c.width || "1fr")

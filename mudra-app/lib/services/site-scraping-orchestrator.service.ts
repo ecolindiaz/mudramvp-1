@@ -6,7 +6,7 @@
  * 2. Sitemap discovery and page URL extraction
  * 3. Per-page HTML extraction via Firecrawl
  * 4. DOM parsing and data extraction
- * 5. Five-dimension scoring per page
+ * 5. Four-dimension scoring per page
  * 6. Site-wide score aggregation
  */
 
@@ -17,8 +17,7 @@ import { createFirecrawlApp } from '@/lib/config/firecrawl-config';
 import { detectPolicyFiles } from './policy-detection.service';
 import { discoverAndSaveSitemap, updatePageScrapeStatus, getPendingPages } from './sitemap-parser.service';
 import { extractDOMData } from './dom-parser.service';
-// Note: five-dimension-scoring.service.ts was removed - use lib/analysis/technical/five-dimension-scorer.ts instead
-import { computePageScore as computeFiveDimensionScore } from '@/lib/analysis/technical/five-dimension-scorer';
+import { computePageScore } from '@/lib/analysis/technical/four-dimension-scorer';
 import { htmlToExtraction } from '@/lib/analysis/technical/dom-extractor';
 import type { FullPageScore } from '@/lib/analysis/technical/types';
 
@@ -264,7 +263,7 @@ async function processPage(
     } catch (schemaErr) {
       console.warn(`[Orchestrator] Schema recommendation failed for ${page.pageUrl}:`, schemaErr);
     }
-    const score = computeFiveDimensionScore(extraction);
+    const score = computePageScore(extraction);
     
     // Save score
     await savePageScore(

@@ -1,13 +1,12 @@
 /**
- * Five-Dimension Scoring Utilities
- * 
+ * Four-Dimension Scoring Utilities
+ *
  * Provides scoring grade calculations and dimension display names
- * for the five-dimension technical structure scoring system:
- * 1. Structured Data
- * 2. Semantic HTML
- * 3. Citability
- * 4. Accessibility
- * 5. Answer Engine Optimization
+ * for the four-dimension technical structure scoring system:
+ * 1. Schema (40 pts)
+ * 2. Metadata (30 pts)
+ * 3. FAQ (20 pts)
+ * 4. Content (10 pts)
  */
 
 export interface ScoreGrade {

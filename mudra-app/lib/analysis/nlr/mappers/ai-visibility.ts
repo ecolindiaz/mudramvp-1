@@ -145,49 +145,51 @@ function getMentionedPrompts(results: Array<{ analyses: unknown }>): Set<string>
 }
 
 /**
- * AI Visibility mapper — queries GeoAnalysisResult for current vs previous week
- * to compute score delta, average position delta, and newly-mentioned prompts.
+ * AI Visibility mapper — uses ALL-TIME aggregate (matches dashboard display)
+ * for current/previous scores, and week-based comparison for newly-mentioned prompts.
+ *
+ * Current  = calculateAggregateFromResults(allResults)       → matches dashboard
+ * Previous = calculateAggregateFromResults(results < weekStart) → pre-week aggregate
+ * Newly-mentioned = getMentionedPrompts(thisWeek) - getMentionedPrompts(priorToWeek)
  */
 export async function mapAiVisibility(
   companyId: string,
   weekStartUtc: Date | string
 ): Promise<AiVisibilitySummary | null> {
   const weekStart = new Date(weekStartUtc);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 7);
-
-  const prevWeekStart = new Date(weekStart);
-  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
 
   const bpIds = await resolveBrandProfileIds(companyId);
   if (bpIds.length === 0) return null;
 
-  // Fetch current and previous week GeoAnalysisResults
-  const [currentResults, prevResults] = await Promise.all([
-    prisma.geoAnalysisResult.findMany({
-      where: { brandProfileId: { in: bpIds }, timestamp: { gte: weekStart, lt: weekEnd } },
-      orderBy: { timestamp: "desc" },
-    }),
-    prisma.geoAnalysisResult.findMany({
-      where: { brandProfileId: { in: bpIds }, timestamp: { gte: prevWeekStart, lt: weekStart } },
-      orderBy: { timestamp: "desc" },
-    }),
-  ]);
+  // Fetch ALL GeoAnalysisResults (no date filter) — matches dashboard aggregate
+  const allResults = await prisma.geoAnalysisResult.findMany({
+    where: { brandProfileId: { in: bpIds } },
+    orderBy: { timestamp: "desc" },
+  });
 
-  if (currentResults.length === 0 && prevResults.length === 0) return null;
+  if (allResults.length === 0) return null;
 
-  const currentAggregate = calculateAggregateFromResults(currentResults);
-  const prevAggregate = calculateAggregateFromResults(prevResults);
+  // Split into pre-week and this-week for previous score and prompt detection
+  const priorResults = allResults.filter((r) => r.timestamp < weekStart);
+  const thisWeekResults = allResults.filter((r) => r.timestamp >= weekStart);
+
+  // Current = all-time aggregate (matches dashboard)
+  const currentAggregate = calculateAggregateFromResults(allResults);
+  // Previous = all-time aggregate as of before this week
+  const prevAggregate = priorResults.length > 0
+    ? calculateAggregateFromResults(priorResults)
+    : { overallScore: null, averagePosition: null };
+
   const scoreDelta = pctDelta(currentAggregate.overallScore, prevAggregate.overallScore);
   const positionDelta = pctDelta(currentAggregate.averagePosition, prevAggregate.averagePosition);
 
-  // Build notes: detect newly mentioned prompts
+  // Build notes: detect newly mentioned prompts (week-based comparison)
   const notes: string[] = [];
 
-  const currentMentioned = getMentionedPrompts(currentResults);
-  const prevMentioned = getMentionedPrompts(prevResults);
+  const thisWeekMentioned = getMentionedPrompts(thisWeekResults);
+  const priorMentioned = getMentionedPrompts(priorResults);
 
-  const newlyMentioned = [...currentMentioned].filter((p) => !prevMentioned.has(p));
+  const newlyMentioned = [...thisWeekMentioned].filter((p) => !priorMentioned.has(p));
   if (newlyMentioned.length > 0) {
     notes.push(`Brand newly mentioned in ${newlyMentioned.length} prompt${newlyMentioned.length > 1 ? "s" : ""} this week.`);
   }
@@ -198,7 +200,7 @@ export async function mapAiVisibility(
     notes.push(`AI visibility score declined by ${Math.abs(scoreDelta.absolute ?? 0)} points.`);
   }
 
-  if (currentResults.length > 0 && prevResults.length === 0) {
+  if (thisWeekResults.length > 0 && priorResults.length === 0) {
     notes.push("First week with AI visibility data — no previous comparison available.");
   }
 

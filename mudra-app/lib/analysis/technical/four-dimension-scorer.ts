@@ -83,6 +83,14 @@ const FAQ_RELEVANT_PAGE_TYPES = new Set<string>([
 	"use-cases", "customers",
 ]);
 
+/**
+ * Non-marketing page types that should be excluded from scoring and issue creation.
+ * These are form/utility pages whose content users can't meaningfully optimize.
+ */
+export const NON_MARKETING_PAGE_TYPES = new Set<string>([
+	"contact", "demo", "login", "signup", "legal",
+]);
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -868,6 +876,24 @@ export function getRecommendedSchemas(
  * @returns FullPageScore with all dimension scores, issues, and interventions
  */
 export function computePageScore(extraction: DOMExtraction): FullPageScore {
+	// Skip non-marketing pages — they produce irrelevant issues
+	if (NON_MARKETING_PAGE_TYPES.has(extraction.page_type)) {
+		return {
+			page_url: extraction.page_url,
+			page_type: extraction.page_type,
+			scores: { schema: 0, metadata: 0, faq: 0, content: 0, total: 0 },
+			dimension_details: {
+				schema: { dimension: "schema", score: 0, max_score: 0, checks: {}, passed_count: 0, total_count: 0 },
+				metadata: { dimension: "metadata", score: 0, max_score: 0, checks: {}, passed_count: 0, total_count: 0 },
+				faq: { dimension: "faq", score: 0, max_score: 0, checks: {}, passed_count: 0, total_count: 0 },
+				content: { dimension: "content", score: 0, max_score: 0, checks: {}, passed_count: 0, total_count: 0 },
+			},
+			status: "poor",
+			issues: [],
+			interventions: [],
+		};
+	}
+
 	// Score each dimension
 	const schemaScore = scoreSchema(extraction);
 	const metadataScore = scoreMetadata(extraction);
@@ -924,9 +950,11 @@ export function computePageScore(extraction: DOMExtraction): FullPageScore {
  * Calculates site-wide average score from multiple page scores
  */
 export function computeSiteScore(pageScores: FullPageScore[]): number {
-	if (pageScores.length === 0) return 0;
-	const total = pageScores.reduce((sum, ps) => sum + ps.scores.total, 0);
-	return Math.round(total / pageScores.length);
+	// Exclude non-marketing pages so they don't drag down the site average
+	const marketingPages = pageScores.filter(ps => !NON_MARKETING_PAGE_TYPES.has(ps.page_type));
+	if (marketingPages.length === 0) return 0;
+	const total = marketingPages.reduce((sum, ps) => sum + ps.scores.total, 0);
+	return Math.round(total / marketingPages.length);
 }
 
 // Export individual scorers for testing

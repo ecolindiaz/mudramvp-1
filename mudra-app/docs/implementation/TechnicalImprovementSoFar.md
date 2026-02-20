@@ -101,8 +101,8 @@ function htmlToExtraction(html: string, pageUrl: string): DOMExtraction
 
 ---
 
-#### 3. Five-Dimension Scorer Module
-**File:** `lib/analysis/technical/five-dimension-scorer.ts`
+#### 3. Four-Dimension Scorer Module
+**File:** `lib/analysis/technical/four-dimension-scorer.ts`
 
 **Scoring Breakdown (100 points total):**
 
@@ -142,7 +142,7 @@ function computeSiteScore(pageScores: FullPageScore[]): number
 #### 4. Unit Tests
 **Files:**
 - `lib/analysis/technical/__tests__/dom-extractor.test.ts` (51 tests)
-- `lib/analysis/technical/__tests__/five-dimension-scorer.test.ts` (62 tests)
+- `lib/analysis/technical/__tests__/four-dimension-scorer.test.ts` (62 tests)
 
 **Test Coverage:**
 
@@ -203,7 +203,7 @@ function computeSiteScore(pageScores: FullPageScore[]): number
 
 ```bash
 # Run Phase 1 tests only
-npm test -- lib/analysis/technical/__tests__/dom-extractor.test.ts lib/analysis/technical/__tests__/five-dimension-scorer.test.ts
+npm test -- lib/analysis/technical/__tests__/dom-extractor.test.ts lib/analysis/technical/__tests__/four-dimension-scorer.test.ts
 
 # Run all tests
 npm test
@@ -218,7 +218,7 @@ npm test -- --reporter=verbose
 
 ```typescript
 import { htmlToExtraction } from '@/lib/analysis/technical/dom-extractor';
-import { computePageScore } from '@/lib/analysis/technical/five-dimension-scorer';
+import { computePageScore } from '@/lib/analysis/technical/four-dimension-scorer';
 
 // Extract DOM data from HTML
 const extraction = htmlToExtraction(htmlString, 'https://example.com/pricing');
@@ -454,7 +454,7 @@ npm test -- --reporter=verbose
 import { discoverPages, getUrlsFromDiscovery } from '@/lib/services/sitemap-discovery.service';
 import { scrapePages } from '@/lib/services/multi-page-scraper.service';
 import { htmlToExtraction } from '@/lib/analysis/technical/dom-extractor';
-import { computePageScore } from '@/lib/analysis/technical/five-dimension-scorer';
+import { computePageScore } from '@/lib/analysis/technical/four-dimension-scorer';
 
 // Step 1: Discover pages
 const discovery = await discoverPages('example.com', { maxPages: 20 });
@@ -657,7 +657,7 @@ import {
 import { discoverPages } from '@/lib/services/sitemap-discovery.service';
 import { scrapePages } from '@/lib/services/multi-page-scraper.service';
 import { htmlToExtraction } from '@/lib/analysis/technical/dom-extractor';
-import { computePageScore, computeSiteScore } from '@/lib/analysis/technical/five-dimension-scorer';
+import { computePageScore, computeSiteScore } from '@/lib/analysis/technical/four-dimension-scorer';
 
 // Step 1: Discover and save pages
 const discovery = await discoverPages('example.com');
@@ -908,7 +908,7 @@ function generateActionFromFinding(finding: any): string
 
 | Date | Phase | Commit Message |
 |------|-------|----------------|
-| Jan 27, 2026 | Phase 1 | DOM Extractor and Five-Dimension Scorer started - Phase 1 of Technical Structure Implementation Finished |
+| Jan 27, 2026 | Phase 1 | DOM Extractor and Four-Dimension Scorer started - Phase 1 of Technical Structure Implementation Finished |
 | Jan 27, 2026 | Phase 2 | Sitemap Discovery and Multi-Page Scraper started - Phase 2 of Technical Structure Implementation Finished |
 | Jan 27, 2026 | Phase 3 | Database & Storage - Phase 3 of Technical Structure Implementation Finished |
 | Jan 27, 2026 | Phase 4 | Unified Analysis Integration - Phase 4 of Technical Structure Implementation Finished |

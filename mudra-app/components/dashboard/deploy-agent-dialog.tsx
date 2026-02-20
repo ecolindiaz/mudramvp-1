@@ -424,11 +424,11 @@ export function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?:
 export function DeployAgentDialog({ open, onOpenChange, onDeploy, deployedAgentIds = [] }: DeployAgentDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-3xl sm:!max-w-3xl bg-[#161616] border-0 p-0 !rounded-[12px] overflow-hidden shadow-xl">
+      <DialogContent className="!max-w-3xl sm:!max-w-3xl bg-[#1b1b1b] border-0 p-0 !rounded-[12px] overflow-hidden shadow-xl">
         <DialogHeader className="sr-only">
           <DialogTitle>Deploy Agent</DialogTitle>
         </DialogHeader>
-        <div className="bg-[#161616] px-6 pt-6 pb-6">
+        <div className="bg-[#1b1b1b] px-6 pt-6 pb-6">
           {/* Title and Description */}
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-white mb-2 tracking-tight">

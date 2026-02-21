@@ -73,9 +73,9 @@ interface DiscoveredViaItem {
 export async function processCitedOpportunities(
   brandProfileId: number,
   analysisRunId: number,
-  options: { maxCitations?: number } = {}
+  options: { maxCitations?: number; language?: 'en' | 'es' } = {}
 ): Promise<ProcessingStats> {
-  const { maxCitations = 2 } = options; // Default: 2 citations per run
+  const { maxCitations = 2, language = 'en' } = options; // Default: 2 citations per run
   const stats: ProcessingStats = { created: 0, skipped: 0, errors: 0 };
   
   console.log(`[Cited Radar] Processing analysis run ${analysisRunId} for brand ${brandProfileId} (max: ${maxCitations})`);
@@ -100,10 +100,11 @@ export async function processCitedOpportunities(
   // 3. Get unique Reddit URLs
   let redditUrls = [...new Set(citations.map(c => c.url))];
   
-  // 4. Filter out URLs that already have opportunities (to avoid re-processing)
+  // 4. Filter out URLs that already have opportunities for this language (to avoid re-processing)
   const existingOpportunities = await prisma.conversationOpportunity.findMany({
     where: {
       brandProfileId,
+      language,
       postUrl: { in: redditUrls },
     },
     select: { postUrl: true },
@@ -155,6 +156,7 @@ export async function processCitedOpportunities(
             provider: c.provider,
             citationTitle: c.citationTitle,
           })),
+          language,
         });
         stats.created++;
       } catch (error: any) {
@@ -192,16 +194,17 @@ export async function processCitedOpportunities(
  * - Much higher accuracy and relevance
  */
 export async function runProactiveSearch(
-  brandProfileId: number
+  brandProfileId: number,
+  language: 'en' | 'es' = 'en'
 ): Promise<ProactiveSearchStats> {
   const stats: ProactiveSearchStats = { reddit: 0, total: 0, queries: [] };
-  
-  console.log(`[Proactive Radar] Starting for brand ${brandProfileId}`);
-  
-  // 1. Get brand context with tracked prompts
+
+  console.log(`[Proactive Radar] Starting for brand ${brandProfileId} (language: ${language})`);
+
+  // 1. Get brand context with tracked prompts (filtered by language)
   const brandProfile = await prisma.brandProfile.findUnique({
     where: { id: brandProfileId },
-    include: { prompts: { where: { isActive: true } } },
+    include: { prompts: { where: { isActive: true, language } } },
   });
   
   if (!brandProfile) {
@@ -245,7 +248,8 @@ export async function runProactiveSearch(
     brandProfileId,
     limitedPromptQueries,
     limitedCompetitorQueries,
-    brandContext
+    brandContext,
+    language
   );
   
   stats.reddit = redditOpportunities;
@@ -268,7 +272,8 @@ async function searchRedditWithTrackedPrompts(
   brandProfileId: number,
   trackedPromptQueries: TrackedPromptQuery[],
   competitorQueries: string[],
-  brandContext: BrandContext
+  brandContext: BrandContext,
+  language: 'en' | 'es' = 'en'
 ): Promise<number> {
   let opportunitiesCreated = 0;
   const processedUrls = new Set<string>();
@@ -344,12 +349,13 @@ async function searchRedditWithTrackedPrompts(
               post,
               platform: 'reddit',
               mode: 'proactive',
-              discoveredVia: [{ 
+              discoveredVia: [{
                 searchQuery: promptQuery.searchQuery,
                 promptText: promptQuery.originalPrompt, // Store the original tracked prompt
               }],
               searchQuery: promptQuery.searchQuery,
               initialRelevanceScore: relevance,
+              language,
             });
             opportunitiesCreated++;
             console.log(`[Reddit] ✓ Created: "${post.title?.slice(0, 50)}..." (queryMatch: ${(queryRelevance * 100).toFixed(0)}%, score: ${relevance})`);
@@ -412,6 +418,7 @@ async function searchRedditWithTrackedPrompts(
               discoveredVia: [{ searchQuery: query }],
               searchQuery: query,
               initialRelevanceScore: relevance,
+              language,
             });
             opportunitiesCreated++;
             console.log(`[Reddit] ✓ Competitor match: "${post.title?.slice(0, 50)}..." (score: ${relevance})`);
@@ -497,13 +504,14 @@ interface CreateOpportunityInput {
   discoveredVia: DiscoveredViaItem[];
   searchQuery?: string;
   initialRelevanceScore?: number;
+  language: 'en' | 'es';
 }
 
 /**
  * Create or update a conversation opportunity in the database
  */
 async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
-  const { brandProfileId, post, platform, mode, discoveredVia, searchQuery, initialRelevanceScore } = input;
+  const { brandProfileId, post, platform, mode, discoveredVia, searchQuery, initialRelevanceScore, language } = input;
   
   const redditPost = post as RedditPost;
   
@@ -524,9 +532,10 @@ async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
   
   return prisma.conversationOpportunity.upsert({
     where: {
-      brandProfileId_postUrl: {
+      brandProfileId_postUrl_language: {
         brandProfileId,
         postUrl,
+        language,
       },
     },
     create: {
@@ -547,6 +556,7 @@ async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
       searchQuery,
       postCreatedAt,
       status: 'new',
+      language,
       // Store initial relevance if provided (will be updated by LLM analysis)
       relevanceScore: initialRelevanceScore,
     },
@@ -693,9 +703,9 @@ export async function updateOpportunityStatus(
 /**
  * Get the latest analysis run for a brand
  */
-export async function getLatestAnalysisRun(brandProfileId: number) {
+export async function getLatestAnalysisRun(brandProfileId: number, country?: string) {
   return prisma.analysisRun.findFirst({
-    where: { brandProfileId },
+    where: { brandProfileId, ...(country ? { country } : {}) },
     orderBy: { ranAt: 'desc' },
   });
 }
@@ -777,18 +787,20 @@ export async function analyzeNewOpportunities(
   options: {
     limit?: number;
     minRelevanceScore?: number;  // Only analyze opportunities with initial score above this
+    language?: 'en' | 'es';
   } = {}
 ): Promise<{ analyzed: number; errors: number }> {
-  const { limit = 10, minRelevanceScore = 0 } = options;
-  
+  const { limit = 10, minRelevanceScore = 0, language } = options;
+
   // Get unanalyzed opportunities
   const opportunities = await prisma.conversationOpportunity.findMany({
     where: {
       brandProfileId,
       conversationSnapshot: null, // Not yet analyzed
-      relevanceScore: minRelevanceScore > 0 
-        ? { gte: minRelevanceScore } 
+      relevanceScore: minRelevanceScore > 0
+        ? { gte: minRelevanceScore }
         : undefined,
+      ...(language ? { language } : {}),
     },
     include: {
       brandProfile: {

@@ -55,7 +55,7 @@ interface Opportunity {
 }
 
 function ConversationRadarPageInner() {
-  const { profile } = useBrandProfile()
+  const { profile, selectedCountry } = useBrandProfile()
   
   // State
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
@@ -123,7 +123,7 @@ function ConversationRadarPageInner() {
   const refreshData = useCallback(async () => {
     if (!profile.id) return
     try {
-      const response = await fetch(`/api/conversation-radar/opportunities?brandProfileId=${profile.id}&status=all&limit=50`)
+      const response = await fetch(`/api/conversation-radar/opportunities?brandProfileId=${profile.id}&status=all&limit=50&country=${selectedCountry}`)
       const result = await response.json()
 
       if (result.success && result.data) {
@@ -147,7 +147,7 @@ function ConversationRadarPageInner() {
       }
 
       // Fetch stats + last run time
-      const statsResponse = await fetch(`/api/conversation-radar/run?brandProfileId=${profile.id}`)
+      const statsResponse = await fetch(`/api/conversation-radar/run?brandProfileId=${profile.id}&country=${selectedCountry}`)
       const statsResult = await statsResponse.json()
 
       if (statsResult.success && statsResult.data) {
@@ -159,7 +159,7 @@ function ConversationRadarPageInner() {
     } catch (error) {
       console.error('Error fetching opportunities:', error)
     }
-  }, [profile.id])
+  }, [profile.id, selectedCountry])
 
   // Fetch opportunities (with loading state - used for initial load)
   const fetchOpportunities = useCallback(async () => {
@@ -220,6 +220,7 @@ function ConversationRadarPageInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           brandProfileId: profile.id,
+          country: selectedCountry,
           mode: 'proactive',
           analyze: true,
           analyzeLimit: 15,

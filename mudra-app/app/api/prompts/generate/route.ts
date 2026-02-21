@@ -30,10 +30,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Normalize legacy brandInfo shape (name/description/products/icp)
+    // to the BrandInfo interface (companyName/companyDescription/productsServices/idealCustomer)
+    const normalizedBrandInfo = brandInfo.companyName ? brandInfo : {
+      companyName: brandInfo.name || '',
+      companyDescription: brandInfo.description || '',
+      industry: brandInfo.industry || '',
+      productsServices: Array.isArray(brandInfo.products) ? brandInfo.products : [],
+      idealCustomer: brandInfo.icp || '',
+      competitors: Array.isArray(brandInfo.competitors) ? brandInfo.competitors : [],
+    }
+
     console.log(`🎯 Generating prompts for user request: "${userRequest || 'initial prompts'}"`)
 
     // Generate prompts using the unified GPT-5.1 pipeline
-    const generatedPrompts = await generateInitialPrompts(brandInfo)
+    const generatedPrompts = await generateInitialPrompts(normalizedBrandInfo)
 
     // If this is a custom request, save a subset as custom prompts
     if (userRequest) {

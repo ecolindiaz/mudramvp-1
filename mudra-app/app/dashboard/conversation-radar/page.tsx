@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils"
 const RADAR_RUNNING_KEY = 'mudra_radar_running'
 const RADAR_RUN_TIMEOUT = 150_000 // 150s (backend maxDuration is 120s + buffer)
 
-function getRadarRunState(): { startedAt: number; brandProfileId: number } | null {
+function getRadarRunState(): { startedAt: number; brandProfileId: number; country?: string } | null {
   try {
     const stored = localStorage.getItem(RADAR_RUNNING_KEY)
     if (!stored) return null
@@ -201,7 +201,7 @@ function ConversationRadarPageInner() {
     if (!profile.id) return
 
     const runState = getRadarRunState()
-    const isRunInProgress = runState && runState.brandProfileId === profile.id
+    const isRunInProgress = runState && runState.brandProfileId === profile.id && runState.country === selectedCountry
 
     if (isRunInProgress) {
       // A run is still active - show loading and poll for completion
@@ -235,6 +235,7 @@ function ConversationRadarPageInner() {
     localStorage.setItem(RADAR_RUNNING_KEY, JSON.stringify({
       startedAt: Date.now(),
       brandProfileId: profile.id,
+      country: selectedCountry,
     }))
     try {
       console.log('🔄 Running Conversation Radar search...')

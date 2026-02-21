@@ -41,10 +41,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Derive language from country
-    const language = country && isAllowedCountry(country)
-      ? getLanguageForCountry(country)
-      : 'en';
+    // Validate country and derive language
+    const validCountry = country && isAllowedCountry(country) ? country : undefined;
+    const language = validCountry ? getLanguageForCountry(validCountry) : 'en';
 
     // Get brand profile
     const brandProfile = await prisma.brandProfile.findUnique({
@@ -64,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Process cited opportunities from the latest analysis run (if any)
     let citedStats = { created: 0, skipped: 0, errors: 0 };
-    const latestRun = await getLatestAnalysisRun(brandProfileId, country);
+    const latestRun = await getLatestAnalysisRun(brandProfileId, validCountry);
     if (latestRun) {
       citedStats = await processCitedOpportunities(brandProfileId, latestRun.id, { language });
     }
@@ -117,16 +116,16 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Derive language from country
-    const language = country && isAllowedCountry(country)
-      ? getLanguageForCountry(country)
-      : 'en';
+    // Validate country and derive language
+    const validCountry = country && isAllowedCountry(country) ? country : undefined;
+    const language = validCountry ? getLanguageForCountry(validCountry) : 'en';
 
-    const counts = await getOpportunityCounts(parseInt(brandProfileId, 10), language);
+    const parsedBrandId = parseInt(brandProfileId, 10);
+    const counts = await getOpportunityCounts(parsedBrandId, language);
 
-    // Get last analysis run
+    // Get last analysis run (scoped to country when provided)
     const lastRun = await prisma.analysisRun.findFirst({
-      where: { brandProfileId: parseInt(brandProfileId, 10) },
+      where: { brandProfileId: parsedBrandId, ...(validCountry ? { country: validCountry } : {}) },
       orderBy: { ranAt: 'desc' },
       select: { ranAt: true, status: true },
     });

@@ -104,6 +104,8 @@ export async function POST(request: NextRequest) {
           .filter((c): c is CountryCode => isAllowedCountry(c));
         const languages = getUniqueLanguages(countries);
 
+        let anyLanguageSucceeded = false;
+
         for (const language of languages) {
           try {
             if (effectiveMode === 'combined') {
@@ -137,6 +139,7 @@ export async function POST(request: NextRequest) {
                 analyzed: result.analyzed,
               });
             }
+            anyLanguageSucceeded = true;
           } catch (error) {
             console.error(`[Cron] Error processing brand ${brand.id} (${language}):`, error);
             results.push({
@@ -149,7 +152,9 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        await updateLastRadarRun(brand.id);
+        if (anyLanguageSucceeded) {
+          await updateLastRadarRun(brand.id);
+        }
       } catch (error) {
         console.error(`[Cron] Error processing brand ${brand.id}:`, error);
         results.push({

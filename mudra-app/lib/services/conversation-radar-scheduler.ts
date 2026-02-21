@@ -65,7 +65,9 @@ export async function getNextPromptsForProactive(
   } catch {
     metadata = {};
   }
-  const lastOffset = metadata.proactivePromptOffsets?.[language] || 0;
+  const lastOffset = metadata.proactivePromptOffsets?.[language]
+    ?? (language === 'en' ? metadata.proactivePromptOffset : undefined)
+    ?? 0;
   
   // Calculate next offset (rotate through prompts)
   const totalPrompts = brand.prompts.length;

@@ -207,11 +207,13 @@ export default function PromptsPage() {
           brandProfileId: profile.id,
           userRequest: "Generate additional prompts",
           brandInfo: {
-            name: profile.companyName || '',
-            description: profile.companyDescription || '',
+            companyName: profile.companyName || '',
+            companyDescription: profile.companyDescription || '',
             industry: profile.companyIndustry || '',
-            products: [],
-            icp: profile.companyICP || '',
+            productsServices: profile.companyServices
+              ? profile.companyServices.split(',').map((s: string) => s.trim())
+              : [],
+            idealCustomer: profile.companyICP || '',
             competitors: profile.competitors || []
           }
         })

@@ -799,6 +799,96 @@ function extractFAQsFromTextHeadings($: CheerioAPI): FAQItem[] {
 	return faqs;
 }
 
+/**
+ * Extracts FAQs from data-attribute containers used by component-based builders
+ * like Framer, which use auto-generated CSS classes but meaningful data attributes.
+ * Handles SSR-rendered pages where only question text is present (no answers).
+ */
+function extractFAQsFromDataAttributes($: CheerioAPI): FAQItem[] {
+	const faqs: FAQItem[] = [];
+
+	const containerSelectors = [
+		'[data-framer-name*="FAQ" i]',
+		'[data-section*="faq" i]',
+		'[data-block*="faq" i]',
+		'[data-testid*="faq" i]',
+		'[data-component*="faq" i]',
+	].join(', ');
+
+	const containers = $(containerSelectors);
+	if (containers.length === 0) return faqs;
+
+	containers.each((_containerIdx, container) => {
+		// Sub-strategy 1: Framer RichTextContainer paragraphs
+		$(container).find('[data-framer-component-type="RichTextContainer"] > p').each((_idx, el) => {
+			const text = $(el).text().trim();
+			if (text.length < 10) return;
+
+			// Look for an answer in an "Open" sibling container (SSR-rendered expanded state)
+			let answer = "";
+			const parent = $(el).closest('[data-framer-component-type="RichTextContainer"]').parent();
+			const openContainer = parent.find('[data-framer-name="Open"]');
+			if (openContainer.length) {
+				const answerP = openContainer.find('p').first();
+				answer = answerP.length ? answerP.text().trim() : openContainer.text().trim();
+			}
+
+			faqs.push({
+				question: text,
+				answer,
+				question_length: text.length,
+				answer_length: answer.length,
+				source: "pattern",
+			});
+		});
+
+		if (faqs.length > 0) return;
+
+		// Sub-strategy 2: Interactive elements (tabindex, role=button) with text
+		$(container).find('[tabindex="0"], [role="button"]').each((_idx, el) => {
+			// Skip if this is a top-level container itself
+			if (el === container) return;
+			const text = $(el).text().trim();
+			if (text.length < 10) return;
+			// Skip elements that are likely icons or SVG wrappers
+			if ($(el).find('svg').length > 0 && text.length < 15) return;
+
+			let answer = "";
+			const sibling = $(el).next('div');
+			if (sibling.length) {
+				const answerP = sibling.find('p').first();
+				answer = answerP.length ? answerP.text().trim() : sibling.text().trim();
+			}
+
+			faqs.push({
+				question: text,
+				answer,
+				question_length: text.length,
+				answer_length: answer.length,
+				source: "pattern",
+			});
+		});
+
+		if (faqs.length > 0) return;
+
+		// Sub-strategy 3: Fallback — SSR-variant or data-framer-name paragraphs
+		$(container).find('.ssr-variant p, [data-framer-name] p').each((_idx, el) => {
+			const text = $(el).text().trim();
+			if (text.length < 10) return;
+
+			faqs.push({
+				question: text,
+				answer: "",
+				question_length: text.length,
+				answer_length: 0,
+				source: "pattern",
+			});
+		});
+	});
+
+	return deduplicateFAQs(faqs);
+}
+
 function deduplicateFAQs(faqs: FAQItem[]): FAQItem[] {
 	const seen = new Set<string>();
 	const unique: FAQItem[] = [];
@@ -822,9 +912,10 @@ function extractFAQs($: CheerioAPI): FAQExtraction {
 	const accordionFaqs = extractFAQsFromAccordion($);
 	const headingFaqs = extractFAQsFromQuestionHeadings($);
 	const textHeadingFaqs = extractFAQsFromTextHeadings($);
+	const dataAttrFaqs = extractFAQsFromDataAttributes($);
 
-	// Combine pattern-based FAQs (accordion, headings, Q:/A: patterns, text-based heading detection)
-	const allPatternFaqs = [...patternFaqs, ...accordionFaqs, ...headingFaqs, ...textHeadingFaqs];
+	// Combine pattern-based FAQs (accordion, headings, Q:/A: patterns, text-based heading detection, data attributes)
+	const allPatternFaqs = [...patternFaqs, ...accordionFaqs, ...headingFaqs, ...textHeadingFaqs, ...dataAttrFaqs];
 
 	const sources: FAQSources = {
 		jsonld_faq_schema: {
@@ -851,11 +942,15 @@ function extractFAQs($: CheerioAPI): FAQExtraction {
 	// For DOM-extracted FAQs, require at least 2 items AND at least one
 	// substantive answer (>= 20 chars) to avoid false positives from
 	// accordion-like UI elements that aren't actually FAQs.
+	// Exception: items from an explicitly FAQ-named data-attribute container
+	// (e.g. data-framer-name="FAQ") bypass the answer-length requirement,
+	// since Framer SSR pages often render questions without answers.
 	const domFaqs = combined.filter(f => f.source !== "jsonld");
 	const hasJsonLdFaqs = jsonldFaqs.length > 0;
 	const domFaqsPassThreshold =
 		domFaqs.length >= 2 && domFaqs.some(f => f.answer_length >= 20);
-	const hasFaqContent = hasJsonLdFaqs || domFaqsPassThreshold;
+	const questionsOnlyFromExplicitContainer = dataAttrFaqs.length >= 2;
+	const hasFaqContent = hasJsonLdFaqs || domFaqsPassThreshold || questionsOnlyFromExplicitContainer;
 
 	// If DOM FAQs don't pass threshold, exclude them from combined
 	const filteredCombined = hasFaqContent ? combined : jsonldFaqs;

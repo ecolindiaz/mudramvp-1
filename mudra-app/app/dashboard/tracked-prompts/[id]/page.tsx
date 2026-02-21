@@ -647,35 +647,43 @@ function TrackedPromptDeepViewInner() {
   const [selectedPlatform, setSelectedPlatform] = useState<string>("all")
   
   // Fetch prompt details from API with filters
+  // AbortController prevents stale responses from overwriting fresh data when
+  // selectedCountry hydrates (US default → localStorage value) in quick succession.
   useEffect(() => {
     if (!profile?.id || !promptId) {
       return
     }
 
+    const controller = new AbortController()
+
     async function fetchPromptDetails() {
       setIsLoading(true)
       setError(null)
-      
+
       try {
         // Include date range and platform in API request
         const url = `/api/prompts/${promptId}?brandProfileId=${profile.id}&dateRange=${dateRange}&platform=${selectedPlatform}&country=${selectedCountry}`
-        const response = await fetch(url)
+        const response = await fetch(url, { signal: controller.signal })
         const result = await response.json()
-        
+
         if (response.ok && result.success) {
           setPromptData(result.prompt)
         } else {
           setError(result.error || 'Failed to load prompt')
         }
       } catch (err) {
+        if ((err as Error).name === 'AbortError') return
         console.error('Error fetching prompt:', err)
         setError('Failed to load prompt details')
       } finally {
-        setIsLoading(false)
+        if (!controller.signal.aborted) {
+          setIsLoading(false)
+        }
       }
     }
 
     fetchPromptDetails()
+    return () => controller.abort()
   }, [profile?.id, promptId, dateRange, selectedPlatform, selectedCountry])  // Re-fetch when filters change
   
   const promptLabel = promptData?.text || (promptId ? `Prompt ${promptId}` : 'Current Prompt')

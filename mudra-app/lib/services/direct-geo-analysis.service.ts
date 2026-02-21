@@ -2324,8 +2324,9 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     
     console.log(`\n🔍 Analyzing with ${provider}: testing ${providerPrompts.length} prompts (${startIdx + 1}-${endIdx})...`);
     
-    // Gemini needs throttling (503 overload errors), Perplexity has strict rate limits (429)
-    const concurrency = provider === 'google' ? 3 : provider === 'perplexity' ? 2 : providerPrompts.length;
+    // Gemini needs throttling (503 overload errors), Perplexity has strict rate limits (429),
+    // Anthropic Tier 1 has 30K input tokens/min — concurrency 3 stays under limit with natural staggering
+    const concurrency = provider === 'google' ? 3 : provider === 'anthropic' ? 3 : provider === 'perplexity' ? 2 : providerPrompts.length;
     const promptTestResults = await mapWithConcurrency(
       providerPrompts,
       async (promptObj) => {

@@ -139,7 +139,7 @@ function DashboardPageInner() {
           industry: profile.companyIndustry,
           competitors: [],
           skipCooldown: false, // Enforce 24-hour cooldown
-          generateReport: true, // Generate natural language report on each analysis
+          generateReport: false, // Legacy NLR generation disabled — WeeklyReport system handles reports
           country: selectedCountry || 'US', // Run analysis for the currently selected geolocation
         }),
         signal: getAbortSignal(), // Allow cancellation if user navigates away

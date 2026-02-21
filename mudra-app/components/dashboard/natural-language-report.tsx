@@ -171,8 +171,6 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
   // Fetch WeeklyReport via brandProfileId (with country overlay when selected)
   const { report: weeklyReport, countryOverlay, error: nlrError, isLoading: isLoadingNlr, refresh: refreshNlr } = useNlr({ brandProfileId, country: selectedCountry || null })
 
-  // Fallback: legacy NaturalLanguageReport from analysis results
-  const nlrReport = analysisResultsData?.report || null
   const isLoading = isLoadingAnalysis || isLoadingNlr
   const error = analysisError || nlrError
 
@@ -239,11 +237,6 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
 
   const summaryFromModel: string = weeklyReport?.summaryMarkdown || ''
 
-  // Fallback: Use NaturalLanguageReport text if no WeeklyReport
-  const nlrReportText = nlrReport?.reportText || ''
-  const nlrMetadata = nlrReport?.metadata ? (typeof nlrReport.metadata === 'string' ? JSON.parse(nlrReport.metadata) : nlrReport.metadata) : null
-  const nlrSummary = nlrMetadata?.summary || nlrReportText
-
   function buildDigestibleSummary(): string {
     if (summaryJson) {
       const generated = buildExecutiveSummaryFromJson(summaryJson)
@@ -255,16 +248,11 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
       return modelText
     }
 
-    const legacyText = nlrSummary?.trim()
-    if (legacyText && !isJsonLikeText(legacyText)) {
-      return legacyText
-    }
-
     return ''
   }
 
-  // Build final summary - prioritize WeeklyReport, fallback to NaturalLanguageReport
-  const summary = buildDigestibleSummary() || nlrSummary
+  // Build final summary from WeeklyReport data only
+  const summary = buildDigestibleSummary()
   // Note: brandProfileId is already defined above (line ~51)
 
   // Fetch real citation data from aggregated prompt results (preview - top 5)

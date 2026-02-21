@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status') || 'new';
     const mode = searchParams.get('mode');
     const includeAll = searchParams.get('includeAll') === 'true';
-    const minRelevanceScore = parseInt(searchParams.get('minRelevanceScore') || '70', 10);
+    const minRelevanceScore = parseInt(searchParams.get('minRelevanceScore') || '75', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 

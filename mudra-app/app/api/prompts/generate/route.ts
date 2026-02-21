@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateSophisticatedPrompts } from '@/lib/services/prompt-generation.service'
+import { generateInitialPrompts } from '@/lib/services/prompt-generation.service'
 import { createCustomPrompt } from '@/lib/services/prompt-storage.service'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
@@ -32,21 +32,21 @@ export async function POST(request: NextRequest) {
 
     console.log(`🎯 Generating prompts for user request: "${userRequest || 'initial prompts'}"`)
 
-    // Generate sophisticated prompts using AI
-    const generatedPrompts = await generateSophisticatedPrompts(brandInfo)
+    // Generate prompts using the unified GPT-5.1 pipeline
+    const generatedPrompts = await generateInitialPrompts(brandInfo)
 
-    // If this is a custom request, we can save the prompts directly
+    // If this is a custom request, save a subset as custom prompts
     if (userRequest) {
-      // For custom requests, save all generated prompts as custom prompts
+      const byCategory = (cat: string) => generatedPrompts.filter(p => p.category === cat)
       const savedPrompts = await Promise.all([
-        ...generatedPrompts.organic.slice(0, 5).map(text => 
-          createCustomPrompt(authResult.brandProfileId!, text, 'Organic')
+        ...byCategory('Organic').slice(0, 5).map(p =>
+          createCustomPrompt(authResult.brandProfileId!, p.text, 'Organic')
         ),
-        ...generatedPrompts.competitor.slice(0, 3).map(text =>
-          createCustomPrompt(authResult.brandProfileId!, text, 'Competitor')
+        ...byCategory('Competitor').slice(0, 3).map(p =>
+          createCustomPrompt(authResult.brandProfileId!, p.text, 'Competitor')
         ),
-        ...generatedPrompts.howToGuides.slice(0, 2).map(text =>
-          createCustomPrompt(authResult.brandProfileId!, text, 'How-to Guides')
+        ...byCategory('How-to Guides').slice(0, 2).map(p =>
+          createCustomPrompt(authResult.brandProfileId!, p.text, 'How-to Guides')
         )
       ])
 
@@ -58,15 +58,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Return generated prompts without saving (for preview)
+    const countByCategory = generatedPrompts.reduce((acc, p) => {
+      acc[p.category] = (acc[p.category] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
     return NextResponse.json({
       success: true,
       prompts: generatedPrompts,
-      totalCount: {
-        organic: generatedPrompts.organic.length,
-        competitor: generatedPrompts.competitor.length,
-        howToGuides: generatedPrompts.howToGuides.length,
-        brandSpecific: generatedPrompts.brandSpecific.length
-      }
+      totalCount: countByCategory
     })
   } catch (error) {
     console.error('Error generating prompts:', error)

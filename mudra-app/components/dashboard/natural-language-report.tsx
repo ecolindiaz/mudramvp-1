@@ -1385,15 +1385,20 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                       let displayPath = url
                       try {
                         const urlObj = new URL(url)
-                        displayPath = urlObj.pathname || '/'
-                        if (displayPath === '/') displayPath = urlObj.hostname
-                        // Cap at 50 chars for consistent row heights
-                        if (displayPath.length > 50) {
-                          displayPath = displayPath.slice(0, 47) + '...'
+                        const pathname = urlObj.pathname || '/'
+                        if (pathname === '/') {
+                          displayPath = urlObj.hostname
+                        } else {
+                          // Include search params so URLs like /translate?u=example.com are distinguishable
+                          displayPath = pathname + urlObj.search
+                        }
+                        // Cap at 60 chars for consistent row heights
+                        if (displayPath.length > 60) {
+                          displayPath = displayPath.slice(0, 57) + '...'
                         }
                       } catch {
-                        if (displayPath.length > 50) {
-                          displayPath = displayPath.slice(0, 47) + '...'
+                        if (displayPath.length > 60) {
+                          displayPath = displayPath.slice(0, 57) + '...'
                         }
                       }
 

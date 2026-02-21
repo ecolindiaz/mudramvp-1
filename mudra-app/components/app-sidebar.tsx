@@ -324,6 +324,13 @@ const data = {
   navSecondary: [],
 }
 
+// Per-country analysis status from the API
+export interface CountryStatus {
+  country: string
+  latestScore: number | null
+  lastAnalyzed: string | null  // ISO timestamp or null if never analyzed
+}
+
 // Type for a monitor entry — ready for future backend implementation
 export interface MonitorEntry {
   id?: number            // DB id, assigned by backend
@@ -333,6 +340,7 @@ export interface MonitorEntry {
   region: string         // Active region code, e.g. "US"
   regions: string[]      // All available regions for this monitor
   isCurrent?: boolean    // Currently selected in the UI
+  countryStatuses?: CountryStatus[]  // Per-country analysis completion info
 }
 
 // Monitor data fetched from API (no more mock data)
@@ -452,6 +460,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
           region: m.primaryCountry || "US",
           regions: m.trackingCountries || ["US"],
           isCurrent: m.id === profile?.id,
+          countryStatuses: m.countryStatuses || [],
         }
       })
     }
@@ -464,6 +473,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
       region: (profile as any)?.primaryCountry || "US",
       regions: (profile as any)?.trackingCountries || ["US"],
       isCurrent: true,
+      countryStatuses: [],
     }]
   }, [apiMonitors, companyData, profile])
 
@@ -474,6 +484,51 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
     return REGIONS.filter(r => monitorRegions.includes(r.code))
   }, [currentMonitor])
 
+  // Set of country codes that have completed analysis for the current monitor.
+  // If countryStatuses is empty (API not loaded yet), treat all regions as ready
+  // to avoid showing skeleton on initial page load.
+  const analyzedCountries = React.useMemo(() => {
+    const statuses = currentMonitor?.countryStatuses || []
+    // No status data yet — don't block any region
+    if (statuses.length === 0) {
+      return new Set<string>(currentMonitor?.regions || [])
+    }
+    const analyzed = new Set<string>()
+    for (const s of statuses) {
+      if (s.lastAnalyzed) analyzed.add(s.country)
+    }
+    return analyzed
+  }, [currentMonitor?.countryStatuses, currentMonitor?.regions])
+
+  // Check if any region is still pending analysis — poll the monitors API until all done
+  const hasPendingRegions = React.useMemo(() => {
+    const regions = currentMonitor?.regions || []
+    return regions.some(code => !analyzedCountries.has(code))
+  }, [currentMonitor?.regions, analyzedCountries])
+
+  React.useEffect(() => {
+    if (!hasPendingRegions) return
+    const interval = setInterval(() => {
+      fetch('/api/monitors')
+        .then(res => res.ok ? res.json() : null)
+        .then(data => { if (data?.monitors) setApiMonitors(data.monitors) })
+        .catch(() => {})
+    }, 10_000) // poll every 10s
+    return () => clearInterval(interval)
+  }, [hasPendingRegions])
+
+  // Also refresh monitors when analysis completes (event-driven)
+  React.useEffect(() => {
+    const refresh = () => {
+      fetch('/api/monitors')
+        .then(res => res.ok ? res.json() : null)
+        .then(data => { if (data?.monitors) setApiMonitors(data.monitors) })
+        .catch(() => {})
+    }
+    window.addEventListener('mudra:analysis-complete', refresh)
+    return () => window.removeEventListener('mudra:analysis-complete', refresh)
+  }, [])
+
   // Reset selectedCountry when switching monitors if the current region isn't available
   React.useEffect(() => {
     if (availableRegions.length > 0 && !availableRegions.some(r => r.code === selectedCountry)) {
@@ -482,9 +537,11 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
   }, [availableRegions, selectedCountry, currentMonitor, setSelectedCountry])
 
   const selectRegion = React.useCallback((code: string) => {
+    // Don't allow selecting regions that haven't completed analysis
+    if (!analyzedCountries.has(code)) return
     setSelectedCountry(code)
     setGeoPopoverOpen(false)
-  }, [setSelectedCountry])
+  }, [setSelectedCountry, analyzedCountries])
 
   const handleMonitorSwitch = React.useCallback(async (monitor: MonitorEntry) => {
     if (monitor.isCurrent || !monitor.id) return
@@ -548,27 +605,50 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                   Monitors
                 </DropdownMenuLabel>
                 <DropdownMenuGroup className="px-2 py-1 space-y-0.5">
-                  {monitors.map((monitor) => (
-                    <DropdownMenuItem
-                      key={monitor.id || monitor.domain || monitor.label}
-                      onClick={() => handleMonitorSwitch(monitor)}
-                      className={`rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-2.5 ${monitor.isCurrent ? 'bg-white/[0.04]' : ''}`}
-                    >
-                      <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08] overflow-hidden">
-                        {monitor.domain ? (
-                          <DomainLogo domain={monitor.domain} size={24} className="rounded-full" />
-                        ) : (
-                          <span className="text-white/80 font-semibold text-[9px]">
-                            {monitor.label.charAt(0).toUpperCase()}
-                          </span>
+                  {monitors.map((monitor) => {
+                    // Check if the monitor's primary country has completed analysis
+                    const primaryStatus = monitor.countryStatuses?.find(s => s.country === monitor.region)
+                    const isMonitorReady = monitor.isCurrent || !primaryStatus || !!primaryStatus.lastAnalyzed
+
+                    if (!isMonitorReady) {
+                      // Skeleton / disabled state for monitors still being analyzed
+                      return (
+                        <div
+                          key={monitor.id || monitor.domain || monitor.label}
+                          className="rounded-md px-3 h-10 flex items-center gap-2.5 cursor-not-allowed opacity-50"
+                        >
+                          <div className="w-6 h-6 bg-white/[0.06] rounded-full flex-shrink-0 animate-pulse" />
+                          <span className="flex-1 truncate text-sm text-white/40">{monitor.domain || monitor.label}</span>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-amber-400/80 animate-pulse" />
+                            <span className="text-[10px] text-white/30">Setting up...</span>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <DropdownMenuItem
+                        key={monitor.id || monitor.domain || monitor.label}
+                        onClick={() => handleMonitorSwitch(monitor)}
+                        className={`rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-2.5 ${monitor.isCurrent ? 'bg-white/[0.04]' : ''}`}
+                      >
+                        <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08] overflow-hidden">
+                          {monitor.domain ? (
+                            <DomainLogo domain={monitor.domain} size={24} className="rounded-full" />
+                          ) : (
+                            <span className="text-white/80 font-semibold text-[9px]">
+                              {monitor.label.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <span className="flex-1 truncate text-sm">{monitor.domain || monitor.label}</span>
+                        {monitor.isCurrent && (
+                          <div className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />
                         )}
-                      </div>
-                      <span className="flex-1 truncate text-sm">{monitor.domain || monitor.label}</span>
-                      {monitor.isCurrent && (
-                        <div className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />
-                      )}
-                    </DropdownMenuItem>
-                  ))}
+                      </DropdownMenuItem>
+                    )
+                  })}
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator className="!bg-white/[0.08] my-2 mx-2" />
                 <div className="px-2 py-1">
@@ -601,22 +681,46 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                 <div className="px-2.5 py-2 text-[11px] font-medium text-white/40 uppercase tracking-wider">
                   Tracking Region
                 </div>
-                {availableRegions.map(region => (
-                  <button
-                    key={region.code}
-                    type="button"
-                    onClick={() => selectRegion(region.code)}
-                    className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md cursor-pointer hover:bg-white/[0.06] transition-colors w-full text-left ${
-                      selectedCountry === region.code ? 'bg-white/[0.04]' : ''
-                    }`}
-                  >
-                    <CircleFlag countryCode={region.code.toLowerCase()} height="16" width="16" className="flex-shrink-0" style={{ width: 16, height: 16 }} />
-                    <span className="text-sm text-white/80 flex-1">{region.label}</span>
-                    {selectedCountry === region.code && (
-                      <div className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />
-                    )}
-                  </button>
-                ))}
+                {availableRegions.map(region => {
+                  const isAnalyzed = analyzedCountries.has(region.code)
+                  const isSelected = selectedCountry === region.code
+
+                  if (!isAnalyzed) {
+                    // Skeleton loading state for regions still being analyzed
+                    return (
+                      <div
+                        key={region.code}
+                        className="flex items-center gap-2.5 px-2.5 py-2 rounded-md w-full cursor-not-allowed opacity-50"
+                      >
+                        <div className="flex-shrink-0 w-4 h-4 rounded-full bg-white/[0.08] animate-pulse" />
+                        <div className="flex-1 flex items-center gap-2">
+                          <span className="text-sm text-white/40">{region.label}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400/80 animate-pulse" />
+                          <span className="text-[11px] text-white/30">Analyzing...</span>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <button
+                      key={region.code}
+                      type="button"
+                      onClick={() => selectRegion(region.code)}
+                      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md cursor-pointer hover:bg-white/[0.06] transition-colors w-full text-left ${
+                        isSelected ? 'bg-white/[0.04]' : ''
+                      }`}
+                    >
+                      <CircleFlag countryCode={region.code.toLowerCase()} height="16" width="16" className="flex-shrink-0" style={{ width: 16, height: 16 }} />
+                      <span className="text-sm text-white/80 flex-1">{region.label}</span>
+                      {isSelected && (
+                        <div className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />
+                      )}
+                    </button>
+                  )
+                })}
               </PopoverContent>
             </Popover>
           </div>

@@ -33,6 +33,11 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   // When true, fetch functions skip setting loading=true (silent refresh after analysis)
   const isRefreshingRef = useRef(false)
 
+  // Always tracks the latest country so async fetches can detect staleness
+  // (prevents hydration race: mount fetches with "US" default, then country hydrates from localStorage)
+  const currentCountryRef = useRef(selectedCountry)
+  currentCountryRef.current = selectedCountry
+
   // Refs to always call the latest version of fetch functions from event listeners
   // This prevents stale closures when the event fires after selectedModel/days change
   const fetchFnsRef = useRef<{
@@ -379,6 +384,9 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   const fetchAiVisibilityHistory = async () => {
     if (!profile.id) return
 
+    // Capture country at call-time so we can detect staleness after awaits
+    const requestCountry = selectedCountry
+
     try {
       if (!isRefreshingRef.current) setLoadingAIVisibility(true)
 
@@ -396,7 +404,10 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         { signal: controller1.signal }
       )
       clearTimeout(timeoutId1)
-      
+
+      // Discard stale response if country changed while fetching
+      if (currentCountryRef.current !== requestCountry) return
+
       if (!currentResponse.ok) {
         throw new Error(`HTTP ${currentResponse.status}: ${currentResponse.statusText}`)
       }
@@ -453,6 +464,9 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
           { signal: controller2.signal }
         )
         clearTimeout(timeoutId2)
+
+        // Discard stale response if country changed while fetching
+        if (currentCountryRef.current !== requestCountry) return
 
         if (!historyResponse.ok) {
           throw new Error(`HTTP ${historyResponse.status}: ${historyResponse.statusText}`)

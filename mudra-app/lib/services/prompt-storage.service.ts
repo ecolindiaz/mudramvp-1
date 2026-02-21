@@ -1,4 +1,4 @@
-import { generateSophisticatedPrompts, profileToBrandInfo } from './prompt-generation.service'
+import { generateInitialPrompts, profileToBrandInfo } from './prompt-generation.service'
 import { prisma } from '@/lib/prisma'
 
 export interface SavedPrompt {
@@ -57,44 +57,18 @@ export async function generateAndSaveInitialPrompts(
         // Table may not exist, proceed to generate
       }
 
-      // Generate sophisticated prompts using AI
-      const generatedPrompts = await generateSophisticatedPrompts(brandInfo, language)
+      // Generate prompts using the unified GPT-5.1 pipeline (same as onboarding)
+      const generatedPrompts = await generateInitialPrompts(brandInfo, null, language)
 
       // Prepare prompts for database insertion
-      const promptsToSave = [
-        ...generatedPrompts.organic.map(text => ({
-          brandProfileId,
-          text,
-          category: 'Organic',
-          language,
-          isCustom: false,
-          isActive: true
-        })),
-        ...generatedPrompts.competitor.map(text => ({
-          brandProfileId,
-          text,
-          category: 'Competitor',
-          language,
-          isCustom: false,
-          isActive: true
-        })),
-        ...generatedPrompts.howToGuides.map(text => ({
-          brandProfileId,
-          text,
-          category: 'How-to Guides',
-          language,
-          isCustom: false,
-          isActive: true
-        })),
-        ...generatedPrompts.brandSpecific.map(text => ({
-          brandProfileId,
-          text,
-          category: 'Brand-Specific',
-          language,
-          isCustom: false,
-          isActive: true
-        }))
-      ]
+      const promptsToSave = generatedPrompts.map(p => ({
+        brandProfileId,
+        text: p.text,
+        category: p.category,
+        language,
+        isCustom: false,
+        isActive: true
+      }))
 
       console.log(`📝 Saving ${promptsToSave.length} ${language} prompts to database...`)
 

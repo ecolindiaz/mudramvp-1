@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 
 import { Loader2, Search, Radio, BookOpen, Info, MessageSquare, TrendingUp, Clock } from "lucide-react"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { cn } from "@/lib/utils"
 
 const RADAR_RUNNING_KEY = 'mudra_radar_running'
@@ -72,6 +72,22 @@ function ConversationRadarPageInner() {
     setIsMounted(true)
   }, [])
 
+  // Always tracks the latest country so async fetches can detect staleness.
+  const currentCountryRef = useRef(selectedCountry)
+  currentCountryRef.current = selectedCountry
+
+  // Reset state when country/region changes so stale results from
+  // the previous language don't remain visible while re-fetching.
+  const prevCountryRef = useRef(selectedCountry)
+  useEffect(() => {
+    if (prevCountryRef.current !== selectedCountry) {
+      prevCountryRef.current = selectedCountry
+      setOpportunities([])
+      setIsInitialLoad(true)
+      setStats(null)
+    }
+  }, [selectedCountry])
+
   // Fetch cron schedule info (per-brand)
   const fetchCronInfo = useCallback(async () => {
     if (!profile.id) return
@@ -107,11 +123,9 @@ function ConversationRadarPageInner() {
     return "Soon"
   }
 
-  // Calculate active opportunities count (70%+ relevance)
+  // Calculate active opportunities count (not engaged/dismissed)
   const activeOpportunitiesCount = opportunities.filter((o) => {
-    const isActive = o.status === "queued" || o.status === "running"
-    const scoreOk = typeof o.relevanceScore === "number" && o.relevanceScore >= 70
-    return isActive && scoreOk
+    return (o.status === "queued" || o.status === "running") && (o.relevanceScore || 0) >= 75
   }).length
 
   // Show "Run Radar" when: cron failed, overdue, never run (nextRun null), or no opportunities yet
@@ -119,12 +133,18 @@ function ConversationRadarPageInner() {
   const neverRun = cronInfo !== null && cronInfo.nextRun === null
   const showManualRun = cronFailed || isCronOverdue || neverRun || (!isInitialLoad && opportunities.length === 0)
 
-  // Refresh opportunities data without touching loading state
+  // Refresh opportunities data without touching loading state.
+  // Captures selectedCountry at call-time and discards responses if
+  // the country changed while the fetch was in flight.
   const refreshData = useCallback(async () => {
     if (!profile.id) return
+    const requestCountry = selectedCountry
     try {
-      const response = await fetch(`/api/conversation-radar/opportunities?brandProfileId=${profile.id}&status=all&limit=50&country=${selectedCountry}`)
+      const response = await fetch(`/api/conversation-radar/opportunities?brandProfileId=${profile.id}&status=all&limit=50&country=${selectedCountry}&includeAll=true`)
       const result = await response.json()
+
+      // Discard stale response (country changed while fetch was in flight)
+      if (currentCountryRef.current !== requestCountry) return
 
       if (result.success && result.data) {
         const mapped: Opportunity[] = result.data.map((opp: any) => ({
@@ -149,6 +169,9 @@ function ConversationRadarPageInner() {
       // Fetch stats + last run time
       const statsResponse = await fetch(`/api/conversation-radar/run?brandProfileId=${profile.id}&country=${selectedCountry}`)
       const statsResult = await statsResponse.json()
+
+      // Discard stale response
+      if (currentCountryRef.current !== requestCountry) return
 
       if (statsResult.success && statsResult.data) {
         setStats({
@@ -240,11 +263,10 @@ function ConversationRadarPageInner() {
 
   // Filter opportunities
   const normalizedQuery = searchQuery.trim().toLowerCase()
-  const filteredOpportunities = (viewFilter === "active" 
+  const filteredOpportunities = (viewFilter === "active"
     ? opportunities.filter((o) => {
-        const isActive = o.status === "queued" || o.status === "running"
-        return isActive && typeof o.relevanceScore === "number" && o.relevanceScore >= 70
-      }) 
+        return (o.status === "queued" || o.status === "running") && (o.relevanceScore || 0) >= 75
+      })
     : opportunities
   ).filter((o) => {
     if (!normalizedQuery) return true
@@ -341,7 +363,7 @@ function ConversationRadarPageInner() {
                         </button>
                       </TooltipTrigger>
                       <TooltipContent sideOffset={8} className="max-w-xs">
-                        Conversations you can engage with right now. Counts opportunities with 70%+ relevance.
+                        Conversations you can engage with right now. Counts opportunities not yet engaged or dismissed.
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -359,7 +381,7 @@ function ConversationRadarPageInner() {
                     {isLoading && isInitialLoad ? (
                       <div className="h-4 w-28 rounded bg-white/[0.06] animate-pulse" />
                     ) : (
-                      <span className="text-xs text-white/30">70%+ relevance score</span>
+                      <span className="text-xs text-white/30">Awaiting engagement</span>
                     )}
                   </div>
                 </div>
@@ -387,7 +409,7 @@ function ConversationRadarPageInner() {
                       <div className="h-9 w-16 rounded bg-white/[0.06] animate-pulse" />
                     ) : (
                       <div className="flex items-end justify-between">
-                        <span className="text-[28px] font-medium text-white tabular-nums">{opportunities.length}</span>
+                        <span className="text-[28px] font-medium text-white tabular-nums">{opportunities.filter(o => (o.relevanceScore || 0) >= 75).length}</span>
                         <span className="text-sm font-medium text-white/40">—</span>
                       </div>
                     )}

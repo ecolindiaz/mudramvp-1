@@ -86,12 +86,16 @@ export function useAnalysisPipeline() {
     setSimulatedProgress(0);
 
     // Simulate progress updates while analysis runs
+    // Start with a quick initial bump so it doesn't sit at 0%
+    setSimulatedProgress(3 + Math.random() * 5);
     progressIntervalRef.current = setInterval(() => {
       setSimulatedProgress(prev => {
         if (prev >= 90) return prev; // Cap at 90% until completion
-        return prev + Math.random() * 10;
+        // Faster early on, slower as it approaches 90%
+        const speed = prev < 15 ? 4 + Math.random() * 8 : prev < 50 ? 2 + Math.random() * 5 : 0.5 + Math.random() * 2;
+        return Math.min(prev + speed, 90);
       });
-    }, 1500);
+    }, 1200);
 
     // Update stage indicators progressively (simulated for better UX)
     timeoutIdsRef.current.push(

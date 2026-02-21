@@ -510,30 +510,103 @@ const TOPIC_MAPPINGS: TopicMapping[] = [
 // Default subreddits if no topic is detected
 const DEFAULT_SUBREDDITS = ['technology', 'Entrepreneur', 'startups', 'SaaS', 'business'];
 
+// ============================================================================
+// SPANISH TOPIC-TO-SUBREDDIT MAPPING
+// Mix of Spanish-language subreddits + English subreddits (LATAM devs are bilingual)
+// ============================================================================
+
+const SPANISH_TOPIC_MAPPINGS: TopicMapping[] = [
+  {
+    keywords: ['inteligencia artificial', 'aprendizaje automático', 'redes neuronales', 'aprendizaje profundo'],
+    subreddits: ['artificial', 'MachineLearning', 'LocalLLaMA', 'programacion'],
+    priority: 90,
+  },
+  {
+    keywords: ['llm', 'chatgpt', 'modelo de lenguaje', 'modelo de lenguaje grande'],
+    subreddits: ['artificial', 'ChatGPT', 'LocalLLaMA', 'programacion'],
+    priority: 85,
+  },
+  {
+    keywords: ['programación', 'desarrollo', 'código', 'software', 'devops', 'desarrollador'],
+    subreddits: ['programacion', 'devsarg', 'chileIT', 'programming'],
+    priority: 80,
+  },
+  {
+    keywords: ['nube', 'cloud', 'multi-cloud', 'aws', 'infraestructura', 'kubernetes'],
+    subreddits: ['devops', 'sysadmin', 'kubernetes', 'programacion'],
+    priority: 85,
+  },
+  {
+    keywords: ['fintech', 'banca digital', 'pagos digitales', 'pagos', 'banco digital'],
+    subreddits: ['merval', 'fintech', 'personalfinance', 'programacion'],
+    priority: 85,
+  },
+  {
+    keywords: ['saas', 'startup', 'emprendimiento', 'emprender'],
+    subreddits: ['startups', 'Entrepreneur', 'SaaS', 'programacion'],
+    priority: 75,
+  },
+  {
+    keywords: ['comercio electrónico', 'tienda online', 'ecommerce', 'e-commerce', 'tienda virtual'],
+    subreddits: ['ecommerce', 'shopify', 'Entrepreneur', 'programacion'],
+    priority: 85,
+  },
+  {
+    keywords: ['seo', 'marketing digital', 'posicionamiento', 'marketing'],
+    subreddits: ['SEO', 'marketing', 'bigseo', 'programacion'],
+    priority: 80,
+  },
+  {
+    keywords: ['ciencia de datos', 'análisis de datos', 'datos', 'big data'],
+    subreddits: ['datascience', 'dataengineering', 'programacion', 'MachineLearning'],
+    priority: 85,
+  },
+  {
+    keywords: ['ciberseguridad', 'seguridad informática', 'seguridad', 'infosec'],
+    subreddits: ['cybersecurity', 'netsec', 'programacion', 'sysadmin'],
+    priority: 85,
+  },
+  {
+    keywords: ['automatización', 'automatizar', 'workflow', 'flujo de trabajo'],
+    subreddits: ['programacion', 'devops', 'SaaS', 'startups'],
+    priority: 75,
+  },
+  // Generic fallbacks
+  {
+    keywords: ['herramienta', 'plataforma', 'solución', 'alternativa'],
+    subreddits: ['programacion', 'technology', 'startups', 'Entrepreneur'],
+    priority: 40,
+  },
+];
+
+const SPANISH_DEFAULT_SUBREDDITS = ['programacion', 'technology', 'espanol', 'Entrepreneur', 'startups'];
+
 /**
  * Generate search queries with smart subreddit targeting
  * This is the key to getting ACCURATE results!
  */
-export function generateSearchQueries(brandContext: BrandContext): GeneratedQueries {
+export function generateSearchQueries(brandContext: BrandContext, language: 'en' | 'es' = 'en'): GeneratedQueries {
   const trackedPromptQueries: TrackedPromptQuery[] = [];
   const competitorQueries: string[] = [];
-  
+
   // 1. PRIMARY: For each tracked prompt, find relevant subreddits and create targeted searches
   for (const prompt of brandContext.trackedPrompts) {
     const searchQuery = cleanPromptForSearch(prompt);
     if (!searchQuery || searchQuery.length < 5) continue;
-    
+
     // Detect topics in the prompt and find relevant subreddits
-    // Also use brand context for additional hints
-    const subreddits = detectRelevantSubreddits(prompt, brandContext);
-    
+    // Use Spanish mappings for Spanish language
+    const subreddits = language === 'es'
+      ? detectSpanishSubreddits(prompt, brandContext)
+      : detectRelevantSubreddits(prompt, brandContext);
+
     // Build search URLs for each subreddit
     // Use 'year' in search (Reddit doesn't have 3-month option)
     // The service will filter to 90 days (3 months) max
-    const searchUrls = subreddits.map(sub => 
+    const searchUrls = subreddits.map(sub =>
       buildSubredditSearchUrl(sub, searchQuery, { sort: 'relevance', timeframe: 'year' })
     );
-    
+
     trackedPromptQueries.push({
       originalPrompt: prompt,
       searchQuery,
@@ -624,6 +697,57 @@ function detectRelevantSubreddits(prompt: string, brandContext?: BrandContext): 
 }
 
 /**
+ * Detect relevant subreddits for Spanish prompts
+ * Same logic as detectRelevantSubreddits but uses SPANISH_TOPIC_MAPPINGS
+ */
+function detectSpanishSubreddits(prompt: string, brandContext?: BrandContext): string[] {
+  const promptLower = prompt.toLowerCase();
+
+  const contextText = brandContext
+    ? `${promptLower} ${brandContext.companyDescription || ''} ${brandContext.companyIndustry || ''} ${brandContext.companyICP || ''}`.toLowerCase()
+    : promptLower;
+
+  const matches: Array<{ subreddits: string[]; priority: number }> = [];
+
+  const sortedMappings = [...SPANISH_TOPIC_MAPPINGS].sort((a, b) => b.priority - a.priority);
+
+  for (const mapping of sortedMappings) {
+    for (const keyword of mapping.keywords) {
+      if (matchesKeyword(contextText, keyword)) {
+        matches.push({
+          subreddits: mapping.subreddits,
+          priority: mapping.priority,
+        });
+        break;
+      }
+    }
+  }
+
+  if (matches.length === 0) {
+    return SPANISH_DEFAULT_SUBREDDITS.slice(0, 4);
+  }
+
+  const subredditPriority = new Map<string, number>();
+
+  for (const match of matches) {
+    for (let i = 0; i < match.subreddits.length; i++) {
+      const sub = match.subreddits[i];
+      const effectivePriority = match.priority - (i * 2);
+      const currentPriority = subredditPriority.get(sub) || 0;
+      if (effectivePriority > currentPriority) {
+        subredditPriority.set(sub, effectivePriority);
+      }
+    }
+  }
+
+  const sortedSubreddits = Array.from(subredditPriority.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([sub]) => sub);
+
+  return sortedSubreddits.slice(0, 4);
+}
+
+/**
  * Smart keyword matching with word boundaries for short terms
  * Prevents false positives like "api" matching "capital"
  */
@@ -660,7 +784,7 @@ function buildSubredditSearchUrl(
 
 /**
  * Clean a tracked prompt for Reddit search
- * 
+ *
  * Reddit search tips:
  * - Quotes force exact phrase matching
  * - Shorter queries often work better
@@ -679,11 +803,18 @@ function cleanPromptForSearch(prompt: string): string {
   if (cleaned.length > 80) {
     // Try to find the core of the question
     const patterns = [
+      // English
       /best (.+?) for (.+)/i,
       /how to (.+)/i,
       /what (?:is|are) (.+)/i,
       /recommend (.+)/i,
       /looking for (.+)/i,
+      // Spanish
+      /mejou?r(?:es)? (.+?) para (.+)/i,
+      /cómo (.+)/i,
+      /qué (?:es|son) (.+)/i,
+      /buscando (.+)/i,
+      /recomendar (.+)/i,
     ];
     
     for (const pattern of patterns) {

@@ -85,6 +85,7 @@ export function calculateQueryRelevance(
  */
 function extractKeyTerms(query: string): string[] {
   const stopWords = new Set([
+    // English
     'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
     'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
     'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
@@ -92,8 +93,22 @@ function extractKeyTerms(query: string): string[] {
     'who', 'whom', 'this', 'that', 'these', 'those', 'how', 'why', 'when',
     'where', 'best', 'top', 'good', 'great', 'like', 'looking', 'need',
     'want', 'find', 'get', 'use', 'using', 'any', 'some', 'all', 'most',
+    // Spanish
+    'los', 'las', 'del', 'una', 'uno', 'unos', 'unas', 'que', 'con',
+    'por', 'para', 'como', 'más', 'mas', 'sus', 'son', 'ser', 'está',
+    'esta', 'este', 'estos', 'estas', 'eso', 'esos', 'ese', 'esa',
+    'hay', 'sobre', 'entre', 'cuando', 'desde', 'donde', 'sin',
+    'también', 'tambien', 'muy', 'todo', 'todos', 'toda', 'todas',
+    'otro', 'otra', 'otros', 'otras', 'cada', 'puede', 'pueden',
+    'mejor', 'mejores', 'cual', 'cuál', 'cuales', 'cuáles',
+    'qué', 'cómo', 'dónde', 'quién', 'quien',
+    'hacer', 'tiene', 'tienen', 'sido', 'bien', 'solo', 'sólo',
+    'pero', 'porque', 'algo', 'después', 'antes', 'ahora',
+    // Domain-ambiguous Spanish words (prevent false relevance inflation)
+    'trabajo', 'empresa', 'buscar', 'nuevo', 'nueva', 'servicio', 'servicios',
+    'necesito', 'quiero',
   ]);
-  
+
   return query
     .toLowerCase()
     .split(/\s+/)

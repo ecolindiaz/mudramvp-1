@@ -37,14 +37,15 @@ export const SCHEDULER_CONFIG = {
  */
 export async function getNextPromptsForProactive(
   brandProfileId: number,
-  limit: number = SCHEDULER_CONFIG.proactive.promptsPerRun
+  limit: number = SCHEDULER_CONFIG.proactive.promptsPerRun,
+  language: 'en' | 'es' = 'en'
 ): Promise<{ prompts: { id: number; text: string }[]; offset: number }> {
   // Get brand profile with scheduler state
   const brand = await prisma.brandProfile.findUnique({
     where: { id: brandProfileId },
     include: {
       prompts: {
-        where: { isActive: true },
+        where: { isActive: true, language },
         orderBy: { id: 'asc' },
       },
     },
@@ -64,7 +65,9 @@ export async function getNextPromptsForProactive(
   } catch {
     metadata = {};
   }
-  const lastOffset = metadata.proactivePromptOffset || 0;
+  const lastOffset = metadata.proactivePromptOffsets?.[language]
+    ?? (language === 'en' ? metadata.proactivePromptOffset : undefined)
+    ?? 0;
   
   // Calculate next offset (rotate through prompts)
   const totalPrompts = brand.prompts.length;
@@ -91,13 +94,14 @@ export async function getNextPromptsForProactive(
  */
 export async function updateProactiveOffset(
   brandProfileId: number,
-  newOffset: number
+  newOffset: number,
+  language: 'en' | 'es' = 'en'
 ): Promise<void> {
   const brand = await prisma.brandProfile.findUnique({
     where: { id: brandProfileId },
     select: { aiRecommendations: true },
   });
-  
+
   // Use aiRecommendations as JSON storage for scheduler metadata
   let metadata: any = {};
   try {
@@ -107,13 +111,16 @@ export async function updateProactiveOffset(
   } catch {
     metadata = {};
   }
-  
+
   await prisma.brandProfile.update({
     where: { id: brandProfileId },
     data: {
       aiRecommendations: JSON.stringify({
         ...metadata,
-        proactivePromptOffset: newOffset,
+        proactivePromptOffsets: {
+          ...(metadata.proactivePromptOffsets || {}),
+          [language]: newOffset,
+        },
         lastProactiveRun: new Date().toISOString(),
       }),
     },

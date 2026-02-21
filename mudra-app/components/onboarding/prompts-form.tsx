@@ -344,10 +344,10 @@ export function PromptsForm() {
   }
 
   return (
-    <Card className="w-full max-w-[400px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
-      <CardContent className="pt-8 pb-6 px-6 text-center space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-xl font-semibold text-white">
+    <Card className="w-full max-w-[440px] mx-auto bg-[#161616] border border-white/[0.06] rounded-2xl shadow-2xl">
+      <CardContent className="pt-10 pb-8 px-8 text-center space-y-8">
+        <div className="space-y-3">
+          <h2 className="text-2xl font-semibold text-white">
             Analyzing Your AI Visibility
           </h2>
           <p className="text-sm text-white/60">
@@ -357,36 +357,63 @@ export function PromptsForm() {
           </p>
         </div>
 
-        <div className="space-y-4">
-          {/* Single loader pattern for the entire final onboarding run */}
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-4 flex items-center gap-3 text-left">
-            <UnicodeLoader className="w-5 text-[18px] text-white/70 flex-shrink-0" animate />
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-white/90 truncate">
-                {LOADING_STEPS[currentStepIndex]}
-              </p>
-              <p className="text-xs text-white/50 mt-1">
-                {isIndeterminate ? "Analysis in progress" : `${Math.round(currentProgress)}% complete`}
-              </p>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="w-full bg-white/[0.08] rounded-full h-1.5 overflow-hidden">
+        {/* Progress bar */}
+        <div className="space-y-2">
+          <div className="w-full bg-white/[0.08] rounded-full h-2 overflow-hidden">
             {isIndeterminate ? (
               <div
-                className="bg-white h-1.5 rounded-full w-1/3"
+                className="bg-white h-2 rounded-full w-1/3"
                 style={{
                   animation: "onboarding-loader-sweep 1.5s ease-in-out infinite",
                 }}
               />
             ) : (
               <div
-                className="bg-white h-1.5 rounded-full"
-                style={{ width: `${currentProgress}%`, transition: "width 0.5s ease-out" }}
+                className="bg-white h-2 rounded-full"
+                style={{ width: `${currentProgress}%`, transition: "width 0.6s ease-out" }}
               />
             )}
           </div>
+          <p className="text-xs text-white/40 text-right tabular-nums">
+            {isIndeterminate ? "Analysis in progress…" : `${Math.round(currentProgress)}%`}
+          </p>
+        </div>
+
+        {/* Step list */}
+        <div className="space-y-1 text-left">
+          {LOADING_STEPS.map((step, idx) => {
+            const isDone = idx < currentStepIndex
+            const isActive = idx === currentStepIndex
+            return (
+              <div
+                key={step}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-500 ${
+                  isActive ? 'bg-white/[0.05]' : ''
+                }`}
+              >
+                <span className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                  {isDone ? (
+                    <span className="text-white/70 text-sm">✓</span>
+                  ) : isActive ? (
+                    <UnicodeLoader className="text-[16px] text-white/70" animate />
+                  ) : (
+                    <span className="block w-1.5 h-1.5 rounded-full bg-white/20" />
+                  )}
+                </span>
+                <span
+                  className={`text-sm transition-colors duration-500 ${
+                    isDone
+                      ? 'text-white/40'
+                      : isActive
+                        ? 'text-white/90 font-medium'
+                        : 'text-white/25'
+                  }`}
+                >
+                  {step}
+                </span>
+              </div>
+            )
+          })}
         </div>
       </CardContent>
       <style jsx global>{`

@@ -13,6 +13,8 @@ import {
   updateProactiveOffset,
   updateLastRadarRun,
 } from '@/lib/services/conversation-radar-scheduler';
+import { getUniqueLanguages, isAllowedCountry } from '@/lib/geo/country-config';
+import type { CountryCode } from '@/lib/geo/country-config';
 
 // Verify cron secret for security
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -93,42 +95,65 @@ export async function POST(request: NextRequest) {
     
     for (const brand of brands) {
       try {
-        if (effectiveMode === 'combined') {
-          // Run BOTH: 1 proactive + 2 cited (the default scheduled behavior)
-          const result = await runCombinedMode(brand.id);
+        // Fetch trackingCountries to determine which languages to run
+        const brandProfile = await prisma.brandProfile.findUnique({
+          where: { id: brand.id },
+          select: { trackingCountries: true },
+        });
+        const countries = (brandProfile?.trackingCountries || ['US'])
+          .filter((c): c is CountryCode => isAllowedCountry(c));
+        const languages = getUniqueLanguages(countries);
+
+        let anyLanguageSucceeded = false;
+
+        for (const language of languages) {
+          try {
+            if (effectiveMode === 'combined') {
+              const result = await runCombinedMode(brand.id, language);
+              results.push({
+                brandId: brand.id,
+                brandName: brand.companyName,
+                mode: `combined:${language}`,
+                success: true,
+                opportunities: result.proactiveCreated + result.citedCreated,
+                analyzed: result.analyzed,
+              });
+            } else if (effectiveMode === 'cited') {
+              const result = await runCitedMode(brand.id, language);
+              results.push({
+                brandId: brand.id,
+                brandName: brand.companyName,
+                mode: `cited:${language}`,
+                success: true,
+                opportunities: result.created,
+                analyzed: result.analyzed,
+              });
+            } else {
+              const result = await runProactiveMode(brand.id, language);
+              results.push({
+                brandId: brand.id,
+                brandName: brand.companyName,
+                mode: `proactive:${language}`,
+                success: true,
+                opportunities: result.created,
+                analyzed: result.analyzed,
+              });
+            }
+            anyLanguageSucceeded = true;
+          } catch (error) {
+            console.error(`[Cron] Error processing brand ${brand.id} (${language}):`, error);
+            results.push({
+              brandId: brand.id,
+              brandName: brand.companyName,
+              mode: `${effectiveMode}:${language}`,
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        }
+
+        if (anyLanguageSucceeded) {
           await updateLastRadarRun(brand.id);
-          results.push({
-            brandId: brand.id,
-            brandName: brand.companyName,
-            mode: 'combined',
-            success: true,
-            opportunities: result.proactiveCreated + result.citedCreated,
-            analyzed: result.analyzed,
-          });
-        } else if (effectiveMode === 'cited') {
-          // Run citation mode only
-          const result = await runCitedMode(brand.id);
-          await updateLastRadarRun(brand.id);
-          results.push({
-            brandId: brand.id,
-            brandName: brand.companyName,
-            mode: 'cited',
-            success: true,
-            opportunities: result.created,
-            analyzed: result.analyzed,
-          });
-        } else {
-          // Run proactive mode only with prompt rotation
-          const result = await runProactiveMode(brand.id);
-          await updateLastRadarRun(brand.id);
-          results.push({
-            brandId: brand.id,
-            brandName: brand.companyName,
-            mode: 'proactive',
-            success: true,
-            opportunities: result.created,
-            analyzed: result.analyzed,
-          });
         }
       } catch (error) {
         console.error(`[Cron] Error processing brand ${brand.id}:`, error);
@@ -163,37 +188,38 @@ export async function POST(request: NextRequest) {
  * Run combined mode for a brand (1 proactive + 2 cited)
  * This is the default scheduled behavior
  */
-async function runCombinedMode(brandProfileId: number): Promise<{
+async function runCombinedMode(brandProfileId: number, language: 'en' | 'es' = 'en'): Promise<{
   proactiveCreated: number;
   citedCreated: number;
   analyzed: number;
 }> {
   let proactiveCreated = 0;
   let citedCreated = 0;
-  
+
   // 1. Run proactive search (1 prompt per run)
-  console.log(`[Cron] Running proactive search for brand ${brandProfileId}`);
-  const proactiveResult = await runProactiveSearch(brandProfileId);
+  console.log(`[Cron] Running proactive search for brand ${brandProfileId} (${language})`);
+  const proactiveResult = await runProactiveSearch(brandProfileId, language);
   proactiveCreated = proactiveResult.reddit;
-  
+
   // 2. Run cited search (max 2 citations per run)
   const latestAnalysis = await getLatestAnalysisRun(brandProfileId);
   if (latestAnalysis) {
-    console.log(`[Cron] Running cited search for brand ${brandProfileId} (max: 2)`);
-    const citedResult = await processCitedOpportunities(brandProfileId, latestAnalysis.id, { maxCitations: 2 });
+    console.log(`[Cron] Running cited search for brand ${brandProfileId} (${language}, max: 2)`);
+    const citedResult = await processCitedOpportunities(brandProfileId, latestAnalysis.id, { maxCitations: 2, language });
     citedCreated = citedResult.created;
   } else {
     console.log(`[Cron] No analysis run found for brand ${brandProfileId}, skipping cited`);
   }
-  
+
   // 3. Analyze new opportunities (analyze all new ones from this run)
   const analysisResult = await analyzeNewOpportunities(brandProfileId, {
     limit: 5, // Analyze up to 5 (1 proactive + 2 cited + buffer)
     minRelevanceScore: 30,
+    language,
   });
-  
-  console.log(`[Cron] Combined results: ${proactiveCreated} proactive, ${citedCreated} cited, ${analysisResult.analyzed} analyzed`);
-  
+
+  console.log(`[Cron] Combined results (${language}): ${proactiveCreated} proactive, ${citedCreated} cited, ${analysisResult.analyzed} analyzed`);
+
   return {
     proactiveCreated,
     citedCreated,
@@ -204,27 +230,28 @@ async function runCombinedMode(brandProfileId: number): Promise<{
 /**
  * Run citation mode for a brand
  */
-async function runCitedMode(brandProfileId: number): Promise<{
+async function runCitedMode(brandProfileId: number, language: 'en' | 'es' = 'en'): Promise<{
   created: number;
   analyzed: number;
 }> {
   // Get latest analysis run
   const latestAnalysis = await getLatestAnalysisRun(brandProfileId);
-  
+
   if (!latestAnalysis) {
     console.log(`[Cron] No analysis run found for brand ${brandProfileId}, skipping cited mode`);
     return { created: 0, analyzed: 0 };
   }
-  
+
   // Process citations (with default limit of 2)
-  const citedResult = await processCitedOpportunities(brandProfileId, latestAnalysis.id, { maxCitations: 2 });
-  
+  const citedResult = await processCitedOpportunities(brandProfileId, latestAnalysis.id, { maxCitations: 2, language });
+
   // Analyze new opportunities
   const analysisResult = await analyzeNewOpportunities(brandProfileId, {
     limit: SCHEDULER_CONFIG.cited.llmAnalysisLimit,
     minRelevanceScore: 30,
+    language,
   });
-  
+
   return {
     created: citedResult.created,
     analyzed: analysisResult.analyzed,
@@ -234,34 +261,35 @@ async function runCitedMode(brandProfileId: number): Promise<{
 /**
  * Run proactive mode with prompt rotation
  */
-async function runProactiveMode(brandProfileId: number): Promise<{
+async function runProactiveMode(brandProfileId: number, language: 'en' | 'es' = 'en'): Promise<{
   created: number;
   analyzed: number;
   promptsProcessed: number;
 }> {
   // Get next batch of prompts to process
-  const { prompts, offset } = await getNextPromptsForProactive(brandProfileId);
-  
+  const { prompts, offset } = await getNextPromptsForProactive(brandProfileId, undefined, language);
+
   if (prompts.length === 0) {
-    console.log(`[Cron] No prompts to process for brand ${brandProfileId}`);
+    console.log(`[Cron] No prompts to process for brand ${brandProfileId} (${language})`);
     return { created: 0, analyzed: 0, promptsProcessed: 0 };
   }
-  
-  console.log(`[Cron] Processing ${prompts.length} prompts (offset: ${offset})`);
+
+  console.log(`[Cron] Processing ${prompts.length} prompts (${language}, offset: ${offset})`);
   console.log(`[Cron] Prompts: ${prompts.map(p => p.text.slice(0, 40)).join(', ')}...`);
-  
+
   // Run proactive search (it will use the limit we set in config)
-  const proactiveResult = await runProactiveSearch(brandProfileId);
-  
-  // Update offset for next run
-  await updateProactiveOffset(brandProfileId, offset);
-  
+  const proactiveResult = await runProactiveSearch(brandProfileId, language);
+
+  // Update offset for next run (per-language)
+  await updateProactiveOffset(brandProfileId, offset, language);
+
   // Analyze new opportunities
   const analysisResult = await analyzeNewOpportunities(brandProfileId, {
     limit: SCHEDULER_CONFIG.proactive.llmAnalysisLimit,
     minRelevanceScore: 25, // Lower threshold since we do stricter filtering later
+    language,
   });
-  
+
   return {
     created: proactiveResult.reddit,
     analyzed: analysisResult.analyzed,

@@ -7,16 +7,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getOpportunityForFrontend } from '@/lib/services/conversation-radar.service';
+import { getLanguageForCountry, isAllowedCountry } from '@/lib/geo/country-config';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const opportunityId = searchParams.get('opportunityId');
     const brandProfileId = searchParams.get('brandProfileId');
+    const country = searchParams.get('country');
     const status = searchParams.get('status') || 'new';
     const mode = searchParams.get('mode');
     const includeAll = searchParams.get('includeAll') === 'true';
-    const minRelevanceScore = parseInt(searchParams.get('minRelevanceScore') || '70', 10);
+    const minRelevanceScore = parseInt(searchParams.get('minRelevanceScore') || '75', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
@@ -49,6 +51,11 @@ export async function GET(req: NextRequest) {
     const where: Record<string, unknown> = {
       brandProfileId: parseInt(brandProfileId, 10),
     };
+
+    // Filter by language derived from country
+    if (country && isAllowedCountry(country)) {
+      where.language = getLanguageForCountry(country);
+    }
 
     if (status !== 'all') {
       where.status = status;

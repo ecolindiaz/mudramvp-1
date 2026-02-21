@@ -73,9 +73,9 @@ interface DiscoveredViaItem {
 export async function processCitedOpportunities(
   brandProfileId: number,
   analysisRunId: number,
-  options: { maxCitations?: number } = {}
+  options: { maxCitations?: number; language?: 'en' | 'es' } = {}
 ): Promise<ProcessingStats> {
-  const { maxCitations = 2 } = options; // Default: 2 citations per run
+  const { maxCitations = 2, language = 'en' } = options; // Default: 2 citations per run
   const stats: ProcessingStats = { created: 0, skipped: 0, errors: 0 };
   
   console.log(`[Cited Radar] Processing analysis run ${analysisRunId} for brand ${brandProfileId} (max: ${maxCitations})`);
@@ -100,10 +100,11 @@ export async function processCitedOpportunities(
   // 3. Get unique Reddit URLs
   let redditUrls = [...new Set(citations.map(c => c.url))];
   
-  // 4. Filter out URLs that already have opportunities (to avoid re-processing)
+  // 4. Filter out URLs that already have opportunities for this language (to avoid re-processing)
   const existingOpportunities = await prisma.conversationOpportunity.findMany({
     where: {
       brandProfileId,
+      language,
       postUrl: { in: redditUrls },
     },
     select: { postUrl: true },
@@ -155,6 +156,7 @@ export async function processCitedOpportunities(
             provider: c.provider,
             citationTitle: c.citationTitle,
           })),
+          language,
         });
         stats.created++;
       } catch (error: any) {
@@ -192,16 +194,17 @@ export async function processCitedOpportunities(
  * - Much higher accuracy and relevance
  */
 export async function runProactiveSearch(
-  brandProfileId: number
+  brandProfileId: number,
+  language: 'en' | 'es' = 'en'
 ): Promise<ProactiveSearchStats> {
   const stats: ProactiveSearchStats = { reddit: 0, total: 0, queries: [] };
-  
-  console.log(`[Proactive Radar] Starting for brand ${brandProfileId}`);
-  
-  // 1. Get brand context with tracked prompts
+
+  console.log(`[Proactive Radar] Starting for brand ${brandProfileId} (language: ${language})`);
+
+  // 1. Get brand context with tracked prompts (filtered by language)
   const brandProfile = await prisma.brandProfile.findUnique({
     where: { id: brandProfileId },
-    include: { prompts: { where: { isActive: true } } },
+    include: { prompts: { where: { isActive: true, language } } },
   });
   
   if (!brandProfile) {
@@ -214,7 +217,17 @@ export async function runProactiveSearch(
     companyICP: brandProfile.companyICP,
     companyIndustry: brandProfile.companyIndustry,
     competitors: brandProfile.competitors?.split(',').map(c => c.trim()).filter(Boolean) || [],
-    trackedPrompts: brandProfile.prompts.map(p => p.text),
+    trackedPrompts: (language !== 'en'
+      ? brandProfile.prompts.filter(p => {
+          // For non-English: skip brand-specific prompts (Apify queries mode returns garbage)
+          if (p.category === 'Brand-Specific') return false;
+          // Skip FAQs that mention the company name
+          if (p.category === 'FAQ' && brandProfile.companyName &&
+              p.text.toLowerCase().includes(brandProfile.companyName.toLowerCase())) return false;
+          return true;
+        })
+      : brandProfile.prompts
+    ).map(p => p.text),
   };
   
   console.log(`[Proactive Radar] Brand context:`, {
@@ -229,7 +242,7 @@ export async function runProactiveSearch(
   }
   
   // 2. Generate search queries from tracked prompts
-  const queries = generateSearchQueries(brandContext);
+  const queries = generateSearchQueries(brandContext, language);
   console.log(`[Proactive Radar] Generated ${queries.trackedPromptQueries.length} tracked prompt queries`);
   
   // ⚡ CREDIT OPTIMIZATION: Process up to 3 tracked prompts + 1 competitor query per run
@@ -245,7 +258,8 @@ export async function runProactiveSearch(
     brandProfileId,
     limitedPromptQueries,
     limitedCompetitorQueries,
-    brandContext
+    brandContext,
+    language
   );
   
   stats.reddit = redditOpportunities;
@@ -268,7 +282,8 @@ async function searchRedditWithTrackedPrompts(
   brandProfileId: number,
   trackedPromptQueries: TrackedPromptQuery[],
   competitorQueries: string[],
-  brandContext: BrandContext
+  brandContext: BrandContext,
+  language: 'en' | 'es' = 'en'
 ): Promise<number> {
   let opportunitiesCreated = 0;
   const processedUrls = new Set<string>();
@@ -278,89 +293,86 @@ async function searchRedditWithTrackedPrompts(
   for (const promptQuery of trackedPromptQueries) {
     console.log(`\n[Reddit] 📍 Searching for: "${promptQuery.searchQuery}"`);
     console.log(`[Reddit] Target subreddits: r/${promptQuery.subreddits.join(', r/')}`);
-    
+
     try {
-      // Search all relevant subreddits (URLs are pre-built in query generator)
-      // ⚡ CREDIT OPTIMIZATION: Reduced from 50 to 20 posts per search
+      // Use subreddit-targeted URLs for ALL languages.
+      // Spanish now has its own subreddit mappings (r/programacion, r/inteligenciaartificial, etc.)
+      // so we get the same precision as English. Slightly higher maxPosts for Spanish
+      // since some Spanish subreddits are smaller.
       const result = await searchReddit({
         urls: promptQuery.searchUrls,
-        maxPosts: 20, // Reduced to save Apify credits
+        maxPosts: language !== 'en' ? 30 : 20,
       });
       
       if (result.success) {
         console.log(`[Reddit] Found ${result.posts.length} posts for: "${promptQuery.searchQuery}"`);
         
-        // Track stats for logging
-        let relevantCount = 0;
-        let irrelevantCount = 0;
-        
+        // ⭐ TWO-PASS FILTERING: collect candidates → rank → save top N
+        // This prevents flooding the DB with low-relevance posts from target subreddits.
+        const MAX_PER_QUERY = 8; // Save only the top 8 per query for LLM analysis
+        const MIN_INITIAL_SCORE = 20; // Floor: need SOME signal beyond just being in the right subreddit
+
+        const candidates: { post: RedditPost; queryRelevance: number; initialScore: number }[] = [];
+        let filteredCount = 0;
+
         for (const post of result.posts) {
           // Skip already processed
           if (processedUrls.has(post.url)) continue;
           processedUrls.add(post.url);
-          
-          // ⭐ STAGE 1: Minimal keyword filtering (just spam protection)
-          // LOWERED to 20% - keyword matching misses semantic relevance!
-          // Example: "document annotation" vs "data annotation" = 0% keyword match
-          // but 90% semantic relevance. Let the LLM (Stage 2) decide!
-          const queryRelevance = calculateQueryRelevance(post, promptQuery.searchQuery);
-          
-          if (queryRelevance < 0.20) {
-            // Only skip posts with almost NO keyword overlap
-            // The LLM will filter out truly irrelevant ones
-            irrelevantCount++;
-            continue;
-          }
-          
+
           // Apply quality filters
-          // Max 90 days (3 months) - older posts aren't worth engaging with
           if (!isQualityRedditPost(post, {
-            maxAgeDays: 90,  // 3 months max - don't engage on old posts
-            minScore: 2,     // Lower threshold - relevance matters more than popularity
-            minComments: 0,  // Even no comments is fine if relevant
+            maxAgeDays: 90,
+            minScore: 2,
+            minComments: 0,
             minUpvoteRatio: 0.3,
-          })) continue;
-          
-          if (!isQualityContent(post.body || '', 'reddit')) continue;
-          
-          // Calculate INITIAL relevance score (preliminary only)
-          // ⚠️ IMPORTANT: This is just a preliminary score!
-          // The REAL relevance score comes from LLM analysis (Stage 2)
-          // 
-          // Scoring:
-          // - Keyword match: up to 20 points (not reliable for semantic relevance)
-          // - Subreddit bonus: up to 15 points (r/MachineLearning = relevant)
-          // - Brand context: up to 15 points (mentions company, ICP terms)
+          })) { filteredCount++; continue; }
+
+          if (!isQualityContent(post.body || '', 'reddit')) { filteredCount++; continue; }
+
+          // Calculate INITIAL relevance score (preliminary — LLM sets the real score)
+          const queryRelevance = calculateQueryRelevance(post, promptQuery.searchQuery);
           const keywordScore = queryRelevance * 20;
           const subredditBonus = promptQuery.subreddits.includes(post.subreddit) ? 15 : 5;
           const brandBonus = Math.min(15, calculateRelevanceBonus(post, brandContext));
-          const relevance = Math.min(50, Math.round(keywordScore + subredditBonus + brandBonus)); // ⚡ CAP AT 50
-          
-          relevantCount++;
-          
+          const initialScore = Math.min(50, Math.round(keywordScore + subredditBonus + brandBonus));
+
+          // Floor check: skip posts with no signal beyond subreddit presence
+          if (initialScore < MIN_INITIAL_SCORE) { filteredCount++; continue; }
+
+          candidates.push({ post, queryRelevance, initialScore });
+        }
+
+        // Rank by initial score descending, take top N
+        candidates.sort((a, b) => b.initialScore - a.initialScore);
+        const topCandidates = candidates.slice(0, MAX_PER_QUERY);
+        const droppedCount = candidates.length - topCandidates.length;
+
+        for (const { post, queryRelevance, initialScore } of topCandidates) {
           try {
             await createOrUpdateOpportunity({
               brandProfileId,
               post,
               platform: 'reddit',
               mode: 'proactive',
-              discoveredVia: [{ 
+              discoveredVia: [{
                 searchQuery: promptQuery.searchQuery,
-                promptText: promptQuery.originalPrompt, // Store the original tracked prompt
+                promptText: promptQuery.originalPrompt,
               }],
               searchQuery: promptQuery.searchQuery,
-              initialRelevanceScore: relevance,
+              initialRelevanceScore: initialScore,
+              language,
             });
             opportunitiesCreated++;
-            console.log(`[Reddit] ✓ Created: "${post.title?.slice(0, 50)}..." (queryMatch: ${(queryRelevance * 100).toFixed(0)}%, score: ${relevance})`);
+            console.log(`[Reddit] ✓ Created: "${post.title?.slice(0, 50)}..." (queryMatch: ${(queryRelevance * 100).toFixed(0)}%, score: ${initialScore})`);
           } catch (error: any) {
             if (error.code !== 'P2002') {
               console.error('[Reddit] Error creating opportunity:', error.message);
             }
           }
         }
-        
-        console.log(`[Reddit] Query "${promptQuery.searchQuery}": ${relevantCount} relevant, ${irrelevantCount} filtered out`);
+
+        console.log(`[Reddit] Query "${promptQuery.searchQuery}": ${topCandidates.length} saved, ${filteredCount} filtered (quality/age), ${droppedCount} dropped (rank cutoff)`);
       }
       
       // Rate limiting between searches (1.5s to avoid overwhelming Apify)
@@ -412,6 +424,7 @@ async function searchRedditWithTrackedPrompts(
               discoveredVia: [{ searchQuery: query }],
               searchQuery: query,
               initialRelevanceScore: relevance,
+              language,
             });
             opportunitiesCreated++;
             console.log(`[Reddit] ✓ Competitor match: "${post.title?.slice(0, 50)}..." (score: ${relevance})`);
@@ -497,13 +510,14 @@ interface CreateOpportunityInput {
   discoveredVia: DiscoveredViaItem[];
   searchQuery?: string;
   initialRelevanceScore?: number;
+  language: 'en' | 'es';
 }
 
 /**
  * Create or update a conversation opportunity in the database
  */
 async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
-  const { brandProfileId, post, platform, mode, discoveredVia, searchQuery, initialRelevanceScore } = input;
+  const { brandProfileId, post, platform, mode, discoveredVia, searchQuery, initialRelevanceScore, language } = input;
   
   const redditPost = post as RedditPost;
   
@@ -524,9 +538,10 @@ async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
   
   return prisma.conversationOpportunity.upsert({
     where: {
-      brandProfileId_postUrl: {
+      brandProfileId_postUrl_language: {
         brandProfileId,
         postUrl,
+        language,
       },
     },
     create: {
@@ -547,6 +562,7 @@ async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
       searchQuery,
       postCreatedAt,
       status: 'new',
+      language,
       // Store initial relevance if provided (will be updated by LLM analysis)
       relevanceScore: initialRelevanceScore,
     },
@@ -584,7 +600,7 @@ export async function getOpportunities(
     includeAll?: boolean; // For "All opportunities" view - includes all scores
   } = {}
 ) {
-  const { status = 'new', mode, platform, limit = 50, offset = 0, minRelevanceScore = 70, includeAll = false } = options;
+  const { status = 'new', mode, platform, limit = 50, offset = 0, minRelevanceScore = 75, includeAll = false } = options;
   
   const where: any = { brandProfileId };
   
@@ -693,9 +709,9 @@ export async function updateOpportunityStatus(
 /**
  * Get the latest analysis run for a brand
  */
-export async function getLatestAnalysisRun(brandProfileId: number) {
+export async function getLatestAnalysisRun(brandProfileId: number, country?: string) {
   return prisma.analysisRun.findFirst({
-    where: { brandProfileId },
+    where: { brandProfileId, ...(country ? { country } : {}) },
     orderBy: { ranAt: 'desc' },
   });
 }
@@ -777,18 +793,20 @@ export async function analyzeNewOpportunities(
   options: {
     limit?: number;
     minRelevanceScore?: number;  // Only analyze opportunities with initial score above this
+    language?: 'en' | 'es';
   } = {}
 ): Promise<{ analyzed: number; errors: number }> {
-  const { limit = 10, minRelevanceScore = 0 } = options;
-  
+  const { limit = 10, minRelevanceScore = 0, language } = options;
+
   // Get unanalyzed opportunities
   const opportunities = await prisma.conversationOpportunity.findMany({
     where: {
       brandProfileId,
       conversationSnapshot: null, // Not yet analyzed
-      relevanceScore: minRelevanceScore > 0 
-        ? { gte: minRelevanceScore } 
+      relevanceScore: minRelevanceScore > 0
+        ? { gte: minRelevanceScore }
         : undefined,
+      ...(language ? { language } : {}),
     },
     include: {
       brandProfile: {
@@ -855,7 +873,7 @@ export async function analyzeNewOpportunities(
         },
       });
       analyzed++;
-      if (analysis.relevanceScore >= 70) relevant++;
+      if (analysis.relevanceScore >= 75) relevant++;
     } catch (error) {
       console.error(`[Conversation Radar] Failed to update opportunity ${id}:`, error);
       errors++;

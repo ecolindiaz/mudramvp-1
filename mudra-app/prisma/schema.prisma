@@ -977,6 +977,9 @@ model ConversationOpportunity {
   // Quality metrics
   qualityScore             Float?
 
+  // Language (matches Prompt model pattern)
+  language                 String       @default("en")
+
   // Timestamps
   createdAt                DateTime     @default(now())
   updatedAt                DateTime     @updatedAt
@@ -984,9 +987,10 @@ model ConversationOpportunity {
   // Relations
   brandProfile             BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
 
-  @@unique([brandProfileId, postUrl])
+  @@unique([brandProfileId, postUrl, language])
   @@index([brandProfileId])
   @@index([brandProfileId, status])
+  @@index([brandProfileId, language, status])
   @@index([brandProfileId, relevanceScore])
   @@index([status])
   @@index([createdAt])

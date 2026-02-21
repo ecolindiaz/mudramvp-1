@@ -1,4 +1,4 @@
-import { generateSophisticatedPrompts, profileToBrandInfo, type GeneratedPrompts } from './prompt-generation.service';
+import { generateInitialPrompts, profileToBrandInfo } from './prompt-generation.service';
 import { validateCompetitors, quickValidateName, type ValidatedCompetitor } from './competitor-validation.service';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
@@ -214,7 +214,7 @@ async function retryWithBackoff<T>(
       return await fn();
     } catch (error: any) {
       const isLastAttempt = attempt === maxRetries - 1;
-      const isRetryable = 
+      const isRetryable =
         error.status === 429 || // Rate limit
         error.status === 500 || // Server error
         error.status === 502 || // Bad gateway
@@ -223,17 +223,29 @@ async function retryWithBackoff<T>(
         error.code === 'ECONNRESET' ||
         error.code === 'ETIMEDOUT' ||
         error.message?.includes('timeout');
-      
+
       if (!isRetryable || isLastAttempt) {
         throw error;
       }
-      
-      const delay = initialDelay * Math.pow(2, attempt);
-      console.warn(`⚠️  Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms due to: ${error.message}`);
+
+      // Respect retry-after header from API (Anthropic SDK attaches headers to error)
+      let retryAfterMs = 0;
+      const retryAfterHeader = error.headers?.get?.('retry-after') ?? error.headers?.['retry-after'];
+      if (retryAfterHeader) {
+        const retryAfterSec = parseFloat(retryAfterHeader);
+        if (!isNaN(retryAfterSec)) {
+          retryAfterMs = retryAfterSec * 1000;
+        }
+      }
+
+      const exponentialDelay = initialDelay * Math.pow(2, attempt);
+      const MAX_WAIT_MS = 120_000; // Cap at 2 minutes
+      const delay = Math.min(Math.max(retryAfterMs, exponentialDelay), MAX_WAIT_MS);
+      console.warn(`⚠️  Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms (retry-after: ${retryAfterMs}ms, exponential: ${exponentialDelay}ms) due to: ${error.message}`);
       await sleep(delay);
     }
   }
-  
+
   throw new Error('Max retries exceeded');
 }
 
@@ -757,23 +769,13 @@ async function generateGEOPrompts(config: DirectGEOConfig): Promise<Array<{ text
       competitors: config.competitors || [],
     };
 
-    // Generate sophisticated prompts using the Mudra system
-    const generatedPrompts = await generateSophisticatedPrompts(brandInfo);
-    
-    // Combine all prompt categories with their categories for intent weighting
-    const allPrompts = [
-      ...generatedPrompts.organic.map(text => ({ text, category: 'Organic' })),
-      ...generatedPrompts.competitor.map(text => ({ text, category: 'Competitor' })),
-      ...generatedPrompts.howToGuides.map(text => ({ text, category: 'How-to Guides' })),
-      ...generatedPrompts.brandSpecific.map(text => ({ text, category: 'Brand-Specific' })),
-    ];
+    // Generate prompts using the unified GPT-5.1 pipeline
+    const generatedPrompts = await generateInitialPrompts(brandInfo);
 
-    console.log(`✅ Generated ${allPrompts.length} sophisticated prompts with categories`);
-    console.log(`   - Organic: ${generatedPrompts.organic.length}`);
-    console.log(`   - Competitor: ${generatedPrompts.competitor.length}`);
-    console.log(`   - How-to Guides: ${generatedPrompts.howToGuides.length}`);
-    console.log(`   - Brand-Specific: ${generatedPrompts.brandSpecific.length}`);
-    
+    const allPrompts = generatedPrompts.map(p => ({ text: p.text, category: p.category }));
+
+    console.log(`✅ Generated ${allPrompts.length} prompts with categories`);
+
     return allPrompts;
 
   } catch (error) {
@@ -1090,7 +1092,10 @@ async function analyzeWithOpenAI(
 
   try {
     // Use OpenAI Responses API with web_search tool for real-time data
-    // No system prompt - let the model respond naturally to simulate real user searches
+    // Instructions mirror the ChatGPT frontend's query-reformulation behaviour:
+    // without them the API often fails to resolve misspelled / ambiguous brand names.
+    const instructions = 'You are a helpful assistant that answers user questions by searching the web. When the user asks about a brand, product, or company, if the name appears misspelled or ambiguous, search for the most likely intended brand or product and present accurate, detailed information from official sources.';
+
     const response = await retryWithBackoff(async () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
@@ -1104,6 +1109,7 @@ async function analyzeWithOpenAI(
           },
           body: JSON.stringify({
             model: 'gpt-4o',
+            instructions,
             tools: [
               {
                 type: 'web_search',
@@ -1112,7 +1118,7 @@ async function analyzeWithOpenAI(
               },
             ],
             tool_choice: { type: 'web_search' }, // Force web search
-            input: prompt, // Direct prompt without system instructions
+            input: prompt,
             include: ['web_search_call.action.sources'],
           }),
           signal: controller.signal,
@@ -1650,7 +1656,7 @@ async function analyzeWithAnthropic(
               {
                 type: 'web_search_20250305',
                 name: 'web_search',
-                max_uses: 5,
+                max_uses: 3,
                 ...(config.country ? (() => { const geo = buildClaudeGeoConfig(config.country!); return geo ? { user_location: geo } : {}; })() : {}),
               } as any,
             ],
@@ -2324,8 +2330,9 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     
     console.log(`\n🔍 Analyzing with ${provider}: testing ${providerPrompts.length} prompts (${startIdx + 1}-${endIdx})...`);
     
-    // Gemini needs throttling (503 overload errors), Perplexity has strict rate limits (429)
-    const concurrency = provider === 'google' ? 3 : provider === 'perplexity' ? 2 : providerPrompts.length;
+    // Gemini needs throttling (503 overload errors), Perplexity has strict rate limits (429),
+    // Anthropic Tier 1 has 30K input tokens/min — serialize calls to avoid exhausting budget
+    const concurrency = provider === 'google' ? 3 : provider === 'anthropic' ? 1 : provider === 'perplexity' ? 2 : providerPrompts.length;
     const promptTestResults = await mapWithConcurrency(
       providerPrompts,
       async (promptObj) => {
@@ -2336,6 +2343,12 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
           const test = await analyzePromptWithProvider(promptText, provider, config);
           const testWithCategory = { ...test, promptCategory };
           console.log(`  ✓ [${provider}] "${promptText.substring(0, 50)}..." - Brand mentioned: ${test.brandMentioned}`);
+          // Anthropic Tier 1: 30K input tokens/min — web_search injects thousands of tokens per call.
+          // Sleep 20s between calls to stay well under the rate limit (~3 calls/min).
+          if (provider === 'anthropic') {
+            console.log(`  ⏳ [anthropic] Waiting 20s for token budget to replenish...`);
+            await sleep(20_000);
+          }
           return testWithCategory;
         } catch (error) {
           console.error(`  ✗ [${provider}] Failed prompt: ${promptText.substring(0, 50)}...`, error);

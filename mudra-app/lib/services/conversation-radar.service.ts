@@ -232,14 +232,13 @@ export async function runProactiveSearch(
   const queries = generateSearchQueries(brandContext);
   console.log(`[Proactive Radar] Generated ${queries.trackedPromptQueries.length} tracked prompt queries`);
   
-  // ⚡ CREDIT OPTIMIZATION: Process only 1 tracked prompt per run
-  // This prevents burning through all prompts at once
-  // The scheduler/cron will rotate through prompts over time
-  const MAX_QUERIES_PER_RUN = 1;
+  // ⚡ CREDIT OPTIMIZATION: Process up to 3 tracked prompts + 1 competitor query per run
+  // The scheduler/cron will rotate through remaining prompts over time
+  const MAX_QUERIES_PER_RUN = 3;
   const limitedPromptQueries = queries.trackedPromptQueries.slice(0, MAX_QUERIES_PER_RUN);
-  const limitedCompetitorQueries: string[] = []; // Skip competitor queries to save credits
-  
-  console.log(`[Proactive Radar] ⚡ Processing ${limitedPromptQueries.length}/${queries.trackedPromptQueries.length} queries (credit limit)`);
+  const limitedCompetitorQueries = queries.competitorQueries.slice(0, 1);
+
+  console.log(`[Proactive Radar] ⚡ Processing ${limitedPromptQueries.length} prompt + ${limitedCompetitorQueries.length} competitor queries (credit limit)`);
   
   // 3. Search Reddit using tracked prompts directly
   const redditOpportunities = await searchRedditWithTrackedPrompts(

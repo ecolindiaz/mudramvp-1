@@ -130,6 +130,8 @@ interface Issue {
   title: string
   description?: string | null
   checkCode?: string | null
+  affectedUrl?: string | null
+  estimatedImpact?: string | null
   status: "identified" | "in_progress" | "completed" | "merged" | "failed" | "dismissed"
   priority: "low" | "medium" | "high"
   order: number
@@ -759,6 +761,43 @@ function DeleteDialog({
   )
 }
 
+// AEO fix instructions keyed by agentType (4 scoring dimensions + llms.txt)
+const FIX_INSTRUCTIONS: Record<string, string> = {
+  schema_markup: `Schema Markup (40 pts)
+- Add a JSON-LD <script type="application/ld+json"> block inside <head>.
+- Use AEO-relevant types: Organization, Product, FAQPage, Article, WebApplication, BreadcrumbList, HowTo, VideoObject, ItemList, Review, Person, SoftwareApplication, OfferCatalog, WebSite, WebPage, LocalBusiness, Service.
+- Include ALL required properties for each type (see schema.org).
+- Validate with https://validator.schema.org — zero errors, zero warnings.
+- Match schema properties to actual on-page content (don't fabricate data).`,
+
+  meta_optimization: `Metadata (30 pts)
+- <title>: 50-60 characters, front-load primary keyword, include brand name.
+- <meta name="description">: 150-160 characters, include a clear call-to-action.
+- <link rel="canonical">: absolute URL, self-referencing, no trailing-slash mismatch.
+- Open Graph: og:title, og:description, og:image (1200x630), og:url, og:type.
+- Twitter Card: twitter:card=summary_large_image, twitter:title, twitter:description, twitter:image.`,
+
+  faq_sections: `FAQ Sections (20 pts)
+- Add at least 4 Q&A pairs to the page.
+- Use semantic HTML: <details>/<summary> or a visible Q&A list with proper headings.
+- Pair with FAQPage JSON-LD schema (one FAQPage per page, questions as mainEntity).
+- Write questions that match real user search queries (conversational, long-tail).
+- Keep answers concise (2-4 sentences) but comprehensive.`,
+
+  content_quality: `Content Quality (10 pts)
+- Page must have at least 300 words of substantive body copy.
+- Structure into 3+ distinct paragraphs with clear topic sentences.
+- Use natural keyword placement — no stuffing, aim for topical coverage.
+- Include heading hierarchy (H1 > H2 > H3) that matches content sections.`,
+
+  llms_txt: `llms.txt — AI Visibility
+- Create a /llms.txt file at the site root (plain text, UTF-8).
+- Required sections: # {Site Name}, ## About, ## Documentation, ## API (if applicable).
+- Keep total length under 2 000 tokens.
+- Include links to key pages AI models should reference.
+- Optionally add /llms-full.txt with expanded content.`,
+}
+
 // Issue Detail Dialog (popup when clicking on an issue)
 function IssueDetailDialog({
   open,
@@ -770,6 +809,7 @@ function IssueDetailDialog({
   onViewOutput,
   isDeploying,
   isGeneratingScript,
+  brandContext,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -780,9 +820,11 @@ function IssueDetailDialog({
   onViewOutput?: (issue: Issue) => void
   isDeploying?: boolean
   isGeneratingScript?: boolean
+  brandContext?: { name: string; website: string; industry: string }
 }) {
   const [scriptExpanded, setScriptExpanded] = React.useState(false)
   const [scriptCopied, setScriptCopied] = React.useState(false)
+  const [copiedTarget, setCopiedTarget] = React.useState<"claude" | "cursor" | null>(null)
 
   // Reset expand state when dialog opens with a new issue
   React.useEffect(() => {
@@ -810,51 +852,154 @@ function IssueDetailDialog({
   }
   const canGenerate = canGenerateScript(issue)
 
+  const handleCopyPrompt = async (target: "claude" | "cursor") => {
+    const agentType = issue.agentType ?? ""
+    const instructions = FIX_INSTRUCTIONS[agentType]
+
+    // Strip internal markers from description
+    const cleanDesc = (issue.description ?? "")
+      .replace(/<!--\s*SCHEMA_CONTRACT\s*-->/g, "")
+      .replace(/Affected page:\s*https?:\/\/[^\s]+/g, "")
+      .trim()
+
+    const sections: string[] = []
+
+    // Header
+    sections.push(`## Fix: ${issue.title}`)
+    if (issue.affectedUrl) sections.push(`Page: ${issue.affectedUrl}`)
+    const diag = [issue.checkCode, issue.estimatedImpact ? `Impact: ${issue.estimatedImpact}` : ""].filter(Boolean).join(" | ")
+    if (diag) sections.push(`Diagnostic: ${diag}`)
+
+    // Problem
+    if (cleanDesc) {
+      sections.push("")
+      sections.push("### Problem")
+      sections.push(cleanDesc)
+    }
+
+    // How to fix
+    if (instructions) {
+      sections.push("")
+      sections.push("### How to fix")
+      sections.push(instructions)
+    }
+
+    // Brand context
+    if (brandContext?.name) {
+      sections.push("")
+      sections.push("### Brand context")
+      sections.push(`${brandContext.name} (${brandContext.website ?? ""}) — ${brandContext.industry ?? ""}`)
+    }
+
+    // Reference implementation
+    if (issue.generatedOutput) {
+      sections.push("")
+      sections.push("### Reference implementation")
+      sections.push(issue.generatedOutput)
+    }
+
+    const prompt = sections.join("\n")
+    await navigator.clipboard.writeText(prompt)
+    setCopiedTarget(target)
+    toast.success(`Prompt copied for ${target === "claude" ? "Claude" : "Cursor"}`)
+    setTimeout(() => setCopiedTarget(null), 2000)
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-[#141414] border-white/[0.06] text-white w-[calc(100%-2rem)] max-w-[620px] sm:max-w-[620px] p-0 overflow-hidden min-w-0">
        {/* Header */}
-       <div className="px-5 pt-5 pb-4">
-         <div className="flex items-center gap-2 mb-3">
-           <StatusIcon className={`w-4 h-4 ${statusConf.color}`} animate={issue.status === "in_progress"} />
-           <span className={`text-[11px] ${statusConf.color} capitalize`}>
-             {issue.status.replace("_", " ")}
-           </span>
-           <span className="text-[11px] text-white/30">·</span>
-           <span className="text-[11px] text-white/30">
-             ISS-{String(issue.id).padStart(2, "0")}
-           </span>
-         </div>
-         <DialogHeader className="p-0">
-           <DialogTitle className="text-[15px] font-medium text-white/90 leading-snug">
-             {issue.title}
-           </DialogTitle>
-           <DialogDescription className="sr-only">
-             Details for issue {issue.title}
-           </DialogDescription>
-         </DialogHeader>
+       <div className="px-5 pt-5 pb-0">
+         <div className="flex items-center gap-2 mb-2">
+            <StatusIcon className={`w-4 h-4 ${statusConf.color}`} animate={issue.status === "in_progress"} />
+            <span className={`text-[11px] ${statusConf.color} capitalize`}>
+              {issue.status.replace("_", " ")}
+            </span>
+            <span className="text-[11px] text-white/30">·</span>
+            <span className="text-[11px] text-white/30">
+              ISS-{String(issue.id).padStart(2, "0")}
+            </span>
+          </div>
+          <div className="flex items-start justify-between gap-3">
+            <DialogHeader className="p-0 flex-1 min-w-0">
+              <DialogTitle className="text-[15px] font-medium text-white/90 leading-snug">
+                {issue.title}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                Details for issue {issue.title}
+              </DialogDescription>
+            </DialogHeader>
+            {issue.description && (() => {
+              const urlMatch = issue.description.match(/https?:\/\/[^\s]+/)
+              if (!urlMatch) return null
+              return (
+                <a
+                  href={urlMatch[0]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 shrink-0 mt-0.5 px-2 py-0.5 rounded-md bg-white/[0.05] text-[11px] text-white/40 hover:text-white/60 hover:bg-white/[0.08] transition-colors"
+                >
+                  <span className="truncate max-w-[180px]">{urlMatch[0].replace(/^https?:\/\//, '')}</span>
+                  <IconExternalLink className="w-3 h-3 shrink-0 opacity-50" />
+                </a>
+              )
+            })()}
+          </div>
        </div>
 
        {/* Content */}
-       <div className="px-5 pb-5 space-y-4 min-w-0 overflow-hidden">
-         {/* Description */}
-         {issue.description && (
-           <p className="text-[13px] text-white/50 leading-relaxed">{issue.description}</p>
-         )}
+       <div className="px-5 pb-5 space-y-3 min-w-0 overflow-hidden">
+          {/* Description */}
+          {issue.description && (() => {
+            const urlMatch = issue.description.match(/https?:\/\/[^\s]+/)
+            const descriptionWithoutUrl = urlMatch
+              ? issue.description.replace(urlMatch[0], '').replace(/Affected page:\s*/, '').trim()
+              : issue.description
+            if (!descriptionWithoutUrl) return null
+            return <p className="text-[13px] text-white/50 leading-relaxed">{descriptionWithoutUrl}</p>
+          })()}
 
-         {/* Metadata */}
-         <div className="flex flex-wrap items-center gap-3 text-[12px]">
-           <span className="inline-flex items-center gap-1.5">
-             <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
-             <span className="text-white/50">{categoryConf.label}</span>
-           </span>
-           <span className={`${priorityConf.color} capitalize`}>{issue.priority}</span>
-           {issue.agentType && (
-             <>
-               <span className="text-white/20">·</span>
-               <span className="text-white/40">{issue.agentType}</span>
-             </>
-           )}
+          <div className="h-px bg-white/[0.06]" />
+
+          {/* Metadata & Copy */}
+          <div className="flex items-center justify-between">
+           <div className="flex flex-wrap items-center gap-2">
+             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]">
+               <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
+               <span className="text-[11px] text-white/50">{categoryConf.label}</span>
+             </span>
+             {issue.agentType && (
+               <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-white/[0.05] text-[11px] text-white/40 font-mono">{issue.agentType}</span>
+             )}
+           </div>
+           <div className="flex items-center gap-2">
+             <span className="text-[11px] text-white/25">Copy for</span>
+             <div className="inline-flex items-center rounded-lg border border-white/[0.06] overflow-hidden">
+               <button
+                 onClick={() => handleCopyPrompt("claude")}
+                 className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-white/[0.06] transition-colors"
+                 title="Copy prompt for Claude"
+               >
+                 {copiedTarget === "claude" ? (
+                   <IconCheck className="w-3.5 h-3.5 text-emerald-400" />
+                 ) : (
+                   <img src="/claude (2).svg" alt="Claude" className="w-3.5 h-3.5 brightness-0 invert opacity-50" />
+                 )}
+               </button>
+               <div className="w-px h-4 bg-white/[0.06]" />
+               <button
+                 onClick={() => handleCopyPrompt("cursor")}
+                 className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-white/[0.06] transition-colors"
+                 title="Copy prompt for Cursor"
+               >
+                 {copiedTarget === "cursor" ? (
+                   <IconCheck className="w-3.5 h-3.5 text-emerald-400" />
+                 ) : (
+                   <img src="/cursor.svg" alt="Cursor" className="w-3.5 h-3.5 brightness-0 invert opacity-50" />
+                 )}
+               </button>
+             </div>
+           </div>
          </div>
 
          {/* PR Link */}
@@ -925,56 +1070,58 @@ function IssueDetailDialog({
          )}
        </div>
 
-       {/* Footer */}
-       <div className="px-5 py-4 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-2">
-         <div className="flex flex-wrap items-center gap-2">
-           {canRetry && (
-             <Button
-               onClick={() => { onRetry?.(issue.id); onOpenChange(false); }}
-               disabled={isDeploying}
-               variant="ghost"
-               size="sm"
-               className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-             >
-               <IconRotate className="w-3.5 h-3.5 mr-1.5" />
-               Retry
-             </Button>
-           )}
-           {canGenerate && (
-             <Button
-               onClick={() => { onGenerateScript?.(issue.id); onOpenChange(false); }}
-               disabled={isGeneratingScript}
-               variant="ghost"
-               size="sm"
-               className="text-white/50 hover:text-white/70 hover:bg-white/[0.05]"
-             >
-               {isGeneratingScript ? (
-                 <UnicodeExecutionSpinner className="mr-1.5 text-white/60" />
-               ) : (
-                 <IconCode className="w-3.5 h-3.5 mr-1.5" />
-               )}
-               Generate Script
-             </Button>
-           )}
-         </div>
-         {canDeploy && (
-           <Button
-             onClick={() => { onDeploy?.(issue.id); onOpenChange(false); }}
-             disabled={isDeploying}
-             size="sm"
-             className="bg-white text-black hover:bg-white/90 font-medium"
-           >
-             {isDeploying ? (
-               <>
-                 <UnicodeExecutionSpinner className="mr-1.5 text-black/80" />
-                 Deploying...
-               </>
-             ) : (
-               "Deploy Agent"
-             )}
-           </Button>
-         )}
-       </div>
+       {/* Footer — only render when there are actions */}
+       {(canRetry || canGenerate || canDeploy) && (
+        <div className="px-5 py-4 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {canRetry && (
+              <Button
+                onClick={() => { onRetry?.(issue.id); onOpenChange(false); }}
+                disabled={isDeploying}
+                variant="ghost"
+                size="sm"
+                className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+              >
+                <IconRotate className="w-3.5 h-3.5 mr-1.5" />
+                Retry
+              </Button>
+            )}
+            {canGenerate && (
+              <Button
+                onClick={() => { onGenerateScript?.(issue.id); onOpenChange(false); }}
+                disabled={isGeneratingScript}
+                variant="ghost"
+                size="sm"
+                className="text-white/50 hover:text-white/70 hover:bg-white/[0.05]"
+              >
+                {isGeneratingScript ? (
+                  <UnicodeExecutionSpinner className="mr-1.5 text-white/60" />
+                ) : (
+                  <IconCode className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                Generate Script
+              </Button>
+            )}
+          </div>
+          {canDeploy && (
+            <Button
+              onClick={() => { onDeploy?.(issue.id); onOpenChange(false); }}
+              disabled={isDeploying}
+              size="sm"
+              className="bg-white text-black hover:bg-white/90 font-medium"
+            >
+              {isDeploying ? (
+                <>
+                  <UnicodeExecutionSpinner className="mr-1.5 text-black/80" />
+                  Deploying...
+                </>
+              ) : (
+                "Deploy Agent"
+              )}
+            </Button>
+          )}
+        </div>
+       )}
       </DialogContent>
     </Dialog>
   )
@@ -1887,6 +2034,7 @@ function IssuesPageInner() {
         onViewOutput={handleViewOutput}
         isDeploying={deployingId === selectedIssue?.id}
         isGeneratingScript={generatingScriptId === selectedIssue?.id}
+        brandContext={profile ? { name: profile.companyName, website: profile.companyWebsite, industry: profile.companyIndustry } : undefined}
       />
 
       {/* View Generated Output Dialog */}

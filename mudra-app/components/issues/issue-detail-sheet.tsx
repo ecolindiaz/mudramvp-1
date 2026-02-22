@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/sheet"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import type { Issue, IssueCategory, IssuePriority } from "@/hooks/use-issues"
 import {
   Play,
@@ -24,6 +26,8 @@ import {
   GitPullRequest,
   Cpu,
   Timer,
+  Copy,
+  Check,
 } from "lucide-react"
 
 interface IssueDetailSheetProps {
@@ -54,25 +58,62 @@ export function IssueDetailSheet({
   onDismiss,
   isDeploying = false,
 }: IssueDetailSheetProps) {
+  const [copied, setCopied] = useState(false)
+
   if (!issue) return null
 
   const canDeploy = issue.status === 'identified' && issue.agentType
   const canRetry = issue.status === 'failed'
   const hasPR = issue.prUrl && issue.prNumber
 
+  const handleCopyPrompt = async () => {
+    const prompt = [
+      `Issue: ${issue.title}`,
+      issue.description ? `Description: ${issue.description}` : '',
+      `Priority: ${issue.priority}`,
+      `Status: ${issue.status.replace('_', ' ')}`,
+      issue.category ? `Category: ${categoryLabels[issue.category]}` : '',
+      issue.agentType ? `Agent Type: ${issue.agentType}` : '',
+      hasPR ? `PR: #${issue.prNumber} (${issue.prUrl})` : '',
+    ].filter(Boolean).join('\n')
+
+    await navigator.clipboard.writeText(prompt)
+    setCopied(true)
+    toast.success("Prompt copied to clipboard")
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <Sheet open={!!issue} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
+        <SheetHeader className="pr-10">
           <div className="flex items-start gap-3">
             <StatusIcon status={issue.status} />
-            <div>
+            <div className="flex-1 min-w-0">
               <SheetTitle className="text-left">{issue.title}</SheetTitle>
               <p className="text-sm text-muted-foreground capitalize mt-1">
                 {issue.status.replace('_', ' ')}
               </p>
             </div>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3 w-fit"
+            onClick={handleCopyPrompt}
+          >
+            {copied ? (
+              <>
+                <Check className="mr-1.5 h-3.5 w-3.5 text-green-500" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="mr-1.5 h-3.5 w-3.5" />
+                Copy prompt for AI
+              </>
+            )}
+          </Button>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">

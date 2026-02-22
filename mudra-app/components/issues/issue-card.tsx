@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import {
   MoreHorizontal,
   Play,
@@ -29,8 +31,15 @@ import {
   Clock,
   Loader2,
   GitPullRequest,
+  Copy,
+  Check,
 } from "lucide-react"
 import type { Issue, IssueStatus, IssuePriority, IssueCategory } from "@/hooks/use-issues"
+
+const categoryLabels: Record<IssueCategory, string> = {
+  technical_structure: "Technical",
+  ai_visibility: "AI Visibility",
+}
 
 interface IssueCardProps {
   issue: Issue
@@ -46,11 +55,6 @@ const priorityColors: Record<IssuePriority, string> = {
   high: "bg-orange-500/10 text-orange-500 border-orange-500/20",
   medium: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
   low: "bg-gray-500/10 text-gray-400 border-gray-500/20",
-}
-
-const categoryLabels: Record<IssueCategory, string> = {
-  technical_structure: "Technical",
-  ai_visibility: "AI Visibility",
 }
 
 const categoryColors: Record<IssueCategory, string> = {
@@ -75,9 +79,28 @@ export function IssueCard({
   onClick,
   isDeploying = false,
 }: IssueCardProps) {
+  const [copied, setCopied] = useState(false)
   const canDeploy = issue.status === 'identified' && issue.agentType
   const canRetry = issue.status === 'failed'
   const hasPR = issue.prUrl && issue.prNumber
+
+  const handleCopyPrompt = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const prompt = [
+      `Issue: ${issue.title}`,
+      issue.description ? `Description: ${issue.description}` : '',
+      `Priority: ${issue.priority}`,
+      `Status: ${issue.status.replace('_', ' ')}`,
+      issue.category ? `Category: ${categoryLabels[issue.category]}` : '',
+      issue.agentType ? `Agent Type: ${issue.agentType}` : '',
+      hasPR ? `PR: #${issue.prNumber} (${issue.prUrl})` : '',
+    ].filter(Boolean).join('\n')
+
+    navigator.clipboard.writeText(prompt)
+    setCopied(true)
+    toast.success("Prompt copied to clipboard")
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   return (
     <Card
@@ -95,6 +118,20 @@ export function IssueCard({
               {issue.title}
             </CardTitle>
           </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={handleCopyPrompt}
+              title="Copy prompt for AI"
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-green-500" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+            </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
@@ -138,6 +175,7 @@ export function IssueCard({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

@@ -318,11 +318,10 @@ function SortableIssueCard({
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault()
-                // Delay opening the delete dialog so the dropdown fully
-                // unmounts first — prevents Radix dismiss-layer conflict
-                // that freezes the UI.
+              onSelect={() => {
+                // Let the dropdown close naturally, then open the delete
+                // dialog after it unmounts to avoid Radix dismiss-layer
+                // locking pointer-events on the body.
                 setTimeout(() => onDelete(issue), 0)
               }}
               className="text-red-400 hover:bg-red-400/10 cursor-pointer"

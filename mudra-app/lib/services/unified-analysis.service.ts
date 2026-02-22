@@ -1013,6 +1013,26 @@ async function generateReport(data: {
     });
 
     console.log('[Report] ✅ Saved report with ID:', savedReport.id);
+
+    // Generate a proper WeeklyReport so the dashboard NLR component has data immediately.
+    // The dashboard reads from WeeklyReport (not NaturalLanguageReport), so without
+    // this the user would see "No report available yet" until the weekly cron runs.
+    try {
+      const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
+      const companyId = await resolveCompanyIdFromBrandProfile(data.brandProfileId);
+      if (companyId) {
+        const { generateWeeklyReport } = await import('@/lib/ai/nlr/generate-report');
+        const now = new Date();
+        const day = now.getUTCDay() || 7;
+        const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (day - 1)));
+
+        await generateWeeklyReport({ companyId, weekStartUtc: weekStart });
+        console.log('[Report] ✅ Generated WeeklyReport for dashboard NLR');
+      }
+    } catch (weeklyErr) {
+      console.warn('[Report] ⚠️ Failed to generate WeeklyReport (non-fatal):', weeklyErr);
+    }
+
     return { success: true, id: savedReport.id };
   } catch (error) {
     console.error('[Report] ❌ Error:', error);

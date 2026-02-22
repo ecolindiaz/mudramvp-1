@@ -499,50 +499,76 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
         <div className="bg-[#161616] px-6 pt-6 pb-6">
           {/* Title and Description */}
           <div className="mb-6">
-            <div className="flex items-center justify-between gap-4 mb-2">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.2em] text-white/40 font-semibold">
-                  Step {step} of {TOTAL_STEPS}
-                </p>
-                <h2 className="text-xl font-semibold text-white tracking-tight">
-                  AI-Optimized Content
-                </h2>
-              </div>
-            </div>
+            <h2 className="text-xl font-semibold text-white tracking-tight mb-1">
+              AI-Optimized Content
+            </h2>
             <p className="text-sm text-white/60 leading-relaxed">
               {STEP_COPY[step]}
             </p>
+
+            {/* Horizontal step indicator */}
             {!isGenerating && (
-              <div className="mt-4">
-                <div className="relative h-1 bg-white/10 rounded-full overflow-hidden">
-                  <div
-                    className={cn(
-                      "absolute left-0 top-0 h-1 bg-white/40 rounded-full transition-[width] duration-300 ease-out",
-                      step === 1
-                        ? "w-1/5"
-                        : step === 2
-                          ? "w-2/5"
-                          : step === 3
-                            ? "w-3/5"
-                            : step === 4
-                              ? "w-4/5"
-                              : "w-full"
-                    )}
-                  />
-                </div>
+              <div className="mt-5 flex items-center gap-0">
+                {(["Content", "Prompt", "Audience", "Sources", "Generate"] as const).map((label, idx) => {
+                  const stepNum = (idx + 1) as 1 | 2 | 3 | 4 | 5;
+                  const isActive = step === stepNum;
+                  const isCompleted = step > stepNum;
+                  return (
+                    <div key={label} className="flex items-center flex-1 last:flex-none">
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div
+                          className={cn(
+                            "flex items-center justify-center size-7 rounded-full text-xs font-semibold transition-all duration-300",
+                            isCompleted
+                              ? "bg-white text-[#0a0a0a]"
+                              : isActive
+                                ? "bg-white/15 text-white ring-1 ring-white/30"
+                                : "bg-white/[0.06] text-white/30"
+                          )}
+                        >
+                          {isCompleted ? (
+                            <CheckCircle2 className="size-3.5" />
+                          ) : (
+                            stepNum
+                          )}
+                        </div>
+                        <span
+                          className={cn(
+                            "text-[10px] font-medium tracking-wide transition-colors",
+                            isActive ? "text-white/80" : isCompleted ? "text-white/60" : "text-white/25"
+                          )}
+                        >
+                          {label}
+                        </span>
+                      </div>
+                      {idx < 4 && (
+                        <div className="flex-1 mx-1.5 mb-5">
+                          <div
+                            className={cn(
+                              "h-px transition-colors duration-300",
+                              isCompleted ? "bg-white/30" : "bg-white/[0.06]"
+                            )}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
+
+
           </div>
 
           <div className="space-y-4">
             <div className="space-y-4">
               {/* Step 1: Select Content Type */}
               {step === 1 && (
-                <div className="rounded-xl bg-[#111111] overflow-hidden">
+                <div className="grid grid-cols-2 gap-2.5">
                   {CONTENT_TYPES.map((contentType) => {
                     const Icon = contentType.icon;
                     const isSelected = selectedContentType === contentType.value;
-                    const isDisabled = contentType.value !== "blog"; // Only allow Blog Post for now
+                    const isDisabled = contentType.value !== "blog";
                     return (
                       <div
                         key={contentType.value}
@@ -553,64 +579,67 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                           }
                         }}
                         className={cn(
-                          "px-6 py-4 flex items-center justify-between gap-6 border-b border-white/[0.03] last:border-b-0 transition-all duration-200",
+                          "relative rounded-xl bg-[#111111] p-5 flex flex-col gap-3 transition-all duration-200 border",
                           isDisabled
-                            ? "opacity-50 cursor-not-allowed"
+                            ? "opacity-40 cursor-not-allowed border-transparent"
                             : "cursor-pointer group",
                           isSelected
-                            ? "bg-white/[0.05]"
-                            : !isDisabled && "hover:bg-white/[0.03]"
+                            ? "bg-white/[0.06] border-transparent"
+                            : !isDisabled && "border-transparent hover:bg-white/[0.03]"
                         )}
                       >
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                          <div
+                        {isSelected && !isDisabled && (
+                          <div className="absolute top-3 right-3">
+                            <CheckCircle2 className="size-4 text-white" />
+                          </div>
+                        )}
+                        <div
+                          className={cn(
+                            "flex items-center justify-center size-10 rounded-lg flex-shrink-0",
+                            isDisabled
+                              ? "bg-white/[0.03]"
+                              : isSelected
+                                ? "bg-white/[0.12]"
+                                : "bg-white/[0.05]"
+                          )}
+                        >
+                          <Icon
                             className={cn(
-                              "flex items-center justify-center size-11 rounded-xl transition-all duration-200 flex-shrink-0",
+                              "h-[18px] w-[18px]",
                               isDisabled
-                                ? "bg-white/[0.03]"
+                                ? "text-white/40"
                                 : isSelected
-                                  ? "bg-white/[0.1]"
-                                  : "bg-white/[0.05] group-hover:bg-white/[0.08]"
+                                  ? "text-white"
+                                  : "text-white/70"
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <p
+                            className={cn(
+                              "text-sm font-semibold leading-5 mb-0.5",
+                              isDisabled
+                                ? "text-white/50"
+                                : isSelected
+                                  ? "text-white"
+                                  : "text-white/90"
                             )}
                           >
-                            <Icon
-                              className={cn(
-                                "h-5 w-5 transition-colors",
-                                isDisabled
-                                  ? "text-white/40"
-                                  : isSelected
-                                    ? "text-white"
-                                    : "text-white/90 group-hover:text-white"
-                              )}
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p
-                              className={cn(
-                                "text-sm font-semibold leading-5 mb-1 transition-colors",
-                                isDisabled
-                                  ? "text-white/50"
-                                  : isSelected
-                                    ? "text-white"
-                                    : "text-white group-hover:text-white"
-                              )}
-                            >
-                              {contentType.label}
-                            </p>
-                            <p
-                              className={cn(
-                                "text-xs leading-relaxed",
-                                isDisabled ? "text-white/40" : "text-white/60"
-                              )}
-                            >
-                              {contentType.description}
-                            </p>
-                          </div>
+                            {contentType.label}
+                          </p>
+                          <p
+                            className={cn(
+                              "text-[11px] leading-relaxed",
+                              isDisabled ? "text-white/30" : "text-white/45"
+                            )}
+                          >
+                            {contentType.description}
+                          </p>
                         </div>
-                        {isSelected && !isDisabled && (
-                          <div className="flex-shrink-0">
-                            <div className="w-2 h-2 rounded-full bg-white"></div>
-                          </div>
+                        {isDisabled && (
+                          <Badge className="absolute top-3 right-3 h-5 text-[9px] px-1.5 rounded-md bg-white/[0.06] text-white/30 border-0">
+                            Soon
+                          </Badge>
                         )}
                       </div>
                     );
@@ -811,7 +840,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                           </div>
                           {isSelected && (
                             <div className="flex-shrink-0">
-                              <div className="w-2 h-2 rounded-full bg-white"></div>
+                              <CheckCircle2 className="size-4 text-white" />
                             </div>
                           )}
                         </div>
@@ -965,9 +994,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                   <ChevronRight className="size-4" />
                 </Button>
               </div>
-              <p className="text-xs text-white/60 pt-1">
-                Select 2-{MAX_SELECTED_SOURCES} sources to power the generation. {selectedSources.size}/{MAX_SELECTED_SOURCES} selected.
-              </p>
+
                 </div>
               )}
 

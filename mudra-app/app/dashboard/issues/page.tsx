@@ -864,38 +864,18 @@ function IssueDetailDialog({
 
     const sections: string[] = []
 
-    // Header
-    sections.push(`## Fix: ${issue.title}`)
-    if (issue.affectedUrl) sections.push(`Page: ${issue.affectedUrl}`)
-    const diag = [issue.checkCode, issue.estimatedImpact ? `Impact: ${issue.estimatedImpact}` : ""].filter(Boolean).join(" | ")
-    if (diag) sections.push(`Diagnostic: ${diag}`)
-
-    // Problem
+    // Issue
+    sections.push(`## ${issue.title}`)
     if (cleanDesc) {
-      sections.push("")
-      sections.push("### Problem")
       sections.push(cleanDesc)
     }
+    if (issue.affectedUrl) sections.push(`Page: ${issue.affectedUrl}`)
 
-    // How to fix
+    // How to fix — rules and guidelines only, no code
     if (instructions) {
       sections.push("")
       sections.push("### How to fix")
       sections.push(instructions)
-    }
-
-    // Brand context
-    if (brandContext?.name) {
-      sections.push("")
-      sections.push("### Brand context")
-      sections.push(`${brandContext.name} (${brandContext.website ?? ""}) — ${brandContext.industry ?? ""}`)
-    }
-
-    // Reference implementation
-    if (issue.generatedOutput) {
-      sections.push("")
-      sections.push("### Reference implementation")
-      sections.push(issue.generatedOutput)
     }
 
     const prompt = sections.join("\n")

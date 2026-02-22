@@ -56,26 +56,34 @@ export function detectPageType(url: string): PageType {
 		const path = parsedUrl.pathname.toLowerCase();
 
 		if (path === "/" || path === "") return "home";
-		if (/\/(blog|posts?|articles?)($|\/)/.test(path)) return "blog";
+
+		// Strip locale prefix (e.g. /en/, /es/, /fr-be/) and re-check for homepage
+		const strippedPath = path.replace(/^\/(?:[a-z]{2}(?:-[a-z]{2})?)(?:\/|$)/, '/');
+		if (strippedPath !== path && (strippedPath === "/" || strippedPath === "")) return "home";
+
+		// Use strippedPath for all subsequent pattern checks
+		const p = strippedPath;
+		if (/\/(blog|posts?|articles?)($|\/)/.test(p)) return "blog";
 		// Resources before documentation so /ebook/guide doesn't match /guide
-		if (path.includes("/resource") || path.includes("/whitepaper") || path.includes("/ebook") || path.includes("/webinar")) return "resources";
-		if (/\/docs($|\/)/.test(path) || path.includes("/documentation") || path.includes("/help") || /\/guides?($|\/)/.test(path)) return "documentation";
-		if (path.includes("/pricing")) return "pricing";
-		if (path.includes("/features")) return "features";
-		if (/\/products?($|\/)/.test(path)) return "product";
-		if (path.includes("/solution")) return "solutions";
+		if (p.includes("/resource") || p.includes("/whitepaper") || p.includes("/ebook") || p.includes("/webinar")) return "resources";
+		if (/\/docs($|\/)/.test(p) || p.includes("/documentation") || p.includes("/help") || /\/guides?($|\/)/.test(p)) return "documentation";
+		if (p.includes("/pricing")) return "pricing";
+		if (p.includes("/features")) return "features";
+		if (/\/products?($|\/)/.test(p) || /\/payments?($|\/)/.test(p) || p.includes("/billing")) return "product";
+		if (p.includes("/solution")) return "solutions";
 		// New page types — check before "about" so /careers doesn't fall into "about"
-		if (/\/use-?cases?($|\/)/.test(path)) return "use-cases";
-		if (path.includes("/integration")) return "integrations";
-		if (path.includes("/customer") || path.includes("/case-stud") || path.includes("/success-stor")) return "customers";
-		if (path.includes("/changelog") || path.includes("/release-notes")) return "changelog";
-		if (path.includes("/career") || path.includes("/jobs") || path.includes("/openings")) return "careers";
-		if (/\/(demo|request-demo|book-demo)($|\/)/.test(path)) return "demo";
-		if (/\/(login|signin|sign-in)($|\/)/.test(path)) return "login";
-		if (/\/(signup|sign-up|register|get-started)($|\/)/.test(path)) return "signup";
-		if (path.includes("/legal") || path.includes("/privacy") || path.includes("/terms") || path.includes("/cookie") || path.includes("/gdpr")) return "legal";
-		if (path.includes("/about") || path.includes("/team") || path.includes("/company")) return "about";
-		if (path.includes("/contact")) return "contact";
+		if (/\/use-?cases?($|\/)/.test(p)) return "use-cases";
+		if (p.includes("/integration")) return "integrations";
+		if (p.includes("/customer") || p.includes("/case-stud") || p.includes("/success-stor")) return "customers";
+		if (p.includes("/changelog") || p.includes("/release-notes")) return "changelog";
+		if (p.includes("/career") || p.includes("/jobs") || p.includes("/openings")) return "careers";
+		if (/\/(demo|request-demo|book-demo)($|\/)/.test(p)) return "demo";
+		if (/\/(login|signin|sign-in)($|\/)/.test(p)) return "login";
+		if (/\/(signup|sign-up|register|get-started)($|\/)/.test(p)) return "signup";
+		if (p.includes("/legal") || p.includes("/privacy") || p.includes("/terms") || p.includes("/cookie") || p.includes("/gdpr")) return "legal";
+		if (p.includes("/about") || p.includes("/team") || p.includes("/company") || /\/partners?(hip)?($|\/)/.test(p)) return "about";
+		if (p.includes("/contact")) return "contact";
+		if (/\/tools?($|\/)/.test(p) || p.includes("/calculator") || p.includes("/playground")) return "features";
 		return "other";
 	} catch {
 		return "other";

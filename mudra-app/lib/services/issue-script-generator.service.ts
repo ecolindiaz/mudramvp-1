@@ -1308,6 +1308,13 @@ STRICT GROUNDING:
 - Never invent URLs, prices, dates, videos, thumbnails, or legal names.
 - If a property is not in evidence, omit it.
 
+DESCRIPTION QUALITY:
+- For "description" fields, use the company/product VALUE PROPOSITION — what it does and who it serves.
+- Prefer hero text, taglines, or feature summaries from the page headings and top facts.
+- NEVER use legal disclaimers, regulatory notices, FDIC/banking disclosures, copyright text, or footer boilerplate as descriptions.
+- If the Brand section provides a company description, prefer that over scraped content.
+- Keep descriptions concise (1-2 sentences) and focused on what the business actually does.
+
 OUTPUT CONTRACT:
 - Return EXACTLY one <script type="application/ld+json"> tag.
 - For J1_present/J4_coverage, return one @graph array.

@@ -65,7 +65,7 @@ function buildProviders(): ProviderConfig[] {
 				const response = await client.chat.completions.create({
 					model,
 					max_completion_tokens: opts.maxTokens ?? 2048,
-					reasoning_effort: "low",
+					reasoning_effort: "high",
 					messages: [
 						{ role: "system", content: opts.systemPrompt },
 						{ role: "user", content: opts.userPrompt },

@@ -14,7 +14,7 @@ import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import type { FullPageScore } from '@/lib/analysis/technical/types'
 import { NON_MARKETING_PAGE_TYPES } from '@/lib/analysis/technical/four-dimension-scorer'
-import { buildRequiredSchemaTypesMarker } from './schema-contracts'
+import { buildRequiredSchemaTypesMarker, buildDynamicSchemaTypesMarker } from './schema-contracts'
 
 // Types
 export type IssuePriority = 'low' | 'medium' | 'high'
@@ -196,7 +196,10 @@ export async function createIssuesFromPageScore(
     }
 
     // Add explicit schema contract marker for downstream script generation.
-    const schemaContractMarker = buildRequiredSchemaTypesMarker(check)
+    // For J4_coverage, try dynamic marker from scorer message first (page-type-specific).
+    const schemaContractMarker =
+      (check === 'J4_coverage' ? buildDynamicSchemaTypesMarker(issue.message) : null)
+      ?? buildRequiredSchemaTypesMarker(check)
     if (schemaContractMarker) {
       description = `${description}\n\n${schemaContractMarker}`
     }

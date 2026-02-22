@@ -1,12 +1,10 @@
 /**
  * Multi-Provider LLM Caller
  *
- * Tries providers in order (Anthropic → OpenAI → Google) and falls through
+ * Tries providers in order (OpenAI → Anthropic → Google) and falls through
  * on 429/503 rate-limit errors. Shared by generate-script and potentially
  * the deploy agent path.
  */
-
-import Anthropic from "@anthropic-ai/sdk";
 
 export interface LlmCallOptions {
 	userPrompt: string;
@@ -54,7 +52,33 @@ function sleep(ms: number): Promise<void> {
 function buildProviders(): ProviderConfig[] {
 	const providers: ProviderConfig[] = [];
 
-	// Anthropic
+	// OpenAI (primary)
+	const openaiKey = process.env.OPENAI_API_KEY;
+	if (openaiKey) {
+		const model = process.env.SCRIPT_GEN_OPENAI_MODEL || "gpt-5.2";
+		providers.push({
+			name: "openai",
+			model,
+			call: async (opts) => {
+				const { default: OpenAI } = await import("openai");
+				const client = new OpenAI({ apiKey: openaiKey });
+				const response = await client.chat.completions.create({
+					model,
+					max_completion_tokens: opts.maxTokens ?? 2048,
+					reasoning_effort: "low",
+					messages: [
+						{ role: "system", content: opts.systemPrompt },
+						{ role: "user", content: opts.userPrompt },
+					],
+				});
+				const text = response.choices[0]?.message?.content;
+				if (!text) throw new Error("No text response from OpenAI");
+				return text;
+			},
+		});
+	}
+
+	// Anthropic (fallback)
 	const anthropicKey = process.env.ANTHROPIC_API_KEY;
 	if (anthropicKey) {
 		const model =
@@ -64,6 +88,7 @@ function buildProviders(): ProviderConfig[] {
 			name: "anthropic",
 			model,
 			call: async (opts) => {
+				const { default: Anthropic } = await import("@anthropic-ai/sdk");
 				const client = new Anthropic({ apiKey: anthropicKey });
 				const response = await client.messages.create({
 					model,
@@ -75,31 +100,6 @@ function buildProviders(): ProviderConfig[] {
 				if (!text || text.type !== "text")
 					throw new Error("No text response from Anthropic");
 				return text.text;
-			},
-		});
-	}
-
-	// OpenAI
-	const openaiKey = process.env.OPENAI_API_KEY;
-	if (openaiKey) {
-		const model = process.env.SCRIPT_GEN_OPENAI_MODEL || "gpt-4o";
-		providers.push({
-			name: "openai",
-			model,
-			call: async (opts) => {
-				const { default: OpenAI } = await import("openai");
-				const client = new OpenAI({ apiKey: openaiKey });
-				const response = await client.chat.completions.create({
-					model,
-					max_tokens: opts.maxTokens ?? 2048,
-					messages: [
-						{ role: "system", content: opts.systemPrompt },
-						{ role: "user", content: opts.userPrompt },
-					],
-				});
-				const text = response.choices[0]?.message?.content;
-				if (!text) throw new Error("No text response from OpenAI");
-				return text;
 			},
 		});
 	}

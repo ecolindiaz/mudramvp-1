@@ -196,7 +196,10 @@ function canGenerateScript(issue: Issue): boolean {
   return issue.status === "identified" && !hasGeneratedOutput && (
     issue.agentType === "schema_markup" ||
     issue.agentType === "meta_optimization" ||
-    issue.agentType === "faq_sections"
+    issue.agentType === "faq_sections" ||
+    issue.agentType === "llms_txt" ||
+    issue.agentType === "llms_txt_missing" ||
+    issue.agentType === "llms_txt_optimizer"
   )
 }
 
@@ -281,7 +284,7 @@ function SortableIssueCard({
                 Fix
               </DropdownMenuItem>
             )}
-            {/* Generate Script - for supported identified issues */}
+            {/* Generate Code - for supported identified issues */}
             {canGenerateScript(issue) && onGenerateScript && (
               <DropdownMenuItem
                 onClick={(e) => { e.stopPropagation(); onGenerateScript(issue.id); }}
@@ -293,7 +296,7 @@ function SortableIssueCard({
                 ) : (
                   <IconCode className="w-4 h-4 mr-2" />
                 )}
-                Generate Script
+                Generate Code
               </DropdownMenuItem>
             )}
             {/* Retry - for failed issues */}
@@ -790,11 +793,33 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
 - Include heading hierarchy (H1 > H2 > H3) that matches content sections.`,
 
   llms_txt: `llms.txt — AI Visibility
-- Create a /llms.txt file at the site root (plain text, UTF-8).
-- Required sections: # {Site Name}, ## About, ## Documentation, ## API (if applicable).
-- Keep total length under 2 000 tokens.
-- Include links to key pages AI models should reference.
-- Optionally add /llms-full.txt with expanded content.`,
+- Generate only one fenced code block labeled llms.txt.
+- Output only that block; no prose, no logs, no pre/post text.
+- Enforce link scope strictly: only root_url and docs_base links.
+- Required section order: H1, Overview, Who we serve, Products / Capabilities, Solutions / Use Cases, Key Resources, FAQs, Security & Compliance, Pricing & Plans, Policies, optional Blog/Research, Sitemap, optional Citation guidance, Last updated.
+- Products / Capabilities bullets must include: one-line purpose, [Product](URL): details, [Docs](URL): details when available.
+- FAQs must be 3–6 Q/A and every answer must include [Source](URL), preferring docs/reference/pricing/security/rate-limits over blog pages.
+- Use neutral factual tone only; remove marketing language.
+- Use titled links format exactly: [Link title](URL): details.
+- Validate before final output: no duplicate links, no out-of-scope URLs, no missing required sections, and every security/pricing/FAQ claim has a source link.`,
+  llms_txt_missing: `llms.txt — AI Visibility
+- Generate only one fenced code block labeled llms.txt.
+- Output only that block; no prose, no logs, no pre/post text.
+- Enforce link scope strictly: only root_url and docs_base links.
+- Required section order: H1, Overview, Who we serve, Products / Capabilities, Solutions / Use Cases, Key Resources, FAQs, Security & Compliance, Pricing & Plans, Policies, optional Blog/Research, Sitemap, optional Citation guidance, Last updated.
+- Products / Capabilities bullets must include: one-line purpose, [Product](URL): details, [Docs](URL): details when available.
+- FAQs must be 3–6 Q/A and every answer must include [Source](URL), preferring docs/reference/pricing/security/rate-limits over blog pages.
+- Use neutral factual tone only; remove marketing language.
+- Use titled links format exactly: [Link title](URL): details.
+- Validate before final output: no duplicate links, no out-of-scope URLs, no missing required sections, and every security/pricing/FAQ claim has a source link.`,
+  llms_txt_optimizer: `llms.txt — AI Visibility
+- Regenerate only one fenced code block labeled llms.txt.
+- Refresh taxonomy and capabilities from current public nav/docs; avoid stale product labels unless verified.
+- Enforce link scope strictly: only root_url and docs_base links.
+- Keep deterministic section order and use titled links format: [Link title](URL): details.
+- Keep FAQs at 3–6 with [Source](URL) links in every answer, using canonical docs/pricing/security pages for core claims.
+- Include policies and security/pricing sections with verified source links when public.
+- Validate before final output: no duplicate links, no out-of-scope URLs, no missing required sections, and every security/pricing/FAQ claim has a source link.`,
 }
 
 // Issue Detail Dialog (popup when clicking on an issue)
@@ -850,6 +875,7 @@ function IssueDetailDialog({
     }
   }
   const canGenerate = canGenerateScript(issue)
+  const isLlmsIssue = issue.agentType === "llms_txt" || issue.agentType === "llms_txt_missing" || issue.agentType === "llms_txt_optimizer"
 
   const handleCopyPrompt = async (target: "claude" | "cursor") => {
     const agentType = issue.agentType ?? ""
@@ -869,6 +895,56 @@ function IssueDetailDialog({
       sections.push(cleanDesc)
     }
     if (issue.affectedUrl) sections.push(`Page: ${issue.affectedUrl}`)
+
+    if (isLlmsIssue) {
+      const rawRoot = issue.affectedUrl || brandContext?.website || ""
+      let rootUrl = rawRoot
+      try {
+        rootUrl = new URL(rawRoot).origin
+      } catch {
+        // keep raw value when URL parsing fails
+      }
+      if (rootUrl) {
+        sections.push("")
+        sections.push("### Runtime inputs")
+        sections.push(`- root_url: ${rootUrl}`)
+        sections.push(`- docs_base: ${rootUrl}/docs`)
+        sections.push("- size_budgets: { llms_txt_kb_target: 100 }")
+        sections.push(`- run_date: ${new Date().toISOString().slice(0, 10)}`)
+      }
+
+      sections.push("")
+      sections.push("### Output contract")
+      sections.push("- Return exactly one fenced code block labeled llms.txt.")
+      sections.push("- Do not output JSON/YAML, comments, preambles, or epilogues.")
+      sections.push("- Use only canonical HTTPS links under root_url and docs_base.")
+      sections.push("- Omit sections you cannot verify; never invent links or claims.")
+
+      sections.push("")
+      sections.push("### Required sections (stable order)")
+      sections.push("1) H1")
+      sections.push("2) Overview")
+      sections.push("3) Who we serve")
+      sections.push("4) Products / Capabilities")
+      sections.push("5) Solutions / Use Cases")
+      sections.push("6) Key Resources")
+      sections.push("7) FAQs")
+      sections.push("8) Security & Compliance")
+      sections.push("9) Pricing & Plans")
+      sections.push("10) Policies")
+      sections.push("11) Research / Reports / Blog (optional)")
+      sections.push("12) Sitemap (canonical pages)")
+      sections.push("13) Citation guidance (optional)")
+      sections.push("14) Last updated (ISO date)")
+
+      sections.push("")
+      sections.push("### Final validation checklist")
+      sections.push("- 3-6 FAQs, each with [Source](URL).")
+      sections.push("- Product bullets include [Product](URL): details and [Docs](URL): details when available.")
+      sections.push("- Titled links use: [Link title](URL): details.")
+      sections.push("- No duplicate links or duplicate bullets.")
+      sections.push("- No out-of-scope domains.")
+    }
 
     // How to fix — rules and guidelines only, no code
     if (instructions) {
@@ -952,7 +1028,7 @@ function IssueDetailDialog({
              )}
            </div>
            <div className="flex items-center gap-2">
-             <span className="text-[11px] text-white/25">Copy for</span>
+             <span className="text-[11px] text-white/25">Copy for agent</span>
              <div className="inline-flex items-center rounded-lg border border-white/[0.06] overflow-hidden">
                <button
                  onClick={() => handleCopyPrompt("claude")}
@@ -995,13 +1071,13 @@ function IssueDetailDialog({
            </a>
          )}
 
-         {/* Generated Script — preview visible, expandable to full */}
+         {/* Generated Code — preview visible, expandable to full */}
          {hasOutput && !hasPR && (
            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
              <div className="flex items-center justify-between px-3 py-2">
                 <div className="flex items-center gap-2">
                   <IconCode className="w-3.5 h-3.5 text-white/50" />
-                  <span className="text-[12px] text-white/50">Generated Script</span>
+                  <span className="text-[12px] text-white/50">Generated Code</span>
                 </div>
                 <Button
                   variant="ghost"
@@ -1078,7 +1154,7 @@ function IssueDetailDialog({
                 ) : (
                   <IconCode className="w-3.5 h-3.5 mr-1.5" />
                 )}
-                Generate Script
+                Generate Code
               </Button>
             )}
           </div>
@@ -1453,8 +1529,8 @@ function IssuesPageInner() {
       const result = await response.json()
 
       if (!result.success) {
-        toast.error("Script generation failed", {
-          description: result.error?.message || "Could not generate script for this issue.",
+        toast.error("Code generation failed", {
+          description: result.error?.message || "Could not generate code for this issue.",
         })
         return
       }
@@ -1488,12 +1564,12 @@ function IssuesPageInner() {
         setOutputDialogOpen(true)
       }
 
-      toast.success("Script generated", {
-        description: "Use View Output to copy and paste the snippet.",
+      toast.success("Code generated", {
+        description: "Use View Output to copy and paste the output.",
       })
     } catch (error) {
-      console.error("Failed to generate script:", error)
-      toast.error("Script generation failed")
+      console.error("Failed to generate code:", error)
+      toast.error("Code generation failed")
     } finally {
       setGeneratingScriptId(null)
     }

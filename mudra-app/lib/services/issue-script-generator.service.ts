@@ -17,7 +17,13 @@ import {
 	readFaqTemplates,
 } from "@/lib/analysis/technical/knowledge";
 
-type ScriptAgentType = "schema_markup" | "meta_optimization" | "faq_sections";
+type ScriptAgentType =
+	| "schema_markup"
+	| "meta_optimization"
+	| "faq_sections"
+	| "llms_txt"
+	| "llms_txt_missing"
+	| "llms_txt_optimizer";
 
 export interface ScriptGeneratorIssue {
 	id: number;
@@ -44,6 +50,15 @@ const SUPPORTED_AGENT_TYPES = new Set<ScriptAgentType>([
 	"schema_markup",
 	"meta_optimization",
 	"faq_sections",
+	"llms_txt",
+	"llms_txt_missing",
+	"llms_txt_optimizer",
+]);
+
+const LLMS_AGENT_TYPES = new Set<ScriptAgentType>([
+	"llms_txt",
+	"llms_txt_missing",
+	"llms_txt_optimizer",
 ]);
 
 const KNOWN_SCHEMA_TYPES = new Set<string>([
@@ -113,6 +128,120 @@ const STOPWORDS = new Set([
 	"they", "this", "very", "what", "when", "where", "with", "your",
 ]);
 
+const LLMS_TXT_SYSTEM_PROMPT = `<identity>
+You are an autonomous backend agent whose sole purpose is to generate authoritative, compact Markdown files — /llms.txt — for a given company website.
+You run to completion without dialogue, confirmations, or status updates. You never output anything except the requested file blocks.
+You are neutral, factual, and deterministic.
+</identity>
+
+<objective>
+Produce high-signal, LLM-friendly indexes of a website's public knowledge so AI systems can understand, navigate, and cite the site accurately.
+Emit a concise /llms.txt using canonical URLs and stable ordering.
+</objective>
+
+<inputs>
+- root_url (required): canonical site root, e.g., https://example.com
+- docs_base (optional): docs hub root, e.g., https://docs.example.com
+- brand_name (optional)
+- tagline (optional)
+- locales (optional): e.g., ["en"] or ["en","es"]
+- size_budgets: { llms_txt_kb_target: 100 }
+- run_date (optional): ISO date for Last updated; otherwise use current UTC date
+</inputs>
+
+<constraints>
+- Output only the block described in <final_response_format>. No prose, logs, or meta-commentary.
+- Use absolute HTTPS links.
+- STRICT SCOPE: include only links under root_url and docs_base.
+- Never invent content or links. Omit sections if you cannot verify them.
+- Keep /llms.txt within llms_txt_kb_target KB (default 100 KB).
+- Maintain deterministic section order across runs.
+</constraints>
+
+<data_collection>
+1) Fetch and parse:
+   - root_url home, top navigation, footer links
+   - robots.txt and sitemap.xml
+   - If docs_base is provided, parse its top-level navigation
+2) Normalize/dedupe URLs; strip tracking params; prefer canonical, HTTPS URLs.
+3) Exclude: auth/account/checkout, search results, ephemeral campaigns, obvious duplicates, and pages that do not add product or docs understanding.
+</data_collection>
+
+<selection_ranking>
+Rank candidate pages in this order:
+1) Canonicality (linked in nav/footer/sitemap)
+2) Internal link prominence (top-level > deep)
+3) Product and developer docs coverage
+4) Policies/support that clarify operation (security, privacy)
+5) Pricing/about/blog hubs (overview-level)
+Prefer plain-text or .md doc mirrors when available. For each product, include both a product page and (if available) a docs page.
+Use current docs/nav taxonomy; avoid stale product labels unless verified in current pages.
+</selection_ranking>
+
+<writing_style>
+Neutral, factual, compact. Short sentences, scannable bullets. No marketing fluff.
+Do not use language like "unique value proposition" or promotional superlatives.
+Use Markdown headings (#, ##) and bullets. Avoid long paragraphs. Do not use first-person.
+When listing a titled link, format as: [Link title](https://link_url): link details.
+</writing_style>
+
+<files_to_emit>
+Always emit /llms.txt.
+It is a pure Markdown text file (no HTML, no images).
+</files_to_emit>
+
+<llms_txt_structure>
+Emit sections in this exact order; omit a section only if no credible data is available:
+1) H1 — {brand_name} (one-sentence definition; optional {tagline})
+2) Overview — 2–4 bullets (what it does, core value, who benefits)
+3) Who we serve — 3–6 bullets (primary audiences)
+4) Products / Capabilities — grouped list; for each item: name, 1-line purpose, Product link, Docs link
+5) Solutions / Use Cases — team/scenario-based outcomes (3–6 bullets)
+6) Key Resources — docs home, API reference, SDKs/Quickstarts, changelog/releases
+7) FAQs — 3–6 concise Q/A with canonical source links
+8) Security & Compliance — short note + links (security page, privacy, SOC/ISO if public)
+9) Pricing & Plans — one line + pricing URL
+10) Policies — Terms, Privacy, DPA/Acceptable Use (if public)
+11) Research / Reports / Blog (optional) — 3–5 flagship resources if present
+12) Sitemap (canonical pages) — 8–15 high-signal pages (nav/footer/sitemap)
+13) Citation guidance (optional) — simple cite pattern
+14) Last updated — ISO date
+Keep link labels concise. Use absolute URLs. De-duplicate.
+</llms_txt_structure>
+
+<quality_focus>
+- Security and pricing claims must be traceable to a source page included in the file.
+- FAQs should prefer canonical docs/reference/pricing/security/rate-limit pages over blog pages for foundational claims.
+- For Products / Capabilities, each bullet must include: name, one-line purpose, Product link, Docs link (if available).
+</quality_focus>
+
+<size_and_quality_gates>
+- Enforce size budgets strictly. If oversize, trim long Sitemap lists first.
+- No empty sections, no duplicate bullets, no duplicate links.
+- Every Product item should include a Product link and, if available, a Docs link.
+- FAQs: 3–6 Q/A pairs; each answer must include a canonical source link; if oversize, keep top 3.
+- Deterministic headings and ordering.
+</size_and_quality_gates>
+
+<validation_pass>
+Before final output, check:
+1) duplicates,
+2) link scope violations (outside root_url/docs_base),
+3) missing required sections,
+4) factual claims in FAQ/security/pricing are sourced within the file.
+</validation_pass>
+
+<error_handling>
+- If root_url is missing, output exactly: ERROR: missing root_url
+- If some expected content is unavailable, omit those pages/sections quietly and proceed.
+- Never apologize or add commentary. Never invent content.
+</error_handling>
+
+<final_response_format>
+Return one fenced code block, and nothing else, labeled llms.txt.
+Do not wrap in JSON or YAML. Do not add preambles or epilogues.
+</final_response_format>`;
+
 interface GroundingEvidence {
 	targetUrl: string;
 	siteRoot: string;
@@ -127,6 +256,27 @@ interface GroundingEvidence {
 interface ValidationResult {
 	valid: boolean;
 	errors: string[];
+}
+
+interface LlmsUrlCandidate {
+	url: string;
+	sources: Set<string>;
+	score: number;
+}
+
+interface LlmsSourcePage {
+	url: string;
+	title: string;
+	snippet: string;
+	sources: string[];
+	score: number;
+}
+
+interface LlmsCollectionResult {
+	pageContent: string | null;
+	evidence: GroundingEvidence;
+	rootUrl: string;
+	docsBase: string | null;
 }
 
 interface SchemaNormalizationResult {
@@ -206,6 +356,489 @@ function isHomepageUrl(url: string): boolean {
 	} catch {
 		return false;
 	}
+}
+
+function isLlmsAgentType(
+	agentType: string | null | undefined
+): agentType is "llms_txt" | "llms_txt_missing" | "llms_txt_optimizer" {
+	if (!agentType) return false;
+	return LLMS_AGENT_TYPES.has(agentType as ScriptAgentType);
+}
+
+function toHttpsUrl(url: string): string {
+	try {
+		const parsed = new URL(url);
+		parsed.protocol = "https:";
+		return parsed.toString();
+	} catch {
+		return url;
+	}
+}
+
+function inferDocsBaseFromEvidence(evidence: GroundingEvidence): string | null {
+	const candidates: string[] = [];
+
+	for (const rawUrl of evidence.allowedUrls) {
+		try {
+			const url = new URL(rawUrl);
+			if (url.protocol !== "https:") continue;
+			const host = url.hostname.toLowerCase();
+			const path = url.pathname.toLowerCase();
+
+			if (host.startsWith("docs.")) {
+				candidates.push(`${url.protocol}//${url.host}`);
+				continue;
+			}
+
+			if (path === "/docs" || path.startsWith("/docs/")) {
+				candidates.push(`${url.protocol}//${url.host}/docs`);
+			}
+		} catch {
+			// ignore malformed URLs from scraped text
+		}
+	}
+
+	if (candidates.length === 0) return null;
+	return candidates.sort((a, b) => a.localeCompare(b))[0];
+}
+
+const LLMS_MAX_BYTES = 100 * 1024;
+const LLMS_SECTION_ORDER = [
+	"overview",
+	"who we serve",
+	"products / capabilities",
+	"solutions / use cases",
+	"key resources",
+	"faqs",
+	"security & compliance",
+	"pricing & plans",
+	"policies",
+	"research / reports / blog",
+	"sitemap (canonical pages)",
+	"citation guidance",
+];
+const LLMS_REQUIRED_SECTIONS = new Set([
+	"overview",
+	"who we serve",
+	"products / capabilities",
+	"solutions / use cases",
+	"key resources",
+	"faqs",
+	"security & compliance",
+	"pricing & plans",
+	"policies",
+]);
+
+const LLMS_CONTEXT_FETCH_TIMEOUT_MS = 10000;
+const LLMS_MAX_SOURCE_PAGES = 14;
+const LLMS_MAX_SITEMAP_URLS = 220;
+const LLMS_MAX_CONTEXT_CHARS = 24000;
+const LLMS_SNIPPET_MAX_CHARS = 900;
+const TRACKING_QUERY_PARAMS = [
+	"utm_source",
+	"utm_medium",
+	"utm_campaign",
+	"utm_term",
+	"utm_content",
+	"gclid",
+	"fbclid",
+	"mc_cid",
+	"mc_eid",
+	"ref",
+];
+const LLMS_EXCLUDED_PATH_PATTERNS = [
+	/\/(login|logout|signin|sign-in|signup|sign-up|register|account|accounts)(\/|$)/i,
+	/\/(checkout|cart|basket|order|orders)(\/|$)/i,
+	/\/(search|results)(\/|$)/i,
+	/\/(admin|wp-admin|wp-login|cdn-cgi)(\/|$)/i,
+	/\/(preview|staging|sandbox|tmp)(\/|$)/i,
+	/\/(feed|rss)(\/|$)/i,
+];
+const LLMS_BLOCKED_FILE_EXTENSIONS = [
+	".jpg",
+	".jpeg",
+	".png",
+	".gif",
+	".svg",
+	".webp",
+	".ico",
+	".css",
+	".js",
+	".map",
+	".zip",
+	".tar",
+	".gz",
+	".mp4",
+	".mp3",
+	".webm",
+];
+
+function normalizeLlmsSectionTitle(title: string): string {
+	return title
+		.replace(/\*/g, "")
+		.replace(/\s+/g, " ")
+		.trim()
+		.toLowerCase();
+}
+
+function extractLlmsSectionTitles(markdown: string): string[] {
+	return Array.from(markdown.matchAll(/^##\s+(.+)$/gm)).map((match) =>
+		normalizeLlmsSectionTitle(match[1] || "")
+	);
+}
+
+function extractLlmsSectionBodies(markdown: string): Record<string, string> {
+	const sectionBodies: Record<string, string> = {};
+	const lines = markdown.split("\n");
+	let current = "";
+
+	for (const line of lines) {
+		const headingMatch = line.match(/^##\s+(.+)$/);
+		if (headingMatch) {
+			current = normalizeLlmsSectionTitle(headingMatch[1] || "");
+			if (!sectionBodies[current]) sectionBodies[current] = "";
+			continue;
+		}
+		if (!current) continue;
+		sectionBodies[current] += `${line}\n`;
+	}
+
+	return sectionBodies;
+}
+
+function normalizeUrlForComparison(rawUrl: string): string {
+	try {
+		const url = new URL(rawUrl);
+		url.hash = "";
+		const href = url.toString();
+		if (href === `${url.origin}/`) return href;
+		return href.endsWith("/") ? href.slice(0, -1) : href;
+	} catch {
+		return rawUrl;
+	}
+}
+
+function joinRootPath(rootUrl: string, path: string): string {
+	const cleanRoot = rootUrl.endsWith("/") ? rootUrl.slice(0, -1) : rootUrl;
+	const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+	return `${cleanRoot}${normalizedPath}`;
+}
+
+function normalizeCanonicalUrl(rawUrl: string, baseUrl?: string): string | null {
+	try {
+		const url = baseUrl ? new URL(rawUrl, baseUrl) : new URL(rawUrl);
+		if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+		url.protocol = "https:";
+		url.hash = "";
+		for (const param of TRACKING_QUERY_PARAMS) {
+			url.searchParams.delete(param);
+		}
+		const href = url.toString();
+		if (href === `${url.origin}/`) return href;
+		return href.endsWith("/") ? href.slice(0, -1) : href;
+	} catch {
+		return null;
+	}
+}
+
+function normalizeComparablePathname(pathname: string): string {
+	return pathname.replace(/\/{2,}/g, "/").replace(/\/+$/, "") || "/";
+}
+
+function extractHtmlTitle(html: string): string | null {
+	const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+	if (!match?.[1]) return null;
+	return match[1].replace(/\s+/g, " ").trim() || null;
+}
+
+function decodeHtmlEntities(text: string): string {
+	const replacements: Record<string, string> = {
+		"&nbsp;": " ",
+		"&amp;": "&",
+		"&quot;": '"',
+		"&#39;": "'",
+		"&lt;": "<",
+		"&gt;": ">",
+	};
+	let decoded = text;
+	for (const [entity, value] of Object.entries(replacements)) {
+		decoded = decoded.split(entity).join(value);
+	}
+	return decoded;
+}
+
+function htmlToTextSnippet(html: string, maxChars = LLMS_SNIPPET_MAX_CHARS): string {
+	const cleaned = html
+		.replace(/<script[\s\S]*?<\/script>/gi, " ")
+		.replace(/<style[\s\S]*?<\/style>/gi, " ")
+		.replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+		.replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+		.replace(/<[^>]+>/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+
+	const decoded = decodeHtmlEntities(cleaned);
+	if (!decoded) return "";
+	return decoded.length > maxChars ? `${decoded.slice(0, maxChars)}...` : decoded;
+}
+
+function extractAnchorUrls(html: string, baseUrl: string): string[] {
+	const urls: string[] = [];
+	for (const match of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
+		const href = (match[1] || "").trim();
+		if (!href) continue;
+		if (/^(javascript:|mailto:|tel:|data:|#)/i.test(href)) continue;
+		const normalized = normalizeCanonicalUrl(href, baseUrl);
+		if (normalized) urls.push(normalized);
+	}
+	return urls;
+}
+
+function shouldExcludeLlmsUrl(url: string): boolean {
+	try {
+		const parsed = new URL(url);
+		const pathname = normalizeComparablePathname(parsed.pathname).toLowerCase();
+		if (LLMS_EXCLUDED_PATH_PATTERNS.some((pattern) => pattern.test(pathname))) {
+			return true;
+		}
+		if (parsed.searchParams.has("q") || parsed.searchParams.has("query")) {
+			return true;
+		}
+		if (LLMS_BLOCKED_FILE_EXTENSIONS.some((ext) => pathname.endsWith(ext))) {
+			return true;
+		}
+		return false;
+	} catch {
+		return true;
+	}
+}
+
+function parseRobotsSitemapUrls(robotsText: string): string[] {
+	const urls: string[] = [];
+	for (const line of robotsText.split("\n")) {
+		const trimmed = line.trim();
+		if (!/^sitemap:/i.test(trimmed)) continue;
+		const raw = trimmed.replace(/^sitemap:\s*/i, "").trim();
+		if (raw) urls.push(raw);
+	}
+	return urls;
+}
+
+function parseSitemapLocUrls(xml: string): string[] {
+	const urls: string[] = [];
+	for (const match of xml.matchAll(/<loc>([\s\S]*?)<\/loc>/gi)) {
+		const raw = (match[1] || "").trim();
+		if (raw) urls.push(raw);
+	}
+	return urls;
+}
+
+function isSitemapIndex(xml: string): boolean {
+	return /<sitemapindex[\s>]/i.test(xml);
+}
+
+function isLikelyHtml(contentType: string | null): boolean {
+	if (!contentType) return true;
+	const lowered = contentType.toLowerCase();
+	return (
+		lowered.includes("text/html") ||
+		lowered.includes("application/xhtml+xml") ||
+		lowered.includes("text/plain")
+	);
+}
+
+async function fetchTextResource(
+	url: string,
+	accept = "*/*",
+	timeoutMs = LLMS_CONTEXT_FETCH_TIMEOUT_MS
+): Promise<{ ok: boolean; status: number; text: string; contentType: string | null }> {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		const response = await fetch(url, {
+			method: "GET",
+			signal: controller.signal,
+			headers: {
+				Accept: accept,
+				"User-Agent": "MudraBot/1.0 (+https://mudra.ai)",
+			},
+		});
+		const text = response.ok ? await response.text() : "";
+		return {
+			ok: response.ok,
+			status: response.status,
+			text,
+			contentType: response.headers.get("content-type"),
+		};
+	} catch {
+		return { ok: false, status: 0, text: "", contentType: null };
+	} finally {
+		clearTimeout(timeoutId);
+	}
+}
+
+function chooseBestDocsBase(urls: Iterable<string>, rootUrl: string): string | null {
+	const root = normalizeUrlForComparison(rootUrl);
+	const candidates = new Set<string>();
+
+	for (const rawUrl of urls) {
+		try {
+			const url = new URL(rawUrl);
+			const host = url.hostname.toLowerCase();
+			const path = normalizeComparablePathname(url.pathname).toLowerCase();
+
+			if (host.startsWith("docs.")) {
+				candidates.add(`${url.protocol}//${url.host}`);
+				continue;
+			}
+
+			if (path === "/docs" || path.startsWith("/docs/")) {
+				candidates.add(`${url.protocol}//${url.host}/docs`);
+			}
+		} catch {
+			// ignore invalid URL
+		}
+	}
+
+	if (candidates.size === 0) return null;
+
+	return Array.from(candidates)
+		.map((candidate) => normalizeUrlForComparison(toHttpsUrl(candidate)))
+		.sort((a, b) => {
+			const aRootBias = a.startsWith(root) ? -1 : 1;
+			const bRootBias = b.startsWith(root) ? -1 : 1;
+			if (aRootBias !== bRootBias) return aRootBias - bRootBias;
+			return a.localeCompare(b);
+		})[0] || null;
+}
+
+async function collectSitemapUrls(
+	initialSitemapUrls: string[],
+	rootUrl: string
+): Promise<string[]> {
+	const visited = new Set<string>();
+	const queue = initialSitemapUrls
+		.map((url) => normalizeCanonicalUrl(url, rootUrl))
+		.filter((url): url is string => Boolean(url));
+	const discovered: string[] = [];
+	const maxSitemapFetches = 6;
+
+	while (queue.length > 0 && visited.size < maxSitemapFetches) {
+		const sitemapUrl = queue.shift();
+		if (!sitemapUrl || visited.has(sitemapUrl)) continue;
+		visited.add(sitemapUrl);
+
+		const xmlResponse = await fetchTextResource(
+			sitemapUrl,
+			"application/xml,text/xml,*/*"
+		);
+		if (!xmlResponse.ok || !xmlResponse.text) continue;
+
+		const locUrls = parseSitemapLocUrls(xmlResponse.text)
+			.map((raw) => normalizeCanonicalUrl(raw, sitemapUrl))
+			.filter((url): url is string => Boolean(url));
+
+		if (isSitemapIndex(xmlResponse.text)) {
+			for (const child of locUrls) {
+				if (!visited.has(child) && !queue.includes(child)) {
+					queue.push(child);
+				}
+			}
+			continue;
+		}
+
+		for (const url of locUrls) {
+			discovered.push(url);
+			if (discovered.length >= LLMS_MAX_SITEMAP_URLS) {
+				return discovered;
+			}
+		}
+	}
+
+	return discovered;
+}
+
+function scoreLlmsCandidate(url: string, sources: Set<string>, rootUrl: string): number {
+	let score = 0;
+	const normalizedRoot = normalizeUrlForComparison(rootUrl);
+	const normalized = normalizeUrlForComparison(url);
+
+	if (normalized === normalizedRoot) score += 220;
+	if (sources.has("target")) score += 120;
+	if (sources.has("home")) score += 90;
+	if (sources.has("docs-nav")) score += 95;
+	if (sources.has("sitemap")) score += 70;
+	if (sources.has("policy")) score += 60;
+
+	try {
+		const parsed = new URL(url);
+		const path = normalizeComparablePathname(parsed.pathname).toLowerCase();
+		const keywordBoosts: Array<[RegExp, number]> = [
+			[/^\/pricing(?:\/|$)/, 50],
+			[/^\/docs(?:\/|$)/, 48],
+			[/\/reference(?:\/|$)/, 46],
+			[/\/quickstart(?:\/|$)/, 44],
+			[/\/faq(?:s)?(?:\/|$)/, 42],
+			[/\/security(?:\/|$)/, 42],
+			[/\/privacy(?:\/|$)/, 42],
+			[/\/terms(?:\/|$)/, 42],
+			[/\/(?:dpa|msa|legal)(?:\/|$)/, 40],
+			[/\/changelog(?:\/|$)/, 40],
+			[/\/blog(?:\/|$)/, 34],
+			[/\/products?(?:\/|$)/, 38],
+			[/\/solutions?(?:\/|$)/, 38],
+			[/\/use-cases?(?:\/|$)/, 36],
+			[/\/about(?:\/|$)/, 30],
+		];
+		for (const [pattern, boost] of keywordBoosts) {
+			if (pattern.test(path)) {
+				score += boost;
+				break;
+			}
+		}
+
+		const depth = path === "/" ? 0 : path.split("/").filter(Boolean).length;
+		score -= depth * 4;
+	} catch {
+		score -= 20;
+	}
+
+	return score;
+}
+
+function extractMarkdownUrls(markdown: string): string[] {
+	const found: string[] = [];
+	const withoutMarkdownLinks = markdown.replace(
+		/\[[^\]]+]\((https?:\/\/[^)\s]+)\)/g,
+		(_, linkedUrl: string) => {
+			if (linkedUrl) found.push(linkedUrl);
+			return " ";
+		}
+	);
+	for (const match of withoutMarkdownLinks.matchAll(/https?:\/\/[^\s)<>\]]+/g)) {
+		if (match[0]) found.push(match[0]);
+	}
+	return found;
+}
+
+function buildLlmsAllowedPrefixes(evidence: GroundingEvidence): string[] {
+	const root = normalizeUrlForComparison(toHttpsUrl(evidence.siteRoot));
+	const docsBaseRaw = inferDocsBaseFromEvidence(evidence);
+	const docsBase = docsBaseRaw
+		? normalizeUrlForComparison(toHttpsUrl(docsBaseRaw))
+		: null;
+	const prefixes = new Set<string>([root]);
+	if (docsBase) prefixes.add(docsBase);
+	return Array.from(prefixes);
+}
+
+function isUrlInAllowedScope(url: string, prefixes: string[]): boolean {
+	const normalized = normalizeUrlForComparison(toHttpsUrl(url));
+	return prefixes.some((prefix) => {
+		if (normalized === prefix) return true;
+		const prefixWithSlash = prefix.endsWith("/") ? prefix : `${prefix}/`;
+		return normalized.startsWith(prefixWithSlash);
+	});
 }
 
 function parseRequiredSchemaTypesFromMarker(desc: string | null | undefined): string[] {
@@ -338,6 +971,181 @@ function buildGroundingEvidence(
 		headings,
 		facts,
 		keyTerms,
+	};
+}
+
+async function collectLlmsContext(
+	brandProfile: ScriptGeneratorBrandProfile,
+	targetUrl: string
+): Promise<LlmsCollectionResult> {
+	const rootUrl = normalizeUrlForComparison(toHttpsUrl(getSiteRoot(targetUrl)));
+	const docsFallback = joinRootPath(rootUrl, "/docs");
+
+	const candidates = new Map<string, LlmsUrlCandidate>();
+	const addCandidate = (rawUrl: string, source: string) => {
+		const normalized = normalizeCanonicalUrl(rawUrl, rootUrl);
+		if (!normalized) return;
+		if (shouldExcludeLlmsUrl(normalized)) return;
+		const existing = candidates.get(normalized);
+		if (existing) {
+			existing.sources.add(source);
+			return;
+		}
+		candidates.set(normalized, {
+			url: normalized,
+			sources: new Set([source]),
+			score: 0,
+		});
+	};
+
+	addCandidate(rootUrl, "root");
+	addCandidate(targetUrl, "target");
+	if (brandProfile.companyWebsite) {
+		addCandidate(brandProfile.companyWebsite, "brand");
+	}
+
+	const robotsUrl = joinRootPath(rootUrl, "/robots.txt");
+	const defaultSitemapUrl = joinRootPath(rootUrl, "/sitemap.xml");
+
+	const [homeResponse, robotsResponse] = await Promise.all([
+		fetchTextResource(rootUrl, "text/html,*/*"),
+		fetchTextResource(robotsUrl, "text/plain,*/*"),
+	]);
+
+	if (homeResponse.ok && homeResponse.text) {
+		for (const link of extractAnchorUrls(homeResponse.text, rootUrl)) {
+			addCandidate(link, "home");
+		}
+	}
+
+	const sitemapSeeds = new Set<string>([defaultSitemapUrl]);
+	if (robotsResponse.ok && robotsResponse.text) {
+		addCandidate(robotsUrl, "policy");
+		for (const sitemapUrl of parseRobotsSitemapUrls(robotsResponse.text)) {
+			const normalized = normalizeCanonicalUrl(sitemapUrl, rootUrl);
+			if (normalized) sitemapSeeds.add(normalized);
+		}
+	}
+
+	const sitemapUrls = await collectSitemapUrls(Array.from(sitemapSeeds), rootUrl);
+	for (const sitemapUrl of sitemapUrls) {
+		addCandidate(sitemapUrl, "sitemap");
+	}
+
+	let docsBase = chooseBestDocsBase(candidates.keys(), rootUrl);
+	if (!docsBase) {
+		const docsProbe = await fetchTextResource(docsFallback, "text/html,*/*", 8000);
+		if (docsProbe.ok) docsBase = normalizeUrlForComparison(docsFallback);
+	}
+	if (docsBase) addCandidate(docsBase, "docs");
+
+	if (docsBase) {
+		const docsResponse = await fetchTextResource(docsBase, "text/html,*/*");
+		if (docsResponse.ok && docsResponse.text) {
+			for (const link of extractAnchorUrls(docsResponse.text, docsBase)) {
+				addCandidate(link, "docs-nav");
+			}
+		}
+	}
+
+	const allowedPrefixes = [rootUrl];
+	if (docsBase) {
+		allowedPrefixes.push(normalizeUrlForComparison(toHttpsUrl(docsBase)));
+	}
+
+	const scopedCandidates = Array.from(candidates.values()).filter((candidate) =>
+		isUrlInAllowedScope(candidate.url, allowedPrefixes)
+	);
+
+	for (const candidate of scopedCandidates) {
+		candidate.score = scoreLlmsCandidate(candidate.url, candidate.sources, rootUrl);
+	}
+
+	const selected = scopedCandidates
+		.sort((a, b) => {
+			if (b.score !== a.score) return b.score - a.score;
+			return a.url.localeCompare(b.url);
+		})
+		.slice(0, LLMS_MAX_SOURCE_PAGES);
+
+	const fetchedPages = await Promise.all(
+		selected.map(async (candidate): Promise<LlmsSourcePage | null> => {
+			const response = await fetchTextResource(candidate.url, "text/html,*/*");
+			let title = "";
+			let snippet = "";
+
+			if (response.ok && response.text) {
+				if (isLikelyHtml(response.contentType)) {
+					title =
+						extractHtmlTitle(response.text) ||
+						getPageLabel(candidate.url) ||
+						candidate.url;
+					snippet = htmlToTextSnippet(response.text, LLMS_SNIPPET_MAX_CHARS);
+				} else {
+					title = getPageLabel(candidate.url);
+					snippet = `Non-HTML resource (${response.contentType || "unknown content type"})`;
+				}
+			}
+
+			if (!response.ok) {
+				title = getPageLabel(candidate.url);
+				snippet = "";
+			}
+
+			return {
+				url: candidate.url,
+				title,
+				snippet,
+				sources: Array.from(candidate.sources).sort((a, b) => a.localeCompare(b)),
+				score: candidate.score,
+			};
+		})
+	);
+
+	const sourcePages = fetchedPages.filter((page): page is LlmsSourcePage => Boolean(page));
+	const sourceCatalog = sourcePages
+		.map((page) => {
+			const sourceLabel = page.sources.join(", ");
+			const title = page.title || getPageLabel(page.url);
+			return `- [${title}](${page.url}): discovered via ${sourceLabel}.`;
+		})
+		.join("\n");
+
+	const snippetSections = sourcePages
+		.filter((page) => page.snippet)
+		.map(
+			(page) =>
+				`### ${page.title || getPageLabel(page.url)}\nURL: ${page.url}\n${page.snippet}`
+		)
+		.join("\n\n");
+
+	const contextParts = [
+		"## Canonical source pages",
+		sourceCatalog || "- None collected",
+		"",
+		"## Source snippets",
+		snippetSections || "No snippet content collected.",
+	];
+
+	let pageContent = contextParts.join("\n");
+	if (pageContent.length > LLMS_MAX_CONTEXT_CHARS) {
+		pageContent = `${pageContent.slice(0, LLMS_MAX_CONTEXT_CHARS)}\n\n[...context truncated...]`;
+	}
+
+	const evidence = buildGroundingEvidence(pageContent, targetUrl);
+	evidence.allowedUrls.add(rootUrl);
+	evidence.allowedUrls.add(robotsUrl);
+	evidence.allowedUrls.add(defaultSitemapUrl);
+	if (docsBase) evidence.allowedUrls.add(docsBase);
+	for (const candidate of scopedCandidates) {
+		evidence.allowedUrls.add(candidate.url);
+	}
+
+	return {
+		pageContent,
+		evidence,
+		rootUrl,
+		docsBase,
 	};
 }
 
@@ -758,6 +1566,9 @@ export function generateScriptForIssue(
 	if (issue.agentType === "faq_sections") {
 		return buildFaqScript(issue, brandProfile);
 	}
+	if (isLlmsAgentType(issue.agentType)) {
+		return buildLlmsTxtTemplate(issue, brandProfile);
+	}
 	return buildSchemaScript(issue, brandProfile);
 }
 
@@ -857,6 +1668,271 @@ ${faqHtml}`,
 	};
 }
 
+function getScopedEvidenceUrls(
+	evidence: GroundingEvidence | undefined,
+	rootUrl: string,
+	docsBase: string | null
+): string[] {
+	if (!evidence) return [];
+	const allowedPrefixes = [normalizeUrlForComparison(rootUrl)];
+	if (docsBase) {
+		allowedPrefixes.push(normalizeUrlForComparison(docsBase));
+	}
+
+	return Array.from(evidence.allowedUrls)
+		.map((raw) => normalizeCanonicalUrl(raw, rootUrl))
+		.filter((url): url is string => Boolean(url))
+		.filter((url) => isUrlInAllowedScope(url, allowedPrefixes))
+		.filter((url) => !shouldExcludeLlmsUrl(url))
+		.sort((a, b) => a.localeCompare(b));
+}
+
+function pickBestUrlByPatterns(urls: string[], patterns: RegExp[]): string | null {
+	for (const pattern of patterns) {
+		const match = urls.find((url) => {
+			try {
+				return pattern.test(new URL(url).pathname.toLowerCase());
+			} catch {
+				return false;
+			}
+		});
+		if (match) return match;
+	}
+	return null;
+}
+
+function buildLlmsProductsFromUrls(
+	urls: string[],
+	rootUrl: string,
+	docsBase: string | null
+): Array<{ name: string; purpose: string; productUrl: string; docsUrl: string | null }> {
+	const productPatterns: Array<{ pattern: RegExp; name: string; purpose: string }> = [
+		{
+			pattern: /\/reference\/search(?:\/|$)/i,
+			name: "Search API",
+			purpose: "Search the web with ranked results for AI workflows.",
+		},
+		{
+			pattern: /\/reference\/(?:get-)?contents?(?:\/|$)/i,
+			name: "Contents API",
+			purpose: "Retrieve and parse page contents for downstream processing.",
+		},
+		{
+			pattern: /\/reference\/answer(?:\/|$)/i,
+			name: "Answer API",
+			purpose: "Generate answer responses backed by retrieved sources.",
+		},
+		{
+			pattern: /\/reference\/(?:exa-)?research(?:\/|$)/i,
+			name: "Research API",
+			purpose: "Run asynchronous multi-step web research tasks.",
+		},
+		{
+			pattern: /\/reference\/websets/i,
+			name: "Websets",
+			purpose: "Build and enrich entity collections for research workflows.",
+		},
+	];
+
+	const products: Array<{ name: string; purpose: string; productUrl: string; docsUrl: string | null }> = [];
+	const pricingUrl =
+		pickBestUrlByPatterns(urls, [/^\/pricing(?:\/|$)/]) || joinRootPath(rootUrl, "/pricing");
+	const docsHome =
+		docsBase ||
+		pickBestUrlByPatterns(urls, [/^\/docs(?:\/|$)/, /^\/documentation(?:\/|$)/]) ||
+		joinRootPath(rootUrl, "/docs");
+
+	for (const definition of productPatterns) {
+		const docsUrl =
+			urls.find((url) => {
+				try {
+					return definition.pattern.test(new URL(url).pathname.toLowerCase());
+				} catch {
+					return false;
+				}
+			}) || null;
+		if (!docsUrl) continue;
+		products.push({
+			name: definition.name,
+			purpose: definition.purpose,
+			productUrl: pricingUrl,
+			docsUrl,
+		});
+	}
+
+	if (products.length === 0) {
+		products.push({
+			name: "Core Platform",
+			purpose: "Provide public product capabilities and canonical web resources.",
+			productUrl: rootUrl,
+			docsUrl: docsHome,
+		});
+	}
+
+	return products.slice(0, 5);
+}
+
+function buildLlmsTxtTemplate(
+	issue: ScriptGeneratorIssue,
+	brandProfile: ScriptGeneratorBrandProfile,
+	options?: {
+		evidence?: GroundingEvidence;
+		rootUrl?: string;
+		docsBase?: string | null;
+	}
+): ScriptGenerationResult {
+	const targetUrl = toHttpsUrl(getTargetUrl(issue, brandProfile));
+	const rootUrl = options?.rootUrl
+		? normalizeUrlForComparison(toHttpsUrl(options.rootUrl))
+		: normalizeUrlForComparison(toHttpsUrl(getSiteRoot(targetUrl)));
+	const docsBaseFromEvidence =
+		options?.docsBase || inferDocsBaseFromEvidence(options?.evidence || buildGroundingEvidence(null, targetUrl));
+	const docsBase = docsBaseFromEvidence
+		? normalizeUrlForComparison(toHttpsUrl(docsBaseFromEvidence))
+		: joinRootPath(rootUrl, "/docs");
+	const brandName = getBrandName(brandProfile, rootUrl);
+	const companyDescription = brandProfile.companyDescription?.trim() ||
+		`${brandName} publishes public product and company information on its website.`;
+	const runDate = new Date().toISOString().slice(0, 10);
+	const scopedUrls = getScopedEvidenceUrls(options?.evidence, rootUrl, docsBase);
+
+	const docsHomeUrl =
+		pickBestUrlByPatterns(scopedUrls, [/^\/docs(?:\/|$)/, /^\/documentation(?:\/|$)/]) ||
+		docsBase;
+	const apiReferenceUrl =
+		pickBestUrlByPatterns(scopedUrls, [/\/reference(?:\/|$)/, /\/api(?:\/|$)/]) ||
+		joinRootPath(docsBase, "/reference");
+	const quickstartUrl =
+		pickBestUrlByPatterns(scopedUrls, [/\/quickstart(?:\/|$)/, /\/getting-started(?:\/|$)/]) ||
+		joinRootPath(docsBase, "/reference/quickstart");
+	const changelogUrl =
+		pickBestUrlByPatterns(scopedUrls, [/\/changelog(?:\/|$)/, /\/releases?(?:\/|$)/]) ||
+		joinRootPath(docsBase, "/changelog");
+	const faqUrl =
+		pickBestUrlByPatterns(scopedUrls, [/\/faqs?(?:\/|$)/, /\/reference\/faqs?(?:\/|$)/]) ||
+		docsHomeUrl;
+	const rateLimitsUrl =
+		pickBestUrlByPatterns(scopedUrls, [/\/rate-?limits?(?:\/|$)/]) ||
+		apiReferenceUrl;
+	const pricingUrl =
+		pickBestUrlByPatterns(scopedUrls, [/^\/pricing(?:\/|$)/, /\/plans?(?:\/|$)/]) ||
+		joinRootPath(rootUrl, "/pricing");
+	const securityUrl =
+		pickBestUrlByPatterns(scopedUrls, [/\/security(?:\/|$)/, /\/trust(?:\/|$)/]) ||
+		joinRootPath(rootUrl, "/security");
+	const privacyUrl =
+		pickBestUrlByPatterns(scopedUrls, [/\/privacy(?:\/|$)/, /\/privacy-policy(?:\/|$)/]) ||
+		joinRootPath(rootUrl, "/privacy");
+	const termsUrl =
+		pickBestUrlByPatterns(scopedUrls, [/\/terms(?:\/|$)/, /\/terms-of-service(?:\/|$)/]) ||
+		joinRootPath(rootUrl, "/terms");
+	const dpaUrl =
+		pickBestUrlByPatterns(scopedUrls, [/\/dpa(?:\/|$)/, /\/acceptable-use(?:\/|$)/, /\/msa(?:\/|$)/, /\/legal(?:\/|$)/]) ||
+		joinRootPath(rootUrl, "/legal");
+	const blogUrl =
+		pickBestUrlByPatterns(scopedUrls, [/\/blog(?:\/|$)/, /\/research(?:\/|$)/, /\/reports?(?:\/|$)/]) ||
+		joinRootPath(rootUrl, "/blog");
+
+	const products = buildLlmsProductsFromUrls(scopedUrls, rootUrl, docsBase);
+	const sitemapUrls = Array.from(
+		new Set(
+			[
+				rootUrl,
+				pricingUrl,
+				docsHomeUrl,
+				apiReferenceUrl,
+				quickstartUrl,
+				faqUrl,
+				rateLimitsUrl,
+				securityUrl,
+				privacyUrl,
+				termsUrl,
+				changelogUrl,
+				blogUrl,
+				...scopedUrls,
+			].filter(Boolean)
+		)
+	).slice(0, 15);
+
+	const llmsTxt = [
+		"```llms.txt",
+		`# ${brandName}`,
+		companyDescription,
+		"",
+		"## Overview",
+		`- ${companyDescription}`,
+		"- Provides canonical, citable links for AI systems and assistants.",
+		"- Structured for deterministic retrieval and citation.",
+		`- Canonical root: ${rootUrl}`,
+		"",
+		"## Who we serve",
+		"- AI developers building retrieval-backed products and agents.",
+		"- Product and engineering teams integrating search and content workflows.",
+		"- Organizations requiring canonical public references for AI answers.",
+		"",
+		"## Products / Capabilities",
+		...products.map((product) => {
+			const docsChunk = product.docsUrl
+				? ` [Docs](${product.docsUrl}): endpoint or implementation reference.`
+				: "";
+			return `- **${product.name}** — ${product.purpose} [Product](${product.productUrl}): canonical product or pricing overview.${docsChunk}`;
+		}),
+		"",
+		"## Solutions / Use Cases",
+		"- Grounded AI retrieval and citation-backed answers.",
+		"- Web content discovery and extraction workflows.",
+		"- Research and analysis pipelines powered by canonical sources.",
+		"",
+		"## Key Resources",
+		`- [Docs Home](${docsHomeUrl}): documentation hub.`,
+		`- [API Reference](${apiReferenceUrl}): endpoint and integration docs.`,
+		`- [Quickstart](${quickstartUrl}): first integration flow.`,
+		`- [Rate Limits](${rateLimitsUrl}): request limits and scaling guidance.`,
+		`- [Changelog](${changelogUrl}): release and update history.`,
+		`- [Pricing](${pricingUrl}): plans and pricing details.`,
+		"",
+		"## FAQs",
+		"- **Q:** What is this service used for?",
+		`  **A:** It provides canonical web retrieval resources and API documentation for AI workflows. [Source](${rootUrl})`,
+		"- **Q:** Where are endpoint details documented?",
+		`  **A:** Endpoint references and integration docs are documented in the API reference. [Source](${apiReferenceUrl})`,
+		"- **Q:** Where can pricing details be verified?",
+		`  **A:** Pricing and plan details are published on the canonical pricing page. [Source](${pricingUrl})`,
+		"- **Q:** Where are security and policy details published?",
+		`  **A:** Security and policy references are published on the security and legal pages. [Source](${securityUrl})`,
+		"",
+		"## Security & Compliance",
+		`- [Security](${securityUrl}): security and trust information.`,
+		`- [Privacy](${privacyUrl}): privacy policy and data handling terms.`,
+		"",
+		"## Pricing & Plans",
+		`- [Pricing](${pricingUrl}): pay-as-you-go and enterprise plan information (if published).`,
+		"",
+		"## Policies",
+		`- [Terms](${termsUrl}): terms of service.`,
+		`- [Privacy](${privacyUrl}): privacy policy.`,
+		`- [DPA / Acceptable Use](${dpaUrl}): legal and policy references (if public).`,
+		"",
+		"## Research / Reports / Blog",
+		`- [Blog / Research](${blogUrl}): product, research, and release updates (if public).`,
+		"",
+		"## Sitemap (canonical pages)",
+		...sitemapUrls.map((url) => `- ${url}`),
+		"",
+		"## Citation guidance",
+		`Cite as: **${brandName} — {Page Title}** (<canonical URL>).`,
+		"",
+		`**Last updated:** ${runDate}`,
+		"```",
+	].join("\n");
+
+	return {
+		generatedOutput: llmsTxt,
+		outputType: "code",
+		source: "template",
+	};
+}
+
 function escapeHtml(text: string): string {
 	return text
 		.replace(/&/g, "&amp;")
@@ -870,8 +1946,29 @@ function escapeHtml(text: string): string {
 /**
  * Strip markdown code fences from LLM output and normalize bare JSON.
  */
-function extractScriptFromLlmResponse(raw: string): string {
+function extractScriptFromLlmResponse(
+	raw: string,
+	issue: ScriptGeneratorIssue
+): string {
 	let cleaned = raw.trim();
+
+	if (isLlmsAgentType(issue.agentType)) {
+		const llmsFenceMatch = cleaned.match(
+			/```llms\.txt\s*\n?([\s\S]*?)\n?```\s*$/i
+		);
+		if (llmsFenceMatch) {
+			return `\`\`\`llms.txt\n${llmsFenceMatch[1].trim()}\n\`\`\``;
+		}
+
+		const genericFenceMatch = cleaned.match(
+			/```(?:markdown|md|txt)?\s*\n?([\s\S]*?)\n?```\s*$/i
+		);
+		if (genericFenceMatch) {
+			return `\`\`\`llms.txt\n${genericFenceMatch[1].trim()}\n\`\`\``;
+		}
+
+		return `\`\`\`llms.txt\n${cleaned}\n\`\`\``;
+	}
 
 	// Remove markdown fences
 	const fenceMatch = cleaned.match(/^```(?:html|json|jsonld|xml)?\s*\n?([\s\S]*?)\n?```\s*$/);
@@ -1114,6 +2211,162 @@ function validateGeneratedScript(
 		/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i
 	);
 
+	if (isLlmsAgentType(issue.agentType)) {
+		const trimmed = output.trim();
+		const llmsBlockMatch = trimmed.match(/^```llms\.txt\s*\n([\s\S]*?)\n```$/i);
+
+		if (!llmsBlockMatch) {
+			errors.push("Output must be exactly one fenced code block labeled llms.txt");
+			return { valid: false, errors };
+		}
+
+		const body = llmsBlockMatch[1].trim();
+		if (!body) {
+			errors.push("llms.txt block cannot be empty");
+		}
+		if (Buffer.byteLength(body, "utf8") > LLMS_MAX_BYTES) {
+			errors.push(`llms.txt exceeds size budget (${LLMS_MAX_BYTES} bytes max)`);
+		}
+		if (!/^#\s+\S+/m.test(body)) {
+			errors.push("Missing H1 title (# Brand Name)");
+		}
+
+		const sectionTitles = extractLlmsSectionTitles(body);
+		const presentSections = new Set(sectionTitles);
+		for (const required of LLMS_REQUIRED_SECTIONS) {
+			if (!presentSections.has(required)) {
+				errors.push(`Missing required section: ${required}`);
+			}
+		}
+
+		let maxOrder = -1;
+		for (const section of sectionTitles) {
+			const idx = LLMS_SECTION_ORDER.indexOf(section);
+			if (idx === -1) continue;
+			if (idx < maxOrder) {
+				errors.push(`Section order violation: ${section}`);
+				break;
+			}
+			maxOrder = idx;
+		}
+
+		const hasLastUpdatedLine =
+			/\*\*Last updated:\*\*\s*\d{4}-\d{2}-\d{2}/i.test(body) ||
+			(/##\s+Last updated/i.test(body) && /\b\d{4}-\d{2}-\d{2}\b/.test(body));
+		if (!hasLastUpdatedLine) {
+			errors.push("Missing Last updated ISO date");
+		}
+
+		const sectionBodies = extractLlmsSectionBodies(body);
+		const productSection = sectionBodies["products / capabilities"] || "";
+		const productLines = productSection
+			.split("\n")
+			.map((line) => line.trim())
+			.filter((line) => line.startsWith("- **"));
+		if (productLines.length === 0) {
+			errors.push("Products / Capabilities must include at least one product bullet");
+		}
+		for (const line of productLines) {
+			if (!/\[Product\]\(https:\/\/[^)]+\):\s+\S+/i.test(line)) {
+				errors.push("Each product bullet must include [Product](URL): details");
+				break;
+			}
+		}
+
+		const titledLinkSections = [
+			"key resources",
+			"security & compliance",
+			"pricing & plans",
+			"policies",
+			"research / reports / blog",
+		];
+		for (const sectionName of titledLinkSections) {
+			const sectionBody = sectionBodies[sectionName] || "";
+			if (!sectionBody) continue;
+			const lines = sectionBody
+				.split("\n")
+				.map((line) => line.trim())
+				.filter((line) => line.startsWith("-") && line.includes("]("));
+			for (const line of lines) {
+				if (!/\[[^\]]+\]\(https:\/\/[^)]+\):\s+\S+/.test(line)) {
+					errors.push(
+						`Section "${sectionName}" must use titled-link format: [Title](URL): details`
+					);
+					break;
+				}
+			}
+		}
+
+		const faqSection = sectionBodies["faqs"] || "";
+		const faqQuestionCount = (faqSection.match(/\*\*Q:\*\*/g) || []).length;
+		if (faqQuestionCount < 3 || faqQuestionCount > 6) {
+			errors.push("FAQs section must contain 3-6 Q/A pairs");
+		}
+		const faqBlocks = Array.from(
+			faqSection.matchAll(
+				/(?:-?\s*)\*\*Q:\*\*[\s\S]*?(?=(?:\n(?:-?\s*)\*\*Q:\*\*|\n##\s+|\n\*\*Last updated:\*\*|$))/g
+			)
+		).map((match) => match[0] || "");
+		for (const block of faqBlocks) {
+			if (!/\[Source\]\(https:\/\/[^)]+\)/i.test(block)) {
+				errors.push("Each FAQ answer must include a canonical [Source](URL) link");
+				break;
+			}
+		}
+
+		if (!/https:\/\/[^\s)]+/.test(sectionBodies["security & compliance"] || "")) {
+			errors.push("Security & Compliance should include at least one source link");
+		}
+		if (!/https:\/\/[^\s)]+/.test(sectionBodies["pricing & plans"] || "")) {
+			errors.push("Pricing & Plans should include at least one source link");
+		}
+
+		const urls = extractMarkdownUrls(body)
+			.map((url) => toHttpsUrl(url))
+			.filter(Boolean);
+		const allowedPrefixes = buildLlmsAllowedPrefixes(evidence);
+		for (const url of urls) {
+			if (!url.toLowerCase().startsWith("https://")) {
+				errors.push(`All URLs must use HTTPS: ${url}`);
+				break;
+			}
+			if (!isUrlInAllowedScope(url, allowedPrefixes)) {
+				errors.push(
+					`URL outside allowed scope (root_url/docs_base only): ${url}`
+				);
+				break;
+			}
+		}
+
+		const sitemapSection = sectionBodies["sitemap (canonical pages)"] || "";
+		const sitemapUrls = extractMarkdownUrls(sitemapSection).map((raw) =>
+			normalizeUrlForComparison(raw)
+		);
+		const seenSitemapUrls = new Set<string>();
+		for (const url of sitemapUrls) {
+			if (seenSitemapUrls.has(url)) {
+				errors.push(`Duplicate URL detected in Sitemap section: ${url}`);
+				break;
+			}
+			seenSitemapUrls.add(url);
+		}
+
+		const nonHeadingLines = body
+			.split("\n")
+			.map((line) => line.trim())
+			.filter((line) => line && !line.startsWith("## ") && !line.startsWith("# "));
+		const seenLines = new Set<string>();
+		for (const line of nonHeadingLines) {
+			if (seenLines.has(line)) {
+				errors.push(`Duplicate content line detected: ${line.slice(0, 120)}`);
+				break;
+			}
+			seenLines.add(line);
+		}
+
+		return { valid: errors.length === 0, errors };
+	}
+
 	if (check === "J1_present" || check === "J3_relevant" || check === "J4_coverage") {
 		if (scripts.length !== 1) {
 			errors.push(`Expected exactly one JSON-LD script tag, found ${scripts.length}`);
@@ -1268,7 +2521,8 @@ async function buildLlmPrompts(
 	issue: ScriptGeneratorIssue,
 	brandProfile: ScriptGeneratorBrandProfile,
 	pageContent: string | null,
-	evidence: GroundingEvidence
+	evidence: GroundingEvidence,
+	llmsContext?: Pick<LlmsCollectionResult, "rootUrl" | "docsBase">
 ): Promise<{ userPrompt: string; systemPrompt: string }> {
 	const targetUrl = getTargetUrl(issue, brandProfile);
 	const brandName = getBrandName(brandProfile, targetUrl);
@@ -1297,6 +2551,68 @@ async function buildLlmPrompts(
 	};
 
 	const evidenceContext = `\n\n## Grounding Evidence\n\`\`\`json\n${JSON.stringify(evidencePayload, null, 2)}\n\`\`\``;
+
+	if (isLlmsAgentType(issue.agentType)) {
+		const rootUrl =
+			llmsContext?.rootUrl ||
+			normalizeUrlForComparison(toHttpsUrl(getSiteRoot(targetUrl)));
+		const docsBase = llmsContext?.docsBase || inferDocsBaseFromEvidence(evidence);
+		const runDate = new Date().toISOString().slice(0, 10);
+		const docsBaseInput = docsBase
+			? normalizeUrlForComparison(toHttpsUrl(docsBase))
+			: joinRootPath(rootUrl, "/docs");
+
+		const allowedPrefixes = buildLlmsAllowedPrefixes({
+			...evidence,
+			siteRoot: rootUrl,
+		});
+		const scopedCanonicalUrls = Array.from(evidence.allowedUrls)
+			.map((raw) => toHttpsUrl(raw))
+			.filter((url) => isUrlInAllowedScope(url, allowedPrefixes))
+			.sort((a, b) => a.localeCompare(b))
+			.slice(0, 80);
+
+		const llmsInputs = [
+			"<runtime_inputs>",
+			`root_url: ${rootUrl}`,
+			`docs_base: ${docsBaseInput}`,
+			`brand_name: ${brandName}`,
+			`tagline: ${brandProfile.companyDescription || "(not provided)"}`,
+			'locales: ["en"]',
+			"size_budgets: { llms_txt_kb_target: 100 }",
+			`run_date: ${runDate}`,
+			"</runtime_inputs>",
+		].join("\n");
+
+		const canonicalCatalog = [
+			"<canonical_source_urls>",
+			...scopedCanonicalUrls.map((url) => `- ${url}`),
+			"</canonical_source_urls>",
+		].join("\n");
+
+		const userPrompt = [
+			"Generate llms.txt for this website.",
+			"Follow the system prompt contract exactly.",
+			llmsInputs,
+			canonicalCatalog,
+			brandContext,
+			pageContext,
+			issueContext,
+			evidenceContext,
+			"",
+			"Hard requirements:",
+			"- Return exactly one fenced code block labeled llms.txt.",
+			"- Do not output prose before or after the fenced block.",
+			"- Use only absolute HTTPS links you can verify from provided evidence.",
+			"- Enforce scope: links must be under root_url or docs_base only.",
+			"- Keep deterministic section order and de-duplicate links/claims.",
+			"- Use [Title](URL): details formatting for titled links.",
+			"- Include 3-6 FAQs, each with [Source](URL).",
+			"- Prefer docs/reference/pricing/security/rate-limit sources over blog pages for foundational claims.",
+		].join("\n");
+
+		return { userPrompt, systemPrompt: LLMS_TXT_SYSTEM_PROMPT };
+	}
 
 	if (check === "J1_present" || check === "J3_relevant" || check === "J4_coverage" || check === "FAQ_schema_gap") {
 		const issueText = `${issue.checkCode || ""} ${issue.description || ""}`;
@@ -1416,6 +2732,19 @@ export async function generateScriptWithLlm(
 
 	if (!hasAnyKey) {
 		console.log("[ScriptGen] No LLM API keys configured, using template fallback");
+		if (isLlmsAgentType(issue.agentType)) {
+			try {
+				const targetUrl = getTargetUrl(issue, brandProfile);
+				const collected = await collectLlmsContext(brandProfile, targetUrl);
+				return buildLlmsTxtTemplate(issue, brandProfile, {
+					evidence: collected.evidence,
+					rootUrl: collected.rootUrl,
+					docsBase: collected.docsBase,
+				});
+			} catch {
+				// fall through to deterministic baseline template
+			}
+		}
 		return generateScriptForIssue(issue, brandProfile);
 	}
 
@@ -1423,15 +2752,44 @@ export async function generateScriptWithLlm(
 		// 3. Scrape page content
 		const targetUrl = getTargetUrl(issue, brandProfile);
 		console.log(`[ScriptGen] Scraping ${targetUrl} for issue #${issue.id}...`);
-		const pageContent = await scrapePageContent(targetUrl);
-		const evidence = buildGroundingEvidence(pageContent, targetUrl);
+		let pageContent: string | null = null;
+		let evidence: GroundingEvidence;
+		let llmsContext: Pick<LlmsCollectionResult, "rootUrl" | "docsBase"> | undefined;
+
+		if (isLlmsAgentType(issue.agentType)) {
+			const collected = await collectLlmsContext(brandProfile, targetUrl);
+			pageContent = collected.pageContent;
+			evidence = collected.evidence;
+			llmsContext = {
+				rootUrl: collected.rootUrl,
+				docsBase: collected.docsBase,
+			};
+			console.log(
+				`[ScriptGen] LLMS context collected for issue #${issue.id}: allowed_urls=${collected.evidence.allowedUrls.size}, docs_base=${collected.docsBase || "none"}`
+			);
+		} else {
+			pageContent = await scrapePageContent(targetUrl);
+			evidence = buildGroundingEvidence(pageContent, targetUrl);
+		}
+		const shouldPrependIssueHeader = !isLlmsAgentType(issue.agentType);
+		const buildTemplateFallback = (): ScriptGenerationResult => {
+			if (isLlmsAgentType(issue.agentType)) {
+				return buildLlmsTxtTemplate(issue, brandProfile, {
+					evidence,
+					rootUrl: llmsContext?.rootUrl,
+					docsBase: llmsContext?.docsBase,
+				});
+			}
+			return generateScriptForIssue(issue, brandProfile);
+		};
 
 		// 4. Build prompts with KB grounding
 		const { userPrompt, systemPrompt } = await buildLlmPrompts(
 			issue,
 			brandProfile,
 			pageContent,
-			evidence
+			evidence,
+			llmsContext
 		);
 
 		// 5. Call LLM (multi-provider with 429 fallback)
@@ -1440,15 +2798,16 @@ export async function generateScriptWithLlm(
 			userPrompt,
 			systemPrompt,
 			maxTokens: 2048,
+			reasoningEffort: isLlmsAgentType(issue.agentType) ? "medium" : "high",
 		});
 
 		if (!llmResult) {
 			console.warn("[ScriptGen] All LLM providers failed, using template fallback");
-			return generateScriptForIssue(issue, brandProfile);
+			return buildTemplateFallback();
 		}
 
 		// 6. Extract and normalize
-		let output = extractScriptFromLlmResponse(llmResult.text);
+		let output = extractScriptFromLlmResponse(llmResult.text, issue);
 
 		const isSchemaCheck = SCHEMA_CHECK_CODES.has(issue.checkCode || "");
 		if (isSchemaCheck) {
@@ -1459,6 +2818,14 @@ export async function generateScriptWithLlm(
 		// 7. Validate
 		const validation = validateGeneratedScript(output, issue, evidence);
 		if (validation.valid) {
+			if (!shouldPrependIssueHeader) {
+				return {
+					generatedOutput: output,
+					outputType: "code",
+					source: "llm",
+				};
+			}
+
 			const headerComment = issue.checkCode === "J4_coverage"
 				? "<!-- This replaces ALL JSON-LD on this page. Remove existing JSON-LD <script> tags and paste this instead. -->"
 				: "";
@@ -1490,10 +2857,11 @@ Fix these errors and return the corrected output. Follow the same output contrac
 			userPrompt: repairPrompt,
 			systemPrompt,
 			maxTokens: 2048,
+			reasoningEffort: "low",
 		});
 
 		if (repairResult) {
-			let repairedOutput = extractScriptFromLlmResponse(repairResult.text);
+			let repairedOutput = extractScriptFromLlmResponse(repairResult.text, issue);
 			if (isSchemaCheck) {
 				const normalized = normalizeSchemaOutput(repairedOutput, issue, evidence);
 				repairedOutput = normalized.output;
@@ -1505,6 +2873,14 @@ Fix these errors and return the corrected output. Follow the same output contrac
 				evidence
 			);
 			if (repairValidation.valid) {
+				if (!shouldPrependIssueHeader) {
+					return {
+						generatedOutput: repairedOutput,
+						outputType: "code",
+						source: "llm",
+					};
+				}
+
 				const repairHeaderComment = issue.checkCode === "J4_coverage"
 					? "<!-- This replaces ALL JSON-LD on this page. Remove existing JSON-LD <script> tags and paste this instead. -->"
 					: "";
@@ -1521,9 +2897,22 @@ Fix these errors and return the corrected output. Follow the same output contrac
 			console.warn("[ScriptGen] Repair LLM call failed, using template fallback");
 		}
 
-		return generateScriptForIssue(issue, brandProfile);
+		return buildTemplateFallback();
 	} catch (err) {
 		console.error("[ScriptGen] LLM generation failed:", err instanceof Error ? err.message : err);
+		if (isLlmsAgentType(issue.agentType)) {
+			try {
+				const targetUrl = getTargetUrl(issue, brandProfile);
+				const collected = await collectLlmsContext(brandProfile, targetUrl);
+				return buildLlmsTxtTemplate(issue, brandProfile, {
+					evidence: collected.evidence,
+					rootUrl: collected.rootUrl,
+					docsBase: collected.docsBase,
+				});
+			} catch {
+				// ignore secondary fallback errors
+			}
+		}
 		return generateScriptForIssue(issue, brandProfile);
 	}
 }

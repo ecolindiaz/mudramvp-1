@@ -10,6 +10,7 @@ export interface LlmCallOptions {
 	userPrompt: string;
 	systemPrompt: string;
 	maxTokens?: number; // default 2048
+	reasoningEffort?: "low" | "medium" | "high";
 }
 
 export interface LlmCallResult {
@@ -49,6 +50,36 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function safeJsonSnippet(value: unknown, maxChars = 2500): string {
+	try {
+		const json = JSON.stringify(value);
+		if (!json) return String(value);
+		return json.length > maxChars
+			? `${json.slice(0, maxChars)}... [truncated ${json.length - maxChars} chars]`
+			: json;
+	} catch {
+		return String(value);
+	}
+}
+
+function extractOpenAiTextContent(content: unknown): string {
+	if (typeof content === "string") return content.trim();
+	if (!Array.isArray(content)) return "";
+
+	const text = content
+		.map((part) => {
+			if (typeof part === "string") return part;
+			if (!part || typeof part !== "object") return "";
+			const maybeText = (part as { text?: unknown }).text;
+			return typeof maybeText === "string" ? maybeText : "";
+		})
+		.filter(Boolean)
+		.join("\n")
+		.trim();
+
+	return text;
+}
+
 function buildProviders(): ProviderConfig[] {
 	const providers: ProviderConfig[] = [];
 
@@ -62,17 +93,49 @@ function buildProviders(): ProviderConfig[] {
 			call: async (opts) => {
 				const { default: OpenAI } = await import("openai");
 				const client = new OpenAI({ apiKey: openaiKey });
-				const response = await client.chat.completions.create({
-					model,
-					max_completion_tokens: opts.maxTokens ?? 2048,
-					reasoning_effort: "high",
-					messages: [
-						{ role: "system", content: opts.systemPrompt },
-						{ role: "user", content: opts.userPrompt },
-					],
-				});
-				const text = response.choices[0]?.message?.content;
-				if (!text) throw new Error("No text response from OpenAI");
+				const runCompletion = async (
+					reasoningEffort: "low" | "medium" | "high"
+				) =>
+					client.chat.completions.create({
+						model,
+						max_completion_tokens: opts.maxTokens ?? 2048,
+						reasoning_effort: reasoningEffort,
+						messages: [
+							{ role: "system", content: opts.systemPrompt },
+							{ role: "user", content: opts.userPrompt },
+						],
+					});
+
+				const preferredEffort = opts.reasoningEffort ?? "medium";
+				let response = await runCompletion(preferredEffort);
+				let choice = response.choices?.[0];
+				let message = choice?.message;
+				let text = extractOpenAiTextContent(message?.content);
+
+				if (!text && choice?.finish_reason === "length" && preferredEffort !== "low") {
+					console.warn(
+						`[LlmProvider] OpenAI returned empty text at reasoning_effort=${preferredEffort}; retrying with low effort`
+					);
+					response = await runCompletion("low");
+					choice = response.choices?.[0];
+					message = choice?.message;
+					text = extractOpenAiTextContent(message?.content);
+				}
+
+				if (!text) {
+					console.warn("[LlmProvider] OpenAI returned no usable text output", {
+						model,
+						responseId: response.id ?? null,
+						finishReason: choice?.finish_reason ?? null,
+						refusal:
+							(message as { refusal?: unknown } | undefined)?.refusal ?? null,
+						usage: response.usage ?? null,
+						choiceMessage: safeJsonSnippet(message),
+					});
+					throw new Error(
+						`No text response from OpenAI (finish_reason=${choice?.finish_reason ?? "unknown"})`
+					);
+				}
 				return text;
 			},
 		});

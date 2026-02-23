@@ -507,7 +507,22 @@ export function validateBrandMention(text: string, brandName: string): boolean {
     `\\b${brandTokens.map(token => escapeRegex(token)).join('[\\s\\-_]*')}\\b`,
     'i'
   );
-  return flexiblePattern.test(cleanedText);
+  if (flexiblePattern.test(cleanedText)) return true;
+
+  // 3) Significant prefix match for brands with 3+ tokens
+  // "Exa AI Labs" → also match "Exa AI" (first N-1 tokens)
+  if (brandTokens.length >= 3) {
+    for (let prefixLen = brandTokens.length - 1; prefixLen >= 2; prefixLen--) {
+      const prefixTokens = brandTokens.slice(0, prefixLen);
+      const prefixPattern = new RegExp(
+        `\\b${prefixTokens.map(token => escapeRegex(token)).join('[\\s\\-_]*')}\\b`,
+        'i'
+      );
+      if (prefixPattern.test(cleanedText)) return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -1258,6 +1273,7 @@ Extract the following information:
      * Comparison categories or section headings like "Core Identity", "Primary Strength", "Best For"
      * Feature/attribute labels like "Build speed", "Deployment latency", "Free tier generosity", "Infrastructure Control"
      * Marketing copy or testimonials
+   - **IMPORTANT**: When a product name is mentioned alongside its parent company (e.g., "ProductX by CompanyY", "ProductX de CompanyY", "ProductX from CompanyY"), prefer the COMPANY/BRAND name over the product name. If only a product name appears with no identifiable parent company, include the product name as-is.
 
 4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
    - Extract numerical positions for each competitor mentioned
@@ -1512,6 +1528,7 @@ Extract the following information:
        → competitorsMentioned should be: ["Techstars", "500 Global", "Seedcamp", "MassChallenge"]
      * From "Top 7: 1. YC, 2. Techstars, 3. 500 Global, 4. a16z Speedrun, 5. Antler, 6. Entrepreneurs First, 7. Boost VC"
        → competitorsMentioned should be: ["Techstars", "500 Global", "a16z Speedrun", "Antler", "Entrepreneurs First", "Boost VC"]
+   - **IMPORTANT**: When a product name is mentioned alongside its parent company (e.g., "ProductX by CompanyY", "ProductX de CompanyY", "ProductX from CompanyY"), prefer the COMPANY/BRAND name over the product name. If only a product name appears with no identifiable parent company, include the product name as-is.
 
 4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
    - Extract numerical positions for each competitor mentioned
@@ -1765,6 +1782,7 @@ async function analyzeWithAnthropic(
       apiKey: config.apiKeys.openai.trim(),
     });
 
+    // Claude extraction prompt
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
 
 BRAND NAME: ${config.brandName}
@@ -1787,6 +1805,7 @@ Extract the following information:
    - Exclude category headings like "AI model/data marketplaces" or "GPU compute networks"
    - CRITICAL: Do NOT extract comparison categories, section headings, or feature/attribute labels as competitors (e.g., "Core Identity", "Primary Strength", "Build speed", "Free tier generosity"). Only extract actual company/brand names.
    - Return empty array [] if no competitors are mentioned
+   - **IMPORTANT**: When a product name is mentioned alongside its parent company (e.g., "ProductX by CompanyY", "ProductX de CompanyY", "ProductX from CompanyY"), prefer the COMPANY/BRAND name over the product name. If only a product name appears with no identifiable parent company, include the product name as-is.
 4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
 6. **sentiment**: Overall sentiment toward "${config.brandName}" ("positive" | "neutral" | "negative")
@@ -2102,6 +2121,7 @@ async function analyzeWithGoogle(
       apiKey: config.apiKeys.openai.trim(),
     });
 
+    // Gemini extraction prompt
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
 
 BRAND NAME: ${config.brandName}
@@ -2124,6 +2144,7 @@ Extract the following information:
    - Exclude category headings like "AI model/data marketplaces" or "GPU compute networks"
    - CRITICAL: Do NOT extract comparison categories, section headings, or feature/attribute labels as competitors (e.g., "Core Identity", "Primary Strength", "Build speed", "Free tier generosity"). Only extract actual company/brand names.
    - Return empty array [] if no competitors are mentioned
+   - **IMPORTANT**: When a product name is mentioned alongside its parent company (e.g., "ProductX by CompanyY", "ProductX de CompanyY", "ProductX from CompanyY"), prefer the COMPANY/BRAND name over the product name. If only a product name appears with no identifiable parent company, include the product name as-is.
 4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
 6. **sentiment**: Overall sentiment toward "${config.brandName}" ("positive" | "neutral" | "negative")
@@ -2451,6 +2472,28 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
         test.competitors = test.competitors.filter(c =>
           validatedNameSet.has(c.toLowerCase())
         );
+
+        // Clean competitorPositions to match
+        if (test.competitorPositions) {
+          const cleanedPositions: Record<string, number> = {};
+          for (const [name, pos] of Object.entries(test.competitorPositions)) {
+            if (validatedNameSet.has(name.toLowerCase())) {
+              cleanedPositions[name] = pos as number;
+            }
+          }
+          test.competitorPositions = cleanedPositions;
+        }
+
+        // Clean competitorSentiments to match
+        if (test.competitorSentiments) {
+          const cleanedSentiments: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+          for (const [name, sentiment] of Object.entries(test.competitorSentiments)) {
+            if (validatedNameSet.has(name.toLowerCase())) {
+              cleanedSentiments[name] = sentiment;
+            }
+          }
+          test.competitorSentiments = cleanedSentiments;
+        }
       }
     }
   } catch (error) {

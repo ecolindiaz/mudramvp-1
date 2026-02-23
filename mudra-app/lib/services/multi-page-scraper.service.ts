@@ -149,7 +149,8 @@ async function scrapeSinglePage(
  */
 export async function scrapePages(
 	urls: string[],
-	options: MultiPageScrapeOptions = {}
+	options: MultiPageScrapeOptions = {},
+	onBatchComplete?: (info: { scraped: number; total: number }) => void,
 ): Promise<MultiPageScrapeResult> {
 	const startedAt = new Date().toISOString();
 	const startTime = Date.now();
@@ -211,6 +212,8 @@ export async function scrapePages(
 					});
 				}
 			}
+
+			onBatchComplete?.({ scraped: allResults.filter(r => r.success).length, total: uniqueUrls.length });
 
 			// Small delay between batches to avoid rate limiting (except for last batch)
 			if (batchIndex < batches.length - 1) {

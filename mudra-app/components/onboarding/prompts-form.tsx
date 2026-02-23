@@ -14,12 +14,12 @@ import { UnicodeLoader } from "@/components/ui/unicode-loader"
 
 
 const LOADING_STEPS = [
-  "Defining your prompts",
-  "Analyzing your brand",
-  "Testing AI visibility",
-  "Scanning competitors",
-  "Testing agent readiness",
-  "Preparing your dashboard",
+  { label: "Generating prompts", phase: "prompts" },
+  { label: "Testing AI models", phase: "geo" },
+  { label: "Discovering pages", phase: "discovery" },
+  { label: "Scanning your website", phase: "scraping" },
+  { label: "Analyzing structure", phase: "scoring" },
+  { label: "Preparing dashboard", phase: "report" },
 ]
 
 const STALE_THRESHOLD_MS = 12 * 60 * 1000 // 12 minutes
@@ -31,7 +31,7 @@ export function PromptsForm() {
   const router = useRouter()
   const { profile, refreshBrandProfile } = useBrandProfile()
   const { data: onboardingData, saveToProfile, additionalMonitorIds } = useOnboarding()
-  const { state, error, simulatedProgress, runPipeline } = useAnalysisPipeline()
+  const { state, error, simulatedProgress, phaseDetail, currentStepFromSSE, runPipeline } = useAnalysisPipeline()
   const {
     isRunningAnalysis,
     analysisStartedAt,
@@ -272,6 +272,14 @@ export function PromptsForm() {
   useEffect(() => {
     if (!isRunning) return
 
+    // If SSE is providing real step data, use it
+    if (currentStepFromSSE >= 0) {
+      if (currentStepFromSSE !== currentStepIndex) {
+        setCurrentStepIndex(currentStepFromSSE)
+      }
+      return
+    }
+
     if (isIndeterminate) {
       // For recovery polling, cycle through steps on a timer
       const interval = setInterval(() => {
@@ -280,6 +288,7 @@ export function PromptsForm() {
       return () => clearInterval(interval)
     }
 
+    // Fallback: derive step from simulated progress percentage
     const stepProgress = currentProgress / 100
     const newStepIndex = Math.min(
       Math.floor(stepProgress * LOADING_STEPS.length),
@@ -289,7 +298,7 @@ export function PromptsForm() {
     if (newStepIndex !== currentStepIndex) {
       setCurrentStepIndex(newStepIndex)
     }
-  }, [currentProgress, isRunning, currentStepIndex, isIndeterminate])
+  }, [currentProgress, isRunning, currentStepIndex, isIndeterminate, currentStepFromSSE])
 
   if (isAnalysisComplete) {
     return (
@@ -384,9 +393,11 @@ export function PromptsForm() {
           {LOADING_STEPS.map((step, idx) => {
             const isDone = idx < currentStepIndex
             const isActive = idx === currentStepIndex
+            // Show substatus from SSE on the active step
+            const showDetail = isActive && phaseDetail && currentStepFromSSE >= 0
             return (
               <div
-                key={step}
+                key={step.phase}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-500 ${
                   isActive ? 'bg-white/[0.05]' : ''
                 }`}
@@ -400,17 +411,22 @@ export function PromptsForm() {
                     <span className="block w-1.5 h-1.5 rounded-full bg-white/20" />
                   )}
                 </span>
-                <span
-                  className={`text-sm transition-colors duration-500 ${
-                    isDone
-                      ? 'text-white/40'
-                      : isActive
-                        ? 'text-white/90 font-medium'
-                        : 'text-white/25'
-                  }`}
-                >
-                  {step}
-                </span>
+                <div className="flex flex-col">
+                  <span
+                    className={`text-sm transition-colors duration-500 ${
+                      isDone
+                        ? 'text-white/40'
+                        : isActive
+                          ? 'text-white/90 font-medium'
+                          : 'text-white/25'
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+                  {showDetail && (
+                    <span className="text-xs text-white/40 mt-0.5">{phaseDetail}</span>
+                  )}
+                </div>
               </div>
             )
           })}

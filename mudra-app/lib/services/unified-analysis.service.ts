@@ -15,6 +15,23 @@ import type { Prisma } from '@prisma/client';
 import { runDirectGEOAnalysis, createDirectGEOConfig } from './direct-geo-analysis.service';
 import { type CountryCode, getLanguageForCountry, getUniqueLanguages, isAllowedCountry } from '@/lib/geo/country-config';
 
+// ---------------------------------------------------------------------------
+// Progress streaming types
+// ---------------------------------------------------------------------------
+export type ProgressPhase = 'prompts' | 'geo' | 'discovery' | 'scraping' | 'scoring' | 'report' | 'issues' | 'complete' | 'error';
+
+export interface ProgressEvent {
+  phase: ProgressPhase;
+  status: 'started' | 'progress' | 'completed' | 'failed';
+  message?: string;
+  data?: Record<string, any>;
+}
+
+export type OnProgress = (event: ProgressEvent) => void;
+
+// ---------------------------------------------------------------------------
+// Config & Result types
+// ---------------------------------------------------------------------------
 export interface UnifiedAnalysisConfig {
   brandProfileId: number;
   brandName: string;
@@ -98,7 +115,8 @@ export interface UnifiedAnalysisResult {
  * - neither:          Legacy mode (implicit US)
  */
 export async function runUnifiedAnalysis(
-  config: UnifiedAnalysisConfig
+  config: UnifiedAnalysisConfig,
+  onProgress?: OnProgress,
 ): Promise<UnifiedAnalysisResult> {
   const result: UnifiedAnalysisResult = {
     success: false,
@@ -119,7 +137,7 @@ export async function runUnifiedAnalysis(
 
     // For queued jobs: only run GEO analysis (Technical already ran once)
     if (config.isQueuedJob) {
-      const geoResult = await runGeoAnalysisCore(config);
+      const geoResult = await runGeoAnalysisCore(config, onProgress);
 
       if (geoResult.success) {
         result.geoAnalysisId = geoResult.id;
@@ -135,8 +153,8 @@ export async function runUnifiedAnalysis(
 
     // Run GEO and Technical analyses in PARALLEL
     const [geoResult, technicalResult] = await Promise.allSettled([
-      runGeoAnalysisCore(config),
-      runTechnicalAnalysisCore(config),
+      runGeoAnalysisCore(config, onProgress),
+      runTechnicalAnalysisCore(config, onProgress),
     ]);
 
     // Process results and capture errors
@@ -184,6 +202,7 @@ export async function runUnifiedAnalysis(
 
     // Generate report if requested (typically for onboarding)
     if (config.generateReport) {
+      onProgress?.({ phase: 'report', status: 'started' });
       const reportResult = await generateReport({
         brandProfileId: config.brandProfileId,
         geoAnalysisId: result.geoAnalysisId,
@@ -193,14 +212,17 @@ export async function runUnifiedAnalysis(
       if (reportResult.success) {
         result.reportId = reportResult.id;
         console.log('[Unified Analysis] Report generated:', reportResult.id);
+        onProgress?.({ phase: 'report', status: 'completed' });
       } else if (reportResult.error) {
         errors.push(`Report Generation: ${reportResult.error}`);
         console.error('[Unified Analysis] Report generation failed:', reportResult.error);
+        onProgress?.({ phase: 'report', status: 'failed', message: reportResult.error });
       }
     }
 
     // Step 9: Auto-discover AI visibility issues
     if (result.geoAnalysisId || result.technicalAnalysisId) {
+      onProgress?.({ phase: 'issues', status: 'started' });
       try {
         const { discoverIssues } = await import('./issue-discovery.service');
         const discoveryResult = await discoverIssues(config.brandProfileId);
@@ -231,6 +253,7 @@ export async function runUnifiedAnalysis(
       } catch (discoveryError) {
         console.warn('[Unified Analysis] Issue discovery failed (non-fatal):', discoveryError);
       }
+      onProgress?.({ phase: 'issues', status: 'completed' });
     }
 
     // Set success status and error message
@@ -279,6 +302,9 @@ export async function runUnifiedAnalysis(
       }
     }
 
+    // Emit complete event
+    onProgress?.({ phase: 'complete', status: 'completed', data: { scores: result.scores } });
+
     // Notification: analysis complete
     if (result.success) {
       try {
@@ -309,6 +335,7 @@ export async function runUnifiedAnalysis(
     result.error = error instanceof Error ? error.message : 'Unknown fatal error occurred';
     result.errorCode = 'ANALYSIS_FATAL_ERROR';
     result.success = false;
+    onProgress?.({ phase: 'error', status: 'failed', message: result.error });
     return result;
   }
 }
@@ -317,7 +344,7 @@ export async function runUnifiedAnalysis(
  * Core GEO Analysis Logic
  * Shared by onboarding and dashboard
  */
-async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
+async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: OnProgress) {
   try {
     const { generateAndSaveInitialPrompts, getActivePrompts } = await import('./prompt-storage.service');
     const { canRunAnalysis, updateLastAnalysisTime, createAnalysisRun, updateAnalysisRun } = await import('./analysis-run.service');
@@ -346,6 +373,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       : [language as 'en' | 'es'];
 
     // Get or generate prompts (filtered by language for this country)
+    onProgress?.({ phase: 'prompts', status: 'started' });
     let prompts = await getActivePrompts(config.brandProfileId, language);
     if (prompts.length === 0) {
       console.log(`[GEO Core] Generating initial prompts (languages: ${promptLanguages.join(', ')})...`);
@@ -353,6 +381,8 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
       // Filter to only the prompts in the language we need for THIS run
       prompts = allPrompts.filter(p => !p.language || p.language === language);
     }
+
+    onProgress?.({ phase: 'prompts', status: 'completed', data: { count: prompts.length } });
 
     // Create analysis run
     const analysisRun = await createAnalysisRun({
@@ -378,7 +408,9 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
 
     let data;
     try {
+      onProgress?.({ phase: 'geo', status: 'started' });
       data = await runDirectGEOAnalysis(geoConfig);
+      onProgress?.({ phase: 'geo', status: 'completed', data: { score: data.overallScore || 0 } });
     } catch (geoError) {
       await updateAnalysisRun(analysisRun.id, {
         status: 'failed',
@@ -455,7 +487,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig) {
  * Phase 4: Integrated pipeline using Firecrawl sitemap discovery + DOM extraction + scoring
  * Shared by onboarding and dashboard
  */
-async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
+async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: OnProgress) {
   try {
     // Import new multi-page modules
     const { discoverPages, getUrlsFromDiscovery, createFallbackDiscovery } = await import('./sitemap-discovery.service');
@@ -493,6 +525,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
 
     // Step 1: Discover pages via Firecrawl /map
     console.log('[Technical Core] Step 1: Discovering pages...');
+    onProgress?.({ phase: 'discovery', status: 'started' });
     let discovery = await discoverPages(domain, { maxPages: 35, maxBlogs: 15 });
 
     if (!discovery.success || discovery.pages.length === 0) {
@@ -501,6 +534,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
     }
 
     console.log(`[Technical Core] Discovered ${discovery.selectedCount} pages to analyze`);
+    onProgress?.({ phase: 'discovery', status: 'completed', data: { pagesFound: discovery.selectedCount } });
 
     // Create job for tracking
     try {
@@ -528,9 +562,13 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
     // Step 3: Scrape pages in parallel batches
     console.log('[Technical Core] Step 3: Scraping pages...');
     const urls = getUrlsFromDiscovery(discovery);
-    const scrapeResult = await scrapePages(urls, { concurrency: 4, timeoutMs: 30000 });
+    onProgress?.({ phase: 'scraping', status: 'started', data: { total: urls.length } });
+    const scrapeResult = await scrapePages(urls, { concurrency: 4, timeoutMs: 30000 }, (info) => {
+      onProgress?.({ phase: 'scraping', status: 'progress', data: { scraped: info.scraped, total: info.total } });
+    });
 
     console.log(`[Technical Core] Scraped ${scrapeResult.successCount}/${scrapeResult.totalUrls} pages`);
+    onProgress?.({ phase: 'scraping', status: 'completed', data: { success: scrapeResult.successCount, failed: scrapeResult.failureCount } });
 
     // If ALL pages failed to scrape, don't save a 0-score record.
     // This prevents the score from dropping to 0 when e.g. Firecrawl credits are exhausted (402).
@@ -565,6 +603,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
 
     // Step 4: Extract DOM and score each successful page
     console.log('[Technical Core] Step 4: Extracting and scoring pages...');
+    onProgress?.({ phase: 'scoring', status: 'started' });
     const successfulScrapes = getSuccessfulScrapes(scrapeResult);
 
     // Deduplicate pages with identical HTML (handles redirects)
@@ -661,6 +700,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig) {
     // Step 5: Calculate site-wide score
     console.log('[Technical Core] Step 5: Calculating site score...');
     const siteScore = computeSiteScore(pageScores);
+    onProgress?.({ phase: 'scoring', status: 'completed', data: { siteScore, pagesScored: pageScores.length } });
 
     // Build score by page type for site structure score
     const scoreByPageType: Record<string, { count: number; avgScore: number }> = {};

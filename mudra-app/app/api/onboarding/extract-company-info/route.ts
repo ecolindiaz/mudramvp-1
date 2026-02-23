@@ -29,24 +29,25 @@ async function suggestCompetitorsWithAI(params: {
   const companyHostname = new URL(companyUrl).hostname.replace(/^www\./, '');
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    temperature: 0.3,
+    model: 'gpt-5.1',
+    temperature: 0.2,
     response_format: { type: 'json_object' },
     messages: [
       {
         role: 'system',
-        content: 'You are a competitive intelligence analyst. Return JSON only.',
+        content: 'You are a competitive intelligence analyst specializing in identifying direct business competitors. Return JSON only.',
       },
       {
         role: 'user',
-        content: `Given this company profile, suggest 3-5 direct competitors with their website URLs.
+        content: `Who are the direct competitors of this company?
 
-Company description: ${companyDescription}
+Company: ${companyHostname}
+Description: ${companyDescription}
 Industry: ${industry}
 Products/Services: ${servicesProducts.join(', ')}
-Company website: ${companyUrl}
+Website: ${companyUrl}
 
-Return JSON in this exact format:
+Return 5 direct competitors — companies that sell similar products/services to the same target audience. Return JSON:
 {
   "competitors": [
     { "name": "Company Name", "url": "https://example.com" }
@@ -54,10 +55,12 @@ Return JSON in this exact format:
 }
 
 Rules:
-- Only include real, well-known companies that directly compete
-- URLs must be valid homepage URLs (https://...)
-- Do NOT include ${companyHostname} or variations of it
-- Prefer companies of similar size/stage when possible`,
+- Direct competitors ONLY — same market, same buyer, similar offering
+- URLs must be the company homepage (e.g. https://company.com), not subpages
+- Only include companies that are currently active and operational
+- Do NOT include ${companyHostname} or any of its subdomains
+- Do NOT include generic platforms (Google, Amazon, Microsoft) unless they have a product that directly competes in this specific niche
+- Match company size when possible: if this is a startup, prefer startup competitors over enterprise giants`,
       },
     ],
   });
@@ -71,8 +74,8 @@ Rules:
   for (const comp of parsed.competitors || []) {
     if (typeof comp.url !== 'string') continue;
     try {
-      const parsed = new URL(comp.url);
-      const hostname = parsed.hostname.replace(/^www\./, '');
+      const parsedCompUrl = new URL(comp.url);
+      const hostname = parsedCompUrl.hostname.replace(/^www\./, '');
       if (hostname === companyHostname) continue;
       urls.push(comp.url);
     } catch {
@@ -228,18 +231,17 @@ export async function POST(request: NextRequest) {
         : []
     };
 
-    // If fewer than 3 competitors extracted, supplement with AI suggestions
-    let competitorSource: 'extracted' | 'ai_suggested' | 'merged' = cleanedData.competitorUrls.length > 0 ? 'extracted' : 'extracted';
-    const MIN_COMPETITORS = 3;
+    // Always ask GPT-5.1 for competitors — it's the primary strategy
+    // Firecrawl rarely finds competitor URLs on websites, so GPT drives discovery
+    let competitorSource: 'extracted' | 'ai_suggested' | 'merged' = 'extracted';
 
     if (
-      cleanedData.competitorUrls.length < MIN_COMPETITORS &&
       (cleanedData.companyDescription || cleanedData.industry) &&
       process.env.OPENAI_API_KEY
     ) {
       try {
         const firecrawlCount = cleanedData.competitorUrls.length;
-        console.log(`🤖 Only ${firecrawlCount} competitor(s) from Firecrawl, supplementing with AI suggestion...`);
+        console.log(`🤖 Asking GPT-5.1 for competitors (Firecrawl found ${firecrawlCount})...`);
         const aiResult = await suggestCompetitorsWithAI({
           companyDescription: cleanedData.companyDescription,
           industry: cleanedData.industry,
@@ -248,11 +250,10 @@ export async function POST(request: NextRequest) {
         });
         if (aiResult.urls.length > 0) {
           if (firecrawlCount === 0) {
-            // No Firecrawl results — use AI suggestions directly
             cleanedData.competitorUrls = aiResult.urls;
             competitorSource = 'ai_suggested';
           } else {
-            // Merge: keep Firecrawl results, add AI suggestions that aren't duplicates
+            // Merge: deduplicate by hostname, Firecrawl results first
             const existingHostnames = new Set(
               cleanedData.competitorUrls.map(u => {
                 try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; }
@@ -273,7 +274,6 @@ export async function POST(request: NextRequest) {
         }
       } catch (err) {
         console.log('🤖 AI competitor suggestion failed (graceful degradation):', err);
-        // Continue with whatever competitors we have — not a critical failure
       }
     }
 

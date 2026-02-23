@@ -11,7 +11,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { mastra } from '@/mastra'
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import {
   validateSchemaInSandbox,
   validateFaqInSandbox,
@@ -51,46 +51,49 @@ const QUALITY_THRESHOLDS = {
 // Timeout for agent generation (deploy route has maxDuration=300s on Vercel Pro)
 const AGENT_TIMEOUT_MS = 120_000
 
-// Direct Anthropic client as fallback
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+// Direct OpenAI client for schema injection agent (GPT-5.2 high reasoning)
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 })
 
 /**
- * Call Anthropic directly without Mastra wrapper
+ * Call OpenAI GPT-5.2 directly with high reasoning effort
  */
-async function callAnthropicDirect(prompt: string, systemPrompt?: string): Promise<string> {
-  console.log(`[IssueExecutor] Using direct Anthropic API call...`)
-  console.log(`[IssueExecutor] Anthropic API key present: ${!!process.env.ANTHROPIC_API_KEY}`)
-  console.log(`[IssueExecutor] API key first 10 chars: ${process.env.ANTHROPIC_API_KEY?.substring(0, 10)}...`)
-  console.log(`[IssueExecutor] Calling anthropic.messages.create with model: claude-sonnet-4-5-20250929`)
+async function callOpenAIDirect(prompt: string, systemPrompt?: string): Promise<string> {
+  console.log(`[IssueExecutor] Using direct OpenAI API call (gpt-5.2, reasoning: high)...`)
+  console.log(`[IssueExecutor] OpenAI API key present: ${!!process.env.OPENAI_API_KEY}`)
   console.log(`[IssueExecutor] Prompt length: ${prompt.length} chars`)
-  
+
   try {
     const startTime = Date.now()
     console.log(`[IssueExecutor] API call starting at ${new Date().toISOString()}`)
-    
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 4096,
-      messages: [
-        { role: 'user', content: prompt }
-      ],
-      ...(systemPrompt && { system: systemPrompt })
-    })
-    
-    const elapsed = Date.now() - startTime
-    console.log(`[IssueExecutor] Anthropic API response received in ${elapsed}ms, stop_reason: ${response.stop_reason}`)
-    console.log(`[IssueExecutor] Response usage: input=${response.usage.input_tokens}, output=${response.usage.output_tokens}`)
-    
-    const textContent = response.content.find(c => c.type === 'text')
-    if (!textContent || textContent.type !== 'text') {
-      throw new Error('No text response from Anthropic')
+
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt })
     }
-    
-    return textContent.text
+    messages.push({ role: 'user', content: prompt })
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-5.2',
+      max_completion_tokens: 4096,
+      reasoning_effort: 'high',
+      messages,
+    })
+
+    const elapsed = Date.now() - startTime
+    const choice = response.choices[0]
+    console.log(`[IssueExecutor] OpenAI API response received in ${elapsed}ms, finish_reason: ${choice?.finish_reason}`)
+    console.log(`[IssueExecutor] Response usage: prompt=${response.usage?.prompt_tokens}, completion=${response.usage?.completion_tokens}, total=${response.usage?.total_tokens}`)
+
+    const text = choice?.message?.content
+    if (!text) {
+      throw new Error('No text response from OpenAI')
+    }
+
+    return text
   } catch (error) {
-    console.error(`[IssueExecutor] Anthropic API call failed:`, error)
+    console.error(`[IssueExecutor] OpenAI API call failed:`, error)
     if (error instanceof Error) {
       console.error(`[IssueExecutor] Error name: ${error.name}`)
       console.error(`[IssueExecutor] Error message: ${error.message}`)
@@ -1207,10 +1210,9 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
     })
     console.log(`[IssueExecutor] Context gathered: pageContent=${!!context.pageContent}, sourceFile=${!!context.sourceFile}`)
     
-    // Pre-flight check for API keys
-    const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY
-    if (!hasAnthropicKey && !process.env.OPENAI_API_KEY) {
-      throw new Error('No LLM API keys configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.')
+    // Pre-flight check for API keys (schema agent uses OpenAI GPT-5.2)
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('No OpenAI API key configured. Set OPENAI_API_KEY for schema injection agent (GPT-5.2).')
     }
 
     // Handle conversation types (no iterative review needed)
@@ -1341,9 +1343,9 @@ Please generate an improved version addressing all the feedback above.`
         // Generate
         console.log(`[IssueExecutor] Generating code (iteration ${iteration})...`)
         const responseText = await withTimeout(
-          callAnthropicDirect(iterationPrompt, systemPrompt),
+          callOpenAIDirect(iterationPrompt, systemPrompt),
           AGENT_TIMEOUT_MS,
-          `Anthropic API call timed out after ${AGENT_TIMEOUT_MS / 1000}s`
+          `OpenAI API call timed out after ${AGENT_TIMEOUT_MS / 1000}s`
         )
 
         if (!responseText) throw new Error('Agent returned empty response')
@@ -1695,9 +1697,9 @@ async function handleConversationIssue(
 
   const prompt = await buildAgentPrompt({ ...issue, brandProfile: issue.brandProfile, agentType, category: null }, context)
   const responseText = await withTimeout(
-    callAnthropicDirect(prompt),
+    callOpenAIDirect(prompt),
     AGENT_TIMEOUT_MS,
-    `Anthropic API call timed out after ${AGENT_TIMEOUT_MS / 1000}s`
+    `OpenAI API call timed out after ${AGENT_TIMEOUT_MS / 1000}s`
   )
 
   const generatedContent = extractGeneratedContent(responseText)

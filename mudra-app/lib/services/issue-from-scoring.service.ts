@@ -14,7 +14,7 @@ import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import type { FullPageScore } from '@/lib/analysis/technical/types'
 import { NON_MARKETING_PAGE_TYPES } from '@/lib/analysis/technical/four-dimension-scorer'
-import { buildRequiredSchemaTypesMarker, buildDynamicSchemaTypesMarker } from './schema-contracts'
+import { buildRequiredSchemaTypesMarker, buildDynamicSchemaTypesMarker, buildMergedSchemaTypesMarker } from './schema-contracts'
 
 // Types
 export type IssuePriority = 'low' | 'medium' | 'high'
@@ -70,7 +70,7 @@ export const ISSUE_TITLES: Record<string, string> = {
 const ISSUE_DESCRIPTIONS: Record<string, string> = {
   'J1_present': 'This page has no JSON-LD schema markup. Structured data is critical for AI systems to understand your content.',
   'J2_valid': 'This page has invalid JSON-LD schema. Invalid schema is ignored by AI systems and search engines.',
-  'J3_relevant': 'This page has schema types that are not optimized for Answer Engine visibility. Use Organization, Product, FAQPage, Article, etc.',
+  'J3_relevant': 'This page has schema types that are not optimized for Answer Engine visibility.',
   'J4_coverage': 'This page has some JSON-LD schema but is missing additional recommended types. Adding more schema types improves AEO coverage and AI understanding.',
   'M1_title': 'This page is missing a <title> tag. A descriptive title is essential for AI systems to understand and cite your content correctly.',
   'M2_description': 'This page is missing a meta description. Meta descriptions help AI systems understand your page content and generate accurate summaries.',
@@ -190,15 +190,25 @@ export async function createIssuesFromPageScore(
       }
     }
 
+    // J3_relevant: use dynamic recommended types from scorer (excludes FAQPage when no FAQ content)
+    if (check === 'J3_relevant') {
+      const recMatch = issue.message.match(/Recommended: (.+)$/)
+      if (recMatch) {
+        description = `${description}\n\nRecommended schemas: ${recMatch[1]}.`
+      }
+    }
+
     // J4_coverage: fixed title, never derive required types from scorer free text
     if (check === 'J4_coverage') {
       description = `${ISSUE_DESCRIPTIONS[check]}\n\n${issue.message}`
     }
 
     // Add explicit schema contract marker for downstream script generation.
-    // For J4_coverage, try dynamic marker from scorer message first (page-type-specific).
+    // For J4_coverage, try merged marker first (existing + new types) to preserve existing schemas.
+    // For J1_present/J3_relevant/J4_coverage, try dynamic marker from scorer message (page-type-specific).
     const schemaContractMarker =
-      (check === 'J4_coverage' ? buildDynamicSchemaTypesMarker(issue.message) : null)
+      (check === 'J4_coverage' ? buildMergedSchemaTypesMarker(issue.message) : null)
+      ?? ((check === 'J1_present' || check === 'J3_relevant' || check === 'J4_coverage') ? buildDynamicSchemaTypesMarker(issue.message) : null)
       ?? buildRequiredSchemaTypesMarker(check)
     if (schemaContractMarker) {
       description = `${description}\n\n${schemaContractMarker}`

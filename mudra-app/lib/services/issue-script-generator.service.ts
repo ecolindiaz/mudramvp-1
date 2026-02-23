@@ -69,6 +69,7 @@ const KNOWN_SCHEMA_TYPES = new Set<string>([
 // checkCodes that are schema-related
 const SCHEMA_CHECK_CODES = new Set([
 	"J1_present",
+	"J3_relevant",
 	"J4_coverage",
 	"FAQ_schema_gap",
 ]);
@@ -715,9 +716,13 @@ function buildSchemaScript(
 		2
 	)}\n</script>`;
 
+	const check = issue.checkCode || "";
+	const commentLine = check === "J4_coverage"
+		? "<!-- This replaces ALL JSON-LD on this page. Remove existing JSON-LD <script> tags and paste this instead. -->"
+		: "<!-- Paste this into the page <head> (Webflow/Framer custom code is fine). -->";
 	const header = [
 		`<!-- Issue: ${issue.title} -->`,
-		"<!-- Paste this into the page <head> (Webflow/Framer custom code is fine). -->",
+		commentLine,
 	];
 
 	return {
@@ -1109,7 +1114,7 @@ function validateGeneratedScript(
 		/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i
 	);
 
-	if (check === "J1_present" || check === "J4_coverage") {
+	if (check === "J1_present" || check === "J3_relevant" || check === "J4_coverage") {
 		if (scripts.length !== 1) {
 			errors.push(`Expected exactly one JSON-LD script tag, found ${scripts.length}`);
 		}
@@ -1293,7 +1298,7 @@ async function buildLlmPrompts(
 
 	const evidenceContext = `\n\n## Grounding Evidence\n\`\`\`json\n${JSON.stringify(evidencePayload, null, 2)}\n\`\`\``;
 
-	if (check === "J1_present" || check === "J4_coverage" || check === "FAQ_schema_gap") {
+	if (check === "J1_present" || check === "J3_relevant" || check === "J4_coverage" || check === "FAQ_schema_gap") {
 		const issueText = `${issue.checkCode || ""} ${issue.description || ""}`;
 		const schemaKb = await readSchemaKnowledge(issueText);
 		const requiredTypes = getRequiredSchemaTypes(issue, targetUrl);
@@ -1317,7 +1322,7 @@ DESCRIPTION QUALITY:
 
 OUTPUT CONTRACT:
 - Return EXACTLY one <script type="application/ld+json"> tag.
-- For J1_present/J4_coverage, return one @graph array.
+- For J1_present/J3_relevant/J4_coverage, return one @graph array.
 - For FAQ_schema_gap, return FAQPage schema only.
 - Required schema types: ${requiredTypes.join(", ")}.
 - Use stable cross-references with @id links between Organization/WebSite/Service/WebApplication.
@@ -1454,7 +1459,10 @@ export async function generateScriptWithLlm(
 		// 7. Validate
 		const validation = validateGeneratedScript(output, issue, evidence);
 		if (validation.valid) {
-			const header = `<!-- Issue: ${issue.title} -->`;
+			const headerComment = issue.checkCode === "J4_coverage"
+				? "<!-- This replaces ALL JSON-LD on this page. Remove existing JSON-LD <script> tags and paste this instead. -->"
+				: "";
+			const header = `<!-- Issue: ${issue.title} -->${headerComment ? `\n${headerComment}` : ""}`;
 
 			return {
 				generatedOutput: `${header}\n\n${output}`,
@@ -1497,7 +1505,10 @@ Fix these errors and return the corrected output. Follow the same output contrac
 				evidence
 			);
 			if (repairValidation.valid) {
-				const header = `<!-- Issue: ${issue.title} -->`;
+				const repairHeaderComment = issue.checkCode === "J4_coverage"
+					? "<!-- This replaces ALL JSON-LD on this page. Remove existing JSON-LD <script> tags and paste this instead. -->"
+					: "";
+				const header = `<!-- Issue: ${issue.title} -->${repairHeaderComment ? `\n${repairHeaderComment}` : ""}`;
 
 				return {
 					generatedOutput: `${header}\n\n${repairedOutput}`,

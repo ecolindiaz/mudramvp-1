@@ -162,7 +162,7 @@ export const schemaArchitectAgent = new Agent({
   id: "schema-architect-agent",
   name: "Schema Architect Agent",
   instructions: SCHEMA_ARCHITECT_INSTRUCTIONS,
-  model: "anthropic/claude-sonnet-4-5",
+  model: "openai/gpt-5.2",
   scorers: {
     hallucination: { scorer: hallucinationScorer, sampling: { type: 'ratio' as const, rate: 1.0 } },
     relevancy: { scorer: relevancyScorer, sampling: { type: 'ratio' as const, rate: 1.0 } },

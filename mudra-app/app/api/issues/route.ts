@@ -32,14 +32,16 @@ export async function GET(request: NextRequest) {
     let brandProfile
     if (brandProfileIdParam) {
       brandProfile = await prisma.brandProfile.findFirst({
-        where: { 
+        where: {
           id: parseInt(brandProfileIdParam),
-          userId: session.user.id 
+          userId: session.user.id
         },
+        select: { id: true },
       })
     } else {
       brandProfile = await prisma.brandProfile.findFirst({
         where: { userId: session.user.id },
+        select: { id: true },
       })
     }
 
@@ -131,14 +133,16 @@ export async function POST(request: NextRequest) {
     let brandProfile
     if (brandProfileId) {
       brandProfile = await prisma.brandProfile.findFirst({
-        where: { 
+        where: {
           id: brandProfileId,
-          userId: session.user.id 
+          userId: session.user.id
         },
+        select: { id: true },
       })
     } else {
       brandProfile = await prisma.brandProfile.findFirst({
         where: { userId: session.user.id },
+        select: { id: true },
       })
     }
 

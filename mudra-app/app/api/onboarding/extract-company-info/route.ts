@@ -130,48 +130,69 @@ export async function POST(request: NextRequest) {
     const app = await createFirecrawlApp();
 
     // Use Firecrawl's JSON extraction with schema (v1 SDK style)
-    const result: FirecrawlResponse = await app.scrapeUrl(url, {
-      formats: ['json'],
-      jsonOptions: {
-        schema: {
-          type: 'object',
-          properties: {
-            companyDescription: {
-              type: 'string',
-              description: 'A concise 2-3 sentence description of what the company does and its value proposition'
+    // Wrapped in try-catch to handle Firecrawl SDK bug where network-level
+    // errors (timeouts, DNS failures) crash inside handleError() because
+    // error.response is undefined when there's no HTTP response.
+    let result: FirecrawlResponse;
+    try {
+      result = await app.scrapeUrl(url, {
+        formats: ['json'],
+        jsonOptions: {
+          schema: {
+            type: 'object',
+            properties: {
+              companyDescription: {
+                type: 'string',
+                description: 'A concise 2-3 sentence description of what the company does and its value proposition'
+              },
+              industry: {
+                type: 'string',
+                description: 'The primary industry the company operates in (e.g., Technology, Healthcare, Finance, Education, E-commerce, Manufacturing, Real Estate, Marketing, Consulting, SaaS, AI/ML)'
+              },
+              servicesProducts: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'The actual named products, tools, or services with a brief description. Format: "Product Name - Brief description of what it does". Example: "Vercel AI SDK - Open-source library for building AI-powered applications with streaming support"'
+              },
+              idealCustomerProfiles: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Specific target customer segments with details about company size, role, or industry (e.g., "Series A SaaS startups", "Enterprise marketing teams", "E-commerce businesses with $1M+ revenue")'
+              },
+              competitorUrls: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'URLs of competitor companies mentioned on the website. Do NOT include the company\'s own URL.'
+              }
             },
-            industry: {
-              type: 'string',
-              description: 'The primary industry the company operates in (e.g., Technology, Healthcare, Finance, Education, E-commerce, Manufacturing, Real Estate, Marketing, Consulting, SaaS, AI/ML)'
-            },
-            servicesProducts: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'The actual named products, tools, or services with a brief description. Format: "Product Name - Brief description of what it does". Example: "Vercel AI SDK - Open-source library for building AI-powered applications with streaming support"'
-            },
-            idealCustomerProfiles: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Specific target customer segments with details about company size, role, or industry (e.g., "Series A SaaS startups", "Enterprise marketing teams", "E-commerce businesses with $1M+ revenue")'
-            },
-            competitorUrls: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'URLs of competitor companies mentioned on the website. Do NOT include the company\'s own URL.'
-            }
+            required: ['companyDescription', 'industry', 'servicesProducts', 'idealCustomerProfiles', 'competitorUrls']
           },
-          required: ['companyDescription', 'industry', 'servicesProducts', 'idealCustomerProfiles', 'competitorUrls']
-        },
-        prompt: `Extract from this company website:
+          prompt: `Extract from this company website:
 1) Company description: 2-3 sentences about what they do and their unique value
 2) Industry: Their primary industry
 3) Products/Services: List their ACTUAL named products, tools, platforms, or service offerings (up to 7). For EACH product, include the name AND a brief description of what it does. Format as "Product Name - Brief description". Example: "Vercel AI SDK - Open-source library for building AI-powered applications". Look for product names in navigation, pricing pages, or feature sections.
 4) Ideal Customer Profiles: 5 specific target customer segments. Be specific about company type, size, role, or industry. Examples: "Mid-market B2B SaaS companies", "Frontend developers at startups", "E-commerce brands doing $10M+ annually"
 5) Competitor URLs: Any competitor websites mentioned (exclude the company's own website)`
-      },
-      onlyMainContent: false,
-      timeout: 45000
-    } as any);
+        },
+        onlyMainContent: false,
+        timeout: 45000
+      } as any);
+    } catch (scrapeError: any) {
+      // Firecrawl SDK v1 has a bug: when axios throws without an HTTP response
+      // (timeout, DNS, network error), the SDK calls handleError(undefined)
+      // which crashes with "Cannot read properties of undefined (reading 'status')".
+      const isTimeout = scrapeError?.message?.includes('timeout') ||
+        scrapeError?.code === 'ECONNABORTED' ||
+        scrapeError?.message?.includes('Cannot read properties of undefined');
+      const errorMsg = isTimeout
+        ? 'Website took too long to respond. Please try again.'
+        : `Failed to scrape website: ${scrapeError?.message || 'Unknown error'}`;
+      console.error('❌ Firecrawl scrapeUrl threw:', scrapeError?.message || scrapeError);
+      return NextResponse.json(
+        { success: false, error: { message: errorMsg, code: 'SCRAPE_FAILED' } },
+        { status: 502 }
+      );
+    }
 
     if (!result.success) {
       console.error('❌ Firecrawl extraction failed:', result.error);

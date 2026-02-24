@@ -37,9 +37,12 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
   async function onSubmit(data: SignupFormData) {
     setIsLoading(true)
 
-    // Clear any cached brand profile from previous user session
+    // Clear any cached data from previous user session
     if (typeof window !== 'undefined') {
       localStorage.removeItem('mudra_brand_profile')
+      localStorage.removeItem('onboardingData')
+      localStorage.removeItem('mudra_active_profile_id')
+      localStorage.removeItem('mudra_active_country')
     }
 
     try {
@@ -86,9 +89,12 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
     try {
       setIsGoogleLoading(true)
 
-      // Clear any cached brand profile from previous user session
+      // Clear any cached data from previous user session
       if (typeof window !== 'undefined') {
         localStorage.removeItem('mudra_brand_profile')
+        localStorage.removeItem('onboardingData')
+        localStorage.removeItem('mudra_active_profile_id')
+        localStorage.removeItem('mudra_active_country')
       }
 
       await signIn('google', { callbackUrl: '/welcome' })

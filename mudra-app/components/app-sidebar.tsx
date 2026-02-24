@@ -379,7 +379,10 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
     // Clear localStorage cache first to prevent data leakage between users
     try {
       localStorage.removeItem('mudra_brand_profile')
-      console.log('Cleared mudra_brand_profile from localStorage')
+      localStorage.removeItem('onboardingData')
+      localStorage.removeItem('mudra_active_profile_id')
+      localStorage.removeItem('mudra_active_country')
+      console.log('Cleared user session data from localStorage')
     } catch (storageError) {
       console.warn('Failed to clear localStorage:', storageError)
     }

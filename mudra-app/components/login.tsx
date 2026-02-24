@@ -46,11 +46,14 @@ export default function LoginPage() {
         try {
             setIsLoading(true)
             
-            // Clear any cached brand profile from previous user session
+            // Clear any cached data from previous user session
             if (typeof window !== 'undefined') {
                 localStorage.removeItem('mudra_brand_profile')
+                localStorage.removeItem('onboardingData')
+                localStorage.removeItem('mudra_active_profile_id')
+                localStorage.removeItem('mudra_active_country')
             }
-            
+
             const result = await signIn('credentials', {
                 email: data.email,
                 password: data.password,
@@ -79,11 +82,14 @@ export default function LoginPage() {
         try {
             setIsGoogleLoading(true)
             
-            // Clear any cached brand profile from previous user session
+            // Clear any cached data from previous user session
             if (typeof window !== 'undefined') {
                 localStorage.removeItem('mudra_brand_profile')
+                localStorage.removeItem('onboardingData')
+                localStorage.removeItem('mudra_active_profile_id')
+                localStorage.removeItem('mudra_active_country')
             }
-            
+
             await signIn('google', { callbackUrl: '/dashboard' })
         } catch (error) {
             toast.error('Failed to sign in with Google')

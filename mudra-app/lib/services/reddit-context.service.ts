@@ -15,6 +15,10 @@ import type { RedditSearchResult, RedditPost, RedditComment } from '../apify/red
 /** Maximum character budget for the formatted Reddit context */
 const MAX_CONTEXT_CHARS = 3000;
 
+/** Maximum time to wait for Reddit context before giving up (ms).
+ *  Leaves ~25s budget for prompt generation + DB write within a 60s Vercel function. */
+const REDDIT_FETCH_TIMEOUT_MS = 35_000;
+
 /**
  * Build 3-5 Reddit search queries from extracted brand info.
  * These target real user discussions rather than marketing language.
@@ -56,7 +60,9 @@ export function buildRedditQueries(brandInfo: BrandInfo): string[] {
     queries.push(`${brandInfo.companyName} reviews`);
   }
 
-  return queries.slice(0, 5);
+  // 3 queries keeps the Apify actor fast (fewer targets to explore).
+  // The onboarding context only needs representative language, not exhaustive coverage.
+  return queries.slice(0, 3);
 }
 
 /**
@@ -133,13 +139,36 @@ export async function fetchRedditContext(brandInfo: BrandInfo): Promise<string |
     const queries = buildRedditQueries(brandInfo);
     console.log(`[RedditContext] Searching Reddit with ${queries.length} queries:`, queries);
 
-    const result = await searchRedditConversations(queries, {
-      sort: 'relevance',
-      timeframe: 'year',
-      maxPosts: 10,
-      scrapeComments: true,
-      maxComments: 5,
-    });
+    // The scraper saves results progressively — by ~10s the dataset typically has
+    // 90+ items, far more than the 3000-char context budget needs.
+    // fireAndFetch: true uses start() + exact sleep instead of the SDK's call(),
+    // which ignores short waitSecs due to coarse server-side polling (measured at
+    // 20s for waitSecs: 10). With fireAndFetch the pipeline is:
+    //   start() ~1s + sleep 10s + listItems() ~0.3s ≈ 11-12s total
+    // The outer timeout (35s) is a generous safety net.
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const result = await Promise.race([
+      searchRedditConversations(queries, {
+        sort: 'relevance',
+        timeframe: 'year',
+        maxPosts: 10,
+        scrapeComments: true,
+        maxComments: 5,
+        waitSecs: 10,
+        fireAndFetch: true,
+      }),
+      new Promise<null>((resolve) => {
+        timeoutId = setTimeout(() => {
+          console.warn(`[RedditContext] Timed out after ${REDDIT_FETCH_TIMEOUT_MS / 1000}s, skipping Reddit context`);
+          resolve(null);
+        }, REDDIT_FETCH_TIMEOUT_MS);
+      }),
+    ]);
+    clearTimeout(timeoutId!);
+
+    if (result === null) {
+      return null;
+    }
 
     if (!result.success) {
       console.warn('[RedditContext] Reddit search failed:', result.error);

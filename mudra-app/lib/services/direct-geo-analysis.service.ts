@@ -39,29 +39,7 @@ const geminiRedirectCache = new Map<string, { url: string; title: string; resolv
 const geminiRedirectInFlight = new Map<string, Promise<{ url: string; title: string }>>();
 const REDIRECT_CACHE_TTL = 1000 * 60 * 60; // 1 hour cache TTL
 
-// Anthropic adaptive token-budget throttle (Tier 1: 30K input tokens/min)
-const ANTHROPIC_TOKEN_BUDGET_PER_MIN = 30_000;
-const ANTHROPIC_BUDGET_WINDOW_MS = 60_000;
-const anthropicTokenLedger: { ts: number; tokens: number }[] = [];
-
-/**
- * Record tokens used and return how many ms to sleep before the next call
- * to stay under the per-minute input-token budget.
- */
-function anthropicThrottleMs(inputTokensUsed: number): number {
-  const now = Date.now();
-  anthropicTokenLedger.push({ ts: now, tokens: inputTokensUsed });
-  // Prune entries older than the budget window
-  while (anthropicTokenLedger.length && anthropicTokenLedger[0].ts < now - ANTHROPIC_BUDGET_WINDOW_MS) {
-    anthropicTokenLedger.shift();
-  }
-  const usedInWindow = anthropicTokenLedger.reduce((s, e) => s + e.tokens, 0);
-  if (usedInWindow < ANTHROPIC_TOKEN_BUDGET_PER_MIN) return 0;
-  // We're at/over budget — wait until the oldest entry expires from the window
-  const oldestTs = anthropicTokenLedger[0].ts;
-  const waitUntil = oldestTs + ANTHROPIC_BUDGET_WINDOW_MS;
-  return Math.max(0, waitUntil - now + 500); // +500ms safety margin
-}
+// Anthropic throttle removed — relying on retryWithBackoff to handle 429s naturally
 
 // Gemini model configuration: preview primary with stable fallbacks
 const GEMINI_PRIMARY_MODEL = 'gemini-3-flash-preview';
@@ -1799,16 +1777,6 @@ async function analyzeWithAnthropic(
       }
     });
 
-    // Adaptive Anthropic token-budget throttle (replaces flat 20s sleep)
-    const inputTokens = (response as any).usage?.input_tokens ?? 10_000; // fallback estimate
-    const delayMs = anthropicThrottleMs(inputTokens);
-    if (delayMs > 0) {
-      console.log(`  ⏳ [anthropic] Adaptive throttle: ${Math.round(delayMs / 1000)}s (used ${inputTokens} input tokens)`);
-      await sleep(delayMs);
-    } else {
-      console.log(`  ⚡ [anthropic] Token budget OK (${inputTokens} tokens) — no delay needed`);
-    }
-
     let text = '';
     const citations: Citation[] = [];
     const sources: Citation[] = [];
@@ -2464,7 +2432,8 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     
     // Gemini needs throttling (503 overload errors), Perplexity has strict rate limits (429),
     // Anthropic Tier 1 has 30K input tokens/min — serialize calls to avoid exhausting budget
-    const concurrency = provider === 'google' ? 3 : provider === 'anthropic' ? 1 : provider === 'perplexity' ? 2 : providerPrompts.length;
+    // Anthropic: no pre-emptive throttle — retryWithBackoff handles 429s naturally
+    const concurrency = provider === 'google' ? 3 : provider === 'perplexity' ? 2 : providerPrompts.length;
     const promptTestResults = await mapWithConcurrency(
       providerPrompts,
       async (promptObj) => {

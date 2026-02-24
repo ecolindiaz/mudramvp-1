@@ -136,7 +136,8 @@ function appendFaqDataComment(
 			question: f.question,
 			answer: f.answer,
 		}));
-		return message + `\n<!-- FAQ_DATA: ${JSON.stringify(faqData)} -->`;
+		const json = JSON.stringify(faqData).replace(/-->/g, "--\\>");
+		return message + `\n<!-- FAQ_DATA: ${json} -->`;
 	}
 	return message;
 }

@@ -1245,7 +1245,7 @@ function parseFaqDataFromDescription(desc: string | null | undefined): Array<{ q
 	const match = desc.match(/<!-- FAQ_DATA: (\[[\s\S]*?\]) -->/);
 	if (!match) return [];
 	try {
-		const parsed = JSON.parse(match[1]);
+		const parsed = JSON.parse(match[1].replace(/--\\>/g, "-->"));
 		if (!Array.isArray(parsed)) return [];
 
 		return parsed

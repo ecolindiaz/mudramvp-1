@@ -471,30 +471,108 @@ function validateBrandPosition(position: number | null | undefined): number | un
 }
 
 /**
- * Validate brand mention using regex with word boundaries
+ * LLM-as-judge: confirm whether a TLD-stripped base word (e.g. "Next" from
+ * "Next.js") refers to the brand or is ordinary English in the given text.
+ * Uses gpt-4o-mini for speed/cost.  Returns true = brand reference.
+ * On any failure, conservatively returns false (skip the ambiguous match).
  */
-export function validateBrandMention(text: string, brandName: string): boolean {
+async function judgeBrandMentionWithLLM(
+  text: string,
+  brandFull: string,
+  brandBase: string,
+  openaiKey: string,
+): Promise<boolean> {
+  try {
+    const openai = new OpenAI({ apiKey: openaiKey.trim() });
+
+    // Extract a ~400-char window around the first occurrence for context
+    const idx = text.toLowerCase().indexOf(brandBase.toLowerCase());
+    const start = Math.max(0, idx - 200);
+    const end = Math.min(text.length, idx + brandBase.length + 200);
+    const excerpt = text.slice(start, end);
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0,
+      max_tokens: 10,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You decide whether a word in a text excerpt refers to the brand/product or is just an ordinary English word. Reply ONLY "YES" (brand reference) or "NO" (ordinary word).',
+        },
+        {
+          role: 'user',
+          content: `Brand: "${brandFull}"\nWord to check: "${brandBase}"\n\nExcerpt:\n"""${excerpt}"""\n\nDoes "${brandBase}" refer to the brand "${brandFull}" here?`,
+        },
+      ],
+    });
+
+    const answer = (response.choices?.[0]?.message?.content ?? '').trim().toUpperCase();
+    return answer.startsWith('YES');
+  } catch (err) {
+    console.warn(`[Brand Judge] LLM call failed for "${brandFull}", skipping ambiguous match:`, err);
+    return false;
+  }
+}
+
+/**
+ * Validate brand mention using regex with word boundaries.
+ * For ambiguous TLD-stripped base names (e.g. "Next" from "Next.js"),
+ * uses an LLM judge to confirm the match when an OpenAI key is available.
+ */
+export async function validateBrandMention(
+  text: string,
+  brandName: string,
+  openaiApiKey?: string,
+): Promise<boolean> {
   const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const escapedBrand = escapeRegex(brandName.trim());
+  const trimmedBrand = brandName.trim();
+  const escapedBrand = escapeRegex(trimmedBrand);
   if (!escapedBrand) return false;
 
-  const cleanedText = text
+  // Phase 1: Light clean — strip URLs and code, but keep bare domains intact.
+  // This lets domain-format brands (Daytona.io, E2B.dev) survive for matching.
+  const lightCleaned = text
     .replace(/https?:\/\/[^\s]+/g, ' ')
     .replace(/www\.[^\s]+/g, ' ')
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`[^`]+`/g, ' ')
-    // Also strip bare domains like "scaleai.ca" to avoid domain-only false positives.
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // 1a) Exact brand match (handles "Daytona" within "Daytona.io" via word boundaries)
+  const exactPattern = new RegExp(`\\b${escapedBrand}\\b`, 'i');
+  if (exactPattern.test(lightCleaned)) return true;
+
+  // 1b) If brand has a TLD suffix ("Daytona.io"), also match bare base name ("Daytona")
+  //     Uses LLM judge to avoid false positives from common English words
+  //     (e.g. "Next.js" → "Next" matching "Next, we will…")
+  const brandBase = trimmedBrand.replace(/\.[a-z]{2,}$/i, '');
+  if (brandBase.toLowerCase() !== trimmedBrand.toLowerCase() && brandBase.length >= 2) {
+    const basePattern = new RegExp(`\\b${escapeRegex(brandBase)}\\b`, 'i');
+    if (basePattern.test(lightCleaned)) {
+      // Regex found the base word — ask the LLM whether it's actually the brand
+      if (openaiApiKey) {
+        return judgeBrandMentionWithLLM(text, trimmedBrand, brandBase, openaiApiKey);
+      }
+      // No API key available — skip ambiguous match (conservative)
+      return false;
+    }
+  }
+
+  // Phase 2: Full clean — also strip bare domains for variant-aware matching.
+  // Prevents false positives like "scaleai.ca" matching "Scale AI".
+  const fullCleaned = lightCleaned
     .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // 1) Exact mention match (preserves strict behavior for straightforward names)
-  const exactPattern = new RegExp(`\\b${escapedBrand}\\b`, 'i');
-  if (exactPattern.test(cleanedText)) return true;
+  if (exactPattern.test(fullCleaned)) return true;
 
-  // 2) Variant-aware fallback for merged/split brand forms (e.g. "ScaleAI" <-> "Scale AI")
+  // Variant-aware fallback for merged/split brand forms ("ScaleAI" <-> "Scale AI")
   const brandTokens = brandName
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2') // split camel-case boundaries
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/[^a-zA-Z0-9]+/g, ' ')
     .toLowerCase()
     .trim()
@@ -507,10 +585,9 @@ export function validateBrandMention(text: string, brandName: string): boolean {
     `\\b${brandTokens.map(token => escapeRegex(token)).join('[\\s\\-_]*')}\\b`,
     'i'
   );
-  if (flexiblePattern.test(cleanedText)) return true;
+  if (flexiblePattern.test(fullCleaned)) return true;
 
-  // 3) Significant prefix match for brands with 3+ tokens
-  // "Exa AI Labs" → also match "Exa AI" (first N-1 tokens)
+  // Significant prefix match for brands with 3+ tokens
   if (brandTokens.length >= 3) {
     for (let prefixLen = brandTokens.length - 1; prefixLen >= 2; prefixLen--) {
       const prefixTokens = brandTokens.slice(0, prefixLen);
@@ -518,7 +595,7 @@ export function validateBrandMention(text: string, brandName: string): boolean {
         `\\b${prefixTokens.map(token => escapeRegex(token)).join('[\\s\\-_]*')}\\b`,
         'i'
       );
-      if (prefixPattern.test(cleanedText)) return true;
+      if (prefixPattern.test(fullCleaned)) return true;
     }
   }
 
@@ -1348,7 +1425,7 @@ Return ONLY a valid JSON object with these exact keys:
         if (attempt === 2) {
           console.warn('[OpenAI] Both extraction attempts failed, using minimal safe fallback');
           analysis = {
-            brandMentioned: validateBrandMention(text, config.brandName),
+            brandMentioned: await validateBrandMention(text, config.brandName, config.apiKeys.openai),
             brandPosition: null,
             competitorsMentioned: [],
             competitorPositions: {},
@@ -1363,12 +1440,12 @@ Return ONLY a valid JSON object with these exact keys:
     const mergedPositions = analysis.competitorPositions || {};
 
     // POST-PROCESSING VALIDATION
-    // 1. Validate brand mention using regex (more reliable than LLM)
-    const regexBrandMentioned = validateBrandMention(text, config.brandName);
+    // 1. Validate brand mention using regex + LLM judge (more reliable than LLM extraction alone)
+    const regexBrandMentioned = await validateBrandMention(text, config.brandName, config.apiKeys.openai);
     const llmBrandMentioned = analysis.brandMentioned || false;
 
     if (llmBrandMentioned !== regexBrandMentioned) {
-      console.warn(`[OpenAI] Brand mention mismatch - LLM: ${llmBrandMentioned}, Regex: ${regexBrandMentioned}. Using regex result.`);
+      console.warn(`[OpenAI] Brand mention mismatch - LLM: ${llmBrandMentioned}, Regex: ${regexBrandMentioned}. Using validated result.`);
     }
 
     // 2. Filter competitors to only include valid company names
@@ -1603,7 +1680,7 @@ Return ONLY a valid JSON object with these exact keys:
         if (attempt === 2) {
           console.warn('[Perplexity] Both extraction attempts failed, using minimal safe fallback');
           analysis = {
-            brandMentioned: validateBrandMention(text, config.brandName),
+            brandMentioned: await validateBrandMention(text, config.brandName, config.apiKeys.openai),
             brandPosition: null,
             competitorsMentioned: [],
             competitorPositions: {},
@@ -1617,8 +1694,8 @@ Return ONLY a valid JSON object with these exact keys:
 
     const mergedPositions = analysis.competitorPositions || {};
 
-    // CRITICAL: Validate brand mention using regex (not just LLM analysis)
-    const regexBrandMentioned = validateBrandMention(text, config.brandName);
+    // CRITICAL: Validate brand mention using regex + LLM judge
+    const regexBrandMentioned = await validateBrandMention(text, config.brandName, config.apiKeys.openai);
 
     // CRITICAL: Filter out generic terms that aren't real companies
     const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
@@ -1852,7 +1929,7 @@ Return ONLY a valid JSON object with these exact keys:
         if (attempt === 2) {
           console.warn('[Anthropic] Both extraction attempts failed, using minimal safe fallback');
           analysis = {
-            brandMentioned: validateBrandMention(text, config.brandName),
+            brandMentioned: await validateBrandMention(text, config.brandName, config.apiKeys.openai),
             brandPosition: null,
             competitorsMentioned: [],
             competitorPositions: {},
@@ -1866,7 +1943,7 @@ Return ONLY a valid JSON object with these exact keys:
 
     const mergedPositions = analysis.competitorPositions || {};
 
-    const regexBrandMentioned = validateBrandMention(text, config.brandName);
+    const regexBrandMentioned = await validateBrandMention(text, config.brandName, config.apiKeys.openai);
     const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
 
     // Filter positions and sentiments to only include validated competitors
@@ -2191,7 +2268,7 @@ Return ONLY a valid JSON object with these exact keys:
         if (attempt === 2) {
           console.warn('[Google] Both extraction attempts failed, using minimal safe fallback');
           analysis = {
-            brandMentioned: validateBrandMention(text, config.brandName),
+            brandMentioned: await validateBrandMention(text, config.brandName, config.apiKeys.openai),
             brandPosition: null,
             competitorsMentioned: [],
             competitorPositions: {},
@@ -2205,7 +2282,7 @@ Return ONLY a valid JSON object with these exact keys:
 
     const mergedPositions = analysis.competitorPositions || {};
 
-    const regexBrandMentioned = validateBrandMention(text, config.brandName);
+    const regexBrandMentioned = await validateBrandMention(text, config.brandName, config.apiKeys.openai);
     const validatedCompetitors = filterValidCompetitors(analysis.competitorsMentioned || [], config.brandName);
 
     // Filter positions and sentiments to only include validated competitors

@@ -234,6 +234,7 @@ export function PromptsForm() {
               competitors: onboardingData.competitors || [],
               countries: countries.length > 0 ? countries : ["US"],
               skipCooldown: true,
+              generateReport: true,
             }),
           }).catch(err => {
             console.error(`[PromptsForm] Additional monitor ${monitorId} analysis failed:`, err)

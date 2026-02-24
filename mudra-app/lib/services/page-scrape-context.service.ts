@@ -20,6 +20,7 @@ export async function scrapePageContent(
 			formats: ["markdown"],
 			onlyMainContent: true,
 			timeout: 15000,
+			headers: { "Accept-Language": "en-US,en;q=0.9" },
 		});
 		if (result.success && result.markdown) {
 			const content =

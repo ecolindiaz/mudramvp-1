@@ -23,14 +23,69 @@ function validateBrandPosition(position: number | null | undefined): number | un
 }
 
 function validateBrandMention(text: string, brandName: string): boolean {
-  const escapedBrand = brandName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`\\b${escapedBrand}\\b`, 'i');
-  const cleanedText = text
-    .replace(/https?:\/\/[^\s]+/g, '')
-    .replace(/www\.[^\s]+/g, '')
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/`[^`]+`/g, '');
-  return pattern.test(cleanedText);
+  const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const trimmedBrand = brandName.trim();
+  const escapedBrand = escapeRegex(trimmedBrand);
+  if (!escapedBrand) return false;
+
+  // Phase 1: Light clean — strip URLs and code, but keep bare domains intact.
+  const lightCleaned = text
+    .replace(/https?:\/\/[^\s]+/g, ' ')
+    .replace(/www\.[^\s]+/g, ' ')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`]+`/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // 1a) Exact brand match
+  const exactPattern = new RegExp(`\\b${escapedBrand}\\b`, 'i');
+  if (exactPattern.test(lightCleaned)) return true;
+
+  // 1b) If brand has a TLD suffix ("Daytona.io"), also match bare base name ("Daytona")
+  const brandBase = trimmedBrand.replace(/\.[a-z]{2,}$/i, '');
+  if (brandBase.toLowerCase() !== trimmedBrand.toLowerCase() && brandBase.length >= 2) {
+    const basePattern = new RegExp(`\\b${escapeRegex(brandBase)}\\b`, 'i');
+    if (basePattern.test(lightCleaned)) return true;
+  }
+
+  // Phase 2: Full clean — also strip bare domains for variant-aware matching.
+  const fullCleaned = lightCleaned
+    .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (exactPattern.test(fullCleaned)) return true;
+
+  // Variant-aware fallback for merged/split brand forms
+  const brandTokens = brandName
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (brandTokens.length <= 1) return false;
+
+  const flexiblePattern = new RegExp(
+    `\\b${brandTokens.map(token => escapeRegex(token)).join('[\\s\\-_]*')}\\b`,
+    'i'
+  );
+  if (flexiblePattern.test(fullCleaned)) return true;
+
+  // Significant prefix match for brands with 3+ tokens
+  if (brandTokens.length >= 3) {
+    for (let prefixLen = brandTokens.length - 1; prefixLen >= 2; prefixLen--) {
+      const prefixTokens = brandTokens.slice(0, prefixLen);
+      const prefixPattern = new RegExp(
+        `\\b${prefixTokens.map(token => escapeRegex(token)).join('[\\s\\-_]*')}\\b`,
+        'i'
+      );
+      if (prefixPattern.test(fullCleaned)) return true;
+    }
+  }
+
+  return false;
 }
 
 function normalizeCompanyName(name: string): string {
@@ -384,7 +439,7 @@ test('validateBrandPosition', '3 → 3 (typical position)', () =>
   assertEqual(validateBrandPosition(3), 3));
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GROUP B: validateBrandMention (12 cases)
+// GROUP B: validateBrandMention (59 cases)
 // ═══════════════════════════════════════════════════════════════════════════
 
 test('validateBrandMention', 'exact match in text', () =>
@@ -422,6 +477,161 @@ test('validateBrandMention', 'brand in www URL should NOT match', () =>
 
 test('validateBrandMention', 'empty text', () =>
   assertEqual(validateBrandMention('', 'Vercel'), false));
+
+// Domain-format brand names (7 cases)
+test('validateBrandMention', 'brand "Daytona" found within "Daytona.io" bare domain', () =>
+  assertEqual(validateBrandMention('Daytona.io focused on sub-90ms provisioning', 'Daytona'), true));
+
+test('validateBrandMention', 'exact domain brand "Daytona.io" matched', () =>
+  assertEqual(validateBrandMention('Daytona.io focused on sub-90ms provisioning', 'Daytona.io'), true));
+
+test('validateBrandMention', 'domain brand "Daytona.io" matches bare base "Daytona"', () =>
+  assertEqual(validateBrandMention('Daytona is great for dev environments', 'Daytona.io'), true));
+
+test('validateBrandMention', 'brand "E2B" found within "E2B.dev" bare domain', () =>
+  assertEqual(validateBrandMention('E2B.dev or Runloop.ai for sandboxes', 'E2B'), true));
+
+test('validateBrandMention', 'domain false positive "scaleai.ca" should NOT match "Scale AI"', () =>
+  assertEqual(validateBrandMention('Visit scaleai.ca', 'Scale AI'), false));
+
+test('validateBrandMention', 'brand "Runloop" found within "Runloop.ai" bare domain', () =>
+  assertEqual(validateBrandMention('Consider Runloop.ai for orchestration', 'Runloop'), true));
+
+test('validateBrandMention', 'brand in full URL should NOT match even for domain brands', () =>
+  assertEqual(validateBrandMention('Visit https://daytona.io/docs for info', 'Daytona'), false));
+
+// Domain-format & edge-case brands — 40 real-company cases
+// ─────────────────────────────────────────────────────────
+
+// --- .io TLD brands ---
+test('validateBrandMention', 'Fly.io: brand "Fly.io" in bare domain text', () =>
+  assertEqual(validateBrandMention('Fly.io offers edge hosting with Machines API', 'Fly.io'), true));
+
+test('validateBrandMention', 'Fly.io: base name "Fly" extracted from domain brand', () =>
+  assertEqual(validateBrandMention('Fly makes edge deployment simple', 'Fly.io'), true));
+
+test('validateBrandMention', 'Gitpod: brand "Gitpod" found within "Gitpod.io"', () =>
+  assertEqual(validateBrandMention('Gitpod.io provides cloud development environments', 'Gitpod'), true));
+
+test('validateBrandMention', 'CodeSandbox: brand found within "CodeSandbox.io"', () =>
+  assertEqual(validateBrandMention('CodeSandbox.io is great for prototyping', 'CodeSandbox'), true));
+
+// --- .dev TLD brands ---
+test('validateBrandMention', 'E2B.dev: exact domain brand match', () =>
+  assertEqual(validateBrandMention('Use E2B.dev for AI code sandboxes', 'E2B.dev'), true));
+
+test('validateBrandMention', 'E2B.dev: base "E2B" matches when brand registered as E2B.dev', () =>
+  assertEqual(validateBrandMention('E2B provides secure sandbox environments', 'E2B.dev'), true));
+
+test('validateBrandMention', 'Val Town: brand "Val Town" with .town TLD in text', () =>
+  assertEqual(validateBrandMention('Val Town lets you write serverless functions', 'Val Town'), true));
+
+// --- .ai TLD brands ---
+test('validateBrandMention', 'Runloop.ai: exact domain brand match', () =>
+  assertEqual(validateBrandMention('Runloop.ai orchestrates AI agent infrastructure', 'Runloop.ai'), true));
+
+test('validateBrandMention', 'Together AI: plain text mention (no domain)', () =>
+  assertEqual(validateBrandMention('Together AI offers open-source model hosting', 'Together AI'), true));
+
+test('validateBrandMention', 'Together AI: should NOT match unrelated "together.ai" domain only', () =>
+  assertEqual(validateBrandMention('Visit https://together.ai for pricing', 'Together AI'), false));
+
+// --- .sh / .build / .run TLD brands ---
+test('validateBrandMention', 'Bun: brand "Bun" found within "Bun.sh" bare domain', () =>
+  assertEqual(validateBrandMention('Bun.sh is a fast JavaScript runtime', 'Bun'), true));
+
+test('validateBrandMention', 'Bun.sh: exact domain brand match', () =>
+  assertEqual(validateBrandMention('Bun.sh outperforms Node in benchmarks', 'Bun.sh'), true));
+
+test('validateBrandMention', 'Astro: brand found within "Astro.build"', () =>
+  assertEqual(validateBrandMention('Astro.build is great for content-driven sites', 'Astro'), true));
+
+test('validateBrandMention', 'Remix: brand found within "Remix.run"', () =>
+  assertEqual(validateBrandMention('Remix.run supports nested routing', 'Remix'), true));
+
+test('validateBrandMention', 'Remix.run: exact domain brand match', () =>
+  assertEqual(validateBrandMention('Check out Remix.run for full-stack React', 'Remix.run'), true));
+
+// --- .app / .com TLD brands where domain != brand identity ---
+test('validateBrandMention', 'Linear: plain text match (not confused with linear.app domain)', () =>
+  assertEqual(validateBrandMention('Linear is great for issue tracking', 'Linear'), true));
+
+test('validateBrandMention', 'Render: plain text match for common-word brand', () =>
+  assertEqual(validateBrandMention('Render makes cloud deployment straightforward', 'Render'), true));
+
+test('validateBrandMention', 'Railway: brand in URL should NOT match', () =>
+  assertEqual(validateBrandMention('Deploy at https://railway.app/new', 'Railway'), false));
+
+// --- .js ecosystem brands (dot in official name) ---
+test('validateBrandMention', 'Next.js: exact match with dot in brand name', () =>
+  assertEqual(validateBrandMention('Next.js supports server components', 'Next.js'), true));
+
+test('validateBrandMention', 'Vue.js: exact match with dot in brand name', () =>
+  assertEqual(validateBrandMention('Vue.js has a reactive data model', 'Vue.js'), true));
+
+test('validateBrandMention', 'Node.js: exact match with dot in brand name', () =>
+  assertEqual(validateBrandMention('Node.js runs on the V8 engine', 'Node.js'), true));
+
+test('validateBrandMention', 'Three.js: brand in backticks should NOT match', () =>
+  assertEqual(validateBrandMention('Import `three.js` in your module', 'Three.js'), false));
+
+// --- Multi-word brands vs domain false positives ---
+test('validateBrandMention', 'Hugging Face: plain text two-word brand match', () =>
+  assertEqual(validateBrandMention('Hugging Face hosts thousands of models', 'Hugging Face'), true));
+
+test('validateBrandMention', 'Hugging Face: should NOT match "huggingface.co" URL', () =>
+  assertEqual(validateBrandMention('See https://huggingface.co/models for details', 'Hugging Face'), false));
+
+test('validateBrandMention', 'OpenAI: single-word brand match (no space)', () =>
+  assertEqual(validateBrandMention('OpenAI released GPT-4 in 2023', 'OpenAI'), true));
+
+test('validateBrandMention', 'OpenAI: should NOT match "openai.com" URL', () =>
+  assertEqual(validateBrandMention('Visit https://openai.com/api for docs', 'OpenAI'), false));
+
+test('validateBrandMention', 'Scale AI: domain "scale.com" should NOT match', () =>
+  assertEqual(validateBrandMention('Go to https://scale.com for enterprise AI', 'Scale AI'), false));
+
+test('validateBrandMention', 'Weights & Biases: ampersand brand in plain text', () =>
+  assertEqual(validateBrandMention('Weights & Biases tracks ML experiments', 'Weights & Biases'), true));
+
+// --- Short brands that could collide with domain fragments ---
+test('validateBrandMention', 'Go: short brand exact match in plain text', () =>
+  assertEqual(validateBrandMention('Go is a statically typed language', 'Go'), true));
+
+test('validateBrandMention', 'Qt: short brand "Qt" in "Qt.io" bare domain', () =>
+  assertEqual(validateBrandMention('Qt.io provides cross-platform UI frameworks', 'Qt'), true));
+
+test('validateBrandMention', 'V8: short brand should NOT match inside "V8.dev" URL', () =>
+  assertEqual(validateBrandMention('Read https://v8.dev/blog for engine updates', 'V8'), false));
+
+test('validateBrandMention', 'D3: short brand found within "D3.js" in plain text', () =>
+  assertEqual(validateBrandMention('D3.js powers interactive data visualizations', 'D3'), true));
+
+// --- Rebranded / alternate domain companies ---
+test('validateBrandMention', 'Replit: current name matches (formerly Repl.it)', () =>
+  assertEqual(validateBrandMention('Replit is an online IDE for collaborative coding', 'Replit'), true));
+
+test('validateBrandMention', 'Notion: plain text match despite notion.so domain', () =>
+  assertEqual(validateBrandMention('Notion is widely used for team wikis', 'Notion'), true));
+
+test('validateBrandMention', 'Deno: brand in "Deno.land" bare domain', () =>
+  assertEqual(validateBrandMention('Deno.land introduced a secure runtime', 'Deno'), true));
+
+test('validateBrandMention', 'Cursor: brand "Cursor" should NOT match "cursor.com" URL', () =>
+  assertEqual(validateBrandMention('Download at https://cursor.com/downloads', 'Cursor'), false));
+
+// --- Mixed context: brand + unrelated domains in same text ---
+test('validateBrandMention', 'Stripe: brand survives when unrelated domains present', () =>
+  assertEqual(validateBrandMention('Stripe handles payments; see example.com for demo', 'Stripe'), true));
+
+test('validateBrandMention', 'Supabase: brand in text alongside bare competitor domain', () =>
+  assertEqual(validateBrandMention('Supabase vs firebase.google.com for backends', 'Supabase'), true));
+
+test('validateBrandMention', 'Discord: brand in text but also in www URL should match plain mention', () =>
+  assertEqual(validateBrandMention('Discord is popular. See www.discord.com for details', 'Discord'), true));
+
+test('validateBrandMention', 'Slack: brand ONLY in URL, no plain text mention', () =>
+  assertEqual(validateBrandMention('Message us at https://slack.com/org/mudra', 'Slack'), false));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GROUP C: filterValidCompetitors — real company names KEPT (15 cases)

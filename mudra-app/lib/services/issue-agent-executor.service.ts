@@ -1235,6 +1235,8 @@ export async function executeIssueAgent(issueId: number): Promise<ExecutionResul
 
 GROUNDING RULE: Only generate schema properties for data that actually exists on the page. Never fabricate URLs, ratings, prices, dates, authors, or any property values. If a property's value cannot be determined from the page content, omit it.
 
+FAQ RULE: If the issue description contains a <!-- FAQ_DATA: [...] --> marker, use those EXACT question/answer pairs for the FAQPage schema. Do NOT infer FAQ content from other page sections like feature highlights, trust badges, or marketing bullets. The FAQ_DATA contains the real FAQ items already extracted from the page.
+
 You will be given:
 - The issue to fix (already contains specific instructions)
 - The live page content (what users see)

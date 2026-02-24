@@ -30,22 +30,30 @@ export async function mapTechnicalStructure(companyId: string): Promise<Technica
   const bpIds = await resolveBrandProfileIds(companyId);
   if (bpIds.length === 0) return null;
 
-  const analyses = await prisma.technicalStructureAnalysis.findMany({
+  // Fetch the most recent analysis across all brand profiles
+  const current = await prisma.technicalStructureAnalysis.findFirst({
     where: { brandProfileId: { in: bpIds } },
     orderBy: { createdAt: "desc" },
-    take: 2,
     select: {
       id: true,
+      brandProfileId: true,
       overallScore: true,
       metadata: true,
       insights: true,
       createdAt: true,
     },
   });
-  if (analyses.length === 0) return null;
+  if (!current) return null;
 
-  const current = analyses[0];
-  const previous = analyses[1];
+  // Fetch the previous analysis from the SAME brand profile directly
+  const previous = await prisma.technicalStructureAnalysis.findFirst({
+    where: {
+      brandProfileId: current.brandProfileId,
+      createdAt: { lt: current.createdAt },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { overallScore: true },
+  });
   const currentScore = current?.overallScore ?? null;
   const previousScore = previous?.overallScore ?? null;
   const overallScore = pctDelta(currentScore, previousScore);

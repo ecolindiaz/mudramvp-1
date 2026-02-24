@@ -8,6 +8,8 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/require-auth';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
+export const maxDuration = 300; // 5 minutes - LLM analysis of opportunities
+
 export async function POST(req: NextRequest) {
   // Rate limit first - expensive AI operations
   const rateLimited = await applyRateLimitAsync(req, 'aiGeneration');

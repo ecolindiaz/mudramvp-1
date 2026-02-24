@@ -16,6 +16,8 @@ import {
 import { getUniqueLanguages, isAllowedCountry } from '@/lib/geo/country-config';
 import type { CountryCode } from '@/lib/geo/country-config';
 
+export const maxDuration = 300; // 5 minutes - Apify Reddit scraper + LLM analysis
+
 // Verify cron secret for security
 const CRON_SECRET = process.env.CRON_SECRET;
 

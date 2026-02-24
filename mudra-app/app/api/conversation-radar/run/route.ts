@@ -17,7 +17,7 @@ import {
 import { updateLastRadarRun } from '@/lib/services/conversation-radar-scheduler';
 import { getLanguageForCountry, isAllowedCountry } from '@/lib/geo/country-config';
 
-export const maxDuration = 120; // 2 minutes - Apify + LLM analysis
+export const maxDuration = 300; // 5 minutes - Apify Reddit scraper + LLM analysis
 
 export async function POST(req: NextRequest) {
   // Rate limit first - expensive AI operations

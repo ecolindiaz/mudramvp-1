@@ -199,24 +199,31 @@ export async function resolveCompanyIdFromBrandProfile(
       select: { id: true, companyWebsite: true },
     });
 
+    // Collect all domain variants from matching siblings, then batch-query once
+    const siblingDomainVariants: string[] = [];
     for (const sibling of siblings) {
       if (!sibling.companyWebsite) continue;
       const siblingDomain = extractDomain(sibling.companyWebsite);
       const siblingBase = extractBaseDomain(siblingDomain);
       if (siblingBase === baseDomain) {
-        // This sibling shares the same base domain — resolve their companyId
-        const siblingCompany = await prisma.company.findFirst({
-          where: { domain: { in: [siblingDomain, `www.${siblingDomain}`, siblingBase, `www.${siblingBase}`] } },
-          select: { id: true },
-        });
-        if (siblingCompany) return siblingCompany.id;
-
-        const siblingSite = await prisma.site.findFirst({
-          where: { domain: { in: [siblingDomain, `www.${siblingDomain}`, siblingBase, `www.${siblingBase}`] } },
-          select: { companyId: true },
-        });
-        if (siblingSite?.companyId) return siblingSite.companyId;
+        siblingDomainVariants.push(siblingDomain, `www.${siblingDomain}`, siblingBase, `www.${siblingBase}`);
       }
+    }
+
+    if (siblingDomainVariants.length > 0) {
+      const uniqueVariants = [...new Set(siblingDomainVariants)];
+
+      const siblingCompany = await prisma.company.findFirst({
+        where: { domain: { in: uniqueVariants } },
+        select: { id: true },
+      });
+      if (siblingCompany) return siblingCompany.id;
+
+      const siblingSite = await prisma.site.findFirst({
+        where: { domain: { in: uniqueVariants } },
+        select: { companyId: true },
+      });
+      if (siblingSite?.companyId) return siblingSite.companyId;
     }
   }
 

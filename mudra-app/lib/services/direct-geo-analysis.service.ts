@@ -1462,8 +1462,8 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations: uniqueCitations.length > 0 ? uniqueCitations : undefined,
-      sources: uniqueSources.length > 0 ? uniqueSources : undefined,
+      citations: uniqueCitations,
+      sources: uniqueSources,
     };
   } catch (error) {
     console.error(`Error analyzing with OpenAI:`, error);
@@ -1522,18 +1522,40 @@ async function analyzeWithPerplexity(
     const text = response.choices[0]?.message?.content || '';
     console.log('[Perplexity] Response received:', text.substring(0, 100) + '...');
     
-    // Extract citations from Perplexity response
-    // Perplexity returns citations in the response object
+    // Extract sources from Perplexity's search_results (rich data: title, url, date, snippet)
+    // and citations (bare URL strings referenced inline in the response).
+    // Perplexity docs: search_results is the primary field; citations is deprecated but still sent.
     const citations: Citation[] = [];
-    
+    const sources: Citation[] = [];
+
+    if (response.search_results && Array.isArray(response.search_results)) {
+      for (const sr of response.search_results) {
+        if (sr && sr.url) {
+          sources.push({
+            url: sr.url,
+            title: sr.title,
+            snippet: sr.snippet,
+            position: sources.length + 1,
+          });
+        }
+      }
+      console.log(`[Perplexity] Extracted ${sources.length} search_results as sources`);
+    }
+
     if (response.citations && Array.isArray(response.citations)) {
-      response.citations.forEach((url: string, index: number) => {
-        citations.push({
-          url: url,
-          position: index + 1,
-        });
-      });
-      console.log(`[Perplexity] Extracted ${citations.length} citations`);
+      for (const [index, url] of response.citations.entries()) {
+        if (typeof url === 'string') {
+          // Enrich with title/snippet from search_results when available
+          const matchingSource = sources.find(s => s.url === url);
+          citations.push({
+            url,
+            title: matchingSource?.title,
+            snippet: matchingSource?.snippet,
+            position: index + 1,
+          });
+        }
+      }
+      console.log(`[Perplexity] Extracted ${citations.length} inline citations`);
     }
 
     // Use OpenAI to analyze the Perplexity response for brand mentions
@@ -1699,7 +1721,8 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations: citations.length > 0 ? citations : undefined,
+      citations,
+      sources,
     };
   } catch (error: any) {
     console.error(`❌ Error analyzing with Perplexity:`, error.message || error);
@@ -1752,7 +1775,6 @@ async function analyzeWithAnthropic(
               {
                 type: 'web_search_20250305',
                 name: 'web_search',
-                max_uses: 1,
                 ...(config.country ? (() => { const geo = buildClaudeGeoConfig(config.country!); return geo ? { user_location: geo } : {}; })() : {}),
               } as any,
             ],
@@ -1935,8 +1957,8 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations: citations.length > 0 ? citations : undefined,
-      sources: sources.length > 0 ? sources : undefined,
+      citations,
+      sources,
     };
   } catch (error: any) {
     console.error(`❌ [Anthropic] Error:`, error.message || error);
@@ -2274,8 +2296,8 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations: citations.length > 0 ? citations : undefined,
-      searchQueries: searchQueries.length > 0 ? searchQueries : undefined,
+      citations,
+      searchQueries,
     };
   } catch (error: any) {
     const status = error.status || error.statusCode;

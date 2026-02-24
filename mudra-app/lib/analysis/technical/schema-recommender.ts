@@ -277,7 +277,6 @@ export async function getRecommendedSchemasWithAI(
 	try {
 		const res = await generateText({
 			model: MODEL as any,
-			temperature: 0.1,
 			maxOutputTokens: 200,
 			system: SYSTEM_PROMPT,
 			prompt: pageSummary,

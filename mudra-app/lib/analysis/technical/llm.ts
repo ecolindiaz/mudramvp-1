@@ -151,7 +151,6 @@ export async function enrichTaskWithLLM(params: {
 			// Type cast required: @ai-sdk/openai v2 returns LanguageModelV2 but generateText expects LanguageModelV1
 			// This is a known compatibility issue between ai@4.3.16 and @ai-sdk/openai@2.0.22
 			model: MODEL as any,
-			temperature: 0.2,
 			system: systemPrompt,
 			prompt: userPrompt,
 		});

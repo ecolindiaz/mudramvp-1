@@ -1121,6 +1121,219 @@ function mergeCompetitorPositions(
   return mergedPositions;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Entity Normalization — dynamic alias resolution via LLM
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface NormalizationResult {
+  aliasMap: Map<string, string>;      // raw lowercase → canonical display name
+  entityTypes: Map<string, string>;   // canonical lowercase → type
+  parentMap: Map<string, string>;     // canonical lowercase → parent company
+  canonicalNames: string[];           // unique canonical names
+}
+
+/**
+ * Normalize extracted entity names: deduplicate aliases, classify entity types,
+ * and identify parent companies.  Uses a single LLM call with the model's world
+ * knowledge so the approach is industry-agnostic (no hardcoded alias dictionary).
+ *
+ * On any failure the function returns an identity mapping so the existing
+ * pipeline behaviour is preserved.
+ */
+export async function normalizeExtractedEntities(
+  rawNames: string[],
+  brandName: string,
+  openaiApiKey: string
+): Promise<NormalizationResult> {
+  // 1. Deduplicate input using normalizeCompanyName
+  const seenNormalized = new Map<string, string>(); // normalized → first raw display name
+  for (const raw of rawNames) {
+    const norm = normalizeCompanyName(raw);
+    if (norm && !seenNormalized.has(norm)) {
+      seenNormalized.set(norm, raw);
+    }
+  }
+  const uniqueDisplayNames = [...seenNormalized.values()];
+
+  // 2. Pre-group using matchCompetitorNames to catch acronyms/suffix variants locally
+  const groups: string[][] = [];
+  const assigned = new Set<number>();
+
+  for (let i = 0; i < uniqueDisplayNames.length; i++) {
+    if (assigned.has(i)) continue;
+    const group = [uniqueDisplayNames[i]];
+    assigned.add(i);
+    for (let j = i + 1; j < uniqueDisplayNames.length; j++) {
+      if (assigned.has(j)) continue;
+      if (matchCompetitorNames(uniqueDisplayNames[i], uniqueDisplayNames[j])) {
+        group.push(uniqueDisplayNames[j]);
+        assigned.add(j);
+      }
+    }
+    groups.push(group);
+  }
+
+  // Build pre-grouped canonical names (pick longest display name in each group)
+  const preGrouped = groups.map(g => g.reduce((a, b) => a.length >= b.length ? a : b));
+
+  console.log(`[EntityNormalization] Pre-grouping: ${uniqueDisplayNames.length} unique → ${preGrouped.length} groups (${groups.filter(g => g.length > 1).length} multi-alias groups)`);
+
+  // If 5 or fewer unique names, skip the LLM call — not worth the latency
+  if (preGrouped.length <= 5) {
+    console.log(`[EntityNormalization] Only ${preGrouped.length} groups, skipping LLM call`);
+    return buildIdentityResult(rawNames);
+  }
+
+  // 3. Single LLM call to normalize aliases, classify types, identify parents
+  const prompt = `You are an entity normalization expert. Given a list of brand/company/product names extracted from AI responses, your task is to:
+
+1. **Group aliases** — names that refer to the same entity (e.g. "AWS" and "Amazon Web Services" are the same)
+2. **Pick a canonical name** — the most commonly-used display name for each group
+3. **Classify entity type** — one of: company, product, framework, hardware, program
+4. **Identify parent company** — if the entity is a product/service of a larger company
+
+BRAND BEING ANALYZED (exclude from output): "${brandName}"
+
+ENTITY NAMES TO NORMALIZE:
+${preGrouped.map((n, i) => `${i + 1}. ${n}`).join('\n')}
+
+Return ONLY valid JSON (no markdown, no explanation):
+{
+  "entities": [
+    {
+      "canonical": "Amazon Web Services",
+      "aliases": ["AWS", "Amazon Web Services"],
+      "type": "company",
+      "parent": null
+    },
+    {
+      "canonical": "SageMaker",
+      "aliases": ["SageMaker", "Amazon SageMaker"],
+      "type": "product",
+      "parent": "Amazon Web Services"
+    }
+  ]
+}
+
+Rules:
+- Every input name MUST appear in exactly one aliases array
+- canonical should be the most recognizable form of the name
+- type must be one of: company, product, framework, hardware, program
+- parent is null for top-level companies, otherwise the canonical name of the parent
+- Do NOT include "${brandName}" in the output`;
+
+  try {
+    const openai = new OpenAI({ apiKey: openaiApiKey });
+    const response = await retryWithBackoff(async () => {
+      return openai.chat.completions.create({
+        model: COMPETITOR_EXTRACTION_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        max_completion_tokens: 4000,
+        response_format: { type: 'json_object' }
+      });
+    }, 2, 2000);
+
+    const content = response.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(content);
+    const entities: Array<{
+      canonical: string;
+      aliases: string[];
+      type: string;
+      parent: string | null;
+    }> = parsed.entities || [];
+
+    console.log(`[EntityNormalization] LLM returned ${entities.length} entities`);
+    if (entities.length === 0) {
+      console.warn('[EntityNormalization] LLM returned empty entities, using identity mapping');
+      return buildIdentityResult(rawNames);
+    }
+
+    // Build result maps
+    const aliasMap = new Map<string, string>();
+    const entityTypes = new Map<string, string>();
+    const parentMap = new Map<string, string>();
+    const canonicalNames: string[] = [];
+
+    for (const entity of entities) {
+      const canonical = entity.canonical;
+      const canonicalLower = canonical.toLowerCase();
+      canonicalNames.push(canonical);
+
+      // Map each alias (lowercased) → canonical display name
+      for (const alias of entity.aliases) {
+        aliasMap.set(alias.toLowerCase(), canonical);
+      }
+      // Also map the canonical itself
+      aliasMap.set(canonicalLower, canonical);
+
+      // Entity type
+      const validTypes = new Set(['company', 'product', 'framework', 'hardware', 'program']);
+      if (validTypes.has(entity.type)) {
+        entityTypes.set(canonicalLower, entity.type);
+      }
+
+      // Parent company
+      if (entity.parent) {
+        parentMap.set(canonicalLower, entity.parent);
+      }
+    }
+
+    // Inject pre-grouped aliases: the LLM only saw the canonical of each
+    // pre-group, so other members (e.g. "AWS" when "Amazon Web Services"
+    // was sent) need to point to whatever the LLM mapped the group canonical to.
+    for (let gi = 0; gi < groups.length; gi++) {
+      const groupCanonical = preGrouped[gi]; // longest name sent to LLM
+      const llmTarget = aliasMap.get(groupCanonical.toLowerCase());
+      if (llmTarget) {
+        for (const member of groups[gi]) {
+          aliasMap.set(member.toLowerCase(), llmTarget);
+        }
+      }
+    }
+
+    // Ensure every raw input name has a mapping (fallback to itself if LLM missed it)
+    for (const raw of rawNames) {
+      const lower = raw.toLowerCase();
+      if (!aliasMap.has(lower)) {
+        aliasMap.set(lower, raw);
+        if (!canonicalNames.includes(raw)) {
+          canonicalNames.push(raw);
+        }
+      }
+    }
+
+    console.log(`[EntityNormalization] ${rawNames.length} raw names → ${canonicalNames.length} canonical entities`);
+    return { aliasMap, entityTypes, parentMap, canonicalNames };
+  } catch (error) {
+    console.warn('[EntityNormalization] LLM call failed, using identity mapping:', error);
+    return buildIdentityResult(rawNames);
+  }
+}
+
+/** Fallback: build an identity mapping where every name maps to itself. */
+function buildIdentityResult(rawNames: string[]): NormalizationResult {
+  const aliasMap = new Map<string, string>();
+  const seen = new Set<string>();
+  const canonicalNames: string[] = [];
+
+  for (const raw of rawNames) {
+    const lower = raw.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      aliasMap.set(lower, raw);
+      canonicalNames.push(raw);
+    }
+  }
+
+  return {
+    aliasMap,
+    entityTypes: new Map(),
+    parentMap: new Map(),
+    canonicalNames,
+  };
+}
+
 /**
  * Extract brand position from bullet list format
  */
@@ -2518,6 +2731,62 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     a.promptTests.flatMap(t => t.competitors)
   );
 
+  // ── Entity normalization: deduplicate aliases across all providers ──
+  console.log('\n🔄 Normalizing extracted entities...');
+  let normResult: NormalizationResult | null = null;
+  try {
+    normResult = config.apiKeys.openai
+      ? await normalizeExtractedEntities(
+          allCompetitorMentions,
+          config.brandName,
+          config.apiKeys.openai
+        )
+      : buildIdentityResult(allCompetitorMentions);
+
+    // Remap per-test data through the alias map
+    for (const analysis of analyses) {
+      for (const test of analysis.promptTests) {
+        // Remap competitor names and deduplicate
+        test.competitors = [...new Set(
+          test.competitors.map(c => normResult!.aliasMap.get(c.toLowerCase()) || c)
+        )];
+
+        // Remap competitorPositions: on collision keep Math.min (best rank)
+        if (test.competitorPositions) {
+          const remapped: Record<string, number> = {};
+          for (const [name, pos] of Object.entries(test.competitorPositions)) {
+            const canonical = normResult!.aliasMap.get(name.toLowerCase()) || name;
+            if (canonical in remapped) {
+              remapped[canonical] = Math.min(remapped[canonical], pos as number);
+            } else {
+              remapped[canonical] = pos as number;
+            }
+          }
+          test.competitorPositions = remapped;
+        }
+
+        // Remap competitorSentiments: on collision keep first
+        if (test.competitorSentiments) {
+          const remapped: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+          for (const [name, sentiment] of Object.entries(test.competitorSentiments)) {
+            const canonical = normResult!.aliasMap.get(name.toLowerCase()) || name;
+            if (!(canonical in remapped)) {
+              remapped[canonical] = sentiment;
+            }
+          }
+          test.competitorSentiments = remapped;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Entity normalization failed, continuing with raw names:', error);
+  }
+
+  // Rebuild mentions from (possibly remapped) tests
+  const canonicalMentions = analyses.flatMap(a =>
+    a.promptTests.flatMap(t => t.competitors)
+  );
+
   // Run multi-stage competitor validation pipeline
   console.log('\n🔬 Running AI competitor validation pipeline...');
   let validatedCompetitors: ValidatedCompetitor[] = [];
@@ -2526,8 +2795,23 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     validatedCompetitors = await validateCompetitors(
       allResponses,
       config.brandName,
-      allCompetitorMentions
+      canonicalMentions
     );
+
+    // Enrich validated competitors with entity type and parent from normalization
+    if (normResult) {
+      for (const vc of validatedCompetitors) {
+        const lower = vc.name.toLowerCase();
+        const entityType = normResult.entityTypes.get(lower);
+        if (entityType) {
+          vc.entityType = entityType as ValidatedCompetitor['entityType'];
+        }
+        const parent = normResult.parentMap.get(lower);
+        if (parent) {
+          vc.parentCompany = parent;
+        }
+      }
+    }
 
     console.log(`✅ Validated ${validatedCompetitors.length} competitors with AI pipeline`);
 

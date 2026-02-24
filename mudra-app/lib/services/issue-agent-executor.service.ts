@@ -23,7 +23,7 @@ import {
 import { createOptimizationPR, checkExistingBlogFiles } from './github.service'
 import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
 import { getFirecrawlClient } from '@/mastra/tools/firecrawl-client'
-import { scrapePageContent } from './page-scrape-context.service'
+import { scrapeFaqContext, scrapePageContent } from './page-scrape-context.service'
 import {
   hallucinationScorer,
   faithfulnessScorer,
@@ -327,7 +327,11 @@ async function gatherIssueContext(issue: {
   const targetUrl = issue.affectedUrl || issue.brandProfile.companyWebsite
 
   // 1. Scrape live page content (what users actually see)
-  const pageContentPromise = targetUrl ? scrapePageContent(targetUrl) : Promise.resolve(null)
+  const pageContentPromise = targetUrl
+    ? issue.agentType === 'faq_sections'
+      ? scrapeFaqContext(targetUrl)
+      : scrapePageContent(targetUrl)
+    : Promise.resolve(null)
 
   // 2. Fetch the source file that will be modified
   //    For schema agents, derive the path from the affected URL instead of
@@ -1256,6 +1260,11 @@ ${schemaKb}`
 
 GROUNDING RULE: Only generate FAQ questions that a real visitor to this page would ask. Pull answers exclusively from visible page content. Never fabricate data, pricing, features, or capabilities not present on the page.
 
+CONTENT FOCUS:
+- Prioritize representative brand questions: what the product does, who it serves, key capabilities, deployment/getting started, performance/infrastructure, security/trust, and pricing.
+- If context includes multiple pages, synthesize the core offering across those pages rather than one-off page details.
+- Avoid low-signal topics like cookie banners, tracking preference controls, navigation/UI text, or legal boilerplate unless the page is explicitly legal/privacy focused.
+
 FRONTEND RULES:
 - You are generating code for a **${framework}** project
 - MATCH the existing code style in the source file: same CSS approach, same component patterns, same naming conventions
@@ -1274,6 +1283,9 @@ CONSTRAINTS:
 - Keep each answer to 1–3 sentences, directly quotable
 - Questions must reflect what the ICP would ask on THIS page type
 - Start answers with a direct response (no preamble)
+- Never use page-observer phrasing like "the homepage says", "the page includes", or "the headline is".
+- Never ask/answer about "homepage", "this page", "the page", "headline", "CTA", "button", or where links point.
+- Never include prompt/model language ("prompt", "instruction", "LLM", "assistant", "ChatGPT", "GPT", "Claude", "Gemini").
 
 You will be given:
 - The issue to fix (already contains specific instructions)

@@ -29,20 +29,22 @@ export async function mapOpportunities(
     prisma.conversationOpportunity.count({
       where: { brandProfileId: { in: bpIds }, createdAt: { gte: start, lt: end }, relevanceScore: { gte: MIN_RELEVANCE } },
     }),
-    // Engaged this week
+    // Engaged this week (quality-scored only)
     prisma.conversationOpportunity.count({
       where: {
         brandProfileId: { in: bpIds },
         status: "engaged",
         engagedAt: { gte: start, lt: end },
+        relevanceScore: { gte: MIN_RELEVANCE },
       },
     }),
-    // Dismissed this week
+    // Dismissed this week (quality-scored only)
     prisma.conversationOpportunity.count({
       where: {
         brandProfileId: { in: bpIds },
         status: "dismissed",
         dismissedAt: { gte: start, lt: end },
+        relevanceScore: { gte: MIN_RELEVANCE },
       },
     }),
     // Top 5 new opportunities by relevanceScore (only quality ones)

@@ -47,6 +47,8 @@ export async function POST(request: NextRequest) {
       country,     // Single country for re-analysis
       countries,   // Multiple countries for onboarding
       isQueuedJob = false, // GEO-only run (Technical already completed for this monitor)
+      phase,               // 'technical' | 'geo' | 'full' — split analysis into sequential requests
+      technicalAnalysisId, // Passed from phase 1 to phase 2
     } = body;
 
     // Validate required fields
@@ -75,6 +77,8 @@ export async function POST(request: NextRequest) {
       country,
       countries,
       isQueuedJob,
+      phase,
+      technicalAnalysisId,
     });
 
     // Keep the Vercel function alive until all queued country jobs complete.

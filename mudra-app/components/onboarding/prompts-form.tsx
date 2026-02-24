@@ -14,11 +14,11 @@ import { UnicodeLoader } from "@/components/ui/unicode-loader"
 
 
 const LOADING_STEPS = [
+  { label: "Discovering pages", phase: "discovery" },
+  { label: "Scanning website", phase: "scraping" },
+  { label: "Analyzing structure", phase: "scoring" },
   { label: "Generating prompts", phase: "prompts" },
   { label: "Testing AI models", phase: "geo" },
-  { label: "Discovering pages", phase: "discovery" },
-  { label: "Scanning your website", phase: "scraping" },
-  { label: "Analyzing structure", phase: "scoring" },
   { label: "Preparing dashboard", phase: "report" },
 ]
 

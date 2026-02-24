@@ -127,77 +127,96 @@ function DashboardPageInner() {
     // Track analysis start
     trackEvent.analysisStarted(profile.id, 'unified')
 
+    const abortSignal = getAbortSignal()
+    const basePayload = {
+      brandProfileId: profile.id,
+      brandName: profile.companyName,
+      website: profile.companyWebsite,
+      description: profile.companyDescription,
+      industry: profile.companyIndustry,
+      competitors: [],
+      skipCooldown: false,
+      generateReport: false,
+      country: selectedCountry || 'US',
+    }
+
     try {
-      const response = await fetch('/api/analysis/unified', {
+      // --- Phase 1: Technical ---
+      console.log('[Dashboard] Phase 1: Technical analysis')
+      const techResponse = await fetch('/api/analysis/unified', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brandProfileId: profile.id,
-          brandName: profile.companyName,
-          website: profile.companyWebsite,
-          description: profile.companyDescription,
-          industry: profile.companyIndustry,
-          competitors: [],
-          skipCooldown: false, // Enforce 24-hour cooldown
-          generateReport: false, // Legacy NLR generation disabled — WeeklyReport system handles reports
-          country: selectedCountry || 'US', // Run analysis for the currently selected geolocation
-        }),
-        signal: getAbortSignal(), // Allow cancellation if user navigates away
+        body: JSON.stringify({ ...basePayload, phase: 'technical' }),
+        signal: abortSignal,
       })
 
-      const result = await response.json()
-      console.log('[Dashboard] Analysis result:', result)
+      const techResult = await techResponse.json()
+      console.log('[Dashboard] Technical result:', techResult)
 
-      if (result.success) {
-        const duration = Date.now() - startTime
+      const technicalAnalysisId = techResult.data?.technicalAnalysisId
 
-        // Track successful analysis
+      if (!techResponse.ok || !techResult.success) {
+        const errorMsg = techResult?.error?.message || techResult?.error || 'Technical analysis failed'
+        console.error('[Dashboard] Technical phase failed:', techResult)
+        trackEvent.analysisFailed(profile.id, 'unified', errorMsg)
+        toast.error(errorMsg, { id: toastId })
+        completeAnalysis(false)
+        return
+      }
+
+      // --- Phase 2: GEO ---
+      console.log('[Dashboard] Phase 2: GEO analysis')
+      const geoResponse = await fetch('/api/analysis/unified', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...basePayload, phase: 'geo', technicalAnalysisId }),
+        signal: abortSignal,
+      })
+
+      const geoResult = await geoResponse.json()
+      console.log('[Dashboard] GEO result:', geoResult)
+
+      const duration = Date.now() - startTime
+
+      if (geoResponse.ok && geoResult.success) {
+        // Both phases succeeded
         trackEvent.analysisCompleted(profile.id, 'unified', duration, {
-          geo_score: result.data?.geoScore,
-          technical_score: result.data?.technicalScore,
+          geo_score: geoResult.data?.scores?.aiVisibility,
+          technical_score: techResult.data?.scores?.technical,
         })
 
         toast.success('Analysis completed successfully!', { id: toastId })
-        // Mark analysis as complete in global context BEFORE dispatching event
-        // so isRunningAnalysis is queued to be false when the event handler runs
         completeAnalysis(true)
-        // Reset cooldown state
         setCanRunAnalysis(false)
-        setNextAnalysisTime(Date.now() + (24 * 60 * 60 * 1000)) // 24 hours from now
-        // Dispatch event to refresh dashboard metrics (after state updates are queued)
+        setNextAnalysisTime(Date.now() + (24 * 60 * 60 * 1000))
         window.dispatchEvent(new Event('mudra:website-analyzed'))
       } else {
-        const errorMsg = typeof result.error === 'string'
-          ? result.error
-          : result.error?.message || 'Analysis failed'
-        console.error('[Dashboard] Analysis failed:', result)
+        // GEO failed but Technical succeeded — partial success
+        const errorMsg = geoResult?.error?.message || geoResult?.error || 'GEO analysis failed'
+        console.warn('[Dashboard] GEO phase failed, but Technical succeeded:', errorMsg)
 
-        // Track analysis failure
-        trackEvent.analysisFailed(profile.id, 'unified', errorMsg)
+        trackEvent.analysisCompleted(profile.id, 'unified', duration, {
+          technical_score: techResult.data?.scores?.technical,
+          geo_partial_failure: errorMsg,
+        })
 
-        toast.error(errorMsg, { id: toastId })
-
-        // Mark analysis as complete (with failure) in global context
-        completeAnalysis(false)
+        toast.success('Technical analysis completed. AI visibility analysis had an issue — please try again later.', { id: toastId })
+        completeAnalysis(true)
+        setCanRunAnalysis(false)
+        setNextAnalysisTime(Date.now() + (24 * 60 * 60 * 1000))
+        window.dispatchEvent(new Event('mudra:website-analyzed'))
       }
     } catch (error) {
-      // Check if this was an abort (user navigated away)
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('[Dashboard] Analysis request aborted (user navigated away)')
         toast.dismiss(toastId)
-        // Don't mark as complete - analysis may still be running on server
         return
       }
 
       console.error('[Dashboard] Analysis error:', error)
       const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-
-      // Track analysis error
       trackEvent.analysisFailed(profile.id, 'unified', errorMsg)
-
       toast.error('Failed to run analysis. Please try again.', { id: toastId })
-
-      // Mark analysis as complete (with failure) in global context
       completeAnalysis(false)
     }
   }

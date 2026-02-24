@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
     country,
     countries,
     isQueuedJob = false,
+    phase,
+    technicalAnalysisId,
   } = body;
 
   if (!brandProfileId || !brandName || !website) {
@@ -79,6 +81,8 @@ export async function POST(request: NextRequest) {
           country,
           countries,
           isQueuedJob,
+          phase,
+          technicalAnalysisId,
         },
         sendEvent,
       );

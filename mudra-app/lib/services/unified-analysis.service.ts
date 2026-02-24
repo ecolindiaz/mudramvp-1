@@ -46,6 +46,9 @@ export interface UnifiedAnalysisConfig {
   countries?: string[];     // Run GEO for all these countries (onboarding)
   language?: string;        // Prompt language override
   isQueuedJob?: boolean;    // Whether this was triggered by the job queue
+  // Phase-based execution: split analysis into two sequential HTTP requests
+  phase?: 'technical' | 'geo' | 'full'; // Which phase to run (default: 'full' = parallel)
+  technicalAnalysisId?: number;          // Passed from phase 1 (technical) to phase 2 (geo)
 }
 
 export interface UnifiedAnalysisResult {
@@ -151,7 +154,70 @@ export async function runUnifiedAnalysis(
       return result;
     }
 
-    // Run GEO and Technical analyses in PARALLEL
+    // -----------------------------------------------------------------------
+    // Phase-based execution: split into two sequential HTTP requests
+    // Each phase gets its own 300s Vercel budget (effectively 600s total)
+    // -----------------------------------------------------------------------
+    const phase = config.phase || 'full';
+
+    // Phase 1: Technical only — run technical analysis and return its ID
+    if (phase === 'technical') {
+      console.log('[Unified Analysis] Running TECHNICAL phase only');
+      const technicalResult = await runTechnicalAnalysisCore(config, onProgress);
+
+      if (technicalResult.success) {
+        result.technicalAnalysisId = technicalResult.id;
+        result.scores.technical = technicalResult.overallScore;
+        result.scores.seo = technicalResult.seoScore;
+        result.scores.geo = technicalResult.geoScore;
+        if (technicalResult.technicalDetails) {
+          result.technicalDetails = technicalResult.technicalDetails;
+        }
+        result.success = true;
+        console.log('[Unified Analysis] Technical phase completed:', technicalResult.overallScore);
+      } else {
+        result.error = technicalResult.error || 'Technical analysis failed';
+        result.success = false;
+      }
+
+      onProgress?.({ phase: 'complete', status: 'completed', data: { scores: result.scores } });
+      return result;
+    }
+
+    // Phase 2: GEO only — run GEO + report + issues + notifications + multi-country queuing
+    if (phase === 'geo') {
+      console.log('[Unified Analysis] Running GEO phase only');
+      // Use technicalAnalysisId from phase 1 if provided
+      if (config.technicalAnalysisId) {
+        result.technicalAnalysisId = config.technicalAnalysisId;
+      }
+
+      const geoResult = await runGeoAnalysisCore(config, onProgress);
+
+      if (geoResult.success) {
+        result.geoAnalysisId = geoResult.id;
+        result.scores.aiVisibility = geoResult.score;
+        console.log('[Unified Analysis] GEO phase completed:', geoResult.score);
+      } else {
+        const errorMsg = geoResult.error || 'GEO analysis failed';
+        console.error('[Unified Analysis] GEO phase failed:', errorMsg);
+        // If we have a technicalAnalysisId from phase 1, still mark partial success
+        if (result.technicalAnalysisId) {
+          result.error = errorMsg;
+          result.success = true; // Partial success — technical completed
+        } else {
+          result.error = errorMsg;
+          result.success = false;
+        }
+      }
+
+      // Continue with report, issues, notifications, multi-country queuing
+      // (same as full mode post-processing below)
+      await runPostAnalysisSteps(config, result, onProgress);
+      return result;
+    }
+
+    // Phase 'full' (default): Run GEO and Technical analyses in PARALLEL
     const [geoResult, technicalResult] = await Promise.allSettled([
       runGeoAnalysisCore(config, onProgress),
       runTechnicalAnalysisCore(config, onProgress),
@@ -200,134 +266,18 @@ export async function runUnifiedAnalysis(
       console.error('[Unified Analysis] Technical unsuccessful:', errorMsg);
     }
 
-    // Generate report if requested (typically for onboarding)
-    if (config.generateReport) {
-      onProgress?.({ phase: 'report', status: 'started' });
-      const reportResult = await generateReport({
-        brandProfileId: config.brandProfileId,
-        geoAnalysisId: result.geoAnalysisId,
-        technicalAnalysisId: result.technicalAnalysisId,
-      });
-
-      if (reportResult.success) {
-        result.reportId = reportResult.id;
-        console.log('[Unified Analysis] Report generated:', reportResult.id);
-        onProgress?.({ phase: 'report', status: 'completed' });
-      } else if (reportResult.error) {
-        errors.push(`Report Generation: ${reportResult.error}`);
-        console.error('[Unified Analysis] Report generation failed:', reportResult.error);
-        onProgress?.({ phase: 'report', status: 'failed', message: reportResult.error });
-      }
-    }
-
-    // Step 9: Auto-discover AI visibility issues
-    if (result.geoAnalysisId || result.technicalAnalysisId) {
-      onProgress?.({ phase: 'issues', status: 'started' });
-      try {
-        const { discoverIssues } = await import('./issue-discovery.service');
-        const discoveryResult = await discoverIssues(config.brandProfileId);
-        console.log(`[Unified Analysis] Issue discovery: ${discoveryResult.discovered} new issues`);
-
-        // Notification: new issues created
-        if (discoveryResult.discovered > 0) {
-          try {
-            const profile = await prisma.brandProfile.findUnique({
-              where: { id: config.brandProfileId },
-              select: { userId: true },
-            });
-            if (profile?.userId) {
-              const { createNotification } = await import('./notification.service');
-              await createNotification({
-                userId: profile.userId,
-                brandProfileId: config.brandProfileId,
-                type: 'info',
-                category: 'issues_created',
-                title: `${discoveryResult.discovered} New Issues Found`,
-                message: `We found ${discoveryResult.discovered} new optimization opportunities for your website.`,
-                actionUrl: '/dashboard/issues',
-                metadata: { discovered: discoveryResult.discovered },
-              });
-            }
-          } catch (e) { console.warn('[Notification] Failed to create issues notification:', e); }
-        }
-      } catch (discoveryError) {
-        console.warn('[Unified Analysis] Issue discovery failed (non-fatal):', discoveryError);
-      }
-      onProgress?.({ phase: 'issues', status: 'completed' });
-    }
-
-    // Set success status and error message
+    // Set success/error from parallel results
     result.success = !!(result.geoAnalysisId || result.technicalAnalysisId);
 
     if (errors.length > 0) {
       result.error = errors.join('; ');
-
-      // If both analyses failed completely, mark as unsuccessful
       if (!result.geoAnalysisId && !result.technicalAnalysisId) {
         result.success = false;
       }
     }
 
-    // Queue remaining countries for background processing (multi-country onboarding)
-    if (result.success && config.countries && config.countries.length > 1) {
-      try {
-        const remainingCountries = config.countries.slice(1).filter(isAllowedCountry) as CountryCode[];
-        if (remainingCountries.length > 0) {
-          const { createAnalysisJobs } = await import('./analysis-job-queue');
-          const jobIds = await createAnalysisJobs({
-            brandProfileId: config.brandProfileId,
-            countries: remainingCountries,
-            jobType: 'geo',
-          });
-          console.log(`[Unified Analysis] Queued ${jobIds.length} background country jobs: ${remainingCountries.join(', ')}`);
-
-          // Return a promise the caller can pass to next/server after() to keep
-          // the Vercel function alive while background jobs complete.
-          const { processNextJob } = await import('./analysis-job-queue');
-          const bpId = config.brandProfileId;
-          result.backgroundWork = (async () => {
-            try {
-              let hasMore = true;
-              while (hasMore) {
-                hasMore = await processNextJob(bpId);
-              }
-              console.log(`[Unified Analysis] All queued jobs processed for brand ${bpId}`);
-            } catch (e) {
-              console.warn('[Unified Analysis] Queue processing loop error:', e);
-            }
-          })();
-        }
-      } catch (queueError) {
-        console.warn('[Unified Analysis] Failed to queue remaining countries (non-fatal):', queueError);
-      }
-    }
-
-    // Emit complete event
-    onProgress?.({ phase: 'complete', status: 'completed', data: { scores: result.scores } });
-
-    // Notification: analysis complete
-    if (result.success) {
-      try {
-        const profile = await prisma.brandProfile.findUnique({
-          where: { id: config.brandProfileId },
-          select: { userId: true },
-        });
-        if (profile?.userId) {
-          const { createNotification } = await import('./notification.service');
-          await createNotification({
-            userId: profile.userId,
-            brandProfileId: config.brandProfileId,
-            type: 'success',
-            category: 'analysis_complete',
-            title: 'Analysis Complete',
-            message: `Your website analysis is ready.${result.scores?.aiVisibility ? ` AI Visibility: ${Math.round(result.scores.aiVisibility)}/100` : ''}${result.scores?.technical ? `, Technical: ${Math.round(result.scores.technical)}/100` : ''}`,
-            actionUrl: '/dashboard',
-            metadata: { scores: result.scores },
-          });
-        }
-      } catch (e) { console.warn('[Notification] Failed to create analysis notification:', e); }
-    }
-
+    // Post-analysis steps: report, issues, notifications, multi-country queuing
+    await runPostAnalysisSteps(config, result, onProgress);
     return result;
 
   } catch (error) {
@@ -337,6 +287,136 @@ export async function runUnifiedAnalysis(
     result.success = false;
     onProgress?.({ phase: 'error', status: 'failed', message: result.error });
     return result;
+  }
+}
+
+/**
+ * Post-analysis steps shared by both 'full' and 'geo' phases:
+ * report generation, issue discovery, notifications, multi-country queuing.
+ */
+async function runPostAnalysisSteps(
+  config: UnifiedAnalysisConfig,
+  result: UnifiedAnalysisResult,
+  onProgress?: OnProgress,
+) {
+  const errors: string[] = [];
+
+  // Generate report if requested (typically for onboarding)
+  if (config.generateReport) {
+    onProgress?.({ phase: 'report', status: 'started' });
+    const reportResult = await generateReport({
+      brandProfileId: config.brandProfileId,
+      geoAnalysisId: result.geoAnalysisId,
+      technicalAnalysisId: result.technicalAnalysisId,
+    });
+
+    if (reportResult.success) {
+      result.reportId = reportResult.id;
+      console.log('[Unified Analysis] Report generated:', reportResult.id);
+      onProgress?.({ phase: 'report', status: 'completed' });
+    } else if (reportResult.error) {
+      errors.push(`Report Generation: ${reportResult.error}`);
+      console.error('[Unified Analysis] Report generation failed:', reportResult.error);
+      onProgress?.({ phase: 'report', status: 'failed', message: reportResult.error });
+    }
+  }
+
+  // Auto-discover AI visibility issues
+  if (result.geoAnalysisId || result.technicalAnalysisId) {
+    onProgress?.({ phase: 'issues', status: 'started' });
+    try {
+      const { discoverIssues } = await import('./issue-discovery.service');
+      const discoveryResult = await discoverIssues(config.brandProfileId);
+      console.log(`[Unified Analysis] Issue discovery: ${discoveryResult.discovered} new issues`);
+
+      if (discoveryResult.discovered > 0) {
+        try {
+          const profile = await prisma.brandProfile.findUnique({
+            where: { id: config.brandProfileId },
+            select: { userId: true },
+          });
+          if (profile?.userId) {
+            const { createNotification } = await import('./notification.service');
+            await createNotification({
+              userId: profile.userId,
+              brandProfileId: config.brandProfileId,
+              type: 'info',
+              category: 'issues_created',
+              title: `${discoveryResult.discovered} New Issues Found`,
+              message: `We found ${discoveryResult.discovered} new optimization opportunities for your website.`,
+              actionUrl: '/dashboard/issues',
+              metadata: { discovered: discoveryResult.discovered },
+            });
+          }
+        } catch (e) { console.warn('[Notification] Failed to create issues notification:', e); }
+      }
+    } catch (discoveryError) {
+      console.warn('[Unified Analysis] Issue discovery failed (non-fatal):', discoveryError);
+    }
+    onProgress?.({ phase: 'issues', status: 'completed' });
+  }
+
+  // Append any errors from post-processing
+  if (errors.length > 0) {
+    result.error = result.error ? `${result.error}; ${errors.join('; ')}` : errors.join('; ');
+  }
+
+  // Queue remaining countries for background processing (multi-country onboarding)
+  if (result.success && config.countries && config.countries.length > 1) {
+    try {
+      const remainingCountries = config.countries.slice(1).filter(isAllowedCountry) as CountryCode[];
+      if (remainingCountries.length > 0) {
+        const { createAnalysisJobs } = await import('./analysis-job-queue');
+        const jobIds = await createAnalysisJobs({
+          brandProfileId: config.brandProfileId,
+          countries: remainingCountries,
+          jobType: 'geo',
+        });
+        console.log(`[Unified Analysis] Queued ${jobIds.length} background country jobs: ${remainingCountries.join(', ')}`);
+
+        const { processNextJob } = await import('./analysis-job-queue');
+        const bpId = config.brandProfileId;
+        result.backgroundWork = (async () => {
+          try {
+            let hasMore = true;
+            while (hasMore) {
+              hasMore = await processNextJob(bpId);
+            }
+            console.log(`[Unified Analysis] All queued jobs processed for brand ${bpId}`);
+          } catch (e) {
+            console.warn('[Unified Analysis] Queue processing loop error:', e);
+          }
+        })();
+      }
+    } catch (queueError) {
+      console.warn('[Unified Analysis] Failed to queue remaining countries (non-fatal):', queueError);
+    }
+  }
+
+  // Emit complete event
+  onProgress?.({ phase: 'complete', status: 'completed', data: { scores: result.scores } });
+
+  // Notification: analysis complete
+  if (result.success) {
+    try {
+      const profile = await prisma.brandProfile.findUnique({
+        where: { id: config.brandProfileId },
+        select: { userId: true },
+      });
+      if (profile?.userId) {
+        const { createNotification } = await import('./notification.service');
+        await createNotification({
+          userId: profile.userId,
+          brandProfileId: config.brandProfileId,
+          type: 'success',
+          category: 'analysis_complete',
+          title: 'Analysis Complete',
+          message: `Your website analysis is ready.${result.scores?.aiVisibility ? ` AI Visibility: ${Math.round(result.scores.aiVisibility)}/100` : ''}${result.scores?.technical ? `, Technical: ${Math.round(result.scores.technical)}/100` : ''}`,
+          actionUrl: '/dashboard',
+          metadata: { scores: result.scores },
+        });
+      }
+    } catch (e) { console.warn('[Notification] Failed to create analysis notification:', e); }
   }
 }
 

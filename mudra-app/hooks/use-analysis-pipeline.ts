@@ -1,9 +1,9 @@
 /**
  * Custom hook for triggering and monitoring the analysis pipeline.
  *
- * Tries SSE streaming first (/api/analysis/unified/stream) for real-time
- * progress. Falls back to the regular POST endpoint with simulated progress
- * if SSE fails.
+ * Runs analysis as TWO sequential HTTP requests (Technical → GEO), each
+ * getting its own 300s Vercel budget. Tries SSE streaming first for real-time
+ * progress; falls back to regular POST with simulated progress.
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -53,59 +53,55 @@ export interface AnalysisPipelineConfig {
 }
 
 // ---------------------------------------------------------------------------
-// Weighted progress mapping (parallel-aware)
+// Weighted progress mapping (sequential: Technical 0-45%, GEO 45-100%)
 // ---------------------------------------------------------------------------
-// GEO track  = 35%:  prompts(5%) + geo(30%)
-// Tech track = 35%:  discovery(5%) + scraping(15%) + scoring(15%)
-// Sequential = 30%:  report(15%) + issues(10%) + final(5%)
+// Technical track (phase 1): discovery(0-5%) + scraping(5-25%) + scoring(25-45%)
+// GEO track      (phase 2): prompts(45-50%) + geo(50-80%)
+// Sequential post-analysis : report(80-90%) + issues(90-95%) + complete(95-100%)
 
-interface PhaseWeight { start: number; end: number; track: 'geo' | 'tech' | 'seq' }
+interface PhaseWeight { start: number; end: number }
 
 const PHASE_WEIGHTS: Record<string, PhaseWeight> = {
-  prompts:   { start: 0,  end: 5,  track: 'geo' },
-  geo:       { start: 5,  end: 35, track: 'geo' },
-  discovery: { start: 0,  end: 5,  track: 'tech' },
-  scraping:  { start: 5,  end: 20, track: 'tech' },
-  scoring:   { start: 20, end: 35, track: 'tech' },
-  report:    { start: 70, end: 85, track: 'seq' },
-  issues:    { start: 85, end: 95, track: 'seq' },
-  complete:  { start: 95, end: 100, track: 'seq' },
+  // Phase 1: Technical
+  discovery: { start: 0,  end: 5 },
+  scraping:  { start: 5,  end: 25 },
+  scoring:   { start: 25, end: 45 },
+  // Phase 2: GEO
+  prompts:   { start: 45, end: 50 },
+  geo:       { start: 50, end: 80 },
+  // Post-analysis (runs in GEO phase)
+  report:    { start: 80, end: 90 },
+  issues:    { start: 90, end: 95 },
+  complete:  { start: 95, end: 100 },
 };
 
 function computeProgress(completedPhases: Set<string>, activePhase?: { phase: string; fraction?: number }): number {
-  let geoTrack = 0;
-  let techTrack = 0;
-  let seqProgress = 0;
+  let maxProgress = 0;
 
   for (const phase of completedPhases) {
     const w = PHASE_WEIGHTS[phase];
     if (!w) continue;
-    if (w.track === 'geo') geoTrack = Math.max(geoTrack, w.end);
-    else if (w.track === 'tech') techTrack = Math.max(techTrack, w.end);
-    else seqProgress = Math.max(seqProgress, w.end);
+    maxProgress = Math.max(maxProgress, w.end);
   }
 
-  // Active (in-progress) phase gets partial credit
   if (activePhase) {
     const w = PHASE_WEIGHTS[activePhase.phase];
     if (w) {
       const partial = w.start + (w.end - w.start) * (activePhase.fraction ?? 0.5);
-      if (w.track === 'geo') geoTrack = Math.max(geoTrack, partial);
-      else if (w.track === 'tech') techTrack = Math.max(techTrack, partial);
-      else seqProgress = Math.max(seqProgress, partial);
+      maxProgress = Math.max(maxProgress, partial);
     }
   }
 
-  return Math.min(Math.round(geoTrack + techTrack + seqProgress), 100);
+  return Math.min(Math.round(maxProgress), 100);
 }
 
-// Map SSE phase to one of the 6 ordered UI steps
+// Map SSE phase to one of the 6 ordered UI steps (Technical-first order)
 const PHASE_TO_STEP_INDEX: Record<string, number> = {
-  prompts: 0,
-  geo: 1,
-  discovery: 2,
-  scraping: 3,
-  scoring: 4,
+  discovery: 0,
+  scraping: 1,
+  scoring: 2,
+  prompts: 3,
+  geo: 4,
   report: 5,
   issues: 5,
   complete: 5,
@@ -153,24 +149,19 @@ export function useAnalysisPipeline() {
   }, []);
 
   // -------------------------------------------------------------------
-  // SSE streaming run
+  // Shared SSE reader — reads one SSE stream, updating progress state
+  // Returns the `data` from the final 'complete' event, or null on failure.
   // -------------------------------------------------------------------
-  const runViaSSE = async (
-    payload: Record<string, any>,
-    config: AnalysisPipelineConfig,
-  ): Promise<boolean> => {
-    const response = await fetch('/api/analysis/unified/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok || !response.body) return false;
+  const readSSEStream = async (
+    response: Response,
+    completedPhases: Set<string>,
+    progressCap: number,
+  ): Promise<any> => {
+    if (!response.body) return null;
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    const completedPhases = new Set<string>();
     let finalResult: any = null;
 
     try {
@@ -180,9 +171,8 @@ export function useAnalysisPipeline() {
 
         buffer += decoder.decode(value, { stream: true });
 
-        // Parse SSE events from buffer
         const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // keep incomplete line in buffer
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
@@ -198,22 +188,18 @@ export function useAnalysisPipeline() {
 
           setCurrentPhase(event.phase);
 
-          // Update step index from SSE event
           const stepIdx = PHASE_TO_STEP_INDEX[event.phase];
           if (stepIdx !== undefined) {
             setCurrentStepFromSSE(prev => Math.max(prev, stepIdx));
           }
 
-          // Build detail text from event data
           const detail = buildPhaseDetail(event);
           if (detail) setPhaseDetail(detail);
 
-          // Track completed phases for progress calc
           if (event.status === 'completed') {
             completedPhases.add(event.phase);
           }
 
-          // Compute fractional progress for in-progress events
           let fraction: number | undefined;
           if (event.phase === 'scraping' && event.status === 'progress' && event.data) {
             fraction = event.data.total > 0 ? event.data.scraped / event.data.total : 0;
@@ -223,9 +209,8 @@ export function useAnalysisPipeline() {
             completedPhases,
             event.status !== 'completed' ? { phase: event.phase, fraction } : undefined,
           );
-          setSimulatedProgress(Math.min(progress, 95));
+          setSimulatedProgress(Math.min(progress, progressCap));
 
-          // Capture final result from the complete event
           if (event.phase === 'complete' && event.data) {
             finalResult = event.data;
           }
@@ -239,7 +224,92 @@ export function useAnalysisPipeline() {
       reader.releaseLock();
     }
 
-    if (!finalResult) return false;
+    return finalResult;
+  };
+
+  // -------------------------------------------------------------------
+  // SSE streaming run — two sequential SSE calls
+  // -------------------------------------------------------------------
+  const runViaSSE = async (
+    payload: Record<string, any>,
+    config: AnalysisPipelineConfig,
+  ): Promise<boolean> => {
+    const completedPhases = new Set<string>();
+
+    // --- Phase 1: Technical ---
+    console.log('[useAnalysisPipeline] SSE Phase 1: Technical');
+    const techResponse = await fetch('/api/analysis/unified/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, phase: 'technical' }),
+    });
+
+    if (!techResponse.ok || !techResponse.body) return false;
+
+    const techResult = await readSSEStream(techResponse, completedPhases, 45);
+
+    // Extract technicalAnalysisId for phase 2
+    const technicalAnalysisId = techResult?.technicalAnalysisId;
+
+    // Update pipeline state: technical phase done
+    if (techResult?.technicalAnalysisId) {
+      setPipelineState(prev => ({
+        ...prev,
+        progress: { ...prev.progress, technicalStructure: 'completed' },
+      }));
+    }
+
+    // Ensure progress is at 45% before starting phase 2
+    setSimulatedProgress(45);
+
+    // --- Phase 2: GEO ---
+    console.log('[useAnalysisPipeline] SSE Phase 2: GEO');
+    const geoResponse = await fetch('/api/analysis/unified/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, phase: 'geo', technicalAnalysisId }),
+    });
+
+    if (!geoResponse.ok || !geoResponse.body) {
+      // GEO SSE failed but Technical succeeded — partial success
+      if (techResult?.technicalAnalysisId) {
+        clearAllTimers();
+        setSimulatedProgress(100);
+        setCurrentStepFromSSE(5);
+        setPipelineState({
+          state: 'completed',
+          progress: {
+            geoAnalysis: 'failed',
+            trafficMetrics: 'completed',
+            technicalStructure: 'completed',
+            report: 'failed',
+          },
+          results: {
+            technicalAnalysisId: techResult.technicalAnalysisId,
+          },
+        });
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('mudra:website-analyzed', {
+            detail: { brandProfileId: config.brandProfileId, results: techResult },
+          }));
+        }
+        return true;
+      }
+      return false;
+    }
+
+    const geoResult = await readSSEStream(geoResponse, completedPhases, 100);
+
+    // Merge results from both phases
+    const mergedResult = {
+      ...techResult,
+      ...geoResult,
+      // Ensure technicalAnalysisId from phase 1 is preserved
+      technicalAnalysisId: techResult?.technicalAnalysisId || geoResult?.technicalAnalysisId,
+    };
+
+    if (!mergedResult.technicalAnalysisId && !mergedResult.geoAnalysisId) return false;
 
     // Success
     clearAllTimers();
@@ -248,21 +318,21 @@ export function useAnalysisPipeline() {
     setPipelineState({
       state: 'completed',
       progress: {
-        geoAnalysis: finalResult.geoAnalysisId ? 'completed' : 'failed',
+        geoAnalysis: mergedResult.geoAnalysisId ? 'completed' : 'failed',
         trafficMetrics: 'completed',
-        technicalStructure: finalResult.technicalAnalysisId ? 'completed' : 'failed',
-        report: finalResult.reportId ? 'completed' : 'failed',
+        technicalStructure: mergedResult.technicalAnalysisId ? 'completed' : 'failed',
+        report: mergedResult.reportId ? 'completed' : 'failed',
       },
       results: {
-        geoAnalysisId: finalResult.geoAnalysisId,
-        technicalAnalysisId: finalResult.technicalAnalysisId,
-        reportId: finalResult.reportId,
+        geoAnalysisId: mergedResult.geoAnalysisId,
+        technicalAnalysisId: mergedResult.technicalAnalysisId,
+        reportId: mergedResult.reportId,
       },
     });
 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('mudra:website-analyzed', {
-        detail: { brandProfileId: config.brandProfileId, results: finalResult },
+        detail: { brandProfileId: config.brandProfileId, results: mergedResult },
       }));
     }
 
@@ -270,90 +340,155 @@ export function useAnalysisPipeline() {
   };
 
   // -------------------------------------------------------------------
-  // Fallback: regular POST with simulated progress (original behaviour)
+  // Fallback: regular POST with simulated progress — two sequential calls
   // -------------------------------------------------------------------
   const runViaFetch = async (
     payload: Record<string, any>,
     config: AnalysisPipelineConfig,
   ) => {
-    // Start simulated progress
+    // Start simulated progress for technical phase
     setSimulatedProgress(3 + Math.random() * 5);
     progressIntervalRef.current = setInterval(() => {
       setSimulatedProgress(prev => {
+        if (prev >= 42) return prev;
+        const speed = prev < 15 ? 4 + Math.random() * 8 : prev < 30 ? 2 + Math.random() * 5 : 0.5 + Math.random() * 2;
+        return Math.min(prev + speed, 42);
+      });
+    }, 1200);
+
+    // Simulated step timers for technical phase
+    timeoutIdsRef.current.push(
+      setTimeout(() => setPipelineState(prev => ({ ...prev, progress: { ...prev.progress, technicalStructure: 'completed' as const } })), 8000),
+    );
+
+    // --- Phase 1: Technical ---
+    const techResponse = await fetch('/api/analysis/unified', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, phase: 'technical' }),
+    });
+
+    const techText = await techResponse.text();
+    let techResult;
+    try {
+      techResult = JSON.parse(techText);
+    } catch {
+      throw new Error(`Technical phase failed: ${techResponse.statusText} - Invalid response`);
+    }
+
+    if (!techResponse.ok) {
+      const errorDetail = techResult?.error?.message || techResult?.error || techResponse.statusText;
+      throw new Error(`Technical phase failed (${techResponse.status}): ${errorDetail}`);
+    }
+
+    const technicalAnalysisId = techResult.data?.technicalAnalysisId;
+
+    // Bump progress to 45%
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    setSimulatedProgress(45);
+
+    // Start simulated progress for GEO phase
+    progressIntervalRef.current = setInterval(() => {
+      setSimulatedProgress(prev => {
         if (prev >= 90) return prev;
-        const speed = prev < 15 ? 4 + Math.random() * 8 : prev < 50 ? 2 + Math.random() * 5 : 0.5 + Math.random() * 2;
+        const speed = prev < 60 ? 2 + Math.random() * 5 : 0.5 + Math.random() * 2;
         return Math.min(prev + speed, 90);
       });
     }, 1200);
 
-    // Simulated step timers
+    // Simulated step timers for GEO phase
     timeoutIdsRef.current.push(
-      setTimeout(() => setPipelineState(prev => ({ ...prev, progress: { ...prev.progress, geoAnalysis: 'completed' as const } })), 5000),
-    );
-    timeoutIdsRef.current.push(
-      setTimeout(() => setPipelineState(prev => ({ ...prev, progress: { ...prev.progress, technicalStructure: 'completed' as const } })), 10000),
+      setTimeout(() => setPipelineState(prev => ({ ...prev, progress: { ...prev.progress, geoAnalysis: 'completed' as const } })), 10000),
     );
     timeoutIdsRef.current.push(
       setTimeout(() => setPipelineState(prev => ({ ...prev, progress: { ...prev.progress, report: 'completed' as const } })), 15000),
     );
 
-    const response = await fetch('/api/analysis/unified', {
+    // --- Phase 2: GEO ---
+    const geoResponse = await fetch('/api/analysis/unified', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, phase: 'geo', technicalAnalysisId }),
     });
 
-    const responseText = await response.text();
-    let result;
+    const geoText = await geoResponse.text();
+    let geoResult;
     try {
-      result = JSON.parse(responseText);
+      geoResult = JSON.parse(geoText);
     } catch {
-      throw new Error(`Pipeline failed: ${response.statusText} - Invalid response`);
-    }
-
-    if (!response.ok) {
-      const errorDetail = result?.error?.message || result?.error || result?.message || response.statusText;
-      throw new Error(`Pipeline failed (${response.status}): ${errorDetail}`);
+      throw new Error(`GEO phase failed: ${geoResponse.statusText} - Invalid response`);
     }
 
     clearAllTimers();
 
-    if (result.success) {
-      setSimulatedProgress(100);
-      setPipelineState({
-        state: 'completed',
-        progress: {
-          geoAnalysis: result.data?.geoAnalysisId ? 'completed' : 'failed',
-          trafficMetrics: 'completed',
-          technicalStructure: result.data?.technicalAnalysisId ? 'completed' : 'failed',
-          report: result.data?.reportId ? 'completed' : 'failed',
-        },
-        results: {
-          geoAnalysisId: result.data?.geoAnalysisId,
-          technicalAnalysisId: result.data?.technicalAnalysisId,
-          reportId: result.data?.reportId,
-        },
-      });
+    // If GEO failed but Technical succeeded, still show partial success
+    if (!geoResponse.ok || !geoResult.success) {
+      if (techResult.success && technicalAnalysisId) {
+        setSimulatedProgress(100);
+        setPipelineState({
+          state: 'completed',
+          progress: {
+            geoAnalysis: 'failed',
+            trafficMetrics: 'completed',
+            technicalStructure: 'completed',
+            report: 'failed',
+          },
+          results: {
+            technicalAnalysisId: techResult.data?.technicalAnalysisId,
+          },
+        });
 
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('mudra:website-analyzed', {
-          detail: { brandProfileId: config.brandProfileId, results: result.data },
-        }));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('mudra:website-analyzed', {
+            detail: { brandProfileId: config.brandProfileId, results: techResult.data },
+          }));
+        }
+        return techResult;
       }
-    } else {
-      const errorMessage = typeof result.error === 'object' && result.error?.message
-        ? result.error.message
-        : result.error || 'Analysis failed';
-      clearAllTimers();
+
+      const errorMessage = geoResult?.error?.message || geoResult?.error || 'GEO phase failed';
       setSimulatedProgress(0);
       setPipelineState({
         state: 'error',
         progress: { geoAnalysis: 'failed', trafficMetrics: 'failed', technicalStructure: 'failed', report: 'failed' },
         error: errorMessage,
       });
+      return geoResult;
     }
 
-    return result;
+    // Both succeeded
+    setSimulatedProgress(100);
+    const mergedData = {
+      ...techResult.data,
+      ...geoResult.data,
+      technicalAnalysisId: techResult.data?.technicalAnalysisId || geoResult.data?.technicalAnalysisId,
+    };
+
+    setPipelineState({
+      state: 'completed',
+      progress: {
+        geoAnalysis: mergedData.geoAnalysisId ? 'completed' : 'failed',
+        trafficMetrics: 'completed',
+        technicalStructure: mergedData.technicalAnalysisId ? 'completed' : 'failed',
+        report: mergedData.reportId ? 'completed' : 'failed',
+      },
+      results: {
+        geoAnalysisId: mergedData.geoAnalysisId,
+        technicalAnalysisId: mergedData.technicalAnalysisId,
+        reportId: mergedData.reportId,
+      },
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mudra:website-analyzed', {
+        detail: { brandProfileId: config.brandProfileId, results: mergedData },
+      }));
+    }
+
+    return geoResult;
   };
 
   // -------------------------------------------------------------------

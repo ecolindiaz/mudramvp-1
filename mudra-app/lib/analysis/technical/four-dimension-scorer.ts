@@ -121,6 +121,26 @@ function createIssue(
 	return { check, dimension, severity, message, page_url: pageUrl };
 }
 
+/**
+ * Appends an HTML comment with extracted FAQ Q&A data to a message string.
+ * Used by J1/J3/J4 issue generators so downstream script generators can
+ * build FAQPage schema from real page content.
+ */
+function appendFaqDataComment(
+	message: string,
+	schemas: string[],
+	faqs: DOMExtractionData["faqs"]
+): string {
+	if (schemas.includes("FAQPage") && faqs.combined_faqs.length > 0) {
+		const faqData = faqs.combined_faqs.map(f => ({
+			question: f.question,
+			answer: f.answer,
+		}));
+		return message + `\n<!-- FAQ_DATA: ${JSON.stringify(faqData)} -->`;
+	}
+	return message;
+}
+
 function createIntervention(
 	check: string,
 	priority: InterventionPriority,
@@ -537,15 +557,11 @@ function generateIssues(
 	if (!schemaScore.checks.J1_present?.passed) {
 		const recommendedSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
 		const schemaList = recommendedSchemas.join(' + ');
-		let message = `No JSON-LD schema found. Recommended for this page: ${schemaList}`;
-		// Embed extracted FAQ data so downstream script generators can use real content
-		if (recommendedSchemas.includes("FAQPage") && extraction.extraction.faqs.combined_faqs.length > 0) {
-			const faqData = extraction.extraction.faqs.combined_faqs.map(f => ({
-				question: f.question,
-				answer: f.answer,
-			}));
-			message += `\n<!-- FAQ_DATA: ${JSON.stringify(faqData)} -->`;
-		}
+		const message = appendFaqDataComment(
+			`No JSON-LD schema found. Recommended for this page: ${schemaList}`,
+			recommendedSchemas,
+			extraction.extraction.faqs
+		);
 		issues.push(createIssue(
 			"J1_present",
 			"schema",
@@ -566,15 +582,11 @@ function generateIssues(
 		const recommended = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
 		const currentTypes = extraction.extraction.schema.schema_types.join(', ');
 		const suggestedTypes = recommended.length > 0 ? recommended.join(' + ') : 'Organization, Article, or Product';
-		let j3Message = `Schema types not optimized for AEO (current: ${currentTypes}). Recommended: ${suggestedTypes}`;
-		// Embed extracted FAQ data so downstream script generators can use real content
-		if (recommended.includes("FAQPage") && extraction.extraction.faqs.combined_faqs.length > 0) {
-			const faqData = extraction.extraction.faqs.combined_faqs.map(f => ({
-				question: f.question,
-				answer: f.answer,
-			}));
-			j3Message += `\n<!-- FAQ_DATA: ${JSON.stringify(faqData)} -->`;
-		}
+		const j3Message = appendFaqDataComment(
+			`Schema types not optimized for AEO (current: ${currentTypes}). Recommended: ${suggestedTypes}`,
+			recommended,
+			extraction.extraction.faqs
+		);
 		issues.push(createIssue(
 			"J3_relevant",
 			"schema",
@@ -589,15 +601,11 @@ function generateIssues(
 		const missingSchemas = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
 		if (missingSchemas.length > 0) {
 			const currentTypes = extraction.extraction.schema.schema_types.join(', ');
-			let message = `Additional schemas recommended (current: ${currentTypes}). Add: ${missingSchemas.join(' + ')}`;
-			// Embed extracted FAQ data so downstream script generators can use real content
-			if (missingSchemas.includes("FAQPage") && extraction.extraction.faqs.combined_faqs.length > 0) {
-				const faqData = extraction.extraction.faqs.combined_faqs.map(f => ({
-					question: f.question,
-					answer: f.answer,
-				}));
-				message += `\n<!-- FAQ_DATA: ${JSON.stringify(faqData)} -->`;
-			}
+			const message = appendFaqDataComment(
+				`Additional schemas recommended (current: ${currentTypes}). Add: ${missingSchemas.join(' + ')}`,
+				missingSchemas,
+				extraction.extraction.faqs
+			);
 			issues.push(createIssue(
 				"J4_coverage",
 				"schema",

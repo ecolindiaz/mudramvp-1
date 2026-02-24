@@ -277,6 +277,7 @@ interface LlmsCollectionResult {
 	evidence: GroundingEvidence;
 	rootUrl: string;
 	docsBase: string | null;
+	sourcePages: LlmsSourcePage[];
 }
 
 interface SchemaNormalizationResult {
@@ -284,13 +285,18 @@ interface SchemaNormalizationResult {
 	removedFacts: string[];
 }
 
+const KNOWN_ACRONYMS = new Set(["sdk", "api", "cli", "ui", "ux", "ai", "ml", "sso", "sla", "dpa", "faq", "url", "cdn"]);
+
 function toTitleCase(value: string): string {
 	return value
 		.replace(/[-_]+/g, " ")
 		.trim()
 		.split(/\s+/)
 		.filter(Boolean)
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+		.map((word) => {
+			if (KNOWN_ACRONYMS.has(word.toLowerCase())) return word.toUpperCase();
+			return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+		})
 		.join(" ");
 }
 
@@ -1146,6 +1152,7 @@ async function collectLlmsContext(
 		evidence,
 		rootUrl,
 		docsBase,
+		sourcePages,
 	};
 }
 
@@ -1701,69 +1708,147 @@ function pickBestUrlByPatterns(urls: string[], patterns: RegExp[]): string | nul
 	return null;
 }
 
+function findMatchingDocsUrl(
+	productSlug: string,
+	urls: string[],
+	docsBase: string | null
+): string | null {
+	const slugLower = productSlug.toLowerCase();
+	// Look for docs URLs that contain the product slug
+	const docsPatterns = [
+		new RegExp(`/docs/(?:en/)?${slugLower}(?:/|$)`, "i"),
+		new RegExp(`/documentation/(?:en/)?${slugLower}(?:/|$)`, "i"),
+		new RegExp(`/reference/${slugLower}(?:/|$)`, "i"),
+	];
+	for (const pattern of docsPatterns) {
+		const match = urls.find((url) => {
+			try { return pattern.test(new URL(url).pathname); } catch { return false; }
+		});
+		if (match) return match;
+	}
+	// Fallback: docsBase + slug
+	if (docsBase) return joinRootPath(docsBase, `/${slugLower}`);
+	return null;
+}
+
+function stripBrandSuffix(title: string, brandName: string): string {
+	// Remove common brand suffixes like " | Brand", " - Brand", " — Brand"
+	const cleaned = title
+		.replace(new RegExp(`\\s*[|–—]\\s*${brandName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "i"), "")
+		.replace(new RegExp(`\\s+-\\s+${brandName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "i"), "")
+		.replace(/\s*[|–—]\s*$/, "")
+		.trim();
+	// Extract just the product name part (before em-dash/pipe subtitle separator)
+	const separatorMatch = cleaned.match(/^(.+?)\s*[—|]\s+/);
+	return separatorMatch ? separatorMatch[1].trim() : cleaned;
+}
+
 function buildLlmsProductsFromUrls(
 	urls: string[],
 	rootUrl: string,
-	docsBase: string | null
+	docsBase: string | null,
+	sourcePages?: LlmsSourcePage[],
+	brandName?: string
 ): Array<{ name: string; purpose: string; productUrl: string; docsUrl: string | null }> {
-	const productPatterns: Array<{ pattern: RegExp; name: string; purpose: string }> = [
-		{
-			pattern: /\/reference\/search(?:\/|$)/i,
-			name: "Search API",
-			purpose: "Search the web with ranked results for AI workflows.",
-		},
-		{
-			pattern: /\/reference\/(?:get-)?contents?(?:\/|$)/i,
-			name: "Contents API",
-			purpose: "Retrieve and parse page contents for downstream processing.",
-		},
-		{
-			pattern: /\/reference\/answer(?:\/|$)/i,
-			name: "Answer API",
-			purpose: "Generate answer responses backed by retrieved sources.",
-		},
-		{
-			pattern: /\/reference\/(?:exa-)?research(?:\/|$)/i,
-			name: "Research API",
-			purpose: "Run asynchronous multi-step web research tasks.",
-		},
-		{
-			pattern: /\/reference\/websets/i,
-			name: "Websets",
-			purpose: "Build and enrich entity collections for research workflows.",
-		},
-	];
-
 	const products: Array<{ name: string; purpose: string; productUrl: string; docsUrl: string | null }> = [];
-	const pricingUrl =
-		pickBestUrlByPatterns(urls, [/^\/pricing(?:\/|$)/]) || joinRootPath(rootUrl, "/pricing");
-	const docsHome =
-		docsBase ||
-		pickBestUrlByPatterns(urls, [/^\/docs(?:\/|$)/, /^\/documentation(?:\/|$)/]) ||
-		joinRootPath(rootUrl, "/docs");
+	const seen = new Set<string>();
+	const brand = brandName || "Brand";
 
-	for (const definition of productPatterns) {
-		const docsUrl =
-			urls.find((url) => {
-				try {
-					return definition.pattern.test(new URL(url).pathname.toLowerCase());
-				} catch {
-					return false;
-				}
-			}) || null;
-		if (!docsUrl) continue;
-		products.push({
-			name: definition.name,
-			purpose: definition.purpose,
-			productUrl: pricingUrl,
-			docsUrl,
-		});
+	// Generic product detection from URL path patterns
+	const productPathPatterns = [
+		/^\/(products|platform|solutions|tools|features)\/([^/]+)/i,
+	];
+	// Docs-structure product detection (top-level docs sections often map to products)
+	const docsPathPatterns = [
+		/^\/docs\/(?:en\/)?([^/]+)/i,
+		/^\/documentation\/(?:en\/)?([^/]+)/i,
+	];
+	// Exclusions: common non-product path segments
+	const nonProductSlugs = new Set([
+		"overview", "getting-started", "quickstart", "introduction", "guides",
+		"tutorials", "api", "reference", "changelog", "faq", "faqs", "support",
+		"en", "v1", "v2", "v3", "latest", "stable", "index", "home",
+		// Common docs leaf-page slugs (not product names)
+		"api-keys", "authentication", "authorization", "audit-logs", "billing",
+		"configuration", "contributing", "deployment", "environments", "errors",
+		"installation", "migration", "permissions", "rate-limits", "security",
+		"setup", "troubleshooting", "usage", "webhooks", "computer-use",
+	]);
+	// Slugs with file extensions are never products
+	const hasFileExtension = (slug: string): boolean => /\.\w{1,5}$/.test(slug);
+	// For docs-structure detection, only consider slugs that look like product/SDK names
+	const looksLikeProductSlug = (slug: string): boolean =>
+		/sdk|api|cli|engine|runtime|sandbox|studio|dashboard|editor|agent|platform/i.test(slug);
+
+	// Helper to find sourcePages entry for a URL
+	const findSourcePage = (url: string): LlmsSourcePage | undefined =>
+		sourcePages?.find((p) => normalizeUrlForComparison(p.url) === normalizeUrlForComparison(url));
+
+	// 1. Detect from product-like URL paths
+	for (const url of urls) {
+		let pathname: string;
+		try { pathname = new URL(url).pathname; } catch { continue; }
+
+		for (const pattern of productPathPatterns) {
+			const match = pathname.match(pattern);
+			if (!match) continue;
+			const slug = match[2].toLowerCase();
+			if (nonProductSlugs.has(slug) || seen.has(slug) || hasFileExtension(slug)) continue;
+			seen.add(slug);
+
+			const sp = findSourcePage(url);
+			const name = sp ? stripBrandSuffix(sp.title, brand) : toTitleCase(slug);
+			const purpose = sp?.snippet
+				? sp.snippet.split(/[.\n]/)[0].trim().slice(0, 160)
+				: `${name} capabilities and resources.`;
+			products.push({
+				name,
+				purpose: purpose || `${name} capabilities and resources.`,
+				productUrl: url,
+				docsUrl: findMatchingDocsUrl(slug, urls, docsBase),
+			});
+		}
 	}
 
+	// 2. Detect from docs structure (only if we found few products above)
+	// Only consider docs slugs that look like product/SDK names to avoid leaf doc pages
+	if (products.length < 3) {
+		for (const url of urls) {
+			let pathname: string;
+			try { pathname = new URL(url).pathname; } catch { continue; }
+
+			for (const pattern of docsPathPatterns) {
+				const match = pathname.match(pattern);
+				if (!match) continue;
+				const slug = match[1].toLowerCase();
+				if (nonProductSlugs.has(slug) || seen.has(slug) || hasFileExtension(slug)) continue;
+				if (!looksLikeProductSlug(slug)) continue;
+				seen.add(slug);
+
+				const sp = findSourcePage(url);
+				const name = sp ? stripBrandSuffix(sp.title, brand) : toTitleCase(slug);
+				const purpose = sp?.snippet
+					? sp.snippet.split(/[.\n]/)[0].trim().slice(0, 160)
+					: `${name} documentation and reference.`;
+				products.push({
+					name,
+					purpose: purpose || `${name} documentation and reference.`,
+					productUrl: url,
+					docsUrl: url,
+				});
+			}
+		}
+	}
+
+	// 3. Absolute last-resort fallback
 	if (products.length === 0) {
+		const docsHome =
+			docsBase ||
+			pickBestUrlByPatterns(urls, [/^\/docs(?:\/|$)/, /^\/documentation(?:\/|$)/]) ||
+			joinRootPath(rootUrl, "/docs");
 		products.push({
 			name: "Core Platform",
-			purpose: "Provide public product capabilities and canonical web resources.",
+			purpose: `${brand} product capabilities and resources.`,
 			productUrl: rootUrl,
 			docsUrl: docsHome,
 		});
@@ -1779,6 +1864,7 @@ function buildLlmsTxtTemplate(
 		evidence?: GroundingEvidence;
 		rootUrl?: string;
 		docsBase?: string | null;
+		sourcePages?: LlmsSourcePage[];
 	}
 ): ScriptGenerationResult {
 	const targetUrl = toHttpsUrl(getTargetUrl(issue, brandProfile));
@@ -1833,7 +1919,8 @@ function buildLlmsTxtTemplate(
 		pickBestUrlByPatterns(scopedUrls, [/\/blog(?:\/|$)/, /\/research(?:\/|$)/, /\/reports?(?:\/|$)/]) ||
 		joinRootPath(rootUrl, "/blog");
 
-	const products = buildLlmsProductsFromUrls(scopedUrls, rootUrl, docsBase);
+	const spPages = options?.sourcePages || [];
+	const products = buildLlmsProductsFromUrls(scopedUrls, rootUrl, docsBase, spPages, brandName);
 	const sitemapUrls = Array.from(
 		new Set(
 			[
@@ -1854,67 +1941,216 @@ function buildLlmsTxtTemplate(
 		)
 	).slice(0, 15);
 
+	// --- Evidence-driven Overview ---
+	const internalHeadingPatterns = /^(canonical source|source snippets|documentation|skip to content)/i;
+	const seenHeadings = new Set<string>();
+	const topHeadings = (options?.evidence?.headings || [])
+		.filter((h) => {
+			const t = h.trim();
+			const tLower = t.toLowerCase();
+			if (t.length <= 5 || t.length >= 120) return false;
+			if (internalHeadingPatterns.test(t)) return false;
+			if (tLower.includes("cookie") || tLower.includes("skip to")) return false;
+			// Skip file-like headings (e.g. "Llms Full.txt", "En.md")
+			if (/\.\w{1,5}$/.test(t)) return false;
+			// Skip URL-like headings
+			if (/^https?:\/\//.test(t)) return false;
+			// Skip doc page titles that are just "Topic | Brand" pattern
+			if (new RegExp(`\\|\\s*${brandName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "i").test(t)) return false;
+			// Skip headings with " · " separator (e.g. "Documentation · Daytona")
+			if (/\s+[·|]\s+/.test(t) && tLower.includes(brandName.toLowerCase())) return false;
+			// Skip site title headings like "Brand - Tagline"
+			const hDashParts = t.split(/\s+-\s+/);
+			if (hDashParts.length >= 2 && hDashParts[0].trim().toLowerCase() === brandName.toLowerCase()) return false;
+			// Deduplicate (case-insensitive)
+			if (seenHeadings.has(tLower)) return false;
+			seenHeadings.add(tLower);
+			return true;
+		})
+		.slice(0, 3);
+	const overviewBullets: string[] = [`- ${companyDescription}`];
+	for (const heading of topHeadings) {
+		overviewBullets.push(`- ${heading.trim()}`);
+	}
+	overviewBullets.push(`- Canonical root: ${rootUrl}`);
+
+	// --- Evidence-driven Who we serve ---
+	// Filter out raw catalog/metadata facts that leak from the scraping format
+	const isJunkFact = (fact: string): boolean => {
+		const t = fact.trim();
+		if (t.length < 10) return true;
+		if (/discovered via\b/i.test(t)) return true;
+		if (/^-\s*:\s/.test(t)) return true;
+		// Skip bare URL lines
+		if (/^(URL:\s*)?https?:\/\/\S+$/.test(t)) return true;
+		// Skip markdown link catalog lines
+		if (/^-\s*\[.*\]\(https?:\/\//.test(t)) return true;
+		// Skip technical metadata (e.g. "Non-HTML resource (text/markdown...)")
+		if (/^Non-HTML resource\b/i.test(t)) return true;
+		// Skip facts that are just the brand/site title repeated
+		if (t === brandName || t === companyDescription) return true;
+		// Match site titles like "Brand - Tagline here" (first segment before " - " is the brand)
+		const dashParts = t.split(/\s+-\s+/);
+		if (dashParts.length >= 2 && dashParts[0].trim().toLowerCase() === brandName.toLowerCase()) return true;
+		return false;
+	};
+	const cleanFacts = (options?.evidence?.facts || []).filter((f) => !isJunkFact(f));
+
+	const audiencePatterns = [
+		/\b(?:built\s+for|designed\s+for|made\s+for|used\s+by)\s+.{5,}/i,
+		/\b(?:developers?|teams?|engineers?|businesses?|enterprises?|startups?|organizations?)\s+(?:who|that|can|need|want|building|integrating|using)\b/i,
+	];
+	const audienceFacts: string[] = [];
+	for (const fact of cleanFacts) {
+		for (const pattern of audiencePatterns) {
+			if (pattern.test(fact)) {
+				audienceFacts.push(`- ${fact.trim().slice(0, 160)}`);
+				break;
+			}
+		}
+		if (audienceFacts.length >= 3) break;
+	}
+	if (audienceFacts.length === 0) {
+		audienceFacts.push(`- Users and teams who need ${brandName} capabilities.`);
+		audienceFacts.push(`- Developers integrating ${brandName} into their workflows.`);
+	}
+
+	// --- Evidence-driven Solutions ---
+	const solutionBullets: string[] = [];
+	const solutionPages = spPages.filter((p) => {
+		try { return /\/(solutions|use-cases)\//.test(new URL(p.url).pathname); } catch { return false; }
+	});
+	for (const sp of solutionPages.slice(0, 3)) {
+		const name = stripBrandSuffix(sp.title, brandName);
+		const desc = sp.snippet ? sp.snippet.split(/[.\n]/)[0].trim().slice(0, 120) : "";
+		solutionBullets.push(`- ${name}${desc ? `: ${desc}` : ""}`);
+	}
+	if (solutionBullets.length === 0) {
+		// Try extracting from evidence facts matching solution/workflow/integration patterns
+		const solutionPatterns = [/\b(?:solution|use[- ]case|workflow|integration|automat|pipeline)/i];
+		for (const fact of cleanFacts) {
+			for (const pattern of solutionPatterns) {
+				if (pattern.test(fact)) {
+					solutionBullets.push(`- ${fact.trim().slice(0, 160)}`);
+					break;
+				}
+			}
+			if (solutionBullets.length >= 3) break;
+		}
+	}
+	if (solutionBullets.length === 0) {
+		// Use remaining evidence facts that weren't picked for audience
+		const usedFacts = new Set(audienceFacts.map((f) => f.replace(/^- /, "")));
+		for (const fact of cleanFacts) {
+			if (!usedFacts.has(fact.trim().slice(0, 160))) {
+				solutionBullets.push(`- ${fact.trim().slice(0, 160)}`);
+			}
+			if (solutionBullets.length >= 3) break;
+		}
+	}
+	if (solutionBullets.length === 0) {
+		solutionBullets.push(`- ${companyDescription}`);
+	}
+
+	// --- Evidence-driven FAQs ---
+	const homePage = spPages.find((p) => {
+		try { return new URL(p.url).pathname === "/" || new URL(p.url).pathname === ""; } catch { return false; }
+	});
+	// Extract a clean first sentence from homepage snippet, skipping nav/header junk
+	const extractCleanSnippet = (raw: string | undefined): string | null => {
+		if (!raw) return null;
+		// Split on sentence boundaries and find first substantial sentence
+		const sentences = raw.split(/(?<=[.!?])\s+|\n/).filter((s) => {
+			const t = s.trim();
+			// Skip nav bars, boilerplate, too-short fragments
+			return t.length > 20 && !/\b(sign in|log in|sign up|skip to|menu|nav)\b/i.test(t)
+				&& !/\/\s/.test(t); // skip "Docs / Pricing / Blog" nav lists
+		});
+		return sentences[0]?.trim().slice(0, 200) || null;
+	};
+	const homeSnippet = extractCleanSnippet(homePage?.snippet) || companyDescription;
+
+	// For docs FAQ answer, prefer the getting-started page snippet; fallback to generic
+	const gettingStartedPage = spPages.find((p) => {
+		try { return /getting-started|quickstart/i.test(new URL(p.url).pathname); } catch { return false; }
+	});
+	const docsAnswer = gettingStartedPage?.snippet
+		? gettingStartedPage.snippet.split(/[.\n]/)[0]?.trim().slice(0, 200)
+		: `Documentation and guides are published at the ${brandName} docs site.`;
+
+	const faqPairs: Array<{ q: string; a: string; source: string }> = [
+		{
+			q: `What is ${brandName}?`,
+			a: homeSnippet.slice(0, 200),
+			source: rootUrl,
+		},
+		{
+			q: `Where is the ${brandName} documentation?`,
+			a: docsAnswer,
+			source: docsHomeUrl || docsBase,
+		},
+		{
+			q: `Where can pricing details be found?`,
+			a: `Pricing and plan details are published on the pricing page.`,
+			source: pricingUrl,
+		},
+		{
+			q: `How do I get started with ${brandName}?`,
+			a: `Getting started guides and quickstart resources are available in the documentation.`,
+			source: quickstartUrl,
+		},
+	];
+
 	const llmsTxt = [
 		"```llms.txt",
 		`# ${brandName}`,
 		companyDescription,
 		"",
 		"## Overview",
-		`- ${companyDescription}`,
-		"- Provides canonical, citable links for AI systems and assistants.",
-		"- Structured for deterministic retrieval and citation.",
-		`- Canonical root: ${rootUrl}`,
+		...overviewBullets,
 		"",
 		"## Who we serve",
-		"- AI developers building retrieval-backed products and agents.",
-		"- Product and engineering teams integrating search and content workflows.",
-		"- Organizations requiring canonical public references for AI answers.",
+		...audienceFacts,
 		"",
 		"## Products / Capabilities",
 		...products.map((product) => {
 			const docsChunk = product.docsUrl
-				? ` [Docs](${product.docsUrl}): endpoint or implementation reference.`
+				? ` [Docs](${product.docsUrl}): implementation reference.`
 				: "";
-			return `- **${product.name}** — ${product.purpose} [Product](${product.productUrl}): canonical product or pricing overview.${docsChunk}`;
+			return `- **${product.name}** — ${product.purpose} [${product.name}](${product.productUrl})${docsChunk}`;
 		}),
 		"",
 		"## Solutions / Use Cases",
-		"- Grounded AI retrieval and citation-backed answers.",
-		"- Web content discovery and extraction workflows.",
-		"- Research and analysis pipelines powered by canonical sources.",
+		...solutionBullets,
 		"",
 		"## Key Resources",
 		`- [Docs Home](${docsHomeUrl}): documentation hub.`,
 		`- [API Reference](${apiReferenceUrl}): endpoint and integration docs.`,
-		`- [Quickstart](${quickstartUrl}): first integration flow.`,
+		`- [Quickstart](${quickstartUrl}): getting started guide.`,
 		`- [Rate Limits](${rateLimitsUrl}): request limits and scaling guidance.`,
 		`- [Changelog](${changelogUrl}): release and update history.`,
 		`- [Pricing](${pricingUrl}): plans and pricing details.`,
 		"",
 		"## FAQs",
-		"- **Q:** What is this service used for?",
-		`  **A:** It provides canonical web retrieval resources and API documentation for AI workflows. [Source](${rootUrl})`,
-		"- **Q:** Where are endpoint details documented?",
-		`  **A:** Endpoint references and integration docs are documented in the API reference. [Source](${apiReferenceUrl})`,
-		"- **Q:** Where can pricing details be verified?",
-		`  **A:** Pricing and plan details are published on the canonical pricing page. [Source](${pricingUrl})`,
-		"- **Q:** Where are security and policy details published?",
-		`  **A:** Security and policy references are published on the security and legal pages. [Source](${securityUrl})`,
+		...faqPairs.map((faq) => [
+			`- **Q:** ${faq.q}`,
+			`  **A:** ${faq.a} [Source](${faq.source})`,
+		]).flat(),
 		"",
 		"## Security & Compliance",
 		`- [Security](${securityUrl}): security and trust information.`,
 		`- [Privacy](${privacyUrl}): privacy policy and data handling terms.`,
 		"",
 		"## Pricing & Plans",
-		`- [Pricing](${pricingUrl}): pay-as-you-go and enterprise plan information (if published).`,
+		`- [Pricing](${pricingUrl}): plan information and pricing details.`,
 		"",
 		"## Policies",
 		`- [Terms](${termsUrl}): terms of service.`,
 		`- [Privacy](${privacyUrl}): privacy policy.`,
-		`- [DPA / Acceptable Use](${dpaUrl}): legal and policy references (if public).`,
+		`- [DPA / Acceptable Use](${dpaUrl}): legal and policy references.`,
 		"",
 		"## Research / Reports / Blog",
-		`- [Blog / Research](${blogUrl}): product, research, and release updates (if public).`,
+		`- [Blog / Research](${blogUrl}): product and release updates.`,
 		"",
 		"## Sitemap (canonical pages)",
 		...sitemapUrls.map((url) => `- ${url}`),
@@ -2267,8 +2503,8 @@ function validateGeneratedScript(
 			errors.push("Products / Capabilities must include at least one product bullet");
 		}
 		for (const line of productLines) {
-			if (!/\[Product\]\(https:\/\/[^)]+\):\s+\S+/i.test(line)) {
-				errors.push("Each product bullet must include [Product](URL): details");
+			if (!/\[[^\]]+\]\(https:\/\/[^)]+\)/i.test(line)) {
+				errors.push("Each product bullet must include at least one [Name](URL) link");
 				break;
 			}
 		}
@@ -2288,9 +2524,9 @@ function validateGeneratedScript(
 				.map((line) => line.trim())
 				.filter((line) => line.startsWith("-") && line.includes("]("));
 			for (const line of lines) {
-				if (!/\[[^\]]+\]\(https:\/\/[^)]+\):\s+\S+/.test(line)) {
+				if (!/\[[^\]]+\]\(https:\/\/[^)]+\)/.test(line)) {
 					errors.push(
-						`Section "${sectionName}" must use titled-link format: [Title](URL): details`
+						`Section "${sectionName}" must use titled-link format: [Title](URL)`
 					);
 					break;
 				}
@@ -2308,8 +2544,8 @@ function validateGeneratedScript(
 			)
 		).map((match) => match[0] || "");
 		for (const block of faqBlocks) {
-			if (!/\[Source\]\(https:\/\/[^)]+\)/i.test(block)) {
-				errors.push("Each FAQ answer must include a canonical [Source](URL) link");
+			if (!/\[[^\]]+\]\(https:\/\/[^)]+\)/i.test(block)) {
+				errors.push("Each FAQ answer must include a canonical source link, e.g. [Source](URL)");
 				break;
 			}
 		}
@@ -2522,7 +2758,7 @@ async function buildLlmPrompts(
 	brandProfile: ScriptGeneratorBrandProfile,
 	pageContent: string | null,
 	evidence: GroundingEvidence,
-	llmsContext?: Pick<LlmsCollectionResult, "rootUrl" | "docsBase">
+	llmsContext?: Pick<LlmsCollectionResult, "rootUrl" | "docsBase" | "sourcePages">
 ): Promise<{ userPrompt: string; systemPrompt: string }> {
 	const targetUrl = getTargetUrl(issue, brandProfile);
 	const brandName = getBrandName(brandProfile, targetUrl);
@@ -2606,8 +2842,9 @@ async function buildLlmPrompts(
 			"- Use only absolute HTTPS links you can verify from provided evidence.",
 			"- Enforce scope: links must be under root_url or docs_base only.",
 			"- Keep deterministic section order and de-duplicate links/claims.",
-			"- Use [Title](URL): details formatting for titled links.",
-			"- Include 3-6 FAQs, each with [Source](URL).",
+			"- Product bullets: use **Name** — purpose [Name](URL) format, with at least one [Name](URL) link per bullet.",
+			"- Titled-link sections (Key Resources, Security, Pricing, Policies, Blog): use [Title](URL) with optional `: description`.",
+			"- Include 3-6 FAQs, each answer must contain at least one [linked text](URL) source link.",
 			"- Prefer docs/reference/pricing/security/rate-limit sources over blog pages for foundational claims.",
 		].join("\n");
 
@@ -2740,6 +2977,7 @@ export async function generateScriptWithLlm(
 					evidence: collected.evidence,
 					rootUrl: collected.rootUrl,
 					docsBase: collected.docsBase,
+					sourcePages: collected.sourcePages,
 				});
 			} catch {
 				// fall through to deterministic baseline template
@@ -2754,7 +2992,7 @@ export async function generateScriptWithLlm(
 		console.log(`[ScriptGen] Scraping ${targetUrl} for issue #${issue.id}...`);
 		let pageContent: string | null = null;
 		let evidence: GroundingEvidence;
-		let llmsContext: Pick<LlmsCollectionResult, "rootUrl" | "docsBase"> | undefined;
+		let llmsContext: Pick<LlmsCollectionResult, "rootUrl" | "docsBase" | "sourcePages"> | undefined;
 
 		if (isLlmsAgentType(issue.agentType)) {
 			const collected = await collectLlmsContext(brandProfile, targetUrl);
@@ -2763,6 +3001,7 @@ export async function generateScriptWithLlm(
 			llmsContext = {
 				rootUrl: collected.rootUrl,
 				docsBase: collected.docsBase,
+				sourcePages: collected.sourcePages,
 			};
 			console.log(
 				`[ScriptGen] LLMS context collected for issue #${issue.id}: allowed_urls=${collected.evidence.allowedUrls.size}, docs_base=${collected.docsBase || "none"}`
@@ -2778,6 +3017,7 @@ export async function generateScriptWithLlm(
 					evidence,
 					rootUrl: llmsContext?.rootUrl,
 					docsBase: llmsContext?.docsBase,
+					sourcePages: llmsContext?.sourcePages,
 				});
 			}
 			return generateScriptForIssue(issue, brandProfile);
@@ -2797,7 +3037,7 @@ export async function generateScriptWithLlm(
 		const llmResult = await callLlm({
 			userPrompt,
 			systemPrompt,
-			maxTokens: 2048,
+			maxTokens: 4096,
 			reasoningEffort: isLlmsAgentType(issue.agentType) ? "medium" : "high",
 		});
 
@@ -2908,6 +3148,7 @@ Fix these errors and return the corrected output. Follow the same output contrac
 					evidence: collected.evidence,
 					rootUrl: collected.rootUrl,
 					docsBase: collected.docsBase,
+					sourcePages: collected.sourcePages,
 				});
 			} catch {
 				// ignore secondary fallback errors

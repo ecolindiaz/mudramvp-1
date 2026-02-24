@@ -16,14 +16,18 @@ export async function mapOpportunities(
   const start = new Date(weekStartUtc);
   const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 
+  // Only count opportunities that have been quality-scored (relevanceScore >= 70)
+  // to match what the dashboard shows. Unscored/low-score items are noise.
+  const MIN_RELEVANCE = 70;
+
   const [activeCount, newThisWeek, engagedThisWeek, dismissedThisWeek, topNew] = await Promise.all([
-    // Active opportunities (status = "new")
+    // Active high-quality opportunities (status = "new", scored >= threshold)
     prisma.conversationOpportunity.count({
-      where: { brandProfileId: { in: bpIds }, status: "new" },
+      where: { brandProfileId: { in: bpIds }, status: "new", relevanceScore: { gte: MIN_RELEVANCE } },
     }),
-    // Created this week
+    // Created this week with quality score
     prisma.conversationOpportunity.count({
-      where: { brandProfileId: { in: bpIds }, createdAt: { gte: start, lt: end } },
+      where: { brandProfileId: { in: bpIds }, createdAt: { gte: start, lt: end }, relevanceScore: { gte: MIN_RELEVANCE } },
     }),
     // Engaged this week
     prisma.conversationOpportunity.count({
@@ -41,9 +45,9 @@ export async function mapOpportunities(
         dismissedAt: { gte: start, lt: end },
       },
     }),
-    // Top 5 new opportunities by relevanceScore
+    // Top 5 new opportunities by relevanceScore (only quality ones)
     prisma.conversationOpportunity.findMany({
-      where: { brandProfileId: { in: bpIds }, status: "new" },
+      where: { brandProfileId: { in: bpIds }, status: "new", relevanceScore: { gte: MIN_RELEVANCE } },
       orderBy: { relevanceScore: "desc" },
       take: 5,
       select: {

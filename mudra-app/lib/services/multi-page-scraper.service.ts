@@ -62,6 +62,7 @@ async function scrapeSinglePage(
 		const result = await firecrawl.scrapeUrl(url, {
 			formats: ["rawHtml"],
 			timeout: options.timeoutMs,
+			headers: { "Accept-Language": "en-US,en;q=0.9" },
 			...(options.bypassCache && { maxAge: 0 }),
 		});
 

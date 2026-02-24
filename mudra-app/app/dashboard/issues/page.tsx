@@ -1308,20 +1308,21 @@ function IssuesPageInner() {
 
   // Fetch issues
   const fetchIssues = React.useCallback(async () => {
+    if (!profile?.id) return
     try {
-      console.log('[Issues Page] Fetching issues...')
-      const response = await fetch("/api/issues")
+      console.log('[Issues Page] Fetching issues for brandProfileId:', profile.id)
+      const response = await fetch(`/api/issues?brandProfileId=${profile.id}`)
       console.log('[Issues Page] Response status:', response.status)
-      
+
       if (!response.ok) {
         const text = await response.text()
         console.error('[Issues Page] Error response:', text.substring(0, 500))
         throw new Error(`Failed to fetch issues: ${response.status} ${response.statusText}`)
       }
-      
+
       const data = await response.json()
       console.log('[Issues Page] Data received:', data)
-      
+
       if (data.success) {
         // API returns { issues, grouped, counts } - extract the issues array
         setIssues(data.data.issues || data.data)
@@ -1338,13 +1339,14 @@ function IssuesPageInner() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [profile?.id])
 
   // Fetch stats
   const fetchStats = React.useCallback(async () => {
+    if (!profile?.id) return
     setIsStatsLoading(true)
     try {
-      const response = await fetch("/api/issues/stats")
+      const response = await fetch(`/api/issues/stats?brandProfileId=${profile.id}`)
       const data = await response.json()
       if (data.success) {
         setStats(data.data)
@@ -1354,7 +1356,7 @@ function IssuesPageInner() {
     } finally {
       setIsStatsLoading(false)
     }
-  }, [])
+  }, [profile?.id])
 
   React.useEffect(() => {
     fetchIssues()

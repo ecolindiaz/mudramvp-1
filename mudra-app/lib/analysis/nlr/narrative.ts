@@ -262,7 +262,7 @@ function buildOpportunitiesSentence(summary: NlrSummaryJson): string | null {
   const opportunities = summary.sections.opportunities
   if (!opportunities || opportunities.count <= 0) return null
 
-  let sentence = `Conversation Radar identified ${opportunities.count} high-fit threads`
+  let sentence = `Conversation Radar found ${opportunities.count} relevant thread${opportunities.count === 1 ? '' : 's'}`
   if ((opportunities.engaged_this_week ?? 0) > 0) {
     sentence += `, with ${opportunities.engaged_this_week} already engaged`
   }

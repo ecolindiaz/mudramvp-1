@@ -282,7 +282,9 @@ Return ONLY valid JSON (no markdown, no code blocks):
   ]
 }
 
-Categories must be exactly one of: "Organic", "Competitor", "How-to Guides", "Brand-Specific", "FAQ"${languageInstruction}`;
+Categories must be exactly one of: "Organic", "Competitor", "How-to Guides", "Brand-Specific", "FAQ"
+
+If the Website URL is a subdomain (e.g., markets.example.com, developer.example.com, docs.example.com), tailor ALL prompts specifically to the content and services hosted on that subdomain — not the general company. Infer the subdomain's focus area from its prefix (e.g., "markets" → trading/financial markets, "developer"/"docs" → developer documentation/APIs, "blog" → content/articles).${languageInstruction}`;
 
   // Build rich user prompt with individual products and ICP segments
   const productsSection = brandInfo.productsWithDescriptions
@@ -299,8 +301,22 @@ Below are real discussions from people searching for solutions in this space. Us
 ${redditContext}`
     : '';
 
+  // Detect subdomain and add focus instruction
+  const websiteUrl = brandInfo.websiteUrl || 'N/A';
+  let subdomainFocus = '';
+  if (websiteUrl !== 'N/A') {
+    try {
+      const hostname = new URL(websiteUrl.includes('://') ? websiteUrl : `https://${websiteUrl}`).hostname.replace(/^www\./, '');
+      const parts = hostname.split('.');
+      if (parts.length > 2) {
+        const subdomain = parts.slice(0, -2).join('.');
+        subdomainFocus = `\nFocus: Generate prompts specifically for the content and services on ${websiteUrl}, not the general ${brandInfo.companyName} company. The subdomain "${subdomain}" indicates a specialized area — tailor all queries accordingly.`;
+      }
+    } catch { /* not a valid URL, skip */ }
+  }
+
   const userPrompt = `Brand: ${brandInfo.companyName}
-Website: ${brandInfo.websiteUrl || 'N/A'}
+Website: ${websiteUrl}${subdomainFocus}
 Industry: ${brandInfo.industry}
 Description: ${brandInfo.companyDescription}
 

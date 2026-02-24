@@ -30,12 +30,15 @@ export async function mapTechnicalStructure(companyId: string): Promise<Technica
   const bpIds = await resolveBrandProfileIds(companyId);
   if (bpIds.length === 0) return null;
 
+  // Fetch enough records to find 2 from the same brand profile for delta comparison.
+  // We query all BPs but only compare within the same BP to avoid cross-monitor deltas.
   const analyses = await prisma.technicalStructureAnalysis.findMany({
     where: { brandProfileId: { in: bpIds } },
     orderBy: { createdAt: "desc" },
-    take: 2,
+    take: 10,
     select: {
       id: true,
+      brandProfileId: true,
       overallScore: true,
       metadata: true,
       insights: true,
@@ -44,8 +47,11 @@ export async function mapTechnicalStructure(companyId: string): Promise<Technica
   });
   if (analyses.length === 0) return null;
 
+  // Use the most recent analysis as "current", then find the previous from the SAME brand profile
   const current = analyses[0];
-  const previous = analyses[1];
+  const previous = analyses.find(
+    (a, i) => i > 0 && a.brandProfileId === current.brandProfileId
+  );
   const currentScore = current?.overallScore ?? null;
   const previousScore = previous?.overallScore ?? null;
   const overallScore = pctDelta(currentScore, previousScore);

@@ -12,7 +12,8 @@ export interface NlrPrompt {
  */
 function formatScoreDelta(delta: Delta<number> | null | undefined): string {
   if (!delta || delta.current == null) return "N/A";
-  const prev = delta.previous ?? 0;
+  if (delta.previous == null) return `baseline: ${delta.current}% (first measurement)`;
+  const prev = delta.previous;
   const curr = delta.current;
   const rel = delta.relative ?? null;
   const pct = rel != null ? Math.round(rel * 100) : Math.round(((curr - prev) / (prev || 1)) * 100);
@@ -55,6 +56,7 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
     "- AI Traffic section should show total visits, boost vs last week, and breakdown by provider.",
     "- Active Issues should summarize new + fixed counts with top open issues.",
     "- Opportunities should reference Conversation Radar data when available.",
+    "- BASELINE RULE: When a metric's previous value is null or the formatted field says 'baseline', this is the FIRST measurement. Report it as 'baseline is X%' — do NOT invent a previous value or show a delta.",
   ];
 
   const jsonSchema = {

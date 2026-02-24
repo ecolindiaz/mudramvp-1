@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { cn } from "@/lib/utils"
+import { cn, stripInternalMarkers } from "@/lib/utils"
 import { toast } from "sonner"
 import {
   MoreHorizontal,
@@ -88,7 +88,7 @@ export function IssueCard({
     e.stopPropagation()
     const prompt = [
       `Issue: ${issue.title}`,
-      issue.description ? `Description: ${issue.description}` : '',
+      issue.description ? `Description: ${stripInternalMarkers(issue.description)}` : '',
       `Priority: ${issue.priority}`,
       `Status: ${issue.status.replace('_', ' ')}`,
       issue.category ? `Category: ${categoryLabels[issue.category]}` : '',
@@ -181,7 +181,7 @@ export function IssueCard({
       <CardContent className="space-y-3">
         {issue.description && (
           <p className="text-xs text-muted-foreground line-clamp-2">
-            {issue.description}
+            {stripInternalMarkers(issue.description)}
           </p>
         )}
         

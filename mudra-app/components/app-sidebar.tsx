@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { forwardRef } from "react"
+import { forwardRef, useState, useCallback } from "react"
 import { IconSearch, IconCreditCard, IconLogout, IconNotification, IconUserCircle, IconQuestionMark, IconCalendar, IconFileText, IconExternalLink, IconSettings, IconPlus } from "@tabler/icons-react"
 import { User, Link as LinkIcon, Radio } from "lucide-react"
 import { CircleFlag } from "react-circle-flags"
@@ -355,6 +355,12 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
   const [isMounted, setIsMounted] = React.useState(false)
   const [geoPopoverOpen, setGeoPopoverOpen] = React.useState(false)
   const [apiMonitors, setApiMonitors] = React.useState<any[]>([])
+  const [inboxAnimating, setInboxAnimating] = useState(false)
+
+  const handleInboxClick = useCallback(() => {
+    setInboxAnimating(false)
+    requestAnimationFrame(() => setInboxAnimating(true))
+  }, [])
 
   // Get brand profile data
   const { profile, switchProfile, selectedCountry, setSelectedCountry } = useBrandProfile()
@@ -750,9 +756,10 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                 <InboxPanel open={inboxOpen} onOpenChange={setInboxOpen}>
                   <SidebarMenuButton
                     tooltip="Inbox"
+                    onClick={handleInboxClick}
                     className="h-8 px-3 text-sm font-medium relative transition-all duration-200 group rounded text-white hover:text-white hover:bg-white/10 cursor-pointer"
                   >
-                    <InboxIcon strokeWidth={2.5} className="w-[25px] h-[25px] mr-1.25 transition-all duration-200 text-white/60 group-hover:text-white/80" />
+                    <InboxIcon strokeWidth={2.5} className={`w-[25px] h-[25px] mr-1.25 transition-all duration-200 text-white/60 group-hover:text-white/80 ${inboxAnimating ? 'animate-icon-drop' : ''}`} onAnimationEnd={() => setInboxAnimating(false)} />
                     <span className="transition-all duration-200 font-normal">
                       Inbox
                     </span>

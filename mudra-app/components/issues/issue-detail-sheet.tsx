@@ -10,7 +10,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Separator } from "@/components/ui/separator"
-import { cn } from "@/lib/utils"
+import { cn, stripInternalMarkers } from "@/lib/utils"
 import { toast } from "sonner"
 import type { Issue, IssueCategory, IssuePriority } from "@/hooks/use-issues"
 import {
@@ -69,7 +69,7 @@ export function IssueDetailSheet({
   const handleCopyPrompt = async () => {
     const prompt = [
       `Issue: ${issue.title}`,
-      issue.description ? `Description: ${issue.description}` : '',
+      issue.description ? `Description: ${stripInternalMarkers(issue.description)}` : '',
       `Priority: ${issue.priority}`,
       `Status: ${issue.status.replace('_', ' ')}`,
       issue.category ? `Category: ${categoryLabels[issue.category]}` : '',
@@ -121,7 +121,7 @@ export function IssueDetailSheet({
           {issue.description && (
             <div>
               <h4 className="text-sm font-medium mb-2">Description</h4>
-              <p className="text-sm text-muted-foreground">{issue.description}</p>
+              <p className="text-sm text-muted-foreground">{stripInternalMarkers(issue.description)}</p>
             </div>
           )}
 

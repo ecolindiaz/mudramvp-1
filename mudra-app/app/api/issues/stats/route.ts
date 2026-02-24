@@ -17,10 +17,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get brand profile for user
-    const brandProfile = await prisma.brandProfile.findFirst({
-      where: { userId: session.user.id },
-    })
+    // Get brand profile - either by ID or default for user
+    const { searchParams } = new URL(request.url)
+    const brandProfileIdParam = searchParams.get('brandProfileId')
+
+    let brandProfile
+    if (brandProfileIdParam) {
+      brandProfile = await prisma.brandProfile.findFirst({
+        where: { id: parseInt(brandProfileIdParam), userId: session.user.id },
+      })
+    } else {
+      brandProfile = await prisma.brandProfile.findFirst({
+        where: { userId: session.user.id },
+      })
+    }
 
     if (!brandProfile) {
       return NextResponse.json(

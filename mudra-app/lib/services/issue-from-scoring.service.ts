@@ -196,6 +196,11 @@ export async function createIssuesFromPageScore(
       if (recMatch) {
         description = `${description}\n\nRecommended schemas: ${recMatch[1]}.`
       }
+      // Pass through FAQ_DATA marker so template/agent can use real FAQ content
+      const faqDataMatch = issue.message.match(/(<!-- FAQ_DATA: \[[\s\S]*?\] -->)/)
+      if (faqDataMatch) {
+        description = `${description}\n\n${faqDataMatch[1]}`
+      }
     }
 
     // J4_coverage: fixed title, never derive required types from scorer free text

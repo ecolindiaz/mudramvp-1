@@ -566,11 +566,20 @@ function generateIssues(
 		const recommended = getRecommendedSchemas(extraction.page_type, extraction.extraction, extraction.recommendedSchemas);
 		const currentTypes = extraction.extraction.schema.schema_types.join(', ');
 		const suggestedTypes = recommended.length > 0 ? recommended.join(' + ') : 'Organization, Article, or Product';
+		let j3Message = `Schema types not optimized for AEO (current: ${currentTypes}). Recommended: ${suggestedTypes}`;
+		// Embed extracted FAQ data so downstream script generators can use real content
+		if (recommended.includes("FAQPage") && extraction.extraction.faqs.combined_faqs.length > 0) {
+			const faqData = extraction.extraction.faqs.combined_faqs.map(f => ({
+				question: f.question,
+				answer: f.answer,
+			}));
+			j3Message += `\n<!-- FAQ_DATA: ${JSON.stringify(faqData)} -->`;
+		}
 		issues.push(createIssue(
 			"J3_relevant",
 			"schema",
 			"medium",
-			`Schema types not optimized for AEO (current: ${currentTypes}). Recommended: ${suggestedTypes}`,
+			j3Message,
 			pageUrl
 		));
 	}

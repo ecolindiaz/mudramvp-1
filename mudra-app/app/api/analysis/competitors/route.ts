@@ -46,6 +46,8 @@ const KNOWN_COMPANIES = new Set([
   'openai', 'anthropic', 'hugging face', 'replicate', 'modal',
   'langchain', 'pinecone', 'weaviate', 'cohere', 'stability ai',
   'bolt.new', 'lovable', 'copilotkit', 'botpress', 'v0', 'cursor',
+  'e2b', 'e2b.dev', 'beam cloud', 'beam', 'sagemaker', 'databricks',
+  'replit', 'codesandbox',
 
   // E-commerce & CMS
   'shopify', 'stripe', 'square', 'paypal', 'contentful', 'sanity',
@@ -473,38 +475,72 @@ export async function GET(request: NextRequest) {
     }
 
     // Dedup merge: merge "X" and "X suffix" entries (e.g., "akash" + "akash network")
+    // Also handles TLD variants: "e2b" + "e2b.dev", "fly" + "fly.io"
     // Prefer the longer (more specific) name as display name
     const companySuffixes = new Set([
       'network', 'ai', 'labs', 'protocol', 'cloud', 'tech', 'technologies',
       'digital', 'studio', 'studios', 'global', 'group', 'hq', 'io',
       'platform', 'software', 'computing', 'systems', 'data', 'health',
     ])
+    const tldSuffixes = new Set(['dev', 'io', 'ai', 'com', 'net', 'cloud', 'new', 'app', 'sh'])
+
+    const mergePair = (keepKey: string, removeKey: string) => {
+      const keepMentions = competitorMentionMap.get(keepKey) || []
+      const removeMentions = competitorMentionMap.get(removeKey) || []
+      competitorMentionMap.set(keepKey, [...keepMentions, ...removeMentions])
+      const keepDisplayCounts = competitorDisplayNames.get(keepKey)
+      const removeDisplayCounts = competitorDisplayNames.get(removeKey)
+      if (removeDisplayCounts && keepDisplayCounts) {
+        removeDisplayCounts.forEach((count, name) => {
+          keepDisplayCounts.set(name, (keepDisplayCounts.get(name) || 0) + count)
+        })
+      }
+      competitorMentionMap.delete(removeKey)
+      competitorDisplayNames.delete(removeKey)
+    }
+
     const allKeys = Array.from(competitorMentionMap.keys())
     for (const key of allKeys) {
+      if (!competitorMentionMap.has(key)) continue // already merged
       const keyWords = key.split(/\s+/)
       // Only check 1-word keys for potential merge with 2-word keys
       if (keyWords.length !== 1) continue
       for (const otherKey of allKeys) {
-        if (key === otherKey) continue
+        if (key === otherKey || !competitorMentionMap.has(otherKey)) continue
+        // Space-separated suffix: "akash" + "akash network"
         const otherWords = otherKey.split(/\s+/)
-        if (otherWords.length !== 2) continue
-        if (otherWords[0] === key && companySuffixes.has(otherWords[1])) {
-          // Merge short→long: combine mentions into the longer key
-          const shortMentions = competitorMentionMap.get(key) || []
-          const longMentions = competitorMentionMap.get(otherKey) || []
-          competitorMentionMap.set(otherKey, [...longMentions, ...shortMentions])
-          // Merge display name counts
-          const shortDisplayCounts = competitorDisplayNames.get(key)
-          const longDisplayCounts = competitorDisplayNames.get(otherKey)
-          if (shortDisplayCounts && longDisplayCounts) {
-            shortDisplayCounts.forEach((count, name) => {
-              longDisplayCounts.set(name, (longDisplayCounts.get(name) || 0) + count)
-            })
+        if (otherWords.length === 2 && otherWords[0] === key && companySuffixes.has(otherWords[1])) {
+          mergePair(otherKey, key)
+          break
+        }
+        // TLD suffix: "e2b" + "e2b.dev", "fly" + "fly.io"
+        if (otherWords.length === 1 && otherKey.includes('.')) {
+          const dotParts = otherKey.split('.')
+          if (dotParts.length === 2 && dotParts[0] === key && tldSuffixes.has(dotParts[1])) {
+            mergePair(otherKey, key)
+            break
           }
-          // Remove the short key
-          competitorMentionMap.delete(key)
-          competitorDisplayNames.delete(key)
-          break // key is deleted, stop inner loop
+        }
+      }
+    }
+
+    // Second pass: merge dot-separated and space-separated variants
+    // e.g., "beam.cloud" and "beam cloud" are the same entity
+    const remainingKeys = Array.from(competitorMentionMap.keys())
+    for (const key of remainingKeys) {
+      if (!competitorMentionMap.has(key)) continue
+      if (!key.includes('.')) continue
+      const dotParts = key.split('.')
+      if (dotParts.length !== 2 || !tldSuffixes.has(dotParts[1])) continue
+      const spaceVariant = dotParts.join(' ')
+      if (competitorMentionMap.has(spaceVariant)) {
+        // Merge the smaller into the larger
+        const dotCount = competitorMentionMap.get(key)!.length
+        const spaceCount = competitorMentionMap.get(spaceVariant)!.length
+        if (spaceCount >= dotCount) {
+          mergePair(spaceVariant, key)
+        } else {
+          mergePair(key, spaceVariant)
         }
       }
     }

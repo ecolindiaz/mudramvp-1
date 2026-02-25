@@ -424,6 +424,17 @@ function matchCompetitorNames(name1: string, name2: string): boolean {
     if (words1[0] === norm2 && companySuffixes.has(words1[1])) return true;
   }
 
+  // TLD-aware matching: "E2B" matches "E2B.dev", "Fly" matches "Fly.io"
+  const tldSuffixes = new Set(['dev', 'io', 'ai', 'com', 'net', 'cloud', 'new', 'app', 'sh']);
+  const matchTld = (plain: string, dotted: string) => {
+    const parts = dotted.split('.');
+    return parts.length === 2 && parts[0] === plain && tldSuffixes.has(parts[1]);
+  };
+  if (words1.length === 1 && words2.length === 1) {
+    if (norm1.includes('.') && !norm2.includes('.') && matchTld(norm2, norm1)) return true;
+    if (norm2.includes('.') && !norm1.includes('.') && matchTld(norm1, norm2)) return true;
+  }
+
   return false;
 }
 

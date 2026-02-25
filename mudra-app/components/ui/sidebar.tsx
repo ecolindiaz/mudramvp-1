@@ -69,21 +69,16 @@ function SidebarProvider({
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
 
-  const [_open, _setOpen] = React.useState(defaultOpen)
-
-  // Sync from cookie on mount so sidebar state survives navigation/reload.
-  // Done in useEffect to avoid SSR hydration mismatch.
-  React.useEffect(() => {
+  // Read cookie synchronously so sidebar never flashes on navigation.
+  // Safe because all dashboard pages are client components (no SSR mismatch).
+  const [_open, _setOpen] = React.useState(() => {
+    if (typeof document === "undefined") return defaultOpen
     const cookie = document.cookie
       .split("; ")
       .find((c) => c.startsWith(`${SIDEBAR_COOKIE_NAME}=`))
-    if (cookie) {
-      const saved = cookie.split("=")[1] === "true"
-      if (saved !== _open) _setOpen(saved)
-    }
-    // Only run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    if (cookie) return cookie.split("=")[1] === "true"
+    return defaultOpen
+  })
 
   const open = openProp ?? _open
   const setOpen = React.useCallback(

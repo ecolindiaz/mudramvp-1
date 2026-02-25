@@ -1735,7 +1735,6 @@ async function analyzeWithPerplexity(
           },
         ],
         temperature: 0.2,
-        max_tokens: 1200,
         ...(perplexityGeo ? {
           web_search_options: { user_location: perplexityGeo.user_location },
           search_language_filter: perplexityGeo.search_language_filter,
@@ -1988,7 +1987,7 @@ async function analyzeWithAnthropic(
         const res = await anthropic.messages.create(
           {
             model: 'claude-sonnet-4-5-20250929',
-            max_tokens: 1500,
+            max_tokens: 8192,
             messages: [
               {
                 role: 'user',

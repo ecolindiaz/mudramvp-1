@@ -15,7 +15,7 @@ import {
 	isScriptGenerationSupported,
 } from "@/lib/services/issue-script-generator.service";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(
 	_request: NextRequest,

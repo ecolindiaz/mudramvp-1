@@ -22,6 +22,8 @@ export interface ValidatedCompetitor {
   verificationSources: string[]
   position?: number
   sentiment?: 'positive' | 'neutral' | 'negative'
+  entityType?: 'company' | 'product' | 'framework' | 'hardware' | 'program'
+  parentCompany?: string
 }
 
 interface ExtractionCandidate {
@@ -201,6 +203,17 @@ async function stage3ExternalVerification(
     // AI & ML
     'openai', 'anthropic', 'hugging face', 'replicate', 'modal',
     'langchain', 'pinecone', 'weaviate', 'cohere', 'stability ai',
+    'mistral ai', 'mistral', 'databricks', 'scale ai', 'clarifai',
+    'fireworks ai', 'together ai', 'perplexity',
+
+    // GPU / Compute
+    'nvidia', 'amd', 'intel', 'coreweave', 'lambda', 'lambda labs',
+    'vast.ai', 'paperspace', 'runpod',
+
+    // Cloud aliases & extras
+    'amazon web services', 'google cloud platform', 'oracle cloud',
+    'oracle', 'ibm', 'ibm cloud', 'microsoft',
+    'cast ai', 'voltage park',
 
     // E-commerce & CMS
     'shopify', 'stripe', 'square', 'paypal', 'contentful', 'sanity',
@@ -221,6 +234,7 @@ async function stage3ExternalVerification(
     'launchdarkly', 'split', 'optimizely', 'algolia', 'typesense',
     'coolify', 'dokku', 'caprover', 'northflank', 'qovery',
     'zeabur', 'koyeb', 'adaptable', 'cyclic', 'deta',
+    'y combinator',
   ])
 
   for (const name of candidates) {
@@ -346,15 +360,24 @@ export async function validateCompetitors(
 ): Promise<ValidatedCompetitor[]> {
   console.log('🔍 Starting competitor validation pipeline...')
 
-  // Use existing competitors as the primary source
-  const candidates = existingCompetitors || []
+  // Use existing competitors as the primary source, deduplicated
+  const rawCandidates = existingCompetitors || []
+  const seen = new Set<string>()
+  const candidates: string[] = []
+  for (const name of rawCandidates) {
+    const lower = name.toLowerCase()
+    if (!seen.has(lower)) {
+      seen.add(lower)
+      candidates.push(name)
+    }
+  }
 
   if (candidates.length === 0) {
     console.log('  No candidates to validate')
     return []
   }
 
-  console.log(`  Validating ${candidates.length} existing competitor names...`)
+  console.log(`  Validating ${candidates.length} unique competitor names (from ${rawCandidates.length} raw)...`)
 
   // Stage 1: Quick filter - remove obvious junk with pattern matching
   const quickFiltered = candidates.filter(name => quickValidateName(name))

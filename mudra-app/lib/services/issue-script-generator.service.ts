@@ -10,7 +10,7 @@
  */
 
 import { callLlm } from "./llm-provider.service";
-import { scrapePageContent } from "./page-scrape-context.service";
+import { scrapeFaqContext, scrapePageContent } from "./page-scrape-context.service";
 import { getRequiredSchemaTypesForCheck } from "./schema-contracts";
 import {
 	readSchemaKnowledge,
@@ -119,6 +119,37 @@ const FAQ_GENERIC_PHRASES = [
 	"how can i get started",
 	"who is this for",
 	"learn more",
+];
+
+const FAQ_FORBIDDEN_LEAK_PATTERN =
+	/\b(?:prompt|system prompt|instruction|llm|language model|assistant|chatgpt|gpt-?\d*|claude|gemini)\b/i;
+
+const FAQ_META_QUESTION_PATTERNS: RegExp[] = [
+	/\bhomepage\b/i,
+	/\bthis page\b/i,
+	/\bthe page\b/i,
+	/\bmain message\b/i,
+	/\bheadline\b/i,
+	/\bcall[- ]to[- ]action\b/i,
+	/\bcta\b/i,
+	/\bwhat does .+ say\b/i,
+	/\bdoes .+ mention\b/i,
+];
+
+const FAQ_META_ANSWER_PATTERNS: RegExp[] = [
+	/\bthe homepage\b/i,
+	/\bthis page\b/i,
+	/\bthe page\b/i,
+	/\bheadline\b/i,
+	/\bcall[- ]to[- ]action\b/i,
+	/\bcta\b/i,
+	/\bclick\b/i,
+	/\bselect\b/i,
+	/\blinks? to\b/i,
+	/\bpoints? to\b/i,
+	/\bthe site\b/i,
+	/\bsays\b/i,
+	/\bincludes\b/i,
 ];
 
 const STOPWORDS = new Set([
@@ -2691,6 +2722,7 @@ function validateGeneratedScript(
 		if (qaPairs.length > 0 && genericCount === qaPairs.length) {
 			errors.push("FAQ questions are too generic");
 		}
+		errors.push(...evaluateFaqLeakSignals(qaPairs));
 	} else if (check === "M1_title") {
 		if (!output.includes("<title")) {
 			errors.push("Missing <title> tag");
@@ -2748,6 +2780,53 @@ function extractTypesFromParsed(parsed: unknown): Set<string> {
 	}
 
 	return types;
+}
+
+function evaluateFaqLeakSignals(
+	qaPairs: Array<{ question: string; answer: string }>
+): string[] {
+	if (qaPairs.length === 0) return [];
+
+	let promptLeakCount = 0;
+	let metaQuestionCount = 0;
+	let metaAnswerCount = 0;
+
+	for (const pair of qaPairs) {
+		const question = pair.question.trim();
+		const answer = pair.answer.trim();
+		const combined = `${question} ${answer}`;
+
+		if (FAQ_FORBIDDEN_LEAK_PATTERN.test(combined)) {
+			promptLeakCount++;
+		}
+		if (FAQ_META_QUESTION_PATTERNS.some((pattern) => pattern.test(question))) {
+			metaQuestionCount++;
+		}
+		if (FAQ_META_ANSWER_PATTERNS.some((pattern) => pattern.test(answer))) {
+			metaAnswerCount++;
+		}
+	}
+
+	const errors: string[] = [];
+	const threshold = qaPairs.length >= 3 ? 2 : 1;
+
+	if (promptLeakCount > 0) {
+		errors.push(
+			"FAQ output leaked prompt/model language (prompt/LLM/assistant terms detected)"
+		);
+	}
+	if (metaQuestionCount >= threshold) {
+		errors.push(
+			"FAQ questions are page-analysis style (homepage/page/headline/CTA phrasing) instead of customer-facing intent"
+		);
+	}
+	if (metaAnswerCount >= threshold) {
+		errors.push(
+			"FAQ answers are page-observer style (e.g. 'the page says/includes/links to') instead of direct product answers"
+		);
+	}
+
+	return errors;
 }
 
 /**
@@ -2900,6 +2979,18 @@ STRICT GROUNDING:
 - Every answer must include at least one concrete term/fact from the page evidence.
 - Avoid generic boilerplate questions.
 
+CONTENT FOCUS:
+- Prioritize representative brand questions: what the product does, who it serves, key capabilities, deployment/getting started, performance/infrastructure, security/trust, and pricing.
+- When multiple source pages are provided, synthesize common core offering facts across those pages.
+- Avoid low-signal topics like cookie banners, tracking-preference controls, navigation/UI copy, or legal boilerplate unless the page is explicitly legal/privacy focused.
+
+VOICE + INTENT:
+- Write customer-facing FAQs, not page analysis.
+- NEVER mention "homepage", "this page", "the page", "headline", "CTA", "button", or where links point.
+- NEVER use navigation instructions like "click", "select", "tap", or "use the call-to-action".
+- NEVER mention prompts, instructions, LLMs, AI models, assistants, or generation process.
+- Avoid observer phrasing like "${brandName} says", "the page includes", or "the homepage headline is".
+
 OUTPUT CONTRACT:
 - Return ONLY one HTML <section> block.
 - No JSON-LD, no <script> tags, no schema microdata attributes (itemscope/itemtype/itemprop).
@@ -2908,7 +2999,8 @@ OUTPUT CONTRACT:
 
 ${faqKb}`;
 
-		const userPrompt = `Generate grounded FAQ HTML for this page.${brandContext}${pageContext}${issueContext}${evidenceContext}`;
+		const userPrompt = `Generate grounded FAQ HTML for this page.
+Page type: ${pageType}.${brandContext}${pageContext}${issueContext}${evidenceContext}`;
 		return { userPrompt, systemPrompt };
 	}
 
@@ -3007,7 +3099,10 @@ export async function generateScriptWithLlm(
 				`[ScriptGen] LLMS context collected for issue #${issue.id}: allowed_urls=${collected.evidence.allowedUrls.size}, docs_base=${collected.docsBase || "none"}`
 			);
 		} else {
-			pageContent = await scrapePageContent(targetUrl);
+			const isFaqCheck = (issue.checkCode || "") === "FAQ_count";
+			pageContent = isFaqCheck
+				? await scrapeFaqContext(targetUrl)
+				: await scrapePageContent(targetUrl);
 			evidence = buildGroundingEvidence(pageContent, targetUrl);
 		}
 		const shouldPrependIssueHeader = !isLlmsAgentType(issue.agentType);

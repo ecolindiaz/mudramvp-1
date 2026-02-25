@@ -29,6 +29,18 @@ export interface RedditSearchOptions {
   includeNsfw?: boolean;
   strictSearch?: boolean;
   strictTokenFilter?: boolean;
+  /** How long (seconds) to wait for the Apify actor to finish.
+   *  Partial results are still available in the dataset if the actor
+   *  hasn't completed when this expires. Default: 45. */
+  waitSecs?: number;
+  /** Max items to fetch from the dataset. Limits the listItems call
+   *  to speed up retrieval when only a subset is needed. */
+  maxDatasetItems?: number;
+  /** Use start() + sleep instead of call() for precise timing.
+   *  The SDK's call() ignores short waitSecs due to coarse server-side polling.
+   *  When true, the actor is started, we sleep for exactly waitSecs, then
+   *  fetch whatever partial results are in the dataset. */
+  fireAndFetch?: boolean;
 }
 
 export interface RedditPost {
@@ -134,13 +146,29 @@ export async function searchReddit(options: RedditSearchOptions): Promise<Reddit
       maxPosts: input.maxPosts,
     });
     
-    // Run actor and wait for completion (with timeout)
-    const run = await client.actor(REDDIT_ACTOR_ID).call(input, {
-      waitSecs: 120, // 2 minute timeout
-    });
-    
+    let datasetId: string;
+
+    if (options.fireAndFetch) {
+      // Fire-and-fetch: start() returns immediately, sleep for the exact duration,
+      // then read partial results. This bypasses the SDK's call() which uses
+      // coarse server-side polling and ignores short waitSecs values.
+      const run = await client.actor(REDDIT_ACTOR_ID).start(input);
+      const delaySecs = options.waitSecs ?? 10;
+      console.log(`[Reddit Scraper] Actor started (${run.id}), waiting ${delaySecs}s for data...`);
+      await new Promise((r) => setTimeout(r, delaySecs * 1000));
+      datasetId = run.defaultDatasetId;
+    } else {
+      // Standard mode: call() blocks until actor finishes or waitSecs expires.
+      // Best for callers with generous time budgets (e.g. conversation-radar).
+      const run = await client.actor(REDDIT_ACTOR_ID).call(input, {
+        waitSecs: options.waitSecs ?? 45,
+      });
+      datasetId = run.defaultDatasetId;
+    }
+
     // Fetch results from dataset
-    const { items } = await client.dataset(run.defaultDatasetId).listItems();
+    const listOpts = options.maxDatasetItems ? { limit: options.maxDatasetItems } : {};
+    const { items } = await client.dataset(datasetId).listItems(listOpts);
     
     // Separate posts and comments
     const posts = items.filter((item) => 

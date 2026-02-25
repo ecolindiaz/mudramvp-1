@@ -122,6 +122,15 @@ const COMPANY_DOMAIN_MAP: Record<string, string> = {
   'botpress': 'botpress.com',
   'v0': 'v0.dev',
   'cursor': 'cursor.com',
+  'e2b': 'e2b.dev',
+  'e2b.dev': 'e2b.dev',
+  'beam cloud': 'beam.cloud',
+  'beam': 'beam.cloud',
+  'sagemaker': 'aws.amazon.com',
+  'amazon sagemaker': 'aws.amazon.com',
+  'codesandbox': 'codesandbox.io',
+  'databricks': 'databricks.com',
+  'replit': 'replit.com',
 
   // E-commerce & CMS
   'shopify': 'shopify.com',

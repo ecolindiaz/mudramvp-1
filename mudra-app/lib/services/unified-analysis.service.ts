@@ -197,6 +197,7 @@ export async function runUnifiedAnalysis(
       if (geoResult.success) {
         result.geoAnalysisId = geoResult.id;
         result.scores.aiVisibility = geoResult.score;
+        result.success = true;
         console.log('[Unified Analysis] GEO phase completed:', geoResult.score);
       } else {
         const errorMsg = geoResult.error || 'GEO analysis failed';

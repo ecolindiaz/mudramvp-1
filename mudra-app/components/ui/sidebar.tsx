@@ -69,9 +69,17 @@ function SidebarProvider({
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
 
-  // This is the internal state of the sidebar.
-  // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen)
+  // Read cookie synchronously so sidebar never flashes on navigation.
+  // Safe because all dashboard pages are client components (no SSR mismatch).
+  const [_open, _setOpen] = React.useState(() => {
+    if (typeof document === "undefined") return defaultOpen
+    const cookie = document.cookie
+      .split("; ")
+      .find((c) => c.startsWith(`${SIDEBAR_COOKIE_NAME}=`))
+    if (cookie) return cookie.split("=")[1] === "true"
+    return defaultOpen
+  })
+
   const open = openProp ?? _open
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
@@ -300,7 +308,7 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
       data-slot="sidebar-inset"
       className={cn(
         "bg-background relative flex flex-1 flex-col min-w-0",
-        "md:peer-data-[state=expanded]:ml-[var(--sidebar-width)] transition-[margin-left] duration-200 ease-linear",
+        "md:ml-[var(--sidebar-width)] md:peer-data-[state=collapsed]:ml-0 transition-[margin-left] duration-200 ease-linear",
         "md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
         className
       )}

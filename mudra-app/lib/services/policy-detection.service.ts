@@ -50,6 +50,45 @@ async function fetchWithTimeout(
 }
 
 /**
+ * Check if response body looks like HTML (soft 404 detection)
+ */
+function isHtmlResponse(text: string): boolean {
+  const trimmed = text.trimStart().toLowerCase();
+  return (
+    trimmed.startsWith('<!doctype') ||
+    trimmed.startsWith('<html') ||
+    (trimmed.startsWith('<?xml') && trimmed.includes('<html'))
+  );
+}
+
+/**
+ * Validate that response body is plausible llms.txt content (plain text/markdown, not HTML)
+ */
+function isValidLlmsTxt(text: string): boolean {
+  if (!text || text.trim().length === 0) return false;
+  if (isHtmlResponse(text)) return false;
+  return true;
+}
+
+/**
+ * Validate that response body is plausible robots.txt content (not HTML)
+ */
+function isValidRobotsTxt(text: string): boolean {
+  if (!text || text.trim().length === 0) return false;
+  if (isHtmlResponse(text)) return false;
+  return true;
+}
+
+/**
+ * Validate that response body is plausible sitemap XML content
+ */
+function isValidSitemapXml(text: string): boolean {
+  if (!text || text.trim().length === 0) return false;
+  const trimmed = text.trimStart().toLowerCase();
+  return trimmed.startsWith('<?xml') || trimmed.startsWith('<urlset') || trimmed.startsWith('<sitemapindex');
+}
+
+/**
  * Extract sitemap URLs from robots.txt content
  */
 function extractSitemapUrls(robotsTxt: string): string[] {
@@ -156,43 +195,49 @@ export async function checkPolicyFiles(domain: string): Promise<PolicyFileResult
     fetchWithTimeout(`${origin}/llms-full.txt`),
   ]);
   
+  // Validate content to detect soft 404s (sites returning HTML for unknown paths)
+  const robotsValid = robotsResult.ok && robotsResult.text ? isValidRobotsTxt(robotsResult.text) : false;
+  const sitemapValid = sitemapResult.ok && sitemapResult.text ? isValidSitemapXml(sitemapResult.text) : false;
+  const llmsValid = llmsResult.ok && llmsResult.text ? isValidLlmsTxt(llmsResult.text) : false;
+  const llmsFullValid = llmsFullResult.ok && llmsFullResult.text ? isValidLlmsTxt(llmsFullResult.text) : false;
+
   // Parse robots.txt for sitemap URLs and crawl directives
   let sitemapUrls: string[] = [];
   let crawlDirectives: CrawlDirective[] = [];
-  
-  if (robotsResult.ok && robotsResult.text) {
+
+  if (robotsValid && robotsResult.text) {
     sitemapUrls = extractSitemapUrls(robotsResult.text);
     crawlDirectives = parseCrawlDirectives(robotsResult.text);
     console.log(`[PolicyDetection] Found ${sitemapUrls.length} sitemap URLs in robots.txt`);
     console.log(`[PolicyDetection] Found ${crawlDirectives.length} crawl directive groups`);
   }
-  
+
   // If no sitemap in robots.txt but sitemap.xml exists, use default URL
   let primarySitemapUrl = sitemapUrls[0] || `${origin}/sitemap.xml`;
-  
+
   const result: PolicyFileResult = {
     domain: origin,
     robots: {
-      exists: robotsResult.ok,
+      exists: robotsValid,
       url: `${origin}/robots.txt`,
-      content: robotsResult.text,
+      content: robotsValid ? robotsResult.text : undefined,
       sitemapUrls,
       crawlDirectives,
     },
     sitemap: {
-      exists: sitemapResult.ok,
+      exists: sitemapValid,
       url: primarySitemapUrl,
       pageCount: undefined, // Will be populated during sitemap parsing
     },
     llmsTxt: {
-      exists: llmsResult.ok,
+      exists: llmsValid,
       url: `${origin}/llms.txt`,
-      content: llmsResult.text,
+      content: llmsValid ? llmsResult.text : undefined,
     },
     llmsFullTxt: {
-      exists: llmsFullResult.ok,
+      exists: llmsFullValid,
       url: `${origin}/llms-full.txt`,
-      content: llmsFullResult.text,
+      content: llmsFullValid ? llmsFullResult.text : undefined,
     },
     checkedAt: new Date(),
   };

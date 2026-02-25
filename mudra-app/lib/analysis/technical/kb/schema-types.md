@@ -538,7 +538,7 @@ Use Article when:
 ## 10. SoftwareApplication
 
 **Hierarchy**: `Thing > CreativeWork > SoftwareApplication`
-**When**: Downloadable/installable software, mobile apps, desktop apps, browser extensions
+**When**: SaaS platforms, software products, mobile apps, desktop apps, browser extensions
 **Google Rich Result**: Software App snippet with ratings, price, app info
 
 ### Google Required
@@ -573,7 +573,7 @@ Use Article when:
 ```
 
 ### Restrictions
-- **ONLY for downloadable/installable software** — NOT for SaaS/web services (use WebApplication)
+- Parent type for all software: SaaS, downloadable, or installable
 - Must represent a specific product, not a category
 - `offers` is required even for free apps (`"price": "0"`)
 - Do NOT use fake ratings
@@ -622,8 +622,8 @@ Inherits all SoftwareApplication properties. Unique addition:
 ```
 
 ### Key Distinction
-- **SoftwareApplication**: Downloaded/installed → specify `operatingSystem`, `downloadUrl`
-- **WebApplication**: Browser-based → specify `browserRequirements`, use `url` for access
+- **SoftwareApplication**: Parent type for any software product (SaaS, desktop, mobile). Default choice.
+- **WebApplication**: Subtype of SoftwareApplication. Use when page emphasizes browser-based interactive functionality (editors, dashboards, in-browser tools). Adds `browserRequirements`.
 - Do NOT use WebApplication for static marketing sites
 
 ---

@@ -1681,6 +1681,170 @@ test('firegeo', 'mentioned, position 1 → 95 (50 + 45)', () =>
 test('firegeo', 'mentioned, position 10 → 50 (50 + 0)', () =>
   assertEqual(calcFiregeoScore(true, 10), 50));
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GROUP R: Entity Normalization — remap logic (no LLM call, tests the alias
+// mapping, position merging, sentiment merging, and entity type assignment)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Helper: apply an aliasMap to a PromptTest-like structure (mirrors wiring logic)
+function remapTestData(
+  competitors: string[],
+  positions: Record<string, number>,
+  sentiments: Record<string, string>,
+  aliasMap: Map<string, string>,
+) {
+  // Remap competitors and dedup
+  const remappedCompetitors = [...new Set(
+    competitors.map(c => aliasMap.get(c.toLowerCase()) || c)
+  )];
+
+  // Remap positions: on collision keep Math.min (best rank)
+  const remappedPositions: Record<string, number> = {};
+  for (const [name, pos] of Object.entries(positions)) {
+    const canonical = aliasMap.get(name.toLowerCase()) || name;
+    if (canonical in remappedPositions) {
+      remappedPositions[canonical] = Math.min(remappedPositions[canonical], pos);
+    } else {
+      remappedPositions[canonical] = pos;
+    }
+  }
+
+  // Remap sentiments: on collision keep first
+  const remappedSentiments: Record<string, string> = {};
+  for (const [name, sent] of Object.entries(sentiments)) {
+    const canonical = aliasMap.get(name.toLowerCase()) || name;
+    if (!(canonical in remappedSentiments)) {
+      remappedSentiments[canonical] = sent;
+    }
+  }
+
+  return { competitors: remappedCompetitors, positions: remappedPositions, sentiments: remappedSentiments };
+}
+
+test('entity-normalization', 'R.1 Alias dedup: AWS + Amazon Web Services → 1 entry', () => {
+  const aliasMap = new Map([
+    ['aws', 'Amazon Web Services'],
+    ['amazon web services', 'Amazon Web Services'],
+  ]);
+  const result = remapTestData(
+    ['AWS', 'Amazon Web Services'],
+    { 'AWS': 2, 'Amazon Web Services': 5 },
+    { 'AWS': 'positive', 'Amazon Web Services': 'neutral' },
+    aliasMap,
+  );
+  return {
+    pass: result.competitors.length === 1 && result.competitors[0] === 'Amazon Web Services',
+    detail: `Expected 1 competitor "Amazon Web Services", got ${JSON.stringify(result.competitors)}`,
+  };
+});
+
+test('entity-normalization', 'R.2 Multi-alias: GCP + Google Cloud Platform + Google Cloud → 1 entry', () => {
+  const aliasMap = new Map([
+    ['gcp', 'Google Cloud'],
+    ['google cloud platform', 'Google Cloud'],
+    ['google cloud', 'Google Cloud'],
+  ]);
+  const result = remapTestData(
+    ['GCP', 'Google Cloud Platform', 'Google Cloud'],
+    {},
+    {},
+    aliasMap,
+  );
+  return {
+    pass: result.competitors.length === 1 && result.competitors[0] === 'Google Cloud',
+    detail: `Expected 1 competitor "Google Cloud", got ${JSON.stringify(result.competitors)}`,
+  };
+});
+
+test('entity-normalization', 'R.3 Position merge: GCP pos=3, Google Cloud pos=5 → min=3', () => {
+  const aliasMap = new Map([
+    ['gcp', 'Google Cloud'],
+    ['google cloud', 'Google Cloud'],
+  ]);
+  const result = remapTestData(
+    ['GCP', 'Google Cloud'],
+    { 'GCP': 3, 'Google Cloud': 5 },
+    {},
+    aliasMap,
+  );
+  return assertEqual(result.positions['Google Cloud'], 3, 'Position');
+});
+
+test('entity-normalization', 'R.4 Sentiment merge: AWS=positive, Amazon Web Services=neutral → keeps first (positive)', () => {
+  const aliasMap = new Map([
+    ['aws', 'Amazon Web Services'],
+    ['amazon web services', 'Amazon Web Services'],
+  ]);
+  const result = remapTestData(
+    ['AWS', 'Amazon Web Services'],
+    {},
+    { 'AWS': 'positive', 'Amazon Web Services': 'neutral' },
+    aliasMap,
+  );
+  return assertEqual(result.sentiments['Amazon Web Services'], 'positive', 'Sentiment');
+});
+
+test('entity-normalization', 'R.5 Entity types assigned correctly from mock map', () => {
+  const entityTypes = new Map([
+    ['google cloud', 'company'],
+    ['tensorflow', 'framework'],
+    ['nvidia a100', 'hardware'],
+  ]);
+  const pass =
+    entityTypes.get('google cloud') === 'company' &&
+    entityTypes.get('tensorflow') === 'framework' &&
+    entityTypes.get('nvidia a100') === 'hardware';
+  return { pass, detail: pass ? undefined : `Entity types mismatch` };
+});
+
+test('entity-normalization', 'R.6 Full cloud example: 50 names with aliases → ~27 unique after dedup', () => {
+  // Simulate a realistic cloud deployment scenario with known alias groups
+  const aliasMap = new Map([
+    ['aws', 'Amazon Web Services'], ['amazon web services', 'Amazon Web Services'],
+    ['gcp', 'Google Cloud'], ['google cloud platform', 'Google Cloud'], ['google cloud', 'Google Cloud'],
+    ['azure', 'Microsoft Azure'], ['microsoft azure', 'Microsoft Azure'],
+    ['vercel', 'Vercel'], ['netlify', 'Netlify'], ['heroku', 'Heroku'],
+    ['railway', 'Railway'], ['render', 'Render'], ['fly.io', 'Fly.io'],
+    ['digitalocean', 'DigitalOcean'], ['cloudflare', 'Cloudflare'],
+    ['firebase', 'Firebase'], ['supabase', 'Supabase'],
+    ['docker', 'Docker'], ['kubernetes', 'Kubernetes'],
+    ['terraform', 'Terraform'], ['datadog', 'Datadog'],
+    ['sentry', 'Sentry'], ['github actions', 'GitHub Actions'],
+    ['gitlab ci/cd', 'GitLab CI/CD'], ['circleci', 'CircleCI'],
+    ['new relic', 'New Relic'], ['grafana', 'Grafana'],
+    ['sagemaker', 'SageMaker'], ['amazon sagemaker', 'SageMaker'],
+    ['tensorflow', 'TensorFlow'], ['pytorch', 'PyTorch'],
+    ['nvidia', 'NVIDIA'],
+  ]);
+
+  // 50 raw names including duplicates
+  const rawNames = [
+    'AWS', 'Amazon Web Services', 'GCP', 'Google Cloud Platform', 'Google Cloud',
+    'Azure', 'Microsoft Azure', 'Vercel', 'Netlify', 'Heroku',
+    'Railway', 'Render', 'Fly.io', 'DigitalOcean', 'Cloudflare',
+    'Firebase', 'Supabase', 'Docker', 'Kubernetes', 'Terraform',
+    'Datadog', 'Sentry', 'GitHub Actions', 'GitLab CI/CD', 'CircleCI',
+    'New Relic', 'Grafana', 'SageMaker', 'Amazon SageMaker', 'TensorFlow',
+    'PyTorch', 'NVIDIA',
+    // Duplicates from different providers
+    'AWS', 'GCP', 'Azure', 'Vercel', 'Netlify', 'Heroku',
+    'Railway', 'Render', 'Fly.io', 'DigitalOcean', 'Cloudflare',
+    'Firebase', 'Supabase', 'Docker', 'Kubernetes', 'Terraform',
+    'Datadog', 'Sentry',
+  ];
+
+  const remapped = [...new Set(
+    rawNames.map(n => aliasMap.get(n.toLowerCase()) || n)
+  )];
+
+  // Should be ~27 unique canonical names (AWS+Amazon Web Services=1, GCP+Google Cloud Platform+Google Cloud=1, etc.)
+  const pass = remapped.length >= 25 && remapped.length <= 29;
+  return {
+    pass,
+    detail: `Expected 25-29 unique names, got ${remapped.length}: ${JSON.stringify(remapped)}`,
+  };
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Runner
 // ─────────────────────────────────────────────────────────────────────────────

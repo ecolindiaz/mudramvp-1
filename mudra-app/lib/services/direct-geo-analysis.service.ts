@@ -39,29 +39,7 @@ const geminiRedirectCache = new Map<string, { url: string; title: string; resolv
 const geminiRedirectInFlight = new Map<string, Promise<{ url: string; title: string }>>();
 const REDIRECT_CACHE_TTL = 1000 * 60 * 60; // 1 hour cache TTL
 
-// Anthropic adaptive token-budget throttle (Tier 1: 30K input tokens/min)
-const ANTHROPIC_TOKEN_BUDGET_PER_MIN = 30_000;
-const ANTHROPIC_BUDGET_WINDOW_MS = 60_000;
-const anthropicTokenLedger: { ts: number; tokens: number }[] = [];
-
-/**
- * Record tokens used and return how many ms to sleep before the next call
- * to stay under the per-minute input-token budget.
- */
-function anthropicThrottleMs(inputTokensUsed: number): number {
-  const now = Date.now();
-  anthropicTokenLedger.push({ ts: now, tokens: inputTokensUsed });
-  // Prune entries older than the budget window
-  while (anthropicTokenLedger.length && anthropicTokenLedger[0].ts < now - ANTHROPIC_BUDGET_WINDOW_MS) {
-    anthropicTokenLedger.shift();
-  }
-  const usedInWindow = anthropicTokenLedger.reduce((s, e) => s + e.tokens, 0);
-  if (usedInWindow < ANTHROPIC_TOKEN_BUDGET_PER_MIN) return 0;
-  // We're at/over budget — wait until the oldest entry expires from the window
-  const oldestTs = anthropicTokenLedger[0].ts;
-  const waitUntil = oldestTs + ANTHROPIC_BUDGET_WINDOW_MS;
-  return Math.max(0, waitUntil - now + 500); // +500ms safety margin
-}
+// Anthropic throttle removed — relying on retryWithBackoff to handle 429s naturally
 
 // Gemini model configuration: preview primary with stable fallbacks
 const GEMINI_PRIMARY_MODEL = 'gemini-3-flash-preview';
@@ -444,6 +422,17 @@ function matchCompetitorNames(name1: string, name2: string): boolean {
   }
   if (words2.length === 1 && words1.length === 2) {
     if (words1[0] === norm2 && companySuffixes.has(words1[1])) return true;
+  }
+
+  // TLD-aware matching: "E2B" matches "E2B.dev", "Fly" matches "Fly.io"
+  const tldSuffixes = new Set(['dev', 'io', 'ai', 'com', 'net', 'cloud', 'new', 'app', 'sh']);
+  const matchTld = (plain: string, dotted: string) => {
+    const parts = dotted.split('.');
+    return parts.length === 2 && parts[0] === plain && tldSuffixes.has(parts[1]);
+  };
+  if (words1.length === 1 && words2.length === 1) {
+    if (norm1.includes('.') && !norm2.includes('.') && matchTld(norm2, norm1)) return true;
+    if (norm2.includes('.') && !norm1.includes('.') && matchTld(norm1, norm2)) return true;
   }
 
   return false;
@@ -1143,6 +1132,219 @@ function mergeCompetitorPositions(
   return mergedPositions;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Entity Normalization — dynamic alias resolution via LLM
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface NormalizationResult {
+  aliasMap: Map<string, string>;      // raw lowercase → canonical display name
+  entityTypes: Map<string, string>;   // canonical lowercase → type
+  parentMap: Map<string, string>;     // canonical lowercase → parent company
+  canonicalNames: string[];           // unique canonical names
+}
+
+/**
+ * Normalize extracted entity names: deduplicate aliases, classify entity types,
+ * and identify parent companies.  Uses a single LLM call with the model's world
+ * knowledge so the approach is industry-agnostic (no hardcoded alias dictionary).
+ *
+ * On any failure the function returns an identity mapping so the existing
+ * pipeline behaviour is preserved.
+ */
+export async function normalizeExtractedEntities(
+  rawNames: string[],
+  brandName: string,
+  openaiApiKey: string
+): Promise<NormalizationResult> {
+  // 1. Deduplicate input using normalizeCompanyName
+  const seenNormalized = new Map<string, string>(); // normalized → first raw display name
+  for (const raw of rawNames) {
+    const norm = normalizeCompanyName(raw);
+    if (norm && !seenNormalized.has(norm)) {
+      seenNormalized.set(norm, raw);
+    }
+  }
+  const uniqueDisplayNames = [...seenNormalized.values()];
+
+  // 2. Pre-group using matchCompetitorNames to catch acronyms/suffix variants locally
+  const groups: string[][] = [];
+  const assigned = new Set<number>();
+
+  for (let i = 0; i < uniqueDisplayNames.length; i++) {
+    if (assigned.has(i)) continue;
+    const group = [uniqueDisplayNames[i]];
+    assigned.add(i);
+    for (let j = i + 1; j < uniqueDisplayNames.length; j++) {
+      if (assigned.has(j)) continue;
+      if (matchCompetitorNames(uniqueDisplayNames[i], uniqueDisplayNames[j])) {
+        group.push(uniqueDisplayNames[j]);
+        assigned.add(j);
+      }
+    }
+    groups.push(group);
+  }
+
+  // Build pre-grouped canonical names (pick longest display name in each group)
+  const preGrouped = groups.map(g => g.reduce((a, b) => a.length >= b.length ? a : b));
+
+  console.log(`[EntityNormalization] Pre-grouping: ${uniqueDisplayNames.length} unique → ${preGrouped.length} groups (${groups.filter(g => g.length > 1).length} multi-alias groups)`);
+
+  // If 5 or fewer unique names, skip the LLM call — not worth the latency
+  if (preGrouped.length <= 5) {
+    console.log(`[EntityNormalization] Only ${preGrouped.length} groups, skipping LLM call`);
+    return buildIdentityResult(rawNames);
+  }
+
+  // 3. Single LLM call to normalize aliases, classify types, identify parents
+  const prompt = `You are an entity normalization expert. Given a list of brand/company/product names extracted from AI responses, your task is to:
+
+1. **Group aliases** — names that refer to the same entity (e.g. "AWS" and "Amazon Web Services" are the same)
+2. **Pick a canonical name** — the most commonly-used display name for each group
+3. **Classify entity type** — one of: company, product, framework, hardware, program
+4. **Identify parent company** — if the entity is a product/service of a larger company
+
+BRAND BEING ANALYZED (exclude from output): "${brandName}"
+
+ENTITY NAMES TO NORMALIZE:
+${preGrouped.map((n, i) => `${i + 1}. ${n}`).join('\n')}
+
+Return ONLY valid JSON (no markdown, no explanation):
+{
+  "entities": [
+    {
+      "canonical": "Amazon Web Services",
+      "aliases": ["AWS", "Amazon Web Services"],
+      "type": "company",
+      "parent": null
+    },
+    {
+      "canonical": "SageMaker",
+      "aliases": ["SageMaker", "Amazon SageMaker"],
+      "type": "product",
+      "parent": "Amazon Web Services"
+    }
+  ]
+}
+
+Rules:
+- Every input name MUST appear in exactly one aliases array
+- canonical should be the most recognizable form of the name
+- type must be one of: company, product, framework, hardware, program
+- parent is null for top-level companies, otherwise the canonical name of the parent
+- Do NOT include "${brandName}" in the output`;
+
+  try {
+    const openai = new OpenAI({ apiKey: openaiApiKey });
+    const response = await retryWithBackoff(async () => {
+      return openai.chat.completions.create({
+        model: COMPETITOR_EXTRACTION_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        max_completion_tokens: 4000,
+        response_format: { type: 'json_object' }
+      });
+    }, 2, 2000);
+
+    const content = response.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(content);
+    const entities: Array<{
+      canonical: string;
+      aliases: string[];
+      type: string;
+      parent: string | null;
+    }> = parsed.entities || [];
+
+    console.log(`[EntityNormalization] LLM returned ${entities.length} entities`);
+    if (entities.length === 0) {
+      console.warn('[EntityNormalization] LLM returned empty entities, using identity mapping');
+      return buildIdentityResult(rawNames);
+    }
+
+    // Build result maps
+    const aliasMap = new Map<string, string>();
+    const entityTypes = new Map<string, string>();
+    const parentMap = new Map<string, string>();
+    const canonicalNames: string[] = [];
+
+    for (const entity of entities) {
+      const canonical = entity.canonical;
+      const canonicalLower = canonical.toLowerCase();
+      canonicalNames.push(canonical);
+
+      // Map each alias (lowercased) → canonical display name
+      for (const alias of entity.aliases) {
+        aliasMap.set(alias.toLowerCase(), canonical);
+      }
+      // Also map the canonical itself
+      aliasMap.set(canonicalLower, canonical);
+
+      // Entity type
+      const validTypes = new Set(['company', 'product', 'framework', 'hardware', 'program']);
+      if (validTypes.has(entity.type)) {
+        entityTypes.set(canonicalLower, entity.type);
+      }
+
+      // Parent company
+      if (entity.parent) {
+        parentMap.set(canonicalLower, entity.parent);
+      }
+    }
+
+    // Inject pre-grouped aliases: the LLM only saw the canonical of each
+    // pre-group, so other members (e.g. "AWS" when "Amazon Web Services"
+    // was sent) need to point to whatever the LLM mapped the group canonical to.
+    for (let gi = 0; gi < groups.length; gi++) {
+      const groupCanonical = preGrouped[gi]; // longest name sent to LLM
+      const llmTarget = aliasMap.get(groupCanonical.toLowerCase());
+      if (llmTarget) {
+        for (const member of groups[gi]) {
+          aliasMap.set(member.toLowerCase(), llmTarget);
+        }
+      }
+    }
+
+    // Ensure every raw input name has a mapping (fallback to itself if LLM missed it)
+    for (const raw of rawNames) {
+      const lower = raw.toLowerCase();
+      if (!aliasMap.has(lower)) {
+        aliasMap.set(lower, raw);
+        if (!canonicalNames.includes(raw)) {
+          canonicalNames.push(raw);
+        }
+      }
+    }
+
+    console.log(`[EntityNormalization] ${rawNames.length} raw names → ${canonicalNames.length} canonical entities`);
+    return { aliasMap, entityTypes, parentMap, canonicalNames };
+  } catch (error) {
+    console.warn('[EntityNormalization] LLM call failed, using identity mapping:', error);
+    return buildIdentityResult(rawNames);
+  }
+}
+
+/** Fallback: build an identity mapping where every name maps to itself. */
+function buildIdentityResult(rawNames: string[]): NormalizationResult {
+  const aliasMap = new Map<string, string>();
+  const seen = new Set<string>();
+  const canonicalNames: string[] = [];
+
+  for (const raw of rawNames) {
+    const lower = raw.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      aliasMap.set(lower, raw);
+      canonicalNames.push(raw);
+    }
+  }
+
+  return {
+    aliasMap,
+    entityTypes: new Map(),
+    parentMap: new Map(),
+    canonicalNames,
+  };
+}
+
 /**
  * Extract brand position from bullet list format
  */
@@ -1484,8 +1686,8 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations: uniqueCitations.length > 0 ? uniqueCitations : undefined,
-      sources: uniqueSources.length > 0 ? uniqueSources : undefined,
+      citations: uniqueCitations,
+      sources: uniqueSources,
     };
   } catch (error) {
     console.error(`Error analyzing with OpenAI:`, error);
@@ -1533,7 +1735,6 @@ async function analyzeWithPerplexity(
           },
         ],
         temperature: 0.2,
-        max_tokens: 1200,
         ...(perplexityGeo ? {
           web_search_options: { user_location: perplexityGeo.user_location },
           search_language_filter: perplexityGeo.search_language_filter,
@@ -1544,18 +1745,40 @@ async function analyzeWithPerplexity(
     const text = response.choices[0]?.message?.content || '';
     console.log('[Perplexity] Response received:', text.substring(0, 100) + '...');
     
-    // Extract citations from Perplexity response
-    // Perplexity returns citations in the response object
+    // Extract sources from Perplexity's search_results (rich data: title, url, date, snippet)
+    // and citations (bare URL strings referenced inline in the response).
+    // Perplexity docs: search_results is the primary field; citations is deprecated but still sent.
     const citations: Citation[] = [];
-    
+    const sources: Citation[] = [];
+
+    if (response.search_results && Array.isArray(response.search_results)) {
+      for (const sr of response.search_results) {
+        if (sr && sr.url) {
+          sources.push({
+            url: sr.url,
+            title: sr.title,
+            snippet: sr.snippet,
+            position: sources.length + 1,
+          });
+        }
+      }
+      console.log(`[Perplexity] Extracted ${sources.length} search_results as sources`);
+    }
+
     if (response.citations && Array.isArray(response.citations)) {
-      response.citations.forEach((url: string, index: number) => {
-        citations.push({
-          url: url,
-          position: index + 1,
-        });
-      });
-      console.log(`[Perplexity] Extracted ${citations.length} citations`);
+      for (const [index, url] of response.citations.entries()) {
+        if (typeof url === 'string') {
+          // Enrich with title/snippet from search_results when available
+          const matchingSource = sources.find(s => s.url === url);
+          citations.push({
+            url,
+            title: matchingSource?.title,
+            snippet: matchingSource?.snippet,
+            position: index + 1,
+          });
+        }
+      }
+      console.log(`[Perplexity] Extracted ${citations.length} inline citations`);
     }
 
     // Use OpenAI to analyze the Perplexity response for brand mentions
@@ -1721,7 +1944,8 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations: citations.length > 0 ? citations : undefined,
+      citations,
+      sources,
     };
   } catch (error: any) {
     console.error(`❌ Error analyzing with Perplexity:`, error.message || error);
@@ -1763,7 +1987,7 @@ async function analyzeWithAnthropic(
         const res = await anthropic.messages.create(
           {
             model: 'claude-sonnet-4-5-20250929',
-            max_tokens: 1500,
+            max_tokens: 8192,
             messages: [
               {
                 role: 'user',
@@ -1774,7 +1998,6 @@ async function analyzeWithAnthropic(
               {
                 type: 'web_search_20250305',
                 name: 'web_search',
-                max_uses: 1,
                 ...(config.country ? (() => { const geo = buildClaudeGeoConfig(config.country!); return geo ? { user_location: geo } : {}; })() : {}),
               } as any,
             ],
@@ -1798,16 +2021,6 @@ async function analyzeWithAnthropic(
         throw err;
       }
     });
-
-    // Adaptive Anthropic token-budget throttle (replaces flat 20s sleep)
-    const inputTokens = (response as any).usage?.input_tokens ?? 10_000; // fallback estimate
-    const delayMs = anthropicThrottleMs(inputTokens);
-    if (delayMs > 0) {
-      console.log(`  ⏳ [anthropic] Adaptive throttle: ${Math.round(delayMs / 1000)}s (used ${inputTokens} input tokens)`);
-      await sleep(delayMs);
-    } else {
-      console.log(`  ⚡ [anthropic] Token budget OK (${inputTokens} tokens) — no delay needed`);
-    }
 
     let text = '';
     const citations: Citation[] = [];
@@ -1967,8 +2180,8 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations: citations.length > 0 ? citations : undefined,
-      sources: sources.length > 0 ? sources : undefined,
+      citations,
+      sources,
     };
   } catch (error: any) {
     console.error(`❌ [Anthropic] Error:`, error.message || error);
@@ -2306,8 +2519,8 @@ Return ONLY a valid JSON object with these exact keys:
       competitorSentiments: validatedSentiments,
       sentiment: analysis.sentiment || 'neutral',
       confidence: analysis.confidence || 0.5,
-      citations: citations.length > 0 ? citations : undefined,
-      searchQueries: searchQueries.length > 0 ? searchQueries : undefined,
+      citations,
+      searchQueries,
     };
   } catch (error: any) {
     const status = error.status || error.statusCode;
@@ -2464,7 +2677,8 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     
     // Gemini needs throttling (503 overload errors), Perplexity has strict rate limits (429),
     // Anthropic Tier 1 has 30K input tokens/min — serialize calls to avoid exhausting budget
-    const concurrency = provider === 'google' ? 3 : provider === 'anthropic' ? 1 : provider === 'perplexity' ? 2 : providerPrompts.length;
+    // Anthropic: no pre-emptive throttle — retryWithBackoff handles 429s naturally
+    const concurrency = provider === 'google' ? 3 : provider === 'perplexity' ? 2 : providerPrompts.length;
     const promptTestResults = await mapWithConcurrency(
       providerPrompts,
       async (promptObj) => {
@@ -2527,6 +2741,62 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     a.promptTests.flatMap(t => t.competitors)
   );
 
+  // ── Entity normalization: deduplicate aliases across all providers ──
+  console.log('\n🔄 Normalizing extracted entities...');
+  let normResult: NormalizationResult | null = null;
+  try {
+    normResult = config.apiKeys.openai
+      ? await normalizeExtractedEntities(
+          allCompetitorMentions,
+          config.brandName,
+          config.apiKeys.openai
+        )
+      : buildIdentityResult(allCompetitorMentions);
+
+    // Remap per-test data through the alias map
+    for (const analysis of analyses) {
+      for (const test of analysis.promptTests) {
+        // Remap competitor names and deduplicate
+        test.competitors = [...new Set(
+          test.competitors.map(c => normResult!.aliasMap.get(c.toLowerCase()) || c)
+        )];
+
+        // Remap competitorPositions: on collision keep Math.min (best rank)
+        if (test.competitorPositions) {
+          const remapped: Record<string, number> = {};
+          for (const [name, pos] of Object.entries(test.competitorPositions)) {
+            const canonical = normResult!.aliasMap.get(name.toLowerCase()) || name;
+            if (canonical in remapped) {
+              remapped[canonical] = Math.min(remapped[canonical], pos as number);
+            } else {
+              remapped[canonical] = pos as number;
+            }
+          }
+          test.competitorPositions = remapped;
+        }
+
+        // Remap competitorSentiments: on collision keep first
+        if (test.competitorSentiments) {
+          const remapped: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+          for (const [name, sentiment] of Object.entries(test.competitorSentiments)) {
+            const canonical = normResult!.aliasMap.get(name.toLowerCase()) || name;
+            if (!(canonical in remapped)) {
+              remapped[canonical] = sentiment;
+            }
+          }
+          test.competitorSentiments = remapped;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Entity normalization failed, continuing with raw names:', error);
+  }
+
+  // Rebuild mentions from (possibly remapped) tests
+  const canonicalMentions = analyses.flatMap(a =>
+    a.promptTests.flatMap(t => t.competitors)
+  );
+
   // Run multi-stage competitor validation pipeline
   console.log('\n🔬 Running AI competitor validation pipeline...');
   let validatedCompetitors: ValidatedCompetitor[] = [];
@@ -2535,8 +2805,23 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     validatedCompetitors = await validateCompetitors(
       allResponses,
       config.brandName,
-      allCompetitorMentions
+      canonicalMentions
     );
+
+    // Enrich validated competitors with entity type and parent from normalization
+    if (normResult) {
+      for (const vc of validatedCompetitors) {
+        const lower = vc.name.toLowerCase();
+        const entityType = normResult.entityTypes.get(lower);
+        if (entityType) {
+          vc.entityType = entityType as ValidatedCompetitor['entityType'];
+        }
+        const parent = normResult.parentMap.get(lower);
+        if (parent) {
+          vc.parentCompany = parent;
+        }
+      }
+    }
 
     console.log(`✅ Validated ${validatedCompetitors.length} competitors with AI pipeline`);
 

@@ -441,7 +441,43 @@ for pat in placeholder_patterns:
         warnings.append(f"Placeholder text detected: {pat}")
         break
 
-# 5. Answer quality checks
+# 5. Prompt-leak / page-observer detection
+leak_patterns = [
+    r'\\bprompt\\b', r'\\binstruction\\b', r'\\bllm\\b', r'\\blanguage model\\b',
+    r'\\bassistant\\b', r'\\bchatgpt\\b', r'\\bgpt\\b', r'\\bclaude\\b', r'\\bgemini\\b',
+]
+meta_question_patterns = [
+    r'\\bhomepage\\b', r'\\bthis page\\b', r'\\bthe page\\b',
+    r'\\bmain message\\b', r'\\bheadline\\b', r'\\bcall[- ]to[- ]action\\b',
+    r'\\bcta\\b', r'\\bwhat does .* say\\b', r'\\bdoes .* mention\\b',
+]
+meta_answer_patterns = [
+    r'\\bthe homepage\\b', r'\\bthis page\\b', r'\\bthe page\\b',
+    r'\\bheadline\\b', r'\\bcall[- ]to[- ]action\\b', r'\\bcta\\b',
+    r'\\bclick\\b', r'\\bselect\\b', r'\\blinks? to\\b', r'\\bpoints? to\\b',
+    r'\\bthe site\\b', r'\\bsays\\b', r'\\bincludes\\b',
+]
+
+prompt_leak_hits = 0
+meta_question_hits = 0
+meta_answer_hits = 0
+for q, a in qa_pairs:
+    combined = f"{q} {a}"
+    if any(re.search(p, combined, re.IGNORECASE) for p in leak_patterns):
+        prompt_leak_hits += 1
+    if any(re.search(p, q, re.IGNORECASE) for p in meta_question_patterns):
+        meta_question_hits += 1
+    if any(re.search(p, a, re.IGNORECASE) for p in meta_answer_patterns):
+        meta_answer_hits += 1
+
+if prompt_leak_hits > 0:
+    errors.append("Prompt/model language detected inside FAQ content")
+if faq_count >= 3 and meta_question_hits >= 2:
+    errors.append("FAQ questions are page-analysis style instead of customer-intent questions")
+if faq_count >= 3 and meta_answer_hits >= 2:
+    errors.append("FAQ answers are page-observer style instead of direct product answers")
+
+# 6. Answer quality checks
 for q, a in qa_pairs:
     if not a or len(a) < 10:
         warnings.append(f"Empty or too-short answer for: {q[:50]}")
@@ -449,7 +485,7 @@ for q, a in qa_pairs:
     if sentence_count > 4:
         warnings.append(f"Answer too long ({sentence_count} sentences) for: {q[:50]}")
 
-# 6. Semantic wrapper check
+# 7. Semantic wrapper check
 has_wrapper = bool(soup.find('section') or soup.find('div') or soup.find('aside'))
 if not has_wrapper and not html.strip().startswith('<'):
     warnings.append("No semantic wrapper element found (expected <section>, <div>, or similar)")

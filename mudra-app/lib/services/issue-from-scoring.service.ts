@@ -208,6 +208,15 @@ export async function createIssuesFromPageScore(
       description = `${ISSUE_DESCRIPTIONS[check]}\n\n${issue.message}`
     }
 
+    // FAQ_count: preserve page-type marker from scorer so FAQ generation can
+    // apply the correct page-type template/prompt (pricing/product/customers/etc).
+    if (check === 'FAQ_count') {
+      const pageTypeMatch = issue.message.match(/(<!-- PAGE_TYPE: \S+ -->)/)
+      if (pageTypeMatch) {
+        description = `${description}\n\n${pageTypeMatch[1]}`
+      }
+    }
+
     // Add explicit schema contract marker for downstream script generation.
     // For J4_coverage, try merged marker first (existing + new types) to preserve existing schemas.
     // For J1_present/J3_relevant/J4_coverage, try dynamic marker from scorer message (page-type-specific).

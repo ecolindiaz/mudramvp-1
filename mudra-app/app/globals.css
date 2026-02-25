@@ -124,6 +124,8 @@
 }
 
 :root {
+  --sidebar-width: 16rem;
+  --sidebar-width-icon: 3rem;
   --radius: 0.5rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -207,18 +209,6 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-  }
-}
-
-/* Sidebar layout – plain CSS fallback so the main content is always
-   pushed right when the sidebar is expanded, regardless of whether
-   Tailwind compiles the peer-data-* utility correctly. */
-@media (min-width: 768px) {
-  [data-slot="sidebar"][data-state="expanded"] ~ [data-slot="sidebar-inset"] {
-    margin-left: var(--sidebar-width, 16rem);
-  }
-  [data-slot="sidebar"][data-state="collapsed"] ~ [data-slot="sidebar-inset"] {
-    margin-left: 0;
   }
 }
 

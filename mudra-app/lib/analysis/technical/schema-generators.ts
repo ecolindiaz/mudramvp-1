@@ -23,6 +23,82 @@ export function isSkipped(result: SchemaResult): result is SkippedSchema {
 	return "skipped" in result && result.skipped === true;
 }
 
+// ---------------------------------------------------------------------------
+// Inference helpers for Service enrichment
+// ---------------------------------------------------------------------------
+
+const SERVICE_TYPE_PATTERNS: [RegExp, string][] = [
+	[/\b(SEO|search engine optimiz)/i, "SEO Services"],
+	[/\b(AI|artificial intelligence|machine learning|ML)\b/i, "AI Services"],
+	[/\b(consulting|advisory|strateg)/i, "Consulting"],
+	[/\b(marketing|growth|demand gen)/i, "Marketing Services"],
+	[/\b(design|UX|UI|creative)\b/i, "Design Services"],
+	[/\b(develop(ment|er)|engineering|software dev)/i, "Software Development"],
+	[/\b(data analytics|business intelligence|BI)\b/i, "Data Analytics"],
+	[/\b(cloud|infrastructure|DevOps|hosting)\b/i, "Cloud Services"],
+	[/\b(security|cyber|penetration test)/i, "Security Services"],
+	[/\b(writing|content creation|copywriting)/i, "Content Services"],
+	[/\b(training|coaching|education|workshop)/i, "Training Services"],
+	[/\b(staffing|recruiting|talent|hiring)/i, "Staffing Services"],
+	[/\b(financial|accounting|bookkeeping)/i, "Financial Services"],
+];
+
+/**
+ * Infer a serviceType from page content via keyword matching.
+ * Returns null when no strong signal is found.
+ */
+export function inferServiceType(
+	name: string | null | undefined,
+	metaDesc: string | null | undefined,
+	extraction: DOMExtractionData
+): string | null {
+	const corpus = [
+		name ?? "",
+		metaDesc ?? "",
+		...extraction.headings.hierarchy.map((h) => h.text),
+		...extraction.content_snapshot.paragraphs.slice(0, 5).map((p) => p.text),
+	].join(" ");
+
+	for (const [pattern, serviceType] of SERVICE_TYPE_PATTERNS) {
+		if (pattern.test(corpus)) return serviceType;
+	}
+	return null;
+}
+
+const AREA_SERVED_PATTERNS: [RegExp, string][] = [
+	[/\bworldwide\b/i, "Worldwide"],
+	[/\bglobal(ly)?\b/i, "Worldwide"],
+	[/\bUnited States\b/i, "United States"],
+	[/\bNorth America\b/i, "North America"],
+	[/\bEurope\b/i, "Europe"],
+	[/\bAsia\b/i, "Asia"],
+	[/\bUnited Kingdom\b/i, "United Kingdom"],
+	[/\bCanada\b/i, "Canada"],
+	[/\bAustralia\b/i, "Australia"],
+];
+
+/**
+ * Infer areaServed from explicit geographic mentions in page content.
+ * Returns null when no geographic signal is found.
+ */
+export function inferAreaServed(
+	name: string | null | undefined,
+	metaDesc: string | null | undefined,
+	extraction: DOMExtractionData
+): string | null {
+	const corpus = [
+		name ?? "",
+		metaDesc ?? "",
+		...extraction.headings.hierarchy.map((h) => h.text),
+		...extraction.content_snapshot.paragraphs.slice(0, 5).map((p) => p.text),
+	].join(" ");
+
+	for (const [pattern, area] of AREA_SERVED_PATTERNS) {
+		if (pattern.test(corpus)) return area;
+	}
+	return null;
+}
+
 /**
  * Build a single schema for a given type using data from DOMExtraction.
  */
@@ -194,6 +270,10 @@ export function buildSchemaForType(
 			};
 			if (name) schema.name = name;
 			if (metaDesc) schema.description = metaDesc;
+			const serviceType = inferServiceType(name, metaDesc, extraction);
+			if (serviceType) schema.serviceType = serviceType;
+			const areaServed = inferAreaServed(name, metaDesc, extraction);
+			if (areaServed) schema.areaServed = areaServed;
 			return { schema };
 		}
 
@@ -258,14 +338,20 @@ export function buildSchemaForType(
 		case "WebApplication": {
 			const name = h1 || title?.replace(/\s*\|.+$/, "").trim();
 			if (!name) return { skipped: true, reason: `No title or H1 for ${schemaType} name` };
-			return {
-				schema: {
-					"@context": "https://schema.org",
-					"@type": schemaType,
-					name,
+			const schema: Record<string, unknown> = {
+				"@context": "https://schema.org",
+				"@type": schemaType,
+				name,
+				url,
+				applicationCategory: "BusinessApplication",
+				offers: {
+					"@type": "Offer",
+					availability: "https://schema.org/OnlineOnly",
 					url,
 				},
 			};
+			if (metaDesc) schema.description = metaDesc;
+			return { schema };
 		}
 
 		default: {

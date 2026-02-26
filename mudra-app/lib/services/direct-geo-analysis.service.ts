@@ -217,6 +217,7 @@ async function retryWithBackoff<T>(
     } catch (error: any) {
       const isLastAttempt = attempt === maxRetries - 1;
       const isRetryable =
+        error.status === 408 || // Request timeout
         error.status === 429 || // Rate limit
         error.status === 500 || // Server error
         error.status === 502 || // Bad gateway
@@ -1416,7 +1417,7 @@ async function analyzeWithOpenAI(
 
     const response = await retryWithBackoff(async () => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 second timeout
 
       try {
         const res = await fetch('https://api.openai.com/v1/responses', {
@@ -1454,7 +1455,7 @@ async function analyzeWithOpenAI(
       } catch (err: any) {
         clearTimeout(timeoutId);
         if (err.name === 'AbortError') {
-          const timeoutError = new Error('Request timeout after 60 seconds');
+          const timeoutError = new Error('Request timeout after 90 seconds');
           (timeoutError as any).code = 'ETIMEDOUT';
           throw timeoutError;
         }
@@ -1981,8 +1982,8 @@ async function analyzeWithAnthropic(
 
     const response = await retryWithBackoff(async () => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
-      
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
+
       try {
         const res = await anthropic.messages.create(
           {
@@ -2011,7 +2012,7 @@ async function analyzeWithAnthropic(
       } catch (err: any) {
         clearTimeout(timeoutId);
         if (err.name === 'AbortError') {
-          const timeoutError = new Error('Request timeout after 60 seconds');
+          const timeoutError = new Error('Request timeout after 90 seconds');
           (timeoutError as any).code = 'ETIMEDOUT';
           throw timeoutError;
         }
@@ -2220,7 +2221,7 @@ async function callGeminiSdkWithFallback(
 
       const result = await retryWithBackoff(async () => {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
 
         try {
           const res = await model.generateContent(prompt);
@@ -2229,7 +2230,7 @@ async function callGeminiSdkWithFallback(
         } catch (err: any) {
           clearTimeout(timeoutId);
           if (err.name === 'AbortError') {
-            const timeoutError = new Error('Request timeout after 60 seconds');
+            const timeoutError = new Error('Request timeout after 90 seconds');
             (timeoutError as any).code = 'ETIMEDOUT';
             throw timeoutError;
           }
@@ -2303,7 +2304,7 @@ async function analyzeWithGoogle(
             const endpoint = buildGeminiRestEndpoint(modelName);
             const restResult = await retryWithBackoff(async () => {
               const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 60000);
+              const timeoutId = setTimeout(() => controller.abort(), 90000);
 
               try {
                 const res = await fetch(endpoint, {
@@ -2328,7 +2329,7 @@ async function analyzeWithGoogle(
               } catch (err: any) {
                 clearTimeout(timeoutId);
                 if (err.name === 'AbortError') {
-                  const timeoutError = new Error('Request timeout after 60 seconds');
+                  const timeoutError = new Error('Request timeout after 90 seconds');
                   (timeoutError as any).code = 'ETIMEDOUT';
                   throw timeoutError;
                 }
@@ -2943,3 +2944,6 @@ export function createDirectGEOConfig(
     },
   };
 }
+
+// Export for testing
+export const _internal = { retryWithBackoff };

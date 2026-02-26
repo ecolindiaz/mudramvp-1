@@ -5,6 +5,7 @@ import { getBrandProfile } from '@/lib/prisma-brand-profile';
 import { logGeoAnalysisRun } from '@/lib/services/geo-analysis-log.service';
 import { requireAuth } from '@/lib/auth/require-auth';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
+import { type CountryCode, isAllowedCountry } from '@/lib/geo/country-config';
 
 type ProviderAnalysis = {
   provider: string;
@@ -43,6 +44,7 @@ type DirectGeoRequestBody = {
   industry?: string;
   description?: string;
   competitors?: CompetitorCollection;
+  country?: string;
 };
 
 type CompetitorRecord = {
@@ -117,7 +119,7 @@ export async function POST(request: NextRequest) {
 
   try {
     requestBody = (await request.json()) as DirectGeoRequestBody;
-    let { brandName, website, industry, description, competitors, customPrompts } = requestBody as DirectGeoRequestBody & { customPrompts?: string[] };
+    let { brandName, website, industry, description, competitors, customPrompts, country } = requestBody as DirectGeoRequestBody & { customPrompts?: string[] };
 
     if (!Array.isArray(competitors)) {
       competitors = typeof competitors === 'string' && competitors.length > 0
@@ -165,6 +167,7 @@ export async function POST(request: NextRequest) {
       description,
       competitors: normalizedCompetitors,
       customPrompts,
+      country: country && isAllowedCountry(country) ? country as CountryCode : undefined,
     });
 
     console.log('Starting GEO analysis for:', brandName);

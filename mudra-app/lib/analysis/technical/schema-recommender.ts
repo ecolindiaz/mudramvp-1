@@ -56,7 +56,9 @@ Rules:
 
 Return ONLY a JSON object: {"schemas": ["Type1", "Type2"], "confidence": 0.0-1.0}
 confidence = how certain you are that these are the correct schema types (0.0 = guessing, 1.0 = certain).
-Valid types: Organization, WebSite, Product, Service, Article, BlogPosting, HowTo, SoftwareApplication, WebApplication, OfferCatalog, ItemList, Person`;
+Valid types: Organization, WebSite, Product, Service, Article, BlogPosting, HowTo, SoftwareApplication, WebApplication, OfferCatalog, ItemList, Person
+
+IMPORTANT: Confidence should reflect how certain you are about your recommendation, NOT the marginal value. A page with good existing schema can still receive high confidence if you are certain about which additional schemas should be present.`;
 
 /**
  * Build a compact page summary for the LLM (~400 tokens).
@@ -314,9 +316,9 @@ export async function getRecommendedSchemasWithAI(
 		}).catch(() => {});
 
 		if (llmResult) {
-			if (llmResult.confidence < 0.6) {
+			if (llmResult.confidence < 0.5) {
 				console.warn(
-					`[SchemaRecommender] LLM confidence too low (${llmResult.confidence}), using heuristic fallback`
+					`[SchemaRecommender] LLM confidence too low (${llmResult.confidence}), existing schemas: ${extraction.extraction.schema.schemas_found.length}, page_type: ${extraction.page_type}, page_url: ${extraction.page_url}, using heuristic fallback`
 				);
 			} else {
 				return applyDeterministicRules(llmResult.schemas, extraction);

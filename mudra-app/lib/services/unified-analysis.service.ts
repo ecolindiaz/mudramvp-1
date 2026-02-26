@@ -1149,9 +1149,11 @@ async function generateReport(data: {
 
         await generateWeeklyReport({ companyId, weekStartUtc: weekStart });
         console.log('[Report] ✅ Generated WeeklyReport for dashboard NLR');
+      } else {
+        console.warn(`[Report] No companyId found for brandProfileId: ${data.brandProfileId} — skipping WeeklyReport`);
       }
     } catch (weeklyErr) {
-      console.warn('[Report] ⚠️ Failed to generate WeeklyReport (non-fatal):', weeklyErr);
+      console.error('[Report] ⚠️ Failed to generate WeeklyReport (non-fatal):', weeklyErr, weeklyErr instanceof Error ? weeklyErr.stack : '');
     }
 
     return { success: true, id: savedReport.id };

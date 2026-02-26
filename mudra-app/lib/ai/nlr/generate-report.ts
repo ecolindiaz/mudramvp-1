@@ -342,6 +342,9 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
       max_tokens: gpt4?.settings.defaultMaxTokens || 1000,
     })
     content = r.choices?.[0]?.message?.content || ''
+    if (!content || content.length < 20) {
+      throw new Error(`Empty content from GPT-4 fallback: length=${content.length}`)
+    }
     usedModelId = gpt4?.id || 'gpt-4'
     const usage: any = (r as any).usage || {}
     tokensIn = usage.prompt_tokens ?? usage.input_tokens ?? 0

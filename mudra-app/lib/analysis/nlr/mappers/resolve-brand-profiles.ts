@@ -227,5 +227,6 @@ export async function resolveCompanyIdFromBrandProfile(
     }
   }
 
+  console.warn(`[ResolveBrandProfile] Could not resolve companyId for brandProfileId=${brandProfileId}, domain=${domain}, lookups exhausted: Company(exact,www,base,www.base), Site(exact,www,base,www.base), SiblingBrandProfile`);
   return null;
 }

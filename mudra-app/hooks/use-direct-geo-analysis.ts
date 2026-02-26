@@ -16,6 +16,7 @@ export interface GEOAnalysisConfig {
   industry?: string;
   description?: string;
   competitors?: string[];
+  country?: string;
 }
 
 export function useDirectGEOAnalysis() {

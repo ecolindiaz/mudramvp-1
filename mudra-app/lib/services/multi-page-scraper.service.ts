@@ -222,6 +222,56 @@ export async function scrapePages(
 			}
 		}
 
+		// Auto-retry failed pages with transient errors
+		const isTransientError = (error: string | undefined): boolean => {
+			if (!error) return false;
+			const e = error.toLowerCase();
+			return e.includes("timeout") || e.includes("408") || e.includes("econnreset") ||
+				/\b5\d{2}\b/.test(e) || e.includes("server error") || e.includes("bad gateway") ||
+				e.includes("service unavailable") || e.includes("gateway timeout");
+		};
+
+		const retryableResults = allResults.filter((r) => !r.success && isTransientError(r.error));
+		if (retryableResults.length > 0 && retryableResults.length < uniqueUrls.length) {
+			const retryUrls = retryableResults.map((r) => r.url);
+			console.log(`[MultiPageScraper] Retrying ${retryUrls.length} failed pages...`);
+
+			const retryBatches = chunkArray(retryUrls, concurrency);
+			const retryResults: PageScrapeResult[] = [];
+
+			for (const batch of retryBatches) {
+				const batchSettled = await Promise.allSettled(
+					batch.map((url) => scrapeSinglePage(firecrawl, url, { timeoutMs, bypassCache }))
+				);
+				for (const result of batchSettled) {
+					if (result.status === "fulfilled") {
+						retryResults.push(result.value);
+					} else {
+						const failedUrl = batch[batchSettled.indexOf(result)];
+						retryResults.push({
+							url: failedUrl,
+							success: false,
+							error: result.reason?.message || "Unknown retry error",
+							scrapedAt: new Date().toISOString(),
+						});
+					}
+				}
+			}
+
+			// Replace successful retries in allResults
+			let recovered = 0;
+			for (const retryResult of retryResults) {
+				if (retryResult.success) {
+					const idx = allResults.findIndex((r) => r.url === retryResult.url);
+					if (idx !== -1) {
+						allResults[idx] = retryResult;
+						recovered++;
+					}
+				}
+			}
+			console.log(`[MultiPageScraper] Retry recovered ${recovered}/${retryUrls.length} pages`);
+		}
+
 		// Calculate statistics
 		const successCount = allResults.filter((r) => r.success).length;
 		const failureCount = allResults.filter((r) => !r.success).length;

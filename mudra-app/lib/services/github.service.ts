@@ -65,7 +65,7 @@ async function refreshInstallationToken(installationId: number): Promise<string>
 /**
  * Get a valid GitHub token for API calls
  */
-async function getValidGitHubToken(integration: any): Promise<string> {
+export async function getValidGitHubToken(integration: any): Promise<string> {
   if (integration.integrationType === 'installation' && integration.installationId) {
     const tokenExpiresAt = integration.tokenExpiresAt;
     const now = new Date();
@@ -87,7 +87,7 @@ async function getValidGitHubToken(integration: any): Promise<string> {
 /**
  * Detect content type from the generated code
  */
-type ContentType = 'json-ld' | 'meta-tags' | 'nav-links' | 'faq-section' | 'generic-html' | 'generic-jsx';
+export type ContentType = 'json-ld' | 'meta-tags' | 'nav-links' | 'faq-section' | 'generic-html' | 'generic-jsx';
 
 function detectContentType(code: string): ContentType {
   if (code.includes('application/ld+json') || code.includes('"@context"') || code.includes("'@context'")) {
@@ -169,7 +169,7 @@ function hasExistingOptimization(content: string, newCode: string, contentType: 
 /**
  * Repo structure cache to avoid repeated API calls
  */
-interface RepoStructure {
+export interface RepoStructure {
   framework: 'nextjs-app' | 'nextjs-pages' | 'astro' | 'nuxt' | 'react' | 'html' | 'unknown'
   hasAppDir: boolean
   hasPagesDir: boolean
@@ -185,7 +185,7 @@ const CACHE_TTL = 5 * 60 * 1000  // 5 minutes
 /**
  * Fetch and analyze repo structure
  */
-async function getRepoStructure(
+export async function getRepoStructure(
   accessToken: string,
   owner: string,
   repo: string,
@@ -384,7 +384,7 @@ function createFallbackStructure(): RepoStructure {
  * Map a URL path to the best file in the repo
  * E.g., /pricing → app/pricing/page.tsx or pages/pricing.tsx
  */
-function mapUrlToFile(
+export function mapUrlToFile(
   urlPath: string,
   structure: RepoStructure,
   contentType: ContentType,
@@ -466,7 +466,7 @@ function mapUrlToFile(
 /**
  * Get global/layout files for site-wide content
  */
-function getGlobalFiles(structure: RepoStructure): string[] {
+export function getGlobalFiles(structure: RepoStructure): string[] {
   const files: string[] = []
   
   if (structure.framework === 'nextjs-app') {

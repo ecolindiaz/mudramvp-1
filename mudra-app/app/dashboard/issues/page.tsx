@@ -132,7 +132,7 @@ interface Issue {
   checkCode?: string | null
   affectedUrl?: string | null
   estimatedImpact?: string | null
-  status: "identified" | "in_progress" | "completed" | "merged" | "failed" | "dismissed"
+  status: "identified" | "in_progress" | "completed" | "merged" | "failed" | "quality_failed" | "dismissed"
   priority: "low" | "medium" | "high"
   order: number
   createdAt: string
@@ -180,6 +180,7 @@ const statusConfig = {
   completed: { icon: CompletedIcon, color: "text-white", bg: "bg-white/10" },
   merged: { icon: MergedIcon, color: "text-sky-400", bg: "bg-sky-400/10" },
   failed: { icon: FailedIcon, color: "text-red-400", bg: "bg-red-400/10" },
+  quality_failed: { icon: FailedIcon, color: "text-orange-400", bg: "bg-orange-400/10" },
   dismissed: { icon: DismissedIcon, color: "text-white/40", bg: "bg-white/5" },
 }
 
@@ -299,8 +300,8 @@ function SortableIssueCard({
                 Generate Code
               </DropdownMenuItem>
             )}
-            {/* Retry - for failed issues */}
-            {issue.status === "failed" && onRetry && (
+            {/* Retry - for failed or quality_failed issues */}
+            {(issue.status === "failed" || issue.status === "quality_failed") && onRetry && (
               <DropdownMenuItem
                 onClick={(e) => { e.stopPropagation(); onRetry(issue.id); }}
                 className="text-amber-400 hover:bg-amber-400/10 cursor-pointer"
@@ -863,7 +864,7 @@ function IssueDetailDialog({
   const priorityConf = issue.priority && priorityConfig[issue.priority] ? priorityConfig[issue.priority] : priorityConfig.medium
 
   const canDeploy = issue.status === "identified" && issue.agentType
-  const canRetry = issue.status === "failed"
+  const canRetry = issue.status === "failed" || issue.status === "quality_failed"
   const hasPR = issue.prUrl && issue.prNumber
   const hasOutput = issue.generatedOutput
 
@@ -1602,10 +1603,12 @@ function IssuesPageInner() {
             setDeployingId(null)
             fetchIssues()  // Refresh full list
             return  // Stop polling
-          } else if (issue.status === 'failed' || issue.status === 'identified') {
-            // Failed or reset to identified means it failed
-            toast.error("Agent failed", {
-              description: "Check the issue details for error information.",
+          } else if (issue.status === 'failed' || issue.status === 'quality_failed' || issue.status === 'identified') {
+            // Failed, quality failed, or reset to identified means it failed
+            toast.error(issue.status === 'quality_failed' ? "Quality check failed" : "Agent failed", {
+              description: issue.status === 'quality_failed'
+                ? "The agent couldn't meet quality standards after multiple attempts. You can retry."
+                : "Check the issue details for error information.",
             })
             setDeployingId(null)
             fetchIssues()  // Refresh full list

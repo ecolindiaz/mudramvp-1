@@ -212,35 +212,38 @@ export function PromptsForm() {
           console.error("[PromptsForm] Pipeline failed:", err)
           completeAnalysis(false)
         }
-      })()
 
-      // Fire-and-forget analysis for additional monitors
-      if (additionalMonitorIds.length > 0) {
-        const extraEntries = onboardingData.domainEntries.slice(1).filter(e => e.domain.trim())
-        additionalMonitorIds.forEach((monitorId, idx) => {
-          const entry = extraEntries[idx]
-          if (!entry) return
-          const countries = entry.regions.filter(Boolean)
-          console.log(`[PromptsForm] Triggering analysis for additional monitor ${monitorId} (${entry.domain})`)
-          fetch("/api/analysis/unified", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              brandProfileId: monitorId,
-              brandName: onboardingData.companyName,
-              website: entry.domain,
-              industry: onboardingData.companyIndustry || undefined,
-              description: onboardingData.companyDescription || undefined,
-              competitors: onboardingData.competitors || [],
-              countries: countries.length > 0 ? countries : ["US"],
-              skipCooldown: true,
-              generateReport: true,
-            }),
-          }).catch(err => {
-            console.error(`[PromptsForm] Additional monitor ${monitorId} analysis failed:`, err)
-          })
-        })
-      }
+        // Sequential analysis for additional monitors (after primary completes)
+        if (additionalMonitorIds.length > 0) {
+          const extraEntries = onboardingData.domainEntries.slice(1).filter(e => e.domain.trim())
+          for (const [idx, monitorId] of additionalMonitorIds.entries()) {
+            const entry = extraEntries[idx]
+            if (!entry) continue
+            const countries = entry.regions.filter(Boolean)
+            try {
+              console.log(`[PromptsForm] Triggering analysis for additional monitor ${monitorId} (${entry.domain})`)
+              await fetch("/api/analysis/unified", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  brandProfileId: monitorId,
+                  brandName: onboardingData.companyName,
+                  website: entry.domain,
+                  industry: onboardingData.companyIndustry || undefined,
+                  description: onboardingData.companyDescription || undefined,
+                  competitors: onboardingData.competitors || [],
+                  countries: countries.length > 0 ? countries : ["US"],
+                  skipCooldown: true,
+                  generateReport: true,
+                }),
+              })
+              console.log(`[PromptsForm] Additional monitor ${monitorId} (${entry.domain}) completed`)
+            } catch (err) {
+              console.error(`[PromptsForm] Additional monitor ${monitorId} analysis failed:`, err)
+            }
+          }
+        }
+      })()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recoveryState, analysisStarted, profile?.id])

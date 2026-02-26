@@ -25,7 +25,6 @@ import {
   checkExistingBlogFiles,
   getRepoStructure,
   mapUrlToFile,
-  getGlobalFiles,
   getValidGitHubToken,
   type RepoStructure,
   type ContentType,
@@ -389,19 +388,19 @@ export async function resolveFrameworkAwareFilePath(
     return { filePath, framework: 'unknown', hasSrcDir: false, repoStructure: null }
   }
 
+  // For standalone config files, skip repo structure fetch entirely
+  const STANDALONE_AGENTS = ['site_config', 'robots_txt', 'sitemap', 'llms_txt', 'llms_txt_missing', 'llms_txt_optimizer']
+  if (STANDALONE_AGENTS.includes(agentType)) {
+    const filePath = getFilePathForAgentType(agentType)
+    return { filePath, framework: 'unknown', hasSrcDir: false, repoStructure: null }
+  }
+
   try {
     const repoStructure = await getRepoStructure(
       ghCtx.accessToken, ghCtx.owner, ghCtx.repo, ghCtx.baseBranch
     )
 
     console.log(`[IssueExecutor] Repo framework: ${repoStructure.framework}, hasSrcDir: ${repoStructure.hasSrcDir}, pages: ${repoStructure.pageFiles.length}`)
-
-    // For standalone config files, skip URL-based mapping
-    const STANDALONE_AGENTS = ['site_config', 'robots_txt', 'sitemap', 'llms_txt', 'llms_txt_missing', 'llms_txt_optimizer']
-    if (STANDALONE_AGENTS.includes(agentType)) {
-      const filePath = getFilePathForAgentType(agentType, repoStructure.framework, repoStructure.hasSrcDir)
-      return { filePath, framework: repoStructure.framework, hasSrcDir: repoStructure.hasSrcDir, repoStructure }
-    }
 
     // Detect content type from generated code (if available) for smarter file mapping
     const contentType: ContentType = generatedCode
@@ -437,7 +436,9 @@ export async function resolveFrameworkAwareFilePath(
 }
 
 /**
- * Lightweight content type detection for the executor (mirrors github.service's detectContentType)
+ * Lightweight content type detection for the executor.
+ * Detects json-ld, meta-tags, and faq-section; falls back to generic-jsx.
+ * Note: does not detect nav-links or generic-html (handled by github.service's detectContentType).
  */
 function detectContentTypeFromCode(code: string): ContentType {
   if (code.includes('application/ld+json') || code.includes('"@context"') || code.includes("'@context'")) {

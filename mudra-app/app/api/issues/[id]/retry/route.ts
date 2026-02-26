@@ -58,7 +58,8 @@ export async function POST(
     }
 
     // Check if issue is in a valid state for retry
-    if (issue.status !== 'failed') {
+    const retryableStatuses = ['failed', 'quality_failed']
+    if (!retryableStatuses.includes(issue.status)) {
       return NextResponse.json(
         { success: false, error: { message: `Cannot retry: issue status is ${issue.status}` } },
         { status: 400 }

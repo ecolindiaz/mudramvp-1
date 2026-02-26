@@ -20,7 +20,16 @@ import {
   type SchemaValidationResult,
   type FaqValidationResult
 } from './e2b-sandbox.service'
-import { createOptimizationPR, checkExistingBlogFiles } from './github.service'
+import {
+  createOptimizationPR,
+  checkExistingBlogFiles,
+  getRepoStructure,
+  mapUrlToFile,
+  getGlobalFiles,
+  getValidGitHubToken,
+  type RepoStructure,
+  type ContentType,
+} from './github.service'
 import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
 import { getFirecrawlClient } from '@/mastra/tools/firecrawl-client'
 import { scrapeFaqContext, scrapePageContent } from './page-scrape-context.service'
@@ -142,59 +151,21 @@ async function withTimeout<T>(
 /**
  * Fetch the source code of the target file from the user's GitHub repo.
  * This gives the agent the actual codebase context.
+ * Uses resolveGitHubContext() for shared credential resolution.
  */
 async function fetchSourceFileFromGitHub(
   brandProfileId: number,
   filePath: string
 ): Promise<string | null> {
   try {
-    const brandProfile = await prisma.brandProfile.findUnique({
-      where: { id: brandProfileId },
-      include: { user: { include: { githubIntegration: true } } },
-    })
-    if (!brandProfile?.user?.githubIntegration) return null
-
-    const integration = brandProfile.user.githubIntegration
-
-    // Get token — import logic from github.service pattern
-    let accessToken: string
-    if (integration.integrationType === 'installation' && integration.installationId) {
-      // For app installations, the token is already managed
-      const { decryptToken } = await import('@/lib/crypto/token-encryption')
-      accessToken = decryptToken(integration.accessToken)
-    } else {
-      const { decryptToken } = await import('@/lib/crypto/token-encryption')
-      accessToken = decryptToken(integration.accessToken)
-    }
-
-    // Determine repo
-    let repoName: string | undefined
-    let baseBranch = 'main'
-    const agentSchedule = await prisma.agentSchedule.findFirst({
-      where: { brandProfileId, isEnabled: true },
-      orderBy: { createdAt: 'desc' },
-    })
-    if (agentSchedule?.config) {
-      const config = agentSchedule.config as Record<string, unknown>
-      if (config.githubRepo) {
-        repoName = config.githubRepo as string
-        baseBranch = (config.githubBranch as string) || 'main'
-      }
-    }
-    if (!repoName && integration.repositories) {
-      const repos = integration.repositories as string[]
-      if (repos.length > 0) repoName = repos[0]
-    }
-    if (!repoName) return null
-
-    const [owner, repo] = repoName.split('/')
-    if (!owner || !repo) return null
+    const ghCtx = await resolveGitHubContext(brandProfileId)
+    if (!ghCtx) return null
 
     const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${baseBranch}`,
+      `https://api.github.com/repos/${ghCtx.owner}/${ghCtx.repo}/contents/${filePath}?ref=${ghCtx.baseBranch}`,
       {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${ghCtx.accessToken}`,
           Accept: 'application/vnd.github.v3+json',
         },
       }
@@ -228,7 +199,7 @@ async function fetchSourceFileFromGitHub(
  * app/pricing/page.tsx. Falls back to getFilePathForAgentType() for non-page
  * agents or when no URL is available.
  */
-function getSafeUrlPathFromAffectedUrl(affectedUrl: string): string | null {
+export function getSafeUrlPathFromAffectedUrl(affectedUrl: string): string | null {
   let pathname: string
 
   try {
@@ -278,13 +249,13 @@ function getSafeUrlPathFromAffectedUrl(affectedUrl: string): string | null {
   return safeSegments.join('/')
 }
 
-function resolveSourceFilePath(agentType: string, affectedUrl: string | null): string {
+export function resolveSourceFilePath(agentType: string, affectedUrl: string | null, framework?: RepoStructure['framework'], hasSrcDir?: boolean): string {
   const PAGE_SPECIFIC_AGENTS = [
     'schema_markup', 'heading_hierarchy', 'content_structure', 'faq_sections',
     'meta_optimization', 'citation_signals', 'ai_content_optimizer',
     'authority_building', 'brand_messaging', 'navigation', 'nav_optimization',
   ]
-  const fallbackPath = getFilePathForAgentType(agentType)
+  const fallbackPath = getFilePathForAgentType(agentType, framework, hasSrcDir)
 
   if (!affectedUrl || !PAGE_SPECIFIC_AGENTS.includes(agentType)) {
     return fallbackPath
@@ -296,20 +267,198 @@ function resolveSourceFilePath(agentType: string, affectedUrl: string | null): s
     return fallbackPath
   }
 
+  // Use detected framework to build the correct file path
+  const detectedFramework = framework || 'nextjs-app'
+  const srcPrefix = hasSrcDir ? 'src/' : ''
+
   if (!urlPath || urlPath === '') {
     // Homepage
-    return 'app/page.tsx'
+    switch (detectedFramework) {
+      case 'nextjs-app':
+        return `${srcPrefix}app/page.tsx`
+      case 'nextjs-pages':
+        return `${srcPrefix}pages/index.tsx`
+      case 'astro':
+        return 'src/pages/index.astro'
+      case 'nuxt':
+        return 'pages/index.vue'
+      case 'html':
+        return 'index.html'
+      default:
+        return `${srcPrefix}app/page.tsx`
+    }
   }
 
-  // Convert URL path to Next.js App Router file path
-  // e.g. "pricing" → "app/pricing/page.tsx"
-  //      "blog/my-post" → "app/blog/my-post/page.tsx"
-  return `app/${urlPath}/page.tsx`
+  // Convert URL path to framework-specific file path
+  switch (detectedFramework) {
+    case 'nextjs-app':
+      // e.g. "pricing" → "app/pricing/page.tsx"
+      return `${srcPrefix}app/${urlPath}/page.tsx`
+    case 'nextjs-pages':
+      // e.g. "pricing" → "pages/pricing.tsx"
+      return `${srcPrefix}pages/${urlPath}.tsx`
+    case 'astro':
+      // e.g. "pricing" → "src/pages/pricing.astro"
+      return `src/pages/${urlPath}.astro`
+    case 'nuxt':
+      // e.g. "pricing" → "pages/pricing.vue"
+      return `pages/${urlPath}.vue`
+    case 'html':
+      // e.g. "pricing" → "pricing.html" or "pricing/index.html"
+      return `${urlPath}.html`
+    default:
+      return `${srcPrefix}app/${urlPath}/page.tsx`
+  }
+}
+
+/**
+ * Resolve the GitHub credentials and repo info for a brand profile.
+ * Shared helper used by both fetchSourceFileFromGitHub and resolveFrameworkAwareFilePath.
+ */
+async function resolveGitHubContext(brandProfileId: number): Promise<{
+  accessToken: string
+  owner: string
+  repo: string
+  baseBranch: string
+} | null> {
+  try {
+    const brandProfile = await prisma.brandProfile.findUnique({
+      where: { id: brandProfileId },
+      include: { user: { include: { githubIntegration: true } } },
+    })
+    if (!brandProfile?.user?.githubIntegration) return null
+
+    const integration = brandProfile.user.githubIntegration
+    const accessToken = await getValidGitHubToken(integration)
+
+    // Determine repo
+    let repoName: string | undefined
+    let baseBranch = 'main'
+    const agentSchedule = await prisma.agentSchedule.findFirst({
+      where: { brandProfileId, isEnabled: true },
+      orderBy: { createdAt: 'desc' },
+    })
+    if (agentSchedule?.config) {
+      const config = agentSchedule.config as Record<string, unknown>
+      if (config.githubRepo) {
+        repoName = config.githubRepo as string
+        baseBranch = (config.githubBranch as string) || 'main'
+      }
+    }
+    if (!repoName && integration.repositories) {
+      const repos = integration.repositories as string[]
+      if (repos.length > 0) repoName = repos[0]
+    }
+    if (!repoName) return null
+
+    const [owner, repo] = repoName.split('/')
+    if (!owner || !repo) return null
+
+    return { accessToken, owner, repo, baseBranch }
+  } catch (err) {
+    console.warn(`[IssueExecutor] Failed to resolve GitHub context:`, err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+/**
+ * Framework-aware file path resolution.
+ *
+ * 1. Fetches the repo tree from GitHub to detect the framework (Next.js App/Pages, Astro, Nuxt, HTML)
+ * 2. Uses mapUrlToFile() from github.service to find the best matching file path
+ * 3. Falls back to resolveSourceFilePath() if GitHub is unavailable
+ *
+ * Returns the resolved file path, the detected framework name, and the repo structure.
+ */
+export async function resolveFrameworkAwareFilePath(
+  brandProfileId: number,
+  agentType: string,
+  affectedUrl: string | null,
+  generatedCode?: string,
+): Promise<{
+  filePath: string
+  framework: RepoStructure['framework']
+  hasSrcDir: boolean
+  repoStructure: RepoStructure | null
+}> {
+  const ghCtx = await resolveGitHubContext(brandProfileId)
+
+  if (!ghCtx) {
+    console.log(`[IssueExecutor] No GitHub context — using default path resolution`)
+    const filePath = resolveSourceFilePath(agentType, affectedUrl)
+    return { filePath, framework: 'unknown', hasSrcDir: false, repoStructure: null }
+  }
+
+  try {
+    const repoStructure = await getRepoStructure(
+      ghCtx.accessToken, ghCtx.owner, ghCtx.repo, ghCtx.baseBranch
+    )
+
+    console.log(`[IssueExecutor] Repo framework: ${repoStructure.framework}, hasSrcDir: ${repoStructure.hasSrcDir}, pages: ${repoStructure.pageFiles.length}`)
+
+    // For standalone config files, skip URL-based mapping
+    const STANDALONE_AGENTS = ['site_config', 'robots_txt', 'sitemap', 'llms_txt', 'llms_txt_missing', 'llms_txt_optimizer']
+    if (STANDALONE_AGENTS.includes(agentType)) {
+      const filePath = getFilePathForAgentType(agentType, repoStructure.framework, repoStructure.hasSrcDir)
+      return { filePath, framework: repoStructure.framework, hasSrcDir: repoStructure.hasSrcDir, repoStructure }
+    }
+
+    // Detect content type from generated code (if available) for smarter file mapping
+    const contentType: ContentType = generatedCode
+      ? detectContentTypeFromCode(generatedCode)
+      : 'generic-jsx'
+
+    // Check if this is global content (Organization/WebSite schema → layout file)
+    const isGlobalContent: boolean = contentType === 'json-ld' &&
+      !!(generatedCode?.includes('"Organization"') || generatedCode?.includes('"WebSite"'))
+
+    // Use the URL and framework to find the best file candidates
+    const targetUrl = affectedUrl || ''
+    const candidates = mapUrlToFile(targetUrl, repoStructure, contentType, isGlobalContent)
+
+    if (candidates.length > 0) {
+      // Verify the top candidate actually exists in the repo's page catalog
+      const bestCandidate = repoStructure.pageFiles.find(pf =>
+        candidates.some(c => pf === c || pf.endsWith(c))
+      ) || candidates[0]
+
+      console.log(`[IssueExecutor] Framework-aware path: ${bestCandidate} (from ${candidates.length} candidates)`)
+      return { filePath: bestCandidate, framework: repoStructure.framework, hasSrcDir: repoStructure.hasSrcDir, repoStructure }
+    }
+
+    // Fallback to framework-aware static resolver
+    const filePath = resolveSourceFilePath(agentType, affectedUrl, repoStructure.framework, repoStructure.hasSrcDir)
+    return { filePath, framework: repoStructure.framework, hasSrcDir: repoStructure.hasSrcDir, repoStructure }
+  } catch (err) {
+    console.warn(`[IssueExecutor] Framework detection failed, using defaults:`, err instanceof Error ? err.message : err)
+    const filePath = resolveSourceFilePath(agentType, affectedUrl)
+    return { filePath, framework: 'unknown', hasSrcDir: false, repoStructure: null }
+  }
+}
+
+/**
+ * Lightweight content type detection for the executor (mirrors github.service's detectContentType)
+ */
+function detectContentTypeFromCode(code: string): ContentType {
+  if (code.includes('application/ld+json') || code.includes('"@context"') || code.includes("'@context'")) {
+    return 'json-ld'
+  }
+  if (code.includes('<meta ') || code.includes('og:') || code.includes('twitter:')) {
+    return 'meta-tags'
+  }
+  if (code.toLowerCase().includes('faq') || code.includes('FAQPage')) {
+    return 'faq-section'
+  }
+  return 'generic-jsx'
 }
 
 /**
  * Gather full context for an issue: page content + source code + existing files.
  * This is the "context enrichment" phase that runs before the agent generates code.
+ *
+ * Uses framework-aware path resolution: detects the user's repo framework
+ * (Next.js App/Pages, Astro, Nuxt, HTML) and resolves the correct file paths
+ * instead of hardcoding Next.js App Router conventions.
  */
 async function gatherIssueContext(issue: {
   affectedUrl: string | null
@@ -323,6 +472,7 @@ async function gatherIssueContext(issue: {
   sourceFile: string | null
   sourceFilePath: string | null
   blogContext: string
+  detectedFramework: RepoStructure['framework']
 }> {
   const targetUrl = issue.affectedUrl || issue.brandProfile.companyWebsite
 
@@ -333,14 +483,21 @@ async function gatherIssueContext(issue: {
       : scrapePageContent(targetUrl)
     : Promise.resolve(null)
 
-  // 2. Fetch the source file that will be modified
-  //    For schema agents, derive the path from the affected URL instead of
-  //    using the hardcoded 'app/page.tsx' default — a /pricing issue needs
-  //    app/pricing/page.tsx, not the homepage source.
-  const targetFilePath = resolveSourceFilePath(issue.agentType || 'schema_markup', issue.affectedUrl)
-  const sourceFilePromise = fetchSourceFileFromGitHub(issue.brandProfileId, targetFilePath)
+  // 2. Resolve the target file using framework-aware detection
+  //    This fetches the repo tree, detects the framework (Astro, Next.js Pages, etc.),
+  //    and maps the affected URL to the correct file path for that framework.
+  const resolvedPath = await resolveFrameworkAwareFilePath(
+    issue.brandProfileId,
+    issue.agentType || 'schema_markup',
+    issue.affectedUrl,
+  )
 
-  // 3. Check blog context if applicable
+  console.log(`[IssueExecutor] Resolved path: ${resolvedPath.filePath} (framework: ${resolvedPath.framework})`)
+
+  // 3. Fetch the source file from GitHub using the resolved path
+  const sourceFilePromise = fetchSourceFileFromGitHub(issue.brandProfileId, resolvedPath.filePath)
+
+  // 4. Check blog context if applicable
   let blogContext = ''
   if (issue.agentType === 'blog_setup' || issue.agentType === 'blog_page_missing') {
     try {
@@ -358,7 +515,13 @@ async function gatherIssueContext(issue: {
   // Run scrape + source file fetch in parallel
   const [pageContent, sourceFile] = await Promise.all([pageContentPromise, sourceFilePromise])
 
-  return { pageContent, sourceFile, sourceFilePath: targetFilePath, blogContext }
+  return {
+    pageContent,
+    sourceFile,
+    sourceFilePath: resolvedPath.filePath,
+    blogContext,
+    detectedFramework: resolvedPath.framework,
+  }
 }
 
 // Agent type to Mastra agent name mapping
@@ -434,6 +597,22 @@ export function detectFrameworkFromContext(filePath: string | null, content: str
     return 'React (JSX)'
   }
   return 'HTML'
+}
+
+/**
+ * Convert RepoStructure framework identifier to a human-readable name
+ * for use in LLM system prompts.
+ */
+export function formatFrameworkName(framework: RepoStructure['framework']): string {
+  switch (framework) {
+    case 'nextjs-app': return 'Next.js App Router (React/JSX)'
+    case 'nextjs-pages': return 'Next.js Pages Router (React/JSX)'
+    case 'astro': return 'Astro'
+    case 'nuxt': return 'Nuxt.js (Vue)'
+    case 'react': return 'React (JSX)'
+    case 'html': return 'HTML'
+    default: return 'HTML'
+  }
 }
 
 export interface ExecutionResult {
@@ -529,6 +708,7 @@ async function buildAgentPrompt(
     sourceFile: string | null
     sourceFilePath: string | null
     blogContext: string
+    detectedFramework?: RepoStructure['framework']
   }
 ): Promise<string> {
   const { brandProfile } = issue
@@ -800,54 +980,112 @@ function extractEngagementGuidance(responseText: string): {
  * Get the appropriate file path for each agent type
  * 
  * File placement logic:
- * - Global content (Organization schema, WebSite schema) → layout.tsx
- * - Page-specific content (Product, FAQ, Article schema) → page.tsx
- * - Meta optimization → page.tsx (each page has its own meta)
+ * - Global content (Organization schema, WebSite schema) → layout file
+ * - Page-specific content (Product, FAQ, Article schema) → page file
+ * - Meta optimization → page file (each page has its own meta)
  * - Config files (robots, sitemap, llms.txt) → public/
- * - Content restructuring → page.tsx
- * - Navigation → page.tsx (NOT layout - nav is page content)
+ * - Content restructuring → page file
+ * - Navigation → page file (NOT layout - nav is page content)
+ * 
+ * When framework is provided, returns framework-appropriate paths:
+ * - nextjs-app: app/page.tsx, app/layout.tsx
+ * - nextjs-pages: pages/index.tsx, pages/_app.tsx
+ * - astro: src/pages/index.astro, src/layouts/Layout.astro
+ * - nuxt: pages/index.vue, app.vue
+ * - html: index.html
  */
-function getFilePathForAgentType(agentType: string): string {
-  const FILE_PATHS: Record<string, string> = {
-    // Schema markup - depends on schema type (Organization goes to layout, others to page)
-    // Default to page.tsx, GitHub service will analyze content for Organization/WebSite
-    'schema_markup': 'app/page.tsx',
-    
-    // Content structure - always page-specific
-    'heading_hierarchy': 'app/page.tsx',
-    'content_structure': 'app/page.tsx',
-    'faq_sections': 'app/page.tsx',
-    
-    // Meta optimization - page-specific (each page can have unique meta)
-    'meta_optimization': 'app/page.tsx',
-    
-    // Site config files - these are standalone files in public/
+export function getFilePathForAgentType(
+  agentType: string,
+  framework?: RepoStructure['framework'],
+  hasSrcDir?: boolean,
+): string {
+  // Standalone config files are framework-agnostic
+  const STANDALONE_PATHS: Record<string, string> = {
     'site_config': 'public/robots.txt',
     'robots_txt': 'public/robots.txt',
     'sitemap': 'public/sitemap.xml',
-    
-    // AI visibility files - standalone files
     'llms_txt': 'public/llms.txt',
     'llms_txt_missing': 'public/llms.txt',
     'llms_txt_optimizer': 'public/llms.txt',
+  }
+
+  if (STANDALONE_PATHS[agentType]) {
+    return STANDALONE_PATHS[agentType]
+  }
+
+  const detectedFramework = framework || 'nextjs-app'
+  const srcPrefix = hasSrcDir ? 'src/' : ''
+
+  // Framework-specific page file and blog paths
+  const pagePath = getFrameworkPageFile(detectedFramework, srcPrefix)
+  const blogPagePath = getFrameworkBlogFile(detectedFramework, srcPrefix)
+  const blogPostPath = getFrameworkBlogPostFile(detectedFramework, srcPrefix)
+
+  const FILE_PATHS: Record<string, string> = {
+    // Schema markup
+    'schema_markup': pagePath,
     
-    // Content optimization - page-specific
-    'citation_signals': 'app/page.tsx',
-    'ai_content_optimizer': 'app/page.tsx',
-    'authority_building': 'app/page.tsx',
-    'brand_messaging': 'app/page.tsx',
+    // Content structure
+    'heading_hierarchy': pagePath,
+    'content_structure': pagePath,
+    'faq_sections': pagePath,
     
-    // Navigation - ALWAYS page-specific, NEVER layout
-    'navigation': 'app/page.tsx',
-    'nav_optimization': 'app/page.tsx',
+    // Meta optimization
+    'meta_optimization': pagePath,
     
-    // Blog setup - creates new blog directory structure
-    'blog_setup': 'app/blog/page.tsx',
-    'blog_page_missing': 'app/blog/page.tsx',
-    'blog_post_publish': 'app/blog/[slug]/page.tsx',
+    // Content optimization
+    'citation_signals': pagePath,
+    'ai_content_optimizer': pagePath,
+    'authority_building': pagePath,
+    'brand_messaging': pagePath,
+    
+    // Navigation
+    'navigation': pagePath,
+    'nav_optimization': pagePath,
+    
+    // Blog setup
+    'blog_setup': blogPagePath,
+    'blog_page_missing': blogPagePath,
+    'blog_post_publish': blogPostPath,
   }
   
-  return FILE_PATHS[agentType] || 'app/page.tsx'
+  return FILE_PATHS[agentType] || pagePath
+}
+
+/** Get the default page file for a framework */
+function getFrameworkPageFile(framework: RepoStructure['framework'], srcPrefix: string): string {
+  switch (framework) {
+    case 'nextjs-app': return `${srcPrefix}app/page.tsx`
+    case 'nextjs-pages': return `${srcPrefix}pages/index.tsx`
+    case 'astro': return 'src/pages/index.astro'
+    case 'nuxt': return 'pages/index.vue'
+    case 'html': return 'index.html'
+    default: return `${srcPrefix}app/page.tsx`
+  }
+}
+
+/** Get the blog index file for a framework */
+function getFrameworkBlogFile(framework: RepoStructure['framework'], srcPrefix: string): string {
+  switch (framework) {
+    case 'nextjs-app': return `${srcPrefix}app/blog/page.tsx`
+    case 'nextjs-pages': return `${srcPrefix}pages/blog/index.tsx`
+    case 'astro': return 'src/pages/blog/index.astro'
+    case 'nuxt': return 'pages/blog/index.vue'
+    case 'html': return 'blog/index.html'
+    default: return `${srcPrefix}app/blog/page.tsx`
+  }
+}
+
+/** Get the blog post file for a framework */
+function getFrameworkBlogPostFile(framework: RepoStructure['framework'], srcPrefix: string): string {
+  switch (framework) {
+    case 'nextjs-app': return `${srcPrefix}app/blog/[slug]/page.tsx`
+    case 'nextjs-pages': return `${srcPrefix}pages/blog/[slug].tsx`
+    case 'astro': return 'src/pages/blog/[slug].astro'
+    case 'nuxt': return 'pages/blog/[slug].vue'
+    case 'html': return 'blog/post.html'
+    default: return `${srcPrefix}app/blog/[slug]/page.tsx`
+  }
 }
 
 // ─── Production Eval Scoring ─────────────────────────────────────────────────
@@ -1143,8 +1381,12 @@ Return corrected schema markup that stays grounded in visible page content.
  *    b. Score the output with Mastra eval scorers (with cache check)
  *    c. Check quality gate + schema verification (for schema agents)
  *    d. If checks fail, feed feedback into next retry
- * 4. Create PR (draft if quality gate failed on final retry)
- * 5. Persist scores async, send notification if quality gate failed
+ * 4. HARD STOP if quality gate failed after all retries (no PR created)
+ * 5. Create PR (only when quality gate passed)
+ * 6. Persist scores internally (never exposed in PR)
+ *
+ * Eval scores are INTERNAL ONLY — they are stored in the database for
+ * analytics but never included in PR descriptions shown to users.
  */
 export async function executeIssueAgent(issueId: number): Promise<ExecutionResult> {
   console.log(`[IssueExecutor] Starting execution for issue ${issueId}`)
@@ -1254,7 +1496,10 @@ ${schemaKb}`
       const pageType = parsePageTypeFromDescription(issue.description) || 'home'
       const faqKb = await readFaqTemplates(pageType)
 
-      const framework = detectFrameworkFromContext(context.sourceFilePath, context.sourceFile)
+      // Use detected framework from repo analysis, fall back to file-extension heuristic
+      const framework = context.detectedFramework && context.detectedFramework !== 'unknown'
+        ? formatFrameworkName(context.detectedFramework)
+        : detectFrameworkFromContext(context.sourceFilePath, context.sourceFile)
 
       systemPrompt = `You are an FAQ content specialist. You generate page-type-aware FAQ sections that will be committed to the user's repository via an automated PR.
 
@@ -1308,7 +1553,8 @@ Use this context to produce accurate, targeted code. Base structured data on act
     }
 
     let currentCode = ''
-    let finalFilePath = resolveSourceFilePath(agentType, issue.affectedUrl)
+    // Use the framework-aware path already resolved during context enrichment
+    let finalFilePath = context.sourceFilePath || resolveSourceFilePath(agentType, issue.affectedUrl)
     let lastReview: ReviewResult | null = null
     let evalScores: ScoringResult | undefined
     let qualityGatePassed: boolean | null = null
@@ -1509,7 +1755,7 @@ Please generate an improved version addressing all the feedback above.`
         if (!schemaVerificationPassed) {
           throw new Error(`Schema verification failed: ${schemaVerificationErrors.join('; ')}`)
         }
-        console.warn(`[IssueExecutor] Quality gate failed on final retry — proceeding with draft PR`)
+        console.warn(`[IssueExecutor] Quality gate failed after all ${MAX_QUALITY_RETRIES + 1} attempts — will NOT create PR`)
       }
     }
 
@@ -1526,7 +1772,56 @@ Please generate an improved version addressing all the feedback above.`
       },
     })
 
-    // 5. Blog-specific early exit check
+    // 5. Quality gate hard stop — don't create PR if quality wasn't met
+    if (qualityGatePassed === false) {
+      const compositeScore = evalScores ? calculateCompositeScore(evalScores) : null
+      console.error(`[IssueExecutor] Issue ${issueId} quality gate failed after ${qualityRetryCount + 1} attempts (composite: ${compositeScore?.toFixed(1) ?? 'N/A'}/100) — aborting PR creation`)
+
+      await prisma.issue.update({
+        where: { id: issueId },
+        data: {
+          status: 'quality_failed',
+          generatedOutput: currentCode || null,
+          outputType: 'code',
+        },
+      })
+
+      // Internal notification (fire-and-forget)
+      const ownerUserId = issue.brandProfile.userId
+      if (ownerUserId) {
+        import('@/lib/services/notification.service').then(({ createNotification }) =>
+          createNotification({
+            userId: ownerUserId,
+            brandProfileId: issue.brandProfileId,
+            type: 'warning',
+            category: 'agent_quality_alert',
+            title: `Quality check failed: ${issue.title}`,
+            message: `The AI agent could not produce code that met our quality standards for "${issue.title}" after ${qualityRetryCount + 1} attempts. The issue has been flagged for review.`,
+            metadata: {
+              issueId,
+              compositeScore,
+              attempts: qualityRetryCount + 1,
+            } as Record<string, unknown>,
+          })
+        ).catch(err => console.warn('[IssueExecutor] Failed to send quality alert:', err))
+      }
+
+      return {
+        success: false,
+        error: `Quality gate failed after ${qualityRetryCount + 1} attempts (composite: ${compositeScore?.toFixed(1) ?? 'N/A'}/100). No PR was created.`,
+        evalScores: evalScores ? {
+          hallucination: evalScores.hallucination,
+          faithfulness: evalScores.faithfulness,
+          relevancy: evalScores.relevancy,
+          alignment: evalScores.alignment,
+          compositeScore: compositeScore ?? undefined,
+          details: evalScores.details,
+        } : undefined,
+        qualityGatePassed: false,
+      }
+    }
+
+    // 6. Blog-specific early exit check
     if ((agentType === 'blog_setup' || agentType === 'blog_page_missing') && currentCode) {
       try {
         const parsed = JSON.parse(currentCode)
@@ -1543,7 +1838,7 @@ Please generate an improved version addressing all the feedback above.`
       }
     }
 
-    // 6. Validate with E2B if needed
+    // 7. Validate with E2B if needed
     let e2bValidation: SandboxResult<SchemaValidationResult> | undefined
     let faqValidation: SandboxResult<FaqValidationResult> | undefined
     if (requiresE2bValidation(agentType)) {
@@ -1584,19 +1879,14 @@ Please generate an improved version addressing all the feedback above.`
       }
     }
 
-    // 7. Create PR (draft if quality gate failed)
+    // 8. Create PR (quality gate already verified above)
     let prUrl: string | undefined
     let prNumber: number | undefined
-    const isDraftDueToQuality = qualityGatePassed === false
     const compositeScore = evalScores ? calculateCompositeScore(evalScores) : null
 
     if (createsPullRequest(agentType)) {
-      console.log(`[IssueExecutor] Creating PR for issue ${issueId}${isDraftDueToQuality ? ' (DRAFT - quality gate failed)' : ''}`)
+      console.log(`[IssueExecutor] Creating PR for issue ${issueId}`)
       try {
-        const qualityWarning = isDraftDueToQuality && qualityGateResult
-          ? `\n\n## Warning: Quality Gate Failed\nThis PR was created as a **draft** because automated quality scoring did not meet thresholds.\n${qualityGateResult.failures.map(f => `- **${f.scorer}**: ${f.actual.toFixed(3)} (threshold: ${f.threshold})`).join('\n')}\n\nComposite score: ${compositeScore?.toFixed(1) ?? 'N/A'}/100\n\nPlease review carefully before merging.`
-          : ''
-
         const prResult = await createOptimizationPR({
           brandProfileId: issue.brandProfileId,
           pageUrl: issue.affectedUrl || issue.brandProfile.companyWebsite || '/',
@@ -1608,10 +1898,8 @@ Please generate an improved version addressing all the feedback above.`
             filePath: finalFilePath
           }],
           title: `[Mudra] ${issue.title}`,
-          description: `## Issue\n${issue.description || issue.title}\n\n## Generated by\nMudra AI Agent: ${agentType}\n\n## Estimated Impact\n${issue.estimatedImpact || 'Improved AI visibility'}${e2bValidation ? `\n\n## E2B Validation\n Validated in ${e2bValidation.executionMs}ms` : ''}${evalScores ? `\n\n## Eval Scores\n| Scorer | Score |\n|--------|-------|\n${evalScores.hallucination != null ? `| Hallucination | ${evalScores.hallucination.toFixed(3)} |\n` : ''}${evalScores.faithfulness != null ? `| Faithfulness | ${evalScores.faithfulness.toFixed(3)} |\n` : ''}${evalScores.relevancy != null ? `| Relevancy | ${evalScores.relevancy.toFixed(3)} |\n` : ''}${evalScores.alignment != null ? `| Alignment | ${evalScores.alignment.toFixed(3)} |\n` : ''}${compositeScore != null ? `| **Composite** | **${compositeScore.toFixed(1)}/100** |\n` : ''}` : ''}${lastReview?.warnings.length ? `\n\n## Review Notes\n${lastReview.warnings.map(w => `- ${w}`).join('\n')}` : ''}${lastReview?.reasoning ? `\n\n**Placement:** ${lastReview.reasoning}` : ''}${qualityWarning}\n`,
+          description: `## Issue\n${issue.description || issue.title}\n\n## Generated by\nMudra AI Agent: ${agentType}\n\n## Estimated Impact\n${issue.estimatedImpact || 'Improved AI visibility'}${e2bValidation ? `\n\n## Validation\nAutomated validation passed in ${e2bValidation.executionMs}ms` : ''}${lastReview?.reasoning ? `\n\n## Placement\n${lastReview.reasoning}` : ''}\n`,
           issueTitle: issue.title,
-          draft: isDraftDueToQuality,
-          labels: isDraftDueToQuality ? ['quality-gate-failed'] : undefined,
         })
         prUrl = prResult.prUrl
         prNumber = prResult.prNumber
@@ -1636,29 +1924,6 @@ Please generate an improved version addressing all the feedback above.`
         where: { id: issueId },
         data: { status: 'completed' }
       })
-    }
-
-    // 8. Send notification if quality gate failed (fire-and-forget)
-    const ownerUserId = issue.brandProfile.userId
-    if (isDraftDueToQuality && ownerUserId) {
-      import('@/lib/services/notification.service').then(({ createNotification }) =>
-        createNotification({
-          userId: ownerUserId,
-          brandProfileId: issue.brandProfileId,
-          type: 'warning',
-          category: 'agent_quality_alert',
-          title: `Quality check failed: ${issue.title}`,
-          message: `The generated code for "${issue.title}" did not pass automated quality checks (score: ${compositeScore?.toFixed(1) ?? 'N/A'}/100). ${prUrl ? 'A draft PR was created for review.' : 'Please review manually.'}`,
-          actionUrl: prUrl,
-          metadata: {
-            issueId,
-            prUrl,
-            prNumber,
-            compositeScore,
-            failures: qualityGateResult?.failures,
-          } as Record<string, unknown>,
-        })
-      ).catch(err => console.warn('[IssueExecutor] Failed to send quality alert:', err))
     }
 
     const totalDuration = Date.now() - agentStartTime
@@ -1705,7 +1970,7 @@ Please generate an improved version addressing all the feedback above.`
 async function handleConversationIssue(
   issue: { id: number; title: string; description: string | null; affectedUrl: string | null; brandProfileId: number; brandProfile: { companyName: string | null; companyWebsite: string | null; companyDescription: string | null; companyIndustry: string | null; companyServices: string | null } },
   agentType: string,
-  context: { pageContent: string | null; sourceFile: string | null; sourceFilePath: string | null; blogContext: string }
+  context: { pageContent: string | null; sourceFile: string | null; sourceFilePath: string | null; blogContext: string; detectedFramework?: RepoStructure['framework'] }
 ): Promise<ExecutionResult> {
   console.log(`[IssueExecutor] Processing conversation issue ${issue.id}`)
 

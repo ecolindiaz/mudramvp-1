@@ -318,7 +318,7 @@ export async function getRecommendedSchemasWithAI(
 		if (llmResult) {
 			if (llmResult.confidence < 0.5) {
 				console.warn(
-					`[SchemaRecommender] LLM confidence too low (${llmResult.confidence}), existing schemas: ${extraction.extraction.schema.schemas_found.length}, page_type: ${extraction.page_type}, page_url: ${extraction.page_url}, using heuristic fallback`
+					`[SchemaRecommender] LLM confidence too low (${llmResult.confidence}), existing schemas: ${extraction.extraction.schema.schema_count}, page_type: ${extraction.page_type}, page_url: ${extraction.page_url}, using heuristic fallback`
 				);
 			} else {
 				return applyDeterministicRules(llmResult.schemas, extraction);

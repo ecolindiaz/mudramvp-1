@@ -16,8 +16,8 @@ import type { RedditSearchResult, RedditPost, RedditComment } from '../apify/red
 const MAX_CONTEXT_CHARS = 3000;
 
 /** Maximum time to wait for Reddit context before giving up (ms).
- *  Leaves ~25s budget for prompt generation + DB write within a 60s Vercel function. */
-const REDDIT_FETCH_TIMEOUT_MS = 35_000;
+ *  Leaves ~100s budget for prompt generation + DB write within a 120s Vercel function. */
+const REDDIT_FETCH_TIMEOUT_MS = 20_000;
 
 /**
  * Build 3-5 Reddit search queries from extracted brand info.

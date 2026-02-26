@@ -6,7 +6,7 @@ import { profileToBrandInfo, generateInitialPrompts } from '@/lib/services/promp
 import { fetchRedditContext } from '@/lib/services/reddit-context.service'
 import { prisma } from '@/lib/prisma'
 
-export const maxDuration = 60
+export const maxDuration = 120
 
 /**
  * POST /api/prompts/generate-initial

@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { applyRateLimitAsync } from "@/lib/auth/rate-limiter-redis";
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
 
 const campaignPatchSchema = z.object({
   title: z.string().min(1).max(500).optional(),
@@ -122,7 +123,7 @@ export async function PATCH(
         ...(prompt !== undefined && { prompt }),
         ...(icp !== undefined && { icp }),
         ...(keyword !== undefined && { keyword }),
-        ...(metadata && { metadata }),
+        ...(metadata && { metadata: metadata as Prisma.InputJsonValue }),
         ...(publishedAt && { publishedAt: new Date(publishedAt) }),
         updatedAt: new Date(),
       },

@@ -260,8 +260,10 @@ export async function createIssuesFromPageScore(
           }
         })
         updated++
-      } else if (existing.status === 'completed') {
-        // Re-open issues that were auto-closed by reconciliation but still fail
+      } else if (existing.status === 'completed' && !existing.prUrl) {
+        // Re-open issues that were auto-closed by reconciliation but still fail.
+        // Only re-open if there's no PR — issues with a PR are waiting for merge
+        // and should stay completed until the PR is merged or closed.
         await prisma.issue.update({
           where: { id: existing.id },
           data: {
@@ -276,7 +278,7 @@ export async function createIssuesFromPageScore(
         updated++
         console.log(`[IssueFromScoring] Re-opened auto-closed issue: ${title} (${pageScore.page_url})`)
       } else {
-        // in_progress or merged — don't touch
+        // in_progress, merged, quality_failed, or completed with a PR — don't touch
         skipped++
       }
       continue

@@ -10,7 +10,7 @@ import { runUnifiedAnalysis, type ProgressEvent } from '@/lib/services/unified-a
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 export async function POST(request: NextRequest) {
   const rateLimited = await applyRateLimitAsync(request, 'analysis');

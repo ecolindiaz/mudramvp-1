@@ -55,7 +55,38 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+import type { PointerEvent as RPointerEvent } from "react"
 import { toast } from "sonner"
+
+/**
+ * Custom PointerSensor that skips drag activation when the event
+ * originates from (or inside) an element with data-no-dnd="true".
+ * This lets dropdowns, buttons, and other interactive elements work
+ * inside sortable cards without being hijacked by dnd-kit.
+ */
+class SmartPointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: 'onPointerDown' as const,
+      handler: ({ nativeEvent: event }: { nativeEvent: PointerEvent }) => {
+        if (isInteractiveElement(event.target as Element)) {
+          return false
+        }
+        return true
+      },
+    },
+  ]
+}
+
+function isInteractiveElement(el: Element | null): boolean {
+  while (el) {
+    if (el instanceof HTMLElement && el.dataset.noDnd === 'true') return true
+    if (el.tagName === 'BUTTON' || el.tagName === 'A' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true
+    if (el instanceof HTMLElement && (el.getAttribute('role') === 'menuitem' || el.getAttribute('role') === 'menu')) return true
+    el = el.parentElement
+  }
+  return false
+}
 
 function UnicodeStatusGlyph({ glyph, className }: { glyph: string; className?: string }) {
   return (
@@ -364,29 +395,42 @@ function SortableIssueCard({
             </span>
           )}
         </div>
-        {issue.status === "identified" && issue.agentType && onFix ? (
-          <button
-            onClick={(e) => { e.stopPropagation(); onFix(issue.id); }}
-            onPointerDown={(e) => e.stopPropagation()}
-            disabled={isDeploying}
-            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white text-black hover:bg-white/90 transition-colors text-[11px] font-medium disabled:opacity-50"
-          >
-            {isDeploying ? (
-              <UnicodeExecutionSpinner className="text-black/80" />
-            ) : (
-              <IconWand className="w-3 h-3" />
-            )}
-            {isDeploying ? "Deploying..." : "Fix"}
-          </button>
-        ) : !issue.prUrl && issue.generatedOutput ? (
-          <button
-            onClick={(e) => { e.stopPropagation(); onViewOutput?.(issue); }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white text-black hover:bg-white/90 transition-colors text-[11px] font-medium"
-          >
-            <IconCode className="w-3 h-3" />
-            See Code
-          </button>
+        {(issue.status === "identified" && issue.agentType) || (!issue.prUrl && issue.generatedOutput) ? (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white text-black hover:bg-white/90 transition-colors text-[11px] font-medium"
+                data-no-dnd="true"
+              >
+                <IconWand className="w-3 h-3" />
+                Fix
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-[#1a1a1a] border-white/10">
+              {issue.status === "identified" && issue.agentType && onFix && (
+                <DropdownMenuItem
+                  onClick={(e) => { e.stopPropagation(); onFix(issue.id); }}
+                  className="text-white hover:bg-white/10 cursor-pointer"
+                  disabled={isDeploying}
+                >
+                  <IconWand className="w-4 h-4 mr-2" />
+                  Fix with Agent
+                </DropdownMenuItem>
+              )}
+              {!issue.prUrl && issue.generatedOutput && (
+                <DropdownMenuItem
+                  onClick={(e) => { e.stopPropagation(); onViewOutput?.(issue); }}
+                  className="text-white hover:bg-white/10 cursor-pointer"
+                >
+                  <IconCode className="w-4 h-4 mr-2" />
+                  See Code
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : (
           <span className="text-[11px] text-white/20">{issue.agentType}</span>
         )}
@@ -1288,7 +1332,7 @@ function IssuesPageInner() {
   const [generatingScriptId, setGeneratingScriptId] = React.useState<number | null>(null)
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(SmartPointerSensor, {
       activationConstraint: { distance: 8 },
     }),
     useSensor(KeyboardSensor, {

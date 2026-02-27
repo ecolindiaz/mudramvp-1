@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 export interface AuthenticatedUser {
   id: string;
@@ -200,7 +201,9 @@ export function validateCronSecret(authHeader: string | null): boolean {
     ? authHeader.slice(7) 
     : authHeader;
 
-  return providedSecret === cronSecret;
+  const hashA = crypto.createHash('sha256').update(providedSecret).digest();
+  const hashB = crypto.createHash('sha256').update(cronSecret).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
 }
 
 /**
@@ -225,7 +228,9 @@ export function validateCronSecretFromRequest(request: Request):
     ? authHeader.slice(7) 
     : authHeader;
 
-  if (providedSecret !== cronSecret) {
+  const hashA2 = crypto.createHash('sha256').update(providedSecret).digest();
+  const hashB2 = crypto.createHash('sha256').update(cronSecret).digest();
+  if (!crypto.timingSafeEqual(hashA2, hashB2)) {
     return { success: false, error: 'Invalid CRON_SECRET', status: 401 };
   }
 
@@ -251,5 +256,7 @@ export function validateInternalApiSecret(authHeader: string | null): boolean {
     ? authHeader.slice(7) 
     : authHeader;
 
-  return providedSecret === apiSecret;
+  const hashC = crypto.createHash('sha256').update(providedSecret).digest();
+  const hashD = crypto.createHash('sha256').update(apiSecret).digest();
+  return crypto.timingSafeEqual(hashC, hashD);
 }

@@ -1,17 +1,40 @@
 import { NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
+
+const registerSchema = z.object({
+  username: z.string()
+    .min(2, 'Username must be at least 2 characters')
+    .max(50, 'Username cannot exceed 50 characters')
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, hyphens, and underscores'),
+  email: z.string()
+    .email('Invalid email format')
+    .max(255, 'Email cannot exceed 255 characters')
+    .transform(v => v.toLowerCase().trim()),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128, 'Password cannot exceed 128 characters'),
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, email, password } = await request.json()
+    // Rate limit registration to prevent brute-force
+    const rateLimited = await applyRateLimitAsync(request, 'auth');
+    if (rateLimited) return rateLimited;
 
-    if (!username || !email || !password) {
+    const body = await request.json()
+    const parsed = registerSchema.safeParse(body)
+
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Username, email, and password are required" },
+        { success: false, error: { message: 'Invalid input', details: parsed.error.errors } },
         { status: 400 }
       )
     }
+
+    const { username, email, password } = parsed.data
 
     // Check if username or email already exists
     const existingUser = await prisma.user.findFirst({
@@ -25,13 +48,13 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: existingUser.email === email ? "Email already registered" : "Username already taken" },
+        { success: false, error: { message: existingUser.email === email ? "Email already registered" : "Username already taken" } },
         { status: 409 }
       )
     }
 
     // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10)
+    const hashedPassword = await bcrypt.hash(password, 12)
 
     // Create user with provided email
     const user = await prisma.user.create({
@@ -51,10 +74,10 @@ export async function POST(request: NextRequest) {
       email: user.email
     })
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("Registration error:", error)
     return NextResponse.json(
-      { error: error.message || "Failed to create account" },
+      { success: false, error: { message: "Failed to create account" } },
       { status: 500 }
     )
   }

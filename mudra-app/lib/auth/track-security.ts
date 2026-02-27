@@ -124,13 +124,12 @@ export function verifyTrackingSignature(
     return { valid: false, reason: 'Request timestamp expired' };
   }
   
-  // Verify signature
+  // Verify signature — hash both sides to ensure equal buffer lengths
   const expectedSignature = generateTrackingSignature(trackingId, timestamp, secret);
   
-  if (!crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  )) {
+  const hashA = crypto.createHash('sha256').update(signature).digest();
+  const hashB = crypto.createHash('sha256').update(expectedSignature).digest();
+  if (!crypto.timingSafeEqual(hashA, hashB)) {
     return { valid: false, reason: 'Invalid signature' };
   }
   

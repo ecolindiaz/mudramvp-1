@@ -2,8 +2,21 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { z } from 'zod'
 
 export const maxDuration = 60
+
+const issuePatchSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  description: z.string().max(10000).nullable().optional(),
+  status: z.enum(['identified', 'in_progress', 'completed', 'merged', 'dismissed']).optional(),
+  priority: z.enum(['low', 'medium', 'high']).optional(),
+  order: z.number().int().min(0).optional(),
+  dismissedAt: z.string().datetime().nullable().optional(),
+  prUrl: z.string().url().max(500).nullable().optional(),
+  prNumber: z.number().int().nullable().optional(),
+  prStatus: z.enum(['open', 'merged', 'closed']).nullable().optional(),
+});
 
 // GET /api/issues/[id] - Get a single issue
 export async function GET(
@@ -96,7 +109,14 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { title, description, status, priority, order, dismissedAt, prUrl, prNumber, prStatus } = body
+    const parsed = issuePatchSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Invalid input', details: parsed.error.errors } },
+        { status: 400 }
+      )
+    }
+    const { title, description, status, priority, order, dismissedAt, prUrl, prNumber, prStatus } = parsed.data
 
     // Get brand profile for user
     const brandProfile = await prisma.brandProfile.findFirst({

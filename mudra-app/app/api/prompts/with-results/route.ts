@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import {
   calculateAggregateScore,
   calculatePerPromptScore,
@@ -195,7 +196,7 @@ export async function GET(request: NextRequest) {
           // If Prisma client doesn't recognize the table, use raw SQL
           if (prismaError.code === 'P2021' || prismaError.message?.includes('does not exist')) {
             console.log('⚠️ Prisma client doesn\'t recognize prompts table, using raw SQL...')
-            const rawPrompts = await prisma.$queryRawUnsafe<Array<{
+            const rawPrompts = await prisma.$queryRaw<Array<{
               id: number
               text: string
               category: string | null
@@ -204,11 +205,10 @@ export async function GET(request: NextRequest) {
               createdAt: Date
               updatedAt: Date
             }>>(
-              `SELECT id, text, category, "isCustom", "isActive", "createdAt", "updatedAt"
+              Prisma.sql`SELECT id, text, category, "isCustom", "isActive", "createdAt", "updatedAt"
                FROM prompts
-               WHERE "brandProfileId" = ? AND "isActive" = 1
-               ORDER BY category ASC, "createdAt" ASC`,
-              profileId
+               WHERE "brandProfileId" = ${profileId} AND "isActive" = 1
+               ORDER BY category ASC, "createdAt" ASC`
             )
             allPrompts = rawPrompts.map(p => ({
               id: p.id,

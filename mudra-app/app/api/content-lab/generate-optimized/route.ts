@@ -348,6 +348,12 @@ export async function POST(req: NextRequest) {
 
 // GET endpoint for status polling
 export async function GET(req: NextRequest) {
+  // Require auth for status polling — prevents unauthorized content access
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   const { searchParams } = new URL(req.url);
   const workflowRunId = searchParams.get("workflowRunId");
   const campaignId = searchParams.get("campaignId");
@@ -384,6 +390,7 @@ export async function GET(req: NextRequest) {
         where: { id: campaignId },
         select: {
           id: true,
+          userId: true,
           title: true,
           body: true,
           status: true,
@@ -400,6 +407,7 @@ export async function GET(req: NextRequest) {
         },
         select: {
           id: true,
+          userId: true,
           title: true,
           body: true,
           status: true,
@@ -409,6 +417,13 @@ export async function GET(req: NextRequest) {
     }
 
     if (campaign) {
+      // Verify the campaign belongs to the authenticated user
+      if (!campaign.userId || campaign.userId !== authResult.user.id) {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized" },
+          { status: 403 }
+        );
+      }
       const metadata = campaign.metadata as Record<string, unknown> | null;
       const workflowStatus = metadata?.workflowStatus as string || 'unknown';
       // Use workflowRunId from metadata if we queried by campaignId

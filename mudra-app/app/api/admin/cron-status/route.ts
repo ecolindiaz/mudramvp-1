@@ -10,19 +10,44 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getCronStatus } from '@/lib/services/cron.service';
+import crypto from 'crypto';
+
+// Admin email allowlist — restrict access to admin users
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify admin access (optional - remove if you want this public)
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+    // Support admin token for cron/internal access
+    const adminToken = request.headers.get('x-admin-token') || '';
+    const envAdminToken = process.env.ADMIN_API_TOKEN;
+    let isAdminToken = false;
+    if (adminToken && envAdminToken) {
+      const hashA = crypto.createHash('sha256').update(adminToken).digest();
+      const hashB = crypto.createHash('sha256').update(envAdminToken).digest();
+      isAdminToken = crypto.timingSafeEqual(hashA, hashB);
+    }
+
+    if (!isAdminToken) {
+      // Fall back to session-based auth with admin email check
+      const session = await getServerSession(authOptions);
+
+      if (!session?.user?.email) {
+        return NextResponse.json(
+          { success: false, error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+
+      // Check if user is an admin
+      const userEmail = session.user.email.toLowerCase();
+      if (ADMIN_EMAILS.length === 0 || !ADMIN_EMAILS.includes(userEmail)) {
+        return NextResponse.json(
+          { success: false, error: 'Forbidden — admin access required' },
+          { status: 403 }
+        );
+      }
     }
 
     // Get cron status
@@ -68,7 +93,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: 'Failed to fetch cron status',
       },
       { status: 500 }
     );

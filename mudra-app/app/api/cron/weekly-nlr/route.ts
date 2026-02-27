@@ -4,19 +4,11 @@ import { generateWeeklyReport } from '@/lib/ai/nlr/generate-report'
 
 /**
  * Weekly Natural Language Report Cron Job
- * 
+ *
  * Schedule: Every Monday at 6 AM UTC (set in vercel.json)
- * Purpose: Generate weekly NLR for all active companies
- * 
- * The report includes:
- * - AI Visibility score deltas (previous → current with % change)
- * - Technical Structure score deltas
- * - Agent Lab deployments from the week
- * - AI Referred Traffic changes
- * - Opportunities from Conversation Radar
+ * Purpose: Generate weekly NLR for every brand profile (monitor) that has a website
  */
 export async function GET(request: NextRequest) {
-  // Verify the request is from Vercel Cron
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
@@ -26,55 +18,52 @@ export async function GET(request: NextRequest) {
   try {
     // Get the start of the previous week (Monday 00:00 UTC)
     const now = new Date()
-    const dayOfWeek = now.getUTCDay() // 0 = Sunday, 1 = Monday, etc.
-    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1 // Get to last Monday
+    const dayOfWeek = now.getUTCDay()
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
     const weekStart = new Date(now)
-    weekStart.setUTCDate(now.getUTCDate() - daysToSubtract - 7) // Go back to previous week's Monday
+    weekStart.setUTCDate(now.getUTCDate() - daysToSubtract - 7)
     weekStart.setUTCHours(0, 0, 0, 0)
 
-    // Fetch all active companies with sites
-    const companies = await prisma.company.findMany({
+    // Fetch all brand profiles that have a website and a user
+    const profiles = await prisma.brandProfile.findMany({
       where: {
-        sites: {
-          some: {
-            // Has at least one site
-            id: { not: '' }
-          }
-        }
+        companyWebsite: { not: null },
+        userId: { not: null },
       },
       select: {
         id: true,
-        domain: true,
-      }
+        companyWebsite: true,
+        userId: true,
+      },
     })
 
-    console.log(`[Weekly NLR Cron] Starting for ${companies.length} companies, week of ${weekStart.toISOString()}`)
+    console.log(`[Weekly NLR Cron] Starting for ${profiles.length} monitors, week of ${weekStart.toISOString()}`)
 
-    const results: Array<{ companyId: string; status: 'success' | 'error'; message?: string }> = []
+    const results: Array<{ brandProfileId: number; status: 'success' | 'error'; message?: string }> = []
 
-    // Process each company
-    for (const company of companies) {
+    // Optionally resolve companyId for each profile (best-effort)
+    const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles')
+
+    for (const profile of profiles) {
       try {
-        console.log(`[Weekly NLR Cron] Generating report for company: ${company.domain} (${company.id})`)
-        
+        console.log(`[Weekly NLR Cron] Generating report for monitor: ${profile.companyWebsite} (bp=${profile.id})`)
+
+        let companyId: string | null = null
+        try {
+          companyId = await resolveCompanyIdFromBrandProfile(profile.id)
+        } catch { /* non-fatal */ }
+
         await generateWeeklyReport({
-          companyId: company.id,
+          brandProfileId: profile.id,
           weekStartUtc: weekStart,
+          companyId,
         })
 
-        results.push({
-          companyId: company.id,
-          status: 'success',
-        })
+        results.push({ brandProfileId: profile.id, status: 'success' })
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error'
-        console.error(`[Weekly NLR Cron] Error for company ${company.id}:`, message)
-        
-        results.push({
-          companyId: company.id,
-          status: 'error',
-          message,
-        })
+        console.error(`[Weekly NLR Cron] Error for bp=${profile.id}:`, message)
+        results.push({ brandProfileId: profile.id, status: 'error', message })
       }
     }
 
@@ -87,7 +76,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         weekStart: weekStart.toISOString(),
-        totalCompanies: companies.length,
+        totalMonitors: profiles.length,
         successCount,
         errorCount,
         results,
@@ -96,27 +85,27 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[Weekly NLR Cron] Fatal error:', error)
     return NextResponse.json(
-      { 
-        success: false, 
-        error: { 
+      {
+        success: false,
+        error: {
           message: error instanceof Error ? error.message : 'Failed to run weekly NLR cron',
-          code: 'CRON_ERROR' 
-        } 
+          code: 'CRON_ERROR'
+        }
       },
       { status: 500 }
     )
   }
 }
 
-// POST handler for manual triggering (from admin dashboard)
+// POST handler for manual triggering
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { companyId, weekStartUtc } = body
+    const { brandProfileId, weekStartUtc, companyId } = body
 
-    if (!companyId) {
+    if (!brandProfileId) {
       return NextResponse.json(
-        { success: false, error: { message: 'companyId is required', code: 'MISSING_PARAM' } },
+        { success: false, error: { message: 'brandProfileId is required', code: 'MISSING_PARAM' } },
         { status: 400 }
       )
     }
@@ -134,11 +123,12 @@ export async function POST(request: NextRequest) {
       weekStart.setUTCHours(0, 0, 0, 0)
     }
 
-    console.log(`[Weekly NLR] Manual trigger for company: ${companyId}, week: ${weekStart.toISOString()}`)
+    console.log(`[Weekly NLR] Manual trigger for bp=${brandProfileId}, week: ${weekStart.toISOString()}`)
 
     const report = await generateWeeklyReport({
-      companyId,
+      brandProfileId,
       weekStartUtc: weekStart,
+      companyId: companyId ?? null,
     })
 
     return NextResponse.json({
@@ -148,12 +138,12 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[Weekly NLR] Manual trigger error:', error)
     return NextResponse.json(
-      { 
-        success: false, 
-        error: { 
+      {
+        success: false,
+        error: {
           message: error instanceof Error ? error.message : 'Failed to generate NLR',
-          code: 'GENERATION_ERROR' 
-        } 
+          code: 'GENERATION_ERROR'
+        }
       },
       { status: 500 }
     )

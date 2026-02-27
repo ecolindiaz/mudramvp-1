@@ -3,7 +3,6 @@ import type { NextRequest } from "next/server";
 import { getWeeklyReportByWeek } from "@/lib/db/reports";
 import { prisma } from "@/lib/prisma";
 import { requireAuthWithBrandAccess } from "@/lib/auth/require-auth";
-import { resolveCompanyIdFromBrandProfile } from "@/lib/analysis/nlr/mappers/resolve-brand-profiles";
 import { calculateAggregateFromResults } from "@/lib/analysis/nlr/mappers/ai-visibility";
 
 function isAdmin(req: NextRequest): boolean {
@@ -32,59 +31,55 @@ function pctDelta(current: number | null, previous: number | null) {
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url)
-    const requestedCompanyId = url.searchParams.get('companyId')
-    let companyId = requestedCompanyId
     const brandProfileIdStr = url.searchParams.get('brandProfileId')
+    const legacyCompanyId = url.searchParams.get('companyId')
     const weekStartStr = url.searchParams.get('weekStartUtc')
     const country = url.searchParams.get('country')
 
-    let resolvedBrandProfileId: number | null = null
+    let brandProfileId: number | null = null
     const adminRequest = isAdmin(req)
 
-    // brandProfileId-based lookup (used by dashboard)
+    // Primary path: brandProfileId (used by dashboard)
     if (brandProfileIdStr) {
       if (!adminRequest) {
-        // Authenticate via session + verify ownership
         const authResult = await requireAuthWithBrandAccess(brandProfileIdStr)
         if (!authResult.success) {
           return authResult.response
         }
-        resolvedBrandProfileId = authResult.brandProfileId!
+        brandProfileId = authResult.brandProfileId!
       } else {
-        // Admin/cron callers may request by brandProfileId without a user session
-        const parsedBrandProfileId = Number.parseInt(brandProfileIdStr, 10)
-        if (Number.isNaN(parsedBrandProfileId)) {
+        const parsed = Number.parseInt(brandProfileIdStr, 10)
+        if (Number.isNaN(parsed)) {
           return NextResponse.json({ success: false, error: { message: 'Invalid brandProfileId' } }, { status: 400 })
         }
-        resolvedBrandProfileId = parsedBrandProfileId
+        brandProfileId = parsed
       }
-
-      const resolvedCompanyId = await resolveCompanyIdFromBrandProfile(resolvedBrandProfileId)
-      if (!resolvedCompanyId) {
-        return NextResponse.json({ success: false, error: { message: 'No company found for brandProfileId' } }, { status: 404 })
+    } else if (legacyCompanyId && adminRequest) {
+      // Legacy fallback: admin-only companyId lookup — find the lowest-order brand profile
+      const { resolveBrandProfileIds } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles')
+      const bpIds = await resolveBrandProfileIds(legacyCompanyId)
+      if (bpIds.length === 0) {
+        return NextResponse.json({ success: false, error: { message: 'No brand profiles found for companyId' } }, { status: 404 })
       }
-
-      if (requestedCompanyId && requestedCompanyId !== resolvedCompanyId) {
-        return NextResponse.json({ success: false, error: { message: 'companyId does not match brandProfileId' } }, { status: 400 })
-      }
-
-      companyId = resolvedCompanyId
-    } else if (!companyId) {
-      return NextResponse.json({ success: false, error: { message: 'companyId or brandProfileId is required' } }, { status: 400 })
-    } else if (!adminRequest) {
-      // companyId-only requests are reserved for admin/cron
-      return NextResponse.json({ success: false, error: { message: 'Unauthorized' } }, { status: 401 })
+      const bp = await prisma.brandProfile.findFirst({
+        where: { id: { in: bpIds } },
+        orderBy: { monitorOrder: 'asc' },
+        select: { id: true },
+      })
+      brandProfileId = bp?.id ?? bpIds[0]
+    } else {
+      return NextResponse.json({ success: false, error: { message: 'brandProfileId is required' } }, { status: 400 })
     }
 
     const targetWeek = weekStartStr ? new Date(weekStartStr) : startOfIsoWeekUtc(new Date())
 
     // Try the requested week
-    let report = await getWeeklyReportByWeek(companyId, targetWeek)
+    let report = await getWeeklyReportByWeek(brandProfileId, targetWeek)
 
     // Fallback: most recent ready
     if (!report) {
       const latest = await prisma.weeklyReport.findFirst({
-        where: { companyId, status: 'ready' },
+        where: { brandProfileId, status: 'ready' },
         orderBy: { weekStartUtc: 'desc' },
         include: { sections: { orderBy: { order: 'asc' } } },
       })
@@ -93,10 +88,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Compute country overlay if country param provided and we have a brandProfileId
+    // Compute country overlay if country param provided
     let countryOverlay: { aiVisibility: { score: ReturnType<typeof pctDelta>; averagePosition: ReturnType<typeof pctDelta> } } | null = null
 
-    if (country && resolvedBrandProfileId && report) {
+    if (country && brandProfileId && report) {
       const reportWeek = report.weekStartUtc instanceof Date ? report.weekStartUtc : new Date(report.weekStartUtc)
       const weekEnd = new Date(reportWeek)
       weekEnd.setDate(weekEnd.getDate() + 7)
@@ -106,14 +101,14 @@ export async function GET(req: NextRequest) {
       const [currentResults, prevResults] = await Promise.all([
         prisma.geoAnalysisResult.findMany({
           where: {
-            brandProfileId: resolvedBrandProfileId,
+            brandProfileId,
             country,
             timestamp: { gte: reportWeek, lt: weekEnd },
           },
         }),
         prisma.geoAnalysisResult.findMany({
           where: {
-            brandProfileId: resolvedBrandProfileId,
+            brandProfileId,
             country,
             timestamp: { gte: prevWeekStart, lt: reportWeek },
           },

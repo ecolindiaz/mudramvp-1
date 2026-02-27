@@ -10,17 +10,16 @@ function toDate(value: Date | string): Date {
 }
 
 /**
- * Fetch a weekly report for a company and week (UTC), including sections.
+ * Fetch a weekly report for a brand profile and week (UTC), including sections.
  */
 export async function getWeeklyReportByWeek(
-  companyId: string,
+  brandProfileId: number,
   weekStartUtc: Date | string
 ): Promise<WeeklyReportWithRelations | null> {
   const weekStart = toDate(weekStartUtc);
   return prisma.weeklyReport.findUnique({
     where: {
-      // Composite unique on (companyId, weekStartUtc)
-      companyId_weekStartUtc: { companyId, weekStartUtc: weekStart },
+      brandProfileId_weekStartUtc: { brandProfileId, weekStartUtc: weekStart },
     },
     include: {
       sections: {
@@ -39,7 +38,8 @@ export interface UpsertWeeklyReportSectionInput {
 }
 
 export interface UpsertWeeklyReportInput {
-  companyId: string;
+  brandProfileId: number;
+  companyId?: string | null;
   weekStartUtc: Date | string;
   status?: string;
   model?: string | null;
@@ -52,7 +52,7 @@ export interface UpsertWeeklyReportInput {
 }
 
 /**
- * Create or update a weekly report and optionally replace its sections (and sources) atomically.
+ * Create or update a weekly report and optionally replace its sections atomically.
  */
 export async function upsertWeeklyReport(
   input: UpsertWeeklyReportInput
@@ -63,8 +63,8 @@ export async function upsertWeeklyReport(
     // Upsert core report row
     const report = await tx.weeklyReport.upsert({
       where: {
-        companyId_weekStartUtc: {
-          companyId: input.companyId,
+        brandProfileId_weekStartUtc: {
+          brandProfileId: input.brandProfileId,
           weekStartUtc: weekStart,
         },
       },
@@ -76,9 +76,11 @@ export async function upsertWeeklyReport(
         tokensIn: input.tokensIn ?? undefined,
         tokensOut: input.tokensOut ?? undefined,
         costCents: input.costCents ?? undefined,
+        companyId: input.companyId ?? undefined,
       },
       create: {
-        companyId: input.companyId,
+        brandProfileId: input.brandProfileId,
+        companyId: input.companyId ?? null,
         weekStartUtc: weekStart,
         status: input.status ?? "queued",
         model: input.model ?? null,
@@ -92,12 +94,10 @@ export async function upsertWeeklyReport(
 
     // Replace sections if provided
     if (input.sections) {
-      // Clear existing sections (and cascade sources via onDelete: Cascade from sections to sources)
       await tx.weeklyReportSection.deleteMany({
         where: { reportId: report.id },
       });
 
-      // Recreate sections
       for (const [index, section] of input.sections.entries()) {
         await tx.weeklyReportSection.create({
           data: {
@@ -125,17 +125,15 @@ export async function upsertWeeklyReport(
 }
 
 /**
- * List most recent weekly reports for a company (without heavy relations by default).
+ * List most recent weekly reports for a brand profile.
  */
 export async function listReports(
-  companyId: string,
+  brandProfileId: number,
   limit = 10
 ): Promise<WeeklyReport[]> {
   return prisma.weeklyReport.findMany({
-    where: { companyId },
+    where: { brandProfileId },
     orderBy: { weekStartUtc: "desc" },
     take: limit,
   });
 }
-
-

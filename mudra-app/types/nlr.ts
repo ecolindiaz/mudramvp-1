@@ -77,7 +77,8 @@ export interface NlrSummaryJson {
 
 export interface WeeklyReportDto {
   id: string;
-  companyId: string;
+  brandProfileId: number;
+  companyId?: string | null;
   weekStartUtc: string;
   status: 'queued' | 'running' | 'ready' | 'failed';
   model?: string | null;

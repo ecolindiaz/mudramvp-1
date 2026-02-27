@@ -6,11 +6,9 @@ import crypto from 'crypto';
 
 function timingSafeCompare(a: string, b: string): boolean {
   if (!a || !b) return false;
-  try {
-    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
-  } catch {
-    return false;
-  }
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
 }
 
 function isAdmin(req: NextRequest): boolean {

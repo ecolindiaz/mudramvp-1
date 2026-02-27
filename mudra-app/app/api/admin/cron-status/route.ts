@@ -24,9 +24,9 @@ export async function GET(request: NextRequest) {
     const envAdminToken = process.env.ADMIN_API_TOKEN;
     let isAdminToken = false;
     if (adminToken && envAdminToken) {
-      try {
-        isAdminToken = crypto.timingSafeEqual(Buffer.from(adminToken), Buffer.from(envAdminToken));
-      } catch { /* length mismatch */ }
+      const hashA = crypto.createHash('sha256').update(adminToken).digest();
+      const hashB = crypto.createHash('sha256').update(envAdminToken).digest();
+      isAdminToken = crypto.timingSafeEqual(hashA, hashB);
     }
 
     if (!isAdminToken) {
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
       // Check if user is an admin
       const userEmail = session.user.email.toLowerCase();
-      if (ADMIN_EMAILS.length > 0 && !ADMIN_EMAILS.includes(userEmail)) {
+      if (ADMIN_EMAILS.length === 0 || !ADMIN_EMAILS.includes(userEmail)) {
         return NextResponse.json(
           { success: false, error: 'Forbidden — admin access required' },
           { status: 403 }

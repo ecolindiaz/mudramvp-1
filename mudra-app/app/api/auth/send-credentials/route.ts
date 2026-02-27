@@ -20,12 +20,10 @@ function isAdmin(req: NextRequest): boolean {
   const token = req.headers.get('x-admin-token') || ''
   const adminToken = process.env.ADMIN_API_TOKEN
   if (!token || !adminToken) return false
-  // Timing-safe comparison
-  try {
-    return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(adminToken))
-  } catch {
-    return false
-  }
+  // Timing-safe comparison — hash first to ensure equal buffer lengths
+  const hashA = crypto.createHash('sha256').update(token).digest()
+  const hashB = crypto.createHash('sha256').update(adminToken).digest()
+  return crypto.timingSafeEqual(hashA, hashB)
 }
 
 export async function POST(request: NextRequest) {

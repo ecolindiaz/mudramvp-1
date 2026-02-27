@@ -109,7 +109,14 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { title, description, status, priority, order, dismissedAt, prUrl, prNumber, prStatus } = body
+    const parsed = issuePatchSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Invalid input', details: parsed.error.errors } },
+        { status: 400 }
+      )
+    }
+    const { title, description, status, priority, order, dismissedAt, prUrl, prNumber, prStatus } = parsed.data
 
     // Get brand profile for user
     const brandProfile = await prisma.brandProfile.findFirst({

@@ -11,7 +11,7 @@ export async function DELETE(
 
   const { id } = await params;
   const numericId = Number(id);
-  if (isNaN(numericId) || numericId <= 0) {
+  if (!Number.isInteger(numericId) || numericId <= 0) {
     return NextResponse.json({ success: false, error: { message: 'Invalid notification ID' } }, { status: 400 });
   }
   await deleteNotification(numericId, authResult.user.id);

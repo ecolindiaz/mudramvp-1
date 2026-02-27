@@ -130,10 +130,14 @@ function validateImageMagicBytes(buffer: Buffer): boolean {
   // GIF: 47 49 46 38
   if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38) return true;
 
-  // WebP: 52 49 46 46 ... 57 45 42 50
+  // WebP: RIFF header (bytes 0-3) + file size (bytes 4-7) + WEBP signature (bytes 8-11)
   if (buffer.length >= 12 &&
       buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
-      buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) return true;
+      buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) {
+    // Validate RIFF size field (bytes 4-7): must be non-zero and not exceed buffer
+    const riffSize = buffer.readUInt32LE(4);
+    if (riffSize > 0 && riffSize + 8 <= buffer.length) return true;
+  }
 
   return false;
 }

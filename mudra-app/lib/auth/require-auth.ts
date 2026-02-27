@@ -201,11 +201,9 @@ export function validateCronSecret(authHeader: string | null): boolean {
     ? authHeader.slice(7) 
     : authHeader;
 
-  try {
-    return crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(cronSecret));
-  } catch {
-    return false;
-  }
+  const hashA = crypto.createHash('sha256').update(providedSecret).digest();
+  const hashB = crypto.createHash('sha256').update(cronSecret).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
 }
 
 /**
@@ -230,11 +228,9 @@ export function validateCronSecretFromRequest(request: Request):
     ? authHeader.slice(7) 
     : authHeader;
 
-  try {
-    if (!crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(cronSecret))) {
-      return { success: false, error: 'Invalid CRON_SECRET', status: 401 };
-    }
-  } catch {
+  const hashA2 = crypto.createHash('sha256').update(providedSecret).digest();
+  const hashB2 = crypto.createHash('sha256').update(cronSecret).digest();
+  if (!crypto.timingSafeEqual(hashA2, hashB2)) {
     return { success: false, error: 'Invalid CRON_SECRET', status: 401 };
   }
 
@@ -260,9 +256,7 @@ export function validateInternalApiSecret(authHeader: string | null): boolean {
     ? authHeader.slice(7) 
     : authHeader;
 
-  try {
-    return crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(apiSecret));
-  } catch {
-    return false;
-  }
+  const hashC = crypto.createHash('sha256').update(providedSecret).digest();
+  const hashD = crypto.createHash('sha256').update(apiSecret).digest();
+  return crypto.timingSafeEqual(hashC, hashD);
 }

@@ -326,7 +326,14 @@ export async function OPTIONS(request: NextRequest) {
 
   // In production, reject requests with no origin
   if (!requestOrigin) {
-    return new NextResponse(null, { status: 403 });
+    return new NextResponse(null, {
+      status: 403,
+      headers: {
+        'Access-Control-Allow-Origin': 'null',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    });
   }
 
   return new NextResponse(null, {

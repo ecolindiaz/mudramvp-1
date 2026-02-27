@@ -418,7 +418,7 @@ export async function GET(req: NextRequest) {
 
     if (campaign) {
       // Verify the campaign belongs to the authenticated user
-      if (campaign.userId && campaign.userId !== authResult.user.id) {
+      if (!campaign.userId || campaign.userId !== authResult.user.id) {
         return NextResponse.json(
           { success: false, error: "Unauthorized" },
           { status: 403 }

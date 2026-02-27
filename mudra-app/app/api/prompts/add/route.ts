@@ -14,12 +14,11 @@ const MAX_ACTIVE_PROMPTS = 100
 const VALID_CATEGORIES = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific', 'FAQ'] as const
 
 const addPromptSchema = z.object({
-  promptText: z.string().min(1, 'Prompt text cannot be empty').max(MAX_PROMPT_LENGTH, `Prompt text cannot exceed ${MAX_PROMPT_LENGTH} characters`),
+  promptText: z.string().trim().min(1, 'Prompt text cannot be empty').max(MAX_PROMPT_LENGTH, `Prompt text cannot exceed ${MAX_PROMPT_LENGTH} characters`),
   category: z.enum(VALID_CATEGORIES).optional().default('Organic'),
   brandProfileId: z.number().int().positive('Invalid brandProfileId'),
   runAnalysis: z.boolean().optional().default(false),
   language: z.string().max(10).optional().default('en'),
-  country: z.string().max(10).optional(),
 })
 
 export async function POST(request: NextRequest) {

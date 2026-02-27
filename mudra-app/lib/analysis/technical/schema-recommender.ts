@@ -24,6 +24,7 @@ const VALID_SCHEMA_TYPES: Set<string> = new Set([
 	"Product",
 	"Service",
 	"Article",
+	"TechArticle",
 	"BlogPosting",
 	"FAQPage",
 	"BreadcrumbList",
@@ -44,7 +45,9 @@ Rules:
 - SoftwareApplication: For SaaS platforms, software products, and tools broadly — the parent type for any software offering (web-based or downloadable).
 - WebApplication: A subtype of SoftwareApplication. Prefer this ONLY when the page specifically emphasizes browser-based interactive functionality (e.g., "Try our editor", "Launch dashboard"). Default to SoftwareApplication when in doubt.
 - Article vs HowTo: Pick ONE based on content. Reference/informational = Article. Step-by-step tutorial/guide = HowTo. NEVER recommend both.
-- Article vs BlogPosting: Pick ONE. Blog posts = BlogPosting. Other long-form content = Article. NEVER recommend both.
+- Article vs TechArticle: Pick ONE. Use TechArticle for technical/developer-focused deep dives (engineering, APIs, implementation detail). Use Article for non-technical reference content.
+- Blog pages: Pick ONE primary type from BlogPosting, TechArticle, or HowTo. NEVER recommend more than one of these three.
+- BlogPosting: Use for general blog content (announcements, opinion, thought leadership, non-technical explainers).
 - Organization: Recommend for any page primarily about the company (about, careers, team, contact, partners, press). Also recommend for homepages.
 - WebSite: Recommend only for homepages.
 - Product: For pages describing a specific product with features/pricing.
@@ -56,9 +59,94 @@ Rules:
 
 Return ONLY a JSON object: {"schemas": ["Type1", "Type2"], "confidence": 0.0-1.0}
 confidence = how certain you are that these are the correct schema types (0.0 = guessing, 1.0 = certain).
-Valid types: Organization, WebSite, Product, Service, Article, BlogPosting, HowTo, SoftwareApplication, WebApplication, OfferCatalog, ItemList, Person
+Valid types: Organization, WebSite, Product, Service, Article, TechArticle, BlogPosting, HowTo, SoftwareApplication, WebApplication, OfferCatalog, ItemList, Person
 
 IMPORTANT: Confidence should reflect how certain you are about your recommendation, NOT the marginal value. A page with good existing schema can still receive high confidence if you are certain about which additional schemas should be present.`;
+
+const HOWTO_STRONG_PATTERNS: RegExp[] = [
+	/\bhow to\b/i,
+	/\bstep[-\s]?by[-\s]?step\b/i,
+	/\btutorial\b/i,
+	/\bwalkthrough\b/i,
+];
+
+const HOWTO_SUPPORTING_PATTERNS: RegExp[] = [
+	/\bguide\b/i,
+	/\bgetting started\b/i,
+	/\bsetup\b/i,
+	/\binstallation\b/i,
+	/\b(?:configure|configuration)\b/i,
+];
+
+const HOWTO_STEP_HEADING_PATTERN = /^(?:step|phase|part)\s*\d+[\s:.-]|^\d+[\).:-]\s+/i;
+
+const TECHNICAL_PATTERNS: RegExp[] = [
+	/\bdeveloper(s)?\b/i,
+	/\bengineering\b/i,
+	/\bapi(s)?\b/i,
+	/\bsdk\b/i,
+	/\bcode\b/i,
+	/\btypescript|javascript|python|java|go|rust\b/i,
+	/\bframework(s)?\b/i,
+	/\blibrary|libraries\b/i,
+	/\barchitecture\b/i,
+	/\brepository|github\b/i,
+	/\bcli\b/i,
+	/\bdevops\b/i,
+	/\bkubernetes|docker|terraform\b/i,
+	/\bendpoint(s)?\b/i,
+];
+
+function countPatternMatches(text: string, patterns: RegExp[]): number {
+	let matches = 0;
+	for (const pattern of patterns) {
+		if (pattern.test(text)) matches++;
+	}
+	return matches;
+}
+
+function isHowToLikeBlogPost(extraction: DOMExtraction): boolean {
+	const h1 = extraction.extraction.headings.hierarchy.find((h) => h.level === 1)?.text || "";
+	const headlineCorpus = [
+		extraction.page_url,
+		extraction.extraction.metadata.title.content || "",
+		h1,
+	].join(" ");
+
+	if (HOWTO_STRONG_PATTERNS.some((p) => p.test(headlineCorpus))) {
+		return true;
+	}
+
+	const stepHeadings = extraction.extraction.headings.hierarchy.filter(
+		(h) => (h.level === 2 || h.level === 3) && HOWTO_STEP_HEADING_PATTERN.test(h.text)
+	);
+	if (stepHeadings.length >= 2) return true;
+
+	const supportSignal = HOWTO_SUPPORTING_PATTERNS.some((p) => p.test(headlineCorpus));
+	if (!supportSignal) return false;
+
+	if (stepHeadings.length >= 1) return true;
+
+	const contentPreview = extraction.extraction.content_snapshot.paragraphs
+		.slice(0, 4)
+		.map((p) => p.text)
+		.join(" ");
+	return countPatternMatches(contentPreview, HOWTO_SUPPORTING_PATTERNS) >= 2;
+}
+
+function isTechnicalBlogPost(extraction: DOMExtraction): boolean {
+	const h1 = extraction.extraction.headings.hierarchy.find((h) => h.level === 1)?.text || "";
+	const corpus = [
+		extraction.page_url,
+		extraction.extraction.metadata.title.content || "",
+		extraction.extraction.metadata.meta_description.content || "",
+		h1,
+		...extraction.extraction.headings.hierarchy.slice(0, 8).map((h) => h.text),
+		...extraction.extraction.content_snapshot.paragraphs.slice(0, 5).map((p) => p.text),
+	].join(" ");
+
+	return countPatternMatches(corpus, TECHNICAL_PATTERNS) >= 2;
+}
 
 /**
  * Build a compact page summary for the LLM (~400 tokens).
@@ -149,6 +237,10 @@ export function heuristicRecommendedSchemas(
 		case "blog": {
 			if (extraction && isBlogIndex(extraction.page_url)) {
 				schemas.push("CollectionPage");
+			} else if (extraction && isHowToLikeBlogPost(extraction)) {
+				schemas.push("HowTo", "Person");
+			} else if (extraction && isTechnicalBlogPost(extraction)) {
+				schemas.push("TechArticle", "Person");
 			} else {
 				schemas.push("BlogPosting", "Person");
 			}

@@ -4,7 +4,7 @@
  */
 
 const VALID_SCHEMA_TYPES = new Set([
-	"Organization", "WebSite", "Product", "Service", "Article", "BlogPosting",
+	"Organization", "WebSite", "Product", "Service", "Article", "TechArticle", "BlogPosting",
 	"FAQPage", "BreadcrumbList", "HowTo", "SoftwareApplication", "CollectionPage",
 	"WebApplication", "OfferCatalog", "VideoObject", "ItemList", "Review", "Person",
 ]);
@@ -84,4 +84,3 @@ export function buildMergedSchemaTypesMarker(issueMessage: string | null | undef
 	}
 	return `<!-- REQUIRED_SCHEMA_TYPES: ${merged.join(" + ")} -->`;
 }
-

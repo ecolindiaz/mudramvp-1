@@ -48,6 +48,9 @@ export const SCHEMA_REQUIRED_PROPERTIES: Record<string, RequiredPropertySpec[]> 
 	Article: [
 		{ property: "headline", description: "Article headline" },
 	],
+	TechArticle: [
+		{ property: "headline", description: "Technical article headline" },
+	],
 	BlogPosting: [
 		{ property: "headline", description: "Blog post headline" },
 	],

@@ -67,6 +67,7 @@ const KNOWN_SCHEMA_TYPES = new Set<string>([
 	"Product",
 	"Service",
 	"Article",
+	"TechArticle",
 	"BlogPosting",
 	"FAQPage",
 	"BreadcrumbList",

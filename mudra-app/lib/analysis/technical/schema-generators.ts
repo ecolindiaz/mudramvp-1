@@ -224,6 +224,18 @@ export function buildSchemaForType(
 			return { schema };
 		}
 
+		case "TechArticle": {
+			if (!h1) return { skipped: true, reason: "No H1 heading for TechArticle headline" };
+			const schema: Record<string, unknown> = {
+				"@context": "https://schema.org",
+				"@type": "TechArticle",
+				headline: h1,
+				url,
+			};
+			if (metaDesc) schema.description = metaDesc;
+			return { schema };
+		}
+
 		case "HowTo": {
 			if (!h1) return { skipped: true, reason: "No H1 heading for HowTo name" };
 			const stepHeadings = extraction.headings.hierarchy.filter(

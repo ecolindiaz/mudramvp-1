@@ -28,7 +28,7 @@ import { prisma } from '@/lib/prisma';
 
 const trackEventSchema = z.object({
   trackingId: z.string().min(1).max(200),
-  eventType: z.string().max(50).default('page_view'),
+  eventType: z.enum(['page_view', 'click', 'conversion']).default('page_view'),
   pageUrl: z.string().url().max(2048),
   pageTitle: z.string().max(500).optional(),
   referrer: z.string().max(2048).optional(),
@@ -158,9 +158,16 @@ export async function POST(request: NextRequest) {
     // Optional: Verify signature if provided (for high-security deployments)
     const trackingSecret = process.env.TRACKING_SIGNATURE_SECRET;
     if (trackingSecret && signature && timestamp) {
+      const ts = Number(timestamp);
+      if (Number.isNaN(ts)) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Invalid timestamp' } },
+          { status: 400 }
+        );
+      }
       const sigCheck = verifyTrackingSignature(
         trackingId,
-        timestamp,
+        ts,
         signature,
         trackingSecret
       );

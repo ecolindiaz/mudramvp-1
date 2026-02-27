@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
+import { z } from 'zod'
+
+const analyticsTrackSchema = z.object({
+  siteId: z.string().min(1).max(200),
+  referrer: z.string().max(2048),
+  aiProvider: z.enum(['chatgpt', 'perplexity', 'claude', 'gemini']),
+  path: z.string().max(2048),
+  userAgent: z.string().max(1000).optional(),
+  sessionId: z.string().max(200).optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
 
 /**
  * Get allowed origin from siteId for strict CORS
@@ -59,32 +70,24 @@ function checkRateLimit(siteId: string): boolean {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json()
-    
-    console.log('[AI Referral Track] Incoming request:', {
-      siteId: data.siteId,
-      aiProvider: data.aiProvider,
-      referrer: data.referrer,
-      path: data.path
-    })
-    
-    const {
-      siteId,
-      referrer,
-      aiProvider,
-      path,
-      userAgent,
-      sessionId,
-      metadata
-    } = data
 
-    // Validate required fields
-    if (!siteId || !referrer || !aiProvider || !path) {
-      console.warn('[AI Referral Track] Missing required fields:', { siteId, referrer, aiProvider, path })
+    // Validate payload with Zod
+    const parsed = analyticsTrackSchema.safeParse(data)
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Invalid tracking payload' },
         { status: 400 }
       )
     }
+
+    const { siteId, referrer, aiProvider, path, userAgent, sessionId, metadata } = parsed.data
+
+    console.log('[AI Referral Track] Incoming request:', {
+      siteId,
+      aiProvider,
+      referrer,
+      path
+    })
 
     // Rate limiting per siteId
     if (!checkRateLimit(siteId)) {
@@ -92,15 +95,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
         { status: 429 }
-      )
-    }
-
-    // Validate AI provider
-    const validProviders = ['chatgpt', 'perplexity', 'claude', 'gemini']
-    if (!validProviders.includes(aiProvider)) {
-      return NextResponse.json(
-        { error: 'Invalid AI provider' },
-        { status: 400 }
       )
     }
 
@@ -143,7 +137,7 @@ export async function POST(request: NextRequest) {
         userAgent: userAgent || null,
         ipAddress: hashedIp,
         sessionId: sessionId || null,
-        metadata: metadata || {},
+        metadata: (metadata || {}) as Record<string, string>,
       }
     })
 
@@ -317,19 +311,31 @@ async function updateTopPages(brandProfileId: number, periodStart: Date, periodE
  * OPTIONS handler for CORS preflight
  */
 export async function OPTIONS(request: NextRequest) {
-  // 🔒 SECURITY: Validate origin in preflight too
   const requestOrigin = request.headers.get('origin');
   
-  // In development, allow all. In production, origin must match a registered brand
-  const corsOrigin = process.env.NODE_ENV === 'development' ? '*' : (requestOrigin || '');
-  
+  if (process.env.NODE_ENV === 'development') {
+    return new NextResponse(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    })
+  }
+
+  // In production, reject requests with no origin
+  if (!requestOrigin) {
+    return new NextResponse(null, { status: 403 });
+  }
+
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': corsOrigin,
+      'Access-Control-Allow-Origin': requestOrigin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
-      ...(corsOrigin !== '*' ? { 'Access-Control-Allow-Credentials': 'true' } : {})
+      'Access-Control-Allow-Credentials': 'true',
     },
   })
 }

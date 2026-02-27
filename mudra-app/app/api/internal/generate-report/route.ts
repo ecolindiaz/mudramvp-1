@@ -2,10 +2,17 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/analysis/technical/repo";
 import { queueNlrJob } from "@/lib/jobs/nlr";
+import crypto from 'crypto';
 
 function isAdmin(req: NextRequest): boolean {
   const token = req.headers.get('x-admin-token') || ''
-  return !!token && token === process.env.ADMIN_API_TOKEN
+  const adminToken = process.env.ADMIN_API_TOKEN || ''
+  if (!token || !adminToken) return false
+  try {
+    return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(adminToken))
+  } catch {
+    return false
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -32,7 +39,8 @@ export async function POST(req: NextRequest) {
     const job = await queueNlrJob(site.companyId, weekStartUtc);
     return NextResponse.json({ success: true, data: { jobId: job.id } });
   } catch (err) {
-    return NextResponse.json({ success: false, error: { message: (err as Error).message } }, { status: 500 });
+    console.error('[Internal Generate Report] Error:', err);
+    return NextResponse.json({ success: false, error: { message: 'Failed to generate report' } }, { status: 500 });
   }
 }
 

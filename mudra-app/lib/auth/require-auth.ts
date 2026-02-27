@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 export interface AuthenticatedUser {
   id: string;
@@ -200,7 +201,11 @@ export function validateCronSecret(authHeader: string | null): boolean {
     ? authHeader.slice(7) 
     : authHeader;
 
-  return providedSecret === cronSecret;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(cronSecret));
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -225,7 +230,11 @@ export function validateCronSecretFromRequest(request: Request):
     ? authHeader.slice(7) 
     : authHeader;
 
-  if (providedSecret !== cronSecret) {
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(cronSecret))) {
+      return { success: false, error: 'Invalid CRON_SECRET', status: 401 };
+    }
+  } catch {
     return { success: false, error: 'Invalid CRON_SECRET', status: 401 };
   }
 
@@ -251,5 +260,9 @@ export function validateInternalApiSecret(authHeader: string | null): boolean {
     ? authHeader.slice(7) 
     : authHeader;
 
-  return providedSecret === apiSecret;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(apiSecret));
+  } catch {
+    return false;
+  }
 }

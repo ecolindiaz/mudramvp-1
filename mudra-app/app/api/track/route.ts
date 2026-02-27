@@ -15,6 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { trackEvent } from '@/lib/services/analytics-event.service';
 import { applyRateLimitAsync, getClientIp } from '@/lib/auth/rate-limiter-redis';
 import { 
@@ -24,6 +25,18 @@ import {
 } from '@/lib/auth/track-security';
 import { logAuditEvent } from '@/lib/services/audit-log.service';
 import { prisma } from '@/lib/prisma';
+
+const trackEventSchema = z.object({
+  trackingId: z.string().min(1).max(200),
+  eventType: z.string().max(50).default('page_view'),
+  pageUrl: z.string().url().max(2048),
+  pageTitle: z.string().max(500).optional(),
+  referrer: z.string().max(2048).optional(),
+  userAgent: z.string().max(1000).optional(),
+  metadata: z.record(z.unknown()).optional(),
+  timestamp: z.string().optional(),
+  signature: z.string().optional(),
+});
 
 /**
  * Get allowed origin from trackingId for strict CORS
@@ -62,26 +75,26 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // Validate payload with Zod
+    const parsed = trackEventSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Invalid tracking payload' } },
+        { status: 400 }
+      );
+    }
+
     const {
       trackingId,
-      eventType = 'page_view',
+      eventType,
       pageUrl,
       pageTitle,
       referrer,
       userAgent,
       metadata,
-      // Optional signature fields for enhanced security
       timestamp,
       signature
-    } = body;
-
-    // Validate required fields
-    if (!trackingId || !pageUrl) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Missing required fields' } },
-        { status: 400 }
-      );
-    }
+    } = parsed.data;
 
     // Get IP address from request
     const ipAddress = getClientIp(request);
@@ -203,7 +216,7 @@ export async function POST(request: NextRequest) {
       { 
         success: false, 
         error: { 
-          message: error instanceof Error ? error.message : 'Failed to track event' 
+          message: 'Failed to track event' 
         } 
       },
       { status: 500 }

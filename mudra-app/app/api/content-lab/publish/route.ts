@@ -163,11 +163,19 @@ Generate the file(s) needed to add this as a blog post. Return JSON with:
       );
     }
 
-    // Create the PR with the generated files
-    const files = agentOutput.filesToCreate.map((f: { path: string; content: string }) => ({
-      path: f.path,
-      content: f.content,
-    }));
+    // Create the PR with the generated files — validate paths first
+    const SAFE_PATH_PATTERN = /^content\/blog\/[a-z0-9][a-z0-9_-]*\.(md|mdx)$/;
+    const files = agentOutput.filesToCreate.map((f: { path: string; content: string }) => {
+      // Sanitize path: strip leading slashes, normalize, prevent traversal
+      const sanitizedPath = f.path.replace(/^\/+/, '').replace(/\.\.\//g, '');
+      if (!SAFE_PATH_PATTERN.test(sanitizedPath)) {
+        throw new Error(`Invalid file path generated: ${sanitizedPath}. Paths must match: content/blog/<slug>.(md|mdx)`);
+      }
+      return {
+        path: sanitizedPath,
+        content: f.content,
+      };
+    });
 
     const prTitle = `Add blog post: ${campaign.title}`;
     const prBody = `## New Blog Post
@@ -244,7 +252,7 @@ ${files.map((f: { path: string }) => `- \`${f.path}\``).join('\n')}
   } catch (error: any) {
     console.error("[API /content-lab/publish] Error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to publish blog post" },
+      { success: false, error: "Failed to publish blog post" },
       { status: 500 }
     );
   }

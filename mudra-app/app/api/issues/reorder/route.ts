@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { z } from 'zod'
+
+const reorderSchema = z.object({
+  issueId: z.number().int().positive(),
+  newStatus: z.enum(['identified', 'in_progress', 'completed', 'merged', 'dismissed']).optional(),
+  newOrder: z.number().int().min(0),
+});
 
 // POST /api/issues/reorder - Reorder issues (for drag-and-drop)
 export async function POST(request: NextRequest) {
@@ -15,14 +22,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { issueId, newStatus, newOrder } = body
-
-    if (!issueId || newOrder === undefined) {
+    const parsed = reorderSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: { message: "issueId and newOrder are required" } },
+        { success: false, error: { message: 'Invalid input', details: parsed.error.errors } },
         { status: 400 }
       )
     }
+    const { issueId, newStatus, newOrder } = parsed.data
 
     // Get brand profile for user
     const brandProfile = await prisma.brandProfile.findFirst({

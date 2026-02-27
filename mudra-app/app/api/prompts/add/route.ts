@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { runSinglePromptAnalysis } from '@/lib/services/single-prompt-analysis.service'
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { z } from 'zod'
 
 // Vercel serverless: single-prompt analysis needs time for 4 concurrent AI provider calls
 export const maxDuration = 120
@@ -9,58 +11,37 @@ export const maxDuration = 120
 // Validation constants
 const MAX_PROMPT_LENGTH = 500
 const MAX_ACTIVE_PROMPTS = 100
-const VALID_CATEGORIES = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific', 'FAQ']
+const VALID_CATEGORIES = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific', 'FAQ'] as const
+
+const addPromptSchema = z.object({
+  promptText: z.string().min(1, 'Prompt text cannot be empty').max(MAX_PROMPT_LENGTH, `Prompt text cannot exceed ${MAX_PROMPT_LENGTH} characters`),
+  category: z.enum(VALID_CATEGORIES).optional().default('Organic'),
+  brandProfileId: z.number().int().positive('Invalid brandProfileId'),
+  runAnalysis: z.boolean().optional().default(false),
+  language: z.string().max(10).optional().default('en'),
+  country: z.string().max(10).optional(),
+})
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { promptText, category, brandProfileId, runAnalysis, language, country } = body
 
-    // === BUG-4 FIX: Input Validation ===
-    if (!promptText || !brandProfileId) {
+    // Validate input with Zod
+    const parsed = addPromptSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: { message: 'Missing promptText or brandProfileId', code: 'VALIDATION_ERROR' } },
+        { success: false, error: { message: 'Invalid input', details: parsed.error.errors, code: 'VALIDATION_ERROR' } },
         { status: 400 }
       )
     }
 
+    const { promptText, category: canonicalCategory, brandProfileId, runAnalysis, language } = parsed.data
     const trimmedText = promptText.trim()
 
-    // Validate prompt length
-    if (trimmedText.length === 0) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Prompt text cannot be empty', code: 'VALIDATION_ERROR' } },
-        { status: 400 }
-      )
-    }
-
-    if (trimmedText.length > MAX_PROMPT_LENGTH) {
-      return NextResponse.json(
-        { success: false, error: { message: `Prompt text cannot exceed ${MAX_PROMPT_LENGTH} characters (currently ${trimmedText.length})`, code: 'VALIDATION_ERROR' } },
-        { status: 400 }
-      )
-    }
-
-    // Validate category (case-insensitive)
-    const normalizedCategory = category || 'Organic'
-    const categoryMatch = VALID_CATEGORIES.find(
-      cat => cat.toLowerCase() === normalizedCategory.toLowerCase()
-    )
-    if (!categoryMatch) {
-      return NextResponse.json(
-        { success: false, error: { message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}`, code: 'VALIDATION_ERROR' } },
-        { status: 400 }
-      )
-    }
-    // Use the canonical casing from VALID_CATEGORIES
-    const canonicalCategory = categoryMatch
-
-    // Validate brandProfileId is a number
-    if (typeof brandProfileId !== 'number' || brandProfileId <= 0) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Invalid brandProfileId', code: 'VALIDATION_ERROR' } },
-        { status: 400 }
-      )
+    // Authenticate and verify the user owns this brandProfileId
+    const authResult = await requireAuthWithBrandAccess(brandProfileId)
+    if (!authResult.success) {
+      return authResult.response
     }
 
     // === BUG-1 FIX: Atomic check-and-insert using transaction with serializable isolation ===
@@ -171,16 +152,12 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('❌ Error creating prompt:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Failed to create prompt'
-    console.error('   Error details:', errorMessage)
-    if (error instanceof Error && error.stack) {
-      console.error('   Stack:', error.stack)
-    }
+    console.error('   Error details:', error instanceof Error ? error.message : error)
     return NextResponse.json(
       {
         success: false,
         error: {
-          message: errorMessage,
+          message: 'Failed to create prompt',
           code: 'INTERNAL_ERROR',
         },
       },
@@ -206,28 +183,24 @@ async function createPromptWithRawSQL(
   brandProfileId: number
 }> {
   // First, verify brand profile exists
-  const profileCheck = await prisma.$queryRawUnsafe<Array<{ id: number }>>(
-    `SELECT id FROM "BrandProfile" WHERE id = $1 LIMIT 1`,
-    brandProfileId
+  const profileCheck = await prisma.$queryRaw<Array<{ id: number }>>(
+    Prisma.sql`SELECT id FROM "BrandProfile" WHERE id = ${brandProfileId} LIMIT 1`
   )
   if (!profileCheck || profileCheck.length === 0) {
     throw new Error(`Brand profile with id ${brandProfileId} does not exist. Please create a brand profile first.`)
   }
 
   // Check duplicate
-  const duplicateCheck = await prisma.$queryRawUnsafe<Array<{ id: number }>>(
-    `SELECT id FROM "Prompt" WHERE "brandProfileId" = $1 AND text = $2 AND "isActive" = true LIMIT 1`,
-    brandProfileId,
-    text
+  const duplicateCheck = await prisma.$queryRaw<Array<{ id: number }>>(
+    Prisma.sql`SELECT id FROM "Prompt" WHERE "brandProfileId" = ${brandProfileId} AND text = ${text} AND "isActive" = true LIMIT 1`
   )
   if (duplicateCheck && duplicateCheck.length > 0) {
     throw new Error('DUPLICATE_PROMPT:A prompt with this exact text already exists')
   }
 
   // Check count
-  const countResult = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
-    `SELECT COUNT(*) as count FROM "Prompt" WHERE "brandProfileId" = $1 AND "isActive" = true`,
-    brandProfileId
+  const countResult = await prisma.$queryRaw<Array<{ count: bigint }>>(
+    Prisma.sql`SELECT COUNT(*) as count FROM "Prompt" WHERE "brandProfileId" = ${brandProfileId} AND "isActive" = true`
   )
   const count = Number(countResult[0]?.count || 0)
   if (count >= MAX_ACTIVE_PROMPTS) {
@@ -235,7 +208,7 @@ async function createPromptWithRawSQL(
   }
 
   // Insert and get ID using RETURNING clause (PostgreSQL)
-  const insertResult = await prisma.$queryRawUnsafe<Array<{
+  const insertResult = await prisma.$queryRaw<Array<{
     id: number
     text: string
     category: string | null
@@ -244,13 +217,9 @@ async function createPromptWithRawSQL(
     createdAt: Date
     updatedAt: Date
   }>>(
-    `INSERT INTO "Prompt" (text, category, language, "isCustom", "isActive", "brandProfileId", "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, true, true, $4, NOW(), NOW())
-     RETURNING id, text, category, language, "isCustom", "isActive", "createdAt", "updatedAt"`,
-    text,
-    category,
-    language || 'en',
-    brandProfileId
+    Prisma.sql`INSERT INTO "Prompt" (text, category, language, "isCustom", "isActive", "brandProfileId", "createdAt", "updatedAt")
+     VALUES (${text}, ${category}, ${language || 'en'}, true, true, ${brandProfileId}, NOW(), NOW())
+     RETURNING id, text, category, language, "isCustom", "isActive", "createdAt", "updatedAt"`
   )
 
   if (!insertResult || insertResult.length === 0) {

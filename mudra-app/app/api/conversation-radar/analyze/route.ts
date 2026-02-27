@@ -5,31 +5,40 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth/require-auth';
+import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
+import { z } from 'zod';
 
 export const maxDuration = 300; // 5 minutes - LLM analysis of opportunities
+
+const analyzeSchema = z.object({
+  opportunityIds: z.array(z.number().int().positive()).optional(),
+  brandProfileId: z.number().int().positive(),
+});
 
 export async function POST(req: NextRequest) {
   // Rate limit first - expensive AI operations
   const rateLimited = await applyRateLimitAsync(req, 'aiGeneration');
   if (rateLimited) return rateLimited;
 
-  // Require authentication
-  const authResult = await requireAuth();
-  if (!authResult.success) {
-    return authResult.response;
-  }
-
   try {
     const body = await req.json();
-    const { opportunityIds, brandProfileId } = body;
 
-    if (!brandProfileId) {
+    // Validate input
+    const parsed = analyzeSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: 'brandProfileId is required' },
+        { success: false, error: { message: 'Invalid input', details: parsed.error.errors } },
         { status: 400 }
       );
+    }
+
+    const { opportunityIds, brandProfileId } = parsed.data;
+
+    // Authenticate and verify the user owns this brandProfileId
+    const authResult = await requireAuthWithBrandAccess(brandProfileId);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
     // Get opportunities to analyze

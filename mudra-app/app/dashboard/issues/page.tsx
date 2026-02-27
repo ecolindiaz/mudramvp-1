@@ -364,40 +364,29 @@ function SortableIssueCard({
             </span>
           )}
         </div>
-        {(issue.status === "identified" && issue.agentType) || (!issue.prUrl && issue.generatedOutput) ? (
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <button
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white text-black hover:bg-white/90 transition-colors text-[11px] font-medium"
-              >
-                <IconWand className="w-3 h-3" />
-                Fix
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-[#1a1a1a] border-white/10">
-              {issue.status === "identified" && issue.agentType && onFix && (
-                <DropdownMenuItem
-                  onClick={(e) => { e.stopPropagation(); onFix(issue.id); }}
-                  className="text-white hover:bg-white/10 cursor-pointer"
-                  disabled={isDeploying}
-                >
-                  <IconWand className="w-4 h-4 mr-2" />
-                  Fix with Agent
-                </DropdownMenuItem>
-              )}
-              {!issue.prUrl && issue.generatedOutput && (
-                <DropdownMenuItem
-                  onClick={(e) => { e.stopPropagation(); onViewOutput?.(issue); }}
-                  className="text-white hover:bg-white/10 cursor-pointer"
-                >
-                  <IconCode className="w-4 h-4 mr-2" />
-                  See Code
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {issue.status === "identified" && issue.agentType && onFix ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); onFix(issue.id); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            disabled={isDeploying}
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white text-black hover:bg-white/90 transition-colors text-[11px] font-medium disabled:opacity-50"
+          >
+            {isDeploying ? (
+              <UnicodeExecutionSpinner className="text-black/80" />
+            ) : (
+              <IconWand className="w-3 h-3" />
+            )}
+            {isDeploying ? "Deploying..." : "Fix"}
+          </button>
+        ) : !issue.prUrl && issue.generatedOutput ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); onViewOutput?.(issue); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white text-black hover:bg-white/90 transition-colors text-[11px] font-medium"
+          >
+            <IconCode className="w-3 h-3" />
+            See Code
+          </button>
         ) : (
           <span className="text-[11px] text-white/20">{issue.agentType}</span>
         )}

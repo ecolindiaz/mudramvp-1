@@ -357,6 +357,28 @@ async function runPostAnalysisSteps(
     onProgress?.({ phase: 'issues', status: 'completed' });
   }
 
+  // Generate/refresh WeeklyReport (NLR) after every successful analysis
+  if (result.success) {
+    onProgress?.({ phase: 'report', status: 'started' });
+    try {
+      const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
+      const companyId = await resolveCompanyIdFromBrandProfile(config.brandProfileId);
+      if (companyId) {
+        const { queueNlrJob } = await import('@/lib/jobs/nlr');
+        const weekStartUtc = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z';
+        await queueNlrJob(companyId, weekStartUtc);
+        console.log(`[Unified Analysis] WeeklyReport (NLR) generated for company=${companyId}`);
+        onProgress?.({ phase: 'report', status: 'completed' });
+      } else {
+        console.warn(`[Unified Analysis] Skipped NLR: could not resolve companyId for brandProfileId=${config.brandProfileId}`);
+        onProgress?.({ phase: 'report', status: 'failed', message: 'Could not resolve companyId for NLR generation' });
+      }
+    } catch (nlrError) {
+      console.warn('[Unified Analysis] NLR generation failed (non-fatal):', nlrError);
+      onProgress?.({ phase: 'report', status: 'failed', message: nlrError instanceof Error ? nlrError.message : 'Unknown NLR error' });
+    }
+  }
+
   // Append any errors from post-processing
   if (errors.length > 0) {
     result.error = result.error ? `${result.error}; ${errors.join('; ')}` : errors.join('; ');

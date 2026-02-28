@@ -54,7 +54,7 @@ export async function POST(
       where: { id: issueId },
       include: {
         brandProfile: {
-          select: { userId: true }
+          select: { userId: true, id: true }
         }
       }
     })
@@ -77,6 +77,27 @@ export async function POST(
     if (issue.status !== 'identified') {
       return NextResponse.json(
         { success: false, error: { message: `Cannot deploy: issue is ${issue.status}` } },
+        { status: 400 }
+      )
+    }
+
+    // Require GitHub integration before allowing deployment
+    const githubIntegration = await prisma.gitHubIntegration.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true, repositories: true }
+    })
+
+    if (!githubIntegration) {
+      return NextResponse.json(
+        { success: false, error: { message: 'GitHub not connected. Please connect your GitHub account in Settings → Integrations before deploying agents.', code: 'GITHUB_NOT_CONNECTED' } },
+        { status: 400 }
+      )
+    }
+
+    const repos = githubIntegration.repositories as string[] | null
+    if (!repos || repos.length === 0) {
+      return NextResponse.json(
+        { success: false, error: { message: 'No GitHub repository configured. Please select a repository in Settings → Integrations before deploying agents.', code: 'GITHUB_NO_REPO' } },
         { status: 400 }
       )
     }

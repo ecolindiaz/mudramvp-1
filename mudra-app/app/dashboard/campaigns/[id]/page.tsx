@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator"
 import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, FileCode, Edit } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { BlogSetupDialog } from "@/components/content-lab/blog-setup-dialog"
+import { computeContentLabSchemaSourceHash } from "@/lib/content-lab/schema-hash"
 
 // Helper function to accurately count words in markdown content
 function countWordsInMarkdown(content: string): number {
@@ -76,6 +77,24 @@ function countWordsInMarkdown(content: string): number {
   return words.length
 }
 
+type SchemaStatus = "ready" | "failed" | "stale" | "none"
+type BlogSchemaType = "BlogPosting" | "TechArticle" | "HowTo"
+
+interface ContentLabSchemaMetadata {
+  schemaType: BlogSchemaType
+  scriptTag: string
+  generatedAt: string
+  confidence: number
+  sourceHash: string
+  optionalFieldsIncluded?: string[]
+}
+
+function isContentLabSchemaMetadata(value: unknown): value is ContentLabSchemaMetadata {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.schemaType === "string" && typeof candidate.scriptTag === "string"
+}
+
 function CampaignCanvasPageInner({
   params,
   searchParams,
@@ -100,6 +119,11 @@ function CampaignCanvasPageInner({
   const [deleting, setDeleting] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState("copy")
   const [metaDescription, setMetaDescription] = React.useState("")
+  const [contentLabSchema, setContentLabSchema] = React.useState<ContentLabSchemaMetadata | null>(null)
+  const [schemaStatus, setSchemaStatus] = React.useState<SchemaStatus>("none")
+  const [schemaError, setSchemaError] = React.useState("")
+  const [schemaRegenerating, setSchemaRegenerating] = React.useState(false)
+  const [schemaNotice, setSchemaNotice] = React.useState<string | null>(null)
   const [editMode, setEditMode] = React.useState(false)
   
   // Blog setup status
@@ -152,6 +176,61 @@ function CampaignCanvasPageInner({
     return body.split("\n").filter((l) => l.startsWith("## ")).map((h) => h.replace(/^##\s+/, ""))
   }, [body])
   const outlineItems = headings.length > 0 ? headings : []
+
+  const currentSchemaSourceHash = React.useMemo(() => {
+    return computeContentLabSchemaSourceHash({
+      title: title || "",
+      body: body || "",
+      slug: slug || "",
+    })
+  }, [title, body, slug])
+
+  const isSchemaStale = React.useMemo(() => {
+    if (!contentLabSchema?.sourceHash) return false
+    return contentLabSchema.sourceHash !== currentSchemaSourceHash
+  }, [contentLabSchema, currentSchemaSourceHash])
+
+  const effectiveSchemaStatus = React.useMemo<SchemaStatus>(() => {
+    if (schemaStatus === "failed") return "failed"
+    if (schemaStatus === "stale") return "stale"
+    if (isSchemaStale) return "stale"
+    if (contentLabSchema) return "ready"
+    return "none"
+  }, [schemaStatus, isSchemaStale, contentLabSchema])
+
+  const handleRegenerateSchema = async () => {
+    setSchemaRegenerating(true)
+    setSchemaNotice(null)
+    setSchemaError("")
+    try {
+      const response = await fetch("/api/content-lab/schema", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaignId: id }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success || !isContentLabSchemaMetadata(data.schema)) {
+        const errorMessage = data?.error || "Failed to regenerate schema"
+        setSchemaStatus("failed")
+        setSchemaError(errorMessage)
+        setSchemaNotice(errorMessage)
+        return
+      }
+
+      setContentLabSchema(data.schema)
+      setSchemaStatus("ready")
+      setSchemaError("")
+      setSchemaNotice("Schema regenerated.")
+    } catch (error) {
+      console.error("Failed to regenerate schema:", error)
+      const message = "Failed to regenerate schema"
+      setSchemaStatus("failed")
+      setSchemaError(message)
+      setSchemaNotice(message)
+    } finally {
+      setSchemaRegenerating(false)
+    }
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -258,10 +337,27 @@ function CampaignCanvasPageInner({
                 ? campaign.metadata
                 : (typeof campaign.metadata === 'string' ? JSON.parse(campaign.metadata) : {})
               const metaDesc = (metadata as any).metaDescription || ""
+              const schemaFromMetadata = (metadata as any).contentLabSchema
+              const metadataSchemaStatus = (metadata as any).schemaStatus
+              const metadataSchemaError = (metadata as any).schemaError
               console.log('📋 Metadata loaded:', { metadata, metaDescription: metaDesc })
               setMetaDescription(metaDesc)
+              if (isContentLabSchemaMetadata(schemaFromMetadata)) {
+                setContentLabSchema(schemaFromMetadata)
+              } else {
+                setContentLabSchema(null)
+              }
+              if (metadataSchemaStatus === "ready" || metadataSchemaStatus === "failed" || metadataSchemaStatus === "stale") {
+                setSchemaStatus(metadataSchemaStatus)
+              } else {
+                setSchemaStatus(isContentLabSchemaMetadata(schemaFromMetadata) ? "ready" : "none")
+              }
+              setSchemaError(typeof metadataSchemaError === "string" ? metadataSchemaError : "")
             } catch (e) {
               console.warn('Failed to parse campaign metadata:', e)
+              setContentLabSchema(null)
+              setSchemaStatus("none")
+              setSchemaError("")
             }
             
             setContentLoaded(true)
@@ -869,6 +965,101 @@ function CampaignCanvasPageInner({
                             </div>
                           </div>
 
+                          {/* Structured Data Section */}
+                          <div className="space-y-3 pb-4 border-b border-white/[0.06]">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <FileCode className="size-4 text-white/80" />
+                                <h3 className="text-sm font-semibold text-white">Structured Data (JSON-LD)</h3>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[11px] ${
+                                    effectiveSchemaStatus === "ready"
+                                      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+                                      : effectiveSchemaStatus === "stale"
+                                        ? "bg-amber-500/15 text-amber-300 border-amber-500/20"
+                                        : effectiveSchemaStatus === "failed"
+                                          ? "bg-red-500/15 text-red-300 border-red-500/20"
+                                          : "bg-white/5 border-white/[0.08] text-white/70"
+                                  }`}
+                                >
+                                  {effectiveSchemaStatus === "none" ? "Not Generated" : effectiveSchemaStatus[0].toUpperCase() + effectiveSchemaStatus.slice(1)}
+                                </Badge>
+                                {contentLabSchema?.schemaType && (
+                                  <Badge variant="outline" className="text-[11px] bg-white/5 border-white/[0.08] text-white/85">
+                                    {contentLabSchema.schemaType}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-3 space-y-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-medium text-white/70 uppercase tracking-wide">Copy-ready script tag</span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={handleRegenerateSchema}
+                                    disabled={schemaRegenerating}
+                                    className="h-7 px-2.5 rounded-md border border-white/[0.08] bg-white/[0.03] text-white/80 hover:text-white hover:bg-white/[0.06] text-[11px] font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                                    title="Regenerate schema with GPT 5.2"
+                                  >
+                                    {schemaRegenerating ? (
+                                      <span className="inline-flex items-center gap-1">
+                                        <Loader2 className="size-3 animate-spin" />
+                                        Regenerating
+                                      </span>
+                                    ) : "Regenerate"}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (!contentLabSchema?.scriptTag) return
+                                      navigator.clipboard.writeText(contentLabSchema.scriptTag)
+                                      setSchemaNotice("Schema copied.")
+                                    }}
+                                    disabled={!contentLabSchema?.scriptTag}
+                                    className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Copy schema script tag"
+                                  >
+                                    <CopyIcon className="size-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {contentLabSchema?.scriptTag ? (
+                                <pre className="text-[11px] leading-5 text-white/85 bg-black/25 border border-white/[0.06] rounded-md p-3 overflow-x-auto whitespace-pre-wrap break-all">
+                                  {contentLabSchema.scriptTag}
+                                </pre>
+                              ) : (
+                                <p className="text-xs text-white/50">
+                                  Schema has not been generated yet. Use regenerate to create JSON-LD for this post.
+                                </p>
+                              )}
+
+                              {effectiveSchemaStatus === "stale" && (
+                                <p className="text-xs text-amber-300">
+                                  Content changed after schema generation. Regenerate to keep JSON-LD aligned with the current post.
+                                </p>
+                              )}
+                              {effectiveSchemaStatus === "failed" && (
+                                <p className="text-xs text-red-300">
+                                  {schemaError || "Schema generation failed. Try regenerate."}
+                                </p>
+                              )}
+
+                              <div className="flex flex-wrap items-center gap-3 text-[11px] text-white/50">
+                                <span>
+                                  Generated: {contentLabSchema?.generatedAt ? new Date(contentLabSchema.generatedAt).toLocaleString() : "—"}
+                                </span>
+                                <span>
+                                  Confidence: {typeof contentLabSchema?.confidence === "number" ? `${Math.round(contentLabSchema.confidence * 100)}%` : "—"}
+                                </span>
+                                {schemaNotice && <span className="text-white/70">{schemaNotice}</span>}
+                              </div>
+                            </div>
+                          </div>
+
                           {/* Backlinks Section */}
                           <div className="space-y-2.5 pt-4 border-t border-white/[0.06]">
                             <div className="flex items-center gap-2">
@@ -986,5 +1177,3 @@ export default function CampaignCanvasPage({
     </BrandProfileProvider>
   )
 }
-
-

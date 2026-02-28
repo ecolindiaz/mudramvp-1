@@ -16,7 +16,10 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 
 const signupSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  name: z.string()
+    .min(2, 'Name must be at least 2 characters')
+    .max(50, 'Name cannot exceed 50 characters')
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Name can only contain letters, numbers, hyphens, and underscores'),
   email: z.string().email('Please enter a valid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
 })
@@ -59,7 +62,10 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
       const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create account')
+        const msg = typeof result.error === 'string'
+          ? result.error
+          : result.error?.message || 'Failed to create account'
+        throw new Error(msg)
       }
 
       toast.success('Account created successfully!')
@@ -75,6 +81,8 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
         router.push('/welcome')
         router.refresh()
       } else {
+        // Auto-login failed — show the error and send to login
+        toast.error(signInResult?.error || 'Sign-in failed after registration. Please log in manually.')
         router.push('/login')
       }
     } catch (error: any) {
@@ -110,11 +118,11 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="grid gap-6">
           <div className="grid gap-4">
-            <Label htmlFor="name" className="text-base text-white">Full Name</Label>
+            <Label htmlFor="name" className="text-base text-white">Username</Label>
             <Input
               {...register('name')}
               id="name"
-              placeholder="John Doe"
+              placeholder="johndoe"
               type="text"
               autoCapitalize="none"
               autoComplete="name"

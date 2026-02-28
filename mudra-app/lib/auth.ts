@@ -74,11 +74,17 @@ export const authOptions: NextAuthOptions = {
 
         try {
           const user = await prisma.user.findUnique({
-            where: { email: credentials.email.toLowerCase() }
+            where: { email: credentials.email.toLowerCase().trim() }
           });
 
-          if (!user || !user.password) {
+          if (!user) {
+            console.error("Auth: no user found for email", credentials.email.toLowerCase().trim());
             throw new Error("Invalid email or password");
+          }
+
+          if (!user.password) {
+            console.error("Auth: user has no password (OAuth-only account)", user.id);
+            throw new Error("This account uses Google sign-in. Please log in with Google.");
           }
 
           const isValid = await bcrypt.compare(credentials.password, user.password);

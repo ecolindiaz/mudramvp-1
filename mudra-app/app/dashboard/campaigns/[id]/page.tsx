@@ -14,8 +14,9 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, FileCode, Edit } from "lucide-react"
+import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Check, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, FileCode, Edit, ChevronDown } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { BlogSetupDialog } from "@/components/content-lab/blog-setup-dialog"
 import { computeContentLabSchemaSourceHash } from "@/lib/content-lab/schema-hash"
 
@@ -123,7 +124,11 @@ function CampaignCanvasPageInner({
   const [schemaStatus, setSchemaStatus] = React.useState<SchemaStatus>("none")
   const [schemaError, setSchemaError] = React.useState("")
   const [schemaRegenerating, setSchemaRegenerating] = React.useState(false)
-  const [schemaNotice, setSchemaNotice] = React.useState<string | null>(null)
+  const [titleCopied, setTitleCopied] = React.useState(false)
+  const [descCopied, setDescCopied] = React.useState(false)
+  const [slugCopied, setSlugCopied] = React.useState(false)
+  const [schemaCopied, setSchemaCopied] = React.useState(false)
+  const [schemaExpanded, setSchemaExpanded] = React.useState(false)
   const [editMode, setEditMode] = React.useState(false)
   
   // Blog setup status
@@ -200,7 +205,7 @@ function CampaignCanvasPageInner({
 
   const handleRegenerateSchema = async () => {
     setSchemaRegenerating(true)
-    setSchemaNotice(null)
+
     setSchemaError("")
     try {
       const response = await fetch("/api/content-lab/schema", {
@@ -213,20 +218,18 @@ function CampaignCanvasPageInner({
         const errorMessage = data?.error || "Failed to regenerate schema"
         setSchemaStatus("failed")
         setSchemaError(errorMessage)
-        setSchemaNotice(errorMessage)
+
         return
       }
 
       setContentLabSchema(data.schema)
       setSchemaStatus("ready")
       setSchemaError("")
-      setSchemaNotice("Schema regenerated.")
     } catch (error) {
       console.error("Failed to regenerate schema:", error)
       const message = "Failed to regenerate schema"
       setSchemaStatus("failed")
       setSchemaError(message)
-      setSchemaNotice(message)
     } finally {
       setSchemaRegenerating(false)
     }
@@ -803,13 +806,24 @@ function CampaignCanvasPageInner({
                                   : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
                               }`}
                             >
+                              <FileCode className="w-3.5 h-3.5 opacity-70" />
+                              Technical
+                            </button>
+                            <button
+                              onClick={() => setActiveTab("backlinks")}
+                              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                                activeTab === "backlinks"
+                                  ? "bg-white/[0.08] text-white"
+                                  : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
+                              }`}
+                            >
                               <LinkIcon className="w-3.5 h-3.5 opacity-70" />
-                              SEO Settings
+                              Backlinks
                             </button>
                           </div>
                         </div>
 
-                        <TabsContent value="copy" className="p-5 space-y-4 mt-0 flex-1 overflow-y-auto">
+                        <TabsContent value="copy" className="p-5 space-y-4 mt-0 overflow-y-auto">
                           {/* Outline Section */}
                           <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
                             <div className="flex items-center gap-2">
@@ -907,7 +921,7 @@ function CampaignCanvasPageInner({
                           </div>
                         </TabsContent>
 
-                        <TabsContent value="seo" className="p-5 space-y-4 mt-0 flex-1 overflow-y-auto">
+                        <TabsContent value="seo" className="px-5 pt-5 pb-3 space-y-4 mt-0 overflow-y-auto">
                           {/* Metadata Section */}
                           <div className="space-y-3 pb-4 border-b border-white/[0.06]">
                             <h3 className="text-sm font-semibold text-white">Metadata</h3>
@@ -919,11 +933,17 @@ function CampaignCanvasPageInner({
                                   <button
                                     onClick={() => {
                                       navigator.clipboard.writeText(title || "")
+                                      setTitleCopied(true)
+                                      setTimeout(() => setTitleCopied(false), 2000)
                                     }}
                                     className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
                                     title="Copy meta title"
                                   >
-                                    <CopyIcon className="size-3.5" />
+                                    {titleCopied ? (
+                                      <Check className="size-3.5 text-emerald-400" />
+                                    ) : (
+                                      <CopyIcon className="size-3.5" />
+                                    )}
                                   </button>
                                 </div>
                                 <p className="text-sm text-white/90 leading-relaxed break-words">{title || "Not set"}</p>
@@ -936,11 +956,17 @@ function CampaignCanvasPageInner({
                                   <button
                                     onClick={() => {
                                       navigator.clipboard.writeText(metaDescription || "")
+                                      setDescCopied(true)
+                                      setTimeout(() => setDescCopied(false), 2000)
                                     }}
                                     className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
                                     title="Copy meta description"
                                   >
-                                    <CopyIcon className="size-3.5" />
+                                    {descCopied ? (
+                                      <Check className="size-3.5 text-emerald-400" />
+                                    ) : (
+                                      <CopyIcon className="size-3.5" />
+                                    )}
                                   </button>
                                 </div>
                                 <p className="text-sm text-white/90 leading-relaxed break-words">{metaDescription || "Not set"}</p>
@@ -953,11 +979,17 @@ function CampaignCanvasPageInner({
                                   <button
                                     onClick={() => {
                                       navigator.clipboard.writeText(slug || "")
+                                      setSlugCopied(true)
+                                      setTimeout(() => setSlugCopied(false), 2000)
                                     }}
                                     className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
                                     title="Copy slug"
                                   >
-                                    <CopyIcon className="size-3.5" />
+                                    {slugCopied ? (
+                                      <Check className="size-3.5 text-emerald-400" />
+                                    ) : (
+                                      <CopyIcon className="size-3.5" />
+                                    )}
                                   </button>
                                 </div>
                                 <p className="text-sm text-white/90 leading-relaxed break-words font-mono">{slug || "Not set"}</p>
@@ -966,38 +998,13 @@ function CampaignCanvasPageInner({
                           </div>
 
                           {/* Structured Data Section */}
-                          <div className="space-y-3 pb-4 border-b border-white/[0.06]">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <FileCode className="size-4 text-white/80" />
-                                <h3 className="text-sm font-semibold text-white">Structured Data (JSON-LD)</h3>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge
-                                  variant="outline"
-                                  className={`text-[11px] ${
-                                    effectiveSchemaStatus === "ready"
-                                      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
-                                      : effectiveSchemaStatus === "stale"
-                                        ? "bg-amber-500/15 text-amber-300 border-amber-500/20"
-                                        : effectiveSchemaStatus === "failed"
-                                          ? "bg-red-500/15 text-red-300 border-red-500/20"
-                                          : "bg-white/5 border-white/[0.08] text-white/70"
-                                  }`}
-                                >
-                                  {effectiveSchemaStatus === "none" ? "Not Generated" : effectiveSchemaStatus[0].toUpperCase() + effectiveSchemaStatus.slice(1)}
-                                </Badge>
-                                {contentLabSchema?.schemaType && (
-                                  <Badge variant="outline" className="text-[11px] bg-white/5 border-white/[0.08] text-white/85">
-                                    {contentLabSchema.schemaType}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-3 space-y-3">
+                          <div>
+                            <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-2.5 space-y-2">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs font-medium text-white/70 uppercase tracking-wide">Copy-ready script tag</span>
+                                <span className="flex items-center gap-1.5 text-xs font-medium text-white/70 uppercase tracking-wide">
+                                  <FileCode className="size-3.5" />
+                                  Structured Data (JSON-LD)
+                                </span>
                                 <div className="flex items-center gap-2">
                                   <button
                                     onClick={handleRegenerateSchema}
@@ -1016,97 +1023,93 @@ function CampaignCanvasPageInner({
                                     onClick={() => {
                                       if (!contentLabSchema?.scriptTag) return
                                       navigator.clipboard.writeText(contentLabSchema.scriptTag)
-                                      setSchemaNotice("Schema copied.")
+                                      setSchemaCopied(true)
+                                      setTimeout(() => setSchemaCopied(false), 2000)
                                     }}
                                     disabled={!contentLabSchema?.scriptTag}
                                     className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Copy schema script tag"
                                   >
-                                    <CopyIcon className="size-3.5" />
+                                    {schemaCopied ? (
+                                      <Check className="size-3.5 text-emerald-400" />
+                                    ) : (
+                                      <CopyIcon className="size-3.5" />
+                                    )}
                                   </button>
                                 </div>
                               </div>
 
                               {contentLabSchema?.scriptTag ? (
-                                <pre className="text-[11px] leading-5 text-white/85 bg-black/25 border border-white/[0.06] rounded-md p-3 overflow-x-auto whitespace-pre-wrap break-all">
-                                  {contentLabSchema.scriptTag}
-                                </pre>
+                                <div className="relative">
+                                  <pre
+                                    className={`text-[11px] leading-5 text-white/85 bg-black/25 border border-white/[0.06] rounded-md p-3 overflow-x-auto whitespace-pre-wrap break-all transition-all ${schemaExpanded ? 'max-h-none overflow-y-auto' : 'overflow-hidden'}`}
+                                    style={schemaExpanded ? undefined : { maxHeight: 'calc(100vh - 710px)', minHeight: '100px' }}
+                                  >
+                                    {contentLabSchema.scriptTag}
+                                  </pre>
+                                  {!schemaExpanded && (
+                                    <div className="absolute bottom-6 left-0 right-0 h-10 bg-gradient-to-t from-black/40 to-transparent rounded-b-md pointer-events-none" />
+                                  )}
+                                  <button
+                                    onClick={() => setSchemaExpanded(!schemaExpanded)}
+                                    className="flex items-center justify-center gap-1 w-full pt-1 text-[11px] text-white/30 hover:text-white/50 transition-colors"
+                                  >
+                                    <span>{schemaExpanded ? "Show less" : "Show more"}</span>
+                                    <ChevronDown className={`size-3 transition-transform ${schemaExpanded ? "rotate-180" : ""}`} />
+                                  </button>
+                                </div>
                               ) : (
                                 <p className="text-xs text-white/50">
                                   Schema has not been generated yet. Use regenerate to create JSON-LD for this post.
                                 </p>
                               )}
 
-                              {effectiveSchemaStatus === "stale" && (
-                                <p className="text-xs text-amber-300">
-                                  Content changed after schema generation. Regenerate to keep JSON-LD aligned with the current post.
-                                </p>
-                              )}
-                              {effectiveSchemaStatus === "failed" && (
-                                <p className="text-xs text-red-300">
-                                  {schemaError || "Schema generation failed. Try regenerate."}
-                                </p>
-                              )}
-
-                              <div className="flex flex-wrap items-center gap-3 text-[11px] text-white/50">
-                                <span>
-                                  Generated: {contentLabSchema?.generatedAt ? new Date(contentLabSchema.generatedAt).toLocaleString() : "—"}
-                                </span>
-                                <span>
-                                  Confidence: {typeof contentLabSchema?.confidence === "number" ? `${Math.round(contentLabSchema.confidence * 100)}%` : "—"}
-                                </span>
-                                {schemaNotice && <span className="text-white/70">{schemaNotice}</span>}
-                              </div>
                             </div>
                           </div>
 
-                          {/* Backlinks Section */}
-                          <div className="space-y-2.5 pt-4 border-t border-white/[0.06]">
-                            <div className="flex items-center gap-2">
-                              <LinkIcon className="size-4 text-white/80" />
-                              <h3 className="text-sm font-semibold text-white">Backlinks</h3>
-                            </div>
-                            <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-4">
-                              {(() => {
-                                // Extract links from body content
-                                const linkRegex = /\[([^\]]+)\]\(([^\)]+)\)/g
-                                const matches = [...(body || '').matchAll(linkRegex)]
-                                
-                                if (matches.length === 0) {
-                                  return (
-                                    <p className="text-xs text-white/50 text-center py-2">
-                                      No backlinks found in the content yet.
-                                      <br />
-                                      <span className="text-white/40">Links added to your article will appear here.</span>
-                                    </p>
-                                  )
-                                }
-                                
+                        </TabsContent>
+
+                        <TabsContent value="backlinks" className="p-5 space-y-4 mt-0 overflow-y-auto">
+                          <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-4">
+                            {(() => {
+                              // Extract links from body content
+                              const linkRegex = /\[([^\]]+)\]\(([^\)]+)\)/g
+                              const matches = [...(body || '').matchAll(linkRegex)]
+
+                              if (matches.length === 0) {
                                 return (
-                                  <div className="space-y-2">
-                                    {matches.map((match, index) => (
-                                      <div key={index} className="flex items-start gap-2 p-2 rounded-md bg-white/[0.03] border border-white/[0.06]">
-                                        <LinkIcon className="size-3.5 text-blue-400 mt-0.5 flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-xs font-medium text-white/90 truncate">{match[1]}</p>
-                                          <a 
-                                            href={match[2]} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="text-xs text-blue-400 hover:text-blue-300 truncate block"
-                                          >
-                                            {match[2]}
-                                          </a>
-                                        </div>
-                                      </div>
-                                    ))}
-                                    <p className="text-xs text-white/40 pt-1">
-                                      {matches.length} backlink{matches.length !== 1 ? 's' : ''} found
-                                    </p>
-                                  </div>
+                                  <p className="text-xs text-white/50 text-center py-2">
+                                    No backlinks found in the content yet.
+                                    <br />
+                                    <span className="text-white/40">Links added to your article will appear here.</span>
+                                  </p>
                                 )
-                              })()}
-                            </div>
+                              }
+
+                              return (
+                                <div className="space-y-2">
+                                  {matches.map((match, index) => (
+                                    <div key={index} className="flex items-start gap-2 p-2 rounded-md bg-white/[0.03] border border-white/[0.06]">
+                                      <LinkIcon className="size-3.5 text-blue-400 mt-0.5 flex-shrink-0" />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-white/90 truncate">{match[1]}</p>
+                                        <a
+                                          href={match[2]}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-blue-400 hover:text-blue-300 truncate block"
+                                        >
+                                          {match[2]}
+                                        </a>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  <p className="text-xs text-white/40 pt-1">
+                                    {matches.length} backlink{matches.length !== 1 ? 's' : ''} found
+                                  </p>
+                                </div>
+                              )
+                            })()}
                           </div>
                         </TabsContent>
                       </Tabs>

@@ -1009,7 +1009,7 @@ function CampaignCanvasPageInner({
                                   <button
                                     onClick={handleRegenerateSchema}
                                     disabled={schemaRegenerating}
-                                    className="h-7 px-2.5 rounded-md border border-white/[0.08] bg-white/[0.03] text-white/80 hover:text-white hover:bg-white/[0.06] text-[11px] font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                                    className="h-7 px-2.5 rounded-md text-white/50 hover:text-white/70 hover:bg-white/[0.04] text-[11px] font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                     title="Regenerate schema with GPT 5.2"
                                   >
                                     {schemaRegenerating ? (

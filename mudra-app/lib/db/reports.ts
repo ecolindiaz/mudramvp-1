@@ -76,7 +76,7 @@ export async function upsertWeeklyReport(
         tokensIn: input.tokensIn ?? undefined,
         tokensOut: input.tokensOut ?? undefined,
         costCents: input.costCents ?? undefined,
-        companyId: input.companyId ?? undefined,
+        companyId: input.companyId === undefined ? undefined : input.companyId,
       },
       create: {
         brandProfileId: input.brandProfileId,

@@ -16,7 +16,6 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Check, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, FileCode, Edit, ChevronDown } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { BlogSetupDialog } from "@/components/content-lab/blog-setup-dialog"
 import { computeContentLabSchemaSourceHash } from "@/lib/content-lab/schema-hash"
 
@@ -183,10 +182,12 @@ function CampaignCanvasPageInner({
   const outlineItems = headings.length > 0 ? headings : []
 
   const currentSchemaSourceHash = React.useMemo(() => {
+    const normalizedSlug =
+      slug && slug.trim().length > 0 ? slug.trim() : (title || "").trim()
     return computeContentLabSchemaSourceHash({
       title: title || "",
       body: body || "",
-      slug: slug || "",
+      slug: normalizedSlug,
     })
   }, [title, body, slug])
 

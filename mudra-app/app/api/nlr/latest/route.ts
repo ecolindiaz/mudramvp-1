@@ -73,6 +73,10 @@ export async function GET(req: NextRequest) {
 
     const targetWeek = weekStartStr ? new Date(weekStartStr) : startOfIsoWeekUtc(new Date())
 
+    if (brandProfileId === null) {
+      return NextResponse.json({ success: false, error: { message: 'Could not resolve brandProfileId' } }, { status: 400 })
+    }
+
     // Try the requested week
     let report = await getWeeklyReportByWeek(brandProfileId, targetWeek)
 

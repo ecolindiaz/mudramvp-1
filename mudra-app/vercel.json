@@ -12,12 +12,20 @@
       "schedule": "0 2 * * 0"
     },
     {
+      "path": "/api/cron/weekly",
+      "schedule": "0 3 * * 0"
+    },
+    {
       "path": "/api/cron/weekly-nlr",
       "schedule": "0 6 * * 1"
     },
     {
       "path": "/api/conversation-radar/cron",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/llms-txt-refresh",
+      "schedule": "0 3 28 * *"
     }
   ],
   "functions": {

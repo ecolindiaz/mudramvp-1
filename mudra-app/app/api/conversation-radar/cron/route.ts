@@ -302,14 +302,23 @@ async function runProactiveMode(brandProfileId: number, language: 'en' | 'es' = 
 /**
  * GET /api/conversation-radar/cron
  *
- * Get cron job status and schedule info.
+ * Vercel Cron calls GET. When the CRON_SECRET auth header is present,
+ * this delegates to the same processing logic as POST (combined mode).
  *
- * Query params:
- * - brandProfileId (optional): return per-brand lastRun/nextRun based on lastRadarRunAt
- *   When omitted: returns aggregate info (backward compat)
+ * Without auth, returns schedule status info (backward compat).
+ *
+ * Query params (status mode):
+ * - brandProfileId (optional): return per-brand lastRun/nextRun
  */
 export async function GET(request: NextRequest) {
   try {
+    // If the Vercel Cron auth header is present, run the actual radar job
+    const authHeader = request.headers.get('authorization');
+    if (CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`) {
+      // Delegate to POST handler logic with default combined mode
+      return POST(request);
+    }
+
     const { searchParams } = new URL(request.url);
     const brandProfileId = searchParams.get('brandProfileId');
 

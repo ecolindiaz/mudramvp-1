@@ -37,7 +37,9 @@ import {
   faithfulnessScorer,
   relevancyScorer,
   promptAlignmentScorer,
+  EVAL_MODEL,
 } from '@/mastra/evals'
+import { createFaithfulnessScorer } from '@mastra/evals/scorers/prebuilt'
 import type { ScorerRunInputForAgent, ScorerRunOutputForAgent } from '@mastra/core/evals'
 import { createHash } from 'crypto'
 import { readSchemaKnowledge, readFaqTemplates } from '@/lib/analysis/technical/knowledge'
@@ -84,7 +86,7 @@ async function callOpenAIDirect(prompt: string, systemPrompt?: string): Promise<
 
     const response = await openai.chat.completions.create({
       model: 'gpt-5.2',
-      max_completion_tokens: 4096,
+      max_completion_tokens: 16384,
       reasoning_effort: 'high',
       messages,
     })
@@ -93,6 +95,21 @@ async function callOpenAIDirect(prompt: string, systemPrompt?: string): Promise<
     const choice = response.choices[0]
     console.log(`[IssueExecutor] OpenAI API response received in ${elapsed}ms, finish_reason: ${choice?.finish_reason}`)
     console.log(`[IssueExecutor] Response usage: prompt=${response.usage?.prompt_tokens}, completion=${response.usage?.completion_tokens}, total=${response.usage?.total_tokens}`)
+
+    // Handle truncated responses (finish_reason: length) — reasoning models
+    // may return null content when the output is cut off at max_completion_tokens
+    if (choice?.finish_reason === 'length') {
+      const partialText = choice?.message?.content
+      if (partialText) {
+        console.warn(`[IssueExecutor] Response truncated (finish_reason: length) but partial content available (${partialText.length} chars)`)
+        return partialText
+      }
+      throw new Error(
+        `OpenAI response truncated (finish_reason: length) with no usable content. ` +
+        `Used ${response.usage?.completion_tokens ?? '?'} completion tokens. ` +
+        `Try reducing prompt size or increasing max_completion_tokens.`
+      )
+    }
 
     const text = choice?.message?.content
     if (!text) {
@@ -1103,6 +1120,41 @@ interface ScoringResult {
 }
 
 /**
+ * Extract context sections from the agent prompt for eval scorers.
+ * Mirrors the hallucination scorer's getContext logic so faithfulness
+ * can also evaluate against the actual page/source/brand context.
+ */
+function extractContextFromPrompt(prompt: string): string[] {
+  const contextChunks: string[] = []
+
+  // Extract "Live Page Content" section
+  const pageContentMatch = prompt.match(/## Live Page Content[\s\S]*?```markdown\n([\s\S]*?)```/)
+  if (pageContentMatch) {
+    contextChunks.push(`Page content: ${pageContentMatch[1].trim()}`)
+  }
+
+  // Extract "Source File" section
+  const sourceFileMatch = prompt.match(/## Source File[\s\S]*?```tsx?\n([\s\S]*?)```/)
+  if (sourceFileMatch) {
+    contextChunks.push(`Source file: ${sourceFileMatch[1].trim()}`)
+  }
+
+  // Extract brand info
+  const brandMatch = prompt.match(/## Brand\n([\s\S]*?)(?=\n## |$)/)
+  if (brandMatch) {
+    contextChunks.push(`Brand info: ${brandMatch[1].trim()}`)
+  }
+
+  if (contextChunks.length === 0) {
+    console.warn(`[IssueExecutor] No context sections found in prompt for faithfulness scoring`)
+  } else {
+    console.log(`[IssueExecutor] Extracted ${contextChunks.length} context section(s) for faithfulness scoring`)
+  }
+
+  return contextChunks
+}
+
+/**
  * Run all eval scorers against a generated output in production.
  * 
  * Constructs ScorerRunInputForAgent / ScorerRunOutputForAgent from raw strings
@@ -1114,6 +1166,7 @@ interface ScoringResult {
 async function runProductionScoring(
   prompt: string,
   generatedCode: string,
+  systemPrompt?: string,
 ): Promise<ScoringResult> {
   const result: ScoringResult = { details: {} }
 
@@ -1130,7 +1183,12 @@ async function runProductionScoring(
       createdAt: now,
     }],
     rememberedMessages: [],
-    systemMessages: [],
+    // The alignment scorer (evaluationMode: 'both') requires system messages.
+    // Without this, it throws "Both user and system prompts are required".
+    // CoreSystemMessage = { role: 'system'; content: string }
+    systemMessages: systemPrompt
+      ? [{ role: 'system' as const, content: systemPrompt }]
+      : [],
     taggedSystemMessages: {},
   }
   const outputForScorer: ScorerRunOutputForAgent = [{
@@ -1143,12 +1201,36 @@ async function runProductionScoring(
     createdAt: now,
   }]
 
-  const scorers = [
-    { key: 'hallucination', scorer: hallucinationScorer, field: 'hallucination' as const },
-    { key: 'faithfulness', scorer: faithfulnessScorer, field: 'faithfulness' as const },
-    { key: 'relevancy', scorer: relevancyScorer, field: 'relevancy' as const },
-    { key: 'alignment', scorer: promptAlignmentScorer, field: 'alignment' as const },
+  // Build scorer list — alignment scorer needs system prompt, so skip it
+  // when no system prompt is available (it uses evaluationMode: 'both').
+  //
+  // Faithfulness scorer needs context to evaluate against. Extract it from
+  // the prompt (same sections the hallucination scorer's getContext parses).
+  // Without context, it scores everything as 0 ("no context was provided").
+  const contextChunks: string[] = extractContextFromPrompt(prompt)
+
+  // Create a context-aware faithfulness scorer for this specific run
+  const contextAwareFaithfulness = contextChunks.length > 0
+    ? createFaithfulnessScorer({ model: EVAL_MODEL, options: { context: contextChunks } })
+    : faithfulnessScorer // fall back to static scorer if no context found
+
+  // Use a minimal interface for the scorer array — each scorer has different
+  // generic params but they all share the same .run() signature.
+  type AnyScorer = { run(args: { input: ScorerRunInputForAgent; output: ScorerRunOutputForAgent }): Promise<{ score: unknown; reason?: string }> }
+
+  const scorers: Array<{ key: string; scorer: AnyScorer; field: keyof Omit<ScoringResult, 'details'> }> = [
+    { key: 'hallucination', scorer: hallucinationScorer, field: 'hallucination' },
+    { key: 'faithfulness', scorer: contextAwareFaithfulness, field: 'faithfulness' },
+    { key: 'relevancy', scorer: relevancyScorer, field: 'relevancy' },
   ]
+
+  // Only include alignment scorer when system prompt is present — without it,
+  // the scorer crashes with "Both user and system prompts are required"
+  if (systemPrompt) {
+    scorers.push({ key: 'alignment', scorer: promptAlignmentScorer, field: 'alignment' })
+  } else {
+    console.warn(`[IssueExecutor] Skipping alignment scorer — no system prompt available`)
+  }
 
   const scorerPromises = scorers.map(async ({ key, scorer, field }) => {
     try {
@@ -1663,7 +1745,7 @@ Please generate an improved version addressing all the feedback above.`
       } else {
         try {
           console.log(`[IssueExecutor] Running production eval scoring...`)
-          evalScores = await runProductionScoring(basePrompt, currentCode)
+          evalScores = await runProductionScoring(basePrompt, currentCode, systemPrompt)
           const scoreCount = Object.keys(evalScores.details).length
           console.log(`[IssueExecutor] Eval scoring complete: ${scoreCount}/4 scorers returned results`)
         } catch (scoringError) {

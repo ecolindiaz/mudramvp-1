@@ -9,4 +9,5 @@ export {
   faithfulnessScorer,
   relevancyScorer,
   promptAlignmentScorer,
+  EVAL_MODEL,
 } from './scorers'

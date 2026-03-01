@@ -23,7 +23,7 @@ import {
 
 // Use Anthropic as the evaluation model to stay consistent with our agent model.
 // A smaller/cheaper model can be used here since scoring is less demanding.
-const EVAL_MODEL = 'anthropic/claude-sonnet-4-5-20250929'
+export const EVAL_MODEL = 'anthropic/claude-sonnet-4-5-20250929'
 
 /**
  * Hallucination Scorer

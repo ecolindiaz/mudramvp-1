@@ -577,6 +577,8 @@ export interface MultiPageScrapeOptions {
 	timeoutMs?: number;
 	/** Whether to bypass cache (default: true for analysis) */
 	bypassCache?: boolean;
+	/** Milliseconds to wait for JS rendering after page load (default: 0) */
+	waitForMs?: number;
 }
 
 /**

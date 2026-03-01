@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { scrapeToMarkdown, crawlToMarkdown } from '@/lib/scrapers/firecrawl';
 import { requireAuth } from '@/lib/auth/require-auth';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
+import { validateExternalUrl } from '@/lib/security/url-validator';
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting (scraping is expensive)
@@ -25,12 +26,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate URL format
-    try {
-      new URL(url);
-    } catch (error) {
+    // Validate URL format + block SSRF targets (private IPs, metadata endpoints, etc.)
+    const urlCheck = validateExternalUrl(url);
+    if (!urlCheck.valid) {
       return NextResponse.json(
-        { success: false, error: { message: 'Invalid URL format', code: 'INVALID_URL' } },
+        { success: false, error: { message: urlCheck.error, code: 'INVALID_URL' } },
         { status: 400 }
       );
     }

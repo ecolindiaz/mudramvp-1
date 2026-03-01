@@ -44,7 +44,7 @@ import {
 const DEFAULT_MAX_PAGES = 35;
 const DEFAULT_MAX_BLOGS = 15;
 const DEFAULT_MAP_LIMIT = 500; // Fetch up to 500 URLs from Firecrawl in single call
-const DEFAULT_MAX_URLS_FOR_AI = 100; // Send top 100 URLs to AI for analysis
+const DEFAULT_MAX_URLS_FOR_AI = 200; // Send top 200 URLs to AI for analysis (increased from 100 to capture more product pages at depth 2-3)
 const DEFAULT_AI_MODEL = "gpt-5.2"; // Default OpenAI model for analysis
 
 // Feature flag for AI discovery (can be overridden via env var)
@@ -113,6 +113,27 @@ const HIGH_VALUE_PATH_PATTERNS = [
 
 	// Blog posts
 	{ pattern: /^\/blog\/.+/i, type: 'blog' as PageType, priority: 4 },
+];
+
+// Critical page types that must have at least one representative in the final
+// selection if any matching URL exists in the discovered URLs. Blog intentionally
+// excluded — keep blog selection as-is.
+const CRITICAL_PAGE_TYPES: {
+	type: PageType;
+	maxInject: number; // How many pages to inject for this type
+	/** Canonical path slugs to probe via HEAD if type is missing from discovered URLs */
+	probeSlugs?: string[];
+}[] = [
+	{ type: 'pricing', maxInject: 1, probeSlugs: ['/pricing'] },
+	{ type: 'about', maxInject: 1, probeSlugs: ['/about', '/about-us', '/company'] },
+	{ type: 'features', maxInject: 1, probeSlugs: ['/features'] },
+	{ type: 'product', maxInject: 3 },
+	{ type: 'solutions', maxInject: 3 },
+	{ type: 'use-cases', maxInject: 3 },
+	{ type: 'customers', maxInject: 1, probeSlugs: ['/customers', '/case-studies'] },
+	{ type: 'integrations', maxInject: 3, probeSlugs: ['/integrations'] },
+	{ type: 'contact', maxInject: 1, probeSlugs: ['/contact', '/contact-us'] },
+	{ type: 'demo', maxInject: 1, probeSlugs: ['/demo', '/request-demo', '/book-demo'] },
 ];
 
 // ============================================================================
@@ -495,6 +516,165 @@ function deduplicatePages<T extends DiscoveredPage>(pages: T[]): T[] {
 	return unique;
 }
 
+/**
+ * Probes a URL via HEAD request to check if it exists (returns 200).
+ * Times out after 4 seconds to avoid blocking discovery.
+ */
+async function probeUrl(url: string): Promise<boolean> {
+	try {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 4000);
+		const res = await fetch(url, {
+			method: "HEAD",
+			redirect: "follow",
+			signal: controller.signal,
+		});
+		clearTimeout(timeout);
+		return res.ok;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Post-AI injection: ensures critical page types are represented in the selection.
+ *
+ * Two-pass approach:
+ * 1. Scan ALL pre-filtered URLs for missing critical types and inject best candidates.
+ * 2. For types STILL missing (Firecrawl didn't return the URL at all), probe canonical
+ *    URL slugs (e.g. /pricing, /about) via HEAD and inject if they return 200.
+ *
+ * Never removes existing pages — only appends. Deduplicates against already-selected URLs.
+ */
+async function injectCriticalPages(
+	selectedPages: DiscoveredPage[],
+	allFilteredUrls: string[],
+	domainHost: string
+): Promise<{ pages: DiscoveredPage[]; injectedTypes: string[]; injectedCount: number }> {
+	const result = [...selectedPages];
+	const injectedTypes: string[] = [];
+	const probedTypes: string[] = [];
+	let injectedCount = 0;
+
+	// Build a set of already-selected URLs (normalized) for dedup
+	const selectedUrlSet = new Set(
+		result.map((p) => p.url.replace(/\/+$/, "").toLowerCase())
+	);
+
+	// Determine which critical types are already represented
+	const presentTypes = new Set(result.map((p) => p.pageType));
+
+	// --- Pass 1: Inject from discovered URLs ---
+	const stillMissing: typeof CRITICAL_PAGE_TYPES = [];
+
+	for (const entry of CRITICAL_PAGE_TYPES) {
+		const { type, maxInject } = entry;
+		if (presentTypes.has(type)) continue;
+
+		// Find candidates from ALL pre-filtered URLs (not just the subset sent to AI)
+		const candidates: { url: string; depth: number; isExactMatch: boolean; matchPriority: number }[] = [];
+
+		for (const url of allFilteredUrls) {
+			const normalizedUrl = url.replace(/\/+$/, "").toLowerCase();
+			if (selectedUrlSet.has(normalizedUrl)) continue;
+
+			const { pageType, isExactMatch, matchPriority } = detectPageTypeEnhanced(url);
+			if (pageType === type) {
+				candidates.push({
+					url,
+					depth: getUrlDepth(url),
+					isExactMatch,
+					matchPriority,
+				});
+			}
+		}
+
+		if (candidates.length === 0) {
+			stillMissing.push(entry);
+			continue;
+		}
+
+		// Sort candidates: exact matches first, then shallowest depth
+		candidates.sort((a, b) => {
+			if (a.matchPriority !== b.matchPriority) return a.matchPriority - b.matchPriority;
+			return a.depth - b.depth;
+		});
+
+		// Inject up to maxInject candidates
+		const toInject = candidates.slice(0, maxInject);
+		for (const candidate of toInject) {
+			const page: DiscoveredPage = {
+				url: candidate.url,
+				pageType: type,
+				priority: PAGE_PRIORITY[type],
+			};
+			result.push(page);
+			selectedUrlSet.add(candidate.url.replace(/\/+$/, "").toLowerCase());
+			injectedCount++;
+		}
+
+		injectedTypes.push(type);
+	}
+
+	// --- Pass 2: Probe canonical slugs for types still missing ---
+	const probeEntries = stillMissing.filter((e) => e.probeSlugs && e.probeSlugs.length > 0);
+	if (probeEntries.length > 0) {
+		const baseUrl = `https://${domainHost}`;
+
+		// Build all probe tasks and run in parallel
+		const probeTasks = probeEntries.flatMap((entry) =>
+			(entry.probeSlugs ?? []).map((slug) => ({
+				entry,
+				slug,
+				url: `${baseUrl}${slug}`,
+			}))
+		);
+
+		const probeResults = await Promise.all(
+			probeTasks.map(async (task) => ({
+				...task,
+				exists: await probeUrl(task.url),
+			}))
+		);
+
+		// Group results by type and inject the first one that exists
+		const injectedProbeTypes = new Set<PageType>();
+		for (const { entry, url, exists } of probeResults) {
+			if (!exists) continue;
+			if (injectedProbeTypes.has(entry.type)) continue;
+
+			const normalizedUrl = url.replace(/\/+$/, "").toLowerCase();
+			if (selectedUrlSet.has(normalizedUrl)) continue;
+
+			const page: DiscoveredPage = {
+				url,
+				pageType: entry.type,
+				priority: PAGE_PRIORITY[entry.type],
+			};
+			result.push(page);
+			selectedUrlSet.add(normalizedUrl);
+			injectedCount++;
+			injectedProbeTypes.add(entry.type);
+			probedTypes.push(entry.type);
+		}
+	}
+
+	if (injectedCount > 0) {
+		const parts: string[] = [];
+		if (injectedTypes.length > 0) {
+			parts.push(`from discovered URLs: [${injectedTypes.join(", ")}]`);
+		}
+		if (probedTypes.length > 0) {
+			parts.push(`via URL probe: [${probedTypes.join(", ")}]`);
+		}
+		console.log(
+			`[SitemapDiscovery] Post-AI injection: added ${injectedCount} critical pages (${parts.join("; ")})`
+		);
+	}
+
+	return { pages: result, injectedTypes: [...injectedTypes, ...probedTypes], injectedCount };
+}
+
 // ============================================================================
 // MAIN DISCOVERY FUNCTION
 // ============================================================================
@@ -633,6 +813,10 @@ export async function discoverPages(
 
 				// Use AI-selected pages, limit to maxPages
 				selectedPages = validAiPages.slice(0, maxPages);
+
+				// Post-AI injection: ensure critical page types are represented
+				const injection = await injectCriticalPages(selectedPages, sortedUrls, domainHost);
+				selectedPages = injection.pages;
 			} else {
 				// Fallback to pattern matching
 				console.log(`[SitemapDiscovery] Falling back to pattern matching...`);
@@ -799,4 +983,6 @@ export const _internal = {
 	getUrlDepth,
 	isHighValuePage,
 	detectPageTypeEnhanced,
+	injectCriticalPages,
+	probeUrl,
 };

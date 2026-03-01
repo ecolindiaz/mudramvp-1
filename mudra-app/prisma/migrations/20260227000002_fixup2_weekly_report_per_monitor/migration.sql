@@ -43,8 +43,20 @@ DROP INDEX IF EXISTS "weekly_reports_org_id_week_start_utc_brand_profile_id_key"
 DROP INDEX IF EXISTS "weekly_reports_org_id_week_start_utc_key";
 
 -- 7. Add the correct unique: one report per monitor per week
-ALTER TABLE "weekly_reports" ADD CONSTRAINT "weekly_reports_brand_profile_id_week_start_utc_key"
-  UNIQUE ("brand_profile_id", "week_start_utc");
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    WHERE c.conname = 'weekly_reports_brand_profile_id_week_start_utc_key'
+      AND t.relname = 'weekly_reports'
+  ) THEN
+    ALTER TABLE "weekly_reports" ADD CONSTRAINT "weekly_reports_brand_profile_id_week_start_utc_key"
+      UNIQUE ("brand_profile_id", "week_start_utc");
+  END IF;
+END
+$$;
 
 -- 8. Fix brand_profile_id FK: CASCADE (not SET NULL)
 ALTER TABLE "weekly_reports" DROP CONSTRAINT IF EXISTS "weekly_reports_brand_profile_id_fkey";

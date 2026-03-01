@@ -101,11 +101,16 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { brandProfileId, weekStartUtc, companyId } = body
+    const rawBrandProfileId = body?.brandProfileId
+    const brandProfileId: number | undefined =
+      rawBrandProfileId !== undefined
+        ? Number.parseInt(String(rawBrandProfileId), 10)
+        : undefined
+    const { weekStartUtc, companyId } = body
 
-    if (!brandProfileId) {
+    if (brandProfileId === undefined || Number.isNaN(brandProfileId)) {
       return NextResponse.json(
-        { success: false, error: { message: 'brandProfileId is required', code: 'MISSING_PARAM' } },
+        { success: false, error: { message: 'brandProfileId is required and must be a number', code: 'MISSING_PARAM' } },
         { status: 400 }
       )
     }

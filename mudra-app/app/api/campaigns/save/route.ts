@@ -84,12 +84,15 @@ export async function POST(req: NextRequest) {
           : null;
 
       if (contentLabSchema && typeof contentLabSchema.sourceHash === "string") {
-        const effectiveSlug =
+        const effectiveTitle = title || existingCampaign.title || "";
+        const rawSlug =
           typeof slug === "string" && slug.trim()
-            ? slug
-            : (existingCampaign.slug || "");
+            ? slug.trim()
+            : (existingCampaign.slug || "").trim();
+        const effectiveSlug =
+          rawSlug.length > 0 ? rawSlug : effectiveTitle.trim();
         const nextHash = computeContentLabSchemaSourceHash({
-          title: title || existingCampaign.title,
+          title: effectiveTitle,
           body: campaignBody || existingCampaign.body,
           slug: effectiveSlug,
         });

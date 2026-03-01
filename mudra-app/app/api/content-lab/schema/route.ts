@@ -55,7 +55,25 @@ export async function POST(req: NextRequest) {
 			);
 		}
 
-		const brandProfile = await getBrandProfileByUserId(authResult.user.id);
+		// Use the campaign's own brandProfileId to get the correct brand profile
+		let brandProfile = campaign.brandProfileId
+			? await prisma.brandProfile.findFirst({
+					where: { id: campaign.brandProfileId },
+					select: {
+						id: true,
+						companyName: true,
+						companyWebsite: true,
+						userName: true,
+						userRole: true,
+					},
+			  })
+			: null;
+
+		// Fall back to the user's most-recently-updated brand profile if campaign has none
+		if (!brandProfile) {
+			brandProfile = await getBrandProfileByUserId(authResult.user.id);
+		}
+
 		if (!brandProfile) {
 			return NextResponse.json(
 				{ success: false, error: "Brand profile not found" },

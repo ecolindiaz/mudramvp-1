@@ -19,14 +19,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: { message: 'Unauthorized' } }, { status: 401 })
     }
     const body = await req.json().catch(() => ({}))
-    const brandProfileId: number | undefined = body?.brandProfileId
+    const rawBrandProfileId = body?.brandProfileId
+    const brandProfileId: number | undefined =
+      rawBrandProfileId !== undefined
+        ? Number.parseInt(String(rawBrandProfileId), 10)
+        : undefined
+    if (brandProfileId === undefined || Number.isNaN(brandProfileId)) {
+      return NextResponse.json({ success: false, error: { message: 'brandProfileId is required and must be a number' } }, { status: 400 })
+    }
     const companyId: string | undefined = body?.companyId
     const weekStartRaw: string | undefined = body?.weekStart || body?.weekStartUtc
     const weekStartUtc: string = weekStartRaw || new Date().toISOString().slice(0,10) + 'T00:00:00.000Z'
-
-    if (!brandProfileId) {
-      return NextResponse.json({ success: false, error: { message: 'brandProfileId is required' } }, { status: 400 })
-    }
 
     // Rate limit per-monitor: 1 per minute
     const allowed = rateLimitByKey(`nlr_generate_${brandProfileId}`, 1, 60)

@@ -3191,7 +3191,7 @@ Fix these errors and return the corrected output. Follow the same output contrac
 		const repairResult = await callLlm({
 			userPrompt: repairPrompt,
 			systemPrompt,
-			maxTokens: 2048,
+			maxTokens: 4096,
 			reasoningEffort: "low",
 		});
 

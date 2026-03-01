@@ -54,7 +54,7 @@ function delay(ms: number): Promise<void> {
 async function scrapeSinglePage(
 	firecrawl: Awaited<ReturnType<typeof createFirecrawlApp>>,
 	url: string,
-	options: Required<Pick<MultiPageScrapeOptions, "timeoutMs" | "bypassCache">>
+	options: Required<Pick<MultiPageScrapeOptions, "timeoutMs" | "bypassCache">> & Pick<MultiPageScrapeOptions, "waitForMs">
 ): Promise<PageScrapeResult> {
 	const scrapedAt = new Date().toISOString();
 
@@ -64,6 +64,7 @@ async function scrapeSinglePage(
 			timeout: options.timeoutMs,
 			headers: { "Accept-Language": "en-US,en;q=0.9" },
 			...(options.bypassCache && { maxAge: 0 }),
+			...(options.waitForMs && { waitFor: options.waitForMs }),
 		});
 
 		// Check for success
@@ -159,6 +160,7 @@ export async function scrapePages(
 	const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	const bypassCache = options.bypassCache ?? DEFAULT_BYPASS_CACHE;
+	const waitForMs = options.waitForMs;
 
 	// Handle empty URL list
 	if (urls.length === 0) {
@@ -191,7 +193,7 @@ export async function scrapePages(
 
 			// Scrape all pages in this batch concurrently
 			const batchPromises = batch.map((url) =>
-				scrapeSinglePage(firecrawl, url, { timeoutMs, bypassCache })
+				scrapeSinglePage(firecrawl, url, { timeoutMs, bypassCache, waitForMs })
 			);
 
 			// Use Promise.allSettled for fault tolerance
@@ -241,7 +243,7 @@ export async function scrapePages(
 
 			for (const batch of retryBatches) {
 				const batchSettled = await Promise.allSettled(
-					batch.map((url) => scrapeSinglePage(firecrawl, url, { timeoutMs, bypassCache }))
+					batch.map((url) => scrapeSinglePage(firecrawl, url, { timeoutMs, bypassCache, waitForMs }))
 				);
 				for (const result of batchSettled) {
 					if (result.status === "fulfilled") {

@@ -749,11 +749,20 @@ function extractFAQsFromTextHeadings($: CheerioAPI): FAQItem[] {
 					answer = answerP.length ? answerP.text().trim() : answerContainer.text().trim();
 				}
 
+				// Under an explicit FAQ heading, include items even without extracted answers
+				// (accordion-style FAQs often hide answers behind JS interaction)
 				if (question && answer && answer.length > 10) {
 					faqs.push({
 						question, answer,
 						question_length: question.length,
 						answer_length: answer.length,
+						source: "pattern",
+					});
+				} else if (question) {
+					faqs.push({
+						question, answer: answer || "",
+						question_length: question.length,
+						answer_length: answer ? answer.length : 0,
 						source: "pattern",
 					});
 				}
@@ -774,11 +783,19 @@ function extractFAQsFromTextHeadings($: CheerioAPI): FAQItem[] {
 				}
 				answer = answer.trim();
 
+				// Under an explicit FAQ heading, include items even without extracted answers
 				if (question && answer && answer.length > 10) {
 					faqs.push({
 						question, answer,
 						question_length: question.length,
 						answer_length: answer.length,
+						source: "pattern",
+					});
+				} else if (question) {
+					faqs.push({
+						question, answer: answer || "",
+						question_length: question.length,
+						answer_length: answer ? answer.length : 0,
 						source: "pattern",
 					});
 				}
@@ -950,15 +967,18 @@ function extractFAQs($: CheerioAPI): FAQExtraction {
 	// For DOM-extracted FAQs, require at least 2 items AND at least one
 	// substantive answer (>= 20 chars) to avoid false positives from
 	// accordion-like UI elements that aren't actually FAQs.
-	// Exception: items from an explicitly FAQ-named data-attribute container
-	// (e.g. data-framer-name="FAQ") bypass the answer-length requirement,
-	// since Framer SSR pages often render questions without answers.
+	// Exceptions that bypass the answer-length requirement:
+	// 1. Items from an explicitly FAQ-named data-attribute container
+	//    (e.g. data-framer-name="FAQ") — Framer SSR pages render questions without answers.
+	// 2. Items found under an explicit FAQ heading (extractFAQsFromTextHeadings) —
+	//    accordion-style FAQs hide answers behind JS interaction, so we trust the heading.
 	const domFaqs = combined.filter(f => f.source !== "jsonld");
 	const hasJsonLdFaqs = jsonldFaqs.length > 0;
 	const domFaqsPassThreshold =
 		domFaqs.length >= 2 && domFaqs.some(f => f.answer_length >= 20);
 	const questionsOnlyFromExplicitContainer = dataAttrFaqs.length >= 2;
-	const hasFaqContent = hasJsonLdFaqs || domFaqsPassThreshold || questionsOnlyFromExplicitContainer;
+	const questionsUnderExplicitFaqHeading = textHeadingFaqs.length >= 2;
+	const hasFaqContent = hasJsonLdFaqs || domFaqsPassThreshold || questionsOnlyFromExplicitContainer || questionsUnderExplicitFaqHeading;
 
 	// If DOM FAQs don't pass threshold, exclude them from combined
 	const filteredCombined = hasFaqContent ? combined : jsonldFaqs;

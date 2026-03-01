@@ -666,7 +666,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     console.log('[Technical Core] Step 3: Scraping pages...');
     const urls = getUrlsFromDiscovery(discovery);
     onProgress?.({ phase: 'scraping', status: 'started', data: { total: urls.length } });
-    const scrapeResult = await scrapePages(urls, { concurrency: 4, timeoutMs: 30000 }, (info) => {
+    const scrapeResult = await scrapePages(urls, { concurrency: 4, timeoutMs: 30000, waitForMs: 2000 }, (info) => {
       onProgress?.({ phase: 'scraping', status: 'progress', data: { scraped: info.scraped, total: info.total } });
     });
 

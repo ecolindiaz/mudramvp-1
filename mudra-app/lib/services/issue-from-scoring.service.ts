@@ -15,6 +15,7 @@ import crypto from 'crypto'
 import type { FullPageScore } from '@/lib/analysis/technical/types'
 import { NON_MARKETING_PAGE_TYPES } from '@/lib/analysis/technical/four-dimension-scorer'
 import { buildRequiredSchemaTypesMarker, buildDynamicSchemaTypesMarker, buildMergedSchemaTypesMarker } from './schema-contracts'
+import { normalizeUrl } from '@/lib/utils/normalize-url'
 
 // Types
 export type IssuePriority = 'low' | 'medium' | 'high'
@@ -144,7 +145,7 @@ export function generateIssueHashWithUrl(
   check: string,
   pageUrl: string
 ): string {
-  const normalized = `${brandProfileId}-${category}-${check}-${pageUrl.toLowerCase().trim()}`
+  const normalized = `${brandProfileId}-${category}-${check}-${normalizeUrl(pageUrl)}`
   return crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 16)
 }
 
@@ -296,7 +297,7 @@ export async function createIssuesFromPageScore(
         discoveryTier: getDimensionTier(issue.dimension),
         agentType,
         estimatedImpact: impact,
-        affectedUrl: pageScore.page_url,
+        affectedUrl: normalizeUrl(pageScore.page_url),
         discoveredFromScore: pageScore.scores.total,
         sourceAnalysis: 'technical_analysis',
         issueHash: hash,

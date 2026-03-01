@@ -14,6 +14,7 @@
 import { prisma } from '@/lib/prisma'
 import type { FullPageScore } from '@/lib/analysis/technical/types'
 import { CHECK_TO_AGENT_MAP, ISSUE_TITLES, getFailingChecks } from './issue-from-scoring.service'
+import { normalizeUrl } from '@/lib/utils/normalize-url'
 
 /**
  * Reverse mapping from agent type to check codes
@@ -58,22 +59,6 @@ export function extractCheckFromIssue(issue: { title: string; agentType: string 
   }
 
   return null
-}
-
-/**
- * Normalize a URL for consistent matching:
- * - lowercase
- * - strip trailing slash (unless it's just "/")
- * - strip fragment
- */
-function normalizeUrl(url: string): string {
-  let u = url.toLowerCase().trim()
-  // Strip fragment
-  const hashIdx = u.indexOf('#')
-  if (hashIdx !== -1) u = u.slice(0, hashIdx)
-  // Strip trailing slash (but keep root "/")
-  if (u.length > 1 && u.endsWith('/')) u = u.slice(0, -1)
-  return u
 }
 
 /**

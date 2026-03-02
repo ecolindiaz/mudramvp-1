@@ -234,6 +234,20 @@ function getBusinessTypeGuidance(type: string): string {
 }
 
 /**
+ * Compute exact per-category counts that sum to totalPrompts.
+ * Organic gets 50%, with the remainder split across the other 4 categories.
+ */
+function computeCategoryCounts(totalPrompts: number): Record<string, number> {
+  const organic = Math.round(totalPrompts * 0.50);
+  const remaining = totalPrompts - organic;
+  const competitor = Math.round(remaining * 0.25);   // ~12.5% of total
+  const faq        = Math.round(remaining * 0.30);   // ~15%   of total
+  const howto      = Math.round(remaining * 0.22);   // ~11%   of total
+  const brand      = remaining - competitor - faq - howto; // ~11.5% of total (absorbs rounding)
+  return { Organic: organic, Competitor: competitor, 'How-to Guides': howto, 'Brand-Specific': brand, FAQ: faq };
+}
+
+/**
  * Generate initial prompts for a brand during onboarding.
  * Uses GPT-5.1 with JSON output, 5 categories including FAQ,
  * business-type-aware guidance, and richer product/ICP context.
@@ -247,6 +261,8 @@ export async function generateInitialPrompts(brandInfo: BrandInfo, redditContext
   const icpCount = brandInfo.icpSegments?.length ?? 1;
   const totalPrompts = Math.min(60, 40 + Math.min(productCount * 2, 10) + Math.min(icpCount * 2, 10));
 
+  const counts = computeCategoryCounts(totalPrompts);
+
   const businessType = brandInfo.inferredBusinessType || 'other';
   const businessGuidance = getBusinessTypeGuidance(businessType);
 
@@ -254,25 +270,45 @@ export async function generateInitialPrompts(brandInfo: BrandInfo, redditContext
     ? `\n\nIMPORTANT: Generate ALL queries in Spanish (Español). The prompts should be phrased as a native Spanish speaker would naturally search. Do NOT simply translate English queries — use culturally appropriate phrasing.`
     : '';
 
+  // Style anchors: when Reddit context is unavailable, inject example queries
+  // so the model sees the conversational register we want.
+  const styleAnchors = redditContext ? '' : `
+
+Style reference — these are real queries people type into AI assistants. Match this register:
+- "I'm building a SaaS app and need a deployment platform — what are my options?"
+- "Our finance team wastes 10 hours/week on expense reports. What tools actually automate this?"
+- "Is it worth switching from [Competitor] to something else? We're a 50-person startup"
+- "Can someone explain the difference between edge functions and serverless?"
+- "Freelancer here getting paid in USD but living abroad — best way to manage this?"
+- "My team just hit 20 engineers, what do companies our size use for X?"`;
+
   const systemPrompt = `You generate natural-language search queries to test a brand's visibility in generative AI engines (ChatGPT, Perplexity, Gemini, Claude).
 
-Generate exactly ${totalPrompts} unique search queries distributed across 5 categories:
+Generate exactly ${totalPrompts} unique search queries with this EXACT category distribution:
 
-1. **Organic** (~50%): Generic discovery queries where the brand could naturally appear. Vary styles: "best X for Y", comparisons, reviews, recommendations.
-2. **Competitor** (~15%): Queries comparing or seeking alternatives to the brand's competitors.
-3. **How-to Guides** (~10%): Actionable task/how-to queries related to the brand's domain.
-4. **Brand-Specific** (~10%): Direct queries mentioning the brand name.
-5. **FAQ** (~15%): Question-style prompts derived from specific products/services and customer needs. These should be real questions a potential customer would ask — e.g., "How to safely test AI integrations before deployment?" or "What is the best way to monitor API uptime?"
+1. **Organic** — exactly ${counts['Organic']} prompts: Generic discovery queries where the brand could naturally appear. The brand name must NOT appear in these.
+2. **Competitor** — exactly ${counts['Competitor']} prompts: Queries comparing or seeking alternatives to the brand's competitors.
+3. **How-to Guides** — exactly ${counts['How-to Guides']} prompts: Actionable task/how-to queries related to the brand's domain.
+4. **Brand-Specific** — exactly ${counts['Brand-Specific']} prompts: Direct queries mentioning the brand name.
+5. **FAQ** — exactly ${counts['FAQ']} prompts: Question-style prompts derived from specific products/services and customer needs.
 
 Business type: ${businessType}
 ${businessGuidance}
 
-Rules:
-- Each query must be a natural search question or phrase (not a keyword)
-- Mention specific products/services by name in at least 30% of queries
-- Vary query complexity: short queries, detailed multi-part queries, and comparison queries
+ORGANIC STYLE RULES (critical — follow these strictly):
+- Do NOT put the brand name in any Organic prompt. Organic tests whether AI discovers the brand unprompted.
+- No more than 20% of Organic prompts may start with the word "best". Vary your openings.
+- At least 15% of Organic prompts must be conversational/personal: "I need...", "looking for...", "I'm trying to...", "my team needs..."
+- At least 10% must be scenario-based with real-world context: "our company just raised Series A and we need...", "I'm a freelancer earning in USD..."
+- At least 10% must be decision-help or opinion-seeking: "is it worth...", "which should I use...", "thoughts on..."
+- Include some time-anchored queries: "in 2025", "latest", "right now"
+- Include some budget/cost queries: "free", "affordable", "pricing"
+- Match how real people talk to ChatGPT/Perplexity — casual, context-rich, sometimes messy${styleAnchors}
+
+OTHER RULES:
+- Mention specific products/services by name in at least 30% of non-Organic queries
 - Keep queries concise (under 120 characters each)
-- FAQ queries must be phrased as questions (start with How, What, Why, Can, Is, etc.)
+- FAQ queries must start with a question word (How, What, Why, Can, Is, Does, etc.)
 
 Return ONLY valid JSON (no markdown, no code blocks):
 {

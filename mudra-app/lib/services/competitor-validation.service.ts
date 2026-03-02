@@ -356,7 +356,9 @@ function calculateConfidence(
 export async function validateCompetitors(
   aiResponse: string,
   brandName: string,
-  existingCompetitors?: string[]
+  existingCompetitors?: string[],
+  brandDescription?: string,
+  brandIndustry?: string
 ): Promise<ValidatedCompetitor[]> {
   console.log('🔍 Starting competitor validation pipeline...')
 
@@ -383,7 +385,7 @@ export async function validateCompetitors(
   const quickFiltered = candidates.filter(name => quickValidateName(name))
   console.log(`  Quick filter: ${quickFiltered.length} passed (${candidates.length - quickFiltered.length} obvious junk removed)`)
 
-  // Stage 2: Known companies whitelist - instant high confidence
+  // Stage 2: Known companies whitelist - identify which are known-real entities
   const knownCompanyResults = await stage3ExternalVerification(quickFiltered)
   const knownCompanies: string[] = []
   const unknownCompanies: string[] = []
@@ -396,25 +398,30 @@ export async function validateCompetitors(
       unknownCompanies.push(name)
     }
   }
-  console.log(`  Known companies: ${knownCompanies.length} verified instantly`)
+  console.log(`  Known entities: ${knownCompanies.length} (will still check competitive relevance)`)
 
-  // Stage 3: AI validation for unknown companies (batch process)
+  // Stage 3: AI validation — ALL entities pass through category-aware check
+  // Known companies are confirmed real, but must still be competitively relevant
+  // Unknown companies must pass both "is real?" and "is competitor?" checks
+  const allCandidates = [...knownCompanies, ...unknownCompanies]
   let aiValidatedCompanies: string[] = []
-  if (unknownCompanies.length > 0) {
-    console.log(`  AI validation: Processing ${unknownCompanies.length} unknown names...`)
-    const aiResults = await batchValidateWithAI(unknownCompanies, brandName)
-    aiValidatedCompanies = unknownCompanies.filter(name => aiResults.get(name) === true)
-    console.log(`  AI validation: ${aiValidatedCompanies.length} confirmed as real companies`)
+  if (allCandidates.length > 0) {
+    console.log(`  AI validation: Processing ${allCandidates.length} names for competitive relevance...`)
+    const aiResults = await batchValidateWithAI(allCandidates, brandName, brandDescription, brandIndustry)
+    aiValidatedCompanies = allCandidates.filter(name => aiResults.get(name) === true)
+    const knownRejected = knownCompanies.filter(name => aiResults.get(name) !== true)
+    if (knownRejected.length > 0) {
+      console.log(`  Category filter: Rejected ${knownRejected.length} known entities as non-competitors: ${knownRejected.slice(0, 10).join(', ')}${knownRejected.length > 10 ? '...' : ''}`)
+    }
+    console.log(`  AI validation: ${aiValidatedCompanies.length} confirmed as relevant competitors`)
   }
-
-  // Combine results
-  const allValidated = [...knownCompanies, ...aiValidatedCompanies]
 
   // Build final results with confidence scores
   const results: ValidatedCompetitor[] = []
+  const knownSet = new Set(knownCompanies.map(n => n.toLowerCase()))
 
-  for (const name of allValidated) {
-    const isKnown = knownCompanies.includes(name)
+  for (const name of aiValidatedCompanies) {
+    const isKnown = knownSet.has(name.toLowerCase())
     const verification = knownCompanyResults.get(name)
 
     results.push({
@@ -422,7 +429,7 @@ export async function validateCompetitors(
       confidence: isKnown ? 'high' : 'medium',
       confidenceScore: isKnown ? 1.0 : 0.7,
       verificationSources: isKnown
-        ? ['known_company_list', verification?.source || 'whitelist']
+        ? ['known_company_list', 'ai_category_validation', verification?.source || 'whitelist']
         : ['ai_validation']
     })
   }
@@ -443,7 +450,9 @@ export async function validateCompetitors(
  */
 async function batchValidateWithAI(
   names: string[],
-  brandName: string
+  brandName: string,
+  brandDescription?: string,
+  brandIndustry?: string
 ): Promise<Map<string, boolean>> {
   const results = new Map<string, boolean>()
 
@@ -452,24 +461,31 @@ async function batchValidateWithAI(
   for (let i = 0; i < names.length; i += batchSize) {
     const batch = names.slice(i, i + batchSize)
 
-    const prompt = `You are a company/product name validator. Determine which of these are REAL technology companies, products, platforms, or services.
+    const prompt = `You are a competitive landscape analyst. Determine which of these entities are REAL COMPETITORS to "${brandName}".
 
-BRAND TO EXCLUDE: "${brandName}" (don't validate this one)
+BRAND: "${brandName}"
+WHAT THEY DO: ${brandDescription || 'Not specified'}
+INDUSTRY: ${brandIndustry || 'Not specified'}
 
 CANDIDATES TO VALIDATE:
 ${batch.map((n, idx) => `${idx + 1}. "${n}"`).join('\n')}
 
-RULES:
-- Answer YES for real companies/products (e.g., Netlify, AWS, Render, Railway, Stripe)
-- Answer NO for phrases, descriptions, or generic terms (e.g., "Cost at Scale", "Best Practices")
-- Answer NO for partial sentences or instructions
-- When in doubt, answer NO
+For each candidate, answer YES (true) only if BOTH conditions are met:
+1. It is a real company, product, or platform (not a phrase/description/generic term)
+2. It DIRECTLY COMPETES with "${brandName}" — it offers similar or substitute products that a buyer would realistically evaluate as an alternative
 
-Return ONLY a JSON object with each name mapped to true (real) or false (not real):
+Answer NO (false) for:
+- Phrases, descriptions, or generic terms
+- Integration partners or plugins (e.g., Stripe mentioned as a payment integration for a non-payments company)
+- Dependencies, libraries, or frameworks (e.g., React, NumPy, Docker, Redis, Kubernetes) unless they directly compete with the brand
+- Companies in a completely different product category (e.g., Canva is not a competitor to a GPU cloud provider)
+- Infrastructure providers that are platforms the brand runs ON, not competitors OF (e.g., AWS for a company that deploys on AWS)
+
+Return ONLY a JSON object with each name mapped to true (competitor) or false (not a competitor):
 {
-  "Netlify": true,
-  "Cost at Scale": false,
-  "Railway": true
+  "CompanyA": true,
+  "SomeLibrary": false,
+  "CompanyB": true
 }`
 
     try {

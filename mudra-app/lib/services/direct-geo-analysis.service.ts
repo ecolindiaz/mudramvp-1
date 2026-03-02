@@ -1536,24 +1536,19 @@ Extract the following information:
      * Response entirely about Y Combinator (brand-specific question) → 1
      * "Y Combinator is mentioned in a list but no ranking" → null
 
-3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
-   - Extract ALL proper company/brand names that compete with or are alternatives to "${config.brandName}": ${config.description || config.keyProducts?.join(', ') || 'similar services'}
+3. **competitorsMentioned**: Array of companies that DIRECTLY COMPETE with "${config.brandName}" in the same product category (EXCLUDING "${config.brandName}" itself)
+   - "${config.brandName}" is: ${config.description || config.keyProducts?.join(', ') || 'a technology company'}${config.industry ? ` (industry: ${config.industry})` : ''}
+   - A competitor is a company that offers SIMILAR or SUBSTITUTE products — a realistic alternative a buyer would evaluate
    - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
-   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
-   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
    - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
-   - EXCLUDE companies mentioned only as integration partners, tool mentions, or passing examples
-   - EXCLUDE companies with completely different service offerings (e.g., if analyzing an accelerator, exclude payment processors, hosting providers, design tools)
+   - EXCLUDE these categories — they are NOT competitors:
+     * Integration partners, SDKs, or plugins (e.g., Stripe mentioned as a payment integration)
+     * Dependencies, libraries, or frameworks (e.g., React, NumPy, Docker, Redis)
+     * Companies in completely different product categories (e.g., Canva for a GPU cloud company)
+     * Infrastructure providers mentioned only as underlying platforms (e.g., AWS mentioned as where a product runs)
+     * Generic terms, category headings, section labels, feature names, or sentence fragments
    - Return empty array [] if no relevant competitors are mentioned
-   - **CRITICAL**: Only return actual COMPANY/BRAND NAMES. Never include:
-     * Sentence fragments like "Others share enthusiasm" or "Posts highlight..."
-     * Action phrases like "Reach out directly" or "Sign up now"
-     * Generic descriptions like "leading platform" or "top tool"
-     * Category headings like "AI model/data marketplaces" or "GPU compute networks"
-     * Comparison categories or section headings like "Core Identity", "Primary Strength", "Best For"
-     * Feature/attribute labels like "Build speed", "Deployment latency", "Free tier generosity", "Infrastructure Control"
-     * Marketing copy or testimonials
-   - **IMPORTANT**: When a product name is mentioned alongside its parent company (e.g., "ProductX by CompanyY", "ProductX de CompanyY", "ProductX from CompanyY"), prefer the COMPANY/BRAND name over the product name. If only a product name appears with no identifiable parent company, include the product name as-is.
+   - **IMPORTANT**: When a product name is mentioned alongside its parent company (e.g., "ProductX by CompanyY"), prefer the COMPANY/BRAND name over the product name.
 
 4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
    - Extract numerical positions for each competitor mentioned
@@ -1793,7 +1788,8 @@ async function analyzeWithPerplexity(
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
 
 BRAND NAME: ${config.brandName}
-COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
+WHAT "${config.brandName}" DOES: ${config.description || config.keyProducts?.join(', ') || 'Not specified'}${config.industry ? `\nINDUSTRY: ${config.industry}` : ''}
+KNOWN DIRECT COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
 
 RESPONSE TEXT:
 "${text}"
@@ -1805,40 +1801,23 @@ Extract the following information:
 2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given?
    - Look for patterns like "1st", "2nd", "3rd", "#1", "first place", "ranked 1", etc.
    - Extract ONLY the number (1, 2, 3, etc.)
-   - **IMPORTANT**: If the response is primarily/entirely dedicated to "${config.brandName}" (e.g., the question was specifically about "${config.brandName}" and the response focuses on answering about them), assign position 1 — the brand IS the featured subject.
+   - **IMPORTANT**: If the response is primarily/entirely dedicated to "${config.brandName}" (brand-specific question), assign position 1.
    - If the response is a comparison/list and "${config.brandName}" is mentioned but has no explicit ranking, return null
-   - Examples:
-     * "### 1st: Y Combinator" → 1
-     * "2nd Place: Y Combinator" → 2
-     * "#3: Y Combinator" → 3
-     * Response entirely about Y Combinator (brand-specific question) → 1
-     * "Y Combinator is mentioned in a list but no ranking" → null
 
-3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}" itself)
-   - Extract ALL proper company names that are competitors, alternatives, or mentioned alongside the brand
-   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
-   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "a16z", "Entrepreneurs First", "Boost VC")
-   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
-   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
-   - CRITICAL: Do NOT extract comparison categories, section headings, or feature/attribute labels as competitors (e.g., "Core Identity", "Primary Strength", "Build speed", "Free tier generosity"). Only extract actual company/brand names.
-   - Return empty array [] if no competitors are mentioned
-   - Examples:
-     * From "Top 5 accelerators: 1. Y Combinator, 2. Techstars, 3. 500 Global, 4. Seedcamp, 5. MassChallenge"
-       → competitorsMentioned should be: ["Techstars", "500 Global", "Seedcamp", "MassChallenge"]
-     * From "Top 7: 1. YC, 2. Techstars, 3. 500 Global, 4. a16z Speedrun, 5. Antler, 6. Entrepreneurs First, 7. Boost VC"
-       → competitorsMentioned should be: ["Techstars", "500 Global", "a16z Speedrun", "Antler", "Entrepreneurs First", "Boost VC"]
-   - **IMPORTANT**: When a product name is mentioned alongside its parent company (e.g., "ProductX by CompanyY", "ProductX de CompanyY", "ProductX from CompanyY"), prefer the COMPANY/BRAND name over the product name. If only a product name appears with no identifiable parent company, include the product name as-is.
+3. **competitorsMentioned**: Array of companies that DIRECTLY COMPETE with "${config.brandName}" in the same product category (EXCLUDING "${config.brandName}" itself)
+   - A competitor is a company that offers SIMILAR or SUBSTITUTE products — a realistic alternative a buyer would evaluate
+   - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
+   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
+   - EXCLUDE these categories — they are NOT competitors:
+     * Integration partners, SDKs, or plugins
+     * Dependencies, libraries, or frameworks (e.g., React, NumPy, Docker, Redis)
+     * Companies in completely different product categories
+     * Infrastructure providers mentioned only as underlying platforms
+     * Generic terms, category headings, section labels, feature names, or sentence fragments
+   - Return empty array [] if no relevant competitors are mentioned
+   - **IMPORTANT**: When a product name is mentioned alongside its parent company, prefer the COMPANY/BRAND name.
 
-4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
-   - Extract numerical positions for each competitor mentioned
-   - Format: { "CompanyName": position_number }
-   - Only include competitors that have an explicit position/ranking
-   - Examples:
-     * "2. Techstars" → { "Techstars": 2 }
-     * "3rd: 500 Startups" → { "500 Startups": 3 }
-     * From "Top 5: 1. Y Combinator, 2. Techstars, 3. 500 Startups"
-       → { "Techstars": 2, "500 Startups": 3 }
-   - Return empty object {} if no competitors have positions
+4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 
 5. **competitorSentiments**: Object mapping competitor names to sentiment about them in this specific response
    - Analyze how each competitor is portrayed/discussed in the response text
@@ -2075,7 +2054,8 @@ async function analyzeWithAnthropic(
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
 
 BRAND NAME: ${config.brandName}
-COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
+WHAT "${config.brandName}" DOES: ${config.description || config.keyProducts?.join(', ') || 'Not specified'}${config.industry ? `\nINDUSTRY: ${config.industry}` : ''}
+KNOWN DIRECT COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
 
 RESPONSE TEXT:
 "${text}"
@@ -2084,17 +2064,12 @@ Extract the following information:
 
 1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
 2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position. IMPORTANT: If the response is primarily/entirely dedicated to "${config.brandName}" (brand-specific question), assign position 1.
-3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}")
-   - Extract ALL proper company/brand names that compete with or are alternatives to "${config.brandName}"
+3. **competitorsMentioned**: Array of companies that DIRECTLY COMPETE with "${config.brandName}" in the same product category (EXCLUDING "${config.brandName}")
+   - A competitor offers SIMILAR or SUBSTITUTE products — a realistic alternative a buyer would evaluate
    - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
-   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
-   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
    - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
-   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
-   - Exclude category headings like "AI model/data marketplaces" or "GPU compute networks"
-   - CRITICAL: Do NOT extract comparison categories, section headings, or feature/attribute labels as competitors (e.g., "Core Identity", "Primary Strength", "Build speed", "Free tier generosity"). Only extract actual company/brand names.
-   - Return empty array [] if no competitors are mentioned
-   - **IMPORTANT**: When a product name is mentioned alongside its parent company (e.g., "ProductX by CompanyY", "ProductX de CompanyY", "ProductX from CompanyY"), prefer the COMPANY/BRAND name over the product name. If only a product name appears with no identifiable parent company, include the product name as-is.
+   - EXCLUDE: integration partners, dependencies/libraries/frameworks, companies in different product categories, infrastructure providers mentioned only as underlying platforms, generic terms, category headings, feature names
+   - Return empty array [] if no relevant competitors are mentioned
 4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
 6. **sentiment**: Overall sentiment toward "${config.brandName}" ("positive" | "neutral" | "negative")
@@ -2414,7 +2389,8 @@ async function analyzeWithGoogle(
     const analysisPrompt = `Analyze this AI-generated response to determine brand visibility:
 
 BRAND NAME: ${config.brandName}
-COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
+WHAT "${config.brandName}" DOES: ${config.description || config.keyProducts?.join(', ') || 'Not specified'}${config.industry ? `\nINDUSTRY: ${config.industry}` : ''}
+KNOWN DIRECT COMPETITORS: ${config.competitors?.join(', ') || 'None specified'}
 
 RESPONSE TEXT:
 "${text}"
@@ -2423,17 +2399,12 @@ Extract the following information:
 
 1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
 2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position. IMPORTANT: If the response is primarily/entirely dedicated to "${config.brandName}" (brand-specific question), assign position 1.
-3. **competitorsMentioned**: Array of OTHER company/brand names mentioned in the response (EXCLUDING "${config.brandName}")
-   - Extract ALL proper company/brand names that compete with or are alternatives to "${config.brandName}"
+3. **competitorsMentioned**: Array of companies that DIRECTLY COMPETE with "${config.brandName}" in the same product category (EXCLUDING "${config.brandName}")
+   - A competitor offers SIMILAR or SUBSTITUTE products — a realistic alternative a buyer would evaluate
    - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
-   - Include EVERY company name found in rankings, comparisons, lists, or as alternatives (not just top 3-5)
-   - Capture ALL companies even if they appear later in long lists (positions 4, 5, 6, 7, etc.)
    - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
-   - Exclude generic terms like "startups", "companies", "accelerators" unless they are actual brand names
-   - Exclude category headings like "AI model/data marketplaces" or "GPU compute networks"
-   - CRITICAL: Do NOT extract comparison categories, section headings, or feature/attribute labels as competitors (e.g., "Core Identity", "Primary Strength", "Build speed", "Free tier generosity"). Only extract actual company/brand names.
-   - Return empty array [] if no competitors are mentioned
-   - **IMPORTANT**: When a product name is mentioned alongside its parent company (e.g., "ProductX by CompanyY", "ProductX de CompanyY", "ProductX from CompanyY"), prefer the COMPANY/BRAND name over the product name. If only a product name appears with no identifiable parent company, include the product name as-is.
+   - EXCLUDE: integration partners, dependencies/libraries/frameworks, companies in different product categories, infrastructure providers mentioned only as underlying platforms, generic terms, category headings, feature names
+   - Return empty array [] if no relevant competitors are mentioned
 4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
 6. **sentiment**: Overall sentiment toward "${config.brandName}" ("positive" | "neutral" | "negative")
@@ -2804,7 +2775,9 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     validatedCompetitors = await validateCompetitors(
       allResponses,
       config.brandName,
-      canonicalMentions
+      canonicalMentions,
+      config.description,
+      config.industry
     );
 
     // Enrich validated competitors with entity type and parent from normalization
@@ -2873,10 +2846,27 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
       mention.toLowerCase() === vc.name.toLowerCase()
     ).length;
 
+    // Aggregate position data from all prompt tests across all providers
+    const positions: number[] = [];
+    for (const a of analyses) {
+      for (const test of a.promptTests) {
+        if (test.competitorPositions) {
+          for (const [name, pos] of Object.entries(test.competitorPositions)) {
+            if (name.toLowerCase() === vc.name.toLowerCase() && pos >= 1) {
+              positions.push(pos);
+            }
+          }
+        }
+      }
+    }
+    const averagePosition = positions.length > 0
+      ? Math.round((positions.reduce((sum, p) => sum + p, 0) / positions.length) * 10) / 10
+      : 0;
+
     return {
       name: vc.name,
       mentionCount: mentions,
-      averagePosition: 0, // Could be calculated if we tracked competitor positions
+      averagePosition,
       shareOfVoice: validatedMentions.length > 0 ? mentions / validatedMentions.length : 0,
     };
   }).filter(c => c.mentionCount > 0);

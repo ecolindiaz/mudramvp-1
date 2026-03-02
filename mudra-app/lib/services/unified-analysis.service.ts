@@ -621,18 +621,51 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     // Create scrape job for progress tracking
     let jobId: string | null = null;
 
-    // Step 1: Discover pages via Firecrawl /map
-    console.log('[Technical Core] Step 1: Discovering pages...');
-    onProgress?.({ phase: 'discovery', status: 'started' });
-    let discovery = await discoverPages(domain, { maxPages: 35, maxBlogs: 15 });
+    // Step 1: Check for existing pages (page locking) or discover fresh
+    const { getExistingPages } = await import('@/lib/analysis/technical/repo');
+    const existingPages = await getExistingPages(config.brandProfileId, domain);
+    const isReanalysis = existingPages.length > 0;
 
-    if (!discovery.success || discovery.pages.length === 0) {
-      console.log('[Technical Core] Firecrawl discovery failed, using fallback...');
-      discovery = createFallbackDiscovery(domain);
+    let urls: string[];
+    let urlToSitemapPageId: Map<string, string>;
+    let pageCount: number;
+
+    if (isReanalysis) {
+      // RE-ANALYSIS: Use locked page set — skip Firecrawl /map entirely
+      console.log(`[Technical Core] Step 1: Re-analysis — using ${existingPages.length} locked pages (skipping discovery)`);
+      urls = existingPages.map(p => p.page_url);
+      urlToSitemapPageId = new Map(existingPages.map(p => [p.page_url, p.id]));
+      pageCount = existingPages.length;
+      onProgress?.({ phase: 'discovery', status: 'completed', data: { pagesFound: pageCount } });
+    } else {
+      // FIRST RUN: Discover pages via Firecrawl /map
+      console.log('[Technical Core] Step 1: First run — discovering pages...');
+      onProgress?.({ phase: 'discovery', status: 'started' });
+      let discovery = await discoverPages(domain, { maxPages: 35, maxBlogs: 15 });
+
+      if (!discovery.success || discovery.pages.length === 0) {
+        console.log('[Technical Core] Firecrawl discovery failed, using fallback...');
+        discovery = createFallbackDiscovery(domain);
+      }
+
+      console.log(`[Technical Core] Discovered ${discovery.selectedCount} pages to analyze`);
+      onProgress?.({ phase: 'discovery', status: 'completed', data: { pagesFound: discovery.selectedCount } });
+
+      // Save discovered pages to database
+      try {
+        await saveSitemapPages(config.brandProfileId, domain, discovery.pages);
+      } catch (saveError) {
+        console.warn('[Technical Core] Could not save sitemap pages:', saveError);
+      }
+
+      urls = getUrlsFromDiscovery(discovery);
+      pageCount = discovery.selectedCount;
+
+      // Build urlToSitemapPageId from freshly saved pages
+      const { getSitemapPages } = await import('@/lib/analysis/technical/repo');
+      const freshPages = await getSitemapPages(config.brandProfileId, domain);
+      urlToSitemapPageId = new Map(freshPages.map(p => [p.page_url, p.id]));
     }
-
-    console.log(`[Technical Core] Discovered ${discovery.selectedCount} pages to analyze`);
-    onProgress?.({ phase: 'discovery', status: 'completed', data: { pagesFound: discovery.selectedCount } });
 
     // Create job for tracking
     try {
@@ -640,7 +673,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
         config.brandProfileId,
         domain,
         'full_site',
-        discovery.selectedCount,
+        pageCount,
         { maxPages: 35, maxBlogs: 15 }
       );
       jobId = job.id;
@@ -649,17 +682,8 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       console.warn('[Technical Core] Could not create scrape job:', jobError);
     }
 
-    // Step 2: Save discovered pages to database
-    console.log('[Technical Core] Step 2: Saving discovered pages...');
-    try {
-      await saveSitemapPages(config.brandProfileId, domain, discovery.pages);
-    } catch (saveError) {
-      console.warn('[Technical Core] Could not save sitemap pages:', saveError);
-    }
-
-    // Step 3: Scrape pages in parallel batches
-    console.log('[Technical Core] Step 3: Scraping pages...');
-    const urls = getUrlsFromDiscovery(discovery);
+    // Step 2: Scrape pages in parallel batches
+    console.log(`[Technical Core] Step 2: Scraping ${urls.length} pages...`);
     onProgress?.({ phase: 'scraping', status: 'started', data: { total: urls.length } });
     const scrapeResult = await scrapePages(urls, { concurrency: 4, timeoutMs: 30000, waitForMs: 2000 }, (info) => {
       onProgress?.({ phase: 'scraping', status: 'progress', data: { scraped: info.scraped, total: info.total } });
@@ -699,8 +723,8 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       } catch (e) { /* ignore */ }
     }
 
-    // Step 4: Extract DOM and score each successful page
-    console.log('[Technical Core] Step 4: Extracting and scoring pages...');
+    // Step 3: Extract DOM and score each successful page
+    console.log('[Technical Core] Step 3: Extracting and scoring pages...');
     onProgress?.({ phase: 'scoring', status: 'started' });
     const successfulScrapes = getSuccessfulScrapes(scrapeResult);
 
@@ -723,11 +747,6 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     const pageScores: Array<ReturnType<typeof computePageScore>> = [];
     const allIssues: Array<{ check: string; dimension: string; severity: string; message: string; page_url: string }> = [];
     let pagesScored = 0;
-
-    // Get sitemap pages for ID lookup
-    const { getSitemapPages } = await import('@/lib/analysis/technical/repo');
-    const sitemapPages = await getSitemapPages(config.brandProfileId, domain);
-    const urlToSitemapPageId = new Map(sitemapPages.map(p => [p.page_url, p.id]));
 
     for (const page of deduplicatedScrapes) {
       if (!page.rawHtml) continue;
@@ -788,6 +807,47 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       }
     }
 
+    // Handle unreachable pages on re-analysis: carry forward previous scores
+    if (isReanalysis) {
+      const { getLatestPageScore, updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
+      const scrapedUrls = new Set(deduplicatedScrapes.map(s => s.url));
+
+      for (const page of existingPages) {
+        if (scrapedUrls.has(page.page_url)) continue;
+
+        // Page was in locked set but failed to scrape — carry forward previous score
+        const prevScore = await getLatestPageScore(config.brandProfileId, page.id);
+        if (prevScore) {
+          const emptyDimension = { dimension: '' as const, score: 0, max_score: 0, checks: {}, passed_count: 0, total_count: 0 };
+          pageScores.push({
+            page_url: prevScore.page_url,
+            page_type: (page.page_type || 'other') as any,
+            status: 'carried_forward' as any,
+            scores: {
+              total: prevScore.overall_score,
+              schema: prevScore.structured_data_score,
+              metadata: prevScore.citability_score,
+              faq: prevScore.accessibility_score,
+              content: prevScore.answer_engine_score,
+            },
+            dimension_details: {
+              schema: { ...emptyDimension, dimension: 'schema' as any },
+              metadata: { ...emptyDimension, dimension: 'metadata' as any },
+              faq: { ...emptyDimension, dimension: 'faq' as any },
+              content: { ...emptyDimension, dimension: 'content' as any },
+            },
+            issues: (Array.isArray(prevScore.issues) ? prevScore.issues : []) as any,
+            interventions: [],
+          });
+          console.log(`[Technical Core] Page unreachable, carrying forward score: ${page.page_url} (${prevScore.overall_score}/100)`);
+        }
+
+        try {
+          await updateSitemapPageStatus(page.id, 'unreachable');
+        } catch (e) { /* ignore */ }
+      }
+    }
+
     // Update job progress
     if (jobId) {
       try {
@@ -795,8 +855,8 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       } catch (e) { /* ignore */ }
     }
 
-    // Step 5: Calculate site-wide score
-    console.log('[Technical Core] Step 5: Calculating site score...');
+    // Step 4: Calculate site-wide score
+    console.log('[Technical Core] Step 4: Calculating site score...');
     const siteScore = computeSiteScore(pageScores);
     onProgress?.({ phase: 'scoring', status: 'completed', data: { siteScore, pagesScored: pageScores.length } });
 
@@ -844,8 +904,8 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       } catch (e) { /* ignore */ }
     }
 
-    // Step 5.5: Check policy files (robots.txt, llms.txt, sitemap.xml)
-    console.log('[Technical Core] Step 5.5: Checking policy files...');
+    // Step 5: Check policy files (robots.txt, llms.txt, sitemap.xml)
+    console.log('[Technical Core] Step 5: Checking policy files...');
     let policyFileStatus = {
       robotsTxt: false,
       llmsTxt: false,
@@ -868,8 +928,8 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       console.warn('[Technical Core] Policy file check failed:', policyError);
     }
 
-    // Step 6: Run legacy single-page analysis for backward compatibility
-    console.log('[Technical Core] Step 6: Running legacy analysis for backward compatibility...');
+    // Run legacy single-page analysis for backward compatibility
+    console.log('[Technical Core] Running legacy analysis for backward compatibility...');
     let legacySeoScore = 0;
     let legacyGeoScore = 0;
     let legacyFindings: any[] = [];
@@ -917,7 +977,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       action: generateActionFromIssue(issue)
     }));
 
-    // Step 7: Create TechnicalStructureAnalysis record (backward compatibility)
+    // Step 6: Create TechnicalStructureAnalysis record (backward compatibility)
     const technicalAnalysis = await prisma.technicalStructureAnalysis.create({
       data: {
         brandProfileId: config.brandProfileId,
@@ -988,8 +1048,8 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
 
     console.log(`[Technical Core] Multi-page analysis complete: ${siteScore}/100 (${pageScores.length} pages)`);
 
-    // Step 8: Reconcile issues with current scores (auto-close fixed issues)
-    console.log('[Technical Core] Step 8: Reconciling issues...');
+    // Step 7: Reconcile issues with current scores (auto-close fixed issues)
+    console.log('[Technical Core] Step 7: Reconciling issues...');
     try {
       const { reconcileIssuesWithScores } = await import('./issue-reconciliation.service');
       // Import FullPageScore type to ensure pageScores are typed correctly
@@ -1001,9 +1061,9 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       // Don't fail the whole analysis if reconciliation fails
     }
 
-    // Step 8.5: Progressive issue discovery — create issues for pages up to current index
+    // Step 8: Progressive issue discovery — create issues for pages up to current index
     // First run = homepage only, each subsequent run reveals one more page's issues
-    console.log('[Technical Core] Step 8.5: Progressive issue discovery...');
+    console.log('[Technical Core] Step 8: Progressive issue discovery...');
     try {
       const currentProfile = await prisma.brandProfile.findUnique({
         where: { id: config.brandProfileId },

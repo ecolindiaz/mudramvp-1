@@ -1709,8 +1709,6 @@ async function analyzeWithPerplexity(
 
   const apiKey = config.apiKeys.perplexity;
   
-  console.log('[Perplexity] API Key configured:', apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4));
-
   // Perplexity uses OpenAI-compatible API
   const perplexity = new OpenAI({
     apiKey: apiKey.trim(),

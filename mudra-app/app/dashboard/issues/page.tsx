@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
+import { SitemapUrlsPanel } from "@/components/issues/sitemap-urls-panel"
 import { CountdownBadge } from "@/components/dashboard/countdown-badge"
 import { IconPlus, IconTrash, IconLoader2, IconSparkles, IconRotate, IconExternalLink, IconGitPullRequest, IconCode, IconCopy, IconCheck, IconWand, IconChevronDown } from "@tabler/icons-react"
 import {
@@ -465,28 +466,65 @@ function IssueCardOverlay({ issue }: { issue: Issue }) {
 }
 
 // Analysis View Component
-function AnalysisView({ stats, isLoading }: { stats: IssueStats | null; isLoading: boolean }) {
+function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { stats: IssueStats | null; isLoading: boolean; brandProfileId?: number; companyWebsite?: string }) {
+  const trackedPagesPanel = brandProfileId && brandProfileId > 0 ? (
+    <div className="mt-2">
+      <SitemapUrlsPanel brandProfileId={brandProfileId} companyWebsite={companyWebsite || ""} />
+    </div>
+  ) : null
+
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <IconLoader2 className="w-6 h-6 text-white/40 animate-spin" />
+      <div className="flex-1 px-4 lg:px-6 py-6">
+        {/* Skeleton metric cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-[#1b1b1b] rounded-xl p-5 flex flex-col">
+              <div className="h-4 w-24 rounded bg-white/[0.06] animate-pulse mb-3" />
+              <div className="h-8 w-16 rounded bg-white/[0.06] animate-pulse" />
+              <div className="mt-auto pt-3 border-t border-white/[0.06]">
+                <div className="h-3 w-32 rounded bg-white/[0.06] animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Skeleton tracked pages */}
+        <div className="bg-[#1b1b1b] rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="h-4 w-28 rounded bg-white/[0.06] animate-pulse" />
+            <div className="h-3 w-16 rounded bg-white/[0.06] animate-pulse" />
+          </div>
+          <div className="h-9 w-full rounded-lg bg-white/[0.04] animate-pulse mb-4" />
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-2">
+                <div className="h-4 flex-1 rounded bg-white/[0.06] animate-pulse" />
+                <div className="h-5 w-16 rounded-full bg-white/[0.06] animate-pulse" />
+                <div className="h-4 w-8 rounded bg-white/[0.06] animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
 
   if (!stats) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/40">
-              <line x1="18" y1="20" x2="18" y2="10"/>
-              <line x1="12" y1="20" x2="12" y2="4"/>
-              <line x1="6" y1="20" x2="6" y2="14"/>
-            </svg>
+      <div className="flex-1 px-4 lg:px-6 py-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-4">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/40">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+            </div>
+            <p className="text-white/50 text-sm">No issue data available</p>
           </div>
-          <p className="text-white/50 text-sm">No issue data available</p>
         </div>
+        {trackedPagesPanel}
       </div>
     )
   }
@@ -497,116 +535,63 @@ function AnalysisView({ stats, isLoading }: { stats: IssueStats | null; isLoadin
 
   return (
     <div className="flex-1 px-4 lg:px-6 py-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Metric Cards — matches Overview page style */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-6">
         {/* Total Issues */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-          <div className="text-[11px] text-white/50 uppercase tracking-wider mb-1">Total Issues</div>
-          <div className="text-2xl font-bold text-white">{stats.total}</div>
-          <div className="text-[12px] text-white/40 mt-1">
-            {stats.recentIssues} added this week
+        <div className="bg-[#1b1b1b] rounded-xl p-5 flex flex-col">
+          <span className="text-sm text-white/50 font-medium mb-2">Total Issues</span>
+          <div className="flex items-end justify-between">
+            <span className="text-[24px] font-medium text-white">{stats.total}</span>
+          </div>
+          <div className="mt-auto pt-3 border-t border-white/[0.06]">
+            <span className="text-xs text-white/30">{stats.recentIssues} added this week</span>
           </div>
         </div>
 
         {/* Completion Rate */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-          <div className="text-[11px] text-white/50 uppercase tracking-wider mb-1">Completion Rate</div>
-          <div className="text-2xl font-bold text-white">{completionRate}%</div>
-          <div className="text-[12px] text-white/40 mt-1">
-            {stats.completedThisWeek} completed this week
+        <div className="bg-[#1b1b1b] rounded-xl p-5 flex flex-col">
+          <span className="text-sm text-white/50 font-medium mb-2">Completion Rate</span>
+          <div className="flex items-end justify-between">
+            <span className="text-[24px] font-medium text-white">{completionRate}%</span>
+            {completionRate > 0 && (
+              <span className="text-xs text-emerald-400">{stats.byStatus.completed + stats.byStatus.merged} resolved</span>
+            )}
+          </div>
+          <div className="mt-auto pt-3 border-t border-white/[0.06]">
+            <span className="text-xs text-white/30">{stats.completedThisWeek} completed this week</span>
           </div>
         </div>
 
         {/* Active Issues */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-          <div className="text-[11px] text-white/50 uppercase tracking-wider mb-1">Active Issues</div>
-          <div className="text-2xl font-bold text-amber-400">{stats.byStatus.in_progress}</div>
-          <div className="text-[12px] text-white/40 mt-1">
-            {stats.byStatus.identified} in backlog
+        <div className="bg-[#1b1b1b] rounded-xl p-5 flex flex-col">
+          <span className="text-sm text-white/50 font-medium mb-2">In Progress</span>
+          <div className="flex items-end justify-between">
+            <span className="text-[24px] font-medium text-white">{stats.byStatus.in_progress}</span>
+            {stats.byStatus.identified > 0 && (
+              <span className="text-xs text-white/40">{stats.byStatus.identified} in backlog</span>
+            )}
+          </div>
+          <div className="mt-auto pt-3 border-t border-white/[0.06]">
+            <span className="text-xs text-white/30">Actively being worked on</span>
           </div>
         </div>
 
-        {/* Bugs */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-          <div className="text-[11px] text-white/50 uppercase tracking-wider mb-1">High Priority</div>
-          <div className="text-2xl font-bold text-red-400">{stats.byPriority.high}</div>
-          <div className="text-[12px] text-white/40 mt-1">
-            {stats.byCategory.technical_structure} technical issues
+        {/* High Priority */}
+        <div className="bg-[#1b1b1b] rounded-xl p-5 flex flex-col">
+          <span className="text-sm text-white/50 font-medium mb-2">High Priority</span>
+          <div className="flex items-end justify-between">
+            <span className="text-[24px] font-medium text-white">{stats.byPriority.high}</span>
+            {stats.byPriority.high > 0 && (
+              <span className="text-xs text-red-400">Needs attention</span>
+            )}
+          </div>
+          <div className="mt-auto pt-3 border-t border-white/[0.06]">
+            <span className="text-xs text-white/30">{stats.byCategory.technical_structure} technical issues</span>
           </div>
         </div>
       </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* By Status */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5">
-          <h3 className="text-sm font-medium text-white/80 mb-4">Issues by Status</h3>
-          <div className="space-y-3">
-            {Object.entries(stats.byStatus).map(([status, count]) => {
-              const conf = statusConfig[status as keyof typeof statusConfig]
-              const StatusIcon = conf.icon
-              const percentage = stats.total > 0 ? (count / stats.total) * 100 : 0
-              return (
-                <div key={status} className="flex items-center gap-3">
-                  <div className={`p-1.5 rounded-lg ${conf.bg}`}>
-                    <StatusIcon className={`w-3.5 h-3.5 ${conf.color}`} />
-                  </div>
-                  <span className="text-[13px] text-white/70 capitalize w-24">
-                    {status.replace("_", " ")}
-                  </span>
-                  <div className="flex-1 h-2 bg-white/[0.05] rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${conf.bg} rounded-full transition-all`}
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                  <span className="text-[13px] text-white/50 w-8 text-right">{count}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* By Category */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5">
-          <h3 className="text-sm font-medium text-white/80 mb-4">Issues by Category</h3>
-          <div className="space-y-3">
-            {Object.entries(stats.byCategory).map(([category, count]) => {
-              const conf = categoryConfig[category as keyof typeof categoryConfig] || categoryConfig.technical_structure
-              const percentage = stats.total > 0 ? (count / stats.total) * 100 : 0
-              return (
-                <div key={category} className="flex items-center gap-3">
-                  <span className={`w-2.5 h-2.5 rounded-full ${conf.color}`} />
-                  <span className="text-[13px] text-white/70 w-24">{conf.label}</span>
-                  <div className="flex-1 h-2 bg-white/[0.05] rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${conf.color} rounded-full transition-all`}
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                  <span className="text-[13px] text-white/50 w-8 text-right">{count}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* By Priority */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 md:col-span-2">
-          <h3 className="text-sm font-medium text-white/80 mb-4">Issues by Priority</h3>
-          <div className="flex gap-4">
-            {Object.entries(stats.byPriority).map(([priority, count]) => {
-              const conf = priorityConfig[priority as keyof typeof priorityConfig]
-              if (!conf) return null
-              return (
-                <div key={priority} className={`flex-1 p-4 rounded-xl ${conf.bg} border border-white/[0.06]`}>
-                  <div className={`text-2xl font-bold ${conf.color}`}>{count}</div>
-                  <div className="text-[12px] text-white/50 capitalize mt-1">{priority}</div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
+      {trackedPagesPanel}
     </div>
   )
 }
@@ -2064,10 +2049,41 @@ function IssuesPageInner() {
               </div>
             )}
 
-            {/* Loading State */}
+            {/* Loading State — skeleton kanban columns */}
             {isLoading && viewMode === "issues" && (
-              <div className="flex-1 flex items-center justify-center min-h-0">
-                <IconLoader2 className="w-6 h-6 text-white/40 animate-spin" />
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                <div className="px-4 lg:px-6 py-6 flex-1 overflow-x-auto min-h-0">
+                  <div className="flex gap-6 min-w-max h-full">
+                    {["Identified", "In Progress", "Completed", "Merged"].map((title) => (
+                      <div key={title} className="flex-1 min-w-[260px] max-w-[300px] flex flex-col">
+                        {/* Column header skeleton */}
+                        <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-white/[0.06]">
+                          <div className="h-4 w-4 rounded bg-white/[0.06] animate-pulse" />
+                          <div className="h-4 w-20 rounded bg-white/[0.06] animate-pulse" />
+                          <div className="h-4 w-6 rounded-md bg-white/[0.06] animate-pulse" />
+                        </div>
+                        {/* Card skeletons */}
+                        <div className="space-y-3">
+                          {Array.from({ length: title === "Identified" ? 3 : title === "In Progress" ? 2 : 1 }).map((_, i) => (
+                            <div key={i} className="bg-white/[0.03] rounded-xl p-3.5">
+                              <div className="flex items-start gap-3 mb-3">
+                                <div className="h-4 w-4 rounded bg-white/[0.06] animate-pulse mt-0.5 shrink-0" />
+                                <div className="flex-1 space-y-1.5">
+                                  <div className="h-4 w-full rounded bg-white/[0.06] animate-pulse" />
+                                  <div className="h-4 w-3/4 rounded bg-white/[0.06] animate-pulse" />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 pl-7">
+                                <div className="h-5 w-20 rounded-md bg-white/[0.06] animate-pulse" />
+                                <div className="h-5 w-16 rounded-md bg-white/[0.06] animate-pulse" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -2150,7 +2166,7 @@ function IssuesPageInner() {
             {/* Analysis View */}
             {viewMode === "analysis" && (
               <div className="flex-1 overflow-y-auto min-h-0">
-                <AnalysisView stats={stats} isLoading={isStatsLoading} />
+                <AnalysisView stats={stats} isLoading={isStatsLoading} brandProfileId={profile?.id} companyWebsite={profile?.companyWebsite ?? undefined} />
               </div>
             )}
           </div>

@@ -161,7 +161,9 @@ export async function runSinglePromptAnalysis(
       const validatedCompetitors = await validateCompetitors(
         allResponses,
         brandProfile.companyName ?? 'Unknown Brand',
-        allCompetitorMentions
+        allCompetitorMentions,
+        brandProfile.companyDescription ?? undefined,
+        brandProfile.companyIndustry ?? undefined
       )
       const validatedNameSet = new Set(validatedCompetitors.map(c => c.name.toLowerCase()))
 

@@ -168,6 +168,11 @@ export async function canRunAnalysis(brandProfileId: number): Promise<{
   lastRunAt?: Date
 }> {
   try {
+    // Bypass cooldown in development mode
+    if (process.env.DEVELOPMENT_MODE === 'true') {
+      return { allowed: true }
+    }
+
     const profile = await prisma.brandProfile.findUnique({
       where: { id: brandProfileId },
       select: { lastAnalysisRunAt: true }

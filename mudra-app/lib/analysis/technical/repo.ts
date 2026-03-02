@@ -246,11 +246,75 @@ export async function getSitemapPages(
 }
 
 /**
+ * Get existing pages for a brand profile (for page locking on re-analysis).
+ * Returns pages that have been previously discovered so we can skip re-discovery.
+ */
+export async function getExistingPages(
+  brandProfileId: number,
+  domain: string
+): Promise<Array<{
+  id: string;
+  page_url: string;
+  page_type: string | null;
+  priority: number | null;
+  scrape_status: string;
+}>> {
+  return prisma.sitemapPage.findMany({
+    where: {
+      brand_profile_id: brandProfileId,
+      domain,
+      scrape_status: { in: ["scraped", "pending", "unreachable"] },
+    },
+    select: {
+      id: true,
+      page_url: true,
+      page_type: true,
+      priority: true,
+      scrape_status: true,
+    },
+    orderBy: { priority: "asc" },
+  });
+}
+
+/**
+ * Get the latest page score for a sitemap page (for carrying forward when page is unreachable)
+ */
+export async function getLatestPageScore(
+  brandProfileId: number,
+  sitemapPageId: string
+): Promise<{
+  overall_score: number;
+  structured_data_score: number;
+  citability_score: number;
+  accessibility_score: number;
+  answer_engine_score: number;
+  page_url: string;
+  issues: unknown;
+} | null> {
+  return prisma.pageScore.findFirst({
+    where: {
+      brand_profile_id: brandProfileId,
+      sitemap_page_id: sitemapPageId,
+    },
+    select: {
+      overall_score: true,
+      structured_data_score: true,
+      citability_score: true,
+      accessibility_score: true,
+      answer_engine_score: true,
+      page_url: true,
+      issues: true,
+    },
+    orderBy: { scored_at: "desc" },
+  });
+}
+
+/**
  * Update sitemap page scrape status
  */
 export async function updateSitemapPageStatus(
   sitemapPageId: string,
-  status: "pending" | "scraped" | "failed",
+  status: "pending" | "scraped" | "failed" | "unreachable",
   error?: string
 ): Promise<void> {
   await prisma.sitemapPage.update({

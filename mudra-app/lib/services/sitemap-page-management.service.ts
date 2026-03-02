@@ -182,6 +182,10 @@ export async function removeSitemapUrl(
     } catch (e) {
       console.warn("[SitemapPageMgmt] Aggregate recalculation after remove failed:", e);
     }
+  } else {
+    // No pages left — reset dashboard score to 0
+    newAggregateScore = 0;
+    await syncTechnicalAnalysisScore(brandProfileId, 0);
   }
 
   return { deleted: true, newAggregateScore };

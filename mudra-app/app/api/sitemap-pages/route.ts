@@ -163,15 +163,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Create SitemapPage record with pending status
-    const sitemapPage = await prisma.sitemapPage.create({
-      data: {
-        brand_profile_id: brandProfileId,
-        domain,
-        page_url: normalizedUrl,
-        page_type: null, // will be detected during extraction
-        scrape_status: "pending",
-      },
-    });
+    let sitemapPage;
+    try {
+      sitemapPage = await prisma.sitemapPage.create({
+        data: {
+          brand_profile_id: brandProfileId,
+          domain,
+          page_url: normalizedUrl,
+          page_type: null, // will be detected during extraction
+          scrape_status: "pending",
+        },
+      });
+    } catch (err: unknown) {
+      // Unique constraint violation — concurrent insert beat us
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "code" in err &&
+        (err as { code: string }).code === "P2002"
+      ) {
+        return NextResponse.json(
+          { error: "URL already tracked" },
+          { status: 409 }
+        );
+      }
+      throw err;
+    }
 
     // Kick off async processing (fire-and-forget)
     addAndProcessUrl(brandProfileId, domain, sitemapPage.id, normalizedUrl)

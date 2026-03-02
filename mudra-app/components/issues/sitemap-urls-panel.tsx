@@ -117,19 +117,22 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
         return
       }
 
-      // Optimistically insert pending row
+      // Optimistically insert pending row (skip if poll already added it)
       pendingIdsRef.current = new Set([...pendingIdsRef.current, data.sitemapPageId])
-      setPages((prev) => [
-        ...prev,
-        {
-          id: data.sitemapPageId,
-          page_url: fullUrl.toLowerCase().trim(),
-          page_type: null,
-          scrape_status: "pending",
-          last_scraped_at: null,
-          score: null,
-        },
-      ])
+      setPages((prev) => {
+        if (prev.some((p) => p.id === data.sitemapPageId)) return prev
+        return [
+          ...prev,
+          {
+            id: data.sitemapPageId,
+            page_url: fullUrl.toLowerCase().trim(),
+            page_type: null,
+            scrape_status: "pending",
+            last_scraped_at: null,
+            score: null,
+          },
+        ]
+      })
       setUrlInput("")
       toast.success("URL added — scraping in progress")
     } catch {

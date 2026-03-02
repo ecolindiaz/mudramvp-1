@@ -172,7 +172,7 @@ graph TD
 Your `.env.local` already includes:
 
 ```bash
-PERPLEXITY_API_KEY=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
+PERPLEXITY_API_KEY=pplx-your-perplexity-api-key
 ```
 
 This is automatically picked up by `createDirectGEOConfig()`:

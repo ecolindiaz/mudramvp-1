@@ -211,6 +211,22 @@ export function useAnalysisPipeline() {
           );
           setSimulatedProgress(Math.min(progress, progressCap));
 
+          // Trickle timer: slowly advance progress during the long-running GEO
+          // phase (3-4 min of provider testing) instead of sitting at a fixed value.
+          if (event.phase === 'geo' && event.status === 'started') {
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = setInterval(() => {
+              setSimulatedProgress(prev => {
+                if (prev >= 78) return prev; // leave room for actual completion at 80
+                const remaining = 78 - prev;
+                return Math.min(prev + Math.max(0.1, remaining * 0.03 + Math.random() * 0.1), 78);
+              });
+            }, 3000);
+          } else if (progressIntervalRef.current && (event.phase !== 'geo' || event.status === 'completed' || event.status === 'failed')) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
+          }
+
           if (event.phase === 'complete' && event.data) {
             finalResult = event.data;
           }
@@ -261,6 +277,15 @@ export function useAnalysisPipeline() {
 
     // Ensure progress is at 45% before starting phase 2
     setSimulatedProgress(45);
+
+    // Reset Phase 1's completion state so Phase 2 progress tracks correctly.
+    // Phase 1 emits a 'complete' event which stays in completedPhases — without
+    // clearing it, computeProgress() would immediately return 100% for Phase 2.
+    completedPhases.delete('complete');
+    // Reset step index to last completed technical step so Phase 2 events
+    // (prompts=3, geo=4, report=5) can advance it forward properly.
+    setCurrentStepFromSSE(2); // scoring = index 2
+    setPhaseDetail(null);
 
     // --- Phase 2: GEO ---
     console.log('[useAnalysisPipeline] SSE Phase 2: GEO');

@@ -309,6 +309,9 @@ export function AIOptimizedGenerator({
 
 const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
 
+  // Stable unique key for each citation (URL is already deduped by the API)
+  const getCitationKey = (source: CitationSource) => source.url || `${source.domain}::${source.provider || 'unknown'}`;
+
   // Load citations when prompt is selected
   useEffect(() => {
     if (!selectedPrompt || !brandProfileId) return;
@@ -329,8 +332,10 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
             provider: c.provider,
           }));
           setAvailableSources(citations);
-          // Auto-select first 5 sources by default (or all if less than 5)
-          const initialSelection = citations.slice(0, MAX_SELECTED_SOURCES).map((c) => c.domain);
+          // Auto-select first 5 sources by unique key (URL-based, not domain)
+          const initialSelection = citations
+            .slice(0, MAX_SELECTED_SOURCES)
+            .map((c) => getCitationKey(c));
           setSelectedSources(new Set(initialSelection));
         } else {
           setAvailableSources([]);
@@ -401,14 +406,14 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
     setStep(3);
   };
 
-  const toggleSource = (domain: string) => {
+  const toggleSource = (key: string) => {
     setSelectedSources((prev) => {
       const next = new Set(prev);
-      if (next.has(domain)) {
-        next.delete(domain);
+      if (next.has(key)) {
+        next.delete(key);
       } else if (next.size < MAX_SELECTED_SOURCES) {
         // Only add if under the limit
-        next.add(domain);
+        next.add(key);
       }
       return next;
     });
@@ -420,7 +425,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
     setStep(5);
 
     const sources = availableSources
-      .filter((s) => selectedSources.has(s.domain))
+      .filter((s) => selectedSources.has(getCitationKey(s)))
       .map((source) => ({
         ...source,
         url: source.url ?? `https://${source.domain}`,
@@ -895,11 +900,12 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                             </tr>
                           ) : availableSources.length > 0 ? (
                             availableSources.map((source) => {
-                              const isSelected = selectedSources.has(source.domain);
+                              const key = getCitationKey(source);
+                              const isSelected = selectedSources.has(key);
                               return (
                                 <tr
-                                  key={source.domain}
-                                  onClick={() => toggleSource(source.domain)}
+                                  key={key}
+                                  onClick={() => toggleSource(key)}
                                   className={cn(
                                     "border-b border-white/[0.03] text-sm transition-colors cursor-pointer",
                                     isSelected ? "bg-white/[0.04]" : "hover:bg-white/[0.02]"
@@ -911,7 +917,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                                       disabled={!isSelected && selectedSources.size >= MAX_SELECTED_SOURCES}
                                       onClick={(event) => event.stopPropagation()}
                                       onCheckedChange={() =>
-                                        toggleSource(source.domain)
+                                        toggleSource(key)
                                       }
                                       className="border-white/30 data-[state=checked]:bg-white data-[state=checked]:border-white disabled:opacity-30"
                                     />

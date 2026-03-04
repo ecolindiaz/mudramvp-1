@@ -78,7 +78,6 @@ function extractJsonAndMarkdown(text: string): { json: any | null; markdown: str
 
 function sanitizeMarkdown(md: string): string {
   if (!md) return ''
-  // Remove script/iframe tags and on* handlers as a minimal safeguard
   return md
     .replace(/<\/?script[^>]*>/gi, '')
     .replace(/<\/?iframe[^>]*>/gi, '')
@@ -185,27 +184,31 @@ function buildSummaryJsonFromInput(input: NlrInput): NlrSummaryJson {
   }
 }
 
-export async function generateWeeklyReport(params: { companyId: string; weekStartUtc: Date | string }) {
-  const companyId = params.companyId
+export async function generateWeeklyReport(params: {
+  brandProfileId: number;
+  weekStartUtc: Date | string;
+  companyId?: string | null;
+}) {
+  const { brandProfileId } = params
+  const companyId = params.companyId ?? null
   const weekStart = toDate(params.weekStartUtc)
 
-  // 1) Get or create draft report
+  // 1) Get or create draft report (keyed by brandProfileId + weekStartUtc)
   const existing = await prisma.weeklyReport.findUnique({
-    where: { companyId_weekStartUtc: { companyId, weekStartUtc: weekStart } },
+    where: { brandProfileId_weekStartUtc: { brandProfileId, weekStartUtc: weekStart } },
     include: { sections: true },
   })
 
   const report = existing ?? (await prisma.weeklyReport.create({
-    data: { companyId, weekStartUtc: weekStart, status: 'queued' },
+    data: { brandProfileId, companyId, weekStartUtc: weekStart, status: 'queued' },
   }))
 
   // Mark running
   await prisma.weeklyReport.update({ where: { id: report.id }, data: { status: 'running' } })
-  // Log running
-  await logNlrJob({ companyId, weekStartUtc: weekStart.toISOString(), status: 'running' })
+  await logNlrJob({ companyId: companyId ?? '', weekStartUtc: weekStart.toISOString(), status: 'running' })
 
   // 2) Collect inputs and prepare prompt
-  const nlrInput = await collectNlrInputs(companyId, weekStart)
+  const nlrInput = await collectNlrInputs(weekStart, brandProfileId, companyId)
   const fallbackSummaryJson = buildSummaryJsonFromInput(nlrInput)
   const { system, user } = buildNlrPrompt(nlrInput)
 
@@ -220,13 +223,11 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
   let tokensIn = 0
   let tokensOut = 0
 
-  // Helper: check if error is a 503/429 overload
   const isOverloadError = (err: any): boolean => {
     const status = err?.status || err?.statusCode || err?.httpCode
     return status === 503 || status === 429
   }
 
-  // Helper: attempt Gemini generation with exponential backoff
   const attemptGemini = async (modelId: string, modelName: string, maxRetries = 3): Promise<boolean> => {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
@@ -255,7 +256,6 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
           throw new Error(`Empty content from ${modelId}: length=${content.length}`)
         }
 
-        // Log successful call
         const costCents = Math.round(estimateAICost(modelId, tokensIn, tokensOut))
         logAIModelCall({
           feature: 'nlr',
@@ -266,16 +266,15 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
           tokensIn,
           tokensOut,
           costCents,
-          metadata: { companyId, weekStartUtc: weekStart.toISOString() },
+          metadata: { brandProfileId, companyId, weekStartUtc: weekStart.toISOString() },
         }).catch(() => {})
 
-        return true // success
+        return true
       } catch (err: any) {
         const isLast = attempt === maxRetries - 1
         const isRetryable = isOverloadError(err) || err?.code === 'ECONNRESET' || err?.code === 'ETIMEDOUT'
 
         if (!isRetryable || isLast) {
-          // Log failure
           logAIModelCall({
             feature: 'nlr',
             endpoint: '/api/nlr/generate',
@@ -283,7 +282,7 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
             provider: 'google',
             status: 'error',
             errorMessage: (err as Error).message,
-            metadata: { companyId, weekStartUtc: weekStart.toISOString() },
+            metadata: { brandProfileId, companyId, weekStartUtc: weekStart.toISOString() },
           }).catch(() => {})
           throw err
         }
@@ -296,7 +295,6 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
     return false
   }
 
-  // Gemini model cascade: preview → stable → lite
   const geminiModels: { id: string; model: string }[] = [
     { id: gemini3Pro?.id || 'gemini-3-pro', model: gemini3Pro?.model || 'gemini-3-flash-preview' },
     ...(geminiStable ? [{ id: geminiStable.id, model: geminiStable.model }] : []),
@@ -318,7 +316,6 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
         continue
       }
       if (!isLast) {
-        // Non-overload error on non-last model — skip to GPT-4
         console.error(`NLR: ${id} failed (non-overload), falling back to GPT-4:`, err.message)
       } else {
         console.error('NLR: All Gemini models failed, falling back to GPT-4:', err.message)
@@ -328,7 +325,6 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
   }
 
   if (!geminiSucceeded) {
-    // Final fallback: GPT-4
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
     const messages = [
       { role: 'system' as const, content: system },
@@ -360,7 +356,7 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
       tokensIn,
       tokensOut,
       costCents: gpt4CostCents,
-      metadata: { companyId, weekStartUtc: weekStart.toISOString(), fallback: true },
+      metadata: { brandProfileId, companyId, weekStartUtc: weekStart.toISOString(), fallback: true },
     }).catch(() => {})
   }
 
@@ -391,21 +387,14 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
       status: 'ready',
     },
   })
-  // Log ready
-  await logNlrJob({ companyId, weekStartUtc: weekStart.toISOString(), status: 'ready', modelId: usedModelId, tokenIn: tokensIn, tokenOut: tokensOut, costCents })
+  await logNlrJob({ companyId: companyId ?? '', weekStartUtc: weekStart.toISOString(), status: 'ready', modelId: usedModelId, tokenIn: tokensIn, tokenOut: tokensOut, costCents })
 
-  // Notification: report ready
-  // Resolve BrandProfile via Company.domain → Site → BrandProfile.companyWebsite
-  // (BrandProfile.siteId is a tracking token, NOT a Site.id)
+  // Notification: report ready — use brandProfileId directly
   try {
-    const { resolveBrandProfileIds } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
-    const bpIds = await resolveBrandProfileIds(companyId);
-    const profile = bpIds.length > 0
-      ? await prisma.brandProfile.findFirst({
-          where: { id: { in: bpIds } },
-          select: { id: true, userId: true },
-        })
-      : null;
+    const profile = await prisma.brandProfile.findUnique({
+      where: { id: brandProfileId },
+      select: { id: true, userId: true },
+    });
     if (profile?.userId) {
       const { createNotification } = await import('@/lib/services/notification.service');
       await createNotification({
@@ -428,12 +417,10 @@ export async function generateWeeklyReport(params: { companyId: string; weekStar
     .map((item: string) => `- ${item}`)
     .join('\n')
 
-  // Persist lightweight section bodies used by dashboard/history.
   const sections: { key: string; title: string; bodyMarkdown: string }[] = []
   sections.push({ key: 'whats_changed', title: "What's Changed", bodyMarkdown: whatsChangedBody })
   sections.push({ key: 'highlights', title: "This Week's Highlights", bodyMarkdown: highlightsBody })
 
-  // Replace existing sections
   await prisma.weeklyReportSection.deleteMany({ where: { reportId: report.id } })
   for (let i = 0; i < sections.length; i++) {
     const s = sections[i]

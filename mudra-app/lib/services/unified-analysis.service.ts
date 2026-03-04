@@ -1161,19 +1161,20 @@ async function generateReport(data: {
     // The dashboard reads from WeeklyReport (not NaturalLanguageReport), so without
     // this the user would see "No report available yet" until the weekly cron runs.
     try {
-      const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
-      const companyId = await resolveCompanyIdFromBrandProfile(data.brandProfileId);
-      if (companyId) {
-        const { generateWeeklyReport } = await import('@/lib/ai/nlr/generate-report');
-        const now = new Date();
-        const day = now.getUTCDay() || 7;
-        const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (day - 1)));
+      const { generateWeeklyReport } = await import('@/lib/ai/nlr/generate-report');
+      const now = new Date();
+      const day = now.getUTCDay() || 7;
+      const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (day - 1)));
 
-        await generateWeeklyReport({ companyId, weekStartUtc: weekStart });
-        console.log('[Report] ✅ Generated WeeklyReport for dashboard NLR');
-      } else {
-        console.warn(`[Report] No companyId found for brandProfileId: ${data.brandProfileId} — skipping WeeklyReport`);
-      }
+      // Optionally resolve companyId for backward compat
+      let companyId: string | null = null;
+      try {
+        const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
+        companyId = await resolveCompanyIdFromBrandProfile(data.brandProfileId);
+      } catch { /* non-fatal */ }
+
+      await generateWeeklyReport({ brandProfileId: data.brandProfileId, weekStartUtc: weekStart, companyId });
+      console.log('[Report] ✅ Generated WeeklyReport for dashboard NLR');
     } catch (weeklyErr) {
       console.error('[Report] ⚠️ Failed to generate WeeklyReport (non-fatal):', weeklyErr, weeklyErr instanceof Error ? weeklyErr.stack : '');
     }

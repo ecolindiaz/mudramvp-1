@@ -7,6 +7,7 @@ import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 import { prisma } from '@/lib/prisma';
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { generateContentLabSchema } from '@/lib/services/content-lab-schema.service';
 
 // Required for Vercel serverless - allow long-running workflows
 // 540s = 9 minutes, needed for restored enrichment pipeline (5 searches, richer content)
@@ -238,6 +239,34 @@ export async function POST(req: NextRequest) {
           const metaDescription = await generateMetaDescription(campaignContent, campaignTitle);
           console.log(`[Workflow ${workflowRunId}] Generated meta description: ${metaDescription}`);
 
+          let generatedSchema: any = null;
+          let schemaStatus: 'ready' | 'failed' = 'ready';
+          let schemaError: string | null = null;
+
+          try {
+            generatedSchema = await generateContentLabSchema({
+              title: campaignTitle,
+              body: campaignContent,
+              slug: seoSlug,
+              createdAt: pendingCampaign.createdAt,
+              updatedAt: new Date(),
+              author: {
+                name: result.result.metadata?.author?.name || brandContext.userName || 'Content Team',
+                title: result.result.metadata?.author?.title || brandContext.userRole || 'Editor',
+              },
+              publisher: {
+                name: brandProfile.companyName || 'Unknown Brand',
+                website: brandProfile.companyWebsite || undefined,
+              },
+              userId,
+              brandProfileId,
+            });
+          } catch (schemaGenerationError: any) {
+            schemaStatus = 'failed';
+            schemaError = schemaGenerationError?.message || 'Failed to generate JSON-LD schema';
+            console.error(`[Workflow ${workflowRunId}] Schema generation failed:`, schemaGenerationError);
+          }
+
           // Update the pending campaign with actual content
           await prisma.campaign.update({
             where: { id: pendingCampaign.id },
@@ -253,8 +282,15 @@ export async function POST(req: NextRequest) {
                 sections: result.result.metadata?.sections || [],
                 sources: result.result.metadata?.sources || sources,
                 trackedPrompt: result.result.metadata?.trackedPrompt || trackedPrompt,
+                author: result.result.metadata?.author || {
+                  name: brandContext.userName,
+                  title: brandContext.userRole,
+                },
                 metaDescription: metaDescription,
                 generatedAt: new Date().toISOString(),
+                ...(generatedSchema ? { contentLabSchema: generatedSchema } : {}),
+                schemaStatus,
+                schemaError,
               },
             },
           });
@@ -414,6 +450,14 @@ export async function GET(req: NextRequest) {
           metadata: true,
         },
       });
+    }
+
+    // Verify ownership — prevent cross-user data access
+    if (campaign && (!campaign.userId || campaign.userId !== authResult.user.id)) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 403 }
+      );
     }
 
     if (campaign) {

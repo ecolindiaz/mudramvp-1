@@ -7,20 +7,25 @@ import { mapAiReferralTraffic } from "@/lib/analysis/nlr/mappers/ai-referral-tra
 import { mapAgentDeployments } from "@/lib/analysis/nlr/mappers/agent-deployments";
 
 export async function collectNlrInputs(
-  companyId: string,
-  weekStartUtc: Date | string
+  weekStartUtc: Date | string,
+  brandProfileId: number,
+  companyId?: string | null
 ): Promise<NlrInput> {
+  // companyId is passed through for backward compat in NlrInput but
+  // all mappers are already scoped by brandProfileId.
+  const cid = companyId ?? "";
+
   const [aiVisibility, technical, tasks, opportunities, aiReferralTraffic, agentDeployments] = await Promise.all([
-    mapAiVisibility(companyId, weekStartUtc),
-    mapTechnicalStructure(companyId),
-    mapIssues(companyId, weekStartUtc),
-    mapOpportunities(companyId, weekStartUtc),
-    mapAiReferralTraffic(companyId, weekStartUtc),
-    mapAgentDeployments(companyId, weekStartUtc),
+    mapAiVisibility(cid, weekStartUtc, brandProfileId),
+    mapTechnicalStructure(cid, brandProfileId),
+    mapIssues(cid, weekStartUtc, brandProfileId),
+    mapOpportunities(cid, weekStartUtc, brandProfileId),
+    mapAiReferralTraffic(cid, weekStartUtc, brandProfileId),
+    mapAgentDeployments(cid, weekStartUtc, brandProfileId),
   ]);
 
   return {
-    companyId,
+    companyId: cid,
     weekStartUtc: new Date(weekStartUtc).toISOString(),
     aiVisibility,
     technical,
@@ -31,5 +36,3 @@ export async function collectNlrInputs(
     agentDeployments,
   };
 }
-
-

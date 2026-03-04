@@ -9,6 +9,13 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { applyRateLimitAsync } from "@/lib/auth/rate-limiter-redis";
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
+import { computeContentLabSchemaSourceHash } from "@/lib/content-lab/schema-hash";
+import type { Prisma } from "@prisma/client";
+
+function toMetadataObject(input: unknown): Record<string, unknown> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  return input as Record<string, unknown>;
+}
 
 export async function POST(req: NextRequest) {
   // Apply rate limiting
@@ -46,7 +53,14 @@ export async function POST(req: NextRequest) {
       // Update existing campaign - verify ownership first
       const existingCampaign = await prisma.campaign.findUnique({
         where: { id },
-        select: { userId: true, brandProfileId: true }
+        select: {
+          userId: true,
+          brandProfileId: true,
+          title: true,
+          body: true,
+          slug: true,
+          metadata: true,
+        }
       });
 
       if (!existingCampaign || existingCampaign.userId !== authResult.user.id) {
@@ -54,6 +68,40 @@ export async function POST(req: NextRequest) {
           { success: false, error: { message: "Campaign not found or unauthorized", code: "FORBIDDEN" } },
           { status: 403 }
         );
+      }
+
+      const existingMetadata = toMetadataObject(existingCampaign.metadata);
+      const incomingMetadata = metadata === undefined ? null : toMetadataObject(metadata);
+      const mergedMetadata: Record<string, unknown> = incomingMetadata
+        ? { ...existingMetadata, ...incomingMetadata }
+        : { ...existingMetadata };
+
+      const contentLabSchema =
+        mergedMetadata.contentLabSchema &&
+        typeof mergedMetadata.contentLabSchema === "object" &&
+        !Array.isArray(mergedMetadata.contentLabSchema)
+          ? (mergedMetadata.contentLabSchema as Record<string, unknown>)
+          : null;
+
+      if (contentLabSchema && typeof contentLabSchema.sourceHash === "string") {
+        const effectiveTitle = title || existingCampaign.title || "";
+        const rawSlug =
+          typeof slug === "string" && slug.trim()
+            ? slug.trim()
+            : (existingCampaign.slug || "").trim();
+        const effectiveSlug =
+          rawSlug.length > 0 ? rawSlug : effectiveTitle.trim();
+        const nextHash = computeContentLabSchemaSourceHash({
+          title: effectiveTitle,
+          body: campaignBody || existingCampaign.body,
+          slug: effectiveSlug,
+        });
+
+        const isStale = contentLabSchema.sourceHash !== nextHash;
+        mergedMetadata.schemaStatus = isStale ? "stale" : "ready";
+        if (isStale) {
+          mergedMetadata.schemaError = null;
+        }
       }
 
       const campaign = await prisma.campaign.update({
@@ -68,7 +116,7 @@ export async function POST(req: NextRequest) {
           prompt,
           icp,
           keyword,
-          metadata: metadata || {},
+          metadata: mergedMetadata as Prisma.InputJsonValue,
           updatedAt: new Date(),
         },
       });
@@ -89,7 +137,7 @@ export async function POST(req: NextRequest) {
           prompt,
           icp,
           keyword,
-          metadata: metadata || {},
+          metadata: toMetadataObject(metadata) as Prisma.InputJsonValue,
         },
       });
 
@@ -157,4 +205,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

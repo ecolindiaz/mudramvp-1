@@ -1,18 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import type { OpportunitiesSummary } from "@/lib/analysis/nlr/types";
-import { resolveBrandProfileIds } from "@/lib/analysis/nlr/mappers/resolve-brand-profiles";
-
 /**
  * Map Conversation Opportunities from the ConversationOpportunity table for NLR.
  * Statuses: new, engaged, dismissed
  */
 export async function mapOpportunities(
   companyId: string,
-  weekStartUtc: Date | string
+  weekStartUtc: Date | string,
+  brandProfileId: number
 ): Promise<OpportunitiesSummary | null> {
-  const bpIds = await resolveBrandProfileIds(companyId);
-  if (bpIds.length === 0) return null;
-
   const start = new Date(weekStartUtc);
   const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -23,16 +19,16 @@ export async function mapOpportunities(
   const [activeCount, newThisWeek, engagedThisWeek, dismissedThisWeek, topNew] = await Promise.all([
     // Active high-quality opportunities (status = "new", scored >= threshold)
     prisma.conversationOpportunity.count({
-      where: { brandProfileId: { in: bpIds }, status: "new", relevanceScore: { gte: MIN_RELEVANCE } },
+      where: { brandProfileId, status: "new", relevanceScore: { gte: MIN_RELEVANCE } },
     }),
     // Created this week with quality score
     prisma.conversationOpportunity.count({
-      where: { brandProfileId: { in: bpIds }, createdAt: { gte: start, lt: end }, relevanceScore: { gte: MIN_RELEVANCE } },
+      where: { brandProfileId, createdAt: { gte: start, lt: end }, relevanceScore: { gte: MIN_RELEVANCE } },
     }),
     // Engaged this week (quality-scored only)
     prisma.conversationOpportunity.count({
       where: {
-        brandProfileId: { in: bpIds },
+        brandProfileId,
         status: "engaged",
         engagedAt: { gte: start, lt: end },
         relevanceScore: { gte: MIN_RELEVANCE },
@@ -41,7 +37,7 @@ export async function mapOpportunities(
     // Dismissed this week (quality-scored only)
     prisma.conversationOpportunity.count({
       where: {
-        brandProfileId: { in: bpIds },
+        brandProfileId,
         status: "dismissed",
         dismissedAt: { gte: start, lt: end },
         relevanceScore: { gte: MIN_RELEVANCE },
@@ -49,7 +45,7 @@ export async function mapOpportunities(
     }),
     // Top 5 new opportunities by relevanceScore (only quality ones)
     prisma.conversationOpportunity.findMany({
-      where: { brandProfileId: { in: bpIds }, status: "new", relevanceScore: { gte: MIN_RELEVANCE } },
+      where: { brandProfileId, status: "new", relevanceScore: { gte: MIN_RELEVANCE } },
       orderBy: { relevanceScore: "desc" },
       take: 5,
       select: {

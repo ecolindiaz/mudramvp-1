@@ -15,11 +15,10 @@ function isAdmin(req: NextRequest): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    // Always require admin token - no dev bypass
     if (!isAdmin(req)) {
       return NextResponse.json({ success: false, error: { message: 'Unauthorized - Admin token required' } }, { status: 401 })
     }
-    
+
     const body = await req.json().catch(() => ({}));
     const siteId: string | undefined = body?.siteId;
     const weekStartRaw: string | undefined = body?.weekStart || body?.weekStartUtc;
@@ -34,12 +33,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: { message: "Site not found" } }, { status: 404 });
     }
 
-    const job = await queueNlrJob(site.companyId, weekStartUtc);
+    // Resolve brand profiles for this company and generate for the first (lowest order)
+    const { resolveBrandProfileIds } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
+    const bpIds = await resolveBrandProfileIds(site.companyId);
+    if (bpIds.length === 0) {
+      return NextResponse.json({ success: false, error: { message: "No brand profiles found for this site's company" } }, { status: 404 });
+    }
+
+    const bp = await prisma.brandProfile.findFirst({
+      where: { id: { in: bpIds } },
+      orderBy: { monitorOrder: 'asc' },
+      select: { id: true },
+    });
+    const brandProfileId = bp?.id ?? bpIds[0];
+
+    const job = await queueNlrJob(brandProfileId, weekStartUtc, { companyId: site.companyId });
     return NextResponse.json({ success: true, data: { jobId: job.id } });
   } catch (err) {
     console.error('[Internal Generate Report] Error:', err);
     return NextResponse.json({ success: false, error: { message: 'Failed to generate report' } }, { status: 500 });
   }
 }
-
-

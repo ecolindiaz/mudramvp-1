@@ -163,10 +163,9 @@ Generate the file(s) needed to add this as a blog post. Return JSON with:
       );
     }
 
-    // Create the PR with the generated files — validate paths first
+    // Sanitize and validate file paths — defense against LLM path traversal
     const SAFE_PATH_PATTERN = /^content\/blog\/[a-z0-9][a-z0-9_-]*\.(md|mdx)$/;
     const files = agentOutput.filesToCreate.map((f: { path: string; content: string }) => {
-      // Validate raw path first (before any transformation) as defense-in-depth
       // Strip null bytes, encoded traversals, and leading slashes
       const sanitizedPath = f.path
         .replace(/\0/g, '')                // null bytes
@@ -174,6 +173,7 @@ Generate the file(s) needed to add this as a blog post. Return JSON with:
         .replace(/%2f/gi, '/')             // URL-encoded slashes
         .replace(/^\/+/, '')              // leading slashes
         .replace(/\.\.\//g, '');           // directory traversal
+
       if (!SAFE_PATH_PATTERN.test(sanitizedPath)) {
         throw new Error(`Invalid file path rejected: paths must match content/blog/<slug>.(md|mdx)`);
       }

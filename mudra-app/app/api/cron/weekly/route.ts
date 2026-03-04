@@ -76,9 +76,13 @@ export async function GET(request: NextRequest) {
       }
 
       summary.push({ siteId: site.id, url, createdTasks, verifiedTasks, score: scoreVal });
-      // After per-site processing, enqueue NLR for the company (once)
+      // After per-site processing, enqueue NLR for each brand profile linked to this site's domain
       try {
-        await queueNlrJob(site.companyId, weekStartIso, { jobId: `${site.companyId}:${weekStartIso}` })
+        const { resolveBrandProfileIds } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles')
+        const bpIds = await resolveBrandProfileIds(site.companyId)
+        for (const bpId of bpIds) {
+          await queueNlrJob(bpId, weekStartIso, { companyId: site.companyId }).catch(() => {})
+        }
       } catch {}
     }
 

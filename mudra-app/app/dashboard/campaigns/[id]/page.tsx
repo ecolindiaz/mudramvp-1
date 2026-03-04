@@ -14,9 +14,10 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, FileCode, Edit } from "lucide-react"
+import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Check, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, FileCode, Edit, ChevronDown } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { BlogSetupDialog } from "@/components/content-lab/blog-setup-dialog"
+import { computeContentLabSchemaSourceHash } from "@/lib/content-lab/schema-hash"
 
 // Helper function to accurately count words in markdown content
 function countWordsInMarkdown(content: string): number {
@@ -76,6 +77,24 @@ function countWordsInMarkdown(content: string): number {
   return words.length
 }
 
+type SchemaStatus = "ready" | "failed" | "stale" | "none"
+type BlogSchemaType = "BlogPosting" | "TechArticle" | "HowTo"
+
+interface ContentLabSchemaMetadata {
+  schemaType: BlogSchemaType
+  scriptTag: string
+  generatedAt: string
+  confidence: number
+  sourceHash: string
+  optionalFieldsIncluded?: string[]
+}
+
+function isContentLabSchemaMetadata(value: unknown): value is ContentLabSchemaMetadata {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.schemaType === "string" && typeof candidate.scriptTag === "string"
+}
+
 function CampaignCanvasPageInner({
   params,
   searchParams,
@@ -100,6 +119,15 @@ function CampaignCanvasPageInner({
   const [deleting, setDeleting] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState("copy")
   const [metaDescription, setMetaDescription] = React.useState("")
+  const [contentLabSchema, setContentLabSchema] = React.useState<ContentLabSchemaMetadata | null>(null)
+  const [schemaStatus, setSchemaStatus] = React.useState<SchemaStatus>("none")
+  const [schemaError, setSchemaError] = React.useState("")
+  const [schemaRegenerating, setSchemaRegenerating] = React.useState(false)
+  const [titleCopied, setTitleCopied] = React.useState(false)
+  const [descCopied, setDescCopied] = React.useState(false)
+  const [slugCopied, setSlugCopied] = React.useState(false)
+  const [schemaCopied, setSchemaCopied] = React.useState(false)
+  const [schemaExpanded, setSchemaExpanded] = React.useState(false)
   const [editMode, setEditMode] = React.useState(false)
   
   // Blog setup status
@@ -152,6 +180,61 @@ function CampaignCanvasPageInner({
     return body.split("\n").filter((l) => l.startsWith("## ")).map((h) => h.replace(/^##\s+/, ""))
   }, [body])
   const outlineItems = headings.length > 0 ? headings : []
+
+  const currentSchemaSourceHash = React.useMemo(() => {
+    const normalizedSlug =
+      slug && slug.trim().length > 0 ? slug.trim() : (title || "").trim()
+    return computeContentLabSchemaSourceHash({
+      title: title || "",
+      body: body || "",
+      slug: normalizedSlug,
+    })
+  }, [title, body, slug])
+
+  const isSchemaStale = React.useMemo(() => {
+    if (!contentLabSchema?.sourceHash) return false
+    return contentLabSchema.sourceHash !== currentSchemaSourceHash
+  }, [contentLabSchema, currentSchemaSourceHash])
+
+  const effectiveSchemaStatus = React.useMemo<SchemaStatus>(() => {
+    if (schemaStatus === "failed") return "failed"
+    if (schemaStatus === "stale") return "stale"
+    if (isSchemaStale) return "stale"
+    if (contentLabSchema) return "ready"
+    return "none"
+  }, [schemaStatus, isSchemaStale, contentLabSchema])
+
+  const handleRegenerateSchema = async () => {
+    setSchemaRegenerating(true)
+
+    setSchemaError("")
+    try {
+      const response = await fetch("/api/content-lab/schema", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaignId: id }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success || !isContentLabSchemaMetadata(data.schema)) {
+        const errorMessage = data?.error || "Failed to regenerate schema"
+        setSchemaStatus("failed")
+        setSchemaError(errorMessage)
+
+        return
+      }
+
+      setContentLabSchema(data.schema)
+      setSchemaStatus("ready")
+      setSchemaError("")
+    } catch (error) {
+      console.error("Failed to regenerate schema:", error)
+      const message = "Failed to regenerate schema"
+      setSchemaStatus("failed")
+      setSchemaError(message)
+    } finally {
+      setSchemaRegenerating(false)
+    }
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -258,10 +341,27 @@ function CampaignCanvasPageInner({
                 ? campaign.metadata
                 : (typeof campaign.metadata === 'string' ? JSON.parse(campaign.metadata) : {})
               const metaDesc = (metadata as any).metaDescription || ""
+              const schemaFromMetadata = (metadata as any).contentLabSchema
+              const metadataSchemaStatus = (metadata as any).schemaStatus
+              const metadataSchemaError = (metadata as any).schemaError
               console.log('📋 Metadata loaded:', { metadata, metaDescription: metaDesc })
               setMetaDescription(metaDesc)
+              if (isContentLabSchemaMetadata(schemaFromMetadata)) {
+                setContentLabSchema(schemaFromMetadata)
+              } else {
+                setContentLabSchema(null)
+              }
+              if (metadataSchemaStatus === "ready" || metadataSchemaStatus === "failed" || metadataSchemaStatus === "stale") {
+                setSchemaStatus(metadataSchemaStatus)
+              } else {
+                setSchemaStatus(isContentLabSchemaMetadata(schemaFromMetadata) ? "ready" : "none")
+              }
+              setSchemaError(typeof metadataSchemaError === "string" ? metadataSchemaError : "")
             } catch (e) {
               console.warn('Failed to parse campaign metadata:', e)
+              setContentLabSchema(null)
+              setSchemaStatus("none")
+              setSchemaError("")
             }
             
             setContentLoaded(true)
@@ -707,13 +807,24 @@ function CampaignCanvasPageInner({
                                   : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
                               }`}
                             >
+                              <FileCode className="w-3.5 h-3.5 opacity-70" />
+                              Technical
+                            </button>
+                            <button
+                              onClick={() => setActiveTab("backlinks")}
+                              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                                activeTab === "backlinks"
+                                  ? "bg-white/[0.08] text-white"
+                                  : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
+                              }`}
+                            >
                               <LinkIcon className="w-3.5 h-3.5 opacity-70" />
-                              SEO Settings
+                              Backlinks
                             </button>
                           </div>
                         </div>
 
-                        <TabsContent value="copy" className="p-5 space-y-4 mt-0 flex-1 overflow-y-auto">
+                        <TabsContent value="copy" className="p-5 space-y-4 mt-0 overflow-y-auto">
                           {/* Outline Section */}
                           <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
                             <div className="flex items-center gap-2">
@@ -811,7 +922,7 @@ function CampaignCanvasPageInner({
                           </div>
                         </TabsContent>
 
-                        <TabsContent value="seo" className="p-5 space-y-4 mt-0 flex-1 overflow-y-auto">
+                        <TabsContent value="seo" className="px-5 pt-5 pb-3 space-y-4 mt-0 overflow-y-auto">
                           {/* Metadata Section */}
                           <div className="space-y-3 pb-4 border-b border-white/[0.06]">
                             <h3 className="text-sm font-semibold text-white">Metadata</h3>
@@ -823,11 +934,17 @@ function CampaignCanvasPageInner({
                                   <button
                                     onClick={() => {
                                       navigator.clipboard.writeText(title || "")
+                                      setTitleCopied(true)
+                                      setTimeout(() => setTitleCopied(false), 2000)
                                     }}
                                     className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
                                     title="Copy meta title"
                                   >
-                                    <CopyIcon className="size-3.5" />
+                                    {titleCopied ? (
+                                      <Check className="size-3.5 text-emerald-400" />
+                                    ) : (
+                                      <CopyIcon className="size-3.5" />
+                                    )}
                                   </button>
                                 </div>
                                 <p className="text-sm text-white/90 leading-relaxed break-words">{title || "Not set"}</p>
@@ -840,11 +957,17 @@ function CampaignCanvasPageInner({
                                   <button
                                     onClick={() => {
                                       navigator.clipboard.writeText(metaDescription || "")
+                                      setDescCopied(true)
+                                      setTimeout(() => setDescCopied(false), 2000)
                                     }}
                                     className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
                                     title="Copy meta description"
                                   >
-                                    <CopyIcon className="size-3.5" />
+                                    {descCopied ? (
+                                      <Check className="size-3.5 text-emerald-400" />
+                                    ) : (
+                                      <CopyIcon className="size-3.5" />
+                                    )}
                                   </button>
                                 </div>
                                 <p className="text-sm text-white/90 leading-relaxed break-words">{metaDescription || "Not set"}</p>
@@ -857,11 +980,17 @@ function CampaignCanvasPageInner({
                                   <button
                                     onClick={() => {
                                       navigator.clipboard.writeText(slug || "")
+                                      setSlugCopied(true)
+                                      setTimeout(() => setSlugCopied(false), 2000)
                                     }}
                                     className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
                                     title="Copy slug"
                                   >
-                                    <CopyIcon className="size-3.5" />
+                                    {slugCopied ? (
+                                      <Check className="size-3.5 text-emerald-400" />
+                                    ) : (
+                                      <CopyIcon className="size-3.5" />
+                                    )}
                                   </button>
                                 </div>
                                 <p className="text-sm text-white/90 leading-relaxed break-words font-mono">{slug || "Not set"}</p>
@@ -869,53 +998,119 @@ function CampaignCanvasPageInner({
                             </div>
                           </div>
 
-                          {/* Backlinks Section */}
-                          <div className="space-y-2.5 pt-4 border-t border-white/[0.06]">
-                            <div className="flex items-center gap-2">
-                              <LinkIcon className="size-4 text-white/80" />
-                              <h3 className="text-sm font-semibold text-white">Backlinks</h3>
+                          {/* Structured Data Section */}
+                          <div>
+                            <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-2.5 space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="flex items-center gap-1.5 text-xs font-medium text-white/70 uppercase tracking-wide">
+                                  <FileCode className="size-3.5" />
+                                  Structured Data (JSON-LD)
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={handleRegenerateSchema}
+                                    disabled={schemaRegenerating}
+                                    className="h-7 px-2.5 rounded-md text-white/50 hover:text-white/70 hover:bg-white/[0.04] text-[11px] font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                    title="Regenerate schema with GPT 5.2"
+                                  >
+                                    {schemaRegenerating ? (
+                                      <span className="inline-flex items-center gap-1">
+                                        <Loader2 className="size-3 animate-spin" />
+                                        Regenerating
+                                      </span>
+                                    ) : "Regenerate"}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (!contentLabSchema?.scriptTag) return
+                                      navigator.clipboard.writeText(contentLabSchema.scriptTag)
+                                      setSchemaCopied(true)
+                                      setTimeout(() => setSchemaCopied(false), 2000)
+                                    }}
+                                    disabled={!contentLabSchema?.scriptTag}
+                                    className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Copy schema script tag"
+                                  >
+                                    {schemaCopied ? (
+                                      <Check className="size-3.5 text-emerald-400" />
+                                    ) : (
+                                      <CopyIcon className="size-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {contentLabSchema?.scriptTag ? (
+                                <div className="relative">
+                                  <pre
+                                    className={`text-[11px] leading-5 text-white/85 bg-black/25 border border-white/[0.06] rounded-md p-3 overflow-x-auto whitespace-pre-wrap break-all transition-all ${schemaExpanded ? 'max-h-none overflow-y-auto' : 'overflow-hidden'}`}
+                                    style={schemaExpanded ? undefined : { maxHeight: 'calc(100vh - 710px)', minHeight: '100px' }}
+                                  >
+                                    {contentLabSchema.scriptTag}
+                                  </pre>
+                                  {!schemaExpanded && (
+                                    <div className="absolute bottom-6 left-0 right-0 h-10 bg-gradient-to-t from-black/40 to-transparent rounded-b-md pointer-events-none" />
+                                  )}
+                                  <button
+                                    onClick={() => setSchemaExpanded(!schemaExpanded)}
+                                    className="flex items-center justify-center gap-1 w-full pt-1 text-[11px] text-white/30 hover:text-white/50 transition-colors"
+                                  >
+                                    <span>{schemaExpanded ? "Show less" : "Show more"}</span>
+                                    <ChevronDown className={`size-3 transition-transform ${schemaExpanded ? "rotate-180" : ""}`} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-white/50">
+                                  Schema has not been generated yet. Use regenerate to create JSON-LD for this post.
+                                </p>
+                              )}
+
                             </div>
-                            <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-4">
-                              {(() => {
-                                // Extract links from body content
-                                const linkRegex = /\[([^\]]+)\]\(([^\)]+)\)/g
-                                const matches = [...(body || '').matchAll(linkRegex)]
-                                
-                                if (matches.length === 0) {
-                                  return (
-                                    <p className="text-xs text-white/50 text-center py-2">
-                                      No backlinks found in the content yet.
-                                      <br />
-                                      <span className="text-white/40">Links added to your article will appear here.</span>
-                                    </p>
-                                  )
-                                }
-                                
+                          </div>
+
+                        </TabsContent>
+
+                        <TabsContent value="backlinks" className="p-5 space-y-4 mt-0 overflow-y-auto">
+                          <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-4">
+                            {(() => {
+                              // Extract links from body content
+                              const linkRegex = /\[([^\]]+)\]\(([^\)]+)\)/g
+                              const matches = [...(body || '').matchAll(linkRegex)]
+
+                              if (matches.length === 0) {
                                 return (
-                                  <div className="space-y-2">
-                                    {matches.map((match, index) => (
-                                      <div key={index} className="flex items-start gap-2 p-2 rounded-md bg-white/[0.03] border border-white/[0.06]">
-                                        <LinkIcon className="size-3.5 text-blue-400 mt-0.5 flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-xs font-medium text-white/90 truncate">{match[1]}</p>
-                                          <a 
-                                            href={match[2]} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="text-xs text-blue-400 hover:text-blue-300 truncate block"
-                                          >
-                                            {match[2]}
-                                          </a>
-                                        </div>
-                                      </div>
-                                    ))}
-                                    <p className="text-xs text-white/40 pt-1">
-                                      {matches.length} backlink{matches.length !== 1 ? 's' : ''} found
-                                    </p>
-                                  </div>
+                                  <p className="text-xs text-white/50 text-center py-2">
+                                    No backlinks found in the content yet.
+                                    <br />
+                                    <span className="text-white/40">Links added to your article will appear here.</span>
+                                  </p>
                                 )
-                              })()}
-                            </div>
+                              }
+
+                              return (
+                                <div className="space-y-2">
+                                  {matches.map((match, index) => (
+                                    <div key={index} className="flex items-start gap-2 p-2 rounded-md bg-white/[0.03] border border-white/[0.06]">
+                                      <LinkIcon className="size-3.5 text-blue-400 mt-0.5 flex-shrink-0" />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-white/90 truncate">{match[1]}</p>
+                                        <a
+                                          href={match[2]}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-blue-400 hover:text-blue-300 truncate block"
+                                        >
+                                          {match[2]}
+                                        </a>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  <p className="text-xs text-white/40 pt-1">
+                                    {matches.length} backlink{matches.length !== 1 ? 's' : ''} found
+                                  </p>
+                                </div>
+                              )
+                            })()}
                           </div>
                         </TabsContent>
                       </Tabs>
@@ -986,5 +1181,3 @@ export default function CampaignCanvasPage({
     </BrandProfileProvider>
   )
 }
-
-

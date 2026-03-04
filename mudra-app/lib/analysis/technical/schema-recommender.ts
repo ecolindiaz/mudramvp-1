@@ -36,6 +36,7 @@ const VALID_SCHEMA_TYPES: Set<string> = new Set([
 	"ItemList",
 	"Review",
 	"Person",
+	"AboutPage",
 ]);
 
 const SYSTEM_PROMPT = `You are an SEO schema markup expert. Given a page summary, return the JSON-LD schema types that should be present on this page for Answer Engine Optimization.
@@ -133,6 +134,39 @@ export function parseLLMResponse(text: string): LLMResult | null {
 }
 
 /**
+ * Detect SaaS signals from DOM extraction content.
+ * Returns true if 2+ of 3 content sources (title+desc, headings, paragraphs) match SaaS keywords.
+ */
+function detectSaasSignals(extraction?: DOMExtraction): boolean {
+	if (!extraction) return false;
+	const ext = extraction.extraction;
+	const saasPattern =
+		/\b(platform|saas|cloud|api|sdk|deploy|infrastructure|compute|gpu|serverless|dashboard|cli|developer|runtime|container|endpoint|webhook|microservice)\b/i;
+
+	let matchCount = 0;
+
+	// Source 1: title + description
+	const titleDesc = `${ext.metadata.title.content || ""} ${ext.metadata.meta_description.content || ""}`;
+	if (saasPattern.test(titleDesc)) matchCount++;
+
+	// Source 2: first 5 headings
+	const headingsText = ext.headings.hierarchy
+		.slice(0, 5)
+		.map((h) => h.text)
+		.join(" ");
+	if (saasPattern.test(headingsText)) matchCount++;
+
+	// Source 3: first 3 paragraphs
+	const paragraphsText = ext.content_snapshot.paragraphs
+		.slice(0, 3)
+		.map((p) => p.text)
+		.join(" ");
+	if (saasPattern.test(paragraphsText)) matchCount++;
+
+	return matchCount >= 2;
+}
+
+/**
  * Heuristic fallback — extracted from the original getRecommendedSchemas switch.
  * Returns core schemas (without BreadcrumbList/FAQPage which are added deterministically).
  */
@@ -155,27 +189,29 @@ export function heuristicRecommendedSchemas(
 			break;
 		}
 		case "product":
-			schemas.push("Product");
+			schemas.push(detectSaasSignals(extraction) ? "SoftwareApplication" : "Product");
 			break;
 		case "pricing":
-			schemas.push("Product", "OfferCatalog");
+			schemas.push(detectSaasSignals(extraction) ? "SoftwareApplication" : "Product");
+			schemas.push("OfferCatalog");
 			break;
 		case "features":
+			if (detectSaasSignals(extraction)) schemas.push("SoftwareApplication");
 			break;
 		case "documentation":
 			schemas.push("Article");
 			break;
 		case "about":
-			schemas.push("Organization", "Person");
+			schemas.push("Organization", "Person", "AboutPage");
 			break;
 		case "contact":
 			schemas.push("Organization");
 			break;
 		case "solutions":
-			schemas.push("Service");
+			schemas.push(detectSaasSignals(extraction) ? "SoftwareApplication" : "Service");
 			break;
 		case "use-cases":
-			schemas.push("Service");
+			schemas.push(detectSaasSignals(extraction) ? "SoftwareApplication" : "Service");
 			break;
 		case "integrations":
 			schemas.push("ItemList");

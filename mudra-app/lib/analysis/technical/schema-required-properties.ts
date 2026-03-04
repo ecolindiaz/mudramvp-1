@@ -89,6 +89,10 @@ export const SCHEMA_REQUIRED_PROPERTIES: Record<string, RequiredPropertySpec[]> 
 	Person: [
 		{ property: "name", description: "Person's name" },
 	],
+	AboutPage: [
+		{ property: "name", description: "About page name/title" },
+		{ property: "url", description: "About page URL" },
+	],
 };
 
 export interface ValidationResult {

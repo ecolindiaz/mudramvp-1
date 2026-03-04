@@ -9,8 +9,9 @@
  * 2. Template fallback (deterministic) — when no LLM keys or LLM fails
  */
 
+import * as cheerio from "cheerio";
 import { callLlm } from "./llm-provider.service";
-import { scrapeFaqContext, scrapePageContent } from "./page-scrape-context.service";
+import { scrapeFaqContext, scrapePageContent, scrapePageContentForSchema } from "./page-scrape-context.service";
 import { getRequiredSchemaTypesForCheck } from "./schema-contracts";
 import {
 	readSchemaKnowledge,
@@ -38,6 +39,9 @@ export interface ScriptGeneratorBrandProfile {
 	companyName: string | null;
 	companyWebsite: string | null;
 	companyDescription: string | null;
+	companyServices?: string | null;
+	companyICP?: string | null;
+	companyIndustry?: string | null;
 }
 
 export interface ScriptGenerationResult {
@@ -79,6 +83,7 @@ const KNOWN_SCHEMA_TYPES = new Set<string>([
 	"ItemList",
 	"Review",
 	"Person",
+	"AboutPage",
 ]);
 
 // checkCodes that are schema-related
@@ -229,7 +234,9 @@ Emit sections in this exact order; omit a section only if no credible data is av
 4) Products / Capabilities — grouped list; for each item: name, 1-line purpose, Product link, Docs link
 5) Solutions / Use Cases — team/scenario-based outcomes (3–6 bullets)
 6) Key Resources — docs home, API reference, SDKs/Quickstarts, changelog/releases
-7) FAQs — 3–6 concise Q/A with canonical source links
+7) FAQs — 3–6 Q/A pairs using this exact format per pair:
+   - **Q:** Question text
+     **A:** Answer text [Source](canonical_url)
 8) Security & Compliance — short note + links (security page, privacy, SOC/ISO if public)
 9) Pricing & Plans — one line + pricing URL
 10) Policies — Terms, Privacy, DPA/Acceptable Use (if public)
@@ -250,7 +257,7 @@ Keep link labels concise. Use absolute URLs. De-duplicate.
 - Enforce size budgets strictly. If oversize, trim long Sitemap lists first.
 - No empty sections, no duplicate bullets, no duplicate links.
 - Every Product item should include a Product link and, if available, a Docs link.
-- FAQs: 3–6 Q/A pairs; each answer must include a canonical source link; if oversize, keep top 3.
+- FAQs: 3–6 Q/A pairs; use **Q:**/**A:** bold markers; each answer must include a [Source](URL) link; if oversize, keep top 3.
 - Deterministic headings and ordering.
 </size_and_quality_gates>
 
@@ -287,6 +294,7 @@ interface GroundingEvidence {
 interface ValidationResult {
 	valid: boolean;
 	errors: string[];
+	warnings?: string[];
 }
 
 interface LlmsUrlCandidate {
@@ -301,6 +309,7 @@ interface LlmsSourcePage {
 	snippet: string;
 	sources: string[];
 	score: number;
+	deepScraped?: boolean;
 }
 
 interface LlmsCollectionResult {
@@ -471,6 +480,8 @@ const LLMS_MAX_SOURCE_PAGES = 14;
 const LLMS_MAX_SITEMAP_URLS = 220;
 const LLMS_MAX_CONTEXT_CHARS = 24000;
 const LLMS_SNIPPET_MAX_CHARS = 900;
+const LLMS_DEEP_SCRAPE_COUNT = 4;
+const LLMS_DEEP_SNIPPET_MAX_CHARS = 3000;
 const TRACKING_QUERY_PARAMS = [
 	"utm_source",
 	"utm_medium",
@@ -617,6 +628,77 @@ function htmlToTextSnippet(html: string, maxChars = LLMS_SNIPPET_MAX_CHARS): str
 	const decoded = decodeHtmlEntities(cleaned);
 	if (!decoded) return "";
 	return decoded.length > maxChars ? `${decoded.slice(0, maxChars)}...` : decoded;
+}
+
+function htmlToStructuredSnippet(html: string, maxChars = LLMS_SNIPPET_MAX_CHARS): string {
+	try {
+		const $ = cheerio.load(html);
+
+		// Remove noise elements
+		$("script, style, noscript, svg, nav, footer, header, iframe").remove();
+		$("[role='navigation'], [role='banner'], [role='contentinfo']").remove();
+		$("[class*='cookie'], [class*='popup'], [class*='modal'], [class*='banner']").remove();
+		$("[id*='cookie'], [id*='popup'], [id*='modal']").remove();
+
+		const lines: string[] = [];
+
+		// Extract meta description (high signal)
+		const metaDesc =
+			$('meta[name="description"]').attr("content")?.trim() ||
+			$('meta[property="og:description"]').attr("content")?.trim();
+		if (metaDesc && metaDesc.length > 20) {
+			lines.push(metaDesc);
+			lines.push("");
+		}
+
+		// Find main content area (prefer <main>, <article>, [role="main"])
+		let $content = $("main, article, [role='main']").first();
+		if ($content.length === 0) {
+			$content = $("body");
+		}
+
+		const navJunkPattern = /^(sign\s*in|log\s*in|sign\s*up|menu|cookie|accept|dismiss|close|toggle|skip|navigation)/i;
+
+		$content.find("h1, h2, h3, p").each((_i, el) => {
+			const tag = ("tagName" in el ? (el as { tagName: string }).tagName : "").toLowerCase();
+			const text = $(el).text().replace(/\s+/g, " ").trim();
+			if (!text || text.length < 5) return;
+			if (navJunkPattern.test(text)) return;
+
+			if (tag === "h1") lines.push(`# ${text}`);
+			else if (tag === "h2") lines.push(`## ${text}`);
+			else if (tag === "h3") lines.push(`### ${text}`);
+			else lines.push(text);
+		});
+
+		// Extract FAQ structures: <details>/<summary> accordion patterns
+		$content.find("details").each((_i, el) => {
+			const summary = $(el).find("summary").first().text().replace(/\s+/g, " ").trim();
+			const body = $(el).clone().children("summary").remove().end().text().replace(/\s+/g, " ").trim();
+			if (summary && summary.length > 10) {
+				lines.push(`**Q:** ${summary}`);
+				if (body && body.length > 10) lines.push(`**A:** ${body.slice(0, 200)}`);
+			}
+		});
+
+		// Extract FAQ structures: <dl>/<dt>/<dd> definition list patterns
+		$content.find("dt").each((_i, el) => {
+			const question = $(el).text().replace(/\s+/g, " ").trim();
+			const answer = $(el).next("dd").text().replace(/\s+/g, " ").trim();
+			if (question && question.length > 10) {
+				lines.push(`**Q:** ${question}`);
+				if (answer && answer.length > 10) lines.push(`**A:** ${answer.slice(0, 200)}`);
+			}
+		});
+
+		const result = lines.join("\n").trim();
+		if (!result || result.length < 30) {
+			return htmlToTextSnippet(html, maxChars);
+		}
+		return result.length > maxChars ? `${result.slice(0, maxChars)}...` : result;
+	} catch {
+		return htmlToTextSnippet(html, maxChars);
+	}
 }
 
 function extractAnchorUrls(html: string, baseUrl: string): string[] {
@@ -1105,8 +1187,16 @@ async function collectLlmsContext(
 		})
 		.slice(0, LLMS_MAX_SOURCE_PAGES);
 
-	const fetchedPages = await Promise.all(
-		selected.map(async (candidate): Promise<LlmsSourcePage | null> => {
+	// Two-tier content fetching:
+	// Tier 1 (deep): top N pages get Firecrawl markdown (3000 chars)
+	// Tier 2 (shallow): remaining pages get Cheerio structured snippets (900 chars)
+	const deepCandidates = selected.slice(0, LLMS_DEEP_SCRAPE_COUNT);
+	const shallowCandidates = selected.slice(LLMS_DEEP_SCRAPE_COUNT);
+	const hasFirecrawl = Boolean(process.env.FIRECRAWL_API_KEY);
+
+	const deepPages = await Promise.all(
+		deepCandidates.map(async (candidate): Promise<LlmsSourcePage | null> => {
+			// Always fetch HTML (needed for title + fallback snippet)
 			const response = await fetchTextResource(candidate.url, "text/html,*/*");
 			let title = "";
 			let snippet = "";
@@ -1117,7 +1207,58 @@ async function collectLlmsContext(
 						extractHtmlTitle(response.text) ||
 						getPageLabel(candidate.url) ||
 						candidate.url;
-					snippet = htmlToTextSnippet(response.text, LLMS_SNIPPET_MAX_CHARS);
+					// Try Firecrawl first for rich markdown
+					if (hasFirecrawl) {
+						try {
+							const markdown = await scrapePageContent(candidate.url);
+							if (markdown && markdown.length > 30) {
+								snippet = markdown.length > LLMS_DEEP_SNIPPET_MAX_CHARS
+									? `${markdown.slice(0, LLMS_DEEP_SNIPPET_MAX_CHARS)}...`
+									: markdown;
+							}
+						} catch {
+							// Firecrawl failed — fall through to Cheerio
+						}
+					}
+					// Fallback to Cheerio structured extraction
+					if (!snippet) {
+						snippet = htmlToStructuredSnippet(response.text, LLMS_DEEP_SNIPPET_MAX_CHARS);
+					}
+				} else {
+					title = getPageLabel(candidate.url);
+					snippet = `Non-HTML resource (${response.contentType || "unknown content type"})`;
+				}
+			}
+
+			if (!response.ok) {
+				title = getPageLabel(candidate.url);
+				snippet = "";
+			}
+
+			return {
+				url: candidate.url,
+				title,
+				snippet,
+				sources: Array.from(candidate.sources).sort((a, b) => a.localeCompare(b)),
+				score: candidate.score,
+				deepScraped: true,
+			};
+		})
+	);
+
+	const shallowPages = await Promise.all(
+		shallowCandidates.map(async (candidate): Promise<LlmsSourcePage | null> => {
+			const response = await fetchTextResource(candidate.url, "text/html,*/*");
+			let title = "";
+			let snippet = "";
+
+			if (response.ok && response.text) {
+				if (isLikelyHtml(response.contentType)) {
+					title =
+						extractHtmlTitle(response.text) ||
+						getPageLabel(candidate.url) ||
+						candidate.url;
+					snippet = htmlToStructuredSnippet(response.text, LLMS_SNIPPET_MAX_CHARS);
 				} else {
 					title = getPageLabel(candidate.url);
 					snippet = `Non-HTML resource (${response.contentType || "unknown content type"})`;
@@ -1139,6 +1280,8 @@ async function collectLlmsContext(
 		})
 	);
 
+	const fetchedPages = [...deepPages, ...shallowPages];
+
 	const sourcePages = fetchedPages.filter((page): page is LlmsSourcePage => Boolean(page));
 	const sourceCatalog = sourcePages
 		.map((page) => {
@@ -1150,10 +1293,10 @@ async function collectLlmsContext(
 
 	const snippetSections = sourcePages
 		.filter((page) => page.snippet)
-		.map(
-			(page) =>
-				`### ${page.title || getPageLabel(page.url)}\nURL: ${page.url}\n${page.snippet}`
-		)
+		.map((page) => {
+			const label = page.deepScraped ? " (deep)" : "";
+			return `### ${page.title || getPageLabel(page.url)}${label}\nURL: ${page.url}\n${page.snippet}`;
+		})
 		.join("\n\n");
 
 	const contextParts = [
@@ -1499,6 +1642,19 @@ function buildSchemaObject(
 				name: `${brandName} Author`,
 				url: siteRoot,
 			};
+		case "AboutPage":
+			return {
+				"@context": "https://schema.org",
+				"@type": "AboutPage",
+				name: `About ${brandName}`,
+				url: targetUrl,
+				description,
+				about: {
+					"@type": "Organization",
+					"@id": `${siteRoot}/#organization`,
+					name: brandName,
+				},
+			};
 		case "SoftwareApplication":
 		case "WebApplication":
 			return {
@@ -1774,16 +1930,93 @@ function stripBrandSuffix(title: string, brandName: string): string {
 	return separatorMatch ? separatorMatch[1].trim() : cleaned;
 }
 
+function extractProductPurpose(snippet: string, fallbackName: string): string {
+	const lines = snippet.split("\n").map((l) => l.trim()).filter(Boolean);
+
+	// Skip junk lines
+	const junkPattern = /^(#|sign\s*in|log\s*in|menu|cookie|documentation and reference|capabilities and resources)/i;
+
+	// Look for purpose patterns in content lines
+	const purposePatterns = [
+		/\b(?:is\s+(?:a|an|the))\s+.{10,}/i,
+		/\b(?:enables?|provides?|allows?|helps?|offers?|delivers?)\s+.{10,}/i,
+		/\b(?:platform\s+(?:for|that)|tool\s+(?:for|that)|service\s+(?:for|that))\s+.{10,}/i,
+		/\b(?:built\s+for|designed\s+for|made\s+for)\s+.{10,}/i,
+	];
+
+	for (const line of lines) {
+		if (junkPattern.test(line)) continue;
+		// Skip headings (markdown #) — they're structural, not descriptive
+		if (/^#{1,3}\s/.test(line)) continue;
+		for (const pattern of purposePatterns) {
+			const match = line.match(pattern);
+			if (match) {
+				// Return from the match to end of sentence
+				const fromMatch = line.slice(match.index || 0).split(/[.\n]/)[0].trim();
+				if (fromMatch.length > 20) return fromMatch.slice(0, 200);
+			}
+		}
+	}
+
+	// Fallback: first substantial paragraph (not a heading, not junk)
+	for (const line of lines) {
+		if (junkPattern.test(line)) continue;
+		if (/^#{1,3}\s/.test(line)) continue;
+		if (line.length > 30) {
+			return line.split(/[.\n]/)[0].trim().slice(0, 200);
+		}
+	}
+
+	// Last resort: first sentence of raw snippet
+	const firstSentence = snippet.split(/[.\n]/)[0].trim().slice(0, 160);
+	return firstSentence || `${fallbackName} capabilities and resources.`;
+}
+
 function buildLlmsProductsFromUrls(
 	urls: string[],
 	rootUrl: string,
 	docsBase: string | null,
 	sourcePages?: LlmsSourcePage[],
-	brandName?: string
+	brandName?: string,
+	brandProfile?: ScriptGeneratorBrandProfile
 ): Array<{ name: string; purpose: string; productUrl: string; docsUrl: string | null }> {
 	const products: Array<{ name: string; purpose: string; productUrl: string; docsUrl: string | null }> = [];
 	const seen = new Set<string>();
 	const brand = brandName || "Brand";
+
+	// ── KB-sourced products (primary, user-confirmed) ──
+	const kbServices = brandProfile?.companyServices?.trim();
+	if (kbServices) {
+		const entries = kbServices.split(/,\s+(?=[A-Z])/);
+		for (const entry of entries) {
+			const dashMatch = entry.match(/^(.+?)\s*[—–:\-]\s+(.+)$/);
+			const name = dashMatch ? dashMatch[1].trim() : entry.trim();
+			const purpose = dashMatch ? dashMatch[2].trim() : `${name} by ${brand}.`;
+			if (!name) continue;
+			const nameLower = name.toLowerCase();
+			if (seen.has(nameLower)) continue;
+			seen.add(nameLower);
+
+			// Try to find a matching URL from sourcePages or urls
+			const slugVariants = [
+				nameLower.replace(/\s+/g, "-"),
+				nameLower.replace(/\s+/g, ""),
+			];
+			const matchedUrl = urls.find((u) => {
+				try {
+					const pathname = new URL(u).pathname.toLowerCase();
+					return slugVariants.some((s) => pathname.includes(s));
+				} catch { return false; }
+			});
+
+			products.push({
+				name,
+				purpose,
+				productUrl: matchedUrl || rootUrl,
+				docsUrl: matchedUrl ? findMatchingDocsUrl(slugVariants[0], urls, docsBase) : null,
+			});
+		}
+	}
 
 	// Generic product detection from URL path patterns
 	const productPathPatterns = [
@@ -1815,6 +2048,24 @@ function buildLlmsProductsFromUrls(
 	const findSourcePage = (url: string): LlmsSourcePage | undefined =>
 		sourcePages?.find((p) => normalizeUrlForComparison(p.url) === normalizeUrlForComparison(url));
 
+	// Helper: derive product purpose from any deep-scraped page that mentions the product name
+	const deriveFromDeepPages = (productName: string): string | null => {
+		if (!sourcePages) return null;
+		const nameLower = productName.toLowerCase();
+		for (const page of sourcePages.filter((p) => p.deepScraped && p.snippet)) {
+			const lines = page.snippet.split("\n");
+			for (const line of lines) {
+				if (!line.toLowerCase().includes(nameLower)) continue;
+				if (/^#{1,3}\s/.test(line)) continue; // skip headings
+				const trimmed = line.trim();
+				if (trimmed.length > 30) {
+					return trimmed.split(/[.\n]/)[0].trim().slice(0, 200);
+				}
+			}
+		}
+		return null;
+	};
+
 	// 1. Detect from product-like URL paths
 	for (const url of urls) {
 		let pathname: string;
@@ -1829,9 +2080,9 @@ function buildLlmsProductsFromUrls(
 
 			const sp = findSourcePage(url);
 			const name = sp ? stripBrandSuffix(sp.title, brand) : toTitleCase(slug);
-			const purpose = sp?.snippet
-				? sp.snippet.split(/[.\n]/)[0].trim().slice(0, 160)
-				: `${name} capabilities and resources.`;
+			let purpose = sp?.snippet
+				? extractProductPurpose(sp.snippet, name)
+				: deriveFromDeepPages(name) || `${name} capabilities and resources.`;
 			products.push({
 				name,
 				purpose: purpose || `${name} capabilities and resources.`,
@@ -1858,12 +2109,20 @@ function buildLlmsProductsFromUrls(
 
 				const sp = findSourcePage(url);
 				const name = sp ? stripBrandSuffix(sp.title, brand) : toTitleCase(slug);
-				const purpose = sp?.snippet
-					? sp.snippet.split(/[.\n]/)[0].trim().slice(0, 160)
-					: `${name} documentation and reference.`;
+				let purpose = sp?.snippet
+					? extractProductPurpose(sp.snippet, name)
+					: deriveFromDeepPages(name) || null;
+				if (!purpose) {
+					// Smart fallback based on slug type
+					if (/sdk/i.test(slug)) purpose = `Client library for building with ${brand}.`;
+					else if (/cli/i.test(slug)) purpose = `Command-line interface for ${brand}.`;
+					else if (/api/i.test(slug)) purpose = `API for programmatic access to ${brand}.`;
+					else if (/agent/i.test(slug)) purpose = `Agent framework for ${brand}.`;
+					else purpose = `${name} documentation and reference.`;
+				}
 				products.push({
 					name,
-					purpose: purpose || `${name} documentation and reference.`,
+					purpose,
 					productUrl: url,
 					docsUrl: url,
 				});
@@ -1896,6 +2155,7 @@ function buildLlmsTxtTemplate(
 		rootUrl?: string;
 		docsBase?: string | null;
 		sourcePages?: LlmsSourcePage[];
+		faqData?: Array<{ question: string; answer: string }>;
 	}
 ): ScriptGenerationResult {
 	const targetUrl = toHttpsUrl(getTargetUrl(issue, brandProfile));
@@ -1951,7 +2211,7 @@ function buildLlmsTxtTemplate(
 		joinRootPath(rootUrl, "/blog");
 
 	const spPages = options?.sourcePages || [];
-	const products = buildLlmsProductsFromUrls(scopedUrls, rootUrl, docsBase, spPages, brandName);
+	const products = buildLlmsProductsFromUrls(scopedUrls, rootUrl, docsBase, spPages, brandName, brandProfile);
 	const sitemapUrls = Array.from(
 		new Set(
 			[
@@ -2029,18 +2289,68 @@ function buildLlmsTxtTemplate(
 
 	const audiencePatterns = [
 		/\b(?:built\s+for|designed\s+for|made\s+for|used\s+by)\s+.{5,}/i,
-		/\b(?:developers?|teams?|engineers?|businesses?|enterprises?|startups?|organizations?)\s+(?:who|that|can|need|want|building|integrating|using)\b/i,
+		/\b(?:ideal\s+for|perfect\s+for|great\s+for)\s+.{5,}/i,
+		/\b(?:for\s+developers?|for\s+teams?|for\s+engineers?|for\s+businesses?|for\s+(?:AI\s+)?agents?|for\s+companies|for\s+platforms?)\b.{5,}/i,
+		/\b(?:helps?\s+teams?|helps?\s+developers?|helps?\s+engineers?|helps?\s+companies)\s+.{5,}/i,
+		/\b(?:empowers?|enables?|serves?)\s+(?:developers?|teams?|engineers?|businesses?|organizations?|companies|platforms?)\b.{5,}/i,
+		/\b(?:developers?|teams?|engineers?|businesses?|enterprises?|startups?|organizations?|companies|platforms?)\s+(?:who|that|can|need|want|building|integrating|using|looking|seeking)\b/i,
+		/\binfrastructure\s+for\s+.{5,}/i,
+		/\bplatform\s+for\s+.{5,}/i,
 	];
 	const audienceFacts: string[] = [];
+	const seenAudience = new Set<string>();
+
+	// Priority 0: KB ICP segments (user-confirmed during onboarding)
+	const kbICP = brandProfile.companyICP?.trim();
+	if (kbICP) {
+		const segments = kbICP.split(/,\s+/).filter((s) => s.trim().length > 0);
+		for (const segment of segments) {
+			if (audienceFacts.length >= 4) break;
+			const bullet = segment.trim().slice(0, 160);
+			if (!seenAudience.has(bullet.toLowerCase())) {
+				seenAudience.add(bullet.toLowerCase());
+				audienceFacts.push(`- ${bullet}`);
+			}
+		}
+	}
+
+	// Then: scan deep-scraped page snippets directly for audience signals
+	const deepPages = spPages.filter((p) => p.deepScraped);
+	for (const page of deepPages) {
+		if (audienceFacts.length >= 4) break;
+		const snippetLines = page.snippet.split("\n").map((l) => l.trim()).filter((l) => l.length > 10);
+		for (const line of snippetLines) {
+			if (audienceFacts.length >= 4) break;
+			// Skip headings
+			if (/^#{1,3}\s/.test(line)) continue;
+			for (const pattern of audiencePatterns) {
+				if (pattern.test(line)) {
+					const bullet = line.slice(0, 160);
+					if (!seenAudience.has(bullet.toLowerCase())) {
+						seenAudience.add(bullet.toLowerCase());
+						audienceFacts.push(`- ${bullet}`);
+					}
+					break;
+				}
+			}
+		}
+	}
+
+	// Then: scan evidence facts (existing behavior, expanded patterns)
 	for (const fact of cleanFacts) {
+		if (audienceFacts.length >= 4) break;
 		for (const pattern of audiencePatterns) {
 			if (pattern.test(fact)) {
-				audienceFacts.push(`- ${fact.trim().slice(0, 160)}`);
+				const bullet = fact.trim().slice(0, 160);
+				if (!seenAudience.has(bullet.toLowerCase())) {
+					seenAudience.add(bullet.toLowerCase());
+					audienceFacts.push(`- ${bullet}`);
+				}
 				break;
 			}
 		}
-		if (audienceFacts.length >= 3) break;
 	}
+
 	if (audienceFacts.length === 0) {
 		audienceFacts.push(`- Users and teams who need ${brandName} capabilities.`);
 		audienceFacts.push(`- Developers integrating ${brandName} into their workflows.`);
@@ -2109,7 +2419,16 @@ function buildLlmsTxtTemplate(
 		? gettingStartedPage.snippet.split(/[.\n]/)[0]?.trim().slice(0, 200)
 		: `Documentation and guides are published at the ${brandName} docs site.`;
 
-	const faqPairs: Array<{ q: string; a: string; source: string }> = [
+	// Use real FAQs from scorer's DOM extraction (passed via faqData from sibling issues)
+	const realFaqs: Array<{ q: string; a: string; source: string }> = (options?.faqData || [])
+		.slice(0, 6)
+		.map((faq) => ({
+			q: faq.question,
+			a: faq.answer.slice(0, 200),
+			source: rootUrl,
+		}));
+
+	const genericFaqs: Array<{ q: string; a: string; source: string }> = [
 		{
 			q: `What is ${brandName}?`,
 			a: homeSnippet.slice(0, 200),
@@ -2131,6 +2450,12 @@ function buildLlmsTxtTemplate(
 			source: quickstartUrl,
 		},
 	];
+
+	// Use real FAQs first, then fill remaining slots with generic fallbacks (up to 6 total)
+	const faqPairs = [
+		...realFaqs,
+		...genericFaqs.filter((gf) => !realFaqs.some((rf) => rf.q === gf.q)),
+	].slice(0, 6);
 
 	const llmsTxt = [
 		"```llms.txt",
@@ -2263,6 +2588,31 @@ function extractScriptFromLlmResponse(
 }
 
 /**
+ * Recursively remove UnitPriceSpecification objects that lack a "price" value.
+ * Walks offers arrays and priceSpecification fields.
+ */
+function stripEmptyPriceSpecs(obj: Record<string, unknown>): void {
+	for (const [key, value] of Object.entries(obj)) {
+		if (key === "priceSpecification" && value && typeof value === "object") {
+			const spec = value as Record<string, unknown>;
+			if (spec["@type"] === "UnitPriceSpecification" && spec.price == null) {
+				delete obj[key];
+				continue;
+			}
+		}
+		if (Array.isArray(value)) {
+			for (const item of value) {
+				if (item && typeof item === "object") {
+					stripEmptyPriceSpecs(item as Record<string, unknown>);
+				}
+			}
+		} else if (value && typeof value === "object" && key !== "@id") {
+			stripEmptyPriceSpecs(value as Record<string, unknown>);
+		}
+	}
+}
+
+/**
  * Deterministic normalization for schema output.
  * Merges multiple script tags into a single @graph, enforces stable IDs,
  * and strips unsupported URL/date/price fields.
@@ -2270,7 +2620,8 @@ function extractScriptFromLlmResponse(
 function normalizeSchemaOutput(
 	output: string,
 	issue: ScriptGeneratorIssue,
-	evidence: GroundingEvidence
+	evidence: GroundingEvidence,
+	brandProfile?: ScriptGeneratorBrandProfile
 ): SchemaNormalizationResult {
 	const scriptRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
 	const jsonObjects: Record<string, unknown>[] = [];
@@ -2326,11 +2677,18 @@ function normalizeSchemaOutput(
 		issue.checkCode === "J4_coverage" ||
 		issue.checkCode === "FAQ_schema_gap";
 	const orderedTypes = enforceOnlyRequired
-		? requiredTypes
+		? [...requiredTypes]
 		: [
 			...requiredTypes,
 			...Array.from(nodeByType.keys()).filter((type) => !requiredTypes.includes(type)),
 		];
+
+	// Auto-add Organization when referenced by other entity types
+	const typesReferencingOrg = ["Service", "WebApplication", "SoftwareApplication", "WebSite", "AboutPage"];
+	const needsOrg = orderedTypes.some((t) => typesReferencingOrg.includes(t));
+	if (needsOrg && !orderedTypes.includes("Organization")) {
+		orderedTypes.unshift("Organization");
+	}
 
 	const siteRoot = evidence.siteRoot.replace(/\/$/, "");
 	const pageUrlNormalized = normalizeUrlIfValid(evidence.targetUrl) || evidence.targetUrl;
@@ -2354,6 +2712,7 @@ function normalizeSchemaOutput(
 		VideoObject: `${pageUrl}#video`,
 		FAQPage: `${pageUrl}#faq`,
 		BreadcrumbList: `${pageUrl}#breadcrumb`,
+		AboutPage: `${pageUrl}#aboutpage`,
 	};
 
 	function scrubHighRiskFacts(
@@ -2417,6 +2776,19 @@ function normalizeSchemaOutput(
 		return value;
 	}
 
+	// Resolve the canonical brand name for deterministic overrides
+	const resolvedBrandName = brandProfile
+		? getBrandName(brandProfile, evidence.targetUrl)
+		: null;
+
+	// Determine if this is a non-homepage page
+	const isHomepage = (() => {
+		try {
+			const p = new URL(pageUrl).pathname.replace(/\/+$/, "");
+			return !p || p === "";
+		} catch { return false; }
+	})();
+
 	const graph: Record<string, unknown>[] = [];
 	for (const type of orderedTypes) {
 		const node = nodeByType.get(type) || { "@type": type };
@@ -2429,7 +2801,21 @@ function normalizeSchemaOutput(
 		if (!cleaned || typeof cleaned !== "object") continue;
 
 		if (type === "Organization") {
+			// On non-homepage: reduce Organization to @id-reference only
+			if (!isHomepage) {
+				graph.push({ "@type": "Organization", "@id": organizationId, name: resolvedBrandName || cleaned.name, url: `${siteRoot}/` });
+				continue;
+			}
 			cleaned.url = `${siteRoot}/`;
+			// Deterministic: always use brand name, never hostname
+			if (resolvedBrandName) {
+				cleaned.name = resolvedBrandName;
+			} else if (!cleaned.name) {
+				try {
+					const host = new URL(siteRoot).hostname.replace(/^www\./, "");
+					cleaned.name = host.split(".")[0] || "Brand";
+				} catch {}
+			}
 		}
 		if (type === "WebSite") {
 			cleaned.url = `${siteRoot}/`;
@@ -2442,9 +2828,38 @@ function normalizeSchemaOutput(
 		if (type === "WebApplication" || type === "SoftwareApplication") {
 			cleaned.provider = { "@id": organizationId };
 			if (!cleaned.url) cleaned.url = evidence.targetUrl;
+			// Deterministic: remove "brand" — not valid on SoftwareApplication/WebApplication
+			delete cleaned.brand;
 		}
 
 		graph.push(cleaned);
+	}
+
+	// Deterministic post-processing on the assembled graph
+	for (let i = graph.length - 1; i >= 0; i--) {
+		const node = graph[i];
+		const type = node["@type"] as string;
+
+		// 1. Remove empty shell entities (only @type + @id, no real properties)
+		const realKeys = Object.keys(node).filter((k) => k !== "@type" && k !== "@id");
+		if (realKeys.length === 0) {
+			graph.splice(i, 1);
+			continue;
+		}
+
+		// 2. Remove standalone OfferCatalog @graph entries — must be nested, not top-level
+		if (type === "OfferCatalog") {
+			graph.splice(i, 1);
+			continue;
+		}
+
+		// 3. Strip hasOfferCatalog from non-Service types (Service-only property)
+		if (type !== "Service" && node.hasOfferCatalog) {
+			delete node.hasOfferCatalog;
+		}
+
+		// 4. Strip UnitPriceSpecification without price values (recursively in offers)
+		stripEmptyPriceSpecs(node);
 	}
 
 	return {
@@ -2564,7 +2979,7 @@ function validateGeneratedScript(
 			}
 		}
 
-		const faqSection = sectionBodies["faqs"] || "";
+		const faqSection = sectionBodies["faqs"] || sectionBodies["faq"] || sectionBodies["frequently asked questions"] || "";
 		const faqQuestionCount = (faqSection.match(/\*\*Q:\*\*/g) || []).length;
 		if (faqQuestionCount < 3 || faqQuestionCount > 6) {
 			errors.push("FAQs section must contain 3-6 Q/A pairs");
@@ -2618,17 +3033,19 @@ function validateGeneratedScript(
 			seenSitemapUrls.add(url);
 		}
 
-		const nonHeadingLines = body
-			.split("\n")
-			.map((line) => line.trim())
-			.filter((line) => line && !line.startsWith("## ") && !line.startsWith("# "));
-		const seenLines = new Set<string>();
-		for (const line of nonHeadingLines) {
-			if (seenLines.has(line)) {
-				errors.push(`Duplicate content line detected: ${line.slice(0, 120)}`);
-				break;
+		for (const [sectionName, sectionBody] of Object.entries(sectionBodies)) {
+			const sectionLines = sectionBody
+				.split("\n")
+				.map((line) => line.trim())
+				.filter((line) => line && !line.startsWith("## ") && !line.startsWith("# "));
+			const seenLines = new Set<string>();
+			for (const line of sectionLines) {
+				if (seenLines.has(line)) {
+					errors.push(`Duplicate content line in "${sectionName}": ${line.slice(0, 120)}`);
+					break;
+				}
+				seenLines.add(line);
 			}
-			seenLines.add(line);
 		}
 
 		return { valid: errors.length === 0, errors };
@@ -2652,15 +3069,31 @@ function validateGeneratedScript(
 				}
 				const requiredTypes = getRequiredSchemaTypes(issue, evidence.targetUrl);
 				const presentTypes = extractTypesFromParsed(parsed);
+				const fullJson = JSON.stringify(parsed);
+				// Types that may be nested inside parent entities (e.g., OfferCatalog inside offers)
+				// or deliberately stripped by the normalizer — missing these is a warning, not an error
+				const SOFT_REQUIRED_TYPES = new Set(["OfferCatalog"]);
+				const warnings: string[] = [];
 				for (const required of requiredTypes) {
 					if (!presentTypes.has(required)) {
+						// Check if nested anywhere in the JSON (e.g., OfferCatalog inside offers array)
+						const nestedPresent = fullJson.includes(`"@type":"${required}"`) || fullJson.includes(`"@type": "${required}"`);
+						if (SOFT_REQUIRED_TYPES.has(required)) {
+							if (!nestedPresent) {
+								warnings.push(`Schema type ${required} not found (may be nested or omitted by normalizer)`);
+							}
+							continue;
+						}
 						errors.push(`Missing required schema type: ${required}`);
 					}
 				}
 				for (const present of presentTypes) {
-					if (!requiredTypes.includes(present)) {
+					if (!requiredTypes.includes(present) && present !== "Organization") {
 						errors.push(`Unexpected schema type for ${check}: ${present}`);
 					}
+				}
+				if (warnings.length) {
+					return { valid: errors.length === 0, errors, warnings };
 				}
 			} catch {
 				errors.push("JSON-LD content is not valid JSON");
@@ -2751,7 +3184,73 @@ function validateGeneratedScript(
 		}
 	}
 
-	return { valid: errors.length === 0, errors };
+	// Non-blocking quality warnings for schema checks
+	const warnings: string[] = [];
+	if (
+		(check === "J1_present" || check === "J3_relevant" || check === "J4_coverage") &&
+		scriptMatch
+	) {
+		try {
+			const parsed = JSON.parse(scriptMatch[1]);
+			const graph = Array.isArray(parsed?.["@graph"]) ? parsed["@graph"] : [];
+			const definedIds = new Set<string>();
+
+			for (const node of graph) {
+				if (!node || typeof node !== "object") continue;
+				if (node["@id"]) definedIds.add(node["@id"]);
+
+				// Empty entities: only @type and @id, no real properties
+				const keys = Object.keys(node).filter((k) => k !== "@type" && k !== "@id" && k !== "@context");
+				if (keys.length === 0) {
+					warnings.push(`Empty entity: ${node["@type"]} has no properties beyond @type/@id`);
+				}
+
+				// Missing applicationCategory for SoftwareApplication/WebApplication
+				if (
+					(node["@type"] === "SoftwareApplication" || node["@type"] === "WebApplication") &&
+					!node.applicationCategory
+				) {
+					warnings.push(`${node["@type"]} missing applicationCategory`);
+				}
+
+				// Empty FAQ answers
+				if (node["@type"] === "FAQPage" && Array.isArray(node.mainEntity)) {
+					for (const q of node.mainEntity) {
+						if (q?.acceptedAnswer && !q.acceptedAnswer.text) {
+							warnings.push(`FAQPage Question has empty acceptedAnswer.text: "${(q.name || "").slice(0, 60)}"`);
+						}
+					}
+				}
+
+				// Headline names: flag entity name that matches first evidence heading
+				if (
+					node.name &&
+					typeof node.name === "string" &&
+					evidence.headings.length > 0 &&
+					node.name === evidence.headings[0] &&
+					node["@type"] !== "FAQPage" &&
+					node["@type"] !== "BreadcrumbList"
+				) {
+					warnings.push(`${node["@type"]} name matches page headline: "${node.name.slice(0, 60)}"`);
+				}
+			}
+
+			// Dangling @id references: check provider/publisher @id points to defined node
+			for (const node of graph) {
+				if (!node || typeof node !== "object") continue;
+				for (const refField of ["provider", "publisher"]) {
+					const ref = node[refField];
+					if (ref && typeof ref === "object" && ref["@id"] && !definedIds.has(ref["@id"])) {
+						warnings.push(`${node["@type"]}.${refField} references undefined @id: ${ref["@id"]}`);
+					}
+				}
+			}
+		} catch {
+			// JSON parse already handled in errors above
+		}
+	}
+
+	return { valid: errors.length === 0, errors, warnings: warnings.length > 0 ? warnings : undefined };
 }
 
 /**
@@ -2837,7 +3336,8 @@ async function buildLlmPrompts(
 	brandProfile: ScriptGeneratorBrandProfile,
 	pageContent: string | null,
 	evidence: GroundingEvidence,
-	llmsContext?: Pick<LlmsCollectionResult, "rootUrl" | "docsBase" | "sourcePages">
+	llmsContext?: Pick<LlmsCollectionResult, "rootUrl" | "docsBase" | "sourcePages">,
+	faqData?: Array<{ question: string; answer: string }>
 ): Promise<{ userPrompt: string; systemPrompt: string }> {
 	const targetUrl = getTargetUrl(issue, brandProfile);
 	const brandName = getBrandName(brandProfile, targetUrl);
@@ -2847,7 +3347,10 @@ async function buildLlmPrompts(
 ## Brand
 - Company: ${brandName}
 - Website: ${brandProfile.companyWebsite || "Unknown"}
-- Description: ${brandProfile.companyDescription || "No description available"}`;
+- Description: ${brandProfile.companyDescription || "No description available"}
+- Products/Services: ${brandProfile.companyServices || "Not specified"}
+- Target Audience: ${brandProfile.companyICP || "Not specified"}
+- Industry: ${brandProfile.companyIndustry || "Not specified"}`;
 
 	const pageContext = pageContent
 		? `\n\n## Live Page Content (${targetUrl})\n\`\`\`markdown\n${pageContent}\n\`\`\``
@@ -2905,6 +3408,11 @@ async function buildLlmPrompts(
 			"</canonical_source_urls>",
 		].join("\n");
 
+		// If real FAQ data was extracted by the scorer, include it for the LLM
+		const faqContext = faqData && faqData.length > 0
+			? `\n\n## Real FAQ Content (extracted from homepage)\nUse these real Q&A pairs in the FAQs section:\n${faqData.slice(0, 6).map((faq) => `- **Q:** ${faq.question}\n  **A:** ${faq.answer}`).join("\n")}`
+			: "";
+
 		const userPrompt = [
 			"Generate llms.txt for this website.",
 			"Follow the system prompt contract exactly.",
@@ -2914,6 +3422,7 @@ async function buildLlmPrompts(
 			pageContext,
 			issueContext,
 			evidenceContext,
+			faqContext,
 			"",
 			"Hard requirements:",
 			"- Return exactly one fenced code block labeled llms.txt.",
@@ -2923,7 +3432,7 @@ async function buildLlmPrompts(
 			"- Keep deterministic section order and de-duplicate links/claims.",
 			"- Product bullets: use **Name** — purpose [Name](URL) format, with at least one [Name](URL) link per bullet.",
 			"- Titled-link sections (Key Resources, Security, Pricing, Policies, Blog): use [Title](URL) with optional `: description`.",
-			"- Include 3-6 FAQs, each answer must contain at least one [linked text](URL) source link.",
+			"- FAQs must use `- **Q:** Question` / `  **A:** Answer [Source](URL)` format. Include 3-6 pairs.",
 			"- Prefer docs/reference/pricing/security/rate-limit sources over blog pages for foundational claims.",
 		].join("\n");
 
@@ -2952,13 +3461,60 @@ DESCRIPTION QUALITY:
 - If the Brand section provides a company description, prefer that over scraped content.
 - Keep descriptions concise (1-2 sentences) and focused on what the business actually does.
 
+ENTITY NAMING:
+- Organization name: Use the brand name from Brand section (e.g., "${brandName}"), never a page headline or domain.
+  NEVER derive Organization name from the URL hostname (e.g., "www" from www.example.com).
+- SoftwareApplication/WebApplication name: Use "${brandName}" or "${brandName} {ProductName}".
+- Service name: Use "${brandName} {ServiceCategory}", not page headings.
+- Never use page headlines, H1 text, meta titles, or URL components as entity names.
+
+SOFTWAREAPPLICATION PROPERTIES:
+- Always include applicationCategory (e.g., "DeveloperApplication", "BusinessApplication").
+- Always include operatingSystem: use "Web" for SaaS/cloud, "Any" for cross-platform.
+- Include featureList as comma-separated string if 3+ features are visible in evidence.
+- Do NOT use "brand" on SoftwareApplication — it is not a valid schema.org property for this type.
+  If a Brand is needed, place it on a Product entity instead.
+
+ORGANIZATION COMPLETENESS:
+- On homepage issues (J1_present with homepage URL): include full Organization in @graph.
+- On interior pages: use @id reference to Organization only (e.g., "provider": {"@id": ".../#organization"}).
+  Do NOT emit a full Organization block on non-homepage pages.
+
+PRICING PAGE RULES:
+- For SaaS/cloud/API/infrastructure companies, the PRIMARY entity is SoftwareApplication.
+  If "Product" appears in the required types, emit it as a minimal brand-carrier only:
+  Product with name, brand (Brand), and @id — no offers, no description, no duplicate content.
+  All pricing/offers/features go on SoftwareApplication, NOT on Product.
+- Nest OfferCatalog inside SoftwareApplication's "offers" array — NEVER as a standalone @graph entry.
+  Do NOT emit an empty OfferCatalog stub with only @type/@id in @graph.
+- hasOfferCatalog is a Service-only property. Never use it on SoftwareApplication or Product.
+- Every UnitPriceSpecification MUST include "price" with the actual numeric value from the page.
+  If prices are visible (e.g., "$0.009/hour"), extract and include them. Omit UnitPriceSpecification entirely if no price value can be grounded.
+- For usage-based pricing, use AggregateOffer with lowPrice on the parent entity.
+- Every entity in @graph MUST have properties beyond @type and @id. Never emit empty shell entities.
+
+FAQ ANSWERS:
+- FAQPage Question.acceptedAnswer.text must never be empty.
+- If FAQ questions are visible but answers are not in the evidence, synthesize a concise 1-sentence answer from other page evidence.
+- If no answer can be reasonably synthesized, omit that Question entirely.
+
 OUTPUT CONTRACT:
 - Return EXACTLY one <script type="application/ld+json"> tag.
 - For J1_present/J3_relevant/J4_coverage, return one @graph array.
 - For FAQ_schema_gap, return FAQPage schema only.
-- Required schema types: ${requiredTypes.join(", ")}.
+- Suggested schema types: ${requiredTypes.join(", ")}.
+  These are SUGGESTIONS. If the PRICING PAGE RULES or Knowledge Base below say a type should not be used
+  (e.g., Product for SaaS), follow those rules and omit or minimize that type accordingly.
 - Use stable cross-references with @id links between Organization/WebSite/Service/WebApplication.
 - No prose outside the script tag.
+
+SELF-CHECK (apply before returning):
+1. Every @graph entity MUST have real properties beyond @type and @id. Delete any empty shell entities.
+2. Organization name must be "${brandName}" — not a hostname, not "www", not a URL fragment.
+3. On non-homepage pages: Organization must be @id-reference only, not a full block.
+4. SoftwareApplication must NOT have "brand" property (not valid in schema.org for this type).
+5. OfferCatalog must be nested inside a parent entity's "offers" — never a standalone @graph entry.
+6. Every UnitPriceSpecification must have a "price" value. If no price is available, omit the entire UnitPriceSpecification.
 
 MODE: ${schemaMode}
 
@@ -3039,7 +3595,8 @@ OUTPUT CONTRACT:
  */
 export async function generateScriptWithLlm(
 	issue: ScriptGeneratorIssue,
-	brandProfile: ScriptGeneratorBrandProfile
+	brandProfile: ScriptGeneratorBrandProfile,
+	options?: { faqData?: Array<{ question: string; answer: string }> }
 ): Promise<ScriptGenerationResult> {
 	// 1. Guard: unsupported agentType
 	if (!isScriptGenerationSupported(issue.agentType)) {
@@ -3070,6 +3627,7 @@ export async function generateScriptWithLlm(
 					rootUrl: collected.rootUrl,
 					docsBase: collected.docsBase,
 					sourcePages: collected.sourcePages,
+					faqData: options?.faqData,
 				});
 			} catch {
 				// fall through to deterministic baseline template
@@ -3100,12 +3658,16 @@ export async function generateScriptWithLlm(
 			);
 		} else {
 			const isFaqCheck = (issue.checkCode || "") === "FAQ_count";
+			const isSchemaCheck = SCHEMA_CHECK_CODES.has(issue.checkCode || "");
 			pageContent = isFaqCheck
 				? await scrapeFaqContext(targetUrl)
-				: await scrapePageContent(targetUrl);
+				: isSchemaCheck
+					? await scrapePageContentForSchema(targetUrl)
+					: await scrapePageContent(targetUrl);
 			evidence = buildGroundingEvidence(pageContent, targetUrl);
 		}
 		const shouldPrependIssueHeader = !isLlmsAgentType(issue.agentType);
+		const isSchemaCheck = SCHEMA_CHECK_CODES.has(issue.checkCode || "");
 		const buildTemplateFallback = (): ScriptGenerationResult => {
 			if (isLlmsAgentType(issue.agentType)) {
 				return buildLlmsTxtTemplate(issue, brandProfile, {
@@ -3113,9 +3675,16 @@ export async function generateScriptWithLlm(
 					rootUrl: llmsContext?.rootUrl,
 					docsBase: llmsContext?.docsBase,
 					sourcePages: llmsContext?.sourcePages,
+					faqData: options?.faqData,
 				});
 			}
-			return generateScriptForIssue(issue, brandProfile);
+			const templateResult = generateScriptForIssue(issue, brandProfile);
+			// Run the same deterministic normalizer on template output
+			if (isSchemaCheck) {
+				const normalized = normalizeSchemaOutput(templateResult.generatedOutput, issue, evidence, brandProfile);
+				return { ...templateResult, generatedOutput: normalized.output };
+			}
+			return templateResult;
 		};
 
 		// 4. Build prompts with KB grounding
@@ -3124,7 +3693,8 @@ export async function generateScriptWithLlm(
 			brandProfile,
 			pageContent,
 			evidence,
-			llmsContext
+			llmsContext,
+			options?.faqData
 		);
 
 		// 5. Call LLM (multi-provider with 429 fallback)
@@ -3144,14 +3714,16 @@ export async function generateScriptWithLlm(
 		// 6. Extract and normalize
 		let output = extractScriptFromLlmResponse(llmResult.text, issue);
 
-		const isSchemaCheck = SCHEMA_CHECK_CODES.has(issue.checkCode || "");
 		if (isSchemaCheck) {
-			const normalized = normalizeSchemaOutput(output, issue, evidence);
+			const normalized = normalizeSchemaOutput(output, issue, evidence, brandProfile);
 			output = normalized.output;
 		}
 
 		// 7. Validate
 		const validation = validateGeneratedScript(output, issue, evidence);
+		if (validation.warnings?.length) {
+			console.warn(`[ScriptGen] Quality warnings for issue #${issue.id}: ${validation.warnings.join("; ")}`);
+		}
 		if (validation.valid) {
 			if (!shouldPrependIssueHeader) {
 				return {
@@ -3180,7 +3752,7 @@ ${validation.errors.map((e) => `- ${e}`).join("\n")}
 
 Previous output:
 \`\`\`
-${output.slice(0, 3000)}
+${output.slice(0, 6000)}
 \`\`\`
 
 Grounding evidence facts:
@@ -3198,7 +3770,7 @@ Fix these errors and return the corrected output. Follow the same output contrac
 		if (repairResult) {
 			let repairedOutput = extractScriptFromLlmResponse(repairResult.text, issue);
 			if (isSchemaCheck) {
-				const normalized = normalizeSchemaOutput(repairedOutput, issue, evidence);
+				const normalized = normalizeSchemaOutput(repairedOutput, issue, evidence, brandProfile);
 				repairedOutput = normalized.output;
 			}
 
@@ -3244,6 +3816,7 @@ Fix these errors and return the corrected output. Follow the same output contrac
 					rootUrl: collected.rootUrl,
 					docsBase: collected.docsBase,
 					sourcePages: collected.sourcePages,
+					faqData: options?.faqData,
 				});
 			} catch {
 				// ignore secondary fallback errors

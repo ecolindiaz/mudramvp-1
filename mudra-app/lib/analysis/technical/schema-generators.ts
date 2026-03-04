@@ -334,6 +334,19 @@ export function buildSchemaForType(
 			};
 		}
 
+		case "AboutPage": {
+			const name = h1 || title?.replace(/\s*\|.+$/, "").trim();
+			if (!name) return { skipped: true, reason: "No title or H1 for AboutPage name" };
+			const schema: Record<string, unknown> = {
+				"@context": "https://schema.org",
+				"@type": "AboutPage",
+				name,
+				url,
+			};
+			if (metaDesc) schema.description = metaDesc;
+			return { schema };
+		}
+
 		case "SoftwareApplication":
 		case "WebApplication": {
 			const name = h1 || title?.replace(/\s*\|.+$/, "").trim();

@@ -209,7 +209,8 @@ export type RelevantSchemaType =
 	| "VideoObject"
 	| "ItemList"
 	| "Review"
-	| "Person";
+	| "Person"
+	| "AboutPage";
 
 export interface JsonLdBlock {
 	index: number;
@@ -235,6 +236,7 @@ export interface SchemaAnalysis {
 	has_offer_catalog_schema: boolean;
 	has_item_list_schema: boolean;
 	has_web_application_schema: boolean;
+	has_about_page_schema: boolean;
 }
 
 export interface SchemaExtraction {

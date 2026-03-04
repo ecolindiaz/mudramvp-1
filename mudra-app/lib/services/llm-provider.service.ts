@@ -93,18 +93,27 @@ function buildProviders(): ProviderConfig[] {
 			call: async (opts) => {
 				const { default: OpenAI } = await import("openai");
 				const client = new OpenAI({ apiKey: openaiKey });
+				const effortMultiplier: Record<string, number> = {
+					low: 1,
+					medium: 2,
+					high: 4,
+				};
 				const runCompletion = async (
 					reasoningEffort: "low" | "medium" | "high"
-				) =>
-					client.chat.completions.create({
+				) => {
+					const baseTokens = opts.maxTokens ?? 2048;
+					const maxCompletionTokens =
+						baseTokens * (effortMultiplier[reasoningEffort] ?? 1);
+					return client.chat.completions.create({
 						model,
-						max_completion_tokens: opts.maxTokens ?? 2048,
+						max_completion_tokens: maxCompletionTokens,
 						reasoning_effort: reasoningEffort,
 						messages: [
 							{ role: "system", content: opts.systemPrompt },
 							{ role: "user", content: opts.userPrompt },
 						],
 					});
+				};
 
 				const preferredEffort = opts.reasoningEffort ?? "medium";
 				let response = await runCompletion(preferredEffort);
@@ -113,10 +122,17 @@ function buildProviders(): ProviderConfig[] {
 				let text = extractOpenAiTextContent(message?.content);
 
 				if (!text && choice?.finish_reason === "length" && preferredEffort !== "low") {
+					const stepDown: Record<string, "low" | "medium"> = {
+						high: "medium",
+						medium: "low",
+					};
+					const fallbackEffort = stepDown[preferredEffort] ?? "low";
 					console.warn(
-						`[LlmProvider] OpenAI returned empty text at reasoning_effort=${preferredEffort}; retrying with low effort`
+						`[LlmProvider] OpenAI returned empty text at reasoning_effort=${preferredEffort} ` +
+						`(used ${response.usage?.completion_tokens ?? "?"}/${(opts.maxTokens ?? 2048) * (effortMultiplier[preferredEffort] ?? 1)} completion tokens); ` +
+						`retrying with ${fallbackEffort} effort`
 					);
-					response = await runCompletion("low");
+					response = await runCompletion(fallbackEffort);
 					choice = response.choices?.[0];
 					message = choice?.message;
 					text = extractOpenAiTextContent(message?.content);

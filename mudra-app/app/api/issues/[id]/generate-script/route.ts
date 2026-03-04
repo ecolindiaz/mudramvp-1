@@ -48,6 +48,9 @@ export async function POST(
 						companyName: true,
 						companyWebsite: true,
 						companyDescription: true,
+						companyServices: true,
+						companyICP: true,
+						companyIndustry: true,
 					},
 				},
 			},
@@ -78,6 +81,36 @@ export async function POST(
 			);
 		}
 
+		// For llms.txt issues, pull real FAQ data from sibling issues (extracted by the scorer)
+		let faqData: Array<{ question: string; answer: string }> | undefined;
+		if (issue.agentType === "llms_txt" || issue.agentType === "llms_txt_missing") {
+			const siblingWithFaq = await prisma.issue.findFirst({
+				where: {
+					brandProfileId: issue.brandProfileId,
+					description: { contains: "FAQ_DATA" },
+				},
+				select: { description: true },
+			});
+			if (siblingWithFaq?.description) {
+				const match = siblingWithFaq.description.match(/<!-- FAQ_DATA: (\[[\s\S]*?\]) -->/);
+				if (match) {
+					try {
+						const parsed = JSON.parse(match[1].replace(/--\\>/g, "-->"));
+						if (Array.isArray(parsed)) {
+							faqData = parsed.filter(
+								(item: unknown): item is { question: string; answer: string } =>
+									typeof item === "object" && item !== null &&
+									typeof (item as Record<string, unknown>).question === "string" &&
+									typeof (item as Record<string, unknown>).answer === "string"
+							);
+						}
+					} catch {
+						// ignore malformed FAQ_DATA
+					}
+				}
+			}
+		}
+
 		const generated = await generateScriptWithLlm(
 			{
 				id: issue.id,
@@ -91,7 +124,11 @@ export async function POST(
 				companyName: issue.brandProfile.companyName,
 				companyWebsite: issue.brandProfile.companyWebsite,
 				companyDescription: issue.brandProfile.companyDescription,
-			}
+				companyServices: issue.brandProfile.companyServices,
+				companyICP: issue.brandProfile.companyICP,
+				companyIndustry: issue.brandProfile.companyIndustry,
+			},
+			faqData ? { faqData } : undefined
 		);
 
 		const updated = await prisma.issue.update({

@@ -2,15 +2,25 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { queueNlrJob } from "@/lib/jobs/nlr";
 import { rateLimitByKey } from "@/lib/auth/rate-limiter-redis";
+import crypto from 'crypto';
+
+function timingSafeCompare(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
 
 function isAdmin(req: NextRequest): boolean {
   const token = req.headers.get('x-admin-token') || ''
-  return !!token && token === process.env.ADMIN_API_TOKEN
+  const adminToken = process.env.ADMIN_API_TOKEN || ''
+  return !!token && !!adminToken && timingSafeCompare(token, adminToken)
 }
 
 function isCronSigned(req: NextRequest): boolean {
   const sig = req.headers.get('x-cron-secret') || ''
-  return !!sig && sig === (process.env.CRON_SECRET || '')
+  const cronSecret = process.env.CRON_SECRET || ''
+  return !!sig && !!cronSecret && timingSafeCompare(sig, cronSecret)
 }
 
 export async function POST(req: NextRequest) {

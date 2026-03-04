@@ -384,6 +384,12 @@ export async function POST(req: NextRequest) {
 
 // GET endpoint for status polling
 export async function GET(req: NextRequest) {
+  // Require auth for status polling — prevents unauthorized content access
+  const authResult = await requireAuth();
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   const { searchParams } = new URL(req.url);
   const workflowRunId = searchParams.get("workflowRunId");
   const campaignId = searchParams.get("campaignId");
@@ -420,6 +426,7 @@ export async function GET(req: NextRequest) {
         where: { id: campaignId },
         select: {
           id: true,
+          userId: true,
           title: true,
           body: true,
           status: true,
@@ -436,12 +443,21 @@ export async function GET(req: NextRequest) {
         },
         select: {
           id: true,
+          userId: true,
           title: true,
           body: true,
           status: true,
           metadata: true,
         },
       });
+    }
+
+    // Verify ownership — prevent cross-user data access
+    if (campaign && (!campaign.userId || campaign.userId !== authResult.user.id)) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 403 }
+      );
     }
 
     if (campaign) {

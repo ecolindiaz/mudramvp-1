@@ -163,11 +163,25 @@ Generate the file(s) needed to add this as a blog post. Return JSON with:
       );
     }
 
-    // Create the PR with the generated files
-    const files = agentOutput.filesToCreate.map((f: { path: string; content: string }) => ({
-      path: f.path,
-      content: f.content,
-    }));
+    // Sanitize and validate file paths — defense against LLM path traversal
+    const SAFE_PATH_PATTERN = /^content\/blog\/[a-z0-9][a-z0-9_-]*\.(md|mdx)$/;
+    const files = agentOutput.filesToCreate.map((f: { path: string; content: string }) => {
+      // Strip null bytes, encoded traversals, and leading slashes
+      const sanitizedPath = f.path
+        .replace(/\0/g, '')                // null bytes
+        .replace(/%2e/gi, '.')             // URL-encoded dots
+        .replace(/%2f/gi, '/')             // URL-encoded slashes
+        .replace(/^\/+/, '')              // leading slashes
+        .replace(/\.\.\//g, '');           // directory traversal
+
+      if (!SAFE_PATH_PATTERN.test(sanitizedPath)) {
+        throw new Error(`Invalid file path rejected: paths must match content/blog/<slug>.(md|mdx)`);
+      }
+      return {
+        path: sanitizedPath,
+        content: f.content,
+      };
+    });
 
     const prTitle = `Add blog post: ${campaign.title}`;
     const prBody = `## New Blog Post

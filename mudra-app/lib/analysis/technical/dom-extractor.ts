@@ -336,6 +336,7 @@ const RELEVANT_SCHEMA_TYPES = new Set([
 	"ItemList",
 	"Review",
 	"Person",
+	"AboutPage",
 ]);
 
 const SCHEMA_SUBTYPE_MAP: Record<string, string[]> = {
@@ -456,6 +457,7 @@ function extractSchema($: CheerioAPI): SchemaExtraction {
 		has_offer_catalog_schema: schemaTypes.includes("OfferCatalog"),
 		has_item_list_schema: schemaTypes.includes("ItemList"),
 		has_web_application_schema: schemaTypes.includes("WebApplication"),
+		has_about_page_schema: schemaTypes.includes("AboutPage"),
 	};
 
 	return {
@@ -604,9 +606,26 @@ function extractFAQsFromAccordion($: CheerioAPI): FAQItem[] {
 		'.faq-section',
 		'[class*="faq-"]',
 		'[id*="faq"]',
+		'[aria-label*="faq" i]',
+		'[aria-label*="frequently" i]',
 	].join(', ');
 
-	const faqContainers = $(faqSelectors);
+	let faqContainers = $(faqSelectors);
+
+	// Fallback: find containers preceded by FAQ-like headings
+	if (faqContainers.length === 0) {
+		const faqHeadingPattern = /^(?:faq|f\.a\.q|frequently\s+asked)/i;
+		$("h1, h2, h3, h4").each((_idx, heading) => {
+			if (!faqHeadingPattern.test($(heading).text().trim())) return;
+			// Use the heading's parent container if it has 2+ buttons or 2+ details
+			const parent = $(heading).parent();
+			const hasButtons = parent.find("button").length >= 2;
+			const hasDetails = parent.find("details").length >= 2;
+			if (hasButtons || hasDetails) {
+				faqContainers = faqContainers.add(parent);
+			}
+		});
+	}
 
 	faqContainers.each((_containerIndex, container) => {
 		// Pattern: Button with question text + collapsed div with answer
@@ -662,9 +681,25 @@ function extractFAQsFromQuestionHeadings($: CheerioAPI): FAQItem[] {
 		'.faq-section',
 		'[class*="faq-"]',
 		'[id*="faq"]',
+		'[aria-label*="faq" i]',
+		'[aria-label*="frequently" i]',
 	].join(', ');
 
-	const faqContainers = $(faqContainerSelectors);
+	let faqContainers = $(faqContainerSelectors);
+
+	// Fallback: find containers preceded by FAQ-like headings
+	if (faqContainers.length === 0) {
+		const faqHeadingPattern = /^(?:faq|f\.a\.q|frequently\s+asked)/i;
+		$("h1, h2, h3, h4").each((_idx, heading) => {
+			if (!faqHeadingPattern.test($(heading).text().trim())) return;
+			const parent = $(heading).parent();
+			const hasButtons = parent.find("button").length >= 2;
+			const hasDetails = parent.find("details").length >= 2;
+			if (hasButtons || hasDetails) {
+				faqContainers = faqContainers.add(parent);
+			}
+		});
+	}
 
 	// No FAQ containers → no question-heading FAQs
 	if (faqContainers.length === 0) return faqs;

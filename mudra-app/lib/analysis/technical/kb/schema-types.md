@@ -24,7 +24,8 @@ Service/solutions page?
 └── NO → Continue
 
 Pricing page with multiple tiers?
-├── YES → WebApplication/Product + OfferCatalog + BreadcrumbList
+├── SaaS/software? → SoftwareApplication + OfferCatalog (nested via offers) + BreadcrumbList
+├── Physical goods/e-commerce? → Product + OfferCatalog (nested via offers) + BreadcrumbList
 └── NO → Continue
 
 SaaS/web tool (interactive, browser-based)?
@@ -53,6 +54,10 @@ Page has customer testimonials?
 
 Page is a listing/index (blog index, category, directory)?
 ├── YES → CollectionPage + ItemList + BreadcrumbList
+└── NO → Continue
+
+About page (/about, /company, /team)?
+├── YES → AboutPage + Organization + Person + BreadcrumbList
 └── NO → Continue
 
 Page is a team/about page with people profiles?
@@ -299,6 +304,7 @@ All of the above, plus:
 - Use `areaServed` (not deprecated `serviceArea`)
 - Pair with LocalBusiness when applicable (which does have Google rich results)
 - Use specific subtypes: `FinancialProduct`, `GovernmentService`, `FoodService`, etc.
+- For software solutions pages on SaaS companies, prefer SoftwareApplication over Service
 
 ---
 
@@ -578,9 +584,42 @@ Use Article when:
 - `offers` is required even for free apps (`"price": "0"`)
 - Do NOT use fake ratings
 - Only one page per app
+- Do NOT use `hasOfferCatalog` — this is a Service-only property. Use `offers` with OfferCatalog instead.
+- Do NOT use `brand` on SoftwareApplication — it is not a valid schema.org property for this type. Place `brand` on a Product entity instead.
 
 ### applicationCategory Values
 `GameApplication`, `BusinessApplication`, `FinanceApplication`, `HealthApplication`, `EducationalApplication`, `UtilitiesApplication`, `MultimediaApplication`, `DeveloperApplication`, `SocialNetworkingApplication`, `CommunicationApplication`, `TravelApplication`, `ShoppingApplication`, `LifestyleApplication`, `DesignApplication`, `EntertainmentApplication`, `SecurityApplication`
+
+### SaaS vs Product Decision
+- **SaaS/cloud/API/CLI/platform companies → always use SoftwareApplication** (not Product or Service)
+- **Product is for physical goods** with SKU, GTIN, or MPN — not for software
+- `applicationCategory` is critical for SaaS. Common values: `DeveloperApplication` (dev tools, APIs, infrastructure), `BusinessApplication` (SaaS platforms, analytics, CRM)
+- `operatingSystem`: use `"Web"` for SaaS/cloud products, `"Any"` for cross-platform
+- `featureList`: include 3-5 key features as a comma-separated string when visible on the page
+
+### SaaS JSON-LD Example
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Modal",
+  "url": "https://modal.com",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Web",
+  "description": "Serverless cloud platform for AI and ML workloads.",
+  "featureList": "GPU compute, serverless containers, model inference, batch jobs",
+  "offers": {
+    "@type": "AggregateOffer",
+    "lowPrice": "0",
+    "priceCurrency": "USD"
+  },
+  "provider": {
+    "@type": "Organization",
+    "name": "Modal",
+    "url": "https://modal.com"
+  }
+}
+```
 
 ---
 
@@ -685,6 +724,9 @@ For subscription pricing, use `UnitPriceSpecification` inside each Offer:
 - Always include `priceCurrency`
 - Use `priceSpecification` for recurring pricing (price alone doesn't indicate frequency)
 - Nest inside the parent entity (WebApplication, Product, Service) via `offers`
+- `hasOfferCatalog` is a Service-only property. For Product/SoftwareApplication, nest OfferCatalog via `offers` instead.
+- Always nest OfferCatalog inside its parent entity — do NOT emit as a standalone @graph entry with cross-references.
+- Always include actual `price` values when prices are visible on the page. Empty UnitPriceSpecification without a price violates the grounding rule.
 
 ---
 
@@ -896,7 +938,47 @@ For subscription pricing, use `UnitPriceSpecification` inside each Offer:
 
 ---
 
-## 17. CollectionPage
+## 17. AboutPage
+
+**Hierarchy**: `Thing > CreativeWork > WebPage > AboutPage`
+**When**: About pages (`/about`, `/company`, `/team`). Signals to AI systems that the page describes the organization itself.
+**Google Rich Result**: None dedicated. Helps AI/LLM systems understand page purpose.
+
+### Key Properties
+| Property | Type | Notes |
+|---|---|---|
+| `name` | Text | Page title (e.g., "About Acme Inc.") |
+| `url` | URL | Page URL |
+| `description` | Text | Short description of the about page |
+| `about` | Organization | Reference to the Organization entity via `@id` |
+| `breadcrumb` | BreadcrumbList | Navigation hierarchy |
+
+### JSON-LD Example
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "AboutPage",
+  "name": "About Example Corp",
+  "url": "https://example.com/about",
+  "description": "Learn about Example Corp's mission, team, and values.",
+  "about": {
+    "@type": "Organization",
+    "@id": "https://example.com/#organization",
+    "name": "Example Corp"
+  }
+}
+```
+
+### Restrictions
+- Use only on pages primarily **about** the company/organization
+- Do NOT use on generic pages that merely mention the company
+- Pair with Organization schema for full entity coverage
+- `name` and `url` are required properties
+- Do NOT fabricate descriptions — use the page's meta description or title
+
+---
+
+## 18. CollectionPage
 
 **Hierarchy**: `Thing > CreativeWork > WebPage > CollectionPage`
 **When**: Blog index, category pages, portfolio galleries, resource directories
@@ -964,6 +1046,7 @@ For subscription pricing, use `UnitPriceSpecification` inside each Offer:
 | VideoObject | ACTIVE — Video rich result | High |
 | Review | ACTIVE — Review snippet | High |
 | Person | Via ProfilePage or Article author | High for E-E-A-T |
+| AboutPage | No dedicated rich result | High for AI |
 | CollectionPage | No dedicated rich result | Medium |
 
 ---
@@ -987,5 +1070,6 @@ Review:        {"@context":"https://schema.org","@type":"Review","author":{"@typ
 ItemList:      {"@context":"https://schema.org","@type":"ItemList","itemListElement":[{"@type":"ListItem","position":1,"url":"{url}"}]}
 Person:        {"@type":"Person","name":"{name}","jobTitle":"{title}","url":"{url}","sameAs":["{social}"]}
 CollectionPage:{"@context":"https://schema.org","@type":"CollectionPage","name":"{name}","url":"{url}","mainEntity":{"@type":"ItemList","itemListElement":[]}}
+AboutPage:     {"@context":"https://schema.org","@type":"AboutPage","name":"{name}","url":"{url}","description":"{desc}","about":{"@id":"{org_id}"}}
 OfferCatalog:  {"@type":"OfferCatalog","name":"{name}","itemListElement":[{"@type":"Offer","name":"{plan}","price":"{price}","priceCurrency":"{cur}"}]}
 ```

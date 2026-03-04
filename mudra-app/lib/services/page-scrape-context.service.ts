@@ -171,6 +171,55 @@ export async function scrapePageContent(
 }
 
 /**
+ * Scrape page content with a larger budget for schema generation.
+ * Preserves FAQ sections that appear near the bottom of long pages.
+ * Returns up to ~10000 chars (vs 6000 for standard scrape).
+ */
+export async function scrapePageContentForSchema(
+	url: string
+): Promise<string | null> {
+	try {
+		const firecrawl = getFirecrawlClient();
+		const result = await firecrawl.scrapeUrl(url, {
+			formats: ["markdown"],
+			onlyMainContent: true,
+			timeout: 15000,
+			headers: { "Accept-Language": "en-US,en;q=0.9" },
+		});
+		if (!result.success || !result.markdown) {
+			console.warn(`[PageScrape] Schema scrape returned no content for ${url}`);
+			return null;
+		}
+
+		const raw = result.markdown;
+		if (raw.length <= 10000) {
+			console.log(`[PageScrape] Schema scrape (full): ${raw.length} chars from ${url}`);
+			return raw;
+		}
+
+		// Take top 6000 chars + append FAQ section if found
+		let content = raw.slice(0, 6000);
+		const faqPattern = /^#{1,3}\s+(?:FAQ|Frequently\s+Asked)/im;
+		const faqMatch = raw.match(faqPattern);
+		if (faqMatch && faqMatch.index && faqMatch.index > 6000) {
+			const faqSection = raw.slice(faqMatch.index, faqMatch.index + 4000);
+			content += "\n\n[...middle content truncated...]\n\n" + faqSection;
+		} else {
+			content += "\n\n[...content truncated...]";
+		}
+
+		console.log(`[PageScrape] Schema scrape (truncated): ${content.length} chars from ${url} (original: ${raw.length})`);
+		return content;
+	} catch (err) {
+		console.warn(
+			`[PageScrape] Failed to scrape ${url} for schema:`,
+			err instanceof Error ? err.message : err
+		);
+		return null;
+	}
+}
+
+/**
  * Build enriched FAQ context from multiple brand-representative pages.
  * Includes the target page, homepage, and high-value product/pricing pages.
  */

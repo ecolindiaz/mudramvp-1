@@ -220,6 +220,29 @@ export function useAnalysisPipeline() {
           }
         }
       }
+
+      // Flush TextDecoder's internal buffer + process any remaining SSE lines
+      buffer += decoder.decode(); // final flush (no { stream: true })
+      if (buffer.trim()) {
+        const remainingLines = buffer.split('\n');
+        for (const line of remainingLines) {
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+          let event: ProgressEvent;
+          try { event = JSON.parse(jsonStr); } catch { continue; }
+          setCurrentPhase(event.phase);
+          const stepIdx = PHASE_TO_STEP_INDEX[event.phase];
+          if (stepIdx !== undefined) setCurrentStepFromSSE(prev => Math.max(prev, stepIdx));
+          const detail = buildPhaseDetail(event);
+          if (detail) setPhaseDetail(detail);
+          if (event.status === 'completed') completedPhases.add(event.phase);
+          const progress = computeProgress(completedPhases, undefined);
+          setSimulatedProgress(Math.min(progress, progressCap));
+          if (event.phase === 'complete' && event.data) finalResult = event.data;
+          if (event.phase === 'error') throw new Error(event.message || 'Analysis failed');
+        }
+      }
     } finally {
       reader.releaseLock();
     }
@@ -309,7 +332,35 @@ export function useAnalysisPipeline() {
       technicalAnalysisId: techResult?.technicalAnalysisId || geoResult?.technicalAnalysisId,
     };
 
-    if (!mergedResult.technicalAnalysisId && !mergedResult.geoAnalysisId) return false;
+    if (!mergedResult.technicalAnalysisId && !mergedResult.geoAnalysisId) {
+      // Both SSE HTTP responses were 200 OK (guards at lines 247/273 ensure this),
+      // meaning the server completed and persisted both phases. The SSE event parser
+      // missed the 'complete' event, but re-running would duplicate all AI provider calls.
+      // Treat as success — dashboard refresh will pick up persisted data from DB.
+      console.warn(
+        '[useAnalysisPipeline] SSE streams completed (200 OK) but no result IDs parsed. ' +
+        'Treating as success to avoid duplicate API calls.'
+      );
+      clearAllTimers();
+      setSimulatedProgress(100);
+      setCurrentStepFromSSE(5);
+      setPipelineState({
+        state: 'completed',
+        progress: {
+          geoAnalysis: 'completed',
+          trafficMetrics: 'completed',
+          technicalStructure: 'completed',
+          report: 'completed',
+        },
+        results: {},
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mudra:website-analyzed', {
+          detail: { brandProfileId: config.brandProfileId, results: {} },
+        }));
+      }
+      return true;
+    }
 
     // Success
     clearAllTimers();

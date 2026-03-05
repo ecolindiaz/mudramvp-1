@@ -95,14 +95,23 @@ export async function POST(
 				const match = siblingWithFaq.description.match(/<!-- FAQ_DATA: (\[[\s\S]*?\]) -->/);
 				if (match) {
 					try {
-						const parsed = JSON.parse(match[1].replace(/--\\>/g, "-->"));
+						const raw = match[1].replace(/--\\>/g, "-->");
+						// Cap parsed length to prevent oversized payloads
+						if (raw.length > 10_000) throw new Error("FAQ_DATA too large");
+						const parsed = JSON.parse(raw);
 						if (Array.isArray(parsed)) {
-							faqData = parsed.filter(
-								(item: unknown): item is { question: string; answer: string } =>
-									typeof item === "object" && item !== null &&
-									typeof (item as Record<string, unknown>).question === "string" &&
-									typeof (item as Record<string, unknown>).answer === "string"
-							);
+							faqData = parsed
+								.filter(
+									(item: unknown): item is { question: string; answer: string } =>
+										typeof item === "object" && item !== null &&
+										typeof (item as Record<string, unknown>).question === "string" &&
+										typeof (item as Record<string, unknown>).answer === "string"
+								)
+								.slice(0, 10) // Hard cap on FAQ count
+								.map((item: { question: string; answer: string }) => ({
+									question: item.question.slice(0, 300),
+									answer: item.answer.slice(0, 500),
+								}));
 						}
 					} catch {
 						// ignore malformed FAQ_DATA

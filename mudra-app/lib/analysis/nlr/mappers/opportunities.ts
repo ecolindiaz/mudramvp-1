@@ -1,16 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import type { OpportunitiesSummary } from "@/lib/analysis/nlr/types";
-import { resolveBrandProfileIds } from "@/lib/analysis/nlr/mappers/resolve-brand-profiles";
 
 /**
  * Map Conversation Opportunities from the ConversationOpportunity table for NLR.
  * Statuses: new, engaged, dismissed
  */
 export async function mapOpportunities(
-  companyId: string,
+  bpIds: number[],
   weekStartUtc: Date | string
 ): Promise<OpportunitiesSummary | null> {
-  const bpIds = await resolveBrandProfileIds(companyId);
   if (bpIds.length === 0) return null;
 
   const start = new Date(weekStartUtc);

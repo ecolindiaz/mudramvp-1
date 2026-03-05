@@ -102,8 +102,10 @@ function buildProviders(): ProviderConfig[] {
 					reasoningEffort: "low" | "medium" | "high"
 				) => {
 					const baseTokens = opts.maxTokens ?? 2048;
-					const maxCompletionTokens =
-						baseTokens * (effortMultiplier[reasoningEffort] ?? 1);
+					const maxCompletionTokens = Math.min(
+						baseTokens * (effortMultiplier[reasoningEffort] ?? 1),
+						16384 // Hard cap to stay within model limits
+					);
 					return client.chat.completions.create({
 						model,
 						max_completion_tokens: maxCompletionTokens,

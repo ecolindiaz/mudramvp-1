@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import type { AiVisibilitySummary, Delta } from "@/lib/analysis/nlr/types";
-import { resolveBrandProfileIds } from "@/lib/analysis/nlr/mappers/resolve-brand-profiles";
 
 function pctDelta(current: number | null, previous: number | null): Delta<number> {
   if (current == null && previous == null) return { current: null, previous: null, absolute: null, relative: null, direction: "flat", notable: false };
@@ -153,12 +152,11 @@ function getMentionedPrompts(results: Array<{ analyses: unknown }>): Set<string>
  * Newly-mentioned = getMentionedPrompts(thisWeek) - getMentionedPrompts(priorToWeek)
  */
 export async function mapAiVisibility(
-  companyId: string,
+  bpIds: number[],
   weekStartUtc: Date | string
 ): Promise<AiVisibilitySummary | null> {
   const weekStart = new Date(weekStartUtc);
 
-  const bpIds = await resolveBrandProfileIds(companyId);
   if (bpIds.length === 0) return null;
 
   // Fetch ALL GeoAnalysisResults (no date filter) — matches dashboard aggregate

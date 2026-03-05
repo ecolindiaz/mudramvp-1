@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import type { TasksSummary, Delta } from "@/lib/analysis/nlr/types";
-import { resolveBrandProfileIds } from "@/lib/analysis/nlr/mappers/resolve-brand-profiles";
 
 function ratioDelta(current: number | null, previous: number | null): Delta<number> {
   if (current == null && previous == null) return { current: null, previous: null, absolute: null, relative: null, direction: "flat", notable: false };
@@ -18,10 +17,9 @@ function ratioDelta(current: number | null, previous: number | null): Delta<numb
  * Issue statuses: identified, in_progress, completed, merged
  */
 export async function mapIssues(
-  companyId: string,
+  bpIds: number[],
   weekStartUtc: Date | string
 ): Promise<TasksSummary | null> {
-  const bpIds = await resolveBrandProfileIds(companyId);
   if (bpIds.length === 0) return null;
 
   const start = new Date(weekStartUtc);

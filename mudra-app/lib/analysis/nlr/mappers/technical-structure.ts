@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import type { TechnicalStructureSummary, Delta, EvidenceRef } from "@/lib/analysis/nlr/types";
-import { resolveBrandProfileIds } from "@/lib/analysis/nlr/mappers/resolve-brand-profiles";
 
 function pctDelta(current: number | null, previous: number | null): Delta<number> {
   if (current == null && previous == null) return { current: null, previous: null, absolute: null, relative: null, direction: "flat", notable: false };
@@ -26,8 +25,7 @@ function toImportance(
  * Map technical structure using the canonical TechnicalStructureAnalysis table
  * (same source used by /api/analysis/results and technical-history card).
  */
-export async function mapTechnicalStructure(companyId: string): Promise<TechnicalStructureSummary | null> {
-  const bpIds = await resolveBrandProfileIds(companyId);
+export async function mapTechnicalStructure(bpIds: number[]): Promise<TechnicalStructureSummary | null> {
   if (bpIds.length === 0) return null;
 
   // Fetch the most recent analysis across all brand profiles

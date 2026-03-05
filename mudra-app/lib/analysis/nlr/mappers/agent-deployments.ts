@@ -1,20 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import type { AgentDeploymentsSummary, EvidenceRef } from "@/lib/analysis/nlr/types";
-import { resolveBrandProfileIds } from "@/lib/analysis/nlr/mappers/resolve-brand-profiles";
 
 /**
  * Map Agent Lab deployments/executions for NLR
  * Only includes completed executions from the week (shipped deployments)
  */
 export async function mapAgentDeployments(
-  companyId: string,
+  brandProfileIds: number[],
   weekStartUtc: Date | string
 ): Promise<AgentDeploymentsSummary | null> {
   const weekStart = new Date(weekStartUtc);
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 7);
 
-  const brandProfileIds = await resolveBrandProfileIds(companyId);
   if (brandProfileIds.length === 0) return null;
 
   // Fetch completed agent executions this week (shipped deployments only)

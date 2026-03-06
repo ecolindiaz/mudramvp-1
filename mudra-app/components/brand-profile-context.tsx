@@ -63,7 +63,9 @@ async function fetchWithRetryOn429(
     const retryAfterMs = Math.min((retryAfterHeader ? parseInt(retryAfterHeader, 10) : 5) * 1000, 30000);
     console.log(`[BrandProfileContext] 429 received, retrying in ${retryAfterMs}ms...`);
     await new Promise(resolve => setTimeout(resolve, retryAfterMs));
-    return fetchWithRetryOn429(url, options, maxRetries - 1);
+    // Drop the original signal — it may have expired during the wait
+    const { signal: _expired, ...retryOptions } = options || {};
+    return fetchWithRetryOn429(url, retryOptions as RequestInit, maxRetries - 1);
   }
   return response;
 }

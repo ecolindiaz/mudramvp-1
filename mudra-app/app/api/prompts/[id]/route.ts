@@ -185,6 +185,9 @@ export async function GET(
           const competitorPositions = matchingTest.competitorPositions || {}
           const citations = matchingTest.citations || []
           const sources = matchingTest.sources || []
+          const rawCompetitors = matchingTest.rawCompetitorsMentioned || competitors
+          const rawPositions = matchingTest.rawCompetitorPositions || competitorPositions
+          const rawSentiments = matchingTest.rawCompetitorSentiments || matchingTest.competitorSentiments || {}
 
           results.push({
             provider: providerName,
@@ -196,6 +199,9 @@ export async function GET(
             competitorsMentioned: competitors,
             competitorPositions: competitorPositions,
             competitorSentiments: matchingTest.competitorSentiments || {},
+            rawCompetitorsMentioned: rawCompetitors,
+            rawCompetitorPositions: rawPositions,
+            rawCompetitorSentiments: rawSentiments,
             citations: citations,
             sources: sources,
             timestamp: matchingTest.timestamp || runDate,
@@ -304,10 +310,12 @@ export async function GET(
     }>()
 
     // Analyze each filtered test result for competitor mentions
+    // Prefer raw (pre-validation) mentions so the per-prompt view shows all companies
+    // mentioned in AI responses, not just validated direct competitors.
     filteredTestResults.forEach(result => {
-      const competitors = result.competitorsMentioned || []
-      const competitorPositions = result.competitorPositions || {}
-      const competitorSentiments = result.competitorSentiments || {}
+      const competitors = result.rawCompetitorsMentioned || result.competitorsMentioned || []
+      const competitorPositions = result.rawCompetitorPositions || result.competitorPositions || {}
+      const competitorSentiments = result.rawCompetitorSentiments || result.competitorSentiments || {}
 
       // IMPORTANT: Also extract competitors from competitorPositions object
       // because sometimes they're only in positions but not in the mentions array

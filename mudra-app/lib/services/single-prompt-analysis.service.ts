@@ -31,6 +31,9 @@ export interface ProviderResult {
   sources?: Array<{ url: string; title?: string; snippet?: string }>
   searchQueries?: string[]
   error?: string
+  rawCompetitors?: string[]
+  rawCompetitorPositions?: Record<string, number>
+  rawCompetitorSentiments?: Record<string, 'positive' | 'neutral' | 'negative'>
 }
 
 export interface SinglePromptAnalysisResult {
@@ -158,6 +161,13 @@ export async function runSinglePromptAnalysis(
       .join('\n\n---\n\n')
     const allCompetitorMentions = providerResults.flatMap(r => r.competitors || [])
 
+    // Snapshot raw competitor data before validation overwrites it
+    for (const result of providerResults) {
+      result.rawCompetitors = [...(result.competitors || [])]
+      result.rawCompetitorPositions = { ...(result.competitorPositions || {}) }
+      result.rawCompetitorSentiments = { ...(result.competitorSentiments || {}) }
+    }
+
     if (allCompetitorMentions.length > 0) {
       const validatedCompetitors = await validateCompetitors(
         allResponses,
@@ -284,6 +294,9 @@ async function storePromptResults(
         competitors: result.competitors,
         competitorPositions: result.competitorPositions || {},
         competitorSentiments: result.competitorSentiments || {},
+        rawCompetitorsMentioned: result.rawCompetitors || result.competitors,
+        rawCompetitorPositions: result.rawCompetitorPositions || result.competitorPositions || {},
+        rawCompetitorSentiments: result.rawCompetitorSentiments || result.competitorSentiments || {},
         confidence: result.confidence,
         citations: result.citations || [],
         sources: result.sources || [],

@@ -312,6 +312,9 @@ export interface PromptTest {
   citations?: Citation[]; // Inline citations referenced in response
   sources?: Citation[]; // All URLs retrieved during web search
   searchQueries?: string[]; // Queries used for grounding (Gemini)
+  rawCompetitorsMentioned?: string[]; // Pre-validation competitor mentions (all regex-filtered names)
+  rawCompetitorPositions?: Record<string, number>;
+  rawCompetitorSentiments?: Record<string, 'positive' | 'neutral' | 'negative'>;
 }
 
 export interface CompetitorAnalysis {
@@ -2760,6 +2763,15 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     }
   } catch (error) {
     console.warn('⚠️ Entity normalization failed, continuing with raw names:', error);
+  }
+
+  // Snapshot raw (pre-validation) competitor data before validateCompetitors overwrites it
+  for (const analysis of analyses) {
+    for (const test of analysis.promptTests) {
+      test.rawCompetitorsMentioned = [...test.competitors];
+      test.rawCompetitorPositions = test.competitorPositions ? { ...test.competitorPositions } : {};
+      test.rawCompetitorSentiments = test.competitorSentiments ? { ...test.competitorSentiments } : {};
+    }
   }
 
   // Rebuild mentions from (possibly remapped) tests

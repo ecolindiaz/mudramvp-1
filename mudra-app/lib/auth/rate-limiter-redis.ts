@@ -35,14 +35,14 @@ const USE_REDIS = Boolean(UPSTASH_URL && UPSTASH_TOKEN);
 // Each limiter config gets its own Ratelimit instance (keyed by type:tokens:duration)
 const upstashInstances = new Map<string, UpstashRatelimit>();
 let sharedRedisClient: any = null;
-let redisInitFailed = false;
+let redisInitFailedUntil = 0;
 
 async function getUpstashRatelimit(
   limiterType: 'sliding' | 'fixed',
   tokens: number,
   durationSeconds: number
 ): Promise<UpstashRatelimit | null> {
-  if (!USE_REDIS || redisInitFailed) return null;
+  if (!USE_REDIS || Date.now() < redisInitFailedUntil) return null;
 
   const cacheKey = `${limiterType}:${tokens}:${durationSeconds}`;
   const cached = upstashInstances.get(cacheKey);
@@ -75,7 +75,7 @@ async function getUpstashRatelimit(
   } catch (error) {
     console.warn('[RateLimit] Upstash not available, falling back to in-memory:',
       error instanceof Error ? error.message : 'Unknown error');
-    redisInitFailed = true;
+    redisInitFailedUntil = Date.now() + 60_000;
     return null;
   }
 }

@@ -25,7 +25,7 @@ import { type CountryCode, getLanguageForCountry, getUniqueLanguages, isAllowedC
  *      "https://www.transferwise.com" → "Transferwise"
  *      "Stripe" → "Stripe"
  */
-function resolveCompetitorNameFromUrl(input: string): string {
+export function resolveCompetitorNameFromUrl(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return '';
 

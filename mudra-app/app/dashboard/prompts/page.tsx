@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 import { useBrandProfile } from "@/components/brand-profile-context"
 import { toast } from "sonner"
+import { getLanguageForCountry, isAllowedCountry, type CountryCode } from "@/lib/geo/country-config"
 
 interface Prompt {
   id: string
@@ -46,7 +47,7 @@ const CATEGORIES = [
 ]
 
 export default function PromptsPage() {
-  const { profile } = useBrandProfile()
+  const { profile, selectedCountry } = useBrandProfile()
   const [prompts, setPrompts] = useState<Prompt[]>([])
   const [filteredPrompts, setFilteredPrompts] = useState<Prompt[]>([])
   const [loading, setLoading] = useState(true)
@@ -118,13 +119,15 @@ export default function PromptsPage() {
     }
 
     try {
+      const lang = selectedCountry && isAllowedCountry(selectedCountry) ? getLanguageForCountry(selectedCountry as CountryCode) : 'en'
       const response = await fetch('/api/prompts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           brandProfileId: profile.id,
           text: newPromptText,
-          category: newPromptCategory
+          category: newPromptCategory,
+          language: lang,
         })
       })
 
@@ -247,6 +250,7 @@ export default function PromptsPage() {
 
     try {
       // Phase 1: Generate and save prompts
+      const lang = selectedCountry && isAllowedCountry(selectedCountry) ? getLanguageForCountry(selectedCountry as CountryCode) : 'en'
       const response = await fetch('/api/prompts/batch-generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -254,6 +258,7 @@ export default function PromptsPage() {
           brandProfileId: profile.id,
           description: batchDescription,
           count: batchCount,
+          language: lang,
           brandInfo: {
             companyName: profile.companyName || '',
             companyDescription: profile.companyDescription || '',

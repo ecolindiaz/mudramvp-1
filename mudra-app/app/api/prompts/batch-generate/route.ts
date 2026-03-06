@@ -19,7 +19,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { brandProfileId, description, count, brandInfo } = body
+    const { brandProfileId, description, count, brandInfo, language } = body
+    const lang = (typeof language === 'string' && language) ? language : 'en'
 
     // Auth
     const authResult = await requireAuthWithBrandAccess(brandProfileId)
@@ -58,15 +59,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Capacity check
-    const limits = await canAddCustomPrompt(profileId)
+    // Capacity check (per language/region)
+    const limits = await canAddCustomPrompt(profileId, lang)
     const remainingSlots = PROMPT_LIMITS.MAX_TOTAL_PROMPTS - limits.currentTotal
 
     if (remainingSlots < count) {
       return NextResponse.json(
         {
           success: false,
-          error: `Not enough capacity. You can add ${remainingSlots} more prompt${remainingSlots === 1 ? '' : 's'} (current: ${limits.currentTotal}/${PROMPT_LIMITS.MAX_TOTAL_PROMPTS}).`,
+          error: `Not enough capacity for this language/region. You can add ${remainingSlots} more prompt${remainingSlots === 1 ? '' : 's'} (current: ${limits.currentTotal}/${PROMPT_LIMITS.MAX_TOTAL_PROMPTS}).`,
           limits: {
             currentTotal: limits.currentTotal,
             maxTotal: PROMPT_LIMITS.MAX_TOTAL_PROMPTS,
@@ -97,6 +98,7 @@ export async function POST(request: NextRequest) {
             brandProfileId: profileId,
             text: prompt.text,
             category: prompt.category,
+            language: lang,
             isCustom: true,
             isActive: true,
           }

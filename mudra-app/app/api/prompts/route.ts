@@ -76,7 +76,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { brandProfileId, text, category } = body
+    const { brandProfileId, text, category, language } = body
+    const lang = (typeof language === 'string' && language) ? language : 'en'
 
     // Require authentication and verify brand profile access
     const authResult = await requireAuthWithBrandAccess(brandProfileId)
@@ -93,13 +94,13 @@ export async function POST(request: NextRequest) {
 
     const profileId = authResult.brandProfileId!
 
-    // Check prompt limits before creating
-    const limits = await canAddCustomPrompt(profileId)
-    
+    // Check prompt limits before creating (per language/region)
+    const limits = await canAddCustomPrompt(profileId, lang)
+
     if (!limits.canAdd) {
       const errorMessage = limits.currentCustom >= PROMPT_LIMITS.MAX_CUSTOM_PROMPTS
-        ? `Custom prompt limit reached (${PROMPT_LIMITS.MAX_CUSTOM_PROMPTS} max). Please delete an existing custom prompt to add a new one.`
-        : `Total prompt limit reached (${PROMPT_LIMITS.MAX_TOTAL_PROMPTS} max). Please delete an existing prompt to add a new one.`
+        ? `Custom prompt limit reached (${PROMPT_LIMITS.MAX_CUSTOM_PROMPTS} max per language/region). Please delete an existing custom prompt to add a new one.`
+        : `Total prompt limit reached (${PROMPT_LIMITS.MAX_TOTAL_PROMPTS} max per language/region). Please delete an existing prompt to add a new one.`
       
       return NextResponse.json(
         { 

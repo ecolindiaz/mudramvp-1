@@ -52,6 +52,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { toast } from "sonner"
+import { getLanguageForCountry, isAllowedCountry, type CountryCode } from "@/lib/geo/country-config"
 
 type TrackedPrompt = {
   id: string
@@ -771,6 +772,7 @@ function TrackedPromptsPageInner() {
     setIsAdding(true)
 
     try {
+      const lang = selectedCountry && isAllowedCountry(selectedCountry) ? getLanguageForCountry(selectedCountry as CountryCode) : 'en'
       const response = await fetch('/api/prompts/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -779,6 +781,7 @@ function TrackedPromptsPageInner() {
           category: capturedIntent,
           brandProfileId: profile.id,
           runAnalysis: capturedRunAnalysis, // BUG-3: Pass immediate analysis flag
+          language: lang,
         }),
       })
 
@@ -909,6 +912,7 @@ function TrackedPromptsPageInner() {
     setIsAiGenerating(true)
 
     try {
+      const lang = selectedCountry && isAllowedCountry(selectedCountry) ? getLanguageForCountry(selectedCountry as CountryCode) : 'en'
       const response = await fetch('/api/prompts/batch-generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -916,6 +920,7 @@ function TrackedPromptsPageInner() {
           brandProfileId: profile.id,
           description: aiDescription,
           count: aiCount,
+          language: lang,
           brandInfo: {
             companyName: profile.companyName || '',
             companyDescription: profile.companyDescription || '',

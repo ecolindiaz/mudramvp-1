@@ -62,18 +62,20 @@ export async function POST(request: NextRequest) {
         }
 
         // Count active prompts within transaction (atomic with insert)
+        // Scoped per-language so multi-language monitors don't block each other
         const activePromptCount = await tx.prompt.count({
           where: {
             brandProfileId: brandProfileId,
+            language: language || 'en',
             isActive: true,
           },
         })
 
-        console.log(`📊 Current active prompts for brand ${brandProfileId}: ${activePromptCount}`)
+        console.log(`📊 Current active prompts for brand ${brandProfileId} (lang=${language}): ${activePromptCount}`)
 
-        // Enforce limit atomically
+        // Enforce limit atomically (per language/region)
         if (activePromptCount >= MAX_ACTIVE_PROMPTS) {
-          throw new Error(`MAX_PROMPTS_REACHED:Maximum ${MAX_ACTIVE_PROMPTS} active prompts allowed. Please delete a prompt before adding a new one.`)
+          throw new Error(`MAX_PROMPTS_REACHED:Maximum ${MAX_ACTIVE_PROMPTS} active prompts per language/region. Please delete a prompt before adding a new one.`)
         }
 
         // Create the prompt within the same transaction
@@ -197,13 +199,13 @@ async function createPromptWithRawSQL(
     throw new Error('DUPLICATE_PROMPT:A prompt with this exact text already exists')
   }
 
-  // Check count
+  // Check count (per language/region)
   const countResult = await prisma.$queryRaw<Array<{ count: bigint }>>(
-    Prisma.sql`SELECT COUNT(*) as count FROM "Prompt" WHERE "brandProfileId" = ${brandProfileId} AND "isActive" = true`
+    Prisma.sql`SELECT COUNT(*) as count FROM "Prompt" WHERE "brandProfileId" = ${brandProfileId} AND "isActive" = true AND language = ${language}`
   )
   const count = Number(countResult[0]?.count || 0)
   if (count >= MAX_ACTIVE_PROMPTS) {
-    throw new Error(`MAX_PROMPTS_REACHED:Maximum ${MAX_ACTIVE_PROMPTS} active prompts allowed. Please delete a prompt before adding a new one.`)
+    throw new Error(`MAX_PROMPTS_REACHED:Maximum ${MAX_ACTIVE_PROMPTS} active prompts per language/region. Please delete a prompt before adding a new one.`)
   }
 
   // Insert and get ID using RETURNING clause (PostgreSQL)

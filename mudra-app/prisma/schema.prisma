@@ -93,6 +93,7 @@ model Prompt {
 
   @@index([brandProfileId])
   @@index([brandProfileId, isActive])
+  @@index([brandProfileId, language, isActive])
   @@map("prompts")
 }
 

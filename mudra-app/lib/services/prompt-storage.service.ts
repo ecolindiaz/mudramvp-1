@@ -187,9 +187,11 @@ export const PROMPT_LIMITS = {
 }
 
 /**
- * Check if a brand profile can add more custom prompts
+ * Check if a brand profile can add more custom prompts.
+ * When `language` is provided, limits are scoped per-language so that
+ * multi-language monitors don't block each other.
  */
-export async function canAddCustomPrompt(brandProfileId: number): Promise<{
+export async function canAddCustomPrompt(brandProfileId: number, language?: string): Promise<{
   canAdd: boolean
   currentCustom: number
   currentTotal: number
@@ -197,12 +199,13 @@ export async function canAddCustomPrompt(brandProfileId: number): Promise<{
   maxTotal: number
 }> {
   try {
+    const languageFilter = language ? { language } : {}
     const [customCount, totalCount] = await Promise.all([
       prisma.prompt.count({
-        where: { brandProfileId, isCustom: true, isActive: true }
+        where: { brandProfileId, isCustom: true, isActive: true, ...languageFilter }
       }),
       prisma.prompt.count({
-        where: { brandProfileId, isActive: true }
+        where: { brandProfileId, isActive: true, ...languageFilter }
       })
     ])
 

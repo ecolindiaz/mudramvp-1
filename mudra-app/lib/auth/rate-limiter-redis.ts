@@ -32,44 +32,50 @@ const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const USE_REDIS = Boolean(UPSTASH_URL && UPSTASH_TOKEN);
 
 // Lazy-load Upstash to avoid errors when not installed
-let upstashRatelimit: UpstashRatelimit | null = null;
-let upstashInitialized = false;
+// Each limiter config gets its own Ratelimit instance (keyed by type:tokens:duration)
+const upstashInstances = new Map<string, UpstashRatelimit>();
+let sharedRedisClient: any = null;
+let redisInitFailed = false;
 
 async function getUpstashRatelimit(
   limiterType: 'sliding' | 'fixed',
   tokens: number,
   durationSeconds: number
 ): Promise<UpstashRatelimit | null> {
-  if (!USE_REDIS) return null;
-  
-  if (upstashInitialized) return upstashRatelimit;
-  
+  if (!USE_REDIS || redisInitFailed) return null;
+
+  const cacheKey = `${limiterType}:${tokens}:${durationSeconds}`;
+  const cached = upstashInstances.get(cacheKey);
+  if (cached) return cached;
+
   try {
-    // Dynamic import for lazy loading
     const { Ratelimit } = await import('@upstash/ratelimit');
-    const { Redis } = await import('@upstash/redis');
-    
-    const redis = new Redis({
-      url: UPSTASH_URL!,
-      token: UPSTASH_TOKEN!,
-    });
-    
-    upstashRatelimit = new Ratelimit({
-      redis,
-      limiter: limiterType === 'sliding' 
+
+    // Create shared Redis client once
+    if (!sharedRedisClient) {
+      const { Redis } = await import('@upstash/redis');
+      sharedRedisClient = new Redis({
+        url: UPSTASH_URL!,
+        token: UPSTASH_TOKEN!,
+      });
+      console.log('[RateLimit] Using Upstash Redis for rate limiting');
+    }
+
+    const instance = new Ratelimit({
+      redis: sharedRedisClient,
+      limiter: limiterType === 'sliding'
         ? Ratelimit.slidingWindow(tokens, `${durationSeconds} s` as any)
         : Ratelimit.fixedWindow(tokens, `${durationSeconds} s` as any),
       analytics: true,
-      prefix: 'mudra:ratelimit',
+      prefix: `mudra:ratelimit:${cacheKey}`,
     });
-    
-    upstashInitialized = true;
-    console.log('[RateLimit] Using Upstash Redis for rate limiting');
-    return upstashRatelimit;
+
+    upstashInstances.set(cacheKey, instance);
+    return instance;
   } catch (error) {
-    console.warn('[RateLimit] Upstash not available, falling back to in-memory:', 
+    console.warn('[RateLimit] Upstash not available, falling back to in-memory:',
       error instanceof Error ? error.message : 'Unknown error');
-    upstashInitialized = true;
+    redisInitFailed = true;
     return null;
   }
 }

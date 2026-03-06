@@ -52,6 +52,22 @@ export function useBrandProfile() {
   return useContext(BrandProfileContext)
 }
 
+async function fetchWithRetryOn429(
+  url: string,
+  options?: RequestInit,
+  maxRetries = 1
+): Promise<Response> {
+  const response = await fetch(url, options);
+  if (response.status === 429 && maxRetries > 0) {
+    const retryAfterHeader = response.headers.get('Retry-After');
+    const retryAfterMs = Math.min((retryAfterHeader ? parseInt(retryAfterHeader, 10) : 5) * 1000, 30000);
+    console.log(`[BrandProfileContext] 429 received, retrying in ${retryAfterMs}ms...`);
+    await new Promise(resolve => setTimeout(resolve, retryAfterMs));
+    return fetchWithRetryOn429(url, options, maxRetries - 1);
+  }
+  return response;
+}
+
 export function BrandProfileProvider({ children }: { children: React.ReactNode }) {
   // Initialize from localStorage immediately (prevents flicker)
   const [profile, setProfileState] = useState(() => {
@@ -168,7 +184,7 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-      const response = await fetch(url, {
+      const response = await fetchWithRetryOn429(url, {
         signal: controller.signal,
         // Add cache headers for browser caching
         headers: {
@@ -283,7 +299,7 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
-      const response = await fetch("/api/brand-profile", {
+      const response = await fetchWithRetryOn429("/api/brand-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newProfile),

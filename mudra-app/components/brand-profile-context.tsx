@@ -25,6 +25,10 @@ const defaultProfile = {
   // Competitors
   competitors: [] as string[],
 
+  // Country/Region tracking
+  primaryCountry: "US",
+  trackingCountries: ["US"] as string[],
+
   // Visibility Metrics
   monthlySearchVolume: "",
   aiRecommendations: "",
@@ -143,7 +147,7 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
   // Sync selectedCountry to profile's primaryCountry ONLY on initial load
   // when localStorage doesn't have a user-chosen country.
   // This prevents page navigation from resetting the user's region selection.
-  const profileCountry: string | undefined = (profile as any).primaryCountry;
+  const profileCountry = profile.primaryCountry;
   const hasInitializedCountry = useRef(false);
   useEffect(() => {
     if (profile.id > 0 && profileCountry && !hasInitializedCountry.current) {

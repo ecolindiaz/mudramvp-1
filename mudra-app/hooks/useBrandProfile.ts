@@ -16,6 +16,8 @@ interface BrandProfile {
   competitors?: string;
   monthlySearchVolume?: string;
   aiRecommendations?: string;
+  primaryCountry?: string;
+  trackingCountries?: string[];
   stage?: string;
   resources?: string;
 }

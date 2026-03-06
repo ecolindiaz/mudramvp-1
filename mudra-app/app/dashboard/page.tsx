@@ -134,7 +134,7 @@ function DashboardPageInner() {
       website: profile.companyWebsite,
       description: profile.companyDescription,
       industry: profile.companyIndustry,
-      competitors: [],
+      competitors: Array.isArray(profile.competitors) ? profile.competitors : [],
       skipCooldown: false,
       generateReport: false,
       country: selectedCountry || 'US',

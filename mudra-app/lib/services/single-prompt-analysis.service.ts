@@ -87,19 +87,28 @@ export async function runSinglePromptAnalysis(
   
   console.log(`📡 Testing with ${availableProviders.length} providers: ${availableProviders.join(', ')}`)
   
-  // Parse competitors from brand profile
+  // Parse competitors from brand profile (stored as comma-separated URLs)
   let competitors: string[] = []
-  try {
-    if (brandProfile.competitors) {
-      if (typeof brandProfile.competitors === 'string') {
-        competitors = JSON.parse(brandProfile.competitors)
-      } else if (Array.isArray(brandProfile.competitors)) {
-        competitors = brandProfile.competitors as string[]
-      }
+  if (brandProfile.competitors) {
+    if (typeof brandProfile.competitors === 'string') {
+      competitors = brandProfile.competitors.split(',').map((s: string) => s.trim()).filter(Boolean)
+    } else if (Array.isArray(brandProfile.competitors)) {
+      competitors = brandProfile.competitors as string[]
     }
-  } catch {
-    competitors = []
   }
+  // Convert URLs to company names for the extraction prompt
+  competitors = competitors.map((c: string) => {
+    const trimmed = c.trim()
+    if (trimmed.includes('://') || trimmed.includes('.')) {
+      try {
+        const urlStr = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`
+        const hostname = new URL(urlStr).hostname.replace(/^www\./, '')
+        const name = hostname.split('.')[0]
+        if (name && name.length >= 2) return name.charAt(0).toUpperCase() + name.slice(1)
+      } catch { /* not a URL */ }
+    }
+    return trimmed
+  }).filter(Boolean)
   
   // Import the direct-geo analysis functions dynamically
   const { analyzePromptWithProvider } = await import('./direct-geo-analysis.service')

@@ -2789,7 +2789,8 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
       config.brandName,
       canonicalMentions,
       config.description,
-      config.industry
+      config.industry,
+      config.competitors
     );
 
     // Enrich validated competitors with entity type and parent from normalization

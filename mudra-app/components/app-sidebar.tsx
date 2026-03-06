@@ -479,8 +479,8 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
       domain: currentDomain || '',
       label: companyData.name,
       status: "active" as const,
-      region: (profile as any)?.primaryCountry || "US",
-      regions: (profile as any)?.trackingCountries || ["US"],
+      region: profile.primaryCountry || "US",
+      regions: profile.trackingCountries || ["US"],
       isCurrent: true,
       countryStatuses: [],
     }]

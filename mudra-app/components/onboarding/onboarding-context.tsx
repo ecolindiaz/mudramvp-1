@@ -2,22 +2,17 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react"
 import { useBrandProfile } from "../brand-profile-context"
+import type { ExtractedCompanyInfo } from '@/types/extraction'
 
-// Extracted company info from website
-export interface ExtractedCompanyInfo {
-  companyDescription: string
-  industry: string
-  servicesProducts: string[]
-  idealCustomerProfiles: string[]
-  competitorUrls: string[]
-  competitorSource?: 'extracted' | 'ai_suggested' | 'merged'
-}
+export type { ExtractedCompanyInfo } from '@/types/extraction'
 
 export type ExtractionStatus = 'idle' | 'extracting' | 'completed' | 'failed'
 
 export interface DomainEntry {
   domain: string
   regions: string[]
+  extractedInfo: ExtractedCompanyInfo | null
+  extractionStatus: ExtractionStatus
 }
 
 interface OnboardingData {
@@ -62,7 +57,7 @@ const defaultOnboardingData: OnboardingData = {
   companyDomains: [],
   companySocialMedia: "",
   trackingRegions: [],
-  domainEntries: [{ domain: "", regions: [] }],
+  domainEntries: [{ domain: "", regions: [], extractedInfo: null, extractionStatus: 'idle' }],
   userName: "",
   userRole: "",
   companyDescription: "",
@@ -105,6 +100,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
+        if (parsed.domainEntries) {
+          parsed.domainEntries = parsed.domainEntries.map((e: any) =>
+            e.extractionStatus === 'extracting' ? { ...e, extractionStatus: 'idle' } : e
+          )
+        }
         setData(parsed)
         console.log('📦 Loaded onboarding data from localStorage:', parsed)
       } catch (e) {
@@ -181,7 +181,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     // Create additional monitors for domain entries beyond the first
     const extraEntries = data.domainEntries.slice(1).filter(e => e.domain.trim())
     if (extraEntries.length > 0 && savedProfile?.id) {
-      const companyInfo = {
+      const primaryCompanyInfo = {
         companyDescription: data.companyDescription,
         companyIndustry: data.companyIndustry,
         companyServices: data.servicesProducts.join(", "),
@@ -193,6 +193,19 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       for (const entry of extraEntries) {
         try {
           const regions = entry.regions.filter(Boolean)
+          const extracted = entry.extractedInfo
+          const entryCompanyInfo = extracted ? {
+            companyDescription: extracted.companyDescription || data.companyDescription,
+            companyIndustry: extracted.industry || data.companyIndustry,
+            companyServices: (extracted.servicesProducts?.length > 0
+              ? extracted.servicesProducts : data.servicesProducts).join(", "),
+            companyICP: (extracted.idealCustomerProfiles?.length > 0
+              ? extracted.idealCustomerProfiles : data.companyICP).join(", "),
+            competitors: extracted.competitorUrls?.length > 0
+              ? extracted.competitorUrls
+              : data.competitors.filter(c => c.trim() !== ""),
+          } : primaryCompanyInfo
+
           const res = await fetch("/api/monitors", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -201,7 +214,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
               companyWebsite: entry.domain,
               trackingCountries: regions.length > 0 ? regions : ["US"],
               primaryCountry: regions[0] || "US",
-              ...companyInfo,
+              ...entryCompanyInfo,
             }),
           })
           const result = await res.json()

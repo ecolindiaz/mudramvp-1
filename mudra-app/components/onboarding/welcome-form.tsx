@@ -31,7 +31,7 @@ export function WelcomeForm() {
   const [domainEntries, setDomainEntries] = useState<DomainEntry[]>(
     data.domainEntries?.length
       ? data.domainEntries
-      : [{ domain: data.companyWebsite || "", regions: data.trackingRegions || [] }]
+      : [{ domain: data.companyWebsite || "", regions: data.trackingRegions || [], extractedInfo: null, extractionStatus: 'idle' }]
   )
 
   const { isExtracting, extractedData, failed, startExtraction } = useCompanyExtraction()
@@ -80,9 +80,58 @@ export function WelcomeForm() {
     }))
   }
 
+  const extractForAdditionalDomain = async (index: number, url: string) => {
+    const trimmed = url.trim()
+    if (!trimmed) return
+
+    let normalizedUrl = trimmed
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = `https://${normalizedUrl}`
+    }
+    try { new URL(normalizedUrl) } catch { return }
+
+    setDomainEntries(prev => prev.map((entry, i) =>
+      i === index ? { ...entry, extractionStatus: 'extracting' as const } : entry
+    ))
+
+    try {
+      const response = await fetch('/api/onboarding/extract-company-info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: normalizedUrl }),
+      })
+      if (!response.ok) {
+        console.error(`[WelcomeForm] Extract API returned ${response.status} for "${normalizedUrl}"`)
+        setDomainEntries(prev => prev.map((entry, i) =>
+          i === index ? { ...entry, extractionStatus: 'failed' as const } : entry
+        ))
+        return
+      }
+      const result = await response.json()
+      if (result.success && result.data) {
+        setDomainEntries(prev => prev.map((entry, i) =>
+          i === index ? {
+            ...entry,
+            extractedInfo: { ...result.data, ...(result.meta?.competitorSource && { competitorSource: result.meta.competitorSource }) },
+            extractionStatus: 'completed' as const,
+          } : entry
+        ))
+      } else {
+        setDomainEntries(prev => prev.map((entry, i) =>
+          i === index ? { ...entry, extractionStatus: 'failed' as const } : entry
+        ))
+      }
+    } catch (err) {
+      console.error(`[WelcomeForm] Extraction failed for "${url}":`, err)
+      setDomainEntries(prev => prev.map((entry, i) =>
+        i === index ? { ...entry, extractionStatus: 'failed' as const } : entry
+      ))
+    }
+  }
+
   const addDomain = () => {
     if (domainEntries.length < 3) {
-      setDomainEntries(prev => [...prev, { domain: "", regions: [] }])
+      setDomainEntries(prev => [...prev, { domain: "", regions: [], extractedInfo: null, extractionStatus: 'idle' }])
     }
   }
 
@@ -158,10 +207,22 @@ export function WelcomeForm() {
                   placeholder="https://yourcompany.com"
                   value={entry.domain}
                   onChange={(e) => updateEntry(index, "domain", e.target.value)}
-                  onBlur={(e) => index === 0 && handleWebsiteBlur(e.target.value)}
+                  onBlur={(e) => {
+                    if (index === 0) {
+                      handleWebsiteBlur(e.target.value)
+                    } else {
+                      extractForAdditionalDomain(index, e.target.value)
+                    }
+                  }}
                   className="w-full bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500"
                 />
                 {index === 0 && isExtracting && (
+                  <div className="shrink-0 flex items-center gap-1.5 text-white/50">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span className="text-xs whitespace-nowrap">Analyzing...</span>
+                  </div>
+                )}
+                {index > 0 && entry.extractionStatus === 'extracting' && (
                   <div className="shrink-0 flex items-center gap-1.5 text-white/50">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span className="text-xs whitespace-nowrap">Analyzing...</span>
@@ -236,7 +297,7 @@ export function WelcomeForm() {
         <Button
           type="button"
           onClick={handleNext}
-          disabled={!isFormValid || isLoading || isExtracting}
+          disabled={!isFormValid || isLoading || isExtracting || domainEntries.some(e => e.extractionStatus === 'extracting')}
           className="w-full h-10 bg-white text-black border border-white hover:bg-white/90 shadow-none rounded-lg disabled:bg-white disabled:text-black disabled:border-white/60 disabled:cursor-not-allowed disabled:opacity-100"
         >
           <div className="flex items-center justify-center gap-2">

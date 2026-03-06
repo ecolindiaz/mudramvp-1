@@ -385,7 +385,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
     if (!profile.id) return
 
     // Capture country at call-time so we can detect staleness after awaits
-    const requestCountry = selectedCountry
+    const effectiveCountry = selectedCountry || profile.primaryCountry || 'US'
+    const requestCountry = effectiveCountry
 
     try {
       if (!isRefreshingRef.current) setLoadingAIVisibility(true)
@@ -397,7 +398,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       const controller1 = new AbortController()
       const timeoutId1 = setTimeout(() => controller1.abort(), 10000)
 
-      const countryParam = selectedCountry ? `&country=${selectedCountry}` : ''
+      const countryParam = `&country=${effectiveCountry}`
 
       const currentResponse = await fetch(
         `/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}&days=${days}${countryParam}`,

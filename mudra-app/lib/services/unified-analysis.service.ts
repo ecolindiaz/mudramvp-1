@@ -16,6 +16,37 @@ import { runDirectGEOAnalysis, createDirectGEOConfig } from './direct-geo-analys
 import { type CountryCode, getLanguageForCountry, getUniqueLanguages, isAllowedCountry } from '@/lib/geo/country-config';
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract a human-readable company name from a competitor URL or raw string.
+ * e.g. "https://www.payoneer.com" → "Payoneer"
+ *      "https://www.transferwise.com" → "Transferwise"
+ *      "Stripe" → "Stripe"
+ */
+function resolveCompetitorNameFromUrl(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+
+  // If it looks like a URL, extract company name from the hostname
+  if (trimmed.includes('://') || trimmed.includes('.')) {
+    try {
+      const urlStr = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+      const hostname = new URL(urlStr).hostname.replace(/^www\./, '');
+      const name = hostname.split('.')[0];
+      if (name && name.length >= 2) {
+        return name.charAt(0).toUpperCase() + name.slice(1);
+      }
+    } catch {
+      // Not a valid URL — fall through to return as-is
+    }
+  }
+
+  return trimmed;
+}
+
+// ---------------------------------------------------------------------------
 // Progress streaming types
 // ---------------------------------------------------------------------------
 export type ProgressPhase = 'prompts' | 'geo' | 'discovery' | 'scraping' | 'scoring' | 'report' | 'issues' | 'complete' | 'error';
@@ -492,11 +523,39 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
       country: country || 'US',
     });
 
+    // Resolve competitor names for the extraction prompt.
+    // Two issues fixed here:
+    //  1. Dashboard sends competitors:[] — we fetch from DB instead.
+    //  2. DB stores competitors as URLs — we convert to company names.
+    let competitorNames = config.competitors && config.competitors.length > 0
+      ? config.competitors
+      : [];
+
+    if (competitorNames.length === 0) {
+      try {
+        const bp = await prisma.brandProfile.findUnique({
+          where: { id: config.brandProfileId },
+          select: { competitors: true },
+        });
+        if (bp?.competitors) {
+          competitorNames = bp.competitors.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+      } catch (err) {
+        console.warn('[GEO Core] Failed to fetch competitors from DB:', err);
+      }
+    }
+
+    // Convert any URLs to human-readable company names (extraction prompt expects names)
+    competitorNames = competitorNames.map(resolveCompetitorNameFromUrl).filter(Boolean);
+    if (competitorNames.length > 0) {
+      console.log(`[GEO Core] Competitor hints for extraction: [${competitorNames.join(', ')}]`);
+    }
+
     // Call DirectGEO service directly (avoids HTTP auth issues)
     const geoConfig = createDirectGEOConfig(config.brandName, config.website, {
       industry: config.industry || '',
       description: config.description || '',
-      competitors: config.competitors || [],
+      competitors: competitorNames,
       customPrompts: prompts.map(p => ({
         text: p.text,
         category: p.category || undefined, // Pass category for intent weighting (convert null to undefined)

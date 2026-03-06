@@ -515,8 +515,28 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
     return regions.some(code => !analyzedCountries.has(code))
   }, [currentMonitor?.regions, analyzedCountries])
 
+  // Track whether we've already kicked off a recovery attempt for this monitor
+  const recoveryTriggeredRef = React.useRef<number | null>(null)
+
   React.useEffect(() => {
-    if (!hasPendingRegions) return
+    if (!hasPendingRegions) {
+      recoveryTriggeredRef.current = null
+      return
+    }
+
+    const monitorId = currentMonitor?.id ?? null
+
+    // On first detection of pending regions, trigger process-queue to recover
+    // any orphaned jobs (stuck in "running" due to serverless timeout).
+    if (monitorId && recoveryTriggeredRef.current !== monitorId) {
+      recoveryTriggeredRef.current = monitorId
+      fetch('/api/analysis/process-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandProfileId: monitorId }),
+      }).catch(() => {})
+    }
+
     const interval = setInterval(() => {
       fetch('/api/monitors')
         .then(res => res.ok ? res.json() : null)
@@ -524,7 +544,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
         .catch(() => {})
     }, 10_000) // poll every 10s
     return () => clearInterval(interval)
-  }, [hasPendingRegions])
+  }, [hasPendingRegions, currentMonitor?.id])
 
   // Also refresh monitors when analysis completes (event-driven)
   React.useEffect(() => {

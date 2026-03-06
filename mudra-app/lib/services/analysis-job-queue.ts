@@ -52,14 +52,60 @@ export async function createAnalysisJobs(params: {
 }
 
 // ---------------------------------------------------------------------------
+// Orphaned job recovery
+// ---------------------------------------------------------------------------
+
+const ORPHAN_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes — if a job is "running" longer than this, it's orphaned
+
+/**
+ * Recover jobs stuck in "running" state for longer than ORPHAN_TIMEOUT_MS.
+ * Resets them to "pending" so they can be retried by processNextJob().
+ */
+export async function recoverOrphanedJobs(brandProfileId: number): Promise<number> {
+  const cutoff = new Date(Date.now() - ORPHAN_TIMEOUT_MS)
+
+  const orphaned = await prisma.analysisJob.findMany({
+    where: {
+      brandProfileId,
+      status: 'running',
+      startedAt: { lt: cutoff },
+    },
+  })
+
+  if (orphaned.length === 0) return 0
+
+  for (const job of orphaned) {
+    const newStatus = job.attempts >= job.maxAttempts ? 'failed' : 'pending'
+    await prisma.analysisJob.update({
+      where: { id: job.id },
+      data: {
+        status: newStatus,
+        error: newStatus === 'failed'
+          ? `Orphaned after ${ORPHAN_TIMEOUT_MS / 1000}s (max attempts reached)`
+          : `Recovered from orphaned "running" state after ${ORPHAN_TIMEOUT_MS / 1000}s`,
+      },
+    })
+    console.log(
+      `[JobQueue] Recovered orphaned job ${job.id} (${job.country}): ${newStatus}`,
+    )
+  }
+
+  return orphaned.length
+}
+
+// ---------------------------------------------------------------------------
 // Job processing
 // ---------------------------------------------------------------------------
 
 /**
  * Pick the next pending job for a brand and execute it.
+ * Automatically recovers orphaned "running" jobs before checking for pending work.
  * Returns true if there are more pending jobs after this one.
  */
 export async function processNextJob(brandProfileId: number): Promise<boolean> {
+  // Recover any orphaned jobs first
+  await recoverOrphanedJobs(brandProfileId)
+
   // Find next pending job (lowest priority = highest urgency)
   const job = await prisma.analysisJob.findFirst({
     where: { brandProfileId, status: 'pending' },

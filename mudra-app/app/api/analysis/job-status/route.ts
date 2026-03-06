@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getJobStatuses, hasActiveJobs } from '@/lib/services/analysis-job-queue';
+import { getJobStatuses, hasActiveJobs, recoverOrphanedJobs } from '@/lib/services/analysis-job-queue';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 
 export async function GET(req: NextRequest) {
@@ -25,6 +25,9 @@ export async function GET(req: NextRequest) {
     if (!authResult.success) {
       return authResult.response;
     }
+
+    // Recover any orphaned "running" jobs before reporting status
+    await recoverOrphanedJobs(brandProfileId);
 
     const [jobs, active] = await Promise.all([
       getJobStatuses(brandProfileId),

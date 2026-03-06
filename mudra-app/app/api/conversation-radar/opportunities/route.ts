@@ -17,7 +17,6 @@ export async function GET(req: NextRequest) {
     const country = searchParams.get('country');
     const status = searchParams.get('status') || 'new';
     const mode = searchParams.get('mode');
-    const includeAll = searchParams.get('includeAll') === 'true';
     const minRelevanceScore = parseInt(searchParams.get('minRelevanceScore') || '75', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
@@ -65,9 +64,9 @@ export async function GET(req: NextRequest) {
       where.mode = mode;
     }
 
-    // Only show high-relevance opportunities by default (70%+)
-    // Unless includeAll is true (for "All opportunities" view)
-    if (!includeAll && minRelevanceScore > 0) {
+    // Always filter by minimum relevance score to exclude noise.
+    // The includeAll flag controls status filtering only, not relevance.
+    if (minRelevanceScore > 0) {
       where.relevanceScore = { gte: minRelevanceScore };
     }
 

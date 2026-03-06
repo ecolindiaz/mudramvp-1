@@ -140,7 +140,7 @@ function ConversationRadarPageInner() {
     if (!profile.id) return
     const requestCountry = selectedCountry
     try {
-      const response = await fetch(`/api/conversation-radar/opportunities?brandProfileId=${profile.id}&status=all&limit=50&country=${selectedCountry}&includeAll=true`)
+      const response = await fetch(`/api/conversation-radar/opportunities?brandProfileId=${profile.id}&status=all&limit=50&country=${selectedCountry}&minRelevanceScore=50`)
       const result = await response.json()
 
       // Discard stale response (country changed while fetch was in flight)

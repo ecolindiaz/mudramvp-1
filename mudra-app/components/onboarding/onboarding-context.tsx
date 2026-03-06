@@ -9,6 +9,7 @@ export type { ExtractedCompanyInfo } from '@/types/extraction'
 export type ExtractionStatus = 'idle' | 'extracting' | 'completed' | 'failed'
 
 export interface DomainEntry {
+  id: string
   domain: string
   regions: string[]
   extractedInfo: ExtractedCompanyInfo | null
@@ -57,7 +58,7 @@ const defaultOnboardingData: OnboardingData = {
   companyDomains: [],
   companySocialMedia: "",
   trackingRegions: [],
-  domainEntries: [{ domain: "", regions: [], extractedInfo: null, extractionStatus: 'idle' }],
+  domainEntries: [{ id: crypto.randomUUID(), domain: "", regions: [], extractedInfo: null, extractionStatus: 'idle' }],
   userName: "",
   userRole: "",
   companyDescription: "",
@@ -101,9 +102,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       try {
         const parsed = JSON.parse(saved)
         if (parsed.domainEntries) {
-          parsed.domainEntries = parsed.domainEntries.map((e: any) =>
-            e.extractionStatus === 'extracting' ? { ...e, extractionStatus: 'idle' } : e
-          )
+          parsed.domainEntries = parsed.domainEntries.map((e: any) => ({
+            ...e,
+            id: e.id || crypto.randomUUID(),
+            ...(e.extractionStatus === 'extracting' ? { extractionStatus: 'idle' } : {}),
+          }))
         }
         setData(parsed)
         console.log('📦 Loaded onboarding data from localStorage:', parsed)

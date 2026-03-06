@@ -31,7 +31,7 @@ export function WelcomeForm() {
   const [domainEntries, setDomainEntries] = useState<DomainEntry[]>(
     data.domainEntries?.length
       ? data.domainEntries
-      : [{ domain: data.companyWebsite || "", regions: data.trackingRegions || [], extractedInfo: null, extractionStatus: 'idle' }]
+      : [{ id: crypto.randomUUID(), domain: data.companyWebsite || "", regions: data.trackingRegions || [], extractedInfo: null, extractionStatus: 'idle' }]
   )
 
   const { isExtracting, extractedData, failed, startExtraction } = useCompanyExtraction()
@@ -80,7 +80,7 @@ export function WelcomeForm() {
     }))
   }
 
-  const extractForAdditionalDomain = async (index: number, url: string) => {
+  const extractForAdditionalDomain = async (entryId: string, url: string) => {
     const trimmed = url.trim()
     if (!trimmed) return
 
@@ -90,8 +90,8 @@ export function WelcomeForm() {
     }
     try { new URL(normalizedUrl) } catch { return }
 
-    setDomainEntries(prev => prev.map((entry, i) =>
-      i === index ? { ...entry, extractionStatus: 'extracting' as const } : entry
+    setDomainEntries(prev => prev.map(entry =>
+      entry.id === entryId ? { ...entry, extractionStatus: 'extracting' as const } : entry
     ))
 
     try {
@@ -102,36 +102,36 @@ export function WelcomeForm() {
       })
       if (!response.ok) {
         console.error(`[WelcomeForm] Extract API returned ${response.status} for "${normalizedUrl}"`)
-        setDomainEntries(prev => prev.map((entry, i) =>
-          i === index ? { ...entry, extractionStatus: 'failed' as const } : entry
+        setDomainEntries(prev => prev.map(entry =>
+          entry.id === entryId ? { ...entry, extractionStatus: 'failed' as const } : entry
         ))
         return
       }
       const result = await response.json()
       if (result.success && result.data) {
-        setDomainEntries(prev => prev.map((entry, i) =>
-          i === index ? {
+        setDomainEntries(prev => prev.map(entry =>
+          entry.id === entryId ? {
             ...entry,
             extractedInfo: { ...result.data, ...(result.meta?.competitorSource && { competitorSource: result.meta.competitorSource }) },
             extractionStatus: 'completed' as const,
           } : entry
         ))
       } else {
-        setDomainEntries(prev => prev.map((entry, i) =>
-          i === index ? { ...entry, extractionStatus: 'failed' as const } : entry
+        setDomainEntries(prev => prev.map(entry =>
+          entry.id === entryId ? { ...entry, extractionStatus: 'failed' as const } : entry
         ))
       }
     } catch (err) {
       console.error(`[WelcomeForm] Extraction failed for "${url}":`, err)
-      setDomainEntries(prev => prev.map((entry, i) =>
-        i === index ? { ...entry, extractionStatus: 'failed' as const } : entry
+      setDomainEntries(prev => prev.map(entry =>
+        entry.id === entryId ? { ...entry, extractionStatus: 'failed' as const } : entry
       ))
     }
   }
 
   const addDomain = () => {
     if (domainEntries.length < 3) {
-      setDomainEntries(prev => [...prev, { domain: "", regions: [], extractedInfo: null, extractionStatus: 'idle' }])
+      setDomainEntries(prev => [...prev, { id: crypto.randomUUID(), domain: "", regions: [], extractedInfo: null, extractionStatus: 'idle' }])
     }
   }
 
@@ -196,7 +196,7 @@ export function WelcomeForm() {
         </div>
 
         {domainEntries.map((entry, index) => (
-          <div key={index} className="space-y-3">
+          <div key={entry.id} className="space-y-3">
             <div className="space-y-2">
               <Label className="text-sm font-medium text-white/90">
                 {index === 0 ? "Company Domain" : `Domain ${index + 1}`}
@@ -211,7 +211,7 @@ export function WelcomeForm() {
                     if (index === 0) {
                       handleWebsiteBlur(e.target.value)
                     } else {
-                      extractForAdditionalDomain(index, e.target.value)
+                      extractForAdditionalDomain(entry.id, e.target.value)
                     }
                   }}
                   className="w-full bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500"

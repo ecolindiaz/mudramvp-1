@@ -220,6 +220,7 @@ export function PromptsForm() {
             const entry = extraEntries[idx]
             if (!entry) continue
             const countries = entry.regions.filter(Boolean)
+            const extracted = entry.extractedInfo
             try {
               console.log(`[PromptsForm] Triggering analysis for additional monitor ${monitorId} (${entry.domain})`)
               await fetch("/api/analysis/unified", {
@@ -229,9 +230,11 @@ export function PromptsForm() {
                   brandProfileId: monitorId,
                   brandName: onboardingData.companyName,
                   website: entry.domain,
-                  industry: onboardingData.companyIndustry || undefined,
-                  description: onboardingData.companyDescription || undefined,
-                  competitors: onboardingData.competitors || [],
+                  industry: extracted?.industry || onboardingData.companyIndustry || undefined,
+                  description: extracted?.companyDescription || onboardingData.companyDescription || undefined,
+                  competitors: extracted?.competitorUrls?.length
+                    ? extracted.competitorUrls
+                    : (onboardingData.competitors || []),
                   countries: countries.length > 0 ? countries : ["US"],
                   skipCooldown: true,
                   generateReport: true,

@@ -358,7 +358,8 @@ export async function validateCompetitors(
   brandName: string,
   existingCompetitors?: string[],
   brandDescription?: string,
-  brandIndustry?: string
+  brandIndustry?: string,
+  knownCompetitors?: string[]
 ): Promise<ValidatedCompetitor[]> {
   console.log('🔍 Starting competitor validation pipeline...')
 
@@ -407,7 +408,7 @@ export async function validateCompetitors(
   let aiValidatedCompanies: string[] = []
   if (allCandidates.length > 0) {
     console.log(`  AI validation: Processing ${allCandidates.length} names for competitive relevance...`)
-    const aiResults = await batchValidateWithAI(allCandidates, brandName, brandDescription, brandIndustry)
+    const aiResults = await batchValidateWithAI(allCandidates, brandName, brandDescription, brandIndustry, knownCompetitors)
     aiValidatedCompanies = allCandidates.filter(name => aiResults.get(name) === true)
     const knownRejected = knownCompanies.filter(name => aiResults.get(name) !== true)
     if (knownRejected.length > 0) {
@@ -452,7 +453,8 @@ async function batchValidateWithAI(
   names: string[],
   brandName: string,
   brandDescription?: string,
-  brandIndustry?: string
+  brandIndustry?: string,
+  knownCompetitors?: string[]
 ): Promise<Map<string, boolean>> {
   const results = new Map<string, boolean>()
 
@@ -461,11 +463,15 @@ async function batchValidateWithAI(
   for (let i = 0; i < names.length; i += batchSize) {
     const batch = names.slice(i, i + batchSize)
 
+    const knownCompetitorHint = knownCompetitors && knownCompetitors.length > 0
+      ? `\nKNOWN COMPETITORS (for context — companies similar to these are likely competitors too): ${knownCompetitors.join(', ')}`
+      : ''
+
     const prompt = `You are a competitive landscape analyst. Determine which of these entities are REAL COMPETITORS to "${brandName}".
 
 BRAND: "${brandName}"
 WHAT THEY DO: ${brandDescription || 'Not specified'}
-INDUSTRY: ${brandIndustry || 'Not specified'}
+INDUSTRY: ${brandIndustry || 'Not specified'}${knownCompetitorHint}
 
 CANDIDATES TO VALIDATE:
 ${batch.map((n, idx) => `${idx + 1}. "${n}"`).join('\n')}

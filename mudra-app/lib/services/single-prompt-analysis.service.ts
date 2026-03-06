@@ -8,6 +8,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { validateCompetitors } from './competitor-validation.service'
+import { resolveCompetitorNameFromUrl } from './unified-analysis.service'
 
 export interface SinglePromptAnalysisConfig {
   brandProfileId: number
@@ -87,19 +88,17 @@ export async function runSinglePromptAnalysis(
   
   console.log(`📡 Testing with ${availableProviders.length} providers: ${availableProviders.join(', ')}`)
   
-  // Parse competitors from brand profile
+  // Parse competitors from brand profile (stored as comma-separated URLs)
   let competitors: string[] = []
-  try {
-    if (brandProfile.competitors) {
-      if (typeof brandProfile.competitors === 'string') {
-        competitors = JSON.parse(brandProfile.competitors)
-      } else if (Array.isArray(brandProfile.competitors)) {
-        competitors = brandProfile.competitors as string[]
-      }
+  if (brandProfile.competitors) {
+    if (typeof brandProfile.competitors === 'string') {
+      competitors = brandProfile.competitors.split(',').map((s: string) => s.trim()).filter(Boolean)
+    } else if (Array.isArray(brandProfile.competitors)) {
+      competitors = brandProfile.competitors as string[]
     }
-  } catch {
-    competitors = []
   }
+  // Convert URLs to company names for the extraction prompt
+  competitors = competitors.map(resolveCompetitorNameFromUrl).filter(Boolean)
   
   // Import the direct-geo analysis functions dynamically
   const { analyzePromptWithProvider } = await import('./direct-geo-analysis.service')

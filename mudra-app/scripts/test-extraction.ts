@@ -14,13 +14,7 @@ dotenv.config({ path: resolve(__dirname, '../.env.local') });
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY!;
 if (!FIRECRAWL_API_KEY) { console.error('Missing FIRECRAWL_API_KEY'); process.exit(1); }
 
-interface ExtractedCompanyInfo {
-  companyDescription: string;
-  industry: string;
-  servicesProducts: string[];
-  idealCustomerProfiles: string[];
-  competitorUrls: string[];
-}
+import type { ExtractedCompanyInfo } from '@/types/extraction';
 
 async function extractCompanyInfo(url: string): Promise<ExtractedCompanyInfo | null> {
   const app = new FirecrawlApp({ apiKey: FIRECRAWL_API_KEY });

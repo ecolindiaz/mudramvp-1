@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createFirecrawlApp } from '@/lib/config/firecrawl-config';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
-
-export interface ExtractedCompanyInfo {
-  companyDescription: string;
-  industry: string;
-  servicesProducts: string[];
-  idealCustomerProfiles: string[];
-  competitorUrls: string[];
-}
+import type { ExtractedCompanyInfo } from '@/types/extraction';
 
 interface FirecrawlResponse {
   success: boolean;

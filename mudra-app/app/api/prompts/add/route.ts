@@ -19,6 +19,7 @@ const addPromptSchema = z.object({
   brandProfileId: z.number().int().positive('Invalid brandProfileId'),
   runAnalysis: z.boolean().optional().default(false),
   language: z.string().max(10).optional().default('en'),
+  country: z.string().max(5).optional().default('US'),
 })
 
 export async function POST(request: NextRequest) {
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { promptText, category: canonicalCategory, brandProfileId, runAnalysis, language } = parsed.data
+    const { promptText, category: canonicalCategory, brandProfileId, runAnalysis, language, country } = parsed.data
     const trimmedText = promptText.trim()
 
     // Authenticate and verify the user owns this brandProfileId
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
     if (runAnalysis) {
       try {
         console.log(`🚀 Running immediate analysis for prompt ${newPrompt.id}...`)
-        analysisResult = await triggerSinglePromptAnalysis(brandProfileId, newPrompt.id, trimmedText, newPrompt.category || canonicalCategory)
+        analysisResult = await triggerSinglePromptAnalysis(brandProfileId, newPrompt.id, trimmedText, newPrompt.category || canonicalCategory, country)
         analysisTriggered = true
         console.log(`✅ Analysis complete for prompt ${newPrompt.id}: ${analysisResult.overallVisibility}% visibility`)
       } catch (error) {
@@ -247,12 +248,14 @@ async function triggerSinglePromptAnalysis(
   brandProfileId: number,
   promptId: number,
   promptText: string,
-  category: string
+  category: string,
+  country?: string
 ) {
   return await runSinglePromptAnalysis({
     brandProfileId,
     promptId,
     promptText,
     category,
+    country,
   })
 }

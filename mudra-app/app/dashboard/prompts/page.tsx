@@ -315,7 +315,8 @@ export default function PromptsPage() {
             body: JSON.stringify({
               promptId: prompt.id.toString(),
               text: prompt.text,
-              runAnalysis: true
+              runAnalysis: true,
+              country: selectedCountry || 'US',
             })
           })
 

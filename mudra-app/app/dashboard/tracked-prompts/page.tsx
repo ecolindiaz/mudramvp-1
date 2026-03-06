@@ -782,6 +782,7 @@ function TrackedPromptsPageInner() {
           brandProfileId: profile.id,
           runAnalysis: capturedRunAnalysis, // BUG-3: Pass immediate analysis flag
           language: lang,
+          country: selectedCountry || 'US',
         }),
       })
 
@@ -1006,7 +1007,8 @@ function TrackedPromptsPageInner() {
             promptId: prompt.id.toString(),
             text: prompt.text,
             category: prompt.category,
-            runAnalysis: true
+            runAnalysis: true,
+            country: selectedCountry || 'US',
           })
         })
 

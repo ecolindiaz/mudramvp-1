@@ -13,7 +13,7 @@ import { searchRedditConversations } from '../apify/reddit-scraper';
 import type { RedditSearchResult, RedditPost, RedditComment } from '../apify/reddit-scraper';
 
 /** Maximum character budget for the formatted Reddit context */
-const MAX_CONTEXT_CHARS = 3000;
+const MAX_CONTEXT_CHARS = 5000;
 
 /** Maximum time to wait for Reddit context before giving up (ms).
  *  Leaves ~100s budget for prompt generation + DB write within a 120s Vercel function. */
@@ -105,8 +105,8 @@ function formatPost(post: RedditPost, comments: RedditComment[]): string {
 
   // Include body snippet if substantial
   if (post.body && post.body.length > 30) {
-    const bodySnippet = post.body.slice(0, 200).trim();
-    block += `\n${bodySnippet}${post.body.length > 200 ? '...' : ''}`;
+    const bodySnippet = post.body.slice(0, 400).trim();
+    block += `\n${bodySnippet}${post.body.length > 400 ? '...' : ''}`;
   }
 
   // Include top 3 comments sorted by score
@@ -115,8 +115,8 @@ function formatPost(post: RedditPost, comments: RedditComment[]): string {
     .slice(0, 3);
 
   for (const comment of topComments) {
-    const commentSnippet = comment.body.slice(0, 150).trim();
-    block += `\n> ${commentSnippet}${comment.body.length > 150 ? '...' : ''}`;
+    const commentSnippet = comment.body.slice(0, 300).trim();
+    block += `\n> ${commentSnippet}${comment.body.length > 300 ? '...' : ''}`;
   }
 
   block += '\n';

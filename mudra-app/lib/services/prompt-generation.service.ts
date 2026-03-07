@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { logAIModelCall } from './ai-model-logging.service';
 
 export interface BrandInfo {
   companyName: string;
@@ -16,6 +17,28 @@ export interface BrandInfo {
 }
 
 // --- Batch generation for AI-assisted prompt creation ---
+
+// --- Prompt validation types ---
+
+export interface PromptValidationResult {
+  passed: InitialGeneratedPrompt[];
+  rejected: InitialGeneratedPrompt[];
+  metrics: PromptValidationMetrics;
+}
+
+export interface PromptValidationMetrics {
+  totalChecked: number;
+  bestOpeningCount: number;
+  bestOpeningPct: number;
+  brandLeakCount: number;
+  titleCaseCount: number;
+  firstPersonCount: number;
+  firstPersonPct: number;
+  scenarioBasedCount: number;
+  scenarioBasedPct: number;
+  retryTriggered: boolean;
+  retryCount: number;
+}
 
 export interface BatchGeneratedPrompt {
   text: string
@@ -60,6 +83,17 @@ Rules:
 - Do NOT duplicate or closely paraphrase any existing prompt
 - Vary query styles: questions, comparisons, "best of" lists, how-tos, etc.
 - Keep queries concise (under 120 characters each)
+- Organic prompts must NOT contain the brand name
+- No more than 20% of Organic prompts may start with "Best"
+- Do NOT use Title Case (e.g., "Best Tools For Small Businesses" is WRONG — use sentence case)
+- Include some first-person/conversational prompts: "I need...", "looking for...", "my team..."
+
+BAD examples (do NOT generate):
+- "Best Project Management Software For Small Businesses" (Title Case, keyword-stuffed)
+- "Top Enterprise Solutions For Data Analytics" (nobody searches like this)
+GOOD examples:
+- "I need a project management tool for a remote team of 15"
+- "affordable alternatives to [competitor] for startups"
 
 Return ONLY valid JSON (no markdown, no code blocks) in this exact format:
 {
@@ -133,6 +167,20 @@ Generate exactly ${count} prompts now.`;
   }
 
   console.log(`[BatchGeneration] Successfully generated ${parsed.prompts.length} prompts`);
+
+  // Light validation + deterministic rewrite for batch (no retry — small count, user can regenerate)
+  const asInitial = parsed.prompts.map(p => ({
+    text: p.text,
+    category: p.category as InitialGeneratedPrompt['category'],
+  }));
+  const batchValidation = validatePromptQuality(asInitial, brandInfo.companyName);
+  if (batchValidation.rejected.length > 0) {
+    const rewritten = deterministicRewrite(batchValidation.rejected, brandInfo.companyName);
+    const final = [...batchValidation.passed, ...rewritten];
+    console.log(`[BatchGeneration] Validation: ${batchValidation.rejected.length} rewritten`);
+    return final as BatchGeneratedPrompt[];
+  }
+
   return parsed.prompts;
 }
 
@@ -247,6 +295,377 @@ function computeCategoryCounts(totalPrompts: number): Record<string, number> {
   return { Organic: organic, Competitor: competitor, 'How-to Guides': howto, 'Brand-Specific': brand, FAQ: faq };
 }
 
+// --- Prompt quality validation (pure functions) ---
+
+/** Common acronyms to preserve during sentence-case conversion */
+const PRESERVE_ACRONYMS = new Set([
+  'API', 'APIs', 'SaaS', 'CRM', 'AI', 'AWS', 'GCP', 'B2B', 'B2C', 'SEO',
+  'CMS', 'ERP', 'HR', 'UI', 'UX', 'CI', 'CD', 'SDK', 'CLI', 'MVP', 'KPI',
+  'ROI', 'SQL', 'NoSQL', 'DevOps', 'MLOps', 'LLM', 'GPT', 'NLP', 'IoT',
+  'VPN', 'DNS', 'CDN', 'SSO', 'OAuth', 'HIPAA', 'SOC', 'GDPR', 'PCI',
+  'USD', 'EUR', 'GBP', 'SMB', 'SMBs', 'QA', 'OKR', 'OKRs', 'HRIS',
+]);
+
+/**
+ * Validate a batch of generated prompts for quality issues.
+ * Pure function — no side effects.
+ */
+export function validatePromptQuality(
+  prompts: InitialGeneratedPrompt[],
+  brandName: string,
+  language: 'en' | 'es' = 'en'
+): PromptValidationResult {
+  const passed: InitialGeneratedPrompt[] = [];
+  const rejected: InitialGeneratedPrompt[] = [];
+
+  // Pre-compute brand detection patterns
+  const brandLower = brandName.toLowerCase().trim();
+  const fullBrandRegex = new RegExp(
+    `\\b${brandName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'
+  );
+  const brandWords = brandLower.split(/\s+/).filter(w => w.length > 3);
+  const brandWordRegexes = brandWords.map(
+    w => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+  );
+
+  // Separate organic vs non-organic
+  const organic = prompts.filter(p => p.category === 'Organic');
+  const nonOrganic = prompts.filter(p => p.category !== 'Organic');
+
+  // Non-organic always pass through
+  passed.push(...nonOrganic);
+
+  // Track "Best" openings allowed (max 20% of organic count)
+  const maxBestAllowed = Math.floor(organic.length * 0.20);
+  let bestCount = 0;
+
+  // Metrics counters (computed over organic only)
+  let brandLeakCount = 0;
+  let titleCaseCount = 0;
+  let firstPersonCount = 0;
+  let scenarioBasedCount = 0;
+
+  // First-person patterns
+  const firstPersonRegex = language === 'es'
+    ? /^(necesito|estoy buscando|mi equipo|busco|quiero|estamos)/i
+    : /^(I\s|I'm|I've|my\s|we\s|we're|we've|our\s|looking for|trying to)/i;
+
+  // Scenario-based: numbers, dollar amounts, team sizes, company stages
+  const scenarioRegex = /(\d+\s*(engineers?|developers?|employees?|people|person|team)|series [A-C]|\$[\d,]+|USD|startup with|company of|freelancer|solo founder|non-technical)/i;
+
+  for (const prompt of organic) {
+    const text = prompt.text;
+    const textLower = text.toLowerCase().trim();
+    let reject = false;
+
+    // 1. Brand name leak check (word-boundary, case-insensitive)
+    if (fullBrandRegex.test(text)) {
+      reject = true;
+      brandLeakCount++;
+    } else if (brandWordRegexes.some(rx => rx.test(text))) {
+      reject = true;
+      brandLeakCount++;
+    }
+
+    // 2. Title Case detection (ratio-based: catches patterns with interspersed acronyms)
+    const tcWords = text.split(/\s+/).filter(w => /^[A-Za-z]/.test(w));
+    const tcNonAcronym = tcWords.filter(w => !PRESERVE_ACRONYMS.has(w));
+    const tcCapitalized = tcNonAcronym.filter(w => /^[A-Z]/.test(w)).length;
+    if (tcNonAcronym.length >= 4 && tcCapitalized / tcNonAcronym.length >= 0.5) {
+      if (!reject) {
+        reject = true;
+      }
+      titleCaseCount++;
+    }
+
+    // 3. "Best" opening — allow up to 20%, reject excess
+    if (textLower.startsWith('best ')) {
+      bestCount++;
+      if (bestCount > maxBestAllowed && !reject) {
+        reject = true;
+      }
+    }
+
+    // 4. First-person metric (count only, no rejection)
+    if (firstPersonRegex.test(text)) {
+      firstPersonCount++;
+    }
+
+    // 5. Scenario-based metric (count only, no rejection)
+    if (scenarioRegex.test(text)) {
+      scenarioBasedCount++;
+    }
+
+    if (reject) {
+      rejected.push(prompt);
+    } else {
+      passed.push(prompt);
+    }
+  }
+
+  const organicCount = organic.length || 1; // avoid division by zero
+  return {
+    passed,
+    rejected,
+    metrics: {
+      totalChecked: prompts.length,
+      bestOpeningCount: bestCount,
+      bestOpeningPct: Math.round((bestCount / organicCount) * 100),
+      brandLeakCount,
+      titleCaseCount,
+      firstPersonCount,
+      firstPersonPct: Math.round((firstPersonCount / organicCount) * 100),
+      scenarioBasedCount,
+      scenarioBasedPct: Math.round((scenarioBasedCount / organicCount) * 100),
+      retryTriggered: false,
+      retryCount: 0,
+    },
+  };
+}
+
+/** Rotating alternatives for "Best X" rewrites */
+const BEST_ALTERNATIVES = [
+  'most recommended', 'top-rated', 'most popular', 'well-reviewed',
+  'highest-rated', 'leading', 'most reliable', 'go-to',
+];
+let bestAltIndex = 0;
+
+/**
+ * Apply deterministic fixes to 1-5 rejected prompts.
+ * Returns rewritten prompts with original categories preserved.
+ */
+export function deterministicRewrite(
+  rejected: InitialGeneratedPrompt[],
+  brandName: string
+): InitialGeneratedPrompt[] {
+  const brandLower = brandName.toLowerCase().trim();
+  const brandWords = brandLower.split(/\s+/).filter(w => w.length > 3);
+  const brandWordRegexes = brandWords.map(
+    w => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
+  );
+  // Full brand name regex (case insensitive)
+  const fullBrandRegex = new RegExp(
+    `\\b${brandName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'
+  );
+
+  return rejected.map(prompt => {
+    let text = prompt.text;
+
+    // Fix 1: Remove brand name leaks
+    text = text.replace(fullBrandRegex, 'this kind of tool');
+    for (const rx of brandWordRegexes) {
+      text = text.replace(rx, 'this kind of tool');
+    }
+    // Clean up double "this kind of tool" from multi-word brands
+    text = text.replace(/(this kind of tool\s*){2,}/gi, 'this kind of tool ');
+
+    // Fix 2: Rewrite "Best X" openings
+    if (text.trimStart().toLowerCase().startsWith('best ')) {
+      const alt = BEST_ALTERNATIVES[bestAltIndex % BEST_ALTERNATIVES.length];
+      bestAltIndex++;
+      text = text.replace(/^(\s*)best\s+/i, `$1what are the ${alt} `);
+    }
+
+    // Fix 3: Fix Title Case to sentence case, preserving acronyms
+    // Check each word — if 50%+ of words (excluding acronyms) are capitalized, convert
+    const words = text.split(/\s+/);
+    const nonAcronymWords = words.filter(w => !PRESERVE_ACRONYMS.has(w) && /^[A-Za-z]/.test(w));
+    const capitalizedCount = nonAcronymWords.filter(w => /^[A-Z]/.test(w)).length;
+    if (nonAcronymWords.length >= 4 && capitalizedCount / nonAcronymWords.length >= 0.5) {
+      text = toSentenceCase(text);
+    }
+
+    return { text: text.trim(), category: prompt.category };
+  });
+}
+
+/**
+ * Convert text to sentence case, preserving acronyms and proper nouns at start.
+ */
+function toSentenceCase(text: string): string {
+  // Split into words, lowercase those that aren't acronyms
+  const words = text.split(/(\s+)/);
+  return words.map((word, i) => {
+    // Preserve whitespace tokens
+    if (/^\s+$/.test(word)) return word;
+    // Preserve known acronyms
+    if (PRESERVE_ACRONYMS.has(word)) return word;
+    // Keep first real word's first letter capitalized
+    if (i === 0 || (i > 0 && words.slice(0, i).every(w => /^\s*$/.test(w)))) {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }
+    // All-caps words 2-5 chars are likely acronyms not in our set — preserve
+    if (/^[A-Z]{2,5}$/.test(word)) return word;
+    // Otherwise lowercase
+    return word.toLowerCase();
+  }).join('');
+}
+
+/**
+ * Get expanded style anchors for prompt generation.
+ * Always returns anchors — GPT-5.1 needs concrete examples even with Reddit context.
+ */
+function getStyleAnchors(language: 'en' | 'es'): string {
+  if (language === 'es') {
+    return `
+
+Style anchors — match this register in Spanish. These are examples of HOW prompts should sound:
+
+GOOD (conversational/first-person):
+- "Necesito una herramienta de gestión de proyectos para un equipo de 15 personas"
+- "Estoy buscando alternativas más baratas a [competidor] para mi startup"
+- "Mi equipo necesita automatizar reportes financieros, ¿qué opciones hay?"
+- "Busco una plataforma de email marketing que sea fácil de usar"
+- "Quiero migrar de [competidor], ¿vale la pena?"
+- "Estamos evaluando herramientas de BI para una empresa mediana"
+
+GOOD (scenario-based):
+- "Startup en etapa seed con 5 desarrolladores, ¿qué herramienta de CI/CD recomiendan?"
+- "Freelancer que cobra en dólares pero vive en Latinoamérica, ¿mejor banco digital?"
+- "Fundador no técnico intentando construir un MVP, ¿qué plataformas no-code funcionan?"
+- "Empresa de 200 empleados migrando de on-premise a cloud, ¿por dónde empezar?"
+
+GOOD (decision-help):
+- "¿Vale la pena pagar por la versión premium de herramientas de diseño?"
+- "¿Cuál debería usar si mi equipo es 100% remoto?"
+- "Opiniones honestas sobre [categoría] en 2025"
+- "¿Qué cambió en herramientas de [categoría] este año?"
+
+GOOD (budget/cost):
+- "Alternativas gratuitas a [herramienta cara] para startups"
+- "Herramientas de [categoría] con planes para equipos pequeños"
+- "Comparación de precios de plataformas de [categoría]"
+
+BAD (do NOT generate prompts like these):
+- "Mejores Herramientas De Gestión De Proyectos Para Empresas" (Title Case antinatural)
+- "Mejor Software De CRM Para Ventas B2B En 2025" (keyword-stuffed, Title Case)
+- "Top 10 Plataformas De Marketing Digital" (suena a artículo SEO, no a búsqueda real)
+- "Mejores Soluciones Empresariales De Análisis De Datos" (nadie busca así)`;
+  }
+
+  return `
+
+Style anchors — match this register. These are examples of HOW prompts should sound:
+
+GOOD (conversational/first-person):
+- "I need a project management tool for a remote team of 15"
+- "I'm looking for something cheaper than [competitor] for my startup"
+- "my team needs to automate financial reporting, what are our options?"
+- "I've been using [competitor] but it's getting too expensive"
+- "we're a small agency and need better client reporting tools"
+- "looking for a tool that integrates with Slack and handles task management"
+- "trying to find a CRM that doesn't require a PhD to set up"
+- "I'm a solo founder — what do people actually use for invoicing?"
+
+GOOD (scenario-based):
+- "Series A startup with 20 engineers — what do companies our size use for observability?"
+- "freelancer earning USD but living abroad, best way to handle invoicing and taxes?"
+- "non-technical founder trying to build an MVP — which no-code platform actually works?"
+- "managing a 200-person company and our HR tools are a mess, what should we switch to?"
+- "just got our SOC 2 and need to pick a cloud security platform"
+- "running an ecommerce store doing $500k/year, need better analytics"
+
+GOOD (decision-help):
+- "is it worth paying for premium project management tools?"
+- "which should I use if my team is fully remote?"
+- "thoughts on [category] tools in 2025?"
+- "honest opinion — do I really need a dedicated [tool type]?"
+- "what's the difference between [concept A] and [concept B]?"
+- "has anyone actually switched from [competitor] and been happy?"
+
+GOOD (budget/cost):
+- "affordable alternatives to [expensive tool] for startups"
+- "free tools for [use case] that are actually good"
+- "pricing comparison of [category] platforms"
+- "[category] tools with decent free tiers"
+
+GOOD (time-anchored):
+- "latest AI tools for [use case] in 2025"
+- "what changed in [category] this year?"
+- "best new [category] tools released recently"
+- "current state of [technology/category]"
+
+BAD (do NOT generate prompts like these — these will be rejected):
+- "Best Project Management Software For Small Businesses" (Title Case, generic, keyword-stuffed)
+- "Best CRM Tools For B2B Sales Teams In 2025" (Title Case, reads like an SEO article headline)
+- "Top Enterprise Data Analytics Solutions For Business Intelligence" (nobody searches like this)
+- "Best Cloud-Based Accounting Software For Growing Businesses" (marketing copy, not a real search)
+- "Leading Customer Engagement Platforms For Digital Marketing" (pure keyword stuffing)
+- "Best Affordable Email Marketing Platforms For Startups" (fine as ONE prompt but not as a pattern)`;
+}
+
+/**
+ * Request replacement prompts from GPT-5.1 when >5 are rejected.
+ * Uses lower temperature and includes rejected prompts as negative examples.
+ */
+async function requestReplacementPrompts(
+  count: number,
+  brandInfo: BrandInfo,
+  rejectedTexts: string[],
+  language: 'en' | 'es' = 'en'
+): Promise<InitialGeneratedPrompt[]> {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const languageNote = language === 'es'
+    ? 'Generate ALL prompts in natural Spanish. Do NOT translate English — use culturally appropriate phrasing.'
+    : '';
+
+  const systemPrompt = `Generate exactly ${count} Organic search queries for testing AI engine visibility.
+
+HARD RULES (violations will be rejected):
+1. The brand name "${brandInfo.companyName}" must NOT appear in any prompt
+2. Maximum 1 prompt may start with "Best"
+3. No Title Case patterns (e.g., "Best Tools For Small Businesses" is WRONG)
+4. At least 30% must be first-person/conversational: "I need...", "looking for...", "my team..."
+5. At least 20% must include real-world scenario context (team sizes, budgets, company stage)
+
+These prompts were already rejected — do NOT repeat these patterns:
+${rejectedTexts.map(t => `- "${t}"`).join('\n')}
+
+${languageNote}
+${getStyleAnchors(language)}
+
+Return ONLY valid JSON: { "prompts": [{ "text": "...", "category": "Organic" }] }`;
+
+  const userPrompt = `Brand: ${brandInfo.companyName}
+Industry: ${brandInfo.industry}
+Products: ${brandInfo.productsServices.slice(0, 5).join(', ')}
+ICP: ${brandInfo.idealCustomer}
+
+Generate ${count} replacement Organic prompts now.`;
+
+  console.log(`[PromptValidation] Requesting ${count} replacement prompts via GPT-5.1...`);
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-5.1',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.5,
+    max_completion_tokens: 1500,
+  });
+
+  const content = response.choices[0]?.message?.content || '';
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    console.warn('[PromptValidation] Failed to extract JSON from replacement response');
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]) as { prompts: InitialGeneratedPrompt[] };
+    if (!Array.isArray(parsed.prompts)) return [];
+    // Force category to Organic and basic text validation
+    return parsed.prompts
+      .filter(p => p.text && typeof p.text === 'string')
+      .map(p => ({ text: p.text, category: 'Organic' as const }));
+  } catch {
+    console.warn('[PromptValidation] Failed to parse replacement response');
+    return [];
+  }
+}
+
 /**
  * Generate initial prompts for a brand during onboarding.
  * Uses GPT-5.1 with JSON output, 5 categories including FAQ,
@@ -270,17 +689,8 @@ export async function generateInitialPrompts(brandInfo: BrandInfo, redditContext
     ? `\n\nIMPORTANT: Generate ALL queries in Spanish (Español). The prompts should be phrased as a native Spanish speaker would naturally search. Do NOT simply translate English queries — use culturally appropriate phrasing.`
     : '';
 
-  // Style anchors: when Reddit context is unavailable, inject example queries
-  // so the model sees the conversational register we want.
-  const styleAnchors = redditContext ? '' : `
-
-Style reference — these are real queries people type into AI assistants. Match this register:
-- "I'm building a SaaS app and need a deployment platform — what are my options?"
-- "Our finance team wastes 10 hours/week on expense reports. What tools actually automate this?"
-- "Is it worth switching from [Competitor] to something else? We're a 50-person startup"
-- "Can someone explain the difference between edge functions and serverless?"
-- "Freelancer here getting paid in USD but living abroad — best way to manage this?"
-- "My team just hit 20 engineers, what do companies our size use for X?"`;
+  // Style anchors: always include — GPT-5.1 needs concrete examples even with Reddit context
+  const styleAnchors = getStyleAnchors(language);
 
   const systemPrompt = `You generate natural-language search queries to test a brand's visibility in generative AI engines (ChatGPT, Perplexity, Gemini, Claude).
 
@@ -408,5 +818,58 @@ Generate exactly ${totalPrompts} prompts now.`;
   );
 
   console.log(`[InitialPrompts] Generated ${validated.length} valid prompts (requested ${totalPrompts})`);
-  return validated;
+
+  // --- Quality validation gate ---
+  const validation = validatePromptQuality(validated, brandInfo.companyName, language);
+  const { passed, rejected, metrics } = validation;
+
+  console.log(`[PromptValidation] Checked ${metrics.totalChecked} prompts: ${rejected.length} rejected, ` +
+    `best=${metrics.bestOpeningPct}%, brandLeaks=${metrics.brandLeakCount}, ` +
+    `titleCase=${metrics.titleCaseCount}, firstPerson=${metrics.firstPersonPct}%, ` +
+    `scenario=${metrics.scenarioBasedPct}%`);
+
+  let finalPrompts = [...passed];
+
+  if (rejected.length > 0) {
+    if (rejected.length > 5) {
+      // Too many rejections — request replacements from GPT-5.1
+      metrics.retryTriggered = true;
+      metrics.retryCount = 1;
+      const rejectedTexts = rejected.map(p => p.text);
+      const replacements = await requestReplacementPrompts(
+        rejected.length, brandInfo, rejectedTexts, language
+      );
+      // Validate replacements (one pass, no further retry)
+      const replacementValidation = validatePromptQuality(replacements, brandInfo.companyName, language);
+      finalPrompts.push(...replacementValidation.passed);
+      // Any still-rejected replacements get deterministic rewrite
+      if (replacementValidation.rejected.length > 0) {
+        const rewritten = deterministicRewrite(replacementValidation.rejected, brandInfo.companyName);
+        finalPrompts.push(...rewritten);
+      }
+      console.log(`[PromptValidation] Retry: ${replacements.length} requested, ` +
+        `${replacementValidation.passed.length} passed, ${replacementValidation.rejected.length} rewritten`);
+    } else {
+      // 1-5 rejections — apply fast deterministic fixes
+      const rewritten = deterministicRewrite(rejected, brandInfo.companyName);
+      finalPrompts.push(...rewritten);
+      console.log(`[PromptValidation] Deterministically rewrote ${rewritten.length} prompts`);
+    }
+  }
+
+  // Fire-and-forget observability logging
+  logAIModelCall({
+    feature: 'onboarding',
+    endpoint: 'prompts/generate-initial',
+    model: 'gpt-5.1',
+    provider: 'openai',
+    status: 'success',
+    metadata: JSON.parse(JSON.stringify({
+      promptCount: finalPrompts.length,
+      validationMetrics: metrics,
+      language,
+    })),
+  }).catch(() => {});
+
+  return finalPrompts;
 }

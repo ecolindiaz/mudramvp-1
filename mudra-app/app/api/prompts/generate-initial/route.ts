@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
       console.log(`[InitialPrompts] Reddit context enrichment enabled (${redditContext.length} chars)`)
     }
 
-    const generated = await generateInitialPrompts(brandInfo, redditContext)
+    const language = (body.language === 'es' ? 'es' : 'en') as 'en' | 'es';
+    const generated = await generateInitialPrompts(brandInfo, redditContext, language)
 
     // Save all prompts in a single transaction
     const saved = await prisma.$transaction(

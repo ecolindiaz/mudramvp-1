@@ -810,7 +810,8 @@ function TrackedPromptsPageInner() {
         // If analysis completed synchronously, refresh data immediately
         if (analysisComplete) {
           try {
-            const refreshResponse = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
+            const countryRefreshParam = selectedCountry ? `&country=${selectedCountry}` : ''
+            const refreshResponse = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}${countryRefreshParam}`)
             const refreshResult = await refreshResponse.json()
             if (refreshResult.success && refreshResult.prompts) {
               const transformedData = transformPromptsFromApi(refreshResult.prompts, refreshResult.analysisDate, new Set())
@@ -831,7 +832,8 @@ function TrackedPromptsPageInner() {
             await new Promise(resolve => setTimeout(resolve, delay))
 
             try {
-              const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
+              const countryPollParam = selectedCountry ? `&country=${selectedCountry}` : ''
+              const response = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}${countryPollParam}`)
               const refreshResult = await response.json()
 
               if (refreshResult.success && refreshResult.prompts) {
@@ -1044,7 +1046,8 @@ function TrackedPromptsPageInner() {
       // Refresh table after each prompt so skeleton clears one-by-one
       if (success || completed === generatedPrompts.length) {
         try {
-          const refreshResponse = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}`)
+          const countryBatchParam = selectedCountry ? `&country=${selectedCountry}` : ''
+          const refreshResponse = await fetch(`/api/prompts/with-results?brandProfileId=${profile.id}${countryBatchParam}`)
           const refreshResult = await refreshResponse.json()
           if (refreshResult.success && refreshResult.prompts) {
             // Only keep isPending for prompts not yet analyzed in this batch

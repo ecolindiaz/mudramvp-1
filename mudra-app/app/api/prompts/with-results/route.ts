@@ -18,6 +18,7 @@ import { getLanguageForCountry, isAllowedCountry, type CountryCode } from '@/lib
  */
 export async function GET(request: NextRequest) {
   let profileId: number = NaN
+  let promptLanguageFilter: string | undefined = undefined
 
   try {
     const session = await getServerSession(authOptions)
@@ -171,7 +172,7 @@ export async function GET(request: NextRequest) {
     // Compute language filter from the ORIGINAL country filter (not the effective one)
     // so prompts are always shown in the correct language for the selected region,
     // even when analysis results fell back to a different country's data.
-    const promptLanguageFilter = countryFilter && isAllowedCountry(countryFilter as CountryCode)
+    promptLanguageFilter = countryFilter && isAllowedCountry(countryFilter as CountryCode)
       ? getLanguageForCountry(countryFilter as CountryCode)
       : undefined
 
@@ -208,6 +209,7 @@ export async function GET(request: NextRequest) {
               Prisma.sql`SELECT id, text, category, "isCustom", "isActive", "createdAt", "updatedAt"
                FROM prompts
                WHERE "brandProfileId" = ${profileId} AND "isActive" = 1
+               ${promptLanguageFilter ? Prisma.sql`AND "language" = ${promptLanguageFilter}` : Prisma.empty}
                ORDER BY category ASC, "createdAt" ASC`
             )
             allPrompts = rawPrompts.map(p => ({
@@ -772,7 +774,8 @@ export async function GET(request: NextRequest) {
         const fallbackPrompts = await prisma.prompt.findMany({
           where: {
             brandProfileId: profileId,
-            isActive: true
+            isActive: true,
+            ...(promptLanguageFilter ? { language: promptLanguageFilter } : {}),
           },
           orderBy: [
             { category: 'asc' },

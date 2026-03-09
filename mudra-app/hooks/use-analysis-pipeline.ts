@@ -347,7 +347,18 @@ export function useAnalysisPipeline() {
       return false;
     }
 
-    const geoResult = await readSSEStream(geoResponse, completedPhases, 100);
+    let geoResult = null;
+    try {
+      geoResult = await readSSEStream(geoResponse, completedPhases, 100);
+    } catch (streamError) {
+      // Phase 2 HTTP response was 200 OK (guard at line 321 ensures this),
+      // meaning the server started/completed GEO. Stream parsing failed but
+      // server-side records exist. Treat as success to avoid duplicate via fallback.
+      console.warn(
+        '[useAnalysisPipeline] Phase 2 stream error after 200 OK, treating as success:',
+        streamError
+      );
+    }
 
     // Merge results from both phases
     const mergedResult = {

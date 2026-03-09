@@ -5,6 +5,7 @@ import { getActivePrompts } from '@/lib/services/prompt-storage.service'
 import { profileToBrandInfo, generateInitialPrompts } from '@/lib/services/prompt-generation.service'
 import { fetchRedditContext } from '@/lib/services/reddit-context.service'
 import { prisma } from '@/lib/prisma'
+import { COUNTRY_LANGUAGE_MAP } from '@/lib/geo/country-config'
 
 export const maxDuration = 120
 
@@ -35,19 +36,7 @@ export async function POST(request: NextRequest) {
 
     const profileId = authResult.brandProfileId!
 
-    // Idempotent: if prompts already exist, return them
-    const existing = await getActivePrompts(profileId)
-    if (existing.length > 0) {
-      console.log(`[InitialPrompts] ${existing.length} prompts already exist for profile ${profileId}, skipping generation`)
-      return NextResponse.json({
-        success: true,
-        prompts: existing,
-        count: existing.length,
-        cached: true,
-      })
-    }
-
-    // Fetch brand profile
+    // Fetch brand profile early so we can determine language before idempotency check
     const profile = await prisma.brandProfile.findUnique({
       where: { id: profileId },
     })
@@ -57,6 +46,21 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Brand profile not found' },
         { status: 404 }
       )
+    }
+
+    const primaryCountry = (profile as any).primaryCountry || 'US';
+    const language = (COUNTRY_LANGUAGE_MAP[primaryCountry as keyof typeof COUNTRY_LANGUAGE_MAP] || 'en') as 'en' | 'es';
+
+    // Idempotent: if prompts already exist for this language, return them
+    const existing = await getActivePrompts(profileId, language)
+    if (existing.length > 0) {
+      console.log(`[InitialPrompts] ${existing.length} prompts already exist for profile ${profileId} (${language}), skipping generation`)
+      return NextResponse.json({
+        success: true,
+        prompts: existing,
+        count: existing.length,
+        cached: true,
+      })
     }
 
     const brandInfo = profileToBrandInfo(profile)
@@ -69,7 +73,7 @@ export async function POST(request: NextRequest) {
       console.log(`[InitialPrompts] Reddit context enrichment enabled (${redditContext.length} chars)`)
     }
 
-    const generated = await generateInitialPrompts(brandInfo, redditContext)
+    const generated = await generateInitialPrompts(brandInfo, redditContext, language)
 
     // Save all prompts in a single transaction
     const saved = await prisma.$transaction(
@@ -79,6 +83,7 @@ export async function POST(request: NextRequest) {
             brandProfileId: profileId,
             text: p.text,
             category: p.category,
+            language,
             isCustom: false,
             isActive: true,
           },

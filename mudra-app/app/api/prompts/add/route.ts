@@ -11,7 +11,7 @@ export const maxDuration = 120
 // Validation constants
 const MAX_PROMPT_LENGTH = 500
 const MAX_ACTIVE_PROMPTS = 100
-const VALID_CATEGORIES = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific', 'FAQ'] as const
+const VALID_CATEGORIES = ['Organic', 'Competitor', 'How-to Guides', 'Brand-Specific', 'FAQ', 'Generic'] as const
 
 const addPromptSchema = z.object({
   promptText: z.string().trim().min(1, 'Prompt text cannot be empty').max(MAX_PROMPT_LENGTH, `Prompt text cannot exceed ${MAX_PROMPT_LENGTH} characters`),

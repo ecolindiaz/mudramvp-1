@@ -78,8 +78,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get existing prompts to avoid duplicates
-    const existingPrompts = await getActivePrompts(profileId)
+    // Get existing prompts in the same language to avoid duplicates
+    const existingPrompts = await getActivePrompts(profileId, lang)
     const existingTexts = existingPrompts.map(p => p.text)
 
     // Generate prompts via AI

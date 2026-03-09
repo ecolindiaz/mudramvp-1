@@ -16,6 +16,34 @@ import { runDirectGEOAnalysis, createDirectGEOConfig } from './direct-geo-analys
 import { type CountryCode, getLanguageForCountry, getUniqueLanguages, isAllowedCountry } from '@/lib/geo/country-config';
 
 // ---------------------------------------------------------------------------
+// Concurrency utility
+// ---------------------------------------------------------------------------
+
+/**
+ * Runs async tasks with a concurrency limit using a worker-queue pattern.
+ * Preserves result order matching the input order.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  fn: (item: T, index: number) => Promise<R>,
+  concurrency: number
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  const queue = items.map((item, i) => ({ item, index: i }));
+
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const entry = queue.shift();
+      if (!entry) break;
+      results[entry.index] = await fn(entry.item, entry.index);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -607,6 +635,31 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
       analyzedAt: entry.analyzedAt || nowISO
     }))
 
+    // Dedup guard (fast path): if a GeoAnalysisResult was created for this
+    // brand+country in the last 2 minutes, return it without creating a new row.
+    // Handles the common case of non-concurrent retries.
+    const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const recentDuplicate = await prisma.geoAnalysisResult.findFirst({
+      where: {
+        brandProfileId: config.brandProfileId,
+        country: country || 'US',
+        createdAt: { gte: twoMinAgo },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (recentDuplicate) {
+      console.log(
+        `[GEO Core] Dedup: found recent GeoAnalysisResult ${recentDuplicate.id} ` +
+        `(${Math.round((Date.now() - recentDuplicate.createdAt.getTime()) / 1000)}s ago). Skipping create.`
+      );
+      return {
+        success: true,
+        id: recentDuplicate.id,
+        score: recentDuplicate.overallScore,
+      };
+    }
+
     // Save to database
     const geoAnalysis = await prisma.geoAnalysisResult.create({
       data: {
@@ -622,6 +675,35 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
         }) as unknown as Prisma.InputJsonValue,
       },
     });
+
+    // Post-creation dedup: if a concurrent request also passed the pre-check
+    // and inserted a row, both rows are now committed and visible. The lowest
+    // ID wins deterministically — the loser deletes its own row.
+    const oldest = await prisma.geoAnalysisResult.findFirst({
+      where: {
+        brandProfileId: config.brandProfileId,
+        country: country || 'US',
+        createdAt: { gte: twoMinAgo },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    if (oldest && oldest.id !== geoAnalysis.id) {
+      console.log(
+        `[GEO Core] Dedup: concurrent duplicate detected. Keeping ${oldest.id}, deleting ${geoAnalysis.id}.`
+      );
+      try {
+        await prisma.geoAnalysisResult.delete({ where: { id: geoAnalysis.id } });
+      } catch (deleteErr) {
+        // Row may already have been deleted by another concurrent loser — safe to ignore
+        console.warn(`[GEO Core] Dedup: failed to delete ${geoAnalysis.id} (may already be gone):`, deleteErr);
+      }
+      return {
+        success: true,
+        id: oldest.id,
+        score: oldest.overallScore,
+      };
+    }
 
     return {
       success: true,
@@ -803,68 +885,67 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       deduplicatedScrapes.push(page);
     }
 
-    const pageScores: Array<ReturnType<typeof computePageScore>> = [];
-    const allIssues: Array<{ check: string; dimension: string; severity: string; message: string; page_url: string }> = [];
-    let pagesScored = 0;
+    // Hoist dynamic imports before concurrent work
+    const { getRecommendedSchemasWithAI } = await import('@/lib/analysis/technical/schema-recommender');
+    const { updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
 
-    for (const page of deduplicatedScrapes) {
-      if (!page.rawHtml) continue;
+    const scorablePages = deduplicatedScrapes.filter(p => p.rawHtml);
 
-      try {
-        // Extract DOM data (use effective URL for redirects)
-        const effectiveUrl = page.metadata?.sourceURL || page.url;
-        const extraction = htmlToExtraction(page.rawHtml, effectiveUrl);
-
-        // Pre-compute LLM-powered schema recommendations
+    const pageResults = await mapWithConcurrency(
+      scorablePages,
+      async (page) => {
         try {
-          const { getRecommendedSchemasWithAI } = await import('@/lib/analysis/technical/schema-recommender');
-          extraction.recommendedSchemas = await getRecommendedSchemasWithAI(extraction);
-        } catch (schemaErr) {
-          console.warn(`[Technical Core] Schema recommendation failed for ${page.url}:`, schemaErr);
-        }
+          const effectiveUrl = page.metadata?.sourceURL || page.url;
+          const extraction = htmlToExtraction(page.rawHtml!, effectiveUrl);
 
-        // Score the page
-        const score = computePageScore(extraction);
-        pageScores.push(score);
-
-        // Collect issues
-        allIssues.push(...score.issues);
-
-        // Save snapshot and score to database
-        const sitemapPageId = urlToSitemapPageId.get(page.url);
-        if (sitemapPageId) {
           try {
-            const { id: snapshotId } = await savePageSnapshot(
-              config.brandProfileId,
-              sitemapPageId,
-              page.url,
-              page.rawHtml,
-              extraction,
-              { scrapeDurationMs: scrapeResult.durationMs / successfulScrapes.length }
-            );
-
-            await savePageScore(
-              config.brandProfileId,
-              snapshotId,
-              sitemapPageId,
-              page.url,
-              score
-            );
-
-            // Update sitemap page status
-            const { updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
-            await updateSitemapPageStatus(sitemapPageId, 'scraped');
-          } catch (dbError) {
-            console.warn(`[Technical Core] DB save error for ${page.url}:`, dbError);
+            extraction.recommendedSchemas = await getRecommendedSchemasWithAI(extraction);
+          } catch (schemaErr) {
+            console.warn(`[Technical Core] Schema recommendation failed for ${page.url}:`, schemaErr);
           }
-        }
 
-        pagesScored++;
-        console.log(`[Technical Core] Scored ${page.url}: ${score.scores.total}/100 (${score.status})`);
-      } catch (scoreError) {
-        console.error(`[Technical Core] Error scoring ${page.url}:`, scoreError);
-      }
-    }
+          const score = computePageScore(extraction);
+
+          const sitemapPageId = urlToSitemapPageId.get(page.url);
+          if (sitemapPageId) {
+            try {
+              const { id: snapshotId } = await savePageSnapshot(
+                config.brandProfileId,
+                sitemapPageId,
+                page.url,
+                page.rawHtml!,
+                extraction,
+                { scrapeDurationMs: scrapeResult.durationMs / successfulScrapes.length }
+              );
+
+              await savePageScore(
+                config.brandProfileId,
+                snapshotId,
+                sitemapPageId,
+                page.url,
+                score
+              );
+
+              await updateSitemapPageStatus(sitemapPageId, 'scraped');
+            } catch (dbError) {
+              console.warn(`[Technical Core] DB save error for ${page.url}:`, dbError);
+            }
+          }
+
+          console.log(`[Technical Core] Scored ${page.url}: ${score.scores.total}/100 (${score.status})`);
+          return score;
+        } catch (scoreError) {
+          console.error(`[Technical Core] Error scoring ${page.url}:`, scoreError);
+          return null;
+        }
+      },
+      5
+    );
+
+    const pageScores: Array<ReturnType<typeof computePageScore>> = pageResults.filter(
+      (s): s is NonNullable<typeof s> => s !== null
+    );
+    const allIssues = pageScores.flatMap(s => s.issues);
 
     // Handle unreachable pages on re-analysis: carry forward previous scores
     if (isReanalysis) {
@@ -910,7 +991,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     // Update job progress
     if (jobId) {
       try {
-        await updateScrapeJobProgress(jobId, { pagesScored });
+        await updateScrapeJobProgress(jobId, { pagesScored: pageScores.length });
       } catch (e) { /* ignore */ }
     }
 

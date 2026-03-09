@@ -193,17 +193,17 @@ export function PromptsForm() {
       }
 
       ;(async () => {
-        try {
-          console.log("[PromptsForm] Generating initial prompts...")
-          await fetch('/api/prompts/generate-initial', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ brandProfileId: profile.id }),
-          })
-          console.log("[PromptsForm] Initial prompts generated")
-        } catch (err) {
-          console.warn("[PromptsForm] Initial prompt generation failed, fallback will handle:", err)
-        }
+        // Fire prompt generation in background — Technical doesn't need prompts,
+        // and GEO (phase 2) won't start until Technical completes (~90-300s),
+        // by which time prompts (35-60s) will be saved to DB.
+        console.log("[PromptsForm] Generating initial prompts (background)...")
+        fetch('/api/prompts/generate-initial', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ brandProfileId: profile.id }),
+        })
+          .then(() => console.log("[PromptsForm] Initial prompts generated"))
+          .catch(err => console.warn("[PromptsForm] Initial prompt generation failed, fallback will handle:", err))
 
         try {
           await runPipeline(config)

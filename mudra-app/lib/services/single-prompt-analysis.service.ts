@@ -173,7 +173,8 @@ export async function runSinglePromptAnalysis(
         brandProfile.companyName ?? 'Unknown Brand',
         allCompetitorMentions,
         brandProfile.companyDescription ?? undefined,
-        brandProfile.companyIndustry ?? undefined
+        brandProfile.companyIndustry ?? undefined,
+        competitors
       )
       const validatedNameSet = new Set(validatedCompetitors.map(c => c.name.toLowerCase()))
 

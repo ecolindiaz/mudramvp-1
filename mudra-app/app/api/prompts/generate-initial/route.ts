@@ -5,6 +5,7 @@ import { getActivePrompts } from '@/lib/services/prompt-storage.service'
 import { profileToBrandInfo, generateInitialPrompts } from '@/lib/services/prompt-generation.service'
 import { fetchRedditContext } from '@/lib/services/reddit-context.service'
 import { prisma } from '@/lib/prisma'
+import { COUNTRY_LANGUAGE_MAP } from '@/lib/geo/country-config'
 
 export const maxDuration = 120
 
@@ -69,7 +70,8 @@ export async function POST(request: NextRequest) {
       console.log(`[InitialPrompts] Reddit context enrichment enabled (${redditContext.length} chars)`)
     }
 
-    const language = (body.language === 'es' ? 'es' : 'en') as 'en' | 'es';
+    const primaryCountry = (profile as any).primaryCountry || 'US';
+    const language = (COUNTRY_LANGUAGE_MAP[primaryCountry as keyof typeof COUNTRY_LANGUAGE_MAP] || 'en') as 'en' | 'es';
     const generated = await generateInitialPrompts(brandInfo, redditContext, language)
 
     // Save all prompts in a single transaction
@@ -80,6 +82,7 @@ export async function POST(request: NextRequest) {
             brandProfileId: profileId,
             text: p.text,
             category: p.category,
+            language,
             isCustom: false,
             isActive: true,
           },

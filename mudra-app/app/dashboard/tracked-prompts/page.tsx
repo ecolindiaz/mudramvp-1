@@ -11,7 +11,7 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, BookOpen, Building2, Download, CheckCircle2, AlertCircle, HelpCircle } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, Sword, BookOpen, Building2, Download, CheckCircle2, AlertCircle, HelpCircle } from "lucide-react"
 import { CircleFlag } from "react-circle-flags"
 import { useRouter } from "next/navigation"
 
@@ -365,6 +365,7 @@ const createColumns = (router: ReturnType<typeof useRouter>, selectedCountry: st
       }
       const intentConfig: Record<string, { icon: React.ReactNode; label: string }> = {
         "Organic": { icon: <Leaf className="h-3.5 w-3.5" />, label: "Organic" },
+        "Generic": { icon: <Sword className="h-3.5 w-3.5" />, label: "Generic" },
         "Competitor": { icon: <Swords className="h-3.5 w-3.5" />, label: "Competitor" },
         "How-to": { icon: <BookOpen className="h-3.5 w-3.5" />, label: "How to" },
         "How-to Guides": { icon: <BookOpen className="h-3.5 w-3.5" />, label: "How to" },
@@ -1653,6 +1654,7 @@ function TrackedPromptsPageInner() {
                               <SelectContent className="rounded-lg">
                                 <SelectItem value="How-to">How to</SelectItem>
                                 <SelectItem value="Organic">Organic</SelectItem>
+                                <SelectItem value="Generic">Generic</SelectItem>
                                 <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
                                 <SelectItem value="Competitor">Competitor</SelectItem>
                                 <SelectItem value="FAQ">FAQ</SelectItem>
@@ -1977,6 +1979,7 @@ function TrackedPromptsPageInner() {
                           <SelectContent className="rounded-lg bg-[#1b1b1b] border-0">
                             <SelectItem value="How-to">How to</SelectItem>
                             <SelectItem value="Organic">Organic</SelectItem>
+                            <SelectItem value="Generic">Generic</SelectItem>
                             <SelectItem value="Brand-Specific">Brand-Specific</SelectItem>
                             <SelectItem value="Competitor">Competitor</SelectItem>
                             <SelectItem value="FAQ">FAQ</SelectItem>

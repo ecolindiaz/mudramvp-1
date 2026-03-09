@@ -42,6 +42,11 @@ const FORMAT_OPTIONS: Record<string, { value: FormatType; label: string }[]> = {
     { value: "howto", label: "How-To Guide" },
     { value: "guide", label: "Comprehensive Guide" },
   ],
+  "Generic": [
+    { value: "blog", label: "General Blog Post" },
+    { value: "listicle", label: "Listicle" },
+    { value: "guide", label: "Comprehensive Guide" },
+  ],
   "Competitor": [
     { value: "blog", label: "General Blog Post" },
     { value: "guide", label: "Comprehensive Guide" },
@@ -84,7 +89,7 @@ const CONTENT_TYPES: Array<{ value: ContentType; label: string; description: str
 ]
 
 // Intent categories
-const INTENT_CATEGORIES = ["Organic", "Competitor", "How-to", "Brand-Specific", "FAQ"]
+const INTENT_CATEGORIES = ["Organic", "Generic", "Competitor", "How-to", "Brand-Specific", "FAQ"]
 
 function CampaignsPageInner() {
   const { profile } = useBrandProfile()

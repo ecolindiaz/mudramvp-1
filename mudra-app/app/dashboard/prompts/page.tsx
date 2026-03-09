@@ -21,7 +21,8 @@ import {
   Check,
   X,
   Loader2,
-  HelpCircle
+  HelpCircle,
+  Sword
 } from "lucide-react"
 import { useBrandProfile } from "@/components/brand-profile-context"
 import { toast } from "sonner"
@@ -40,6 +41,7 @@ interface Prompt {
 
 const CATEGORIES = [
   { value: 'Organic', label: 'Organic', icon: Search, color: 'bg-blue-500' },
+  { value: 'Generic', label: 'Generic', icon: Sword, color: 'bg-gray-500' },
   { value: 'Competitor', label: 'Competitor', icon: Users, color: 'bg-purple-500' },
   { value: 'How-to Guides', label: 'How-to Guides', icon: FileText, color: 'bg-green-500' },
   { value: 'Brand-Specific', label: 'Brand-Specific', icon: Target, color: 'bg-orange-500' },

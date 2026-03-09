@@ -12,7 +12,8 @@
  * - Not mentioned = 0 points
  *
  * Intent Weights (as per spec):
- * - Organic: 50%
+ * - Organic: 40%
+ * - Generic: 10%
  * - Competitor: 20%
  * - How-to: 20%
  * - Brand-Specific: 10%
@@ -66,7 +67,8 @@ export interface PerPromptScore {
  * Intent category weights based on specification
  */
 const INTENT_WEIGHTS = {
-  'Organic': 0.50,           // 50%
+  'Organic': 0.40,           // 40%
+  'Generic': 0.10,           // 10%
   'Competitor': 0.20,        // 20%
   'How-to Guides': 0.20,     // 20%
   'Brand-Specific': 0.10,    // 10%
@@ -87,6 +89,7 @@ function calculateWeightedScore(tests: PromptTestResult[]): {
   // Group tests by category (case-insensitive)
   const categories = {
     organic: tests.filter(t => t.promptCategory?.toLowerCase() === 'organic'),
+    generic: tests.filter(t => t.promptCategory?.toLowerCase() === 'generic'),
     competitor: tests.filter(t => t.promptCategory?.toLowerCase() === 'competitor'),
     howTo: tests.filter(t => {
       const cat = t.promptCategory?.toLowerCase();
@@ -98,21 +101,38 @@ function calculateWeightedScore(tests: PromptTestResult[]): {
   // Calculate score for each category
   const categoryScores = {
     organic: calculateCategoryScore(categories.organic),
+    generic: calculateCategoryScore(categories.generic),
     competitor: calculateCategoryScore(categories.competitor),
     howTo: calculateCategoryScore(categories.howTo),
     brandSpecific: calculateCategoryScore(categories.brandSpecific),
   };
 
   // Apply weights and calculate overall weighted score
-  const weightedScore = 
+  const weightedScore =
     categoryScores.organic.score * INTENT_WEIGHTS['Organic'] +
+    categoryScores.generic.score * INTENT_WEIGHTS['Generic'] +
     categoryScores.competitor.score * INTENT_WEIGHTS['Competitor'] +
     categoryScores.howTo.score * INTENT_WEIGHTS['How-to Guides'] +
     categoryScores.brandSpecific.score * INTENT_WEIGHTS['Brand-Specific'];
 
+  // Merge generic into organic breakdown for backward compatibility
+  const organicTotal = categoryScores.organic.total + categoryScores.generic.total;
+  const organicMentions = categoryScores.organic.mentions + categoryScores.generic.mentions;
+  const organicCombinedScore = organicTotal > 0
+    ? Math.round(
+        (categoryScores.organic.score * categoryScores.organic.total +
+         categoryScores.generic.score * categoryScores.generic.total) / organicTotal
+      )
+    : 0;
+
   return {
     weightedScore: Math.round(weightedScore),
-    categoryBreakdown: categoryScores,
+    categoryBreakdown: {
+      organic: { score: organicCombinedScore, mentions: organicMentions, total: organicTotal },
+      competitor: categoryScores.competitor,
+      howTo: categoryScores.howTo,
+      brandSpecific: categoryScores.brandSpecific,
+    },
   };
 }
 

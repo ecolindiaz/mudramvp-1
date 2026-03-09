@@ -924,16 +924,23 @@ Generate exactly ${totalPrompts} prompts now.`;
       const replacements = await requestReplacementPrompts(
         rejected.length, brandInfo, rejectedTexts, language
       );
-      // Validate replacements (one pass, no further retry)
-      const replacementValidation = validatePromptQuality(replacements, brandInfo.companyName, language);
-      finalPrompts.push(...replacementValidation.passed);
-      // Any still-rejected replacements get deterministic rewrite
-      if (replacementValidation.rejected.length > 0) {
-        const rewritten = deterministicRewrite(replacementValidation.rejected, brandInfo.companyName);
+      if (replacements.length === 0) {
+        // API failed — fall back to deterministic rewrite of originals
+        const rewritten = deterministicRewrite(rejected, brandInfo.companyName);
         finalPrompts.push(...rewritten);
+        console.log(`[PromptValidation] Replacement API failed, deterministically rewrote ${rewritten.length} original rejected prompts`);
+      } else {
+        // Validate replacements (one pass, no further retry)
+        const replacementValidation = validatePromptQuality(replacements, brandInfo.companyName, language);
+        finalPrompts.push(...replacementValidation.passed);
+        // Any still-rejected replacements get deterministic rewrite
+        if (replacementValidation.rejected.length > 0) {
+          const rewritten = deterministicRewrite(replacementValidation.rejected, brandInfo.companyName);
+          finalPrompts.push(...rewritten);
+        }
+        console.log(`[PromptValidation] Retry: ${replacements.length} requested, ` +
+          `${replacementValidation.passed.length} passed, ${replacementValidation.rejected.length} rewritten`);
       }
-      console.log(`[PromptValidation] Retry: ${replacements.length} requested, ` +
-        `${replacementValidation.passed.length} passed, ${replacementValidation.rejected.length} rewritten`);
     } else {
       // 1-5 rejections — apply fast deterministic fixes
       const rewritten = deterministicRewrite(rejected, brandInfo.companyName);

@@ -16,6 +16,34 @@ import { runDirectGEOAnalysis, createDirectGEOConfig } from './direct-geo-analys
 import { type CountryCode, getLanguageForCountry, getUniqueLanguages, isAllowedCountry } from '@/lib/geo/country-config';
 
 // ---------------------------------------------------------------------------
+// Concurrency utility
+// ---------------------------------------------------------------------------
+
+/**
+ * Runs async tasks with a concurrency limit using a worker-queue pattern.
+ * Preserves result order matching the input order.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  fn: (item: T, index: number) => Promise<R>,
+  concurrency: number
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  const queue = items.map((item, i) => ({ item, index: i }));
+
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const entry = queue.shift();
+      if (!entry) break;
+      results[entry.index] = await fn(entry.item, entry.index);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -803,68 +831,67 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       deduplicatedScrapes.push(page);
     }
 
-    const pageScores: Array<ReturnType<typeof computePageScore>> = [];
-    const allIssues: Array<{ check: string; dimension: string; severity: string; message: string; page_url: string }> = [];
-    let pagesScored = 0;
+    // Hoist dynamic imports before concurrent work
+    const { getRecommendedSchemasWithAI } = await import('@/lib/analysis/technical/schema-recommender');
+    const { updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
 
-    for (const page of deduplicatedScrapes) {
-      if (!page.rawHtml) continue;
+    const scorablePages = deduplicatedScrapes.filter(p => p.rawHtml);
 
-      try {
-        // Extract DOM data (use effective URL for redirects)
-        const effectiveUrl = page.metadata?.sourceURL || page.url;
-        const extraction = htmlToExtraction(page.rawHtml, effectiveUrl);
-
-        // Pre-compute LLM-powered schema recommendations
+    const pageResults = await mapWithConcurrency(
+      scorablePages,
+      async (page) => {
         try {
-          const { getRecommendedSchemasWithAI } = await import('@/lib/analysis/technical/schema-recommender');
-          extraction.recommendedSchemas = await getRecommendedSchemasWithAI(extraction);
-        } catch (schemaErr) {
-          console.warn(`[Technical Core] Schema recommendation failed for ${page.url}:`, schemaErr);
-        }
+          const effectiveUrl = page.metadata?.sourceURL || page.url;
+          const extraction = htmlToExtraction(page.rawHtml!, effectiveUrl);
 
-        // Score the page
-        const score = computePageScore(extraction);
-        pageScores.push(score);
-
-        // Collect issues
-        allIssues.push(...score.issues);
-
-        // Save snapshot and score to database
-        const sitemapPageId = urlToSitemapPageId.get(page.url);
-        if (sitemapPageId) {
           try {
-            const { id: snapshotId } = await savePageSnapshot(
-              config.brandProfileId,
-              sitemapPageId,
-              page.url,
-              page.rawHtml,
-              extraction,
-              { scrapeDurationMs: scrapeResult.durationMs / successfulScrapes.length }
-            );
-
-            await savePageScore(
-              config.brandProfileId,
-              snapshotId,
-              sitemapPageId,
-              page.url,
-              score
-            );
-
-            // Update sitemap page status
-            const { updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
-            await updateSitemapPageStatus(sitemapPageId, 'scraped');
-          } catch (dbError) {
-            console.warn(`[Technical Core] DB save error for ${page.url}:`, dbError);
+            extraction.recommendedSchemas = await getRecommendedSchemasWithAI(extraction);
+          } catch (schemaErr) {
+            console.warn(`[Technical Core] Schema recommendation failed for ${page.url}:`, schemaErr);
           }
-        }
 
-        pagesScored++;
-        console.log(`[Technical Core] Scored ${page.url}: ${score.scores.total}/100 (${score.status})`);
-      } catch (scoreError) {
-        console.error(`[Technical Core] Error scoring ${page.url}:`, scoreError);
-      }
-    }
+          const score = computePageScore(extraction);
+
+          const sitemapPageId = urlToSitemapPageId.get(page.url);
+          if (sitemapPageId) {
+            try {
+              const { id: snapshotId } = await savePageSnapshot(
+                config.brandProfileId,
+                sitemapPageId,
+                page.url,
+                page.rawHtml!,
+                extraction,
+                { scrapeDurationMs: scrapeResult.durationMs / successfulScrapes.length }
+              );
+
+              await savePageScore(
+                config.brandProfileId,
+                snapshotId,
+                sitemapPageId,
+                page.url,
+                score
+              );
+
+              await updateSitemapPageStatus(sitemapPageId, 'scraped');
+            } catch (dbError) {
+              console.warn(`[Technical Core] DB save error for ${page.url}:`, dbError);
+            }
+          }
+
+          console.log(`[Technical Core] Scored ${page.url}: ${score.scores.total}/100 (${score.status})`);
+          return score;
+        } catch (scoreError) {
+          console.error(`[Technical Core] Error scoring ${page.url}:`, scoreError);
+          return null;
+        }
+      },
+      5
+    );
+
+    const pageScores: Array<ReturnType<typeof computePageScore>> = pageResults.filter(
+      (s): s is NonNullable<typeof s> => s !== null
+    );
+    const allIssues = pageScores.flatMap(s => s.issues);
 
     // Handle unreachable pages on re-analysis: carry forward previous scores
     if (isReanalysis) {
@@ -910,7 +937,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     // Update job progress
     if (jobId) {
       try {
-        await updateScrapeJobProgress(jobId, { pagesScored });
+        await updateScrapeJobProgress(jobId, { pagesScored: pageScores.length });
       } catch (e) { /* ignore */ }
     }
 

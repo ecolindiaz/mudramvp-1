@@ -635,14 +635,15 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
       analyzedAt: entry.analyzedAt || nowISO
     }))
 
-    // Dedup guard: if a GeoAnalysisResult was created for this brand+country
-    // in the last 2 minutes, return the existing one instead of creating a duplicate.
-    // This protects against any client-side retry that bypasses the SSE guard.
+    // Dedup guard (fast path): if a GeoAnalysisResult was created for this
+    // brand+country in the last 2 minutes, return it without creating a new row.
+    // Handles the common case of non-concurrent retries.
+    const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
     const recentDuplicate = await prisma.geoAnalysisResult.findFirst({
       where: {
         brandProfileId: config.brandProfileId,
         country: country || 'US',
-        createdAt: { gte: new Date(Date.now() - 2 * 60 * 1000) },
+        createdAt: { gte: twoMinAgo },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -674,6 +675,35 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
         }) as unknown as Prisma.InputJsonValue,
       },
     });
+
+    // Post-creation dedup: if a concurrent request also passed the pre-check
+    // and inserted a row, both rows are now committed and visible. The lowest
+    // ID wins deterministically — the loser deletes its own row.
+    const oldest = await prisma.geoAnalysisResult.findFirst({
+      where: {
+        brandProfileId: config.brandProfileId,
+        country: country || 'US',
+        createdAt: { gte: twoMinAgo },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    if (oldest && oldest.id !== geoAnalysis.id) {
+      console.log(
+        `[GEO Core] Dedup: concurrent duplicate detected. Keeping ${oldest.id}, deleting ${geoAnalysis.id}.`
+      );
+      try {
+        await prisma.geoAnalysisResult.delete({ where: { id: geoAnalysis.id } });
+      } catch (deleteErr) {
+        // Row may already have been deleted by another concurrent loser — safe to ignore
+        console.warn(`[GEO Core] Dedup: failed to delete ${geoAnalysis.id} (may already be gone):`, deleteErr);
+      }
+      return {
+        success: true,
+        id: oldest.id,
+        score: oldest.overallScore,
+      };
+    }
 
     return {
       success: true,

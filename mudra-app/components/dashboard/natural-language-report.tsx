@@ -771,19 +771,19 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                 </div>
               ) : error ? (
                 <div className="flex flex-col items-center justify-center py-10">
-                  <div className="flex items-center justify-center size-12 rounded-full bg-red-500/10 border border-red-500/20 mb-3">
-                    <IconInfoCircle className="size-5 text-red-400" />
+                  <div className="flex items-center justify-center size-12 rounded-full bg-white/[0.04] border border-white/[0.06] mb-3">
+                    <FileText className="size-5 text-white/40" />
                   </div>
-                  <p className="text-sm font-medium text-white/70">Failed to load report</p>
-                  <p className="text-xs text-white/40 mt-1">Please try again later</p>
+                  <p className="text-sm font-medium text-white/70">Report temporarily unavailable</p>
+                  <p className="text-xs text-white/40 mt-1">Your report will be generated shortly — check back soon</p>
                 </div>
               ) : !summary ? (
                 <div className="flex flex-col items-center justify-center py-10">
                   <div className="flex items-center justify-center size-12 rounded-full bg-white/[0.04] border border-white/[0.06] mb-3">
                     <FileText className="size-5 text-white/40" />
                   </div>
-                  <p className="text-sm font-medium text-white/70">No report available yet</p>
-                  <p className="text-xs text-white/40 mt-1">Generate a report to see your AI visibility summary</p>
+                  <p className="text-sm font-medium text-white/70">Your report is being prepared</p>
+                  <p className="text-xs text-white/40 mt-1">It will be ready shortly — check back soon</p>
                 </div>
               ) : (
                 <div className="relative">

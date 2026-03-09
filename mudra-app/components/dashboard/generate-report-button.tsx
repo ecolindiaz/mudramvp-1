@@ -41,8 +41,8 @@ export function GenerateReportButton() {
       window.dispatchEvent(new CustomEvent('mudra:nlr-refresh'))
       
     } catch (e: any) {
-      toast.error('❌ Report Generation Failed', {
-        description: e?.message || 'Please try again'
+      toast.error('Report generation delayed', {
+        description: 'Your report will be generated as soon as possible. Please try again shortly.'
       })
     } finally {
       setIsGenerating(false)

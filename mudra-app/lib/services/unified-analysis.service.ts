@@ -635,6 +635,30 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
       analyzedAt: entry.analyzedAt || nowISO
     }))
 
+    // Dedup guard: if a GeoAnalysisResult was created for this brand+country
+    // in the last 2 minutes, return the existing one instead of creating a duplicate.
+    // This protects against any client-side retry that bypasses the SSE guard.
+    const recentDuplicate = await prisma.geoAnalysisResult.findFirst({
+      where: {
+        brandProfileId: config.brandProfileId,
+        country: country || 'US',
+        createdAt: { gte: new Date(Date.now() - 2 * 60 * 1000) },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (recentDuplicate) {
+      console.log(
+        `[GEO Core] Dedup: found recent GeoAnalysisResult ${recentDuplicate.id} ` +
+        `(${Math.round((Date.now() - recentDuplicate.createdAt.getTime()) / 1000)}s ago). Skipping create.`
+      );
+      return {
+        success: true,
+        id: recentDuplicate.id,
+        score: recentDuplicate.overallScore,
+      };
+    }
+
     // Save to database
     const geoAnalysis = await prisma.geoAnalysisResult.create({
       data: {

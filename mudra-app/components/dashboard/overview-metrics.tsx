@@ -700,6 +700,34 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   // Initial data fetch - re-fetch when model filter changes
   useEffect(() => {
     if (profile.id) {
+      // Reset all metric state synchronously so the next render shows
+      // loading skeletons instead of stale data from the previous monitor.
+      setAiVisibilityScore(0)
+      setAiVisibilityPrevious(null)
+      setAiVisibilityLatestRun(null)
+      setHasAiHistory(false)
+      setAiVisibilityHistory([])
+      setAnalysisRunCount(0)
+      setMentionRate(0)
+      setAveragePosition(0)
+      setAveragePositionPrevious(null)
+      setHasPositionHistory(false)
+      setTotalTests(0)
+      setTechnicalScore(0)
+      setPreviousScore(null)
+      setHasHistoricalData(false)
+      setTechnicalScoreHistory([])
+      setOrganicTraffic(0)
+      setOrganicTrafficPrevious(null)
+      setHasTrafficHistory(false)
+      setAiReferralTraffic(0)
+      setAiReferralPrevious(null)
+      setHasAiTrafficHistory(false)
+      setLoadingAIVisibility(true)
+      setLoadingTechnical(true)
+      setLoadingTraffic(true)
+      setLoadingAiReferral(true)
+
       fetchAiVisibilityHistory()
       fetchTechnicalHistory()
       fetchTrafficMetrics()

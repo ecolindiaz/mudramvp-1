@@ -478,14 +478,15 @@ ${batch.map((n, idx) => `${idx + 1}. "${n}"`).join('\n')}
 
 For each candidate, answer YES (true) only if BOTH conditions are met:
 1. It is a real company, product, or platform (not a phrase/description/generic term)
-2. It DIRECTLY COMPETES with "${brandName}" — it offers similar or substitute products that a buyer would realistically evaluate as an alternative
+2. It DIRECTLY COMPETES with "${brandName}" — it offers similar or substitute products/services/APIs that a buyer would realistically evaluate as an alternative
 
-Answer NO (false) for:
+**IMPORTANT CONTEXT**: Companies that offer the same TYPE of service (APIs, SDKs, data platforms, fintech tools) in the same domain as "${brandName}" ARE competitors — even if they could also be called "integration partners" or "API providers" in other contexts.
+
+Answer NO (false) ONLY for:
 - Phrases, descriptions, or generic terms
-- Integration partners or plugins (e.g., Stripe mentioned as a payment integration for a non-payments company)
-- Dependencies, libraries, or frameworks (e.g., React, NumPy, Docker, Redis, Kubernetes) unless they directly compete with the brand
-- Companies in a completely different product category (e.g., Canva is not a competitor to a GPU cloud provider)
-- Infrastructure providers that are platforms the brand runs ON, not competitors OF (e.g., AWS for a company that deploys on AWS)
+- Dependencies, libraries, or frameworks used as general-purpose building blocks (e.g., React, NumPy, Docker, Redis, Kubernetes) that have no functional overlap with "${brandName}"
+- Companies in a completely different product category with no functional overlap (e.g., Canva is not a competitor to a GPU cloud provider)
+- Infrastructure/hosting providers that "${brandName}" runs ON, not providers that offer a competing service
 
 Return ONLY a JSON object with each name mapped to true (competitor) or false (not a competitor):
 {

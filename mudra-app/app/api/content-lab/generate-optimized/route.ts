@@ -183,8 +183,18 @@ export async function POST(req: NextRequest) {
     // Create unique run ID
     const workflowRunId = `wf_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
 
-    // Resolve the prompt text for intent detection
-    const promptText = trackedPrompt || `Prompt ID: ${trackedPromptId}`;
+    // Resolve the prompt text - look up from DB if only ID provided
+    let resolvedPromptText = trackedPrompt;
+    if (!resolvedPromptText && trackedPromptId) {
+      const promptRecord = await prisma.prompt.findUnique({
+        where: { id: Number(trackedPromptId) },
+        select: { text: true },
+      });
+      if (promptRecord) {
+        resolvedPromptText = promptRecord.text;
+      }
+    }
+    const promptText = resolvedPromptText || `Prompt ID: ${trackedPromptId}`;
 
     // Prepare brand context from profile
     const brandContext = {
@@ -202,7 +212,7 @@ export async function POST(req: NextRequest) {
 
     // Prepare workflow input
     const workflowInput = {
-      trackedPrompt: trackedPrompt || `Prompt ID: ${trackedPromptId}`,
+      trackedPrompt: promptText,
       sources: sources.map((s: any) => ({
         url: s.url || s.domain,
         title: s.title || s.domain || undefined,

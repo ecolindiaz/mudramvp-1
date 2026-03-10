@@ -1,5 +1,6 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
   // Skip initial page compilation in development
   onDemandEntries: {
     maxInactiveAge: 60 * 1000,
@@ -9,7 +10,7 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: [
       '@radix-ui/react-avatar',
-      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-dropdown-menu', 
       '@radix-ui/react-dialog',
       '@radix-ui/react-select',
       '@radix-ui/react-tabs',

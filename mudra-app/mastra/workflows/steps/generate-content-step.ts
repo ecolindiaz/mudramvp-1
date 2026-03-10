@@ -128,7 +128,7 @@ VOICE INSTRUCTIONS — You are writing ON BEHALF of ${brandContext.brandName}:
 - NEVER quote ${brandContext.brandName}'s marketing copy and attribute it to "${brandContext.brandName} marketing site"
 - Instead, state product features directly and authoritatively as your own: "With ${brandContext.brandName}, you get..." or "${brandContext.brandName} offers..."
 - Only use third-party sources (reviews, benchmarks, industry reports) for inline citations — not your own brand's pages
-- DO still link to ${brandContext.brandWebsite || 'the brand website'} naturally when first introducing ${brandContext.brandName} (e.g. "[${brandContext.brandName}](${brandContext.brandWebsite || '#'})" in the intro or TL;DR) — just don't use it as a citation source` : `## Brand Context
+- DO still link to ${brandContext.brandWebsite || 'the brand website'} naturally when first introducing ${brandContext.brandName}${brandContext.brandWebsite ? ` (e.g. "[${brandContext.brandName}](${brandContext.brandWebsite})" in the intro or TL;DR)` : ''} — just don't use it as a citation source` : `## Brand Context
 - Brand: ${brandContext.brandName}
 - Description: ${brandContext.brandDescription || "N/A"}
 - Target ICP: ${brandContext.targetICP || "N/A"}

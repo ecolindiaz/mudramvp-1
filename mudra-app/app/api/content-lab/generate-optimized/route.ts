@@ -50,6 +50,32 @@ function generateSeoSlug(title: string): string {
   return slug || 'untitled';
 }
 
+// Detect comparative intent from prompt text (e.g. "best X for Y", "X vs Y")
+// Uses layered detection to avoid false positives on informational content
+function detectComparativeIntent(prompt: string): boolean {
+  // Layer 1: High-confidence patterns (always comparative)
+  const highConfidence = /\b(\w+)\s+vs\.?\s+(\w+)|\b(\w+)\s+versus\s+(\w+)|\b\w+\s+alternatives\b|\bcompare\s+\w+|\bcomparison\s+of\b/i;
+  if (highConfidence.test(prompt)) return true;
+
+  // Layer 2: "best" — only comparative when followed by noun-phrase + for/in/of <year>
+  // Exclude: "best practices", "best way", "best approach", "best method", etc.
+  const bestExclusions = /\bbest\s+(practices?|ways?|approach(?:es)?|methods?|strateg(?:y|ies)|times?|things?|examples?|results?)\b/i;
+  if (!bestExclusions.test(prompt)) {
+    const bestComparative = /\bbest\s+\w+(?:\s+\w+)?\s+(?:for|in)\b|\bbest\s+\w+(?:\s+\w+)?\s+of\s+\d{4}\b/i;
+    if (bestComparative.test(prompt)) return true;
+  }
+
+  // Layer 2: "top N <product-noun>" — requires number + product-category word
+  const topProduct = /\btop\s+\d+\s+(?:\w+\s+){0,3}(?:tools?|software|platforms?|apps?|services?|solutions?|products?|providers?|companies|vendors?|plugins?|extensions?)\b/i;
+  if (topProduct.test(prompt)) return true;
+
+  // Layer 2: "ranking of X" / "top-ranked X"
+  const rankingStructural = /\branking\s+of\s+\w+|\btop[- ]ranked\s+\w+/i;
+  if (rankingStructural.test(prompt)) return true;
+
+  return false;
+}
+
 // Generate SEO-optimized meta description using AI
 // Best practices: 120-150 chars max, descriptive, no CTAs
 async function generateMetaDescription(content: string, title: string): Promise<string> {
@@ -157,6 +183,19 @@ export async function POST(req: NextRequest) {
     // Create unique run ID
     const workflowRunId = `wf_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
 
+    // Resolve the prompt text - look up from DB if only ID provided
+    let resolvedPromptText = trackedPrompt;
+    if (!resolvedPromptText && trackedPromptId) {
+      const promptRecord = await prisma.prompt.findFirst({
+        where: { id: Number(trackedPromptId), brandProfileId: brandProfile.id },
+        select: { text: true },
+      });
+      if (promptRecord) {
+        resolvedPromptText = promptRecord.text;
+      }
+    }
+    const promptText = resolvedPromptText || `Prompt ID: ${trackedPromptId}`;
+
     // Prepare brand context from profile
     const brandContext = {
       brandName: brandProfile.companyName || "Unknown Brand",
@@ -165,11 +204,15 @@ export async function POST(req: NextRequest) {
       uniqueValueProp: brandProfile.companyServices || undefined,
       userName: brandProfile.userName || "Content Team",
       userRole: brandProfile.userRole || "Editor",
+      brandWebsite: brandProfile.companyWebsite || undefined,
+      brandIndustry: brandProfile.companyIndustry || undefined,
+      competitors: (brandProfile.competitors as string[]) || undefined,
+      isComparativeIntent: detectComparativeIntent(promptText),
     };
 
     // Prepare workflow input
     const workflowInput = {
-      trackedPrompt: trackedPrompt || `Prompt ID: ${trackedPromptId}`,
+      trackedPrompt: promptText,
       sources: sources.map((s: any) => ({
         url: s.url || s.domain,
         title: s.title || s.domain || undefined,
@@ -196,12 +239,12 @@ export async function POST(req: NextRequest) {
       data: {
         userId,
         brandProfileId,
-        title: `Generating: ${trackedPrompt?.substring(0, 50) || 'AI Content'}...`,
+        title: `Generating: ${promptText.substring(0, 50)}...`,
         body: '', // Empty until workflow completes
         type: 'blog',
         mode: 'geo',
         status: 'generating', // Special status for in-progress workflows
-        prompt: trackedPrompt || `Prompt ID: ${trackedPromptId}`,
+        prompt: promptText,
         icp: icp || undefined,
         metadata: {
           workflowRunId,
@@ -281,7 +324,7 @@ export async function POST(req: NextRequest) {
                 wordCount: result.result.metadata?.wordCount || 0,
                 sections: result.result.metadata?.sections || [],
                 sources: result.result.metadata?.sources || sources,
-                trackedPrompt: result.result.metadata?.trackedPrompt || trackedPrompt,
+                trackedPrompt: result.result.metadata?.trackedPrompt || promptText,
                 author: result.result.metadata?.author || {
                   name: brandContext.userName,
                   title: brandContext.userRole,

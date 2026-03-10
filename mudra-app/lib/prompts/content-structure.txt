@@ -8,12 +8,12 @@ SUCCESS CRITERIA:
 - Paragraphs 2–4 sentences (50–75 words), one idea each
 - Numbered lists for steps/rankings/sequences; bullets for tips/collections/examples
 - Bottom line/Conclusion section placed immediately before the FAQ
-- Mini case study appears at the end to exemplify the preceding guidance
+- Mini case study appears ONLY if a real example exists in the provided sources — never fabricated
 - FAQ (H3/H4) toward the end with concise Q→A; include only 3–5 Q&As
 - Use tables for comparative data and consider a TL;DR/callout for key info
 - Declarative, specific sentences; avoid ambiguity
 - If a preferred brand is provided and the intent is comparative/best-of, the TL;DR recommends it first with a data-backed rationale and briefly notes when alternatives fit better
-- After every H2, include a direct-answer block: a 2–3 sentence paragraph that neutrally and clearly resolves the question (cite-able; links optional as [sources])
+- After every H2, include a direct-answer block: a 2–3 sentence paragraph that neutrally and clearly resolves the question (cite-able; inline markdown links when relevant)
 
 STYLE AND TONE:
 Declarative, conversational, specific. Keep sentences short and unambiguous. Prefer concrete statements (e.g., "improves load speed by 30%" when data is provided) over vague claims.
@@ -43,7 +43,7 @@ TABLES AND STRUCTURED DISPLAYS:
 DIRECT ANSWER RULES:
 - For each H2 section that poses a question or claim, immediately follow the H2 with a brief direct-answer paragraph (no label).
 - Keep it 2–3 sentences in neutral, cite-able language summarizing the resolution. Avoid hype.
-- When relevant, end the paragraph with short bracketed source notation like [sources] and include links in the body below.
+- When relevant, cite sources inline using proper markdown links [Source](url). NEVER output literal placeholder text like "[sources]".
 
 BRAND POSITIONING RULES:
 - Apply only when the prompt intent is comparative/best-of (e.g., "best", "better", "vs", "top", "compare"). Otherwise remain neutral.
@@ -64,7 +64,7 @@ QUALITY CHECKLIST:
 - Paragraphs 2–4 sentences (50–75 words), one idea each
 - Lists used appropriately (numbered vs bullets)
 - Comparison table and/or TL;DR callout present when applicable
-- Mini case study present before the Bottom line as a short narrative paragraph (not bullets) explicitly tied back to prior sections
+- Mini case study present before the Bottom line ONLY if sourced from real data — omit if no real example exists
 - Bottom line/Conclusion section present immediately before FAQ
 - FAQ present; questions as H3/H4 with concise answers (3–5 total)
 - Headings phrased as questions or clear statements aligned with queries
@@ -83,7 +83,7 @@ Use this scaffold to implement the Content Structure thesis.
 - [Key takeaway 3]
 
 ## [H2: Question or Clear Point]
-[Direct answer paragraph (2–3 sentences) that neutrally resolves the question; optional bracketed sources like [sources]]
+[Direct answer paragraph (2–3 sentences) that neutrally resolves the question with inline citations]
 [Paragraph: 2–4 sentences, 50–75 words, one idea]
 
 ### [H3: Subtopic/Steps]
@@ -92,13 +92,13 @@ Use this scaffold to implement the Content Structure thesis.
 3. [Step]
 
 ## [H2: Another Question or Point]
-[Direct answer paragraph (2–3 sentences) that neutrally resolves the question; optional bracketed sources like [sources]]
+[Direct answer paragraph (2–3 sentences) that neutrally resolves the question with inline citations]
 - [Bullet point tip or example]
 - [Bullet point tip or example]
 - [Bullet point tip or example]
 
-## Mini case study
-[Narrative paragraph (3–5 sentences) that ties back to the guidance above — Problem → Approach → Outcome with a concrete metric/timeframe and optional evidence link. No bullets.]
+## Mini case study (ONLY if a real case study exists in the provided sources — otherwise omit this entire section)
+[Narrative paragraph (3–5 sentences) from a real source — Problem → Approach → Outcome with a concrete metric/timeframe and evidence link. No bullets. NEVER fabricate.]
 
 ## Bottom line
 [1–2 sentence conclusion that reinforces the core takeaway and next step]

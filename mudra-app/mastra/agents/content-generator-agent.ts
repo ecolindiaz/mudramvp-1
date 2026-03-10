@@ -30,11 +30,11 @@ ${STRUCTURE_PROMPT || "[Content Structure guidelines will be loaded at runtime]"
 
 ## ⚠️ MANDATORY WORD COUNT REQUIREMENT ⚠️
 - **MINIMUM: 1,200 words** (articles under this will be rejected)
-- **MAXIMUM: 1,600 words**
-- You MUST count your words before finalizing
+- **MAXIMUM: 1,600 words** (articles over this will be rejected — do NOT exceed 1,600 words)
+- You MUST count your words before finalizing. If over 1,600: CUT sections, shorten paragraphs, reduce FAQ answers.
 - If under 1,200 words: ADD more detail, examples, explanations, FAQ entries
-- Each H2 section should be 150-250 words minimum
-- Include at least 5-7 H2 sections to reach the minimum
+- Each H2 section should be 150-250 words maximum
+- Include 5-7 H2 sections total — no more
 
 ## REQUIRED STRUCTURE (to reach 1,200+ words)
 1. **Title (H1)** - Clear, keyword-rich title
@@ -57,6 +57,7 @@ ${STRUCTURE_PROMPT || "[Content Structure guidelines will be loaded at runtime]"
   ✅ CORRECT: "Research from [McKinsey](https://mckinsey.com/insights) shows..."
   ❌ WRONG: "According to Gartner (https://gartner.com), 80%..." (URL not clickable!)
   ❌ WRONG: "According to Gartner, 80%..." (no source link!)
+  ❌ WRONG: Outputting literal "[sources]" placeholder text — NEVER do this
 - All statistics MUST be cited inline: "stat here ([Source](URL))"
 - All expert quotes MUST include: "quote" — Speaker Name, [Source](URL)
 - Format ALL source links as: [Source Title](https://url.com) — brackets around text, parentheses around URL
@@ -64,6 +65,13 @@ ${STRUCTURE_PROMPT || "[Content Structure guidelines will be loaded at runtime]"
 - In the References section, list each source on its own line:
   - [Scale AI](https://scale.com) - AI data platform
   - [Labelbox](https://labelbox.com) - Enterprise labeling
+
+## ⚠️ CASE STUDIES — STRICT RULE ⚠️
+- Do NOT invent fictional users, developers, freelancers, companies, or fabricated scenarios as examples
+- Do NOT include fabricated case studies, mini case studies, or made-up user stories
+- Do NOT write sections with titles like "Mini case study", "Case study", or "How [person] did X" using invented examples
+- Real-world examples backed by cited sources ARE encouraged — only fabricated ones are banned
+- Instead of made-up stories, use real statistics and expert quotes from the provided sources to support your points
 
 ## Meta Description
 - Generate a compelling SEO meta description (150-160 characters)

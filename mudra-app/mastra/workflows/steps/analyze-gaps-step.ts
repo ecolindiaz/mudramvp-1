@@ -24,6 +24,12 @@ const inputSchema = z.object({
       markdown: z.string(),
     })
   ),
+  brandContext: z.object({
+    brandName: z.string(),
+    brandWebsite: z.string().optional(),
+    competitors: z.array(z.string()).optional(),
+    isComparativeIntent: z.boolean().optional(),
+  }).optional(),
 });
 
 const outputSchema = gapAnalysisOutputSchema;
@@ -36,7 +42,7 @@ export const analyzeGapsStep = createStep({
   inputSchema,
   outputSchema,
   execute: async ({ inputData }) => {
-    const { trackedPrompt, scrapedSources } = inputData;
+    const { trackedPrompt, scrapedSources, brandContext } = inputData;
     const startTime = Date.now();
 
     // Combine scraped content (limit to avoid token overflow)
@@ -46,6 +52,21 @@ export const analyzeGapsStep = createStep({
           `## Source ${i + 1}: ${s.title || s.url}\n${s.markdown.slice(0, 3000)}`
       )
       .join("\n\n---\n\n");
+
+    // Build brand positioning context for comparative prompts
+    let brandPositioningSection = '';
+    if (brandContext?.isComparativeIntent) {
+      const competitorsList = brandContext.competitors?.length
+        ? `Known competitors: ${brandContext.competitors.join(', ')}`
+        : '';
+      brandPositioningSection = `
+
+## Brand Positioning Context
+This content is being created for "${brandContext.brandName}".
+${competitorsList}
+- If the sources underrepresent "${brandContext.brandName}" compared to competitors, flag a "brand positioning gap" in contentGaps.
+- Include a search query for "${brandContext.brandName}" features, reviews, or differentiators in your recommendedSearchQueries.`;
+    }
 
     console.log(
       `[AnalyzeGaps] Analyzing content from ${scrapedSources.length} sources...`
@@ -58,7 +79,7 @@ export const analyzeGapsStep = createStep({
 
 ${combinedContent}
 
-Identify all content, data, format, and depth gaps. Suggest up to 5 search queries to fill the gaps.`,
+Identify all content, data, format, and depth gaps. Suggest up to 5 search queries to fill the gaps.${brandPositioningSection}`,
           {
             structuredOutput: { schema: gapAnalysisOutputSchema },
           }

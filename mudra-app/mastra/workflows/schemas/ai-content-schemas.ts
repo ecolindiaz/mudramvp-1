@@ -14,6 +14,10 @@ const brandContextSchema = z.object({
   uniqueValueProp: z.string().optional(),
   userName: z.string(),
   userRole: z.string(),
+  brandWebsite: z.string().optional(),
+  brandIndustry: z.string().optional(),
+  competitors: z.array(z.string()).optional(),
+  isComparativeIntent: z.boolean().optional(),
 });
 
 // Workflow input schema

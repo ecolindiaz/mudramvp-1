@@ -33,6 +33,7 @@ export const aiContentWorkflow = createWorkflow({
     return {
       trackedPrompt: initData.trackedPrompt,
       scrapedSources: inputData.scrapedSources,
+      brandContext: initData.brandContext,
     };
   })
   .then(analyzeGapsStep)
@@ -43,6 +44,7 @@ export const aiContentWorkflow = createWorkflow({
     return {
       trackedPrompt: initData.trackedPrompt,
       gapAnalysis: inputData,
+      brandContext: initData.brandContext,
     };
   })
   .then(enrichResearchStep)

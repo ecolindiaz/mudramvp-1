@@ -324,7 +324,7 @@ export async function POST(req: NextRequest) {
                 wordCount: result.result.metadata?.wordCount || 0,
                 sections: result.result.metadata?.sections || [],
                 sources: result.result.metadata?.sources || sources,
-                trackedPrompt: result.result.metadata?.trackedPrompt || trackedPrompt,
+                trackedPrompt: result.result.metadata?.trackedPrompt || promptText,
                 author: result.result.metadata?.author || {
                   name: brandContext.userName,
                   title: brandContext.userRole,

@@ -37,10 +37,10 @@ STATISTICS AND CITATIONS RULES:
 - Use data visualizations when helpful and describe the data in text beneath the visual; update data regularly.
 
 EXAMPLES RULES:
-- Provide mini case studies to illustrate major points.
-- Structure: Problem → Approach/Action → Outcome (with metrics and timeframe) written as a short narrative paragraph (no bullets).
-- Examples may be real or fictitious-but-realistic; ensure plausibility and clarity.
-- Include realistic, concrete details; incorporate brief quotations or testimonials when available.
+- Only include case studies or examples if they come from the provided sources (scraped or researched).
+- NEVER fabricate, invent, or fictionalize case studies, user stories, or example scenarios.
+- If a real case study exists in the sources, structure it as: Problem → Approach/Action → Outcome (with metrics and timeframe) written as a short narrative paragraph (no bullets).
+- If no real case study is available, skip the case study section entirely and use statistics and expert quotes instead.
 
 OUTPUT TEMPLATE:
 Use this scaffold to implement the Content Quality thesis.
@@ -55,8 +55,8 @@ Use this scaffold to implement the Content Quality thesis.
 Author: [Name], [Credential/Role] — [1–2 sentence bio]
 Last updated: [YYYY-MM-DD]
 
-## Mini case study (before Bottom line)
-[Narrative paragraph (3–5 sentences) that ties back to the guidance above — Problem → Approach → Outcome with a concrete metric/timeframe and optional evidence link. No bullets.]
+## Mini case study (ONLY if a real case study exists in the provided sources — otherwise skip this section)
+[Narrative paragraph (3–5 sentences) from a real source — Problem → Approach → Outcome with a concrete metric/timeframe and evidence link. No bullets. NEVER fabricate.]
 
 QUALITY CHECKLIST:
 - Title reflects prompt/keywords and main question
@@ -66,7 +66,7 @@ QUALITY CHECKLIST:
 - Statistics accurate and integrated naturally where needed (no standalone stats section)
 - Explicit stats (number + unit + timeframe) and third-party quotes include a single inline source link; otherwise no links
 - Expert quote included when relevant
-- Mini case study with Problem → Approach → Outcome (+metric/timeframe), placed near the end and tied back to recommendations
+- Mini case study with Problem → Approach → Outcome (+metric/timeframe) ONLY if sourced from real data — omit if no real example exists
 - Data visualizations described in text when used
 - Tone balanced, factual, and non-promotional
 - If preferred brand present and intent is comparative/best-of: TL;DR recommends it first with rationale; alternatives acknowledged
@@ -79,7 +79,7 @@ GENERATION INSTRUCTIONS:
 3) Add author credentials (name + brief bio); include a recent update date.
 4) Integrate statistics naturally only when needed; add a link only for explicit stats (number + unit + timeframe) or third-party quotes (max one link per paragraph).
 5) Insert an expert quote with source and link when relevant.
-6) Add a mini case study (Problem → Approach → Outcome with metrics/timeframe) and link to evidence where available.
+6) Add a mini case study ONLY if one exists in the provided sources. If no real case study is available, skip this step. NEVER invent fictional examples.
 7) Compose the remaining body following the ContentStructure prompt.
 8) Review against the quality checklist and revise if any item is missing.
 

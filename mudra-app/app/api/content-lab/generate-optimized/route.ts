@@ -50,6 +50,12 @@ function generateSeoSlug(title: string): string {
   return slug || 'untitled';
 }
 
+// Detect comparative intent from prompt text (e.g. "best X for Y", "X vs Y")
+function detectComparativeIntent(prompt: string): boolean {
+  const pattern = /\b(best|top|better|vs\.?|versus|compare|comparison|alternatives?|ranking|ranked|reviews?)\b/i;
+  return pattern.test(prompt);
+}
+
 // Generate SEO-optimized meta description using AI
 // Best practices: 120-150 chars max, descriptive, no CTAs
 async function generateMetaDescription(content: string, title: string): Promise<string> {
@@ -157,6 +163,9 @@ export async function POST(req: NextRequest) {
     // Create unique run ID
     const workflowRunId = `wf_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
 
+    // Resolve the prompt text for intent detection
+    const promptText = trackedPrompt || `Prompt ID: ${trackedPromptId}`;
+
     // Prepare brand context from profile
     const brandContext = {
       brandName: brandProfile.companyName || "Unknown Brand",
@@ -165,6 +174,10 @@ export async function POST(req: NextRequest) {
       uniqueValueProp: brandProfile.companyServices || undefined,
       userName: brandProfile.userName || "Content Team",
       userRole: brandProfile.userRole || "Editor",
+      brandWebsite: brandProfile.companyWebsite || undefined,
+      brandIndustry: brandProfile.companyIndustry || undefined,
+      competitors: (brandProfile.competitors as string[]) || undefined,
+      isComparativeIntent: detectComparativeIntent(promptText),
     };
 
     // Prepare workflow input

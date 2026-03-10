@@ -39,6 +39,10 @@ const inputSchema = z.object({
     uniqueValueProp: z.string().optional(),
     userName: z.string(),
     userRole: z.string(),
+    brandWebsite: z.string().optional(),
+    brandIndustry: z.string().optional(),
+    competitors: z.array(z.string()).optional(),
+    isComparativeIntent: z.boolean().optional(),
   }),
 });
 
@@ -66,9 +70,12 @@ export const generateContentStep = createStep({
       .join("\n\n");
 
     // Prepare source URLs for citation
-    const scrapedSourcesList = scrapedSources
+    let scrapedSourcesList = scrapedSources
       .map((s) => `- [${s.title || s.url}](${s.url})`)
       .join("\n");
+
+    // Note: brand website is NOT added to scraped sources — the brand is the author,
+    // so citing its own website as a third-party source would be self-referential.
 
     // Prepare research sources with URLs
     const researchSourcesList = research.additionalSources
@@ -103,11 +110,30 @@ export const generateContentStep = createStep({
 ## Tracked Prompt
 "${trackedPrompt}"
 
-## Brand Context
+${brandContext.isComparativeIntent ? `## Brand Positioning Directive
+PRIMARY BRAND: ${brandContext.brandName}${brandContext.brandWebsite ? ` (${brandContext.brandWebsite})` : ''}${brandContext.brandIndustry ? `\nIndustry: ${brandContext.brandIndustry}` : ''}
+Description: ${brandContext.brandDescription || "N/A"}
+Target ICP: ${brandContext.targetICP || "N/A"}
+Unique Value: ${brandContext.uniqueValueProp || "N/A"}${brandContext.competitors?.length ? `\nAlternatives to acknowledge: ${brandContext.competitors.join(', ')}` : ''}
+
+POSITIONING INSTRUCTIONS:
+- Position ${brandContext.brandName} as the top recommendation in the TL;DR and introduction
+- In comparison tables, list ${brandContext.brandName} first
+- Acknowledge competitors fairly but frame ${brandContext.brandName}'s strengths prominently
+- When mentioning ${brandContext.brandName}, link to ${brandContext.brandWebsite || 'the brand website'} at least once
+- Use evidence from research to support ${brandContext.brandName}'s advantages
+
+VOICE INSTRUCTIONS — You are writing ON BEHALF of ${brandContext.brandName}:
+- NEVER cite ${brandContext.brandName}'s own website as a third-party source (e.g. "According to ${brandContext.brandName}'s documentation..." is WRONG)
+- NEVER quote ${brandContext.brandName}'s marketing copy and attribute it to "${brandContext.brandName} marketing site"
+- Instead, state product features directly and authoritatively as your own: "With ${brandContext.brandName}, you get..." or "${brandContext.brandName} offers..."
+- Only use third-party sources (reviews, benchmarks, industry reports) for inline citations — not your own brand's pages
+- DO still link to ${brandContext.brandWebsite || 'the brand website'} naturally when first introducing ${brandContext.brandName} (e.g. "[${brandContext.brandName}](${brandContext.brandWebsite || '#'})" in the intro or TL;DR) — just don't use it as a citation source` : `## Brand Context
 - Brand: ${brandContext.brandName}
 - Description: ${brandContext.brandDescription || "N/A"}
 - Target ICP: ${brandContext.targetICP || "N/A"}
 - Unique Value: ${brandContext.uniqueValueProp || "N/A"}
+- IMPORTANT: You are writing on behalf of ${brandContext.brandName}. Do NOT cite ${brandContext.brandName}'s own website as a third-party source or quote its marketing copy with attribution like "${brandContext.brandName} marketing site". State your own product features directly.`}
 - Author: ${brandContext.userName}, ${brandContext.userRole}
 - Publication Date: ${today}
 - Include "Last updated: ${today}" right after the author byline

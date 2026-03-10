@@ -19,6 +19,12 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMsg: string
 const inputSchema = z.object({
   trackedPrompt: z.string(),
   gapAnalysis: gapAnalysisOutputSchema,
+  brandContext: z.object({
+    brandName: z.string(),
+    brandWebsite: z.string().optional(),
+    competitors: z.array(z.string()).optional(),
+    isComparativeIntent: z.boolean().optional(),
+  }).optional(),
 });
 
 const outputSchema = researchOutputSchema.extend({
@@ -33,8 +39,17 @@ export const enrichResearchStep = createStep({
   inputSchema,
   outputSchema,
   execute: async ({ inputData }) => {
-    const { trackedPrompt, gapAnalysis } = inputData;
+    const { trackedPrompt, gapAnalysis, brandContext } = inputData;
     const startTime = Date.now();
+
+    // Build brand research priority for comparative prompts
+    let brandResearchSection = '';
+    if (brandContext?.isComparativeIntent) {
+      brandResearchSection = `
+
+## Brand Research Priority
+This content is for "${brandContext.brandName}". Dedicate one of your max 5 searches to finding "${brandContext.brandName}" specific data — features, reviews, pricing, or differentiators. This ensures the article has sufficient brand-specific evidence for positioning.`;
+    }
 
     console.log(
       `[EnrichResearch] Running research with ${gapAnalysis.recommendedSearchQueries.length} queries...`
@@ -55,7 +70,7 @@ Recommended Search Queries (run max 5):
 ${gapAnalysis.recommendedSearchQueries.map((q, i) => `${i + 1}. ${q}`).join("\n")}
 
 Use the search tool to find authoritative sources, statistics, and expert quotes.
-IMPORTANT: Run a MAXIMUM of 5 searches to stay within time limits.`,
+IMPORTANT: Run a MAXIMUM of 5 searches to stay within time limits.${brandResearchSection}`,
           {
             structuredOutput: { schema: researchOutputSchema },
             maxSteps: 10,

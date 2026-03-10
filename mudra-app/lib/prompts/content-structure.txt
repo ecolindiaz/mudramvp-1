@@ -13,7 +13,7 @@ SUCCESS CRITERIA:
 - Use tables for comparative data and consider a TL;DR/callout for key info
 - Declarative, specific sentences; avoid ambiguity
 - If a preferred brand is provided and the intent is comparative/best-of, the TL;DR recommends it first with a data-backed rationale and briefly notes when alternatives fit better
-- After every H2, include a direct-answer block: a 2–3 sentence paragraph that neutrally and clearly resolves the question (cite-able; links optional as [sources])
+- After every H2, include a direct-answer block: a 2–3 sentence paragraph that neutrally and clearly resolves the question (cite-able; inline markdown links when relevant)
 
 STYLE AND TONE:
 Declarative, conversational, specific. Keep sentences short and unambiguous. Prefer concrete statements (e.g., "improves load speed by 30%" when data is provided) over vague claims.

@@ -67,10 +67,11 @@ ${STRUCTURE_PROMPT || "[Content Structure guidelines will be loaded at runtime]"
   - [Labelbox](https://labelbox.com) - Enterprise labeling
 
 ## ⚠️ CASE STUDIES — STRICT RULE ⚠️
-- Do NOT include any case study, mini case study, user story, or example scenario in the article
-- Do NOT write sections with titles like "Mini case study", "Case study", "Example", or "How [person] did X"
-- Do NOT invent fictional users, developers, freelancers, or companies as examples
-- Instead, use real statistics and expert quotes from the provided sources to support your points
+- Do NOT invent fictional users, developers, freelancers, companies, or fabricated scenarios as examples
+- Do NOT include fabricated case studies, mini case studies, or made-up user stories
+- Do NOT write sections with titles like "Mini case study", "Case study", or "How [person] did X" using invented examples
+- Real-world examples backed by cited sources ARE encouraged — only fabricated ones are banned
+- Instead of made-up stories, use real statistics and expert quotes from the provided sources to support your points
 
 ## Meta Description
 - Generate a compelling SEO meta description (150-160 characters)

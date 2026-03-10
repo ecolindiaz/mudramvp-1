@@ -65,7 +65,7 @@ function buildCsp(nonce: string): string {
     return policy.join('; ')
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl
 
     // ----- Generate per-request CSP nonce -----

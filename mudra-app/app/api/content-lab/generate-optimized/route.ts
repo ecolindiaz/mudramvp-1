@@ -239,12 +239,12 @@ export async function POST(req: NextRequest) {
       data: {
         userId,
         brandProfileId,
-        title: `Generating: ${trackedPrompt?.substring(0, 50) || 'AI Content'}...`,
+        title: `Generating: ${promptText.substring(0, 50)}...`,
         body: '', // Empty until workflow completes
         type: 'blog',
         mode: 'geo',
         status: 'generating', // Special status for in-progress workflows
-        prompt: trackedPrompt || `Prompt ID: ${trackedPromptId}`,
+        prompt: promptText,
         icp: icp || undefined,
         metadata: {
           workflowRunId,

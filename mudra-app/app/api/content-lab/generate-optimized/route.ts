@@ -51,9 +51,29 @@ function generateSeoSlug(title: string): string {
 }
 
 // Detect comparative intent from prompt text (e.g. "best X for Y", "X vs Y")
+// Uses layered detection to avoid false positives on informational content
 function detectComparativeIntent(prompt: string): boolean {
-  const pattern = /\b(best|top|better|vs\.?|versus|compare|comparison|alternatives?|ranking|ranked|reviews?)\b/i;
-  return pattern.test(prompt);
+  // Layer 1: High-confidence patterns (always comparative)
+  const highConfidence = /\b(\w+)\s+vs\.?\s+(\w+)|\b(\w+)\s+versus\s+(\w+)|\b\w+\s+alternatives\b|\bcompare\s+\w+|\bcomparison\s+of\b/i;
+  if (highConfidence.test(prompt)) return true;
+
+  // Layer 2: "best" — only comparative when followed by noun-phrase + for/in/of <year>
+  // Exclude: "best practices", "best way", "best approach", "best method", etc.
+  const bestExclusions = /\bbest\s+(practices?|ways?|approach(?:es)?|methods?|strateg(?:y|ies)|times?|things?|examples?|results?)\b/i;
+  if (!bestExclusions.test(prompt)) {
+    const bestComparative = /\bbest\s+\w+(?:\s+\w+)?\s+(?:for|in)\b|\bbest\s+\w+(?:\s+\w+)?\s+of\s+\d{4}\b/i;
+    if (bestComparative.test(prompt)) return true;
+  }
+
+  // Layer 2: "top N <product-noun>" — requires number + product-category word
+  const topProduct = /\btop\s+\d+\s+(?:\w+\s+){0,3}(?:tools?|software|platforms?|apps?|services?|solutions?|products?|providers?|companies|vendors?|plugins?|extensions?)\b/i;
+  if (topProduct.test(prompt)) return true;
+
+  // Layer 2: "ranking of X" / "top-ranked X"
+  const rankingStructural = /\branking\s+of\s+\w+|\btop[- ]ranked\s+\w+/i;
+  if (rankingStructural.test(prompt)) return true;
+
+  return false;
 }
 
 // Generate SEO-optimized meta description using AI

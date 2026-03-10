@@ -186,8 +186,8 @@ export async function POST(req: NextRequest) {
     // Resolve the prompt text - look up from DB if only ID provided
     let resolvedPromptText = trackedPrompt;
     if (!resolvedPromptText && trackedPromptId) {
-      const promptRecord = await prisma.prompt.findUnique({
-        where: { id: Number(trackedPromptId) },
+      const promptRecord = await prisma.prompt.findFirst({
+        where: { id: Number(trackedPromptId), brandProfileId: brandProfile.id },
         select: { text: true },
       });
       if (promptRecord) {

@@ -1,9 +1,9 @@
 /**
  * Safely parse a stored array value.
  *
- * Two variants exist because ICP descriptions legitimately contain commas
- * (e.g. "Developers who need APIs for OCR, scraping, search") whereas
- * competitors / services never do.
+ * Both variants try JSON.parse first (new format), then comma-split (old format).
+ * The real fix is on the WRITE side: onboarding now stores ICPs as JSON arrays,
+ * so future data won't have the comma-ambiguity problem.
  */
 
 /**
@@ -11,8 +11,8 @@
  *
  * - If the value is already an array, return it.
  * - If it's a JSON-encoded array string, parse it.
- * - Otherwise treat the entire string as a **single** ICP
- *   (never comma-split, because ICP descriptions contain commas).
+ * - Otherwise comma-split (legacy format). Some old ICPs with internal commas
+ *   may fragment, but re-saving the profile will store them as JSON.
  */
 export function safeParseICPArray(value: unknown, fallback: string[] = []): string[] {
   if (Array.isArray(value)) return value;
@@ -21,9 +21,9 @@ export function safeParseICPArray(value: unknown, fallback: string[] = []): stri
       const parsed = JSON.parse(value);
       if (Array.isArray(parsed)) return parsed;
     } catch {
-      // Not JSON — treat whole string as one ICP entry
+      // Not JSON — fall through to comma split (legacy data)
     }
-    return [value];
+    return value.split(',').map(s => s.trim()).filter(Boolean);
   }
   return fallback;
 }

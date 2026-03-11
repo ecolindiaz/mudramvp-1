@@ -51,12 +51,24 @@ export async function POST(req: NextRequest) {
       });
       const validIds = validOpportunities.map(o => o.id);
 
-      // Analyze only validated opportunities
-      const results = await Promise.allSettled(
-        validIds.map(id => analyzeOpportunity(id))
-      );
-      const analyzed = results.filter(r => r.status === 'fulfilled').length;
-      const errors = results.filter(r => r.status === 'rejected').length;
+      // Analyze in batches of 3 to avoid rate limiting (matches batchAnalyzeOpportunities pattern)
+      const BATCH_SIZE = 3;
+      let analyzed = 0;
+      let errors = 0;
+
+      for (let i = 0; i < validIds.length; i += BATCH_SIZE) {
+        const batch = validIds.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(
+          batch.map(id => analyzeOpportunity(id))
+        );
+        analyzed += results.filter(r => r.status === 'fulfilled').length;
+        errors += results.filter(r => r.status === 'rejected').length;
+
+        if (i + BATCH_SIZE < validIds.length) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+
       return NextResponse.json({ success: true, analyzed, errors });
     } else {
       // Analyze unanalyzed opportunities for this brand

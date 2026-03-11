@@ -893,9 +893,9 @@ Return EXACTLY ${prompts.length} lines.`;
     const text = response.choices?.[0]?.message?.content?.trim();
     if (!text) return [];
 
-    const lines = text.split('\n').map(l =>
-      l.replace(/^\d+[\.\)]\s*/, '').trim().toLowerCase()
-    );
+    const lines = text.split('\n')
+      .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim().toLowerCase())
+      .filter(l => l.length > 0);
 
     // Validate: each line should be 3-10 words, no brand names
     const brandLower = brandContext.companyName?.toLowerCase() || '';

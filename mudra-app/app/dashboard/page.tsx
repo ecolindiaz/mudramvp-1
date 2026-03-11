@@ -128,6 +128,13 @@ function DashboardPageInner() {
     trackEvent.analysisStarted(profile.id, 'unified')
 
     const abortSignal = getAbortSignal()
+    const effectiveCountry = selectedCountry || 'US'
+    const trackingCountries = Array.isArray(profile.trackingCountries) ? profile.trackingCountries : []
+    const countries = [
+      effectiveCountry,
+      ...trackingCountries.filter(c => c !== effectiveCountry),
+    ]
+
     const basePayload = {
       brandProfileId: profile.id,
       brandName: profile.companyName,
@@ -137,7 +144,8 @@ function DashboardPageInner() {
       competitors: Array.isArray(profile.competitors) ? profile.competitors : [],
       skipCooldown: false,
       generateReport: false,
-      country: selectedCountry || 'US',
+      country: effectiveCountry,
+      countries,
     }
 
     try {

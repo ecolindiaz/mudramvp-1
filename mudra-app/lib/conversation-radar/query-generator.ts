@@ -843,13 +843,13 @@ async function optimizeQueriesWithLLM(
   if (prompts.length === 0) return [];
 
   try {
-    const { default: OpenAI } = await import('openai');
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
     if (!process.env.OPENAI_API_KEY) {
       console.warn('[Query Generator] No OPENAI_API_KEY, falling back to rule-based cleaning');
       return [];
     }
+
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const systemPrompt = `You transform tracked prompts into Reddit search queries.
 

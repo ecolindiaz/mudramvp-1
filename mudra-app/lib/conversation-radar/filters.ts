@@ -53,36 +53,61 @@ export function calculateQueryRelevance(
   post: RedditPost,
   searchQuery: string
 ): number {
-  const queryTerms = extractKeyTerms(searchQuery);
-  if (queryTerms.length === 0) return 1; // No terms to match = consider relevant
-  
+  // Parse quoted phrases and individual terms separately.
+  // A query like '"scale ai" evaluations product' produces:
+  //   phrases: ["scale ai"]   terms: ["evaluations", "product"]
+  const { phrases, terms } = extractQueryParts(searchQuery);
+  const allParts = [...phrases, ...terms];
+  if (allParts.length === 0) return 1; // No terms to match = consider relevant
+
   const title = (post.title || '').toLowerCase();
   const body = (post.body || '').toLowerCase();
-  
+
   // Count matches in title (weighted 2x because title is more important)
   let titleMatches = 0;
   let bodyMatches = 0;
-  
-  for (const term of queryTerms) {
-    if (title.includes(term)) {
+
+  for (const part of allParts) {
+    if (title.includes(part)) {
       titleMatches++;
     }
-    if (body.includes(term)) {
+    if (body.includes(part)) {
       bodyMatches++;
     }
   }
-  
+
   // Title matches count double
   const weightedMatches = (titleMatches * 2) + bodyMatches;
-  const maxPossible = queryTerms.length * 3; // 2 for title + 1 for body
-  
+  const maxPossible = allParts.length * 3; // 2 for title + 1 for body
+
   return weightedMatches / maxPossible;
+}
+
+/**
+ * Parse a search query into quoted phrases and individual terms.
+ * Handles queries like: "scale ai" evaluations product
+ */
+function extractQueryParts(query: string): { phrases: string[]; terms: string[] } {
+  const phrases: string[] = [];
+  // Extract quoted phrases first, then process the remainder
+  const remaining = query.replace(/"([^"]+)"/g, (_, phrase) => {
+    phrases.push(phrase.toLowerCase().trim());
+    return ' ';
+  });
+  const terms = extractKeyTerms(remaining);
+  return { phrases, terms };
 }
 
 /**
  * Extract key terms from a search query
  * Removes stop words and short terms
  */
+// Important 2-char terms that should NOT be filtered out by the min-length check.
+// These are meaningful acronyms in tech/business contexts.
+const IMPORTANT_SHORT_TERMS = new Set([
+  'ai', 'ml', 'ux', 'ui', 'qa', 'ci', 'cd', 'hr', 'it', 'vr', 'ar', 'db', 'os',
+]);
+
 function extractKeyTerms(query: string): string[] {
   const stopWords = new Set([
     // English
@@ -112,7 +137,10 @@ function extractKeyTerms(query: string): string[] {
   return query
     .toLowerCase()
     .split(/\s+/)
-    .filter(term => term.length >= 3 && !stopWords.has(term));
+    // Keep terms ≥ 3 chars OR important 2-char acronyms (ai, ml, etc.)
+    .filter(term =>
+      (term.length >= 3 || IMPORTANT_SHORT_TERMS.has(term)) && !stopWords.has(term)
+    );
 }
 
 // ============================================================================

@@ -195,7 +195,8 @@ export async function processCitedOpportunities(
  */
 export async function runProactiveSearch(
   brandProfileId: number,
-  language: 'en' | 'es' = 'en'
+  language: 'en' | 'es' = 'en',
+  promptTexts?: string[]
 ): Promise<ProactiveSearchStats> {
   const stats: ProactiveSearchStats = { reddit: 0, total: 0, queries: [] };
 
@@ -217,7 +218,7 @@ export async function runProactiveSearch(
     companyICP: brandProfile.companyICP,
     companyIndustry: brandProfile.companyIndustry,
     competitors: brandProfile.competitors?.split(',').map(c => c.trim()).filter(Boolean) || [],
-    trackedPrompts: (language !== 'en'
+    trackedPrompts: promptTexts || (language !== 'en'
       ? brandProfile.prompts.filter(p => {
           // For non-English: skip brand-specific prompts (Apify queries mode returns garbage)
           if (p.category === 'Brand-Specific') return false;
@@ -242,7 +243,7 @@ export async function runProactiveSearch(
   }
   
   // 2. Generate search queries from tracked prompts
-  const queries = generateSearchQueries(brandContext, language);
+  const queries = await generateSearchQueries(brandContext, language);
   console.log(`[Proactive Radar] Generated ${queries.trackedPromptQueries.length} tracked prompt queries`);
   
   // ⚡ CREDIT OPTIMIZATION: Process up to 3 tracked prompts + 1 competitor query per run
@@ -332,9 +333,17 @@ async function searchRedditWithTrackedPrompts(
 
           // Calculate INITIAL relevance score (preliminary — LLM sets the real score)
           const queryRelevance = calculateQueryRelevance(post, promptQuery.searchQuery);
-          const keywordScore = queryRelevance * 20;
-          const subredditBonus = promptQuery.subreddits.includes(post.subreddit) ? 15 : 5;
-          const brandBonus = Math.min(15, calculateRelevanceBonus(post, brandContext));
+
+          // Fix B: Minimum keyword match — reject posts with near-zero query relevance.
+          // A post must match at least ~15% of query terms to be worth saving.
+          // This prevents "right subreddit, wrong topic" pollution.
+          if (queryRelevance < 0.15) { filteredCount++; continue; }
+
+          // Fix C: Rebalanced scoring — keyword match is the primary signal,
+          // subreddit presence is a tiebreaker, not a free pass.
+          const keywordScore = queryRelevance * 30;                                       // 0-30 (was 0-20)
+          const subredditBonus = promptQuery.subreddits.includes(post.subreddit) ? 8 : 3; // 8 or 3 (was 15 or 5)
+          const brandBonus = Math.min(12, calculateRelevanceBonus(post, brandContext));    // max 12 (was 15)
           const initialScore = Math.min(50, Math.round(keywordScore + subredditBonus + brandBonus));
 
           // Floor check: skip posts with no signal beyond subreddit presence
@@ -565,6 +574,7 @@ async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
       language,
       // Store initial relevance if provided (will be updated by LLM analysis)
       relevanceScore: initialRelevanceScore,
+      qualityScore,
     },
     update: {
       // Update engagement metrics on subsequent runs
@@ -572,6 +582,7 @@ async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
       numComments: redditPost.num_comments,
       upvoteRatio: redditPost.upvote_ratio,
       engagementString,
+      qualityScore,
       updatedAt: new Date(),
     },
   });
@@ -776,9 +787,12 @@ export async function analyzeOpportunity(opportunityId: number): Promise<Opportu
       isPromotionalOpportunity: analysis.isPromotionalOpportunity,
       promotionalReason: analysis.promotionalReason,
       relevanceScore: analysis.relevanceScore,
+      impact: analysis.impact,
+      engagementTiming: analysis.engagementTiming,
+      warningFlags: analysis.warningFlags,
     },
   });
-  
+
   console.log(`[Conversation Radar] Analysis complete for ${opportunityId}: relevance=${analysis.relevanceScore}`);
   
   return analysis;
@@ -870,6 +884,9 @@ export async function analyzeNewOpportunities(
           isPromotionalOpportunity: analysis.isPromotionalOpportunity,
           promotionalReason: analysis.promotionalReason,
           relevanceScore: analysis.relevanceScore,
+          impact: analysis.impact,
+          engagementTiming: analysis.engagementTiming,
+          warningFlags: analysis.warningFlags,
         },
       });
       analyzed++;

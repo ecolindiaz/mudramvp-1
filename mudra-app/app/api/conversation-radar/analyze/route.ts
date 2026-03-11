@@ -4,9 +4,10 @@
  * POST - Trigger LLM analysis on specific opportunities
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
+import { analyzeNewOpportunities, analyzeOpportunity } from '@/lib/services/conversation-radar.service';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
+import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 export const maxDuration = 300; // 5 minutes - LLM analysis of opportunities
@@ -41,37 +42,39 @@ export async function POST(req: NextRequest) {
       return authResult.response;
     }
 
-    // Get opportunities to analyze
-    const where: Record<string, unknown> = { brandProfileId };
+    // Analyze specific opportunities or unanalyzed ones
     if (opportunityIds && opportunityIds.length > 0) {
-      where.id = { in: opportunityIds };
-    } else {
-      // Analyze unanalyzed opportunities by default
-      where.conversationSnapshot = null;
-    }
-
-    const opportunities = await prisma.conversationOpportunity.findMany({
-      where,
-      take: 10, // Limit batch size
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (opportunities.length === 0) {
-      return NextResponse.json({
-        success: true,
-        analyzed: 0,
-        message: 'No opportunities to analyze',
+      // Verify opportunities belong to this brand profile
+      const validOpportunities = await prisma.conversationOpportunity.findMany({
+        where: { id: { in: opportunityIds.slice(0, 10) }, brandProfileId },
+        select: { id: true },
       });
-    }
+      const validIds = validOpportunities.map(o => o.id);
 
-    // TODO: Connect to conversation-radar.service.ts analyzeOpportunity function
-    // For now, return the count of opportunities that would be analyzed
-    return NextResponse.json({
-      success: true,
-      toAnalyze: opportunities.length,
-      opportunityIds: opportunities.map(o => o.id),
-      message: `${opportunities.length} opportunities queued for analysis`,
-    });
+      // Analyze in batches of 3 to avoid rate limiting (matches batchAnalyzeOpportunities pattern)
+      const BATCH_SIZE = 3;
+      let analyzed = 0;
+      let errors = 0;
+
+      for (let i = 0; i < validIds.length; i += BATCH_SIZE) {
+        const batch = validIds.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(
+          batch.map(id => analyzeOpportunity(id))
+        );
+        analyzed += results.filter(r => r.status === 'fulfilled').length;
+        errors += results.filter(r => r.status === 'rejected').length;
+
+        if (i + BATCH_SIZE < validIds.length) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+
+      return NextResponse.json({ success: true, analyzed, errors });
+    } else {
+      // Analyze unanalyzed opportunities for this brand
+      const result = await analyzeNewOpportunities(brandProfileId, { limit: 10 });
+      return NextResponse.json({ success: true, ...result });
+    }
   } catch (error) {
     console.error('[Conversation Radar API] Error triggering analysis:', error);
     return NextResponse.json(

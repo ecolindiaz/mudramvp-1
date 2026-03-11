@@ -125,7 +125,7 @@ function ConversationRadarPageInner() {
 
   // Calculate active opportunities count (not engaged/dismissed)
   const activeOpportunitiesCount = opportunities.filter((o) => {
-    return (o.status === "queued" || o.status === "running") && (o.relevanceScore || 0) >= 75
+    return (o.status === "queued" || o.status === "running") && (o.relevanceScore || 0) >= 70
   }).length
 
   // Show "Run Radar" when: cron failed, overdue, never run (nextRun null), or no opportunities yet
@@ -266,7 +266,7 @@ function ConversationRadarPageInner() {
   const normalizedQuery = searchQuery.trim().toLowerCase()
   const filteredOpportunities = (viewFilter === "active"
     ? opportunities.filter((o) => {
-        return (o.status === "queued" || o.status === "running") && (o.relevanceScore || 0) >= 75
+        return (o.status === "queued" || o.status === "running") && (o.relevanceScore || 0) >= 70
       })
     : opportunities
   ).filter((o) => {
@@ -410,7 +410,7 @@ function ConversationRadarPageInner() {
                       <div className="h-9 w-16 rounded bg-white/[0.06] animate-pulse" />
                     ) : (
                       <div className="flex items-end justify-between">
-                        <span className="text-[28px] font-medium text-white tabular-nums">{opportunities.filter(o => (o.relevanceScore || 0) >= 75).length}</span>
+                        <span className="text-[28px] font-medium text-white tabular-nums">{opportunities.filter(o => (o.relevanceScore || 0) >= 70).length}</span>
                         <span className="text-sm font-medium text-white/40">—</span>
                       </div>
                     )}

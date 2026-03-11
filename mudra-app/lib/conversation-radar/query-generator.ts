@@ -893,13 +893,15 @@ Return EXACTLY ${prompts.length} lines.`;
     const text = response.choices?.[0]?.message?.content?.trim();
     if (!text) return [];
 
+    // Preserve positional alignment: keep blank lines as empty strings so
+    // validated[i] always corresponds to prompts[i] at the call site.
     const lines = text.split('\n')
-      .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim().toLowerCase())
-      .filter(l => l.length > 0);
+      .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim().toLowerCase());
 
     // Validate: each line should be 3-10 words, no brand names
     const brandLower = brandContext.companyName?.toLowerCase() || '';
-    const validated = lines.map((line, i) => {
+    const validated = lines.map((line) => {
+      if (!line) return ''; // blank line from LLM — keep as empty to preserve alignment
       const words = line.split(/\s+/);
       if (words.length < 2 || words.length > 12) return ''; // Too short or too long
       if (brandLower && line.includes(brandLower)) return ''; // Still has brand name

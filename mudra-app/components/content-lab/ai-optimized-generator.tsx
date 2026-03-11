@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { safeParseICPArray } from "@/lib/utils/safe-parse-array";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -228,19 +229,7 @@ export function AIOptimizedGenerator({
         const data = await res.json();
 
         if (data && data.companyICP) {
-          // Parse ICPs - could be comma-separated string or JSON array
-          let icps: string[] = [];
-          try {
-            icps = typeof data.companyICP === 'string'
-              ? data.companyICP.includes('[')
-                ? JSON.parse(data.companyICP)
-                : data.companyICP.split(',').map((s: string) => s.trim()).filter(Boolean)
-              : Array.isArray(data.companyICP)
-                ? data.companyICP
-                : [];
-          } catch {
-            icps = data.companyICP.split(',').map((s: string) => s.trim()).filter(Boolean);
-          }
+          const icps = safeParseICPArray(data.companyICP);
 
           // Map to ICP suggestions with icons
           const suggestions = icps.map((label, index) => ({

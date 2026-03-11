@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { logAIModelCall } from './ai-model-logging.service';
+import { safeParseICPArray } from '@/lib/utils/safe-parse-array';
 
 export interface BrandInfo {
   companyName: string;
@@ -224,17 +225,16 @@ export function profileToBrandInfo(profile: any): BrandInfo {
 
   const description = profile.companyDescription || 'A technology company';
   const industry = profile.companyIndustry || 'Technology';
-  const icp = profile.companyICP || 'Small to medium businesses';
+  const icpArray = safeParseICPArray(profile.companyICP, ['Small to medium businesses']);
+  const icp = icpArray.join(', ');
 
   // Products with descriptions: keep items that contain " - " (Firecrawl format)
   const productsWithDescriptions = services.some((s: string) => s.includes(' - '))
     ? services
     : undefined;
 
-  // ICP segments: split by comma if there are multiple
-  const icpSegments = icp.includes(',')
-    ? icp.split(',').map((s: string) => s.trim()).filter((s: string) => s)
-    : undefined;
+  // ICP segments: only set when there are genuinely multiple ICPs
+  const icpSegments = icpArray.length > 1 ? icpArray : undefined;
 
   // Filter out the "Industry competitors" sentinel
   const realCompetitors = competitors.filter(c => c !== 'Industry competitors');

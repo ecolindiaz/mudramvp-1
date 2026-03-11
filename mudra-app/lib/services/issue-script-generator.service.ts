@@ -13,6 +13,7 @@ import * as cheerio from "cheerio";
 import { callLlm } from "./llm-provider.service";
 import { scrapeFaqContext, scrapePageContent, scrapePageContentForSchema } from "./page-scrape-context.service";
 import { getRequiredSchemaTypesForCheck } from "./schema-contracts";
+import { safeParseICPArray } from "@/lib/utils/safe-parse-array";
 import {
 	readSchemaKnowledge,
 	readFaqTemplates,
@@ -2303,7 +2304,7 @@ function buildLlmsTxtTemplate(
 	// Priority 0: KB ICP segments (user-confirmed during onboarding)
 	const kbICP = brandProfile.companyICP?.trim();
 	if (kbICP) {
-		const segments = kbICP.split(/,\s+/).filter((s) => s.trim().length > 0);
+		const segments = safeParseICPArray(kbICP);
 		for (const segment of segments) {
 			if (audienceFacts.length >= 4) break;
 			const bullet = segment.trim().slice(0, 160);

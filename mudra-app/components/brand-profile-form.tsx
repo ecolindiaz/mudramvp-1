@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Upload } from "lucide-react"
+import { safeParseArray, safeParseICPArray } from "@/lib/utils/safe-parse-array"
 
 // Consistent styles for Mudra theme
 const inputStyles = "bg-white/[0.03] border-0 text-white placeholder-white/30 focus:bg-white/[0.05] disabled:opacity-50 disabled:cursor-not-allowed"
@@ -52,21 +53,6 @@ export function BrandProfileForm() {
   const [isEditing, setIsEditing] = useState(false)
   const [kbFiles, setKbFiles] = useState<File[]>([])
 
-  // Helper function to safely parse JSON or return default
-  const safeParseArray = (value: any, fallback: string[]): string[] => {
-    if (Array.isArray(value)) return value
-    if (typeof value === 'string' && value.trim()) {
-      try {
-        const parsed = JSON.parse(value)
-        return Array.isArray(parsed) ? parsed : [value]
-      } catch {
-        // If JSON parse fails, treat as a single-item array
-        return [value]
-      }
-    }
-    return fallback
-  }
-
   // Load profile data from context on mount
   useEffect(() => {
     if (profile && profile.companyName) {
@@ -78,7 +64,7 @@ export function BrandProfileForm() {
         ...initialData,
         ...nonNullProfile,
         companyServices: safeParseArray(profile.companyServices, initialData.companyServices),
-        companyICP: safeParseArray(profile.companyICP, initialData.companyICP),
+        companyICP: safeParseICPArray(profile.companyICP, initialData.companyICP),
         competitors: safeParseArray(profile.competitors, initialData.competitors),
       }
       setFormData(profileData)

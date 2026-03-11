@@ -33,7 +33,7 @@ export function buildRedditQueries(brandInfo: BrandInfo): string[] {
 
   // 2. ICP pain point query
   if (brandInfo.idealCustomer) {
-    const icpShort = brandInfo.idealCustomer.split(',')[0].trim();
+    const icpShort = brandInfo.icpSegments?.[0] || brandInfo.idealCustomer;
     queries.push(`${icpShort} ${brandInfo.industry.toLowerCase()} problems`);
   }
 

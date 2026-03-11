@@ -155,7 +155,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       companyDescription: data.companyDescription,
       companyIndustry: data.companyIndustry,
       companyServices: data.servicesProducts.join(", "),
-      companyICP: data.companyICP.join(", "),
+      companyICP: JSON.stringify(data.companyICP),
 
       // Competitors
       competitors: data.competitors.filter(c => c.trim() !== ""),
@@ -188,7 +188,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         companyDescription: data.companyDescription,
         companyIndustry: data.companyIndustry,
         companyServices: data.servicesProducts.join(", "),
-        companyICP: data.companyICP.join(", "),
+        companyICP: JSON.stringify(data.companyICP),
         competitors: data.competitors.filter(c => c.trim() !== ""),
       }
 
@@ -202,8 +202,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
             companyIndustry: extracted.industry || data.companyIndustry,
             companyServices: (extracted.servicesProducts?.length > 0
               ? extracted.servicesProducts : data.servicesProducts).join(", "),
-            companyICP: (extracted.idealCustomerProfiles?.length > 0
-              ? extracted.idealCustomerProfiles : data.companyICP).join(", "),
+            companyICP: JSON.stringify(extracted.idealCustomerProfiles?.length > 0
+              ? extracted.idealCustomerProfiles : data.companyICP),
             competitors: extracted.competitorUrls?.length > 0
               ? extracted.competitorUrls
               : data.competitors.filter(c => c.trim() !== ""),

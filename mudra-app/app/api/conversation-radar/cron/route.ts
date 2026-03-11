@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   try {
     // Verify cron secret
     const authHeader = request.headers.get('authorization');
-    if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+    if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
     
@@ -279,8 +279,8 @@ async function runProactiveMode(brandProfileId: number, language: 'en' | 'es' = 
   console.log(`[Cron] Processing ${prompts.length} prompts (${language}, offset: ${offset})`);
   console.log(`[Cron] Prompts: ${prompts.map(p => p.text.slice(0, 40)).join(', ')}...`);
 
-  // Run proactive search (it will use the limit we set in config)
-  const proactiveResult = await runProactiveSearch(brandProfileId, language);
+  // Run proactive search with the scheduler-selected prompts
+  const proactiveResult = await runProactiveSearch(brandProfileId, language, prompts.map(p => p.text));
 
   // Update offset for next run (per-language)
   await updateProactiveOffset(brandProfileId, offset, language);

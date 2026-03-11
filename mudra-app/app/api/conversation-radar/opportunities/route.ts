@@ -6,10 +6,14 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth/require-auth';
 import { getOpportunityForFrontend } from '@/lib/services/conversation-radar.service';
 import { getLanguageForCountry, isAllowedCountry } from '@/lib/geo/country-config';
 
 export async function GET(req: NextRequest) {
+  const authResult = await requireAuth();
+  if (!authResult.success) return authResult.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const opportunityId = searchParams.get('opportunityId');
@@ -126,6 +130,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const authResult = await requireAuth();
+  if (!authResult.success) return authResult.response;
+
   try {
     const body = await req.json();
     const { opportunityId, status, dismissReason } = body;

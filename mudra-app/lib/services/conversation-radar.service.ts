@@ -195,7 +195,8 @@ export async function processCitedOpportunities(
  */
 export async function runProactiveSearch(
   brandProfileId: number,
-  language: 'en' | 'es' = 'en'
+  language: 'en' | 'es' = 'en',
+  promptTexts?: string[]
 ): Promise<ProactiveSearchStats> {
   const stats: ProactiveSearchStats = { reddit: 0, total: 0, queries: [] };
 
@@ -217,7 +218,7 @@ export async function runProactiveSearch(
     companyICP: brandProfile.companyICP,
     companyIndustry: brandProfile.companyIndustry,
     competitors: brandProfile.competitors?.split(',').map(c => c.trim()).filter(Boolean) || [],
-    trackedPrompts: (language !== 'en'
+    trackedPrompts: promptTexts || (language !== 'en'
       ? brandProfile.prompts.filter(p => {
           // For non-English: skip brand-specific prompts (Apify queries mode returns garbage)
           if (p.category === 'Brand-Specific') return false;
@@ -565,6 +566,7 @@ async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
       language,
       // Store initial relevance if provided (will be updated by LLM analysis)
       relevanceScore: initialRelevanceScore,
+      qualityScore,
     },
     update: {
       // Update engagement metrics on subsequent runs
@@ -572,6 +574,7 @@ async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
       numComments: redditPost.num_comments,
       upvoteRatio: redditPost.upvote_ratio,
       engagementString,
+      qualityScore,
       updatedAt: new Date(),
     },
   });
@@ -776,9 +779,12 @@ export async function analyzeOpportunity(opportunityId: number): Promise<Opportu
       isPromotionalOpportunity: analysis.isPromotionalOpportunity,
       promotionalReason: analysis.promotionalReason,
       relevanceScore: analysis.relevanceScore,
+      impact: analysis.impact,
+      engagementTiming: analysis.engagementTiming,
+      warningFlags: analysis.warningFlags,
     },
   });
-  
+
   console.log(`[Conversation Radar] Analysis complete for ${opportunityId}: relevance=${analysis.relevanceScore}`);
   
   return analysis;
@@ -870,6 +876,9 @@ export async function analyzeNewOpportunities(
           isPromotionalOpportunity: analysis.isPromotionalOpportunity,
           promotionalReason: analysis.promotionalReason,
           relevanceScore: analysis.relevanceScore,
+          impact: analysis.impact,
+          engagementTiming: analysis.engagementTiming,
+          warningFlags: analysis.warningFlags,
         },
       });
       analyzed++;

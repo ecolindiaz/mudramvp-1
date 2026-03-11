@@ -83,7 +83,115 @@ const TOPIC_MAPPINGS: TopicMapping[] = [
     subreddits: ['artificial', 'MachineLearning', 'singularity', 'ChatGPT'],
     priority: 70,
   },
-  
+  {
+    keywords: ['web search', 'search api', 'search engine'],
+    subreddits: ['SaaS', 'LocalLLaMA', 'AI_Agents', 'programming'],
+    priority: 85,
+  },
+  {
+    keywords: ['ai agent', 'ai agents', 'agentic', 'agent framework'],
+    subreddits: ['AI_Agents', 'LocalLLaMA', 'ChatGPT', 'MachineLearning'],
+    priority: 85,
+  },
+  {
+    keywords: ['web scraping', 'web crawling', 'scraper', 'scraping'],
+    subreddits: ['webscraping', 'programming', 'webdev', 'SaaS'],
+    priority: 85,
+  },
+  {
+    keywords: ['rag', 'retrieval augmented', 'vector database', 'embeddings'],
+    subreddits: ['LocalLLaMA', 'MachineLearning', 'Rag', 'AI_Agents'],
+    priority: 85,
+  },
+  {
+    keywords: ['rlhf', 'human feedback', 'training data', 'fine-tuning', 'fine tuning', 'finetuning'],
+    subreddits: ['MachineLearning', 'LocalLLaMA', 'MLQuestions', 'datascience'],
+    priority: 90,
+  },
+  {
+    keywords: ['gpu', 'inference', 'model hosting', 'model deployment', 'model serving'],
+    subreddits: ['LocalLLaMA', 'MachineLearning', 'MLQuestions', 'devops'],
+    priority: 85,
+  },
+  {
+    keywords: ['serverless', 'autoscaling', 'auto-scaling', 'cloud infrastructure'],
+    subreddits: ['devops', 'kubernetes', 'aws', 'programming'],
+    priority: 85,
+  },
+  {
+    keywords: ['sandbox', 'sandboxing', 'code execution', 'untrusted code', 'isolated environment'],
+    subreddits: ['devops', 'programming', 'cybersecurity', 'sysadmin'],
+    priority: 85,
+  },
+  {
+    keywords: ['containerized', 'container', 'docker', 'kubernetes'],
+    subreddits: ['devops', 'kubernetes', 'docker', 'sysadmin'],
+    priority: 85,
+  },
+  {
+    keywords: ['batch processing', 'batch ml', 'batch workload', 'cron job', 'job queue'],
+    subreddits: ['devops', 'dataengineering', 'MachineLearning', 'programming'],
+    priority: 80,
+  },
+  {
+    keywords: ['evaluation', 'evaluate', 'benchmark', 'eval', 'red-teaming', 'red teaming'],
+    subreddits: ['MachineLearning', 'LocalLLaMA', 'MLQuestions', 'datascience'],
+    priority: 85,
+  },
+  {
+    keywords: ['foundation model', 'open-source model', 'open source model', 'llama', 'mistral', 'stable diffusion'],
+    subreddits: ['LocalLLaMA', 'MachineLearning', 'StableDiffusion', 'OpenAI'],
+    priority: 85,
+  },
+  {
+    keywords: ['image generation', 'text to image', 'diffusion model', 'generative ai'],
+    subreddits: ['StableDiffusion', 'LocalLLaMA', 'MachineLearning', 'artificial'],
+    priority: 85,
+  },
+  {
+    keywords: ['web indexing', 'crawl', 'index', 'research assistant', 'research tool'],
+    subreddits: ['webscraping', 'programming', 'SaaS', 'datascience'],
+    priority: 80,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Personal Finance / Freelance / Remittances
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    keywords: ['freelancer', 'freelance', 'remote worker', 'digital nomad', 'nomad'],
+    subreddits: ['digitalnomad', 'remotework', 'freelance', 'personalfinance'],
+    priority: 85,
+  },
+  {
+    keywords: ['usd', 'currency', 'foreign exchange', 'forex', 'exchange rate'],
+    subreddits: ['personalfinance', 'digitalnomad', 'fintech', 'Entrepreneur'],
+    priority: 80,
+  },
+  {
+    keywords: ['visa card', 'international card', 'global account', 'multi-currency', 'multicurrency'],
+    subreddits: ['digitalnomad', 'personalfinance', 'fintech', 'creditcards'],
+    priority: 85,
+  },
+  {
+    keywords: ['remittance', 'send money', 'money transfer', 'withdraw', 'cash out'],
+    subreddits: ['personalfinance', 'digitalnomad', 'fintech', 'Entrepreneur'],
+    priority: 80,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Voice AI / Call Center / Logistics
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    keywords: ['voice ai', 'voice agent', 'voice bot', 'call center', 'ivr', 'conversational ai'],
+    subreddits: ['artificial', 'SaaS', 'CustomerSuccess', 'smallbusiness'],
+    priority: 85,
+  },
+  {
+    keywords: ['last-mile', 'delivery verification', 'failed delivery', 'address verification'],
+    subreddits: ['logistics', 'supplychain', 'ecommerce', 'smallbusiness'],
+    priority: 85,
+  },
+
   // ─────────────────────────────────────────────────────────────────────────
   // DevTools / Developer Experience
   // ─────────────────────────────────────────────────────────────────────────
@@ -571,6 +679,66 @@ const SPANISH_TOPIC_MAPPINGS: TopicMapping[] = [
     subreddits: ['programacion', 'devops', 'SaaS', 'startups'],
     priority: 75,
   },
+  {
+    keywords: ['freelancer', 'cobrar en dólares', 'cobro en usd', 'pagos internacionales', 'cuenta en dólares', 'cuenta global', 'nómada digital', 'remesas'],
+    subreddits: ['merval', 'fintech', 'remotework', 'digitalnomad'],
+    priority: 90,
+  },
+  {
+    keywords: ['tarjeta internacional', 'tarjeta visa', 'transferencia internacional', 'tipo de cambio'],
+    subreddits: ['merval', 'fintech', 'personalfinance', 'digitalnomad'],
+    priority: 85,
+  },
+  {
+    keywords: ['invertir', 'inversión', 'acciones', 'etf', 'bolsa', 'portafolio'],
+    subreddits: ['merval', 'investing', 'stocks', 'personalfinance'],
+    priority: 85,
+  },
+  {
+    keywords: ['búsqueda', 'motor de búsqueda', 'búsqueda web', 'búsqueda semántica'],
+    subreddits: ['programacion', 'SaaS', 'LocalLLaMA', 'AI_Agents'],
+    priority: 85,
+  },
+  {
+    keywords: ['gpu', 'inferencia', 'desplegar modelo', 'despliegue', 'servir modelos'],
+    subreddits: ['LocalLLaMA', 'MachineLearning', 'devops', 'programacion'],
+    priority: 85,
+  },
+  {
+    keywords: ['serverless', 'escalamiento', 'escalar', 'contenedor', 'contenedores'],
+    subreddits: ['devops', 'kubernetes', 'programacion', 'sysadmin'],
+    priority: 85,
+  },
+  {
+    keywords: ['sueldo', 'cobrar', 'remesa', 'enviar dinero', 'mandar dinero', 'moneda local', 'retiro', 'retirar'],
+    subreddits: ['merval', 'digitalnomad', 'fintech', 'remotework'],
+    priority: 90,
+  },
+  {
+    keywords: ['factura', 'facturas', 'pagar servicios', 'gestionar finanzas', 'finanzas personales', 'multi-moneda'],
+    subreddits: ['merval', 'personalfinance', 'fintech', 'Entrepreneur'],
+    priority: 85,
+  },
+  {
+    keywords: ['agente de voz', 'voz ia', 'call center', 'soporte postventa', 'centro de llamadas'],
+    subreddits: ['artificial', 'SaaS', 'programacion', 'Entrepreneur'],
+    priority: 85,
+  },
+  {
+    keywords: ['logística', 'entrega', 'entregas fallidas', 'última milla', 'verificación de dirección', 'delivery'],
+    subreddits: ['logistics', 'supplychain', 'ecommerce', 'programacion'],
+    priority: 85,
+  },
+  {
+    keywords: ['indexar', 'rastrear', 'scraping', 'crawling', 'research automatizado', 'buscar contenidos'],
+    subreddits: ['webscraping', 'programacion', 'SaaS', 'datascience'],
+    priority: 85,
+  },
+  {
+    keywords: ['evaluación', 'evaluar', 'benchmark', 'modelo fundacional', 'modelo base'],
+    subreddits: ['MachineLearning', 'LocalLLaMA', 'programacion', 'datascience'],
+    priority: 85,
+  },
   // Generic fallbacks
   {
     keywords: ['herramienta', 'plataforma', 'solución', 'alternativa'],
@@ -597,8 +765,8 @@ export function generateSearchQueries(brandContext: BrandContext, language: 'en'
     // Detect topics in the prompt and find relevant subreddits
     // Use Spanish mappings for Spanish language
     const subreddits = language === 'es'
-      ? detectSpanishSubreddits(prompt, brandContext)
-      : detectRelevantSubreddits(prompt, brandContext);
+      ? detectSpanishSubreddits(prompt)
+      : detectRelevantSubreddits(prompt);
 
     // Build search URLs for each subreddit
     // Use 'year' in search (Reddit doesn't have 3-month option)
@@ -641,13 +809,9 @@ export function generateSearchQueries(brandContext: BrandContext, language: 'en'
  * Uses word boundary matching for short keywords to avoid false positives
  * Prioritizes more specific matches over generic ones
  */
-function detectRelevantSubreddits(prompt: string, brandContext?: BrandContext): string[] {
+function detectRelevantSubreddits(prompt: string): string[] {
   const promptLower = prompt.toLowerCase();
-  
-  // Also include brand context for better matching
-  const contextText = brandContext 
-    ? `${promptLower} ${brandContext.companyDescription || ''} ${brandContext.companyIndustry || ''} ${brandContext.companyICP || ''}`.toLowerCase()
-    : promptLower;
+  const contextText = promptLower;
   
   // Track matches with their priority
   const matches: Array<{ subreddits: string[]; priority: number }> = [];
@@ -700,12 +864,9 @@ function detectRelevantSubreddits(prompt: string, brandContext?: BrandContext): 
  * Detect relevant subreddits for Spanish prompts
  * Same logic as detectRelevantSubreddits but uses SPANISH_TOPIC_MAPPINGS
  */
-function detectSpanishSubreddits(prompt: string, brandContext?: BrandContext): string[] {
+function detectSpanishSubreddits(prompt: string): string[] {
   const promptLower = prompt.toLowerCase();
-
-  const contextText = brandContext
-    ? `${promptLower} ${brandContext.companyDescription || ''} ${brandContext.companyIndustry || ''} ${brandContext.companyICP || ''}`.toLowerCase()
-    : promptLower;
+  const contextText = promptLower;
 
   const matches: Array<{ subreddits: string[]; priority: number }> = [];
 
@@ -785,54 +946,57 @@ function buildSubredditSearchUrl(
 /**
  * Clean a tracked prompt for Reddit search
  *
- * Reddit search tips:
- * - Quotes force exact phrase matching
- * - Shorter queries often work better
- * - Remove special characters
+ * Reddit search works best with 3-8 keyword queries.
+ * Long natural-language prompts (13-18 words) return poor results.
+ *
+ * Strategy:
+ * 1. Strip punctuation and normalize
+ * 2. Remove stop words (filler that adds no search signal)
+ * 3. Keep max 8 key terms — enough context without noise
  */
 function cleanPromptForSearch(prompt: string): string {
-  let cleaned = prompt
-    // Remove question marks and common punctuation
-    .replace(/[?!.,;:'"]/g, '')
-    // Normalize whitespace
+  const cleaned = prompt
+    .replace(/[?!.,;:'"¿¡()]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
-  
-  // If the prompt is very long, extract the key part
-  // Most tracked prompts are questions like "What is the best X for Y"
-  if (cleaned.length > 80) {
-    // Try to find the core of the question
-    const patterns = [
-      // English
-      /best (.+?) for (.+)/i,
-      /how to (.+)/i,
-      /what (?:is|are) (.+)/i,
-      /recommend (.+)/i,
-      /looking for (.+)/i,
-      // Spanish
-      /mejou?r(?:es)? (.+?) para (.+)/i,
-      /cómo (.+)/i,
-      /qué (?:es|son) (.+)/i,
-      /buscando (.+)/i,
-      /recomendar (.+)/i,
-    ];
-    
-    for (const pattern of patterns) {
-      const match = cleaned.match(pattern);
-      if (match) {
-        // Use the matched part, keeping context
-        cleaned = match[0].slice(0, 80);
-        break;
-      }
-    }
-    
-    // If still too long, just truncate
-    if (cleaned.length > 80) {
-      cleaned = cleaned.slice(0, 80);
-    }
+
+  // Stop words to remove — these add no signal in Reddit search
+  const stopWords = new Set([
+    // English
+    'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
+    'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
+    'could', 'should', 'may', 'might', 'must', 'can', 'what', 'which',
+    'who', 'whom', 'this', 'that', 'these', 'those', 'how', 'why', 'when',
+    'where', 'not', 'its', 'our', 'my', 'your', 'their', 'it',
+    'need', 'want', 'find', 'get', 'use', 'using', 'just', 'also',
+    'without', 'about', 'into', 'like', 'looking', 'there', 'been',
+    'than', 'then', 'some', 'any', 'all', 'most', 'other', 'more',
+    // Spanish
+    'los', 'las', 'del', 'una', 'uno', 'unos', 'unas', 'que', 'con',
+    'por', 'para', 'como', 'más', 'mas', 'sus', 'son', 'ser', 'está',
+    'esta', 'este', 'estos', 'estas', 'eso', 'esos', 'ese', 'esa',
+    'hay', 'sobre', 'entre', 'cuando', 'desde', 'donde', 'sin',
+    'también', 'tambien', 'muy', 'todo', 'todos', 'toda', 'todas',
+    'otro', 'otra', 'otros', 'otras', 'cada', 'puede', 'pueden',
+    'qué', 'cómo', 'dónde', 'quién', 'quien', 'cuál', 'cual',
+    'hacer', 'tiene', 'tienen', 'sido', 'bien', 'solo', 'sólo',
+    'pero', 'porque', 'algo', 'después', 'antes', 'ahora',
+    'necesito', 'quiero', 'buscar', 'busco',
+  ]);
+
+  const keyTerms = cleaned
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(w => w.length >= 2 && !stopWords.has(w));
+
+  // Keep max 8 terms — sweet spot for Reddit search
+  const MAX_TERMS = 8;
+  if (keyTerms.length <= MAX_TERMS) {
+    return keyTerms.join(' ');
   }
-  
-  return cleaned;
+
+  return keyTerms.slice(0, MAX_TERMS).join(' ');
 }
 
 /**

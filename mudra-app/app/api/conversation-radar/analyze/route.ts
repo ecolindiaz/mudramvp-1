@@ -4,8 +4,8 @@
  * POST - Trigger LLM analysis on specific opportunities
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
+import { analyzeNewOpportunities, analyzeOpportunity } from '@/lib/services/conversation-radar.service';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 import { z } from 'zod';
 
@@ -41,37 +41,20 @@ export async function POST(req: NextRequest) {
       return authResult.response;
     }
 
-    // Get opportunities to analyze
-    const where: Record<string, unknown> = { brandProfileId };
+    // Analyze specific opportunities or unanalyzed ones
     if (opportunityIds && opportunityIds.length > 0) {
-      where.id = { in: opportunityIds };
+      // Analyze specific opportunities
+      const results = await Promise.allSettled(
+        opportunityIds.slice(0, 10).map(id => analyzeOpportunity(id))
+      );
+      const analyzed = results.filter(r => r.status === 'fulfilled').length;
+      const errors = results.filter(r => r.status === 'rejected').length;
+      return NextResponse.json({ success: true, analyzed, errors });
     } else {
-      // Analyze unanalyzed opportunities by default
-      where.conversationSnapshot = null;
+      // Analyze unanalyzed opportunities for this brand
+      const result = await analyzeNewOpportunities(brandProfileId, { limit: 10 });
+      return NextResponse.json({ success: true, ...result });
     }
-
-    const opportunities = await prisma.conversationOpportunity.findMany({
-      where,
-      take: 10, // Limit batch size
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (opportunities.length === 0) {
-      return NextResponse.json({
-        success: true,
-        analyzed: 0,
-        message: 'No opportunities to analyze',
-      });
-    }
-
-    // TODO: Connect to conversation-radar.service.ts analyzeOpportunity function
-    // For now, return the count of opportunities that would be analyzed
-    return NextResponse.json({
-      success: true,
-      toAnalyze: opportunities.length,
-      opportunityIds: opportunities.map(o => o.id),
-      message: `${opportunities.length} opportunities queued for analysis`,
-    });
   } catch (error) {
     console.error('[Conversation Radar API] Error triggering analysis:', error);
     return NextResponse.json(

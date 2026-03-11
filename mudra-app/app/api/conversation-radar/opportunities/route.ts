@@ -6,7 +6,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth/require-auth';
+import { requireAuth, requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 import { getOpportunityForFrontend } from '@/lib/services/conversation-radar.service';
 import { getLanguageForCountry, isAllowedCountry } from '@/lib/geo/country-config';
 
@@ -34,6 +34,19 @@ export async function GET(req: NextRequest) {
           { status: 400 }
         );
       }
+
+      // Verify the opportunity belongs to the authenticated user
+      const existingOpp = await prisma.conversationOpportunity.findUnique({
+        where: { id },
+        select: { brandProfile: { select: { userId: true } } },
+      });
+      if (!existingOpp || existingOpp.brandProfile.userId !== authResult.user.id) {
+        return NextResponse.json(
+          { success: false, error: 'Not found or access denied' },
+          { status: 403 }
+        );
+      }
+
       const data = await getOpportunityForFrontend(id);
       if (!data) {
         return NextResponse.json(
@@ -49,6 +62,12 @@ export async function GET(req: NextRequest) {
         { success: false, error: 'brandProfileId is required' },
         { status: 400 }
       );
+    }
+
+    // Verify the user owns this brand profile
+    const brandAuthResult = await requireAuthWithBrandAccess(parseInt(brandProfileId, 10));
+    if (!brandAuthResult.success) {
+      return brandAuthResult.response;
     }
 
     const where: Record<string, unknown> = {
@@ -141,6 +160,18 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'opportunityId and status are required' },
         { status: 400 }
+      );
+    }
+
+    // Verify the opportunity belongs to the authenticated user
+    const existingOpp = await prisma.conversationOpportunity.findUnique({
+      where: { id: opportunityId },
+      select: { brandProfile: { select: { userId: true } } },
+    });
+    if (!existingOpp || existingOpp.brandProfile.userId !== authResult.user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Not found or access denied' },
+        { status: 403 }
       );
     }
 

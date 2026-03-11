@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 import { analyzeNewOpportunities, analyzeOpportunity } from '@/lib/services/conversation-radar.service';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
+import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 export const maxDuration = 300; // 5 minutes - LLM analysis of opportunities
@@ -43,9 +44,16 @@ export async function POST(req: NextRequest) {
 
     // Analyze specific opportunities or unanalyzed ones
     if (opportunityIds && opportunityIds.length > 0) {
-      // Analyze specific opportunities
+      // Verify opportunities belong to this brand profile
+      const validOpportunities = await prisma.conversationOpportunity.findMany({
+        where: { id: { in: opportunityIds.slice(0, 10) }, brandProfileId },
+        select: { id: true },
+      });
+      const validIds = validOpportunities.map(o => o.id);
+
+      // Analyze only validated opportunities
       const results = await Promise.allSettled(
-        opportunityIds.slice(0, 10).map(id => analyzeOpportunity(id))
+        validIds.map(id => analyzeOpportunity(id))
       );
       const analyzed = results.filter(r => r.status === 'fulfilled').length;
       const errors = results.filter(r => r.status === 'rejected').length;

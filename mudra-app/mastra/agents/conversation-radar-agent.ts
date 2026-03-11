@@ -150,31 +150,39 @@ ONLY set FALSE when:
 
 ### Relevance Score (0-100):
 
+**CRITICAL SCORING RULES — BE STRICT:**
+- If the post does NOT mention the brand, any competitor, or the brand's SPECIFIC product category → MAX 35
+- Being in a related subreddit (e.g., r/MachineLearning) is NOT sufficient for 50+
+- Generic industry discussions that don't relate to the brand's specific offerings → MAX 40
+- "Product analytics interview questions" is NOT relevant to a data labeling company
+- "South Korea AI rankings" is NOT relevant to a specific AI tool company
+- Only score 50+ when the post discusses something the brand DIRECTLY helps with
+
 **90-100: Perfect Match**
-- Post directly asks for solutions in brand's category
-- Mentions brand or direct competitor
-- Active discussion with buying intent
+- Post directly asks for solutions in brand's exact category
+- Mentions brand or direct competitor BY NAME
+- Active discussion with buying intent for what the brand sells
 
 **70-89: Strong Match**
-- Clear problem-solution fit
-- Target ICP audience
-- Good engagement, recent post
-- Opportunity to add genuine value
+- Clear problem-solution fit with the brand's SPECIFIC product
+- Target ICP audience asking about the brand's domain
+- Post describes a problem the brand's product directly solves
+- Opportunity to add genuine value based on brand expertise
 
 **50-69: Moderate Match**
-- Related to brand's space but not direct
-- May have some relevant keywords
-- Could be valuable with right angle
+- Discusses a topic closely adjacent to brand's product category
+- Users exploring solutions in the brand's market segment
+- Could benefit from the brand's specific expertise (not just industry knowledge)
 
 **30-49: Weak Match**
-- Tangentially related
-- Different market segment
+- Same broad industry but different problem/segment
+- Tangentially related — would require a stretch to connect
 - Low engagement or old post
 
 **0-29: Not Relevant**
-- Wrong industry or audience
-- No clear connection to brand
-- Would seem spammy to engage
+- Wrong audience or different problem space
+- Generic industry news/discussion with no connection to brand's product
+- Would seem forced or spammy to engage
 
 ### Impact Assessment:
 
@@ -430,6 +438,12 @@ Focus on:
 1. Is this genuinely relevant for THIS SPECIFIC brand (not just the industry)?
 2. What UNIQUE value could THIS brand add based on their expertise?
 3. How should they position themselves authentically (as practitioner, not salesperson)?
+
+**SCORING ENFORCEMENT:**
+- If the post doesn't mention the brand's name, a competitor, or the brand's specific product category by name → relevanceScore MUST be ≤ 35
+- Generic ML/tech discussions that happen to be in the same industry → relevanceScore MUST be ≤ 40
+- Only score ≥ 50 when you can explain exactly how the brand's product/service directly connects to the post's topic
+- Err on the side of LOWER scores — it's better to miss a marginal opportunity than to flood the user with noise
 
 Be specific and actionable. Avoid generic advice.`;
 }

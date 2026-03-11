@@ -1,16 +1,16 @@
 /**
  * Search Query Generator for Conversation Radar Mode 2 (Proactive Radar)
- * 
+ *
  * SMART APPROACH: Search relevant subreddits with tracked prompts
- * 
+ *
  * KEY INSIGHT: Reddit's global search returns many irrelevant results.
  * Searching within specific relevant subreddits is MUCH more accurate!
- * 
+ *
  * Strategy:
  * 1. Analyze tracked prompt to detect topic/domain
  * 2. Map topic to relevant subreddits (e.g., "data labeling" → r/MachineLearning)
- * 3. Search within those subreddits with the core query
- * 4. This gives 60-70% relevance vs 20-30% for global search
+ * 3. Use LLM to transform the prompt into Reddit-optimized search keywords
+ * 4. Search within those subreddits with the optimized query
  */
 
 export interface BrandContext {
@@ -753,24 +753,42 @@ const SPANISH_DEFAULT_SUBREDDITS = ['programacion', 'technology', 'espanol', 'En
  * Generate search queries with smart subreddit targeting
  * This is the key to getting ACCURATE results!
  */
-export function generateSearchQueries(brandContext: BrandContext, language: 'en' | 'es' = 'en'): GeneratedQueries {
+export async function generateSearchQueries(brandContext: BrandContext, language: 'en' | 'es' = 'en'): Promise<GeneratedQueries> {
   const trackedPromptQueries: TrackedPromptQuery[] = [];
   const competitorQueries: string[] = [];
 
+  // Extract clean company names from competitors (which may be URLs like "https://snorkel.ai")
+  const cleanCompetitorNames = brandContext.competitors.flatMap(c => extractCompanyNames(c));
+
+  // ALL brand/competitor names for context
+  const allBrandNames = [brandContext.companyName, ...cleanCompetitorNames]
+    .filter(Boolean)
+    .map(n => n!.trim())
+    .filter(n => n.length > 0);
+
+  // LLM-optimize search queries in a single batch call.
+  // Transforms AI-prompt-style text into Reddit-optimized keyword queries.
+  // e.g. "Scale AI Evaluations product" → "model evaluation tools LLM benchmarking"
+  const llmQueries = await optimizeQueriesWithLLM(
+    brandContext.trackedPrompts,
+    brandContext,
+    language,
+  );
+
   // 1. PRIMARY: For each tracked prompt, find relevant subreddits and create targeted searches
-  for (const prompt of brandContext.trackedPrompts) {
-    const searchQuery = cleanPromptForSearch(prompt);
+  for (let i = 0; i < brandContext.trackedPrompts.length; i++) {
+    const prompt = brandContext.trackedPrompts[i];
+
+    // Use LLM-optimized query if available, fall back to rule-based cleaning
+    const searchQuery = llmQueries[i] || cleanPromptForSearch(prompt, allBrandNames);
     if (!searchQuery || searchQuery.length < 5) continue;
 
     // Detect topics in the prompt and find relevant subreddits
-    // Use Spanish mappings for Spanish language
     const subreddits = language === 'es'
       ? detectSpanishSubreddits(prompt)
       : detectRelevantSubreddits(prompt);
 
     // Build search URLs for each subreddit
-    // Use 'year' in search (Reddit doesn't have 3-month option)
-    // The service will filter to 90 days (3 months) max
     const searchUrls = subreddits.map(sub =>
       buildSubredditSearchUrl(sub, searchQuery, { sort: 'relevance', timeframe: 'year' })
     );
@@ -783,25 +801,118 @@ export function generateSearchQueries(brandContext: BrandContext, language: 'en'
       reason: `Searching r/${subreddits.slice(0, 2).join(', r/')} for: "${searchQuery}"`,
     });
   }
-  
+
   // 2. SECONDARY: Add competitor-based queries (lower priority)
-  for (const competitor of brandContext.competitors.slice(0, 3)) {
-    const clean = competitor.trim();
-    if (clean.length > 0) {
-      competitorQueries.push(`${clean} alternative`);
-      competitorQueries.push(`${clean} vs`);
-    }
+  const bestCompetitorNames = brandContext.competitors.slice(0, 3).map(c => {
+    const names = extractCompanyNames(c);
+    return names.reduce((a, b) => (b.length > a.length ? b : a), '');
+  }).filter(n => n.length > 0);
+
+  for (const name of bestCompetitorNames) {
+    const quotedName = name.includes(' ') ? `"${name}"` : name;
+    competitorQueries.push(`${quotedName} alternative`);
+    competitorQueries.push(`${quotedName} vs`);
   }
-  
+
   console.log(`[Query Generator] Generated ${trackedPromptQueries.length} tracked prompt queries`);
   for (const q of trackedPromptQueries.slice(0, 3)) {
     console.log(`  📍 "${q.searchQuery}" → r/${q.subreddits.slice(0, 3).join(', r/')}`);
   }
-  
-  return { 
-    trackedPromptQueries, 
+
+  return {
+    trackedPromptQueries,
     competitorQueries: competitorQueries.slice(0, 4),
   };
+}
+
+/**
+ * Use LLM to transform tracked prompts into Reddit-optimized search queries.
+ *
+ * This is the KEY quality improvement: an LLM understands that
+ * "Scale AI Evaluations product" should become "model evaluation benchmarking LLM"
+ * while simple stop-word removal produces "evaluations product" (too generic).
+ *
+ * Processes ALL prompts in a single API call for efficiency.
+ * Falls back to empty array (rule-based cleaning) on any error.
+ */
+async function optimizeQueriesWithLLM(
+  prompts: string[],
+  brandContext: BrandContext,
+  language: 'en' | 'es',
+): Promise<string[]> {
+  if (prompts.length === 0) return [];
+
+  try {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn('[Query Generator] No OPENAI_API_KEY, falling back to rule-based cleaning');
+      return [];
+    }
+
+    const systemPrompt = `You transform tracked prompts into Reddit search queries.
+
+RULES:
+- Output 3-6 keyword terms per query, optimized for Reddit's search engine
+- Remove brand/company names — they add noise in subreddit-specific search
+- Focus on the TOPIC and INTENT, not the specific brand
+- Use terms people actually use on Reddit (informal, practical)
+- Keep technical terms (RLHF, LLM, RAG, etc.) — they are high-signal on Reddit
+- For ${language === 'es' ? 'Spanish' : 'English'} queries, use ${language === 'es' ? 'Spanish' : 'English'} terms
+- Do NOT include generic words like "best", "top", "tool", "platform" unless they add real signal
+
+BRAND CONTEXT (for understanding what the prompts are about):
+- Company: ${brandContext.companyName}
+- What they do: ${brandContext.companyDescription || 'N/A'}
+- Industry: ${brandContext.companyIndustry || 'N/A'}
+
+EXAMPLES:
+- "Scale AI Evaluations product" → "model evaluation benchmarking LLM testing"
+- "Snorkel AI alternatives for enterprise data labeling" → "data labeling annotation enterprise training data"
+- "Best cloud GPU providers for LLM inference" → "GPU inference hosting LLM deployment"
+- "Vercel vs Netlify for Next.js deployment" → "nextjs deployment hosting serverless"
+- "¿Cómo cobrar como freelancer en Latinoamérica?" → "cobrar freelancer latinoamerica pagos"
+
+FORMAT:
+Return one line per prompt. Each line = the optimized query (just keywords, no quotes, no numbering).
+Return EXACTLY ${prompts.length} lines.`;
+
+    const userPrompt = prompts.map((p, i) => `${i + 1}. ${p}`).join('\n');
+
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: Math.max(500, prompts.length * 30),
+      temperature: 0.3,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    });
+
+    const text = response.choices?.[0]?.message?.content?.trim();
+    if (!text) return [];
+
+    const lines = text.split('\n').map(l =>
+      l.replace(/^\d+[\.\)]\s*/, '').trim().toLowerCase()
+    );
+
+    // Validate: each line should be 3-10 words, no brand names
+    const brandLower = brandContext.companyName?.toLowerCase() || '';
+    const validated = lines.map((line, i) => {
+      const words = line.split(/\s+/);
+      if (words.length < 2 || words.length > 12) return ''; // Too short or too long
+      if (brandLower && line.includes(brandLower)) return ''; // Still has brand name
+      return line;
+    });
+
+    console.log(`[Query Generator] LLM optimized ${validated.filter(Boolean).length}/${prompts.length} queries`);
+
+    return validated;
+  } catch (error) {
+    console.warn('[Query Generator] LLM optimization failed, using rule-based fallback:', (error as Error).message);
+    return [];
+  }
 }
 
 /**
@@ -931,6 +1042,38 @@ function escapeRegex(str: string): string {
 }
 
 /**
+ * Extract clean company name(s) from a competitor string.
+ * Handles both plain names ("Labelbox") and URLs ("https://snorkel.ai").
+ *
+ * For .ai domains, also produces the "Name AI" variant since those companies
+ * typically brand themselves that way (e.g., snorkel.ai → "Snorkel AI").
+ */
+function extractCompanyNames(competitor: string): string[] {
+  const trimmed = competitor.trim();
+  if (!trimmed) return [];
+
+  // URL or domain-like string
+  if (trimmed.startsWith('http') || /^[a-z0-9-]+\.[a-z]{2,}$/i.test(trimmed)) {
+    try {
+      const url = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+      const hostname = new URL(url).hostname.replace(/^www\./, '');
+      const parts = hostname.split('.');
+      const baseName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+      const names = [baseName]; // e.g., "Snorkel", "Labelbox"
+      // .ai domains typically brand as "X AI"
+      if (parts.length >= 2 && parts[1] === 'ai') {
+        names.push(`${baseName} AI`); // e.g., "Snorkel AI"
+      }
+      return names;
+    } catch {
+      return [trimmed];
+    }
+  }
+
+  return [trimmed];
+}
+
+/**
  * Build a search URL for a specific subreddit
  */
 function buildSubredditSearchUrl(
@@ -954,8 +1097,36 @@ function buildSubredditSearchUrl(
  * 2. Remove stop words (filler that adds no search signal)
  * 3. Keep max 8 key terms — enough context without noise
  */
-function cleanPromptForSearch(prompt: string): string {
-  const cleaned = prompt
+/**
+ * Clean a tracked prompt for Reddit search.
+ *
+ * Strategy:
+ * 1. STRIP brand/competitor names — within subreddit search, these add noise
+ *    ("scale" matches "scaling", "snorkel" matches snorkeling posts).
+ *    Brand names are used for SCORING, not search.
+ * 2. Remove stop words and cap at 8 keyword terms
+ * 3. The remaining topic keywords drive the subreddit-specific search
+ *
+ * @param prompt     The raw tracked prompt text
+ * @param knownNames Brand/competitor names to strip from the search query
+ */
+function cleanPromptForSearch(prompt: string, knownNames: string[] = []): string {
+  let remaining = prompt;
+
+  // Step 1: Strip brand/competitor names (they contaminate subreddit-specific search)
+  // Sort by length descending so "Scale AI Platform" is stripped before "Scale AI"
+  const sortedNames = [...knownNames].sort((a, b) => b.length - a.length);
+  for (const name of sortedNames) {
+    const regex = new RegExp(escapeRegex(name), 'gi');
+    remaining = remaining.replace(regex, ' ').trim();
+  }
+  // Also strip single-word competitor names (e.g., "Labelbox", "Cohere")
+  // that weren't in knownNames (which only contains multi-word names)
+  // We'll pass allNames separately for this
+  // (handled via the allCompetitorNames parameter below)
+
+  // Step 2: Clean remaining text
+  const cleaned = remaining
     .replace(/[?!.,;:'"¿¡()]/g, '')
     .replace(/\s+/g, ' ')
     .trim();

@@ -46,7 +46,7 @@ function DashboardPageInner() {
     completeAnalysis,
     getAbortSignal,
     checkForRecentCompletion
-  } = useAnalysis()
+  } = useAnalysis(profile?.id ?? null)
   const [timeRange, setTimeRange] = React.useState<TimeRange>("1m")
   const [selectedPlatform, setSelectedPlatform] = React.useState<PlatformFilter>("all")
 

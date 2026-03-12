@@ -41,7 +41,8 @@ export async function requireAuth(): Promise<AuthResult> {
     };
   }
 
-  // Get user with their brand profile (using first profile for single-profile users)
+  // Get user with a deterministic default brand profile
+  // Use oldest created profile (createdAt asc) to avoid monitor switching side-effects
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     select: {
@@ -49,9 +50,14 @@ export async function requireAuth(): Promise<AuthResult> {
       email: true,
       name: true,
       brandProfiles: {
+        where: {
+          id: {
+            not: 0,
+          },
+        },
         select: { id: true },
         take: 1,
-        orderBy: { updatedAt: 'desc' }
+        orderBy: { createdAt: 'asc' }
       }
     }
   });

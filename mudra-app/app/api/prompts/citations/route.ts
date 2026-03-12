@@ -22,7 +22,7 @@ interface PromptTest {
 }
 
 /**
- * GET /api/prompts/citations?brandProfileId={id}&promptText={text}
+ * GET /api/prompts/citations?brandProfileId={id}&promptText={text}&country={code}
  * Get citations for a specific prompt from GEO analysis results
  * Returns unique citations aggregated from all providers (deduped by URL)
  */
@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const brandProfileId = searchParams.get('brandProfileId');
     const promptText = searchParams.get('promptText');
+    const country = searchParams.get('country');
 
     if (!brandProfileId) {
       return NextResponse.json({ error: 'brandProfileId is required' }, { status: 400 });
@@ -56,7 +57,10 @@ export async function GET(request: NextRequest) {
 
     // Get all GEO analysis results so prompts analyzed in prior runs are included.
     const geoAnalyses = await prisma.geoAnalysisResult.findMany({
-      where: { brandProfileId: profileId },
+      where: {
+        brandProfileId: profileId,
+        ...(country ? { country } : {}),
+      },
       orderBy: { timestamp: 'desc' },
     });
 

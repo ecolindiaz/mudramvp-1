@@ -78,7 +78,7 @@ Generate exactly ${count} unique search queries that a real person would type in
 
 Category distribution guidelines:
 - Organic (~50%): Discovery queries with intent + situational context where the brand could naturally appear
-- Generic (~10%): Short, broad queries of 3-8 words with NO situational context
+- Generic (~10%): Short discovery queries of 5-15 words that anchor a broad category to a specific use case, vertical, or goal. NOT bare keywords.
 - Competitor: Queries comparing or seeking alternatives to competitors
 - How-to Guides: Actionable task/how-to queries related to the brand's domain
 - Brand-Specific: Direct queries mentioning the brand name
@@ -351,10 +351,10 @@ export function validatePromptQuality(
   // Competitor and How-to pass through (hard to validate mechanically)
   passed.push(...otherNonOrganic);
 
-  // Generic: must be ≤10 words
+  // Generic: must be ≤20 words (contextual short queries, not bare keywords)
   for (const prompt of generic) {
     const wordCount = prompt.text.trim().split(/\s+/).length;
-    if (wordCount <= 10) {
+    if (wordCount <= 20) {
       passed.push(prompt);
     } else {
       rejected.push(prompt);
@@ -560,10 +560,11 @@ function getStyleAnchors(language: 'en' | 'es'): string {
 
 Style anchors — match this register in Spanish. These are examples of HOW prompts should sound:
 
-GOOD Generic (short, broad, 3-8 words):
-- "mejores herramientas de gestión de proyectos"
-- "software CRM para empresas"
-- "plataformas de email marketing"
+GOOD Generic (short discovery queries, 5-15 words — anchor to a use case, vertical, or goal):
+- "herramientas de gestión de proyectos para equipos de desarrollo"
+- "software CRM para equipos de ventas B2B con ciclo largo"
+- "plataformas de email marketing para recuperar carritos abandonados"
+- "herramientas de facturación para freelancers con clientes internacionales"
 
 GOOD Organic (directo, conciso — la mayoría menos de 20 palabras):
 - "¿Cuál es la mejor plataforma para correr cargas de IA sin manejar Kubernetes?"
@@ -605,12 +606,14 @@ BAD (do NOT generate prompts like these):
 
 Style anchors — match this register. These are examples of HOW prompts should sound:
 
-GOOD Generic (short, broad, 3-8 words — NO situational context):
-- "best project management tools"
-- "CRM software for small business"
-- "email marketing platforms"
-- "free invoicing tools"
-- "AI writing assistants"
+GOOD Generic (short discovery queries, 5-15 words — anchor to a use case, vertical, or goal):
+- "data labeling platforms for training foundational models"
+- "CRM software that works well for outbound sales teams"
+- "email marketing tools for e-commerce abandoned cart flows"
+- "free invoicing tools for freelancers with international clients"
+- "AI writing assistants for long-form content marketing"
+- "companies that provide training data for AI research labs"
+- "deploy and manage ML models in production"
 
 GOOD Organic (direct, concise — most under 20 words, prefer question forms over "I need" statements):
 - "What's the best platform to run AI workloads without managing Kubernetes?"
@@ -767,7 +770,7 @@ export async function generateInitialPrompts(brandInfo: BrandInfo, redditContext
 Generate exactly ${totalPrompts} unique search queries with this EXACT category distribution:
 
 1. **Organic** — exactly ${counts['Organic']} prompts: Discovery queries with BOTH (a) clear intent AND (b) situational context from the ICP. The brand name must NOT appear in these.
-2. **Generic** — exactly ${counts['Generic']} prompts: Short, broad queries of 3-8 words with NO situational context. Think keyword-level searches. The brand name must NOT appear in these.
+2. **Generic** — exactly ${counts['Generic']} prompts: Short discovery queries of 5-15 words that add a USE CASE or CONTEXT to a broad category search. NOT bare keywords — instead, anchor the query to a specific workflow, vertical, or goal. Example: "data labeling platforms for training foundational models" instead of just "data labeling platform". The brand name must NOT appear in these.
 3. **Competitor** — exactly ${counts['Competitor']} prompts: Queries comparing or seeking alternatives to the brand's competitors.
 4. **How-to Guides** — exactly ${counts['How-to Guides']} prompts: Actionable task/how-to queries related to the brand's domain. Each MUST end with a tool-seeking phrase like "...what tools help with this?" or "...what platforms do people recommend?"
 5. **Brand-Specific** — exactly ${counts['Brand-Specific']} prompts: Direct queries mentioning the brand name.

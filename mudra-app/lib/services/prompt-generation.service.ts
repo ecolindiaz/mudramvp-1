@@ -40,6 +40,7 @@ export interface PromptValidationMetrics {
   firstPersonPct: number;
   scenarioBasedCount: number;
   scenarioBasedPct: number;
+  competitorVsCount: number;
   retryTriggered: boolean;
   retryCount: number;
 }
@@ -79,7 +80,7 @@ Generate exactly ${count} unique search queries that a real person would type in
 Category distribution guidelines:
 - Organic (~50%): Discovery queries with intent + situational context where the brand could naturally appear
 - Generic (~10%): Short discovery queries of 5-15 words that anchor a broad category to a specific use case, vertical, or goal. NOT bare keywords.
-- Competitor: Queries comparing or seeking alternatives to competitors
+- Competitor: ~70% discovery ("alternatives to [Competitor]") + ~30% direct comparison ("[Brand] vs [Competitor]"). NEVER generate "[Competitor A] vs [Competitor B]" without the brand — those exclude the tracked brand from AI responses.
 - How-to Guides: Actionable task/how-to queries related to the brand's domain
 - Brand-Specific: Direct queries mentioning the brand name
 
@@ -210,18 +211,33 @@ export function inferBusinessType(
 /**
  * Convert brand profile to BrandInfo format
  */
-export function profileToBrandInfo(profile: any): BrandInfo {
+interface BrandProfileInput {
+  companyName?: string | null;
+  companyWebsite?: string | null;
+  companyDescription?: string | null;
+  companyIndustry?: string | null;
+  companyServices?: string | string[] | null;
+  companyICP?: unknown;
+  competitors?: string[] | string | null;
+  trackingCountries?: string[] | null;
+  primaryCountry?: string | null;
+  userRole?: string | null;
+}
+
+export function profileToBrandInfo(profile: BrandProfileInput): BrandInfo {
   // Handle competitors - could be array or comma-separated string
   let competitors: string[] = [];
   if (Array.isArray(profile.competitors)) {
-    competitors = profile.competitors;
+    competitors = profile.competitors.filter((c): c is string => typeof c === 'string' && c.trim().length > 0);
   } else if (typeof profile.competitors === 'string' && profile.competitors.trim()) {
     competitors = profile.competitors.split(',').map((c: string) => c.trim()).filter((c: string) => c);
   }
 
-  const services = profile.companyServices
-    ? profile.companyServices.split(',').map((s: string) => s.trim())
-    : ['Software'];
+  const services = Array.isArray(profile.companyServices)
+    ? profile.companyServices.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    : typeof profile.companyServices === 'string' && profile.companyServices.trim()
+      ? profile.companyServices.split(',').map((s: string) => s.trim())
+      : ['Software'];
 
   const description = profile.companyDescription || 'A technology company';
   const industry = profile.companyIndustry || 'Technology';
@@ -343,13 +359,23 @@ export function validatePromptQuality(
   const generic = prompts.filter(p => p.category === 'Generic');
   const brandSpecific = prompts.filter(p => p.category === 'Brand-Specific');
   const faqPrompts = prompts.filter(p => p.category === 'FAQ');
-  const otherNonOrganic = prompts.filter(p =>
-    p.category !== 'Organic' && p.category !== 'Generic' &&
-    p.category !== 'Brand-Specific' && p.category !== 'FAQ'
-  );
+  const competitorPrompts2 = prompts.filter(p => p.category === 'Competitor');
+  const howToPrompts = prompts.filter(p => p.category === 'How-to Guides');
 
-  // Competitor and How-to pass through (hard to validate mechanically)
-  passed.push(...otherNonOrganic);
+  // How-to passes through (hard to validate mechanically)
+  passed.push(...howToPrompts);
+
+  // Competitor: reject head-to-head "X vs Y" patterns where brand is NOT present
+  const vsRegex = /\b\w+\s+(?:vs\.?|versus)\s+\w+/i;
+  let competitorVsCount = 0;
+  for (const prompt of competitorPrompts2) {
+    if (vsRegex.test(prompt.text) && !fullBrandRegex.test(prompt.text)) {
+      competitorVsCount++;
+      rejected.push(prompt);
+    } else {
+      passed.push(prompt);
+    }
+  }
 
   // Generic: must be ≤20 words (contextual short queries, not bare keywords)
   for (const prompt of generic) {
@@ -464,6 +490,7 @@ export function validatePromptQuality(
       firstPersonPct: Math.round((firstPersonCount / organicCount) * 100),
       scenarioBasedCount,
       scenarioBasedPct: Math.round((scenarioBasedCount / organicCount) * 100),
+      competitorVsCount,
       retryTriggered: false,
       retryCount: 0,
     },
@@ -771,7 +798,20 @@ Generate exactly ${totalPrompts} unique search queries with this EXACT category 
 
 1. **Organic** — exactly ${counts['Organic']} prompts: Discovery queries with BOTH (a) clear intent AND (b) situational context from the ICP. The brand name must NOT appear in these.
 2. **Generic** — exactly ${counts['Generic']} prompts: Short discovery queries of 5-15 words that add a USE CASE or CONTEXT to a broad category search. NOT bare keywords — instead, anchor the query to a specific workflow, vertical, or goal. Example: "data labeling platforms for training foundational models" instead of just "data labeling platform". The brand name must NOT appear in these.
-3. **Competitor** — exactly ${counts['Competitor']} prompts: Queries comparing or seeking alternatives to the brand's competitors.
+3. **Competitor** — exactly ${counts['Competitor']} prompts, split into two sub-types:
+
+   **Discovery (~70%):** Open-ended queries seeking alternatives to a competitor. The brand name must NOT appear — this tests whether the AI discovers the brand unprompted.
+   **Direct Comparison (~30%):** Head-to-head queries that include BOTH the brand name AND one competitor — this tests how the AI ranks the brand against a specific rival.
+
+COMPETITOR RULES (critical):
+- Discovery patterns: "[Competitor] alternatives for [use case]", "what to use instead of [Competitor]", "cheaper than [Competitor]", "moving away from [Competitor]"
+- Direct comparison patterns: "[Brand] vs [Competitor] for [use case]", "[Competitor] vs [Brand] for [use case]", "compare [Brand] and [Competitor] for [use case]"
+- NEVER generate "[Competitor A] vs [Competitor B]" without the brand — those exclude the tracked brand from AI responses entirely
+- Each prompt should mention exactly ONE competitor. Spread across all listed competitors.
+
+GOOD Discovery: "Labelbox alternatives for training data", "what should I use instead of Snorkel AI", "cheaper than Cohere for NLP"
+GOOD Direct: "${brandInfo.companyName} vs Labelbox for training data", "compare ${brandInfo.companyName} and Cohere for NLP"
+BAD: "Snorkel AI vs Labelbox for training data" (two competitors, brand excluded)
 4. **How-to Guides** — exactly ${counts['How-to Guides']} prompts: Actionable task/how-to queries related to the brand's domain. Each MUST end with a tool-seeking phrase like "...what tools help with this?" or "...what platforms do people recommend?"
 5. **Brand-Specific** — exactly ${counts['Brand-Specific']} prompts: Direct queries mentioning the brand name.
 6. **FAQ** — exactly ${counts['FAQ']} prompts: Question-style prompts with recommendation-seeking language. Must start with a question word (How, What, Why, Can, Is, Does, Which, etc.) and include language that invites tool/product recommendations.
@@ -914,9 +954,9 @@ Generate exactly ${totalPrompts} prompts now.`;
   console.log(`[PromptValidation] Checked ${metrics.totalChecked} prompts: ${rejected.length} rejected, ` +
     `best=${metrics.bestOpeningPct}%, brandLeaks=${metrics.brandLeakCount}, ` +
     `titleCase=${metrics.titleCaseCount}, firstPerson=${metrics.firstPersonPct}%, ` +
-    `scenario=${metrics.scenarioBasedPct}%`);
+    `scenario=${metrics.scenarioBasedPct}%, competitorVs=${metrics.competitorVsCount}`);
 
-  let finalPrompts = [...passed];
+  const finalPrompts = [...passed];
 
   if (rejected.length > 0) {
     if (rejected.length > 5) {

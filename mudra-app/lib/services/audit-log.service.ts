@@ -93,6 +93,10 @@ export interface AuditLogEntry {
 type GlobalWithAuditBuffer = typeof globalThis & {
   __mudraAuditBuffer?: AuditLogEntry[];
   __mudraAuditFlushTimeout?: NodeJS.Timeout;
+  __mudraAuditFlushInProgress?: boolean;
+  __mudraAuditTableExists?: boolean;
+  __mudraAuditTableCheckedAt?: number;
+  __mudraAuditPoolRetryCount?: number;
 };
 
 function getAuditBuffer(): AuditLogEntry[] {
@@ -105,6 +109,9 @@ function getAuditBuffer(): AuditLogEntry[] {
 
 const BUFFER_FLUSH_INTERVAL = 5000; // 5 seconds
 const BUFFER_MAX_SIZE = 50;
+const TABLE_CHECK_TTL_MS = 60_000;
+const RETRY_BASE_DELAY_MS = 1_000;
+const RETRY_MAX_DELAY_MS = 30_000;
 
 /**
  * Log an audit event
@@ -134,7 +141,7 @@ export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
 
     // Flush if buffer is full
     if (buffer.length >= BUFFER_MAX_SIZE) {
-      await flushAuditBuffer();
+      void flushAuditBuffer();
     } else {
       // Schedule flush
       scheduleFlush();
@@ -149,13 +156,31 @@ export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
  * Schedule buffer flush
  */
 function scheduleFlush(): void {
+  scheduleFlushWithDelay(BUFFER_FLUSH_INTERVAL);
+}
+
+function scheduleFlushWithDelay(delayMs: number): void {
   const g = globalThis as GlobalWithAuditBuffer;
   if (g.__mudraAuditFlushTimeout) return;
 
   g.__mudraAuditFlushTimeout = setTimeout(async () => {
     g.__mudraAuditFlushTimeout = undefined;
     await flushAuditBuffer();
-  }, BUFFER_FLUSH_INTERVAL);
+  }, Math.max(delayMs, 0));
+}
+
+function isPrismaErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === code
+  );
+}
+
+function computeRetryDelayMs(retryCount: number): number {
+  const expDelay = Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * (2 ** Math.max(retryCount - 1, 0)));
+  return expDelay + Math.floor(Math.random() * 250);
 }
 
 /**
@@ -163,19 +188,20 @@ function scheduleFlush(): void {
  */
 async function flushAuditBuffer(): Promise<void> {
   const g = globalThis as GlobalWithAuditBuffer;
+  if (g.__mudraAuditFlushInProgress) return;
+
   const buffer = g.__mudraAuditBuffer || [];
-  
   if (buffer.length === 0) return;
+
+  g.__mudraAuditFlushInProgress = true;
 
   // Clear buffer immediately to prevent duplicate writes
   g.__mudraAuditBuffer = [];
 
   try {
-    // Check if AuditLog table exists
     const hasTable = await checkAuditLogTable();
-    
+
     if (hasTable) {
-      // Use type assertion for new Prisma model (run `prisma generate` after adding schema)
       const prismaAny = prisma as any;
       await prismaAny.auditLog.createMany({
         data: buffer.map(entry => ({
@@ -192,14 +218,37 @@ async function flushAuditBuffer(): Promise<void> {
         })),
         skipDuplicates: true,
       });
+      g.__mudraAuditPoolRetryCount = 0;
     } else {
       // Fallback: log to console if table doesn't exist
       console.log('[Audit] Batch events (table not found):', buffer.length);
     }
   } catch (error) {
-    // Log to console as fallback
+    if (isPrismaErrorCode(error, 'P2024')) {
+      const retryCount = (g.__mudraAuditPoolRetryCount ?? 0) + 1;
+      g.__mudraAuditPoolRetryCount = retryCount;
+      g.__mudraAuditBuffer = [...buffer, ...(g.__mudraAuditBuffer || [])];
+      const delayMs = computeRetryDelayMs(retryCount);
+      console.warn(`[Audit] Pool timeout while flushing ${buffer.length} events. Retrying in ${delayMs}ms.`);
+      scheduleFlushWithDelay(delayMs);
+      return;
+    }
+
+    if (isPrismaErrorCode(error, 'P2021')) {
+      g.__mudraAuditTableExists = false;
+      g.__mudraAuditTableCheckedAt = Date.now();
+      console.warn('[Audit] AuditLog table unavailable; dropping buffered events until table is available again.');
+      return;
+    }
+
     console.error('[Audit] Failed to flush buffer:', error);
     console.log('[Audit] Lost events:', buffer.length);
+  } finally {
+    g.__mudraAuditFlushInProgress = false;
+
+    if ((g.__mudraAuditBuffer?.length || 0) > 0 && !g.__mudraAuditFlushTimeout) {
+      scheduleFlush();
+    }
   }
 }
 
@@ -209,13 +258,27 @@ async function flushAuditBuffer(): Promise<void> {
  * this check should always pass. Cache removed to allow dynamic detection.
  */
 async function checkAuditLogTable(): Promise<boolean> {
+  const g = globalThis as GlobalWithAuditBuffer;
+  const now = Date.now();
+  if (
+    typeof g.__mudraAuditTableExists === 'boolean' &&
+    typeof g.__mudraAuditTableCheckedAt === 'number' &&
+    now - g.__mudraAuditTableCheckedAt < TABLE_CHECK_TTL_MS
+  ) {
+    return g.__mudraAuditTableExists;
+  }
+
   try {
     // Try a simple query - will succeed after migration
     await (prisma as any).auditLog?.findFirst?.({ take: 1 });
+    g.__mudraAuditTableExists = true;
+    g.__mudraAuditTableCheckedAt = now;
     return true;
   } catch (error) {
     // Table doesn't exist yet or Prisma client not regenerated
     console.warn('[Audit] AuditLog table check failed. Run: npx prisma generate && npx prisma migrate dev');
+    g.__mudraAuditTableExists = false;
+    g.__mudraAuditTableCheckedAt = now;
     return false;
   }
 }

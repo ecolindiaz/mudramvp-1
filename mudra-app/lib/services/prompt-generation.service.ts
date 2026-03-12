@@ -34,6 +34,8 @@ export interface PromptValidationMetrics {
   totalChecked: number;
   bestOpeningCount: number;
   bestOpeningPct: number;
+  bestOpeningMinTarget: number;
+  bestOpeningMaxAllowed: number;
   brandLeakCount: number;
   titleCaseCount: number;
   firstPersonCount: number;
@@ -90,6 +92,7 @@ Rules:
 - Vary query styles: questions, comparisons, "best of" lists, how-tos, etc.
 - Keep queries concise (under 120 characters each)
 - Organic prompts must NOT contain the brand name
+- Keep a small buying-intent slice in Organic: aim for 10-20% of Organic prompts to start with "Best"
 - No more than 20% of Organic prompts may start with "Best"
 - Do NOT use Title Case (e.g., "Best Tools For Small Businesses" is WRONG — use sentence case)
 - Include some first-person/conversational prompts: "I need...", "looking for...", "my team..."
@@ -182,12 +185,12 @@ Generate exactly ${count} prompts now.`;
   const batchValidation = validatePromptQuality(asInitial, brandInfo.companyName);
   if (batchValidation.rejected.length > 0) {
     const rewritten = deterministicRewrite(batchValidation.rejected, brandInfo.companyName);
-    const final = [...batchValidation.passed, ...rewritten];
+    const final = enforceBestBeginningOrganicCoverage([...batchValidation.passed, ...rewritten]);
     console.log(`[BatchGeneration] Validation: ${batchValidation.rejected.length} rewritten`);
     return final as BatchGeneratedPrompt[];
   }
 
-  return parsed.prompts;
+  return enforceBestBeginningOrganicCoverage(parsed.prompts as BatchGeneratedPrompt[]) as BatchGeneratedPrompt[];
 }
 
 /**
@@ -321,6 +324,37 @@ function computeCategoryCounts(totalPrompts: number): Record<string, number> {
   return { Organic: organic, Generic: generic, Competitor: competitor, 'How-to Guides': howto, 'Brand-Specific': brand, FAQ: faq };
 }
 
+function getBestBeginningOrganicQuota(organicCount: number): { min: number; max: number } {
+  const max = Math.floor(organicCount * 0.20);
+  if (organicCount < 5 || max === 0) {
+    return { min: 0, max };
+  }
+
+  const min = organicCount >= 20
+    ? 3
+    : organicCount >= 10
+      ? 2
+      : 1;
+
+  return { min: Math.min(min, max), max };
+}
+
+function normalizePromptKey(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[?!.\s]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function stripLeadingArticle(text: string, language: 'en' | 'es'): string {
+  const articleRegex = language === 'es'
+    ? /^(un|una|unos|unas|el|la|los|las)\s+/i
+    : /^(a|an|the)\s+/i;
+
+  return text.replace(articleRegex, '').trim();
+}
+
 // --- Prompt quality validation (pure functions) ---
 
 /** Common acronyms to preserve during sentence-case conversion */
@@ -409,7 +443,7 @@ export function validatePromptQuality(
   }
 
   // Track "Best" openings allowed (max 20% of organic count)
-  const maxBestAllowed = Math.floor(organic.length * 0.20);
+  const { min: minBestTarget, max: maxBestAllowed } = getBestBeginningOrganicQuota(organic.length);
   let bestCount = 0;
 
   // Metrics counters (computed over organic only)
@@ -484,6 +518,8 @@ export function validatePromptQuality(
       totalChecked: prompts.length,
       bestOpeningCount: bestCount,
       bestOpeningPct: Math.round((bestCount / organicCount) * 100),
+      bestOpeningMinTarget: minBestTarget,
+      bestOpeningMaxAllowed: maxBestAllowed,
       brandLeakCount,
       titleCaseCount,
       firstPersonCount,
@@ -577,6 +613,181 @@ function toSentenceCase(text: string): string {
   }).join('');
 }
 
+function finalizeBestBeginningText(text: string): string {
+  const cleaned = text
+    .replace(/\s+/g, ' ')
+    .replace(/[?!.\s]+$/g, '')
+    .trim();
+
+  return toSentenceCase(cleaned);
+}
+
+function rewriteOrganicPromptToBestBeginning(
+  text: string,
+  language: 'en' | 'es' = 'en'
+): string | null {
+  const cleaned = text.replace(/\s+/g, ' ').trim().replace(/[?!.\s]+$/g, '');
+  if (!cleaned) return null;
+
+  if (language === 'es') {
+    if (/^mejor\b/i.test(cleaned)) return null;
+
+    const replacements: Array<{
+      regex: RegExp;
+      to: (...args: string[]) => string;
+    }> = [
+      {
+        regex: /^(?:¿)?cu[aá]l es la mejor (.+)$/i,
+        to: (_match, tail) => `Mejor ${stripLeadingArticle(tail, language)}`,
+      },
+      {
+        regex: /^(?:¿)?qu[eé] deber[ií]a usar para (.+)$/i,
+        to: (_match, tail) => `Mejor opción para ${tail}`,
+      },
+      {
+        regex: /^(?:¿)?qu[eé] (plataforma|herramienta|software|solución|servicio|proveedor) (?:maneja|soporta) (.+)$/i,
+        to: (_match, kind, tail) => `Mejor ${kind} para ${tail}`,
+      },
+      {
+        regex: /^(?:¿)?qu[eé] herramientas ayudan con (.+)$/i,
+        to: (_match, tail) => `Mejores herramientas para ${tail}`,
+      },
+      {
+        regex: /^(?:estoy )?buscando (.+)$/i,
+        to: (_match, tail) => `Mejor ${stripLeadingArticle(tail, language)}`,
+      },
+    ];
+
+    for (const replacement of replacements) {
+      const match = cleaned.match(replacement.regex);
+      if (!match) continue;
+
+      const rewritten = finalizeBestBeginningText(replacement.to(...match));
+      return /^mejor\b/i.test(rewritten) ? rewritten : null;
+    }
+
+    return null;
+  }
+
+  if (/^best\b/i.test(cleaned)) return null;
+
+  const replacements: Array<{
+    regex: RegExp;
+    to: (...args: string[]) => string;
+  }> = [
+    {
+      regex: /^what(?:'s| is) the best (.+)$/i,
+      to: (_match, tail) => `Best ${stripLeadingArticle(tail, language)}`,
+    },
+    {
+      regex: /^what(?:'s| is) a (?:solid|good|great|decent) alternative to (.+)$/i,
+      to: (_match, tail) => `Best alternative to ${tail}`,
+    },
+    {
+      regex: /^which (platform|tool|tools|software|vendor|solution|solutions|service|services|provider|providers|app|apps) is best for (.+)$/i,
+      to: (_match, kind, tail) => `Best ${kind} for ${tail}`,
+    },
+    {
+      regex: /^which .+? is best for (.+)$/i,
+      to: (_match, tail) => `Best option for ${tail}`,
+    },
+    {
+      regex: /^what should i use for (.+)$/i,
+      to: (_match, tail) => `Best option for ${tail}`,
+    },
+    {
+      regex: /^what (platform|tool|tools|software|vendor|solution|solutions|service|services|provider|providers|app|apps) (?:handles|supports) (.+)$/i,
+      to: (_match, kind, tail) => `Best ${kind} for ${tail}`,
+    },
+    {
+      regex: /^which (platform|tool|tools|software|vendor|solution|solutions|service|services|provider|providers|app|apps) (?:handles|supports) (.+)$/i,
+      to: (_match, kind, tail) => `Best ${kind} for ${tail}`,
+    },
+    {
+      regex: /^what (tools|platforms|software|solutions|services|vendors|providers) (?:help with|help|are people using for|do people recommend for) (.+)$/i,
+      to: (_match, kind, tail) => `Best ${kind} for ${tail}`,
+    },
+    {
+      regex: /^(?:trying to find|looking for) (.+)$/i,
+      to: (_match, tail) => `Best ${stripLeadingArticle(tail, language)}`,
+    },
+  ];
+
+  for (const replacement of replacements) {
+    const match = cleaned.match(replacement.regex);
+    if (!match) continue;
+
+    const rewritten = finalizeBestBeginningText(replacement.to(...match));
+    return /^best\b/i.test(rewritten) ? rewritten : null;
+  }
+
+  return null;
+}
+
+function getBestBeginningRewritePriority(text: string, language: 'en' | 'es'): number {
+  const cleaned = text.trim().toLowerCase();
+
+  if ((language === 'es' ? /^mejor\b/ : /^best\b/).test(cleaned)) return -1;
+  if (/\bbest\b/.test(cleaned) || /\bmejor\b/.test(cleaned)) return 0;
+  if (/^(what should i use|which |what (platform|tool|tools|software|vendor|solution|service|provider)|looking for|trying to find)/i.test(text)) {
+    return 1;
+  }
+  if (/^(¿)?(cu[aá]l|qu[eé]|buscando)/i.test(text)) {
+    return 1;
+  }
+  return 2;
+}
+
+export function enforceBestBeginningOrganicCoverage<T extends { text: string; category?: string | null }>(
+  prompts: T[],
+  language: 'en' | 'es' = 'en'
+): T[] {
+  const organicIndices = prompts
+    .map((prompt, index) => ({ prompt, index }))
+    .filter(({ prompt }) => prompt.category === 'Organic');
+
+  const { min } = getBestBeginningOrganicQuota(organicIndices.length);
+  if (min === 0) return prompts;
+
+  const bestPrefix = language === 'es' ? /^mejor\b/i : /^best\b/i;
+  const currentCount = organicIndices.filter(({ prompt }) => bestPrefix.test(prompt.text.trim())).length;
+  const deficit = min - currentCount;
+
+  if (deficit <= 0) return prompts;
+
+  const nextPrompts = [...prompts];
+  const seen = new Set(nextPrompts.map((prompt) => normalizePromptKey(prompt.text)));
+  const candidates = organicIndices
+    .filter(({ prompt }) => !bestPrefix.test(prompt.text.trim()))
+    .sort((a, b) => (
+      getBestBeginningRewritePriority(a.prompt.text, language) -
+      getBestBeginningRewritePriority(b.prompt.text, language)
+    ));
+
+  let rewrites = 0;
+
+  for (const candidate of candidates) {
+    if (rewrites >= deficit) break;
+
+    const rewritten = rewriteOrganicPromptToBestBeginning(candidate.prompt.text, language);
+    if (!rewritten) continue;
+
+    const originalKey = normalizePromptKey(candidate.prompt.text);
+    const rewrittenKey = normalizePromptKey(rewritten);
+    if (rewrittenKey !== originalKey && seen.has(rewrittenKey)) continue;
+
+    seen.delete(originalKey);
+    seen.add(rewrittenKey);
+    nextPrompts[candidate.index] = {
+      ...candidate.prompt,
+      text: rewritten,
+    };
+    rewrites++;
+  }
+
+  return nextPrompts;
+}
+
 /**
  * Get expanded style anchors for prompt generation.
  * Always returns anchors — GPT-5.2 needs concrete examples even with Reddit context.
@@ -594,6 +805,7 @@ GOOD Generic (short discovery queries, 5-15 words — anchor to a use case, vert
 - "herramientas de facturación para freelancers con clientes internacionales"
 
 GOOD Organic (directo, conciso — la mayoría menos de 20 palabras):
+- "Mejor plataforma de datos de entrenamiento para modelos multimodales"
 - "¿Cuál es la mejor plataforma para correr cargas de IA sin manejar Kubernetes?"
 - "¿Qué herramientas usan las startups para desplegar modelos de ML rápido?"
 - "Alternativas a [competidor] para [caso de uso]?"
@@ -643,6 +855,8 @@ GOOD Generic (short discovery queries, 5-15 words — anchor to a use case, vert
 - "deploy and manage ML models in production"
 
 GOOD Organic (direct, concise — most under 20 words, prefer question forms over "I need" statements):
+- "Best training data platform for multimodal models"
+- "Best LLM evaluation tool for enterprise procurement teams"
 - "What's the best platform to run AI workloads without managing Kubernetes?"
 - "What infrastructure do startups use to deploy ML models fast?"
 - "What should I use for large-scale async pipelines in Python?"
@@ -715,7 +929,7 @@ async function requestReplacementPrompts(
 
 HARD RULES (violations will be rejected):
 1. The brand name "${brandInfo.companyName}" must NOT appear in any prompt
-2. Maximum 1 prompt may start with "Best"
+2. If you generate 5+ prompts, include exactly 1 prompt that starts with "Best" to preserve buying-intent coverage
 3. No Title Case patterns (e.g., "Best Tools For Small Businesses" is WRONG)
 4. Keep most prompts SHORT and DIRECT — under 20 words. Do NOT pad with backstory.
 5. Vary openings: "What should I use...", "Which platform...", "How can I...", "[competitor] alternatives..."
@@ -823,6 +1037,7 @@ ORGANIC STYLE RULES (critical — follow these strictly):
 - Every Organic prompt MUST have clear intent. Keep most prompts SHORT and DIRECT — under 20 words. "What's the best platform to run AI workloads without managing Kubernetes?" is good. "we're a SaaS company with heavy batch data processing, what cloud platforms are good for scaling containerized batch jobs on demand?" is too long and over-specific.
 - Some prompts can include light situational context (role, company type, use case) but do NOT pad every prompt with backstory. A minority should have context, the majority should be concise direct questions.
 - Do NOT put the brand name in any Organic or Generic prompt. These test whether AI discovers the brand unprompted.
+- Keep an explicit buying-intent slice in Organic: target 10-20% of Organic prompts starting exactly with "Best". These should feel like real buyer searches, not SEO headlines.
 - No more than 20% of Organic prompts may start with the word "best". Vary your openings: "What should I use for...", "Which platform is best for...", "How can I...", "[competitor] alternatives for...", "Where can I..."
 - No more than 20% of Organic prompts should start with "I need". Strongly prefer question forms: "What should I use for...", "Which platform is best for...", "What's the best way to...", "Where can I...", "How can I..."
 - At least 10% must be decision-help or opinion-seeking: "is it worth...", "which should I use...", "thoughts on..."
@@ -952,7 +1167,8 @@ Generate exactly ${totalPrompts} prompts now.`;
   const { passed, rejected, metrics } = validation;
 
   console.log(`[PromptValidation] Checked ${metrics.totalChecked} prompts: ${rejected.length} rejected, ` +
-    `best=${metrics.bestOpeningPct}%, brandLeaks=${metrics.brandLeakCount}, ` +
+    `best=${metrics.bestOpeningPct}% (target ${metrics.bestOpeningMinTarget}-${metrics.bestOpeningMaxAllowed}), ` +
+    `brandLeaks=${metrics.brandLeakCount}, ` +
     `titleCase=${metrics.titleCaseCount}, firstPerson=${metrics.firstPersonPct}%, ` +
     `scenario=${metrics.scenarioBasedPct}%, competitorVs=${metrics.competitorVsCount}`);
 
@@ -992,6 +1208,22 @@ Generate exactly ${totalPrompts} prompts now.`;
     }
   }
 
+  const adjustedPrompts = enforceBestBeginningOrganicCoverage(finalPrompts, language);
+  const bestPrefix = language === 'es' ? /^mejor\b/i : /^best\b/i;
+  const bestBeforeAdjustment = finalPrompts.filter(
+    (prompt) => prompt.category === 'Organic' && bestPrefix.test(prompt.text.trim())
+  ).length;
+  const bestAfterAdjustment = adjustedPrompts.filter(
+    (prompt) => prompt.category === 'Organic' && bestPrefix.test(prompt.text.trim())
+  ).length;
+
+  if (bestAfterAdjustment > bestBeforeAdjustment) {
+    console.log(
+      `[PromptValidation] Added ${bestAfterAdjustment - bestBeforeAdjustment} ` +
+      `${language === 'es' ? '"Mejor"' : '"Best"'}-starting Organic prompts for buying-intent coverage`
+    );
+  }
+
   // Fire-and-forget observability logging
   logAIModelCall({
     feature: 'onboarding',
@@ -1000,11 +1232,11 @@ Generate exactly ${totalPrompts} prompts now.`;
     provider: 'openai',
     status: 'success',
     metadata: JSON.parse(JSON.stringify({
-      promptCount: finalPrompts.length,
+      promptCount: adjustedPrompts.length,
       validationMetrics: metrics,
       language,
     })),
   }).catch(() => {});
 
-  return finalPrompts;
+  return adjustedPrompts;
 }

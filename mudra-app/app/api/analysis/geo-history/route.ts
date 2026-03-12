@@ -13,6 +13,11 @@ export async function GET(request: NextRequest) {
     const brandProfileIdStr = searchParams.get('brandProfileId');
     const limit = parseInt(searchParams.get('limit') || '2');
     const country = searchParams.get('country');
+    const daysParam = searchParams.get('days');
+    const days = daysParam ? parseInt(daysParam, 10) : null;
+    const sinceDate = days && !isNaN(days) && days > 0
+      ? new Date(Date.now() - days * 86400000)
+      : null;
 
     // Require authentication and verify brand profile access
     const authResult = await requireAuthWithBrandAccess(brandProfileIdStr);
@@ -27,6 +32,7 @@ export async function GET(request: NextRequest) {
       where: {
         brandProfileId: brandProfileId,
         ...(country ? { country } : {}),
+        ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
       },
       orderBy: {
         timestamp: 'desc'

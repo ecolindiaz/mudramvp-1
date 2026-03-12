@@ -98,6 +98,30 @@ export async function saveBrandProfileForUser(userId: string, profile: any) {
   if (data.id === 0) {
     delete data.id;
   }
+
+  // If caller provided a specific profile ID, update that exact profile
+  // (while enforcing user ownership) instead of picking most recently updated.
+  if (typeof data.id === 'number' && data.id > 0) {
+    const existingById = await prisma.brandProfile.findFirst({
+      where: {
+        id: data.id,
+        userId,
+      },
+    });
+
+    if (!existingById) {
+      throw new Error(`Brand profile ${data.id} not found for user`);
+    }
+
+    console.log("🟢 [saveBrandProfileForUser] Updating submitted profile ID:", existingById.id, "for user:", userId);
+    const updateData = { ...data, userId };
+    delete updateData.id;
+    const updated = await prisma.brandProfile.update({
+      where: { id: existingById.id },
+      data: updateData,
+    });
+    return deserializeProfile(updated);
+  }
   
   // Find existing profile for this user
   const existing = await prisma.brandProfile.findFirst({

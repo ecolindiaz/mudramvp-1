@@ -5,10 +5,15 @@ import { prisma } from "@/lib/prisma";
 import { requireAuthWithBrandAccess } from "@/lib/auth/require-auth";
 import { resolveCompanyIdFromBrandProfile } from "@/lib/analysis/nlr/mappers/resolve-brand-profiles";
 import { calculateAggregateFromResults } from "@/lib/analysis/nlr/mappers/ai-visibility";
+import crypto from 'crypto';
 
 function isAdmin(req: NextRequest): boolean {
   const token = req.headers.get('x-admin-token') || ''
-  return !!token && token === process.env.ADMIN_API_TOKEN
+  const adminToken = process.env.ADMIN_API_TOKEN || ''
+  if (!token || !adminToken) return false
+  const hashA = crypto.createHash('sha256').update(token).digest()
+  const hashB = crypto.createHash('sha256').update(adminToken).digest()
+  return crypto.timingSafeEqual(hashA, hashB)
 }
 
 function startOfIsoWeekUtc(d: Date): Date {

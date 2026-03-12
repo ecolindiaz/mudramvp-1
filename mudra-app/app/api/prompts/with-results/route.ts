@@ -29,6 +29,11 @@ export async function GET(request: NextRequest) {
     const brandProfileId = searchParams.get('brandProfileId')
     const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
     const countryFilter = searchParams.get('country') // Optional: filter by country (default: all)
+    const daysParam = searchParams.get('days')
+    const days = daysParam ? parseInt(daysParam, 10) : null
+    const sinceDate = days && !isNaN(days) && days > 0
+      ? new Date(Date.now() - days * 86400000)
+      : null
 
     if (!brandProfileId) {
       return NextResponse.json(
@@ -79,30 +84,17 @@ export async function GET(request: NextRequest) {
     // This ensures List View matches Deep View which also uses all runs
     let allAnalysisResults: any[] = []
     let latestAnalysis: any = null
-    // Track whether we fell back to unfiltered results (affects prompt language filter)
-    let effectiveCountryFilter = countryFilter
     try {
       allAnalysisResults = await prisma.geoAnalysisResult.findMany({
         where: {
           brandProfileId: profileId,
           ...(countryFilter ? { country: countryFilter } : {}),
+          ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
         },
         orderBy: {
           createdAt: 'desc'
         }
       })
-
-      // Fallback: if country filter returned nothing, retry without it so data always renders
-      if (allAnalysisResults.length === 0 && countryFilter) {
-        console.log(`⚠️ No GeoAnalysisResults for country=${countryFilter}, falling back to all countries`)
-        allAnalysisResults = await prisma.geoAnalysisResult.findMany({
-          where: { brandProfileId: profileId },
-          orderBy: { createdAt: 'desc' }
-        })
-        if (allAnalysisResults.length > 0) {
-          effectiveCountryFilter = null
-        }
-      }
 
       if (allAnalysisResults.length > 0) {
         latestAnalysis = allAnalysisResults[0] // Keep reference to latest for metadata
@@ -127,26 +119,13 @@ export async function GET(request: NextRequest) {
         where: {
           brandProfileId: profileId,
           status: 'completed',
-          ...(effectiveCountryFilter ? { country: effectiveCountryFilter } : {}),
+          ...(countryFilter ? { country: countryFilter } : {}),
+          ...(sinceDate ? { ranAt: { gte: sinceDate } } : {}),
         },
         orderBy: {
           ranAt: 'desc'
         }
       })
-
-      // Fallback: if country filter returned nothing, retry without it
-      if (!latestAnalysisRun && effectiveCountryFilter) {
-        latestAnalysisRun = await prisma.analysisRun.findFirst({
-          where: {
-            brandProfileId: profileId,
-            status: 'completed',
-          },
-          orderBy: { ranAt: 'desc' }
-        })
-        if (latestAnalysisRun) {
-          effectiveCountryFilter = null
-        }
-      }
 
       if (latestAnalysisRun) {
         console.log(`✅ Found completed AnalysisRun for brand profile ${profileId} (id: ${latestAnalysisRun.id})`)
@@ -168,9 +147,7 @@ export async function GET(request: NextRequest) {
       // Continue processing with allAnalysisResults (skip the early return below)
     }
 
-    // Compute language filter from the ORIGINAL country filter (not the effective one)
-    // so prompts are always shown in the correct language for the selected region,
-    // even when analysis results fell back to a different country's data.
+    // Compute language filter from the selected country (when provided).
     const promptLanguageFilter = countryFilter && isAllowedCountry(countryFilter as CountryCode)
       ? getLanguageForCountry(countryFilter as CountryCode)
       : undefined
@@ -504,13 +481,8 @@ export async function GET(request: NextRequest) {
     // Combine prompts: matched (DB + results), unmatched tested (results only),
     // and unmatched DB (DB only — excluded when country filter is active to avoid
     // showing prompts from another language that have zero results for this country)
-    // When we fell back to all countries (effectiveCountryFilter is null but countryFilter is set),
-    // exclude unmatchedTestedPrompts because they may contain prompts from other languages/countries.
-    const inFallback = countryFilter && !effectiveCountryFilter
     const prompts = countryFilter
-      ? (inFallback
-          ? [...matchedPrompts]                               // Fallback: only DB-matched (already language-filtered)
-          : [...matchedPrompts, ...unmatchedTestedPrompts])   // Normal: include tested prompts too
+      ? [...matchedPrompts, ...unmatchedTestedPrompts]
       : [...matchedPrompts, ...unmatchedTestedPrompts, ...unmatchedPrompts]
 
     // Build a map of prompts with their results (including ALL providers)

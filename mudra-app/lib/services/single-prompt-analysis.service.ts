@@ -14,6 +14,7 @@ export interface SinglePromptAnalysisConfig {
   promptId: number
   promptText: string
   category: string
+  country?: string
 }
 
 export interface ProviderResult {
@@ -224,12 +225,15 @@ export async function runSinglePromptAnalysis(
   
   // Store results by appending to GeoAnalysisResult.analyses
   try {
+    const analysisCountry = config.country || brandProfile.primaryCountry || 'US'
+
     await storePromptResults(
       config.promptId,
       providerResults,
       overallVisibility,
       config.promptText,
-      config.brandProfileId
+      config.brandProfileId,
+      analysisCountry
     )
   } catch (error) {
     console.warn('⚠️ Could not store prompt results:', error)
@@ -252,7 +256,8 @@ async function storePromptResults(
   results: ProviderResult[],
   overallVisibility: number,
   promptText: string,
-  brandProfileId: number
+  brandProfileId: number,
+  country: string
 ): Promise<void> {
   try {
     // Map provider names to display names used across the app
@@ -289,9 +294,12 @@ async function storePromptResults(
       }
     })
 
-    // Get the latest GeoAnalysisResult for this brand
+    // Get the latest GeoAnalysisResult for this brand and country
     const latestAnalysis = await prisma.geoAnalysisResult.findFirst({
-      where: { brandProfileId },
+      where: {
+        brandProfileId,
+        country,
+      },
       orderBy: { createdAt: 'desc' }
     })
 
@@ -331,6 +339,7 @@ async function storePromptResults(
         const created = await prisma.geoAnalysisResult.create({
           data: {
             brandProfileId,
+            country,
             overallScore: overallVisibility,
             analyses: JSON.stringify(newEntries),
             summary: JSON.stringify({

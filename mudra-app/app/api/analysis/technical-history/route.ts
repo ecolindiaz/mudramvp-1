@@ -13,6 +13,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const brandProfileIdStr = searchParams.get('brandProfileId');
     const limit = parseInt(searchParams.get('limit') || '2');
+    const daysParam = searchParams.get('days');
+    const days = daysParam ? parseInt(daysParam, 10) : null;
+    const sinceDate = days && !isNaN(days) && days > 0
+      ? new Date(Date.now() - days * 86400000)
+      : null;
 
     // Require authentication and verify brand profile access
     const authResult = await requireAuthWithBrandAccess(brandProfileIdStr);
@@ -25,7 +30,8 @@ export async function GET(request: NextRequest) {
     // Fetch most recent Technical Structure analysis results
     const results = await prisma.technicalStructureAnalysis.findMany({
       where: {
-        brandProfileId: brandProfileId
+        brandProfileId: brandProfileId,
+        ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
       },
       orderBy: {
         createdAt: 'desc'

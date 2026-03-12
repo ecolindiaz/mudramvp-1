@@ -157,7 +157,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { promptId, text, category, isActive, runAnalysis } = body
+    const { promptId, text, category, isActive, runAnalysis, country } = body
 
     if (!promptId) {
       return NextResponse.json(
@@ -203,6 +203,7 @@ export async function PATCH(request: NextRequest) {
           promptId: parseInt(promptId),
           promptText: text,
           category: category || existingPrompt.category || 'Organic',
+          country,
         })
         console.log(`✅ Re-analysis complete for prompt ${promptId}: ${analysisResult.overallVisibility}% visibility`)
       } catch (error) {

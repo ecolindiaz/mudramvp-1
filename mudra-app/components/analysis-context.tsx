@@ -11,6 +11,7 @@ interface AnalysisState {
 
 interface AnalysisContextType {
   isRunningAnalysis: boolean
+  runningBrandProfileId: number | null
   analysisStartedAt: number | null
   lastCompletedAt: number | null
   startAnalysis: (brandProfileId: number) => void
@@ -159,6 +160,7 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
     <AnalysisContext.Provider
       value={{
         isRunningAnalysis: isRunning,
+        runningBrandProfileId: brandProfileId,
         analysisStartedAt: startedAt,
         lastCompletedAt,
         startAnalysis,
@@ -173,10 +175,19 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function useAnalysis() {
+export function useAnalysis(activeBrandProfileId?: number | null) {
   const context = useContext(AnalysisContext)
   if (!context) {
     throw new Error('useAnalysis must be used within an AnalysisProvider')
   }
-  return context
+
+  if (activeBrandProfileId === null || activeBrandProfileId === undefined) {
+    return context
+  }
+
+  return {
+    ...context,
+    isRunningAnalysis:
+      context.isRunningAnalysis && context.runningBrandProfileId === activeBrandProfileId,
+  }
 }

@@ -38,7 +38,7 @@ export function PromptsForm() {
     startAnalysis,
     completeAnalysis,
     checkForRecentCompletion,
-  } = useAnalysis()
+  } = useAnalysis(profile?.id ?? null)
 
   const [analysisStarted, setAnalysisStarted] = useState(false)
   const [currentStepIndex, setCurrentStepIndex] = useState(0)

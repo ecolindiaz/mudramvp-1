@@ -1543,7 +1543,7 @@ function IssuesPageInner() {
         description: "This issue type requires a GitHub repo. Connect in Settings → Integrations.",
         action: {
           label: "Go to Settings",
-          onClick: () => window.location.href = "/dashboard/settings",
+          onClick: () => window.location.href = "/dashboard/integrations",
         },
       })
       return
@@ -1590,7 +1590,7 @@ function IssuesPageInner() {
             description: result.error?.message,
             action: {
               label: "Go to Settings",
-              onClick: () => window.location.href = "/dashboard/settings",
+              onClick: () => window.location.href = "/dashboard/integrations",
             },
           })
         } else {
@@ -2064,7 +2064,7 @@ function IssuesPageInner() {
                   Connect GitHub to deploy agents.
                 </span>
                 <button
-                  onClick={() => window.location.href = "/dashboard/settings"}
+                  onClick={() => window.location.href = "/dashboard/integrations"}
                   className="ml-auto text-[12px] font-medium text-amber-400 hover:text-amber-300 transition-colors"
                 >
                   Go to Settings →

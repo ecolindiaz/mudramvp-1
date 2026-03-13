@@ -609,7 +609,7 @@ function AgentsLabPageInner() {
   // Handle GitHub connection - redirect to integrations page
   const handleGithubConnect = async () => {
     // Redirect to integrations page to connect GitHub
-    window.location.href = '/dashboard/settings/integrations'
+    window.location.href = '/dashboard/integrations'
   }
   
   // Handle repo selection

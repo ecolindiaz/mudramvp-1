@@ -2253,67 +2253,85 @@ function IssuesPageInner() {
 
           {/* Paste instructions */}
           {viewingOutputIssue?.agentType && (() => {
-            const instructions: Record<string, { where: string; steps: string[] }> = {
+            const platform = profile?.websitePlatform || null
+            const instructions: Record<string, { where: string; steps: Record<string, string> }> = {
               schema_markup: {
                 where: "page <head>",
-                steps: [
-                  "Framer: Site Settings → Custom Code → End of <head>",
-                  "Webflow: Page Settings → Custom Code → Head Code",
-                  "HTML: Paste inside <head> before </head>",
-                ],
+                steps: {
+                  framer: "Site Settings \u2192 Custom Code \u2192 End of <head>",
+                  webflow: "Page Settings \u2192 Custom Code \u2192 Head Code",
+                  html: "Paste inside <head> before </head>",
+                },
               },
               meta_optimization: {
                 where: "page <head>",
-                steps: [
-                  "Framer: Site Settings → Custom Code → End of <head>",
-                  "Webflow: Page Settings → Custom Code → Head Code",
-                  "HTML: Paste inside <head> before </head>",
-                ],
+                steps: {
+                  framer: "Site Settings \u2192 Custom Code \u2192 End of <head>",
+                  webflow: "Page Settings \u2192 Custom Code \u2192 Head Code",
+                  html: "Paste inside <head> before </head>",
+                },
               },
               faq_sections: {
                 where: "page body",
-                steps: [
-                  "Framer: Add an Embed component → paste the HTML",
-                  "Webflow: Add an Embed element where you want the FAQ",
-                  "HTML: Paste before </body>",
-                ],
+                steps: {
+                  framer: "Add an Embed component \u2192 paste the HTML",
+                  webflow: "Add an Embed element where you want the FAQ",
+                  html: "Paste before </body>",
+                },
               },
               llms_txt: {
                 where: "your site root as /llms.txt",
-                steps: [
-                  "Framer: Not natively supported — host via a redirect or subdomain",
-                  "Webflow: Not natively supported — host via a redirect or worker",
-                  "HTML/Next.js: Save as public/llms.txt in your project",
-                ],
+                steps: {
+                  framer: "Not natively supported \u2014 host via a redirect or subdomain",
+                  webflow: "Not natively supported \u2014 host via a redirect or worker",
+                  html: "Save as public/llms.txt in your project",
+                },
               },
               llms_txt_missing: {
                 where: "your site root as /llms.txt",
-                steps: [
-                  "Framer: Not natively supported — host via a redirect or subdomain",
-                  "Webflow: Not natively supported — host via a redirect or worker",
-                  "HTML/Next.js: Save as public/llms.txt in your project",
-                ],
+                steps: {
+                  framer: "Not natively supported \u2014 host via a redirect or subdomain",
+                  webflow: "Not natively supported \u2014 host via a redirect or worker",
+                  html: "Save as public/llms.txt in your project",
+                },
               },
               llms_txt_optimizer: {
                 where: "your site root as /llms.txt",
-                steps: [
-                  "Framer: Not natively supported — host via a redirect or subdomain",
-                  "Webflow: Not natively supported — host via a redirect or worker",
-                  "HTML/Next.js: Save as public/llms.txt in your project",
-                ],
+                steps: {
+                  framer: "Not natively supported \u2014 host via a redirect or subdomain",
+                  webflow: "Not natively supported \u2014 host via a redirect or worker",
+                  html: "Save as public/llms.txt in your project",
+                },
               },
             }
             const info = instructions[viewingOutputIssue.agentType ?? ""]
             if (!info) return null
+
+            // If platform is set, show that platform's instruction highlighted, then others dimmed
+            const orderedSteps = platform && info.steps[platform]
+              ? [
+                  { label: platform.charAt(0).toUpperCase() + platform.slice(1), text: info.steps[platform], highlight: true },
+                  ...Object.entries(info.steps)
+                    .filter(([key]) => key !== platform)
+                    .map(([key, text]) => ({ label: key.charAt(0).toUpperCase() + key.slice(1), text, highlight: false })),
+                ]
+              : Object.entries(info.steps).map(([key, text]) => ({
+                  label: key.charAt(0).toUpperCase() + key.slice(1), text, highlight: false
+                }))
+
             return (
               <div className="mx-5 mb-3 rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-3">
                 <p className="text-[12px] font-medium text-white/70 mb-2">
                   Paste this into {info.where}
                 </p>
                 <ul className="space-y-1">
-                  {info.steps.map((step, i) => (
-                    <li key={i} className="text-[11px] text-white/40 leading-relaxed">
-                      {step}
+                  {orderedSteps.map((step, i) => (
+                    <li key={i} className={`text-[11px] leading-relaxed ${
+                      step.highlight
+                        ? 'text-white/80 font-medium'
+                        : 'text-white/40'
+                    }`}>
+                      {step.label}: {step.text}
                     </li>
                   ))}
                 </ul>

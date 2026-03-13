@@ -29,6 +29,9 @@ const defaultProfile = {
   primaryCountry: "US",
   trackingCountries: ["US"] as string[],
 
+  // Website platform
+  websitePlatform: "",
+
   // Visibility Metrics
   monthlySearchVolume: "",
   aiRecommendations: "",

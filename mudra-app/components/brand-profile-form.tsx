@@ -44,7 +44,10 @@ const initialData = {
   
   // Visibility Metrics
   monthlySearchVolume: "5,000",
-  aiRecommendations: "Sometimes"
+  aiRecommendations: "Sometimes",
+
+  // Website platform
+  websitePlatform: ""
 }
 
 export function BrandProfileForm() {
@@ -346,6 +349,33 @@ export function BrandProfileForm() {
             {isEditing && (
               <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => addRow("companyICP")}>Add another</Button>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Website Platform Section */}
+      <Card className="bg-[#161616] border-0 rounded-xl">
+        <CardHeader>
+          <CardTitle className="text-white text-lg font-semibold">Website Platform</CardTitle>
+          <CardDescription className="text-white/50 text-sm">
+            Select your website platform for tailored code instructions
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-white/[0.04] p-4 space-y-2">
+            <Label htmlFor="websitePlatform" className={labelStyles}>Platform</Label>
+            <Select
+              value={formData.websitePlatform || undefined}
+              onValueChange={(value) => handleInputChange("websitePlatform", value)}
+              disabled={!isEditing}
+            >
+              <SelectTrigger className={inputStyles}>
+                <SelectValue placeholder="Select if you use a no-code platform" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#161616] border-white/[0.06]">
+                <SelectItem value="framer">Framer</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>

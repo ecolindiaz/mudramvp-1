@@ -43,6 +43,7 @@ export interface ScriptGeneratorBrandProfile {
 	companyServices?: string | null;
 	companyICP?: string | null;
 	companyIndustry?: string | null;
+	websitePlatform?: string | null;
 }
 
 export interface ScriptGenerationResult {
@@ -3351,7 +3352,8 @@ async function buildLlmPrompts(
 - Description: ${brandProfile.companyDescription || "No description available"}
 - Products/Services: ${brandProfile.companyServices || "Not specified"}
 - Target Audience: ${brandProfile.companyICP || "Not specified"}
-- Industry: ${brandProfile.companyIndustry || "Not specified"}`;
+- Industry: ${brandProfile.companyIndustry || "Not specified"}
+- Website Platform: ${brandProfile.websitePlatform || "Not specified"}`;
 
 	const pageContext = pageContent
 		? `\n\n## Live Page Content (${targetUrl})\n\`\`\`markdown\n${pageContent}\n\`\`\``
@@ -3435,6 +3437,9 @@ async function buildLlmPrompts(
 			"- Titled-link sections (Key Resources, Security, Pricing, Policies, Blog): use [Title](URL) with optional `: description`.",
 			"- FAQs must use `- **Q:** Question` / `  **A:** Answer [Source](URL)` format. Include 3-6 pairs.",
 			"- Prefer docs/reference/pricing/security/rate-limit sources over blog pages for foundational claims.",
+			...(brandProfile.websitePlatform === "framer" ? [
+				"- FRAMER NOTE: This site uses Framer. Framer does not natively support hosting /llms.txt. Include a comment at the top of the file: # Note: Framer does not support static file hosting. Host this file via a redirect, Cloudflare Worker, or subdomain.",
+			] : []),
 		].join("\n");
 
 		return { userPrompt, systemPrompt: LLMS_TXT_SYSTEM_PROMPT };
@@ -3519,7 +3524,12 @@ SELF-CHECK (apply before returning):
 
 MODE: ${schemaMode}
 
-${schemaKb}`;
+${schemaKb}${brandProfile.websitePlatform === "framer" ? `
+
+FRAMER PLATFORM:
+- This site uses Framer. Add an HTML comment at the top: <!-- Framer: Paste into Site Settings → Custom Code → End of <head> -->
+- Output must be a single self-contained <script type="application/ld+json"> tag ready for copy-paste.
+- No external file references.` : ""}`;
 
 		const userPrompt = `Generate JSON-LD for this page.${brandContext}${pageContext}${issueContext}${evidenceContext}`;
 		return { userPrompt, systemPrompt };
@@ -3554,7 +3564,12 @@ OUTPUT CONTRACT:
 - 3-5 Q&A pairs.
 - Use <h3> for questions and <p> for answers.
 
-${faqKb}`;
+${faqKb}${brandProfile.websitePlatform === "framer" ? `
+
+FRAMER PLATFORM:
+- This site uses Framer. Add an HTML comment at the top: <!-- Framer: Add an Embed component and paste this HTML -->
+- Output must be self-contained HTML suitable for a Framer Embed component.
+- Use inline styles only — no external CSS imports.` : ""}`;
 
 		const userPrompt = `Generate grounded FAQ HTML for this page.
 Page type: ${pageType}.${brandContext}${pageContext}${issueContext}${evidenceContext}`;
@@ -3582,7 +3597,10 @@ STRICT GROUNDING:
 OUTPUT CONTRACT:
 - ${instruction}
 - No prose outside tags.
-- No markdown fences.`;
+- No markdown fences.${brandProfile.websitePlatform === "framer" ? `
+
+FRAMER PLATFORM:
+- This site uses Framer. Add an HTML comment at the top: <!-- Framer: Paste into Site Settings → Custom Code → End of <head> -->` : ""}`;
 
 	const userPrompt = `Generate meta tags for this page.${brandContext}${pageContext}${issueContext}${evidenceContext}`;
 	return { userPrompt, systemPrompt };

@@ -51,6 +51,7 @@ export async function POST(
 						companyServices: true,
 						companyICP: true,
 						companyIndustry: true,
+						websitePlatform: true,
 					},
 				},
 			},
@@ -127,6 +128,7 @@ export async function POST(
 				companyServices: issue.brandProfile.companyServices,
 				companyICP: issue.brandProfile.companyICP,
 				companyIndustry: issue.brandProfile.companyIndustry,
+				websitePlatform: issue.brandProfile.websitePlatform,
 			},
 			faqData ? { faqData } : undefined
 		);

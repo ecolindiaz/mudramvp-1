@@ -37,14 +37,15 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url)
     const brandProfileIdStr = url.searchParams.get('brandProfileId')
-    const legacyCompanyId = url.searchParams.get('companyId')
+    const companyIdParam = url.searchParams.get('companyId')
     const weekStartStr = url.searchParams.get('weekStartUtc')
     const country = url.searchParams.get('country')
 
+    let companyId: string | null = null
     let brandProfileId: number | null = null
     const adminRequest = isAdmin(req)
 
-    // Primary path: brandProfileId (used by dashboard)
+    // Primary path: brandProfileId (used by dashboard) — resolve to companyId for report lookup
     if (brandProfileIdStr) {
       if (!adminRequest) {
         const authResult = await requireAuthWithBrandAccess(brandProfileIdStr)
@@ -59,36 +60,41 @@ export async function GET(req: NextRequest) {
         }
         brandProfileId = parsed
       }
-    } else if (legacyCompanyId && adminRequest) {
-      // Legacy fallback: admin-only companyId lookup — find the lowest-order brand profile
+
+      // Resolve companyId from brandProfileId
+      const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles')
+      companyId = await resolveCompanyIdFromBrandProfile(brandProfileId)
+    } else if (companyIdParam && adminRequest) {
+      // Admin-only: direct companyId lookup
+      companyId = companyIdParam
+      // Resolve a brandProfileId for country overlay queries
       const { resolveBrandProfileIds } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles')
-      const bpIds = await resolveBrandProfileIds(legacyCompanyId)
-      if (bpIds.length === 0) {
-        return NextResponse.json({ success: false, error: { message: 'No brand profiles found for companyId' } }, { status: 404 })
+      const bpIds = await resolveBrandProfileIds(companyId)
+      if (bpIds.length > 0) {
+        const bp = await prisma.brandProfile.findFirst({
+          where: { id: { in: bpIds } },
+          orderBy: { monitorOrder: 'asc' },
+          select: { id: true },
+        })
+        brandProfileId = bp?.id ?? bpIds[0]
       }
-      const bp = await prisma.brandProfile.findFirst({
-        where: { id: { in: bpIds } },
-        orderBy: { monitorOrder: 'asc' },
-        select: { id: true },
-      })
-      brandProfileId = bp?.id ?? bpIds[0]
     } else {
       return NextResponse.json({ success: false, error: { message: 'brandProfileId is required' } }, { status: 400 })
     }
 
-    const targetWeek = weekStartStr ? new Date(weekStartStr) : startOfIsoWeekUtc(new Date())
-
-    if (brandProfileId === null) {
-      return NextResponse.json({ success: false, error: { message: 'Could not resolve brandProfileId' } }, { status: 400 })
+    if (!companyId) {
+      return NextResponse.json({ success: false, error: { message: 'Could not resolve companyId' } }, { status: 400 })
     }
 
+    const targetWeek = weekStartStr ? new Date(weekStartStr) : startOfIsoWeekUtc(new Date())
+
     // Try the requested week
-    let report = await getWeeklyReportByWeek(brandProfileId, targetWeek)
+    let report = await getWeeklyReportByWeek(companyId, targetWeek)
 
     // Fallback: most recent ready
     if (!report) {
       const latest = await prisma.weeklyReport.findFirst({
-        where: { brandProfileId, status: 'ready' },
+        where: { companyId, status: 'ready' },
         orderBy: { weekStartUtc: 'desc' },
         include: { sections: { orderBy: { order: 'asc' } } },
       })

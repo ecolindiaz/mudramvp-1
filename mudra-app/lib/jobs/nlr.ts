@@ -5,10 +5,10 @@ import { generateWeeklyReport } from '@/lib/ai/nlr/generate-report'
 export const NLR_QUEUE_NAME = 'nlr-weekly'
 
 export async function queueNlrJob(
+  companyId: string,
   brandProfileId: number,
   weekStartUtc: string,
-  opts?: { companyId?: string | null }
 ) {
-  await generateWeeklyReport({ brandProfileId, weekStartUtc, companyId: opts?.companyId })
-  return { id: `inline:${brandProfileId}:${weekStartUtc}` } as any
+  await generateWeeklyReport({ companyId, brandProfileId, weekStartUtc })
+  return { id: `inline:${companyId}:${weekStartUtc}` } as any
 }

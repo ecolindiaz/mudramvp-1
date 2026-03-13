@@ -6,7 +6,7 @@ import { generateWeeklyReport } from '@/lib/ai/nlr/generate-report'
  * Weekly Natural Language Report Cron Job
  *
  * Schedule: Every Monday at 6 AM UTC (set in vercel.json)
- * Purpose: Generate weekly NLR for every brand profile (monitor) that has a website
+ * Purpose: Generate one weekly NLR per company (using the primary brand profile for data collection)
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
@@ -37,33 +37,39 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    console.log(`[Weekly NLR Cron] Starting for ${profiles.length} monitors, week of ${weekStart.toISOString()}`)
-
-    const results: Array<{ brandProfileId: number; status: 'success' | 'error'; message?: string }> = []
-
-    // Optionally resolve companyId for each profile (best-effort)
+    // Resolve companyId for each profile and deduplicate by companyId
     const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles')
+    const companyProfileMap = new Map<string, { companyId: string; brandProfileId: number }>()
 
     for (const profile of profiles) {
       try {
-        console.log(`[Weekly NLR Cron] Generating report for monitor: ${profile.companyWebsite} (bp=${profile.id})`)
+        const companyId = await resolveCompanyIdFromBrandProfile(profile.id)
+        if (companyId && !companyProfileMap.has(companyId)) {
+          companyProfileMap.set(companyId, { companyId, brandProfileId: profile.id })
+        }
+      } catch { /* skip profiles without a company */ }
+    }
 
-        let companyId: string | null = null
-        try {
-          companyId = await resolveCompanyIdFromBrandProfile(profile.id)
-        } catch { /* non-fatal */ }
+    const entries = Array.from(companyProfileMap.values())
+    console.log(`[Weekly NLR Cron] Starting for ${entries.length} companies (from ${profiles.length} monitors), week of ${weekStart.toISOString()}`)
+
+    const results: Array<{ companyId: string; brandProfileId: number; status: 'success' | 'error'; message?: string }> = []
+
+    for (const entry of entries) {
+      try {
+        console.log(`[Weekly NLR Cron] Generating report for company=${entry.companyId} (bp=${entry.brandProfileId})`)
 
         await generateWeeklyReport({
-          brandProfileId: profile.id,
+          companyId: entry.companyId,
+          brandProfileId: entry.brandProfileId,
           weekStartUtc: weekStart,
-          companyId,
         })
 
-        results.push({ brandProfileId: profile.id, status: 'success' })
+        results.push({ companyId: entry.companyId, brandProfileId: entry.brandProfileId, status: 'success' })
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error'
-        console.error(`[Weekly NLR Cron] Error for bp=${profile.id}:`, message)
-        results.push({ brandProfileId: profile.id, status: 'error', message })
+        console.error(`[Weekly NLR Cron] Error for company=${entry.companyId}:`, message)
+        results.push({ companyId: entry.companyId, brandProfileId: entry.brandProfileId, status: 'error', message })
       }
     }
 
@@ -76,7 +82,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         weekStart: weekStart.toISOString(),
-        totalMonitors: profiles.length,
+        totalCompanies: entries.length,
         successCount,
         errorCount,
         results,
@@ -106,11 +112,24 @@ export async function POST(request: NextRequest) {
       rawBrandProfileId !== undefined
         ? Number.parseInt(String(rawBrandProfileId), 10)
         : undefined
-    const { weekStartUtc, companyId } = body
+    const { weekStartUtc } = body
 
     if (brandProfileId === undefined || Number.isNaN(brandProfileId)) {
       return NextResponse.json(
         { success: false, error: { message: 'brandProfileId is required and must be a number', code: 'MISSING_PARAM' } },
+        { status: 400 }
+      )
+    }
+
+    // Resolve companyId
+    let companyId: string | null = body?.companyId ?? null
+    if (!companyId) {
+      const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles')
+      companyId = await resolveCompanyIdFromBrandProfile(brandProfileId)
+    }
+    if (!companyId) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Could not resolve companyId for brandProfileId', code: 'MISSING_PARAM' } },
         { status: 400 }
       )
     }
@@ -128,12 +147,12 @@ export async function POST(request: NextRequest) {
       weekStart.setUTCHours(0, 0, 0, 0)
     }
 
-    console.log(`[Weekly NLR] Manual trigger for bp=${brandProfileId}, week: ${weekStart.toISOString()}`)
+    console.log(`[Weekly NLR] Manual trigger for company=${companyId} bp=${brandProfileId}, week: ${weekStart.toISOString()}`)
 
     const report = await generateWeeklyReport({
+      companyId,
       brandProfileId,
       weekStartUtc: weekStart,
-      companyId: companyId ?? null,
     })
 
     return NextResponse.json({

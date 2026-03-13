@@ -10,16 +10,16 @@ function toDate(value: Date | string): Date {
 }
 
 /**
- * Fetch a weekly report for a brand profile and week (UTC), including sections.
+ * Fetch a weekly report for a company and week (UTC), including sections.
  */
 export async function getWeeklyReportByWeek(
-  brandProfileId: number,
+  companyId: string,
   weekStartUtc: Date | string
 ): Promise<WeeklyReportWithRelations | null> {
   const weekStart = toDate(weekStartUtc);
   return prisma.weeklyReport.findUnique({
     where: {
-      brandProfileId_weekStartUtc: { brandProfileId, weekStartUtc: weekStart },
+      companyId_weekStartUtc: { companyId, weekStartUtc: weekStart },
     },
     include: {
       sections: {
@@ -38,8 +38,7 @@ export interface UpsertWeeklyReportSectionInput {
 }
 
 export interface UpsertWeeklyReportInput {
-  brandProfileId: number;
-  companyId?: string | null;
+  companyId: string;
   weekStartUtc: Date | string;
   status?: string;
   model?: string | null;
@@ -63,8 +62,8 @@ export async function upsertWeeklyReport(
     // Upsert core report row
     const report = await tx.weeklyReport.upsert({
       where: {
-        brandProfileId_weekStartUtc: {
-          brandProfileId: input.brandProfileId,
+        companyId_weekStartUtc: {
+          companyId: input.companyId,
           weekStartUtc: weekStart,
         },
       },
@@ -76,11 +75,9 @@ export async function upsertWeeklyReport(
         tokensIn: input.tokensIn ?? undefined,
         tokensOut: input.tokensOut ?? undefined,
         costCents: input.costCents ?? undefined,
-        companyId: input.companyId === undefined ? undefined : input.companyId,
       },
       create: {
-        brandProfileId: input.brandProfileId,
-        companyId: input.companyId ?? null,
+        companyId: input.companyId,
         weekStartUtc: weekStart,
         status: input.status ?? "queued",
         model: input.model ?? null,
@@ -125,14 +122,14 @@ export async function upsertWeeklyReport(
 }
 
 /**
- * List most recent weekly reports for a brand profile.
+ * List most recent weekly reports for a company.
  */
 export async function listReports(
-  brandProfileId: number,
+  companyId: string,
   limit = 10
 ): Promise<WeeklyReport[]> {
   return prisma.weeklyReport.findMany({
-    where: { brandProfileId },
+    where: { companyId },
     orderBy: { weekStartUtc: "desc" },
     take: limit,
   });

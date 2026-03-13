@@ -185,27 +185,26 @@ function buildSummaryJsonFromInput(input: NlrInput): NlrSummaryJson {
 }
 
 export async function generateWeeklyReport(params: {
+  companyId: string;
   brandProfileId: number;
   weekStartUtc: Date | string;
-  companyId?: string | null;
 }) {
-  const { brandProfileId } = params
-  const companyId = params.companyId ?? null
+  const { companyId, brandProfileId } = params
   const weekStart = toDate(params.weekStartUtc)
 
-  // 1) Get or create draft report (keyed by brandProfileId + weekStartUtc)
+  // 1) Get or create draft report (keyed by companyId + weekStartUtc)
   const existing = await prisma.weeklyReport.findUnique({
-    where: { brandProfileId_weekStartUtc: { brandProfileId, weekStartUtc: weekStart } },
+    where: { companyId_weekStartUtc: { companyId, weekStartUtc: weekStart } },
     include: { sections: true },
   })
 
   const report = existing ?? (await prisma.weeklyReport.create({
-    data: { brandProfileId, companyId, weekStartUtc: weekStart, status: 'queued' },
+    data: { companyId, weekStartUtc: weekStart, status: 'queued' },
   }))
 
   // Mark running
   await prisma.weeklyReport.update({ where: { id: report.id }, data: { status: 'running' } })
-  await logNlrJob({ companyId: companyId ?? '', weekStartUtc: weekStart.toISOString(), status: 'running' })
+  await logNlrJob({ companyId, weekStartUtc: weekStart.toISOString(), status: 'running' })
 
   // 2) Collect inputs and prepare prompt
   const nlrInput = await collectNlrInputs(weekStart, brandProfileId, companyId)
@@ -387,7 +386,7 @@ export async function generateWeeklyReport(params: {
       status: 'ready',
     },
   })
-  await logNlrJob({ companyId: companyId ?? '', weekStartUtc: weekStart.toISOString(), status: 'ready', modelId: usedModelId, tokenIn: tokensIn, tokenOut: tokensOut, costCents })
+  await logNlrJob({ companyId, weekStartUtc: weekStart.toISOString(), status: 'ready', modelId: usedModelId, tokenIn: tokensIn, tokenOut: tokensOut, costCents })
 
   // Notification: report ready — use brandProfileId directly
   try {

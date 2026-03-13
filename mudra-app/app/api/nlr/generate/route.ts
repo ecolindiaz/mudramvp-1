@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: { message: 'Unauthorized' } }, { status: 401 })
     }
     const body = await req.json().catch(() => ({}))
+
     const rawBrandProfileId = body?.brandProfileId
     const brandProfileId: number | undefined =
       rawBrandProfileId !== undefined
@@ -37,16 +38,27 @@ export async function POST(req: NextRequest) {
     if (brandProfileId === undefined || Number.isNaN(brandProfileId)) {
       return NextResponse.json({ success: false, error: { message: 'brandProfileId is required and must be a number' } }, { status: 400 })
     }
-    const companyId: string | undefined = body?.companyId
+
+    // Resolve companyId — accept from body or resolve from brandProfileId
+    let companyId: string | undefined = body?.companyId
+    if (!companyId) {
+      const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles')
+      const resolved = await resolveCompanyIdFromBrandProfile(brandProfileId)
+      if (!resolved) {
+        return NextResponse.json({ success: false, error: { message: 'Could not resolve companyId for brandProfileId' } }, { status: 400 })
+      }
+      companyId = resolved
+    }
+
     const weekStartRaw: string | undefined = body?.weekStart || body?.weekStartUtc
     const weekStartUtc: string = weekStartRaw || new Date().toISOString().slice(0,10) + 'T00:00:00.000Z'
 
-    // Rate limit per-monitor: 1 per minute
-    const allowed = rateLimitByKey(`nlr_generate_${brandProfileId}`, 1, 60)
+    // Rate limit per-company: 1 per minute
+    const allowed = rateLimitByKey(`nlr_generate_${companyId}`, 1, 60)
     if (!allowed) {
       return NextResponse.json({ success: false, error: { message: 'Rate limited. Try again in a minute.' } }, { status: 429 })
     }
-    const job = await queueNlrJob(brandProfileId, weekStartUtc, { companyId })
+    const job = await queueNlrJob(companyId, brandProfileId, weekStartUtc)
     return NextResponse.json({ success: true, data: { jobId: job.id } })
   } catch (err) {
     console.error('[NLR Generate] Error:', err);

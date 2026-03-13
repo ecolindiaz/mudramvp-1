@@ -63,7 +63,6 @@ model BrandProfile {
   issues                     Issue[]
   notifications              Notification[]
   analysisJobs               AnalysisJob[]
-  weeklyReports              WeeklyReport[]
 
   // Issue discovery pagination
   issueDiscoveryPageIndex    Int      @default(0)  // Current page index for issue discovery
@@ -335,8 +334,7 @@ model Task {
 
 model WeeklyReport {
   id              String                @id @default(cuid())
-  brandProfileId  Int                   @map("brand_profile_id")
-  companyId       String?               @map("org_id")
+  companyId       String                @map("org_id")
   weekStartUtc    DateTime              @map("week_start_utc")
   status          String
   model           String?
@@ -348,11 +346,9 @@ model WeeklyReport {
   createdAt       DateTime              @default(now()) @map("created_at")
   updatedAt       DateTime              @updatedAt @map("updated_at")
   sections        WeeklyReportSection[]
-  brandProfile    BrandProfile          @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-  company         Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  company         Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@unique([brandProfileId, weekStartUtc])
-  @@index([brandProfileId])
+  @@unique([companyId, weekStartUtc])
   @@index([companyId])
   @@index([weekStartUtc])
   @@map("weekly_reports")

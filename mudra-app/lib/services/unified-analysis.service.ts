@@ -422,10 +422,14 @@ async function runPostAnalysisSteps(
     try {
       const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
       const companyId = await resolveCompanyIdFromBrandProfile(config.brandProfileId);
-      const { queueNlrJob } = await import('@/lib/jobs/nlr');
-      const weekStartUtc = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z';
-      await queueNlrJob(config.brandProfileId, weekStartUtc, { companyId });
-      console.log(`[Unified Analysis] WeeklyReport (NLR) generated for brandProfileId=${config.brandProfileId}`);
+      if (!companyId) {
+        console.warn('[Unified Analysis] Could not resolve companyId — skipping NLR generation');
+      } else {
+        const { queueNlrJob } = await import('@/lib/jobs/nlr');
+        const weekStartUtc = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z';
+        await queueNlrJob(companyId, config.brandProfileId, weekStartUtc);
+        console.log(`[Unified Analysis] WeeklyReport (NLR) generated for company=${companyId} bp=${config.brandProfileId}`);
+      }
       onProgress?.({ phase: 'report', status: 'completed' });
     } catch (nlrError) {
       console.warn('[Unified Analysis] NLR generation failed (non-fatal):', nlrError);
@@ -1361,15 +1365,19 @@ async function generateReport(data: {
       const day = now.getUTCDay() || 7;
       const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (day - 1)));
 
-      // Optionally resolve companyId for backward compat
+      // Resolve companyId — required for report keying
       let companyId: string | null = null;
       try {
         const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
         companyId = await resolveCompanyIdFromBrandProfile(data.brandProfileId);
       } catch { /* non-fatal */ }
 
-      await generateWeeklyReport({ brandProfileId: data.brandProfileId, weekStartUtc: weekStart, companyId });
-      console.log('[Report] ✅ Generated WeeklyReport for dashboard NLR');
+      if (companyId) {
+        await generateWeeklyReport({ companyId, brandProfileId: data.brandProfileId, weekStartUtc: weekStart });
+        console.log('[Report] ✅ Generated WeeklyReport for dashboard NLR');
+      } else {
+        console.warn('[Report] ⚠️ Could not resolve companyId — skipping WeeklyReport generation');
+      }
     } catch (weeklyErr) {
       console.error('[Report] ⚠️ Failed to generate WeeklyReport (non-fatal):', weeklyErr, weeklyErr instanceof Error ? weeklyErr.stack : '');
     }

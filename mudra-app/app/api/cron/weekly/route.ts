@@ -76,12 +76,12 @@ export async function GET(request: NextRequest) {
       }
 
       summary.push({ siteId: site.id, url, createdTasks, verifiedTasks, score: scoreVal });
-      // After per-site processing, enqueue NLR for each brand profile linked to this site's domain
+      // After per-site processing, enqueue NLR for the company
       try {
         const { resolveBrandProfileIds } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles')
         const bpIds = await resolveBrandProfileIds(site.companyId)
-        for (const bpId of bpIds) {
-          await queueNlrJob(bpId, weekStartIso, { companyId: site.companyId }).catch(() => {})
+        if (bpIds.length > 0) {
+          await queueNlrJob(site.companyId, bpIds[0], weekStartIso).catch(() => {})
         }
       } catch {}
     }

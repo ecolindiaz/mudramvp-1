@@ -1532,10 +1532,15 @@ function IssuesPageInner() {
 
   // Deploy agent for an issue (async with polling)
   const handleDeployAgent = async (issueId: number) => {
-    // Guard: require GitHub integration
+    // Guard: require GitHub integration — fall back to Generate Code for supported types
     if (!githubConnected) {
+      const issue = issues.find(i => i.id === issueId)
+      if (issue && canGenerateScript(issue)) {
+        handleGenerateScript(issueId)
+        return
+      }
       toast.error("GitHub not connected", {
-        description: "Connect your GitHub account in Settings → Integrations before deploying agents.",
+        description: "This issue type requires a GitHub repo. Connect in Settings → Integrations.",
         action: {
           label: "Go to Settings",
           onClick: () => window.location.href = "/dashboard/settings",
@@ -1628,6 +1633,7 @@ function IssuesPageInner() {
           issue.id === issueId
             ? {
                 ...issue,
+                status: "in_progress" as const,
                 generatedOutput: generatedOutput ?? issue.generatedOutput ?? null,
                 outputType: outputType ?? issue.outputType ?? null,
                 scriptSource: scriptSource ?? issue.scriptSource ?? null,
@@ -2244,7 +2250,77 @@ function IssuesPageInner() {
               </DialogDescription>
             </DialogHeader>
           </div>
-          
+
+          {/* Paste instructions */}
+          {viewingOutputIssue?.agentType && (() => {
+            const instructions: Record<string, { where: string; steps: string[] }> = {
+              schema_markup: {
+                where: "page <head>",
+                steps: [
+                  "Framer: Site Settings → Custom Code → End of <head>",
+                  "Webflow: Page Settings → Custom Code → Head Code",
+                  "HTML: Paste inside <head> before </head>",
+                ],
+              },
+              meta_optimization: {
+                where: "page <head>",
+                steps: [
+                  "Framer: Site Settings → Custom Code → End of <head>",
+                  "Webflow: Page Settings → Custom Code → Head Code",
+                  "HTML: Paste inside <head> before </head>",
+                ],
+              },
+              faq_sections: {
+                where: "page body",
+                steps: [
+                  "Framer: Add an Embed component → paste the HTML",
+                  "Webflow: Add an Embed element where you want the FAQ",
+                  "HTML: Paste before </body>",
+                ],
+              },
+              llms_txt: {
+                where: "your site root as /llms.txt",
+                steps: [
+                  "Framer: Not natively supported — host via a redirect or subdomain",
+                  "Webflow: Not natively supported — host via a redirect or worker",
+                  "HTML/Next.js: Save as public/llms.txt in your project",
+                ],
+              },
+              llms_txt_missing: {
+                where: "your site root as /llms.txt",
+                steps: [
+                  "Framer: Not natively supported — host via a redirect or subdomain",
+                  "Webflow: Not natively supported — host via a redirect or worker",
+                  "HTML/Next.js: Save as public/llms.txt in your project",
+                ],
+              },
+              llms_txt_optimizer: {
+                where: "your site root as /llms.txt",
+                steps: [
+                  "Framer: Not natively supported — host via a redirect or subdomain",
+                  "Webflow: Not natively supported — host via a redirect or worker",
+                  "HTML/Next.js: Save as public/llms.txt in your project",
+                ],
+              },
+            }
+            const info = instructions[viewingOutputIssue.agentType ?? ""]
+            if (!info) return null
+            return (
+              <div className="mx-5 mb-3 rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-3">
+                <p className="text-[12px] font-medium text-white/70 mb-2">
+                  Paste this into {info.where}
+                </p>
+                <ul className="space-y-1">
+                  {info.steps.map((step, i) => (
+                    <li key={i} className="text-[11px] text-white/40 leading-relaxed">
+                      {step}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })()}
+
           <div className="flex-1 overflow-auto px-5 pb-5">
             <div className="relative">
               <Button
@@ -2264,18 +2340,9 @@ function IssuesPageInner() {
                 maxHeight="50vh"
               />
             </div>
-            
-            {viewingOutputIssue?.outputType && (
-              <div className="mt-3 flex items-center gap-2">
-                <span className="text-[11px] text-white/30">Type:</span>
-                <span className="text-[11px] px-2 py-0.5 rounded bg-white/[0.05] text-white/50">
-                  {viewingOutputIssue.outputType}
-                </span>
-              </div>
-            )}
           </div>
-          
-          <div className="px-5 py-4 border-t border-white/[0.06] flex items-center justify-between">
+
+          <div className="px-5 py-4 border-t border-white/[0.06] flex items-center gap-3 justify-end">
             <Button
               variant="ghost"
               size="sm"
@@ -2284,23 +2351,23 @@ function IssuesPageInner() {
             >
               Close
             </Button>
-            {viewingOutputIssue && viewingOutputIssue.status === "identified" && viewingOutputIssue.agentType && (
-              <Button
-                size="sm"
-                onClick={() => { handleDeployAgent(viewingOutputIssue.id); setOutputDialogOpen(false); }}
-                disabled={deployingId === viewingOutputIssue.id}
-                className="bg-white text-black hover:bg-white/90 font-medium"
-              >
-                {deployingId === viewingOutputIssue.id ? (
-                  <>
-                    <UnicodeExecutionSpinner className="mr-1.5 text-black/80" />
-                    Deploying...
-                  </>
-                ) : (
-                  "Deploy Agent"
-                )}
-              </Button>
-            )}
+            <Button
+              size="sm"
+              onClick={handleCopyOutput}
+              className="bg-white text-black hover:bg-white/90 font-medium"
+            >
+              {copiedOutput ? (
+                <>
+                  <IconCheck className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <IconCopy className="w-3.5 h-3.5 mr-1.5" />
+                  Copy Code
+                </>
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

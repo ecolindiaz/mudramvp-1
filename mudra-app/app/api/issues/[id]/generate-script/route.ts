@@ -134,12 +134,14 @@ export async function POST(
 		const updated = await prisma.issue.update({
 			where: { id: issueId },
 			data: {
+				status: "in_progress",
 				generatedOutput: generated.generatedOutput,
 				outputType: generated.outputType,
 				scriptSource: generated.source,
 			},
 			select: {
 				id: true,
+				status: true,
 				generatedOutput: true,
 				outputType: true,
 				scriptSource: true,

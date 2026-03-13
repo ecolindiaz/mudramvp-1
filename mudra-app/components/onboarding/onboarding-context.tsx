@@ -179,7 +179,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       resources: { teamSize: 0, budget: 0 },
 
       // Website platform
-      websitePlatform: data.websitePlatform || null,
+      websitePlatform: data.websitePlatform || "",
     }
 
     console.log("Saving onboarding data to brand profile (with userId):", profile)

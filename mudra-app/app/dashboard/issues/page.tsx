@@ -1612,7 +1612,7 @@ function IssuesPageInner() {
     setGeneratingScriptId(issueId)
 
     // Capture original status for rollback on failure
-    const originalStatus = issues.find(i => i.id === issueId)?.status ?? "open"
+    const originalStatus = issues.find(i => i.id === issueId)?.status ?? "identified"
 
     // Immediately move issue to in_progress in UI for visual feedback
     setIssues(prev => prev.map(issue =>

@@ -207,7 +207,7 @@ export async function generateWeeklyReport(params: {
   await logNlrJob({ companyId, weekStartUtc: weekStart.toISOString(), status: 'running' })
 
   // 2) Collect inputs and prepare prompt
-  const nlrInput = await collectNlrInputs(weekStart, brandProfileId, companyId)
+  const nlrInput = await collectNlrInputs(companyId, weekStart)
   const fallbackSummaryJson = buildSummaryJsonFromInput(nlrInput)
   const { system, user } = buildNlrPrompt(nlrInput)
 

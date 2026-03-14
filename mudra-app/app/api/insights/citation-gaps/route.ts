@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
       { 
         success: false, 
         error: 'Failed to fetch citation gaps data',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Failed to fetch citation gaps'
       },
       { status: 500 }
     )
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
       { 
         success: false, 
         error: 'Failed to start citation gaps analysis',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Failed to fetch citation gaps'
       },
       { status: 500 }
     )

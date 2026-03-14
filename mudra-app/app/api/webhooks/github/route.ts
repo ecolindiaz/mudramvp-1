@@ -37,18 +37,21 @@ export async function POST(request: NextRequest) {
     // Read raw body for signature verification
     const payload = await request.text()
 
-    // Verify signature if webhook secret is configured
-    if (webhookSecret) {
-      if (!verifyGitHubWebhookSignature(payload, signature, webhookSecret)) {
-        console.error('[GitHubWebhook] Invalid signature')
-        return NextResponse.json(
-          { error: 'Invalid signature' },
-          { status: 401 }
-        )
-      }
-    } else {
-      // In development, warn but allow. In production, you should always have a secret.
-      console.warn('[GitHubWebhook] GITHUB_WEBHOOK_SECRET not set — skipping signature verification')
+    // SECURITY: Require webhook secret (fail-closed)
+    if (!webhookSecret) {
+      console.error('[GitHubWebhook] GITHUB_WEBHOOK_SECRET not configured')
+      return NextResponse.json(
+        { error: 'Webhook not configured' },
+        { status: 500 }
+      )
+    }
+
+    if (!verifyGitHubWebhookSignature(payload, signature, webhookSecret)) {
+      console.error('[GitHubWebhook] Invalid signature')
+      return NextResponse.json(
+        { error: 'Invalid signature' },
+        { status: 401 }
+      )
     }
 
     // Parse the payload

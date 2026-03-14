@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       await sendEvent({
         phase: 'error',
         status: 'failed',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Analysis stream failed',
       });
     } finally {
       try { await writer.close(); } catch { /* already closed */ }

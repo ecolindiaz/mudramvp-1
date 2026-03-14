@@ -60,13 +60,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ Enhanced Company Page Scrape failed:', error);
     
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    
     return NextResponse.json(
-      { 
-        success: false, 
-        error: { 
-          message: errorMessage, 
+      {
+        success: false,
+        error: {
+          message: 'Analysis failed',
           code: 'ANALYSIS_FAILED' 
         } 
       },

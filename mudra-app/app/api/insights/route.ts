@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
       { 
         success: false, 
         error: 'Failed to fetch insights data',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Failed to fetch insights'
       },
       { status: 500 }
     )
@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
       { 
         success: false, 
         error: 'Failed to start insights analysis',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Failed to fetch insights'
       },
       { status: 500 }
     )
@@ -275,7 +275,7 @@ export async function PUT(request: NextRequest) {
       { 
         success: false, 
         error: 'Failed to update insights configuration',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Failed to fetch insights'
       },
       { status: 500 }
     )

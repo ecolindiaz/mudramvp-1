@@ -155,9 +155,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Optional: Verify signature if provided (for high-security deployments)
+    // Verify signature when tracking secret is configured
     const trackingSecret = process.env.TRACKING_SIGNATURE_SECRET;
-    if (trackingSecret && signature && timestamp) {
+    if (trackingSecret) {
+      if (!signature || !timestamp) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Request signature required' } },
+          { status: 401 }
+        );
+      }
       const ts = Number(timestamp);
       if (Number.isNaN(ts)) {
         return NextResponse.json(
@@ -236,8 +242,8 @@ export async function OPTIONS(request: NextRequest) {
   // 🔒 SECURITY: Validate origin in preflight too
   const requestOrigin = request.headers.get('origin');
   
-  // In development, allow all. In production, origin must match a registered brand
-  const corsOrigin = process.env.NODE_ENV === 'development' ? '*' : (requestOrigin || '');
+  // In development, allow all. In production, require origin (validated at POST time)
+  const corsOrigin = process.env.NODE_ENV === 'development' ? '*' : (requestOrigin || 'null');
   
   return NextResponse.json(
     {},

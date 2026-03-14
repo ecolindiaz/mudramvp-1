@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('[Monitors GET] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[Monitors POST] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

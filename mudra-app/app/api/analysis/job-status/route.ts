@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('[JobStatus] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

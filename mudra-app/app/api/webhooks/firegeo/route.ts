@@ -37,12 +37,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const expectedSignature = crypto
+    const expectedSignature = `sha256=${crypto
       .createHmac('sha256', webhookSecret)
       .update(payload)
-      .digest('hex');
+      .digest('hex')}`;
 
-    if (signature !== `sha256=${expectedSignature}`) {
+    // Use timing-safe comparison to prevent timing attacks
+    const sigBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expectedSignature);
+    if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
       console.error('[Webhook] Invalid signature');
       return NextResponse.json(
         { error: 'Invalid signature' },

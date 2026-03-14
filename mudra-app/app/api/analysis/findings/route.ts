@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to get technical findings',
+        error: 'Failed to get technical findings',
       },
       { status: 500 }
     );

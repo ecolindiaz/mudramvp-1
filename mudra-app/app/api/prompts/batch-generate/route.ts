@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in batch-generate:', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to generate prompts', details: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: 'Failed to generate prompts' },
       { status: 500 }
     )
   }

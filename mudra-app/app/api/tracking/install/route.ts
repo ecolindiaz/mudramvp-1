@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       { 
         success: false, 
         error: { 
-          message: error instanceof Error ? error.message : 'Failed to install tracking',
+          message: 'Failed to install tracking',
           code: 'INTERNAL_ERROR'
         } 
       },

@@ -57,7 +57,7 @@ async function refreshInstallationToken(installationId: number): Promise<string>
       throw error; // Re-throw our custom error
     }
     // JWT signing error (likely bad private key format)
-    console.error('[GitHubService] JWT signing failed:', error);
+    console.error('[GitHubService] JWT signing failed:', error instanceof Error ? error.message : 'Unknown error');
     throw new Error(`GitHub token refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

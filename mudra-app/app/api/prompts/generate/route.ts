@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error generating prompts:', error)
     return NextResponse.json(
-      { error: 'Failed to generate prompts', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to generate prompts' },
       { status: 500 }
     )
   }

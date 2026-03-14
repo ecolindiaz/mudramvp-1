@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to generate initial prompts',
+        error: 'Failed to generate initial prompts',
       },
       { status: 500 }
     )

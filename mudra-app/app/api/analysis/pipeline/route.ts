@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       { 
         success: false,
         error: {
-          message: errorMessage,
+          message: 'Analysis pipeline failed',
           code: 'PIPELINE_FATAL_ERROR',
         },
         progress: {

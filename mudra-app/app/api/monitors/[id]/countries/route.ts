@@ -70,7 +70,7 @@ export async function GET(
   } catch (error) {
     console.error('[MonitorCountries GET] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -207,7 +207,7 @@ export async function PATCH(
   } catch (error) {
     console.error('[MonitorCountries PATCH] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

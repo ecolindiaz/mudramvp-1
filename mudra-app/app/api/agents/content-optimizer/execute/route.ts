@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: errorMessage,
+        error: 'Content optimization failed',
       },
       { status: 500 }
     )

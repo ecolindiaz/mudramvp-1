@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { 
         success: false, 
-        error: { message: error instanceof Error ? error.message : 'Failed to get page details' } 
+        error: { message: 'Failed to get page details' } 
       },
       { status: 500 }
     );

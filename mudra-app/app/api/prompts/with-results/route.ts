@@ -810,7 +810,7 @@ export async function GET(request: NextRequest) {
           count: promptsWithoutResults.length,
           hasAnalysis: false,
           message: 'Error loading analysis, showing prompts without results',
-          error: errorMessage
+          error: 'Failed to fetch prompts'
         })
       } catch (fallbackError) {
         console.error('❌ Fallback also failed:', fallbackError)
@@ -821,7 +821,7 @@ export async function GET(request: NextRequest) {
       { 
         success: false,
         error: 'Failed to fetch prompts with results',
-        message: errorMessage,
+        message: 'Failed to fetch prompts',
         prompts: [],
         count: 0
       },

@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: 'Failed to fetch optimization history',
       },
       { status: 500 }
     )

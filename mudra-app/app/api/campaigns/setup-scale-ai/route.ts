@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         error: 'Failed to setup Scale AI profile',
-        details: error.message 
+        details: 'An unexpected error occurred'
       },
       { status: 500 }
     )

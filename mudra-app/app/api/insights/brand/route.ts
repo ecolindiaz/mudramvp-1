@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
       { 
         success: false, 
         error: 'Failed to fetch brand insights',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Failed to fetch brand insights'
       },
       { status: 500 }
     )
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
       { 
         success: false, 
         error: 'Failed to update brand insights',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Failed to fetch brand insights'
       },
       { status: 500 }
     )

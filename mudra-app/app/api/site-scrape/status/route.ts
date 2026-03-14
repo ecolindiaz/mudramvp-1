@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { 
         success: false, 
-        error: { message: error instanceof Error ? error.message : 'Failed to get job status' } 
+        error: { message: 'Failed to get job status' } 
       },
       { status: 500 }
     );

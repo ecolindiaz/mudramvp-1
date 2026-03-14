@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[API] llms-txt deploy error:', error);
     return NextResponse.json(
-      { success: false, error: { message: error instanceof Error ? error.message : 'Failed to deploy llms.txt' } },
+      { success: false, error: { message: 'Failed to deploy llms.txt' } },
       { status: 500 }
     );
   }

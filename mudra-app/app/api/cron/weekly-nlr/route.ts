@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error: {
-          message: error instanceof Error ? error.message : 'Failed to run weekly NLR cron',
+          message: 'Cron job failed',
           code: 'CRON_ERROR'
         }
       },
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: {
-          message: error instanceof Error ? error.message : 'Failed to generate NLR',
+          message: 'Cron job failed',
           code: 'GENERATION_ERROR'
         }
       },

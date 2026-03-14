@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     console.error("🔴 [API /brand-profile GET] Error:", error);
     return NextResponse.json(
-      { success: false, error: { message: error.message || "Failed to fetch brand profile" } },
+      { success: false, error: { message: "Failed to fetch brand profile" } },
       { status: 500 }
     );
   }
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
 
     console.error("🔴 [API /brand-profile POST] Error:", error);
     return NextResponse.json(
-      { success: false, error: { message: error.message || "Failed to save brand profile" } },
+      { success: false, error: { message: "Failed to save brand profile" } },
       { status: 500 }
     );
   }

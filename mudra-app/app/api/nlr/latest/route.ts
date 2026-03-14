@@ -160,6 +160,6 @@ export async function GET(req: NextRequest) {
         : { report: null, sections: [], countryOverlay: null },
     })
   } catch (err) {
-    return NextResponse.json({ success: false, error: { message: (err as Error).message } }, { status: 500 })
+    return NextResponse.json({ success: false, error: { message: 'Failed to fetch NLR data' } }, { status: 500 })
   }
 }

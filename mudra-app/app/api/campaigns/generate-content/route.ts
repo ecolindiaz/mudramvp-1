@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { 
         success: false,
-        error: error.message || "Failed to generate content" 
+        error: 'Failed to generate content'
       },
       { status: 500 }
     );

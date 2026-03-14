@@ -324,7 +324,7 @@ export async function OPTIONS(request: NextRequest) {
     })
   }
 
-  // In production, reject requests with no origin
+  // In production, validate origin against registered brands
   if (!requestOrigin) {
     return new NextResponse(null, {
       status: 403,

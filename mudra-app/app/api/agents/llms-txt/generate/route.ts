@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[API] llms-txt generate error:', error);
     return NextResponse.json(
-      { success: false, error: { message: error instanceof Error ? error.message : 'Failed to generate llms.txt' } },
+      { success: false, error: { message: 'Failed to generate llms.txt' } },
       { status: 500 }
     );
   }

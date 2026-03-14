@@ -45,7 +45,7 @@ export async function GET() {
       {
         status: 'unhealthy',
         timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: 'Health check failed'
       },
       { 
         status: 503,

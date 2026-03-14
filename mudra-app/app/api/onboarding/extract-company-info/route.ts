@@ -302,13 +302,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ Company info extraction failed:', error);
 
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-
     return NextResponse.json(
       {
         success: false,
         error: {
-          message: errorMessage,
+          message: 'Failed to extract company information',
           code: 'EXTRACTION_FAILED'
         }
       },

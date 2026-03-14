@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         success: false, 
-        error: { message: error instanceof Error ? error.message : 'Failed to start scrape job' } 
+        error: { message: 'Failed to start scrape job' } 
       },
       { status: 500 }
     );

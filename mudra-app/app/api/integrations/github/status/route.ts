@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[GitHub Status] Error:', error)
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: 'Failed to check GitHub status' },
       { status: 500 }
     )
   }

@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('[API] llms-txt verify error:', error);
     return NextResponse.json(
-      { success: false, error: { message: error instanceof Error ? error.message : 'Failed to verify llms.txt' } },
+      { success: false, error: { message: 'Failed to verify llms.txt' } },
       { status: 500 }
     );
   }

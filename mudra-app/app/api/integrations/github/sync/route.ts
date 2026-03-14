@@ -61,10 +61,7 @@ export async function POST(request: NextRequest) {
     const privateKey = privateKeyRaw.replace(/\\n/g, '\n').trim()
 
     console.log('[GitHub Sync] Using App ID:', appId)
-    console.log('[GitHub Sync] Private key length:', privateKey.length)
-    console.log('[GitHub Sync] Private key starts with:', privateKey.substring(0, 50))
-    console.log('[GitHub Sync] Has BEGIN marker:', privateKey.includes('BEGIN'))
-    console.log('[GitHub Sync] Has END marker:', privateKey.includes('END'))
+    console.log('[GitHub Sync] Private key configured:', !!privateKey)
 
     // Generate GitHub App JWT
     const now = Math.floor(Date.now() / 1000)
@@ -81,9 +78,9 @@ export async function POST(request: NextRequest) {
       })
       console.log('[GitHub Sync] Successfully generated App JWT, length:', appJwt.length)
     } catch (jwtError) {
-      console.error('[GitHub Sync] Failed to generate JWT:', jwtError)
+      console.error('[GitHub Sync] Failed to generate JWT:', jwtError instanceof Error ? jwtError.message : 'Unknown error')
       return NextResponse.json(
-        { success: false, error: `Failed to generate GitHub App JWT: ${jwtError instanceof Error ? jwtError.message : 'Unknown error'}` },
+        { success: false, error: 'Failed to generate GitHub App JWT. Check that GITHUB_PRIVATE_KEY is correctly formatted.' },
         { status: 500 }
       )
     }
@@ -103,10 +100,9 @@ export async function POST(request: NextRequest) {
 
     if (!allInstallationsResponse.ok) {
       const error = await allInstallationsResponse.text()
-      console.error('[GitHub Sync] Failed to fetch installations. Status:', allInstallationsResponse.status)
-      console.error('[GitHub Sync] Error response:', error)
+      console.error('[GitHub Sync] Failed to fetch installations. Status:', allInstallationsResponse.status, 'Response:', error)
       return NextResponse.json(
-        { success: false, error: `Failed to fetch GitHub installations: ${allInstallationsResponse.status} ${error}` },
+        { success: false, error: 'Failed to fetch GitHub installations' },
         { status: 500 }
       )
     }
@@ -349,11 +345,11 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('[GitHub Sync] Error:', error)
+    console.error('[GitHub Sync] Error:', error instanceof Error ? error.message : 'Unknown error')
     return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to sync GitHub installations' 
+      {
+        success: false,
+        error: 'Failed to sync GitHub installations'
       },
       { status: 500 }
     )

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import crypto from 'crypto'
 
 /**
  * ⚠️ DEPRECATED: This in-memory rate limiter is NOT suitable for production!
@@ -83,9 +84,11 @@ function checkRateLimit(store: Map<string, RateLimitEntry>, key: string, maxPoin
  * Get IP address from request
  */
 export function getClientIp(req: NextRequest): string {
-    return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-           req.headers.get('x-real-ip') || 
+    const raw = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+           req.headers.get('x-real-ip') ||
            '127.0.0.1';
+    // Hash IP for privacy - only used as rate limit key
+    return crypto.createHash('sha256').update(raw).digest('hex').substring(0, 16);
 }
 
 /**
@@ -155,7 +158,7 @@ export function applyRateLimit(
         return null; // Allowed
     } catch (error) {
         console.error('Rate limiter error:', error);
-        return null; // Allow on error (fail open)
+        return null; // Fail open for deprecated in-memory limiter (Redis limiter is authoritative)
     }
 }
 

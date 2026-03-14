@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
               brandName: brand.companyName,
               mode: `${effectiveMode}:${language}`,
               success: false,
-              error: error instanceof Error ? error.message : 'Unknown error',
+              error: 'Cron job failed',
             });
           }
         }
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
           brandName: brand.companyName,
           mode: effectiveMode,
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: 'Cron job failed',
         });
       }
     }

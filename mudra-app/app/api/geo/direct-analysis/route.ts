@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         error: 'Analysis failed', 
-        details: errorMessage,
+        details: 'An unexpected error occurred',
       },
       { status: 500 }
     );

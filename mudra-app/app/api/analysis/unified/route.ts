@@ -129,8 +129,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: errorMessage,
-        stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
+        error: 'Analysis failed',
       },
       { status: 500 }
     );

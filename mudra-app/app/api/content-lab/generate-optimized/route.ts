@@ -419,7 +419,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to start content generation",
+        error: 'Failed to start content generation',
       },
       { status: 500 }
     );

@@ -38,6 +38,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: { companyId: site.companyId } });
   } catch (err) {
-    return NextResponse.json({ success: false, error: { message: (err as Error).message } }, { status: 500 });
+    return NextResponse.json({ success: false, error: { message: 'Failed to fetch company data' } }, { status: 500 });
   }
 }

@@ -189,7 +189,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[GitHub API] Error fetching pull requests:', error)
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: 'Failed to fetch pull requests' },
       { status: 500 }
     )
   }

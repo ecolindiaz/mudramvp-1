@@ -31,9 +31,9 @@ export async function validateTrackingOrigin(
     if (process.env.NODE_ENV === 'development') {
       return { valid: true };
     }
-    // In production, be stricter but still allow (log for monitoring)
+    // In production, reject requests without origin
     console.warn(`[TrackSecurity] Request without origin for trackingId: ${trackingId}`);
-    return { valid: true }; // Allow but log
+    return { valid: false, reason: 'Missing origin header' };
   }
   
   try {
@@ -76,7 +76,7 @@ export async function validateTrackingOrigin(
     
   } catch (error) {
     console.error('[TrackSecurity] Error validating origin:', error);
-    return { valid: true }; // Fail open to not break tracking
+    return { valid: false, reason: 'Origin validation error' };
   }
 }
 
@@ -177,9 +177,10 @@ export function detectSuspiciousActivity(req: TrackingRequest): {
     reasons.push('Bot-like user agent');
   }
   
-  // Check for rapid requests from same IP
+  // Check for rapid requests from same IP (hash IP for privacy)
   const store = getPatternStore();
-  const key = `${req.ip}:${req.trackingId}`;
+  const hashedIp = crypto.createHash('sha256').update(req.ip).digest('hex').substring(0, 16);
+  const key = `${hashedIp}:${req.trackingId}`;
   const now = Date.now();
   const timestamps = store.get(key) || [];
   

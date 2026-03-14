@@ -46,12 +46,33 @@ export async function GET(request: NextRequest) {
     // Get active prompts for the brand profile
     const prompts = await getActivePrompts(profileId)
 
-    // Transform prompts to the format expected by the campaigns page
-    const promptOptions = prompts.map(prompt => ({
-      id: prompt.id,
-      text: prompt.text,
-      category: prompt.category
-    }))
+    // Find prompt IDs already used in non-failed campaigns
+    const usedCampaigns = await prisma.campaign.findMany({
+      where: {
+        brandProfileId: profileId,
+        status: { notIn: ['failed'] },
+      },
+      select: { metadata: true },
+    })
+
+    const usedPromptIds = new Set<string>()
+    for (const campaign of usedCampaigns) {
+      const meta = campaign.metadata as Record<string, unknown> | null
+      const promptId = meta?.trackedPromptId
+      if (promptId && typeof promptId === 'string') {
+        usedPromptIds.add(promptId)
+      }
+    }
+
+    // Transform prompts to the format expected by the campaigns page,
+    // excluding ones that already have an active campaign
+    const promptOptions = prompts
+      .filter(prompt => !usedPromptIds.has(String(prompt.id)))
+      .map(prompt => ({
+        id: prompt.id,
+        text: prompt.text,
+        category: prompt.category
+      }))
 
     return NextResponse.json({ 
       success: true, 

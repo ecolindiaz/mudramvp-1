@@ -133,6 +133,12 @@ function ConversationRadarPageInner() {
   const neverRun = cronInfo !== null && cronInfo.nextRun === null
   const showManualRun = cronFailed || isCronOverdue || neverRun || (!isInitialLoad && opportunities.length === 0)
 
+  // Cooldown: radar was recently run and next scheduled run is in the future
+  const isInCooldown = cronInfo !== null && cronInfo.lastRun !== null && cronInfo.nextRun !== null && new Date(cronInfo.nextRun).getTime() > Date.now()
+
+  // Low-relevance only: opportunities exist but none are active/high-relevance
+  const hasLowRelevanceOpportunities = !isInitialLoad && !isLoading && opportunities.length > 0 && activeOpportunitiesCount === 0
+
   // Refresh opportunities data without touching loading state.
   // Captures selectedCountry at call-time and discards responses if
   // the country changed while the fetch was in flight.
@@ -483,17 +489,22 @@ function ConversationRadarPageInner() {
                   >
                     Active
                   </button>
-                  <button
-                    onClick={() => setViewFilter("all")}
-                    className={cn(
-                      "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                      viewFilter === "all"
-                        ? "text-white bg-white/10"
-                        : "text-white/40 hover:text-white/60"
+                  <div className="relative">
+                    <button
+                      onClick={() => setViewFilter("all")}
+                      className={cn(
+                        "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                        viewFilter === "all"
+                          ? "text-white bg-white/10"
+                          : "text-white/40 hover:text-white/60"
+                      )}
+                    >
+                      All
+                    </button>
+                    {hasLowRelevanceOpportunities && viewFilter !== "all" && (
+                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />
                     )}
-                  >
-                    All
-                  </button>
+                  </div>
                 </div>
 
                 <div className="relative w-full max-w-[200px]">
@@ -538,31 +549,39 @@ function ConversationRadarPageInner() {
                       <Radio className="size-5 text-white/20" />
                     </div>
                     <h3 className="text-sm font-medium text-white/70 mb-1">
-                      {viewFilter === "active" ? "No active opportunities" : "No opportunities found"}
+                      {viewFilter === "active" && hasLowRelevanceOpportunities
+                        ? "No high-relevance opportunities"
+                        : viewFilter === "active"
+                        ? "No active opportunities"
+                        : "No opportunities found"}
                     </h3>
                     <p className="text-xs text-white/30 mb-5 text-center max-w-xs">
-                      {viewFilter === "active"
+                      {viewFilter === "active" && hasLowRelevanceOpportunities
+                        ? "The radar found some conversations, but none were highly relevant. Check the All tab to see them."
+                        : viewFilter === "active"
                         ? "Run the radar to discover conversations about your brand"
                         : "No conversations have been discovered yet"}
                     </p>
-                    <Button
-                      onClick={runRadarSearch}
-                      disabled={isLoading}
-                      size="sm"
-                      className="h-8 px-4 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-xs font-medium gap-2 transition-all border-0 disabled:opacity-50"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="size-3.5 animate-spin" />
-                          Searching...
-                        </>
-                      ) : (
-                        <>
-                          <Radio className="size-3.5" />
-                          Run Radar
-                        </>
-                      )}
-                    </Button>
+                    {!isInCooldown && !hasLowRelevanceOpportunities && (
+                      <Button
+                        onClick={runRadarSearch}
+                        disabled={isLoading}
+                        size="sm"
+                        className="h-8 px-4 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-xs font-medium gap-2 transition-all border-0 disabled:opacity-50"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="size-3.5 animate-spin" />
+                            Searching...
+                          </>
+                        ) : (
+                          <>
+                            <Radio className="size-3.5" />
+                            Run Radar
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
               ) : (

@@ -202,23 +202,11 @@ export async function DELETE(
       )
     }
 
-    // Get brand profile for user
-    const brandProfile = await prisma.brandProfile.findFirst({
-      where: { userId: session.user.id },
-    })
-
-    if (!brandProfile) {
-      return NextResponse.json(
-        { success: false, error: { message: "Brand profile not found" } },
-        { status: 404 }
-      )
-    }
-
-    // Check issue exists and belongs to user
+    // Check issue exists and belongs to user (via any of their brand profiles)
     const existingIssue = await prisma.issue.findFirst({
       where: {
         id: issueId,
-        brandProfileId: brandProfile.id,
+        brandProfile: { userId: session.user.id },
       },
     })
 

@@ -29,7 +29,7 @@ const platformOptions = [
   { value: "claude" as PlatformFilter, label: "Claude", icon: "/claude-ai-icon.svg" },
   { value: "perplexity" as PlatformFilter, label: "Perplexity", icon: "/perplexity (2).svg" },
   { value: "gemini" as PlatformFilter, label: "Gemini", icon: "/gemini (3).svg" },
-  { value: "google-aio" as PlatformFilter, label: "Google AIO", icon: "/google-logo.svg" },
+  // { value: "google-aio" as PlatformFilter, label: "Google AIO", icon: "/google-logo.svg" }, // hidden: not supported yet
 ]
 
 const timeRangeOptions = [

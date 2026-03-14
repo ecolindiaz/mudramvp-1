@@ -251,6 +251,7 @@ export async function POST(req: NextRequest) {
           workflowStatus: 'processing',
           sources: sources,
           startedAt: new Date().toISOString(),
+          trackedPromptId: trackedPromptId ? String(trackedPromptId) : null,
         },
       },
     });

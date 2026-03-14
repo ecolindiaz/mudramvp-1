@@ -486,8 +486,8 @@ function CampaignsPageInner() {
           {/* Clean Divider Line - Full Width */}
           <div className="h-[0.25px] bg-white/10"></div>
 
-          {/* Blog Setup Banner */}
-          {!blogStatusLoading && blogSetupStatus && !blogSetupStatus.canPublish && (
+          {/* Blog Setup Banner - hide for no-code platforms (they can't use PR-based blog setup) */}
+          {!blogStatusLoading && blogSetupStatus && !blogSetupStatus.canPublish && !profile?.websitePlatform && (
             <div className="px-4 lg:px-6 pt-4">
               <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-4 py-3">
                 <div className="flex items-center gap-3 min-w-0">

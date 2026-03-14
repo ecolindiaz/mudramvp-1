@@ -425,8 +425,8 @@ async function runPostAnalysisSteps(
       if (companyId) {
         const { queueNlrJob } = await import('@/lib/jobs/nlr');
         const weekStartUtc = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z';
-        await queueNlrJob(companyId, weekStartUtc);
-        console.log(`[Unified Analysis] WeeklyReport (NLR) generated for company=${companyId}`);
+        await queueNlrJob(companyId, config.brandProfileId, weekStartUtc);
+        console.log(`[Unified Analysis] WeeklyReport (NLR) generated for company=${companyId} bp=${config.brandProfileId}`);
         onProgress?.({ phase: 'report', status: 'completed' });
       } else {
         console.warn(`[Unified Analysis] Skipped NLR: could not resolve companyId for brandProfileId=${config.brandProfileId}`);

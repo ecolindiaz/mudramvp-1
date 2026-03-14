@@ -3527,9 +3527,9 @@ MODE: ${schemaMode}
 ${schemaKb}${brandProfile.websitePlatform === "framer" ? `
 
 FRAMER PLATFORM:
-- This site uses Framer. Add an HTML comment at the top: <!-- Framer: Paste into Site Settings → Custom Code → End of <head> -->
+- This site uses Framer. The user will paste your output into Framer Site Settings → Custom Code → End of <head>.
 - Output must be a single self-contained <script type="application/ld+json"> tag ready for copy-paste.
-- No external file references.` : ""}`;
+- Do not include any HTML comments, additional markup, or external file references.` : ""}`;
 
 		const userPrompt = `Generate JSON-LD for this page.${brandContext}${pageContext}${issueContext}${evidenceContext}`;
 		return { userPrompt, systemPrompt };
@@ -3567,7 +3567,7 @@ OUTPUT CONTRACT:
 ${faqKb}${brandProfile.websitePlatform === "framer" ? `
 
 FRAMER PLATFORM:
-- This site uses Framer. Add an HTML comment at the top: <!-- Framer: Add an Embed component and paste this HTML -->
+- This site uses Framer. The output must be directly pasteable into a Framer Embed component.
 - Output must be self-contained HTML suitable for a Framer Embed component.
 - Use inline styles only — no external CSS imports.` : ""}`;
 
@@ -3600,7 +3600,8 @@ OUTPUT CONTRACT:
 - No markdown fences.${brandProfile.websitePlatform === "framer" ? `
 
 FRAMER PLATFORM:
-- This site uses Framer. Add an HTML comment at the top: <!-- Framer: Paste into Site Settings → Custom Code → End of <head> -->` : ""}`;
+- This site uses Framer. Output must consist only of the required HTML tags, suitable for Site Settings → Custom Code → End of <head>.
+- Do not include any HTML comments or prose outside tags.` : ""}`;
 
 	const userPrompt = `Generate meta tags for this page.${brandContext}${pageContext}${issueContext}${evidenceContext}`;
 	return { userPrompt, systemPrompt };

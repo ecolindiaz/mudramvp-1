@@ -366,13 +366,14 @@ export function BrandProfileForm() {
             <Label htmlFor="websitePlatform" className={labelStyles}>Platform</Label>
             <Select
               value={formData.websitePlatform || undefined}
-              onValueChange={(value) => handleInputChange("websitePlatform", value)}
+              onValueChange={(value) => handleInputChange("websitePlatform", value === "__none__" ? "" : value)}
               disabled={!isEditing}
             >
               <SelectTrigger className={inputStyles}>
                 <SelectValue placeholder="Select if you use a no-code platform" />
               </SelectTrigger>
               <SelectContent className="bg-[#161616] border-white/[0.06]">
+                <SelectItem value="__none__">None</SelectItem>
                 <SelectItem value="framer">Framer</SelectItem>
               </SelectContent>
             </Select>

@@ -10,7 +10,6 @@ import Image from "next/image"
 import { useState, useEffect } from "react"
 import { Check, Link2, GitBranch, RefreshCw } from "lucide-react"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 function IntegrationsPageInner() {
   const { profile, setProfile } = useBrandProfile()
@@ -62,15 +61,15 @@ function IntegrationsPageInner() {
 
   // Sync website platform from profile
   useEffect(() => {
-    if (profile?.websitePlatform) {
-      setWebsitePlatform(profile.websitePlatform)
-    }
+    setWebsitePlatform(profile?.websitePlatform ?? '')
   }, [profile?.websitePlatform])
 
   const handlePlatformSave = async (value: string) => {
     setWebsitePlatform(value)
+    const normalizedValue = value.trim() === '' ? null : value
+    if (!profile?.id) return
     try {
-      await setProfile({ ...profile, websitePlatform: value })
+      await setProfile({ ...profile, websitePlatform: normalizedValue })
     } catch (error) {
       console.error('Failed to save website platform:', error)
     }

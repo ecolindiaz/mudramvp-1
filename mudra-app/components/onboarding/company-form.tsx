@@ -283,11 +283,12 @@ export function CompanyForm() {
           <Label htmlFor="websitePlatform" className="text-sm font-medium text-white/90">
             Website Platform <span className="text-white/40 font-normal">(optional)</span>
           </Label>
-          <Select value={formData.websitePlatform || undefined} onValueChange={(value) => handleInputChange("websitePlatform", value)}>
+          <Select value={formData.websitePlatform || undefined} onValueChange={(value) => handleInputChange("websitePlatform", value === "__none__" ? "" : value)}>
             <SelectTrigger className="w-full bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500">
               <SelectValue placeholder="Select if you use a no-code platform" />
             </SelectTrigger>
             <SelectContent className="bg-[#161616] border-white/[0.06]">
+              <SelectItem value="__none__" className="text-white/50 hover:bg-white/[0.06] focus:bg-white/[0.06]">None</SelectItem>
               <SelectItem value="framer" className="text-white hover:bg-white/[0.06] focus:bg-white/[0.06]">Framer</SelectItem>
             </SelectContent>
           </Select>

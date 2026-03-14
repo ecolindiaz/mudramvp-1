@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, FileCode, Shield, Layers, Route, HelpCircle, Radio, Link2, Sparkles, Github, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
+import { useBrandProfile } from "@/components/brand-profile-context"
 
 interface DeploymentItem {
   id: string
@@ -119,6 +120,7 @@ const mockDeployments: DeploymentItem[] = [
 ]
 
 export function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?: (deployment: DeploymentItem & { repoConfig?: { repo: string; branch: string } }) => Promise<void>, deployedAgentIds?: string[] }) {
+  const { profile } = useBrandProfile()
   const [loadingDeploymentId, setLoadingDeploymentId] = useState<string | null>(null)
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([])
   const [isLoadingRepos, setIsLoadingRepos] = useState(false)
@@ -294,8 +296,8 @@ export function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?:
                     {deployment.agentDescription}
                   </p>
                   
-                  {/* GitHub repo selector for Content Optimizer */}
-                  {deployment.id === 'content-optimizer' && !isDisabled && (
+                  {/* GitHub repo selector for Content Optimizer - hide for no-code platforms */}
+                  {deployment.id === 'content-optimizer' && !isDisabled && !profile?.websitePlatform && (
                     <div className="mt-3 space-y-2">
                       {!githubConnected ? (
                         <div className="flex items-start gap-2 p-2.5 rounded-md bg-orange-500/10 border border-orange-500/20">

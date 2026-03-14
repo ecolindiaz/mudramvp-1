@@ -1325,7 +1325,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
                   Add to your site's <code className="px-1 py-0.5 rounded bg-white/[0.06] text-white/50">&lt;head&gt;</code>
                 </p>
 
-                {/* GitHub Auto-Install */}
+                {/* GitHub Auto-Install - hide for no-code platforms */}
+                {!profile?.websitePlatform && (
                 <div className="pt-4 border-t border-white/[0.06]">
                   <div className="flex items-center gap-2 mb-3">
                     <Github className="size-3.5 text-white/50" />
@@ -1395,6 +1396,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Verification */}
                 <div className="pt-4 border-t border-white/[0.06] space-y-3">

@@ -187,9 +187,9 @@ export default function TrackingCodeManager() {
         </div>
 
         {/* Installation Options */}
-        <Tabs defaultValue="agent" className="w-full">
+        <Tabs defaultValue={profile?.websitePlatform ? "manual" : "agent"} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="agent" className="flex items-center gap-2">
+            <TabsTrigger value="agent" className="flex items-center gap-2" disabled={!!profile?.websitePlatform}>
               <Bot className="h-4 w-4" />
               Auto-Install
             </TabsTrigger>

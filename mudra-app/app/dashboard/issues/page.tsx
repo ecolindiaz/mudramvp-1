@@ -1539,13 +1539,20 @@ function IssuesPageInner() {
         handleGenerateScript(issueId)
         return
       }
-      toast.error("GitHub not connected", {
-        description: "This issue type requires a GitHub repo. Connect in Settings → Integrations.",
-        action: {
-          label: "Go to Settings",
-          onClick: () => window.location.href = "/dashboard/integrations",
-        },
-      })
+      // For no-code platform users, all issues use Generate Code — no GitHub needed
+      if (profile?.websitePlatform) {
+        toast.error("Not available", {
+          description: "This issue type doesn't support code generation yet.",
+        })
+      } else {
+        toast.error("GitHub not connected", {
+          description: "This issue type requires a GitHub repo. Connect in Settings → Integrations.",
+          action: {
+            label: "Go to Settings",
+            onClick: () => window.location.href = "/dashboard/integrations",
+          },
+        })
+      }
       return
     }
 
@@ -1586,13 +1593,17 @@ function IssuesPageInner() {
         const errorCode = result.error?.code
         if (errorCode === 'GITHUB_NOT_CONNECTED' || errorCode === 'GITHUB_NO_REPO') {
           setGithubConnected(false)
-          toast.error("GitHub not connected", {
-            description: result.error?.message,
-            action: {
-              label: "Go to Settings",
-              onClick: () => window.location.href = "/dashboard/integrations",
-            },
-          })
+          if (!profile?.websitePlatform) {
+            toast.error("GitHub not connected", {
+              description: result.error?.message,
+              action: {
+                label: "Go to Settings",
+                onClick: () => window.location.href = "/dashboard/integrations",
+              },
+            })
+          } else {
+            toast.error("Deployment failed", { description: "This issue type doesn't support code generation yet." })
+          }
         } else {
           toast.error("Deployment failed", { description: result.error?.message })
         }

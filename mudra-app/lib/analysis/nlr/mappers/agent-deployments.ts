@@ -1,22 +1,24 @@
 import { prisma } from "@/lib/prisma";
 import type { AgentDeploymentsSummary, EvidenceRef } from "@/lib/analysis/nlr/types";
+
 /**
  * Map Agent Lab deployments/executions for NLR
  * Only includes completed executions from the week (shipped deployments)
  */
 export async function mapAgentDeployments(
-  companyId: string,
-  weekStartUtc: Date | string,
-  brandProfileId: number
+  brandProfileIds: number[],
+  weekStartUtc: Date | string
 ): Promise<AgentDeploymentsSummary | null> {
   const weekStart = new Date(weekStartUtc);
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 7);
 
+  if (brandProfileIds.length === 0) return null;
+
   // Fetch completed agent executions this week (shipped deployments only)
   const executions = await prisma.agentExecution.findMany({
     where: {
-      brandProfileId,
+      brandProfileId: { in: brandProfileIds },
       status: "completed",
       completedAt: { gte: weekStart, lt: weekEnd },
     },

@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import type { AIReferralTrafficSummary, Delta } from "@/lib/analysis/nlr/types";
+
 /**
  * Map AI Referral Traffic data for NLR
  * Fetches from AIReferralVisit and AIReferralMetrics tables
  */
 export async function mapAiReferralTraffic(
-  companyId: string,
-  weekStartUtc: Date | string,
-  brandProfileId: number
+  brandProfileIds: number[],
+  weekStartUtc: Date | string
 ): Promise<AIReferralTrafficSummary | null> {
   const weekStart = new Date(weekStartUtc);
   const weekEnd = new Date(weekStart);
@@ -18,11 +18,13 @@ export async function mapAiReferralTraffic(
   prevWeekStart.setDate(prevWeekStart.getDate() - 7);
   const prevWeekEnd = weekStart;
 
+  if (brandProfileIds.length === 0) return null;
+
   // Fetch current week visits by provider
   const currentWeekVisits = await prisma.aIReferralVisit.groupBy({
     by: ["aiProvider"],
     where: {
-      brandProfileId,
+      brandProfileId: { in: brandProfileIds },
       timestamp: { gte: weekStart, lt: weekEnd },
     },
     _count: { id: true },
@@ -32,7 +34,7 @@ export async function mapAiReferralTraffic(
   const prevWeekVisits = await prisma.aIReferralVisit.groupBy({
     by: ["aiProvider"],
     where: {
-      brandProfileId,
+      brandProfileId: { in: brandProfileIds },
       timestamp: { gte: prevWeekStart, lt: prevWeekEnd },
     },
     _count: { id: true },

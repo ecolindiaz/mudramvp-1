@@ -152,15 +152,16 @@ function getMentionedPrompts(results: Array<{ analyses: unknown }>): Set<string>
  * Newly-mentioned = getMentionedPrompts(thisWeek) - getMentionedPrompts(priorToWeek)
  */
 export async function mapAiVisibility(
-  companyId: string,
-  weekStartUtc: Date | string,
-  brandProfileId: number
+  bpIds: number[],
+  weekStartUtc: Date | string
 ): Promise<AiVisibilitySummary | null> {
   const weekStart = new Date(weekStartUtc);
 
+  if (bpIds.length === 0) return null;
+
   // Fetch ALL GeoAnalysisResults (no date filter) — matches dashboard aggregate
   const allResults = await prisma.geoAnalysisResult.findMany({
-    where: { brandProfileId },
+    where: { brandProfileId: { in: bpIds } },
     orderBy: { timestamp: "desc" },
   });
 

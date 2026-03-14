@@ -5,27 +5,26 @@ import { mapIssues } from "@/lib/analysis/nlr/mappers/issues";
 import { mapOpportunities } from "@/lib/analysis/nlr/mappers/opportunities";
 import { mapAiReferralTraffic } from "@/lib/analysis/nlr/mappers/ai-referral-traffic";
 import { mapAgentDeployments } from "@/lib/analysis/nlr/mappers/agent-deployments";
+import { resolveBrandProfileIds } from "@/lib/analysis/nlr/mappers/resolve-brand-profiles";
 
 export async function collectNlrInputs(
-  weekStartUtc: Date | string,
-  brandProfileId: number,
-  companyId?: string | null
+  companyId: string,
+  weekStartUtc: Date | string
 ): Promise<NlrInput> {
-  // companyId is passed through for backward compat in NlrInput but
-  // all mappers are already scoped by brandProfileId.
-  const cid = companyId ?? "";
+  // Resolve once — avoids 6 redundant DB queries in the mappers
+  const brandProfileIds = await resolveBrandProfileIds(companyId);
 
   const [aiVisibility, technical, tasks, opportunities, aiReferralTraffic, agentDeployments] = await Promise.all([
-    mapAiVisibility(cid, weekStartUtc, brandProfileId),
-    mapTechnicalStructure(cid, brandProfileId),
-    mapIssues(cid, weekStartUtc, brandProfileId),
-    mapOpportunities(cid, weekStartUtc, brandProfileId),
-    mapAiReferralTraffic(cid, weekStartUtc, brandProfileId),
-    mapAgentDeployments(cid, weekStartUtc, brandProfileId),
+    mapAiVisibility(brandProfileIds, weekStartUtc),
+    mapTechnicalStructure(brandProfileIds),
+    mapIssues(brandProfileIds, weekStartUtc),
+    mapOpportunities(brandProfileIds, weekStartUtc),
+    mapAiReferralTraffic(brandProfileIds, weekStartUtc),
+    mapAgentDeployments(brandProfileIds, weekStartUtc),
   ]);
 
   return {
-    companyId: cid,
+    companyId,
     weekStartUtc: new Date(weekStartUtc).toISOString(),
     aiVisibility,
     technical,
@@ -36,3 +35,5 @@ export async function collectNlrInputs(
     agentDeployments,
   };
 }
+
+

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { TechnicalStructureSummary, Delta, EvidenceRef } from "@/lib/analysis/nlr/types";
+
 function pctDelta(current: number | null, previous: number | null): Delta<number> {
   if (current == null && previous == null) return { current: null, previous: null, absolute: null, relative: null, direction: "flat", notable: false };
   if (previous == null) return { current: current ?? null, previous: null, absolute: null, relative: null, direction: "up", notable: false };
@@ -24,10 +25,12 @@ function toImportance(
  * Map technical structure using the canonical TechnicalStructureAnalysis table
  * (same source used by /api/analysis/results and technical-history card).
  */
-export async function mapTechnicalStructure(companyId: string, brandProfileId: number): Promise<TechnicalStructureSummary | null> {
-  // Fetch the most recent analysis for this brand profile
+export async function mapTechnicalStructure(bpIds: number[]): Promise<TechnicalStructureSummary | null> {
+  if (bpIds.length === 0) return null;
+
+  // Fetch the most recent analysis across all brand profiles
   const current = await prisma.technicalStructureAnalysis.findFirst({
-    where: { brandProfileId },
+    where: { brandProfileId: { in: bpIds } },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -141,7 +144,7 @@ export async function mapTechnicalStructure(companyId: string, brandProfileId: n
   const pageDeltas: Array<{ url: string; current: number; previous: number | null; delta: number | null }> = [];
   try {
     const recentScores = await prisma.pageScore.findMany({
-      where: { brand_profile_id: brandProfileId },
+      where: { brand_profile_id: { in: bpIds } },
       orderBy: { scored_at: "desc" },
       select: { page_url: true, overall_score: true, scored_at: true },
     });

@@ -422,15 +422,16 @@ async function runPostAnalysisSteps(
     try {
       const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
       const companyId = await resolveCompanyIdFromBrandProfile(config.brandProfileId);
-      if (!companyId) {
-        console.warn('[Unified Analysis] Could not resolve companyId — skipping NLR generation');
-      } else {
+      if (companyId) {
         const { queueNlrJob } = await import('@/lib/jobs/nlr');
         const weekStartUtc = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z';
-        await queueNlrJob(companyId, config.brandProfileId, weekStartUtc);
-        console.log(`[Unified Analysis] WeeklyReport (NLR) generated for company=${companyId} bp=${config.brandProfileId}`);
+        await queueNlrJob(companyId, weekStartUtc);
+        console.log(`[Unified Analysis] WeeklyReport (NLR) generated for company=${companyId}`);
+        onProgress?.({ phase: 'report', status: 'completed' });
+      } else {
+        console.warn(`[Unified Analysis] Skipped NLR: could not resolve companyId for brandProfileId=${config.brandProfileId}`);
+        onProgress?.({ phase: 'report', status: 'failed', message: 'Could not resolve companyId for NLR generation' });
       }
-      onProgress?.({ phase: 'report', status: 'completed' });
     } catch (nlrError) {
       console.warn('[Unified Analysis] NLR generation failed (non-fatal):', nlrError);
       onProgress?.({ phase: 'report', status: 'failed', message: nlrError instanceof Error ? nlrError.message : 'Unknown NLR error' });
@@ -639,31 +640,6 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
       analyzedAt: entry.analyzedAt || nowISO
     }))
 
-    // Dedup guard (fast path): if a GeoAnalysisResult was created for this
-    // brand+country in the last 2 minutes, return it without creating a new row.
-    // Handles the common case of non-concurrent retries.
-    const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
-    const recentDuplicate = await prisma.geoAnalysisResult.findFirst({
-      where: {
-        brandProfileId: config.brandProfileId,
-        country: country || 'US',
-        createdAt: { gte: twoMinAgo },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (recentDuplicate) {
-      console.log(
-        `[GEO Core] Dedup: found recent GeoAnalysisResult ${recentDuplicate.id} ` +
-        `(${Math.round((Date.now() - recentDuplicate.createdAt.getTime()) / 1000)}s ago). Skipping create.`
-      );
-      return {
-        success: true,
-        id: recentDuplicate.id,
-        score: recentDuplicate.overallScore,
-      };
-    }
-
     // Save to database
     const geoAnalysis = await prisma.geoAnalysisResult.create({
       data: {
@@ -679,35 +655,6 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
         }) as unknown as Prisma.InputJsonValue,
       },
     });
-
-    // Post-creation dedup: if a concurrent request also passed the pre-check
-    // and inserted a row, both rows are now committed and visible. The lowest
-    // ID wins deterministically — the loser deletes its own row.
-    const oldest = await prisma.geoAnalysisResult.findFirst({
-      where: {
-        brandProfileId: config.brandProfileId,
-        country: country || 'US',
-        createdAt: { gte: twoMinAgo },
-      },
-      orderBy: { id: 'asc' },
-    });
-
-    if (oldest && oldest.id !== geoAnalysis.id) {
-      console.log(
-        `[GEO Core] Dedup: concurrent duplicate detected. Keeping ${oldest.id}, deleting ${geoAnalysis.id}.`
-      );
-      try {
-        await prisma.geoAnalysisResult.delete({ where: { id: geoAnalysis.id } });
-      } catch (deleteErr) {
-        // Row may already have been deleted by another concurrent loser — safe to ignore
-        console.warn(`[GEO Core] Dedup: failed to delete ${geoAnalysis.id} (may already be gone):`, deleteErr);
-      }
-      return {
-        success: true,
-        id: oldest.id,
-        score: oldest.overallScore,
-      };
-    }
 
     return {
       success: true,
@@ -889,27 +836,26 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       deduplicatedScrapes.push(page);
     }
 
-    // Hoist dynamic imports before concurrent work
-    const { getRecommendedSchemasWithAI } = await import('@/lib/analysis/technical/schema-recommender');
-    const { updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
-
-    const scorablePages = deduplicatedScrapes.filter(p => p.rawHtml);
-
     const pageResults = await mapWithConcurrency(
-      scorablePages,
+      deduplicatedScrapes,
       async (page) => {
         try {
+          // Extract DOM data (use effective URL for redirects)
           const effectiveUrl = page.metadata?.sourceURL || page.url;
           const extraction = htmlToExtraction(page.rawHtml!, effectiveUrl);
 
+          // Pre-compute LLM-powered schema recommendations
           try {
+            const { getRecommendedSchemasWithAI } = await import('@/lib/analysis/technical/schema-recommender');
             extraction.recommendedSchemas = await getRecommendedSchemasWithAI(extraction);
           } catch (schemaErr) {
             console.warn(`[Technical Core] Schema recommendation failed for ${page.url}:`, schemaErr);
           }
 
+          // Score the page
           const score = computePageScore(extraction);
 
+          // Save snapshot and score to database
           const sitemapPageId = urlToSitemapPageId.get(page.url);
           if (sitemapPageId) {
             try {
@@ -930,6 +876,8 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
                 score
               );
 
+              // Update sitemap page status
+              const { updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
               await updateSitemapPageStatus(sitemapPageId, 'scraped');
             } catch (dbError) {
               console.warn(`[Technical Core] DB save error for ${page.url}:`, dbError);
@@ -949,7 +897,9 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     const pageScores: Array<ReturnType<typeof computePageScore>> = pageResults.filter(
       (s): s is NonNullable<typeof s> => s !== null
     );
-    const allIssues = pageScores.flatMap(s => s.issues);
+
+    const allIssues = pageScores.flatMap(score => score.issues);
+    const pagesScored = pageScores.length;
 
     // Handle unreachable pages on re-analysis: carry forward previous scores
     if (isReanalysis) {
@@ -995,7 +945,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     // Update job progress
     if (jobId) {
       try {
-        await updateScrapeJobProgress(jobId, { pagesScored: pageScores.length });
+        await updateScrapeJobProgress(jobId, { pagesScored });
       } catch (e) { /* ignore */ }
     }
 
@@ -1360,23 +1310,18 @@ async function generateReport(data: {
     // The dashboard reads from WeeklyReport (not NaturalLanguageReport), so without
     // this the user would see "No report available yet" until the weekly cron runs.
     try {
-      const { generateWeeklyReport } = await import('@/lib/ai/nlr/generate-report');
-      const now = new Date();
-      const day = now.getUTCDay() || 7;
-      const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (day - 1)));
-
-      // Resolve companyId — required for report keying
-      let companyId: string | null = null;
-      try {
-        const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
-        companyId = await resolveCompanyIdFromBrandProfile(data.brandProfileId);
-      } catch { /* non-fatal */ }
-
+      const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles');
+      const companyId = await resolveCompanyIdFromBrandProfile(data.brandProfileId);
       if (companyId) {
-        await generateWeeklyReport({ companyId, brandProfileId: data.brandProfileId, weekStartUtc: weekStart });
+        const { generateWeeklyReport } = await import('@/lib/ai/nlr/generate-report');
+        const now = new Date();
+        const day = now.getUTCDay() || 7;
+        const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (day - 1)));
+
+        await generateWeeklyReport({ companyId, weekStartUtc: weekStart });
         console.log('[Report] ✅ Generated WeeklyReport for dashboard NLR');
       } else {
-        console.warn('[Report] ⚠️ Could not resolve companyId — skipping WeeklyReport generation');
+        console.warn(`[Report] No companyId found for brandProfileId: ${data.brandProfileId} — skipping WeeklyReport`);
       }
     } catch (weeklyErr) {
       console.error('[Report] ⚠️ Failed to generate WeeklyReport (non-fatal):', weeklyErr, weeklyErr instanceof Error ? weeklyErr.stack : '');

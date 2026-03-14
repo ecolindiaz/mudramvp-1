@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { TasksSummary, Delta } from "@/lib/analysis/nlr/types";
+
 function ratioDelta(current: number | null, previous: number | null): Delta<number> {
   if (current == null && previous == null) return { current: null, previous: null, absolute: null, relative: null, direction: "flat", notable: false };
   if (previous == null) return { current: current ?? null, previous: null, absolute: null, relative: null, direction: "up", notable: false };
@@ -16,10 +17,11 @@ function ratioDelta(current: number | null, previous: number | null): Delta<numb
  * Issue statuses: identified, in_progress, completed, merged
  */
 export async function mapIssues(
-  companyId: string,
-  weekStartUtc: Date | string,
-  brandProfileId: number
+  bpIds: number[],
+  weekStartUtc: Date | string
 ): Promise<TasksSummary | null> {
+  if (bpIds.length === 0) return null;
+
   const start = new Date(weekStartUtc);
   const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
   const prevStart = new Date(start.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -33,24 +35,24 @@ export async function mapIssues(
   ] = await Promise.all([
     // Issues created this week
     prisma.issue.count({
-      where: { brandProfileId, createdAt: { gte: start, lt: end } },
+      where: { brandProfileId: { in: bpIds }, createdAt: { gte: start, lt: end } },
     }),
     // Issues completed this week
     prisma.issue.count({
       where: {
-        brandProfileId,
+        brandProfileId: { in: bpIds },
         status: { in: ["completed", "merged"] },
         updatedAt: { gte: start, lt: end },
       },
     }),
     // Previous week: created
     prisma.issue.count({
-      where: { brandProfileId, createdAt: { gte: prevStart, lt: start } },
+      where: { brandProfileId: { in: bpIds }, createdAt: { gte: prevStart, lt: start } },
     }),
     // Previous week: completed
     prisma.issue.count({
       where: {
-        brandProfileId,
+        brandProfileId: { in: bpIds },
         status: { in: ["completed", "merged"] },
         updatedAt: { gte: prevStart, lt: start },
       },
@@ -58,7 +60,7 @@ export async function mapIssues(
     // Top 5 active issues (identified or in_progress) by recency
     prisma.issue.findMany({
       where: {
-        brandProfileId,
+        brandProfileId: { in: bpIds },
         status: { in: ["identified", "in_progress"] },
       },
       orderBy: { createdAt: "desc" },

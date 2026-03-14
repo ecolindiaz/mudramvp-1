@@ -1646,7 +1646,7 @@ function IssuesPageInner() {
           issue.id === issueId
             ? {
                 ...issue,
-                status: "in_progress" as const,
+                status: "completed" as const,
                 generatedOutput: generatedOutput ?? issue.generatedOutput ?? null,
                 outputType: outputType ?? issue.outputType ?? null,
                 scriptSource: scriptSource ?? issue.scriptSource ?? null,

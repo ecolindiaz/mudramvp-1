@@ -1318,7 +1318,7 @@ async function generateReport(data: {
         const day = now.getUTCDay() || 7;
         const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (day - 1)));
 
-        await generateWeeklyReport({ companyId, weekStartUtc: weekStart });
+        await generateWeeklyReport({ companyId, brandProfileId: data.brandProfileId, weekStartUtc: weekStart });
         console.log('[Report] ✅ Generated WeeklyReport for dashboard NLR');
       } else {
         console.warn(`[Report] No companyId found for brandProfileId: ${data.brandProfileId} — skipping WeeklyReport`);

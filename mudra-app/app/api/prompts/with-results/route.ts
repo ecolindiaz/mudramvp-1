@@ -30,6 +30,8 @@ export async function GET(request: NextRequest) {
     const brandProfileId = searchParams.get('brandProfileId')
     const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
     const countryFilter = searchParams.get('country') // Optional: filter by country (default: all)
+    const excludeRunId = searchParams.get('excludeRunId') // Optional: exclude one GeoAnalysisResult by ID
+    const excludeRunIdNum = excludeRunId ? parseInt(excludeRunId) : null
 
     if (!brandProfileId) {
       return NextResponse.json(
@@ -87,6 +89,7 @@ export async function GET(request: NextRequest) {
         where: {
           brandProfileId: profileId,
           ...(countryFilter ? { country: countryFilter } : {}),
+          ...(excludeRunIdNum && !isNaN(excludeRunIdNum) ? { NOT: { id: excludeRunIdNum } } : {}),
         },
         orderBy: {
           createdAt: 'desc'
@@ -97,7 +100,10 @@ export async function GET(request: NextRequest) {
       if (allAnalysisResults.length === 0 && countryFilter) {
         console.log(`⚠️ No GeoAnalysisResults for country=${countryFilter}, falling back to all countries`)
         allAnalysisResults = await prisma.geoAnalysisResult.findMany({
-          where: { brandProfileId: profileId },
+          where: {
+            brandProfileId: profileId,
+            ...(excludeRunIdNum && !isNaN(excludeRunIdNum) ? { NOT: { id: excludeRunIdNum } } : {}),
+          },
           orderBy: { createdAt: 'desc' }
         })
         if (allAnalysisResults.length > 0) {

@@ -494,18 +494,14 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
           setAiVisibilityLatestRun(Math.round(latest.overallScore || 0))
           console.log('📊 AI Visibility latest run stored score:', latest.overallScore)
 
-          // Use previous run's score for comparison (same per-run methodology)
-          const previous = historyResult.data[1]
-          setAiVisibilityPrevious(Math.round(previous.overallScore || 0))
           setHasAiHistory(true)
-          console.log('📊 AI Visibility previous score:', previous.overallScore)
 
-          // Fetch previous run's average position
+          // Fetch previous aggregate (all runs except latest) for delta comparison
           const prevController = new AbortController()
           const prevTimeoutId = setTimeout(() => prevController.abort(), 10000)
 
           const prevPromptResponse = await fetch(
-            `/api/prompts/with-results?brandProfileId=${profile.id}&runId=${previous.id}${countryParam}`,
+            `/api/prompts/with-results?brandProfileId=${profile.id}&excludeRunId=${latest.id}${countryParam}`,
             { signal: prevController.signal }
           )
           clearTimeout(prevTimeoutId)
@@ -516,6 +512,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
               const prevAvgPos = prevPromptResult.aggregate.averagePosition
               setAveragePositionPrevious(prevAvgPos)
               setHasPositionHistory(prevAvgPos > 0)
+              setAiVisibilityPrevious(Math.round(prevPromptResult.aggregate.overallScore || 0))
               console.log('📊 Average Position previous value:', prevAvgPos)
             }
           }
@@ -774,9 +771,9 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   }, [profile.id])
 
   // Calculate deltas for display
-  // Use latest run's stored score vs previous run's stored score (same per-run methodology)
-  // to ensure the comparison is apples-to-apples
-  const aiVisibilityCurrentForDelta = aiVisibilityLatestRun ?? aiVisibilityScore
+  // Compare current aggregate (all N runs) vs previous aggregate (N-1 runs)
+  // Both use Firegeo per-provider-averaged methodology — same as displayed score
+  const aiVisibilityCurrentForDelta = aiVisibilityScore
   const aiVisibilityDelta = hasAiHistory && aiVisibilityPrevious !== null && aiVisibilityPrevious > 0
     ? Math.round(((aiVisibilityCurrentForDelta - aiVisibilityPrevious) / aiVisibilityPrevious) * 100)
     : 0

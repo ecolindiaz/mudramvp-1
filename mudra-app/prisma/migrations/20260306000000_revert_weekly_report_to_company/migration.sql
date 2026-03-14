@@ -37,7 +37,7 @@ WHERE id NOT IN (
 ALTER TABLE "weekly_reports" ALTER COLUMN "org_id" SET NOT NULL;
 
 -- 5. Drop per-monitor constraints and indexes
-DROP INDEX IF EXISTS "weekly_reports_brand_profile_id_week_start_utc_key";
+ALTER TABLE "weekly_reports" DROP CONSTRAINT IF EXISTS "weekly_reports_brand_profile_id_week_start_utc_key";
 DROP INDEX IF EXISTS "weekly_reports_brand_profile_id_idx";
 ALTER TABLE "weekly_reports" DROP CONSTRAINT IF EXISTS "weekly_reports_brand_profile_id_fkey";
 

@@ -43,19 +43,9 @@ function compactIssueTitle(title: string): string {
   return title.length > 44 ? `${title.slice(0, 44).trim()}...` : title
 }
 
-function formatDeltaParts(
-  absolute: number | null | undefined,
-  relative: number | null | undefined
-): string {
-  const abs = absolute == null ? null : roundValue(absolute, 1)
-  const pct = relative == null ? null : roundValue(relative * 100, 1)
-
-  if (abs == null && pct == null) return ''
-  if (abs != null && pct != null) {
-    return `(${signed(abs)}, ${signed(pct)}%)`
-  }
-  if (abs != null) return `(${signed(abs)})`
-  return `(${signed(pct as number)}%)`
+function formatDeltaParts(relative: number | null | undefined): string {
+  if (relative == null) return ''
+  return `(${signed(roundValue(relative * 100, 1))}%)`
 }
 
 function isLikelyBaseline(
@@ -118,7 +108,7 @@ function buildVisibilitySentence(summary: NlrSummaryJson): string | null {
     const current = score.current as number
     const delta = roundValue(score.absolute ?? (current - previous), 1)
     const rel = score.relative ?? (previous !== 0 ? delta / previous : null)
-    const deltaText = formatDeltaParts(delta, rel)
+    const deltaText = formatDeltaParts(rel)
 
     if (delta === 0) {
       sentence = `This week your AI Visibility held at ${prettyNumber(current)}%`
@@ -184,7 +174,7 @@ function buildTechnicalSentence(summary: NlrSummaryJson): string | null {
       1
     )
     const rel = technical.relative ?? (previous !== 0 ? delta / previous : null)
-    const deltaText = formatDeltaParts(delta, rel)
+    const deltaText = formatDeltaParts(rel)
 
     if (delta === 0) {
       sentence = `Technical Structure Score held at ${prettyNumber(current)}%`

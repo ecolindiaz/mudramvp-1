@@ -126,7 +126,8 @@ export function CompanyForm() {
     companyDescription: "",
     companyIndustry: "",
     servicesProducts: [""],
-    companyICP: [""]
+    companyICP: [""],
+    websitePlatform: ""
   })
   const [customIndustry, setCustomIndustry] = useState("")
   const [isInitialized, setIsInitialized] = useState(false)
@@ -145,7 +146,8 @@ export function CompanyForm() {
         companyDescription: data.companyDescription,
         companyIndustry: data.companyIndustry,
         servicesProducts: data.servicesProducts.length > 0 ? data.servicesProducts : [""],
-        companyICP: data.companyICP.length > 0 ? data.companyICP : [""]
+        companyICP: data.companyICP.length > 0 ? data.companyICP : [""],
+        websitePlatform: data.websitePlatform || ""
       })
       if (data.companyIndustry && !INDUSTRIES.includes(data.companyIndustry as any)) {
         setCustomIndustry(data.companyIndustry)
@@ -161,7 +163,8 @@ export function CompanyForm() {
         companyDescription: extracted.companyDescription || "",
         companyIndustry: industryMatch.matched,
         servicesProducts: extracted.servicesProducts.length > 0 ? extracted.servicesProducts : [""],
-        companyICP: extracted.idealCustomerProfiles.length > 0 ? extracted.idealCustomerProfiles : [""]
+        companyICP: extracted.idealCustomerProfiles.length > 0 ? extracted.idealCustomerProfiles : [""],
+        websitePlatform: data.websitePlatform || ""
       })
       if (industryMatch.isCustom) {
         setCustomIndustry(extracted.industry)
@@ -190,7 +193,8 @@ export function CompanyForm() {
         companyDescription: formData.companyDescription,
         companyIndustry: finalIndustry,
         servicesProducts: formData.servicesProducts.filter(s => s.trim() !== ""),
-        companyICP: formData.companyICP.filter(s => s.trim() !== "")
+        companyICP: formData.companyICP.filter(s => s.trim() !== ""),
+        websitePlatform: formData.websitePlatform
       })
       
       console.log("✅ Company form data saved successfully")
@@ -273,6 +277,21 @@ export function CompanyForm() {
             onChange={(vals) => handleInputChange("companyICP", vals)}
             placeholder="e.g. Startup founders, SMB marketers, Enterprise IT"
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="websitePlatform" className="text-sm font-medium text-white/90">
+            Website Platform <span className="text-white/40 font-normal">(optional)</span>
+          </Label>
+          <Select value={formData.websitePlatform || undefined} onValueChange={(value) => handleInputChange("websitePlatform", value === "__none__" ? "" : value)}>
+            <SelectTrigger className="w-full bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500">
+              <SelectValue placeholder="Select if you use a no-code platform" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#161616] border-white/[0.06]">
+              <SelectItem value="__none__" className="text-white/50 hover:bg-white/[0.06] focus:bg-white/[0.06]">None</SelectItem>
+              <SelectItem value="framer" className="text-white hover:bg-white/[0.06] focus:bg-white/[0.06]">Framer</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex items-center justify-between gap-3">

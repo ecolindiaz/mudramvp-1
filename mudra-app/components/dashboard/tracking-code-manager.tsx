@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Copy, Check, Code, Activity, Bot, GitBranch, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
+import { useBrandProfile } from '@/components/brand-profile-context';
 
 interface TrackingCodeData {
   trackingId: string;
@@ -36,6 +37,7 @@ interface InstallStatus {
 }
 
 export default function TrackingCodeManager() {
+  const { profile } = useBrandProfile();
   const [data, setData] = useState<TrackingCodeData | null>(null);
   const [installStatus, setInstallStatus] = useState<InstallStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -308,7 +310,11 @@ export default function TrackingCodeManager() {
             <Alert className="border-white/[0.08]">
               <Activity className="h-4 w-4" />
               <AlertDescription>
-                Copy this code and paste it before the closing <code>&lt;/body&gt;</code> tag on all pages of your website.
+                {profile?.websitePlatform === 'framer' ? (
+                  <>In Framer: Go to <strong>Site Settings → Custom Code → End of &lt;body&gt;</strong> and paste this code.</>
+                ) : (
+                  <>Copy this code and paste it before the closing <code>&lt;/body&gt;</code> tag on all pages of your website.</>
+                )}
               </AlertDescription>
             </Alert>
 

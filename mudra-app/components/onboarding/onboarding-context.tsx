@@ -38,6 +38,7 @@ interface OnboardingData {
   companyIndustry: string
   servicesProducts: string[]
   companyICP: string[]
+  websitePlatform: string
 
   // Competitors form data
   competitors: string[]
@@ -65,6 +66,7 @@ const defaultOnboardingData: OnboardingData = {
   companyIndustry: "",
   servicesProducts: [],
   companyICP: [],
+  websitePlatform: "",
   competitors: [],
   knowledgeBaseFiles: [],
   extractedCompanyInfo: null,
@@ -174,7 +176,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
       // Extra fields for compatibility
       stage: "",
-      resources: { teamSize: 0, budget: 0 }
+      resources: { teamSize: 0, budget: 0 },
+
+      // Website platform
+      websitePlatform: data.websitePlatform || "",
     }
 
     console.log("Saving onboarding data to brand profile (with userId):", profile)

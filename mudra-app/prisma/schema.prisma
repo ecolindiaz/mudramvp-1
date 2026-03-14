@@ -43,7 +43,7 @@ model BrandProfile {
   deployedAgents             DeployedAgent[]
   geoAnalysisResults         GeoAnalysisResult[]
   naturalLanguageReports     NaturalLanguageReport[]
-  organicTrafficMetrics      OrganicTrafficMetrics[]
+
   technicalStructureAnalyses TechnicalStructureAnalysis[]
   agentExecutions            AgentExecution[]
   agentSchedules             AgentSchedule[]
@@ -74,6 +74,9 @@ model BrandProfile {
 
   // Multi-monitor support
   monitorOrder               Int      @default(0)        // Display order in sidebar (0 = primary)
+
+  // Website platform (no-code/low-code)
+  websitePlatform            String?                     // "framer" | null
 
   @@index([userId])
 }
@@ -191,6 +194,8 @@ model Issue {
   @@index([brandProfileId, category])
   @@index([category, discoveryTier])
   @@index([evalContentHash])
+  @@index([agentTaskId])
+  @@index([deployedAgentId])
   @@map("issues")
 }
 
@@ -408,20 +413,6 @@ model GeoAnalysisResult {
   @@index([brandProfileId, country])
 }
 
-model OrganicTrafficMetrics {
-  id                   Int          @id @default(autoincrement())
-  brandProfileId       Int
-  monthlyVisitors      Int          @default(0)
-  monthOverMonthGrowth Float        @default(0)
-  topPages             Json         @default("[]")
-  topKeywords          Json         @default("[]")
-  metadata             Json         @default("{}")
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
-  brandProfile         BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
-
-  @@index([brandProfileId])
-}
 
 model NaturalLanguageReport {
   id              Int          @id @default(autoincrement())
@@ -1107,6 +1098,7 @@ model Notification {
 
   @@index([userId, read])
   @@index([userId, createdAt])
+  @@index([brandProfileId])
   @@map("notifications")
 }
 

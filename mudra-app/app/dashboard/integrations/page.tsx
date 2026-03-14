@@ -9,9 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import { Check, Link2, GitBranch, RefreshCw } from "lucide-react"
-import { BrandProfileProvider } from "@/components/brand-profile-context"
+import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 
 function IntegrationsPageInner() {
+  const { profile, setProfile } = useBrandProfile()
   const [githubConnected, setGithubConnected] = useState(false)
   const [githubUsername, setGithubUsername] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -21,6 +22,9 @@ function IntegrationsPageInner() {
   // GitHub account linking state (separate from app installation)
   const [githubLinked, setGithubLinked] = useState(false)
   const [linkedGithubUsername, setLinkedGithubUsername] = useState<string | null>(null)
+
+  // Website platform state
+  const [websitePlatform, setWebsitePlatform] = useState<string>('')
 
   // Filter state for All/Installed toggle
   const [filterView, setFilterView] = useState<'all' | 'installed'>('all')
@@ -54,6 +58,22 @@ function IntegrationsPageInner() {
       window.history.replaceState({}, '', '/dashboard/integrations')
     }
   }, [])
+
+  // Sync website platform from profile
+  useEffect(() => {
+    setWebsitePlatform(profile?.websitePlatform ?? '')
+  }, [profile?.websitePlatform])
+
+  const handlePlatformSave = async (value: string) => {
+    setWebsitePlatform(value)
+    const normalizedValue = value.trim() === '' ? null : value
+    if (!profile?.id) return
+    try {
+      await setProfile({ ...profile, websitePlatform: normalizedValue })
+    } catch (error) {
+      console.error('Failed to save website platform:', error)
+    }
+  }
 
   const checkGitHubStatus = async () => {
     try {
@@ -229,6 +249,56 @@ function IntegrationsPageInner() {
                   </Button>
                 </div>
 
+              </div>
+            </div>
+
+            {/* Section - Website Platform */}
+            <div className="px-4 lg:px-6 pt-6">
+              <div className="text-sm text-white/70 mb-3">Website Platform</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="group relative overflow-hidden bg-[#1b1b1b] rounded-lg border border-white/[0.04]">
+                  <CardHeader className="border-0 pb-1">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-center size-8 rounded-md bg-white/5 border border-white/10">
+                          <svg width="16" height="16" viewBox="0 0 14 21" fill="currentColor" className="text-white/70">
+                            <path d="M0 0h14v7H7L0 0zm0 7h7l7 7H7v7L0 7z"/>
+                          </svg>
+                        </div>
+                        <CardTitle className="text-white text-base font-semibold">Framer</CardTitle>
+                      </div>
+                      {websitePlatform === 'framer' && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-md border border-green-500/20 bg-green-500/10 text-green-400">Active</span>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-[15px] text-white/80 leading-relaxed">
+                      Select Framer as your platform so Mudra provides Framer-specific instructions with generated code
+                    </p>
+                    {websitePlatform === 'framer' ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded-lg border border-green-500/20">
+                          <Check className="h-4 w-4 text-green-500" />
+                          <span className="text-sm text-green-400">Framer selected</span>
+                        </div>
+                        <Button
+                          onClick={() => handlePlatformSave('')}
+                          className="w-full h-10 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium"
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={() => handlePlatformSave('framer')}
+                        className="w-full h-10 rounded-lg bg-white text-black hover:bg-white/90 text-sm font-medium"
+                      >
+                        Select Framer
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             </div>
 

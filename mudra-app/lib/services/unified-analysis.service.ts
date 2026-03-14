@@ -16,6 +16,65 @@ import { runDirectGEOAnalysis, createDirectGEOConfig } from './direct-geo-analys
 import { type CountryCode, getLanguageForCountry, getUniqueLanguages, isAllowedCountry } from '@/lib/geo/country-config';
 
 // ---------------------------------------------------------------------------
+// Concurrency utility
+// ---------------------------------------------------------------------------
+
+/**
+ * Runs async tasks with a concurrency limit using a worker-queue pattern.
+ * Preserves result order matching the input order.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  fn: (item: T, index: number) => Promise<R>,
+  concurrency: number
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  const queue = items.map((item, i) => ({ item, index: i }));
+
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const entry = queue.shift();
+      if (!entry) break;
+      results[entry.index] = await fn(entry.item, entry.index);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract a human-readable company name from a competitor URL or raw string.
+ * e.g. "https://www.payoneer.com" → "Payoneer"
+ *      "https://www.transferwise.com" → "Transferwise"
+ *      "Stripe" → "Stripe"
+ */
+export function resolveCompetitorNameFromUrl(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+
+  // If it looks like a URL, extract company name from the hostname
+  if (trimmed.includes('://') || trimmed.includes('.')) {
+    try {
+      const urlStr = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+      const hostname = new URL(urlStr).hostname.replace(/^www\./, '');
+      const name = hostname.split('.')[0];
+      if (name && name.length >= 2) {
+        return name.charAt(0).toUpperCase() + name.slice(1);
+      }
+    } catch {
+      // Not a valid URL — fall through to return as-is
+    }
+  }
+
+  return trimmed;
+}
+
+// ---------------------------------------------------------------------------
 // Progress streaming types
 // ---------------------------------------------------------------------------
 export type ProgressPhase = 'prompts' | 'geo' | 'discovery' | 'scraping' | 'scoring' | 'report' | 'issues' | 'complete' | 'error';
@@ -497,11 +556,39 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
       country: country || 'US',
     });
 
+    // Resolve competitor names for the extraction prompt.
+    // Two issues fixed here:
+    //  1. Dashboard sends competitors:[] — we fetch from DB instead.
+    //  2. DB stores competitors as URLs — we convert to company names.
+    let competitorNames = config.competitors && config.competitors.length > 0
+      ? config.competitors
+      : [];
+
+    if (competitorNames.length === 0) {
+      try {
+        const bp = await prisma.brandProfile.findUnique({
+          where: { id: config.brandProfileId },
+          select: { competitors: true },
+        });
+        if (bp?.competitors) {
+          competitorNames = bp.competitors.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+      } catch (err) {
+        console.warn('[GEO Core] Failed to fetch competitors from DB:', err);
+      }
+    }
+
+    // Convert any URLs to human-readable company names (extraction prompt expects names)
+    competitorNames = competitorNames.map(resolveCompetitorNameFromUrl).filter(Boolean);
+    if (competitorNames.length > 0) {
+      console.log(`[GEO Core] Competitor hints for extraction: [${competitorNames.join(', ')}]`);
+    }
+
     // Call DirectGEO service directly (avoids HTTP auth issues)
     const geoConfig = createDirectGEOConfig(config.brandName, config.website, {
       industry: config.industry || '',
       description: config.description || '',
-      competitors: config.competitors || [],
+      competitors: competitorNames,
       customPrompts: prompts.map(p => ({
         text: p.text,
         category: p.category || undefined, // Pass category for intent weighting (convert null to undefined)
@@ -749,68 +836,70 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       deduplicatedScrapes.push(page);
     }
 
-    const pageScores: Array<ReturnType<typeof computePageScore>> = [];
-    const allIssues: Array<{ check: string; dimension: string; severity: string; message: string; page_url: string }> = [];
-    let pagesScored = 0;
-
-    for (const page of deduplicatedScrapes) {
-      if (!page.rawHtml) continue;
-
-      try {
-        // Extract DOM data (use effective URL for redirects)
-        const effectiveUrl = page.metadata?.sourceURL || page.url;
-        const extraction = htmlToExtraction(page.rawHtml, effectiveUrl);
-
-        // Pre-compute LLM-powered schema recommendations
+    const pageResults = await mapWithConcurrency(
+      deduplicatedScrapes,
+      async (page) => {
         try {
-          const { getRecommendedSchemasWithAI } = await import('@/lib/analysis/technical/schema-recommender');
-          extraction.recommendedSchemas = await getRecommendedSchemasWithAI(extraction);
-        } catch (schemaErr) {
-          console.warn(`[Technical Core] Schema recommendation failed for ${page.url}:`, schemaErr);
-        }
+          // Extract DOM data (use effective URL for redirects)
+          const effectiveUrl = page.metadata?.sourceURL || page.url;
+          const extraction = htmlToExtraction(page.rawHtml!, effectiveUrl);
 
-        // Score the page
-        const score = computePageScore(extraction);
-        pageScores.push(score);
-
-        // Collect issues
-        allIssues.push(...score.issues);
-
-        // Save snapshot and score to database
-        const sitemapPageId = urlToSitemapPageId.get(page.url);
-        if (sitemapPageId) {
+          // Pre-compute LLM-powered schema recommendations
           try {
-            const { id: snapshotId } = await savePageSnapshot(
-              config.brandProfileId,
-              sitemapPageId,
-              page.url,
-              page.rawHtml,
-              extraction,
-              { scrapeDurationMs: scrapeResult.durationMs / successfulScrapes.length }
-            );
-
-            await savePageScore(
-              config.brandProfileId,
-              snapshotId,
-              sitemapPageId,
-              page.url,
-              score
-            );
-
-            // Update sitemap page status
-            const { updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
-            await updateSitemapPageStatus(sitemapPageId, 'scraped');
-          } catch (dbError) {
-            console.warn(`[Technical Core] DB save error for ${page.url}:`, dbError);
+            const { getRecommendedSchemasWithAI } = await import('@/lib/analysis/technical/schema-recommender');
+            extraction.recommendedSchemas = await getRecommendedSchemasWithAI(extraction);
+          } catch (schemaErr) {
+            console.warn(`[Technical Core] Schema recommendation failed for ${page.url}:`, schemaErr);
           }
-        }
 
-        pagesScored++;
-        console.log(`[Technical Core] Scored ${page.url}: ${score.scores.total}/100 (${score.status})`);
-      } catch (scoreError) {
-        console.error(`[Technical Core] Error scoring ${page.url}:`, scoreError);
-      }
-    }
+          // Score the page
+          const score = computePageScore(extraction);
+
+          // Save snapshot and score to database
+          const sitemapPageId = urlToSitemapPageId.get(page.url);
+          if (sitemapPageId) {
+            try {
+              const { id: snapshotId } = await savePageSnapshot(
+                config.brandProfileId,
+                sitemapPageId,
+                page.url,
+                page.rawHtml!,
+                extraction,
+                { scrapeDurationMs: scrapeResult.durationMs / successfulScrapes.length }
+              );
+
+              await savePageScore(
+                config.brandProfileId,
+                snapshotId,
+                sitemapPageId,
+                page.url,
+                score
+              );
+
+              // Update sitemap page status
+              const { updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
+              await updateSitemapPageStatus(sitemapPageId, 'scraped');
+            } catch (dbError) {
+              console.warn(`[Technical Core] DB save error for ${page.url}:`, dbError);
+            }
+          }
+
+          console.log(`[Technical Core] Scored ${page.url}: ${score.scores.total}/100 (${score.status})`);
+          return score;
+        } catch (scoreError) {
+          console.error(`[Technical Core] Error scoring ${page.url}:`, scoreError);
+          return null;
+        }
+      },
+      5
+    );
+
+    const pageScores: Array<ReturnType<typeof computePageScore>> = pageResults.filter(
+      (s): s is NonNullable<typeof s> => s !== null
+    );
+
+    const allIssues = pageScores.flatMap(score => score.issues);
+    const pagesScored = pageScores.length;
 
     // Handle unreachable pages on re-analysis: carry forward previous scores
     if (isReanalysis) {

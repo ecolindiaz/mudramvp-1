@@ -66,10 +66,9 @@ function IntegrationsPageInner() {
 
   const handlePlatformSave = async (value: string) => {
     setWebsitePlatform(value)
-    const normalizedValue = value.trim() === '' ? null : value
     if (!profile?.id) return
     try {
-      await setProfile({ ...profile, websitePlatform: normalizedValue })
+      await setProfile({ ...profile, websitePlatform: value })
     } catch (error) {
       console.error('Failed to save website platform:', error)
     }

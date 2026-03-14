@@ -1610,6 +1610,15 @@ function IssuesPageInner() {
   // Generate script snippet for manual injection
   const handleGenerateScript = async (issueId: number) => {
     setGeneratingScriptId(issueId)
+
+    // Capture original status for rollback on failure
+    const originalStatus = issues.find(i => i.id === issueId)?.status ?? "open"
+
+    // Immediately move issue to in_progress in UI for visual feedback
+    setIssues(prev => prev.map(issue =>
+      issue.id === issueId ? { ...issue, status: "in_progress" as const } : issue
+    ))
+
     try {
       const response = await fetch(`/api/issues/${issueId}/generate-script`, {
         method: "POST",
@@ -1618,6 +1627,10 @@ function IssuesPageInner() {
       const result = await response.json()
 
       if (!result.success) {
+        // Revert optimistic update
+        setIssues(prev => prev.map(issue =>
+          issue.id === issueId ? { ...issue, status: originalStatus } : issue
+        ))
         toast.error("Code generation failed", {
           description: result.error?.message || "Could not generate code for this issue.",
         })
@@ -1659,6 +1672,10 @@ function IssuesPageInner() {
       })
     } catch (error) {
       console.error("Failed to generate code:", error)
+      // Revert optimistic update
+      setIssues(prev => prev.map(issue =>
+        issue.id === issueId ? { ...issue, status: originalStatus } : issue
+      ))
       toast.error("Code generation failed")
     } finally {
       setGeneratingScriptId(null)

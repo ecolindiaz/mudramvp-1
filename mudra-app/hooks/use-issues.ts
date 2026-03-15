@@ -184,6 +184,31 @@ export function useIssues(): UseIssuesResult {
     }
   }, [grouped, issues])
 
+  // Poll issue status until completion or failure (used for async deploy)
+  const pollIssueCompletion = useCallback(async (id: number, maxAttempts = 60, intervalMs = 5000): Promise<DeployResult> => {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, intervalMs))
+      try {
+        const res = await fetch(`/api/issues/${id}`)
+        if (!res.ok) continue
+        const data = await res.json()
+        const issue = data.data || data.issue
+        if (!issue) continue
+
+        if (issue.status === 'completed' || issue.status === 'merged') {
+          return { success: true, prUrl: issue.prUrl, prNumber: issue.prNumber }
+        }
+        if (issue.status === 'failed' || issue.status === 'quality_failed') {
+          return { success: false, error: 'Agent execution failed. Check issue details for more info.' }
+        }
+        // still in_progress — keep polling
+      } catch {
+        // network error — keep polling
+      }
+    }
+    return { success: false, error: 'Agent execution timed out. Check issue status for updates.' }
+  }, [])
+
   const deployAgent = useCallback(async (id: number): Promise<DeployResult> => {
     try {
       // Update status to in_progress locally
@@ -191,7 +216,10 @@ export function useIssues(): UseIssuesResult {
 
       const response = await fetch(`/api/issues/${id}/deploy`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          'x-async-mode': 'true',
+        }
       })
 
       const data = await response.json()
@@ -201,7 +229,23 @@ export function useIssues(): UseIssuesResult {
         return { success: false, error: data.error?.message || 'Deployment failed' }
       }
 
-      // Update with result
+      // Async mode: poll for completion instead of waiting for sync response
+      if (data.data?.status === 'processing') {
+        const pollResult = await pollIssueCompletion(id)
+        if (pollResult.success) {
+          await updateIssue(id, {
+            status: 'completed' as IssueStatus,
+            prUrl: pollResult.prUrl,
+            prNumber: pollResult.prNumber
+          })
+          return pollResult
+        } else {
+          await updateIssue(id, { status: 'failed' as IssueStatus })
+          return pollResult
+        }
+      }
+
+      // Sync mode fallback (if async header wasn't honored)
       await updateIssue(id, {
         status: 'completed' as IssueStatus,
         prUrl: data.data.prUrl,

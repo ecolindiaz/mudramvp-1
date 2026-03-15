@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
-import { decryptToken } from '@/lib/crypto/token-encryption'
+import { decryptToken, encryptToken } from '@/lib/crypto/token-encryption'
 
 /**
  * Refresh GitHub App installation token
@@ -69,18 +69,45 @@ export async function getValidGitHubToken(integration: any): Promise<string> {
   if (integration.integrationType === 'installation' && integration.installationId) {
     const tokenExpiresAt = integration.tokenExpiresAt;
     const now = new Date();
-    
-    if (tokenExpiresAt && new Date(tokenExpiresAt).getTime() - now.getTime() < 5 * 60 * 1000) {
-      return await refreshInstallationToken(integration.installationId);
+
+    const needsRefresh = (tokenExpiresAt && new Date(tokenExpiresAt).getTime() - now.getTime() < 5 * 60 * 1000);
+
+    if (needsRefresh) {
+      const freshToken = await refreshInstallationToken(integration.installationId);
+      // Persist refreshed token to avoid repeated refresh API calls
+      try {
+        await prisma.gitHubIntegration.update({
+          where: { id: integration.id },
+          data: {
+            accessToken: encryptToken(freshToken),
+            tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+          },
+        })
+      } catch {
+        console.warn('[GitHubService] Failed to persist refreshed token - will refresh again on next call')
+      }
+      return freshToken;
     }
-    
+
     try {
       return decryptToken(integration.accessToken);
     } catch {
-      return await refreshInstallationToken(integration.installationId);
+      const freshToken = await refreshInstallationToken(integration.installationId);
+      try {
+        await prisma.gitHubIntegration.update({
+          where: { id: integration.id },
+          data: {
+            accessToken: encryptToken(freshToken),
+            tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+          },
+        })
+      } catch {
+        console.warn('[GitHubService] Failed to persist refreshed token - will refresh again on next call')
+      }
+      return freshToken;
     }
   }
-  
+
   return decryptToken(integration.accessToken);
 }
 
@@ -143,13 +170,16 @@ function hasExistingOptimization(content: string, newCode: string, contentType: 
       'SoftwareApplication', 'WebApplication', 'OfferCatalog',
       'ItemList', 'VideoObject', 'Review', 'Person', 'CollectionPage',
     ];
+    const contentLower = content.toLowerCase();
+    const newCodeLower = newCode.toLowerCase();
     for (const schemaType of schemaTypes) {
-      if (newCode.includes(`"@type":"${schemaType}"`) || newCode.includes(`"@type": "${schemaType}"`)) {
-        // Check if this schema type already exists in the file
-        if (content.includes(`"@type":"${schemaType}"`) || content.includes(`"@type": "${schemaType}"`)) {
-          console.log(`[GitHub] Schema type ${schemaType} already exists`);
-          return true;
-        }
+      const typeLower = schemaType.toLowerCase();
+      const typePatterns = [`"@type":"${typeLower}"`, `"@type": "${typeLower}"`];
+      const newCodeHasType = typePatterns.some(p => newCodeLower.includes(p));
+      const contentHasType = typePatterns.some(p => contentLower.includes(p));
+      if (newCodeHasType && contentHasType) {
+        console.log(`[GitHub] Schema type ${schemaType} already exists`);
+        return true;
       }
     }
   }
@@ -450,7 +480,19 @@ export function mapUrlToFile(
     } else {
       candidates.push(`src/pages/${cleanPath}.astro`, `src/pages/${cleanPath}/index.astro`)
     }
-    
+
+  } else if (structure.framework === 'nuxt') {
+    if (cleanPath === '') {
+      candidates.push('pages/index.vue', 'app.vue')
+    } else {
+      const matchingPages = structure.pageFiles.filter(f =>
+        f.includes(`/${cleanPath}.vue`) || f.endsWith(`/${cleanPath}/index.vue`)
+      )
+      candidates.push(...matchingPages)
+      candidates.push(`pages/${cleanPath}.vue`, `pages/${cleanPath}/index.vue`)
+    }
+    candidates.push('pages/index.vue')
+
   } else {
     // Static HTML or unknown
     if (cleanPath === '') {
@@ -479,6 +521,8 @@ export function getGlobalFiles(structure: RepoStructure): string[] {
     // Find layout files from cache
     files.push(...structure.layoutFiles.filter(f => f.includes('Layout')))
     files.push('src/layouts/Layout.astro')
+  } else if (structure.framework === 'nuxt') {
+    files.push('app.vue', 'layouts/default.vue')
   } else {
     files.push('index.html', 'public/index.html')
   }
@@ -1182,6 +1226,7 @@ export async function createOptimizationPR(input: CreateOptimizationPRInput): Pr
   // Get repository information - try multiple sources
   let repoName: string | undefined
   let baseBranch = 'main'
+  let branchExplicitlyConfigured = false
 
   // 1. Try to get from agent schedule config (if content_optimizer is configured)
   const agentSchedule = await prisma.agentSchedule.findFirst({
@@ -1196,7 +1241,10 @@ export async function createOptimizationPR(input: CreateOptimizationPRInput): Pr
     const config = agentSchedule.config as any
     if (config.githubRepo) {
       repoName = config.githubRepo
-      baseBranch = config.githubBranch || 'main'
+      if (config.githubBranch) {
+        baseBranch = config.githubBranch
+        branchExplicitlyConfigured = true
+      }
     }
   }
 
@@ -1218,6 +1266,32 @@ export async function createOptimizationPR(input: CreateOptimizationPRInput): Pr
 
   if (!owner || !repo) {
     throw new Error(`Invalid repository format: ${repoName}. Expected format: owner/repo`)
+  }
+
+  // 3. Detect default branch dynamically if not explicitly configured
+  if (!branchExplicitlyConfigured) {
+    try {
+      const repoResponse = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        }
+      )
+      if (repoResponse.ok) {
+        const repoData = await repoResponse.json()
+        baseBranch = repoData.default_branch || 'main'
+        console.log(`[GitHub] Detected default branch: ${baseBranch}`)
+      } else {
+        baseBranch = 'main'
+        console.warn(`[GitHub] Could not detect default branch (${repoResponse.status}), falling back to 'main'`)
+      }
+    } catch {
+      baseBranch = 'main'
+      console.warn(`[GitHub] Error detecting default branch, falling back to 'main'`)
+    }
   }
 
   // Create a new branch name - prefer issue title for better readability
@@ -1529,6 +1603,24 @@ ${bodyContent}
     }
   } catch (error) {
     console.error('[GitHub] Error creating optimization PR:', error)
+
+    // Clean up orphaned branch if it was created before the failure
+    try {
+      await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branchName}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        }
+      )
+      console.log(`[GitHub] Cleaned up orphaned branch: ${branchName}`)
+    } catch {
+      // Branch may not exist yet if failure was before branch creation - ignore
+    }
+
     if (error instanceof Error) {
       throw error
     }

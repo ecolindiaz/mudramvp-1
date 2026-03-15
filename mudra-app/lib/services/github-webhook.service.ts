@@ -237,6 +237,8 @@ export async function handlePullRequestEvent(
  * Trigger unified re-analysis for all provided brand profiles.
  *
  * Used after a PR merge so score deltas reflect newly deployed changes.
+ * Waits for a configurable delay (default 120s) to allow site rebuilds
+ * to complete before re-crawling. Configure via GITHUB_PR_MERGE_REANALYZE_DELAY_MS.
  * Runs sequentially to reduce API pressure and keep logs readable.
  */
 export async function triggerPostMergeReanalysis(brandProfileIds: number[]): Promise<{
@@ -249,6 +251,13 @@ export async function triggerPostMergeReanalysis(brandProfileIds: number[]): Pro
 
   if (uniqueIds.length === 0) {
     return result
+  }
+
+  // Wait for site rebuild/deployment before re-crawling (default 120s)
+  const delayMs = parseInt(process.env.GITHUB_PR_MERGE_REANALYZE_DELAY_MS || '120000', 10)
+  if (delayMs > 0) {
+    console.log(`[GitHubWebhook] Waiting ${delayMs / 1000}s for site rebuild before re-analysis...`)
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
   }
 
   const { runUnifiedAnalysis } = await import('./unified-analysis.service')

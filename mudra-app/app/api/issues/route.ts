@@ -199,6 +199,46 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Action: extract-insights - extract GEO insights from AI provider responses
+    if (body.action === 'extract-insights') {
+      let brandProfile
+      if (body.brandProfileId) {
+        brandProfile = await prisma.brandProfile.findFirst({
+          where: {
+            id: body.brandProfileId,
+            userId: session.user.id
+          },
+          select: { id: true },
+        })
+      } else {
+        brandProfile = await prisma.brandProfile.findFirst({
+          where: { userId: session.user.id },
+          select: { id: true },
+        })
+      }
+
+      if (!brandProfile) {
+        return NextResponse.json(
+          { success: false, error: { message: "Brand profile not found" } },
+          { status: 404 }
+        )
+      }
+
+      const { extractGeoInsights } = await import('@/lib/services/geo-insight-extraction.service')
+      const result = await extractGeoInsights(brandProfile.id, {
+        forceExtraction: body.force === true,
+      })
+      return NextResponse.json({
+        success: true,
+        data: {
+          extracted: result.extracted,
+          created: result.created,
+          skipped: result.skipped,
+          skippedBacklog: result.skippedBacklog,
+        }
+      })
+    }
+
     // Validate body for manual issue creation
     const parsed = createIssueSchema.safeParse(body)
     if (!parsed.success) {

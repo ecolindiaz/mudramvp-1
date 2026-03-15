@@ -416,6 +416,20 @@ async function runPostAnalysisSteps(
     onProgress?.({ phase: 'issues', status: 'completed' });
   }
 
+  // Extract GEO insights from AI provider responses (non-fatal)
+  if (result.geoAnalysisId) {
+    try {
+      const { extractGeoInsights } = await import('./geo-insight-extraction.service');
+      const insightResult = await extractGeoInsights(config.brandProfileId);
+      console.log(`[Unified Analysis] GEO insight extraction: ${insightResult.created} new, ${insightResult.skipped} deduped`);
+      if (insightResult.skippedBacklog) {
+        console.log('[Unified Analysis] GEO insight extraction skipped (backlog threshold)');
+      }
+    } catch (insightError) {
+      console.warn('[Unified Analysis] GEO insight extraction failed (non-fatal):', insightError);
+    }
+  }
+
   // Generate/refresh WeeklyReport (NLR) after every successful analysis
   if (result.success) {
     onProgress?.({ phase: 'report', status: 'started' });

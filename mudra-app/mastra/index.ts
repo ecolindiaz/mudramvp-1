@@ -14,6 +14,7 @@ import { contentRestructureAgent } from "./agents/content-restructure-agent";
 import { citationEnhancerAgent } from "./agents/citation-enhancer-agent";
 import { blogSetupAgent } from "./agents/blog-setup-agent";
 import { blogPostPublisherAgent } from "./agents/blog-post-publisher-agent";
+import { geoInsightExtractorAgent } from "./agents/geo-insight-extractor-agent";
 
 // Tools
 import { firecrawlScraperTool } from "./tools/firecrawl-scraper";
@@ -75,6 +76,8 @@ export const mastra = new Mastra({
     siteConfigAgent,
     contentRestructureAgent,
     citationEnhancerAgent,
+    // GEO Insight Extraction
+    geoInsightExtractorAgent,
     // Blog Publishing Agents
     blogSetupAgent,
     blogPostPublisherAgent,

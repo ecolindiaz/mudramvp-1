@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
 const updateProfileSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -11,6 +12,9 @@ const updateProfileSchema = z.object({
 
 export async function PATCH(req: NextRequest) {
   try {
+    const rateLimited = await applyRateLimitAsync(req, 'standard');
+    if (rateLimited) return rateLimited;
+
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {

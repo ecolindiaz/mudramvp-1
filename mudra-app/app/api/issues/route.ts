@@ -2,7 +2,26 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { z } from "zod"
 import { discoverIssues, getIssuesForBrand } from "@/lib/services/issue-discovery.service"
+
+const statusEnum = z.enum(['identified', 'in_progress', 'completed', 'merged', 'dismissed'])
+const priorityEnum = z.enum(['low', 'medium', 'high'])
+const categoryEnum = z.enum(['technical_structure', 'ai_visibility'])
+
+const issueQuerySchema = z.object({
+  status: statusEnum.optional(),
+  category: categoryEnum.optional(),
+  priority: priorityEnum.optional(),
+})
+
+const createIssueSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(500),
+  description: z.string().max(10000).nullable().optional(),
+  status: statusEnum.optional().default('identified'),
+  priority: priorityEnum.optional().default('medium'),
+  brandProfileId: z.number().int().positive().optional(),
+})
 
 // Prevent Vercel timeout for issue queries with large datasets
 export const maxDuration = 60
@@ -23,10 +42,25 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const brandProfileIdParam = searchParams.get('brandProfileId')
-    const status = searchParams.get('status')
-    const category = searchParams.get('category')
-    const priority = searchParams.get('priority')
     const page = searchParams.get('page')
+
+    // Validate filter query params
+    const rawFilters: Record<string, string> = {}
+    const statusParam = searchParams.get('status')
+    const categoryParam = searchParams.get('category')
+    const priorityParam = searchParams.get('priority')
+    if (statusParam) rawFilters.status = statusParam
+    if (categoryParam) rawFilters.category = categoryParam
+    if (priorityParam) rawFilters.priority = priorityParam
+
+    const filterResult = issueQuerySchema.safeParse(rawFilters)
+    if (!filterResult.success) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Invalid query parameters', details: filterResult.error.errors } },
+        { status: 400 }
+      )
+    }
+    const filters = filterResult.data
 
     // Get brand profile - either by ID or for user
     let brandProfile
@@ -53,9 +87,9 @@ export async function GET(request: NextRequest) {
     }
 
     const issues = await getIssuesForBrand(brandProfile.id, {
-      status: status || undefined,
-      category: category || undefined,
-      priority: priority || undefined
+      status: filters.status,
+      category: filters.category,
+      priority: filters.priority
     })
 
     // Show all issues (progressive reveal removed — all issues are created
@@ -127,7 +161,53 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { title, description, status, priority, brandProfileId, action } = body
+
+    // Action: discover - run issue discovery (checked before schema validation)
+    if (body.action === 'discover') {
+      // Get brand profile for user
+      let brandProfile
+      if (body.brandProfileId) {
+        brandProfile = await prisma.brandProfile.findFirst({
+          where: {
+            id: body.brandProfileId,
+            userId: session.user.id
+          },
+          select: { id: true },
+        })
+      } else {
+        brandProfile = await prisma.brandProfile.findFirst({
+          where: { userId: session.user.id },
+          select: { id: true },
+        })
+      }
+
+      if (!brandProfile) {
+        return NextResponse.json(
+          { success: false, error: { message: "Brand profile not found" } },
+          { status: 404 }
+        )
+      }
+
+      const result = await discoverIssues(brandProfile.id)
+      return NextResponse.json({
+        success: true,
+        data: {
+          discovered: result.discovered,
+          categories: result.categories,
+          tiers: result.tiers
+        }
+      })
+    }
+
+    // Validate body for manual issue creation
+    const parsed = createIssueSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Invalid input', details: parsed.error.errors } },
+        { status: 400 }
+      )
+    }
+    const { title, description, status, priority, brandProfileId } = parsed.data
 
     // Get brand profile for user
     let brandProfile
@@ -153,39 +233,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Action: discover - run issue discovery
-    if (action === 'discover') {
-      const result = await discoverIssues(brandProfile.id)
-      return NextResponse.json({
-        success: true,
-        data: {
-          discovered: result.discovered,
-          categories: result.categories,
-          tiers: result.tiers
-        }
-      })
-    }
-
-    // Default: create a new issue manually
-    if (!title) {
-      return NextResponse.json(
-        { success: false, error: { message: "Title is required" } },
-        { status: 400 }
-      )
-    }
-
-    if (!brandProfile) {
-      return NextResponse.json(
-        { success: false, error: { message: "Brand profile not found" } },
-        { status: 404 }
-      )
-    }
-
     // Get the max order for the status column
     const maxOrder = await prisma.issue.aggregate({
       where: {
         brandProfileId: brandProfile.id,
-        status: status || "identified",
+        status: status,
       },
       _max: { order: true },
     })
@@ -195,8 +247,8 @@ export async function POST(request: NextRequest) {
         brandProfileId: brandProfile.id,
         title,
         description: description || null,
-        status: status || "identified",
-        priority: priority || "medium",
+        status: status,
+        priority: priority,
         order: (maxOrder._max.order ?? -1) + 1,
       },
     })

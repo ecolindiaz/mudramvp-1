@@ -28,6 +28,7 @@ import { CompanyLogo, DomainLogo } from "@/components/ui/company-logo"
 import { getCompanyDomain } from "@/lib/logo"
 import { buildExecutiveSummaryFromJson, isJsonLikeText } from "@/lib/analysis/nlr/narrative"
 import { IssuesIcon, ContentLabIcon } from "@/components/icons"
+import { useAnalysis } from "@/components/analysis-context"
 
 interface NaturalLanguageReportProps {
   className?: string
@@ -96,6 +97,7 @@ const reportActionWidgets: Array<{
 export function NaturalLanguageReport({ className, timeRange, selectedModel, days = 30 }: NaturalLanguageReportProps) {
   const router = useRouter()
   const { profile, selectedCountry } = useBrandProfile()
+  const { isRunningAnalysis } = useAnalysis(profile?.id)
   const [showReportHistory, setShowReportHistory] = React.useState(false)
   const [isMounted, setIsMounted] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
@@ -882,7 +884,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                     <span>Company</span>
                     <span>SOV %</span>
                   </div>
-                  {isLoadingCompetitors ? (
+                  {isLoadingCompetitors || isRunningAnalysis ? (
                     <div className="divide-y divide-white/[0.06]">
                       {[1, 2, 3, 4, 5].map((i) => (
                         <div
@@ -974,7 +976,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                 <span className="text-center">Type</span>
                 <span className="text-right">Mention rate</span>
               </div>
-              {isLoadingCitations ? (
+              {isLoadingCitations || isRunningAnalysis ? (
                 <div className="divide-y divide-white/[0.06]">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <div

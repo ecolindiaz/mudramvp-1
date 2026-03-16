@@ -21,9 +21,9 @@ interface OverviewMetricsProps {
   days?: number
 }
 
-export function OverviewMetrics({ showAll = false, timeRange, selectedModel, days = 30 }: OverviewMetricsProps) {
-  // Suppress unused variable warnings for future use
-  void timeRange
+export function OverviewMetrics({ showAll = false, timeRange: _timeRange, selectedModel, days = 30 }: OverviewMetricsProps) {
+  // timeRange is used by parent for days computation; suppress unused warning
+  void _timeRange
 
   const { profile, selectedCountry } = useBrandProfile()
   const { isRunningAnalysis } = useAnalysis()
@@ -249,12 +249,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   // State for AI Visibility score
   const [aiVisibilityScore, setAiVisibilityScore] = useState(0)
   const [aiVisibilityPrevious, setAiVisibilityPrevious] = useState<number | null>(null)
-  // Latest run's stored score (same methodology as previous) — used for delta comparison
-  const [aiVisibilityLatestRun, setAiVisibilityLatestRun] = useState<number | null>(null)
   const [hasAiHistory, setHasAiHistory] = useState(false)
-  const [aiVisibilityHistory, setAiVisibilityHistory] = useState<number[]>([])
-  // Track the number of analysis runs (used to sync chart data points)
-  const [analysisRunCount, setAnalysisRunCount] = useState(0)
+  const [aiVisibilityHistory, setAiVisibilityHistory] = useState<{ label: string; value: number }[]>([])
   
   // Additional Firegeo aggregate metrics
   const [mentionRate, setMentionRate] = useState(0) // Percentage
@@ -394,6 +390,12 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       // Build URL with optional model filter
       const modelParam = selectedModel !== 'all' ? `&model=${selectedModel}` : ''
 
+      // Compute time window boundaries for current vs previous period comparison
+      const now = new Date()
+      const currentWindowStart = new Date(now.getTime() - days * 86400000)
+      const previousWindowStart = new Date(now.getTime() - 2 * days * 86400000)
+      const previousWindowEnd = currentWindowStart
+
       // Fetch current aggregate score (Firegeo methodology) with timeout
       const controller1 = new AbortController()
       const timeoutId1 = setTimeout(() => controller1.abort(), 10000)
@@ -401,7 +403,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       const countryParam = `&country=${effectiveCountry}`
 
       const currentResponse = await fetch(
-        `/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}&days=${days}${countryParam}`,
+        `/api/prompts/with-results?brandProfileId=${profile.id}${modelParam}&fromDate=${currentWindowStart.toISOString()}&toDate=${now.toISOString()}${countryParam}`,
         { signal: controller1.signal }
       )
       clearTimeout(timeoutId1)
@@ -438,7 +440,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         setTotalTests(0)
         setHasAiHistory(false)
         setAiVisibilityPrevious(null)
-        setAiVisibilityLatestRun(null)
+
         setAiVisibilityHistory([])
         setAveragePositionPrevious(null)
         setHasPositionHistory(false)
@@ -451,17 +453,16 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         // When filtering by a specific model, we don't have historical comparison data
         setHasAiHistory(false)
         setAiVisibilityPrevious(null)
-        setAiVisibilityLatestRun(null)
         setAiVisibilityHistory([])
         setAveragePositionPrevious(null)
         setHasPositionHistory(false)
       } else {
-        // Fetch historical data for comparison with timeout
+        // Fetch historical data for chart with timeout
         const controller2 = new AbortController()
         const timeoutId2 = setTimeout(() => controller2.abort(), 10000)
 
         const historyResponse = await fetch(
-          `/api/analysis/geo-history?brandProfileId=${profile.id}&limit=5&days=${days}${countryParam}`,
+          `/api/analysis/geo-history?brandProfileId=${profile.id}&limit=${days}&days=${days}${countryParam}`,
           { signal: controller2.signal }
         )
         clearTimeout(timeoutId2)
@@ -476,52 +477,77 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
         const historyResult = await historyResponse.json()
 
         if (historyResult.success && historyResult.data && historyResult.data.length > 1) {
-          // Store full history for chart (reversed so oldest is first)
-          const historyScores = historyResult.data.map((h: { overallScore: number }) => h.overallScore || 0).reverse()
-          // Replace the latest point with the current aggregate score so the trend chart
-          // matches the displayed current score (aggregate uses all-runs per-provider methodology
-          // which differs from the per-run stored overallScore)
-          if (historyScores.length > 0 && currentAggregateScore > 0) {
-            historyScores[historyScores.length - 1] = currentAggregateScore
-          }
-          setAiVisibilityHistory(historyScores)
-          // Track the number of analysis runs for syncing with technical chart
-          setAnalysisRunCount(historyResult.data.length)
-          console.log('📊 AI Visibility history stored:', historyScores, 'Run count:', historyResult.data.length)
+          // Transform into date-bucketed chart points
+          const results = historyResult.data as Array<{ overallScore: number; createdAt: string }>
 
-          // Store latest run's stored score (same methodology as previous) for delta comparison
-          const latest = historyResult.data[0]
-          setAiVisibilityLatestRun(Math.round(latest.overallScore || 0))
-          console.log('📊 AI Visibility latest run stored score:', latest.overallScore)
-
-          setHasAiHistory(true)
-
-          // Fetch previous aggregate (all runs except latest) for delta comparison
-          const prevController = new AbortController()
-          const prevTimeoutId = setTimeout(() => prevController.abort(), 10000)
-
-          const prevPromptResponse = await fetch(
-            `/api/prompts/with-results?brandProfileId=${profile.id}&excludeRunId=${latest.id}${countryParam}`,
-            { signal: prevController.signal }
-          )
-          clearTimeout(prevTimeoutId)
-
-          if (prevPromptResponse.ok) {
-            const prevPromptResult = await prevPromptResponse.json()
-            if (prevPromptResult.success && prevPromptResult.aggregate) {
-              const prevAvgPos = prevPromptResult.aggregate.averagePosition
-              setAveragePositionPrevious(prevAvgPos)
-              setHasPositionHistory(prevAvgPos > 0)
-              setAiVisibilityPrevious(Math.round(prevPromptResult.aggregate.overallScore || 0))
-              console.log('📊 Average Position previous value:', prevAvgPos)
+          if (days <= 14) {
+            // Daily grouping for 7d and 14d
+            const dailyMap = new Map<string, number[]>()
+            for (const r of results) {
+              const dayKey = new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              if (!dailyMap.has(dayKey)) dailyMap.set(dayKey, [])
+              dailyMap.get(dayKey)!.push(r.overallScore || 0)
             }
+            const chartData = Array.from(dailyMap.entries()).map(([label, scores]) => ({
+              label,
+              value: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+            })).reverse() // oldest first
+            setAiVisibilityHistory(chartData)
+            console.log('📊 AI Visibility history (daily):', chartData)
+          } else {
+            // Weekly grouping for 30d (Monday-anchored)
+            const getWeekKey = (date: Date) => {
+              const d = new Date(date)
+              d.setDate(d.getDate() - ((d.getDay() + 6) % 7)) // Monday
+              return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            }
+            const weeklyMap = new Map<string, number[]>()
+            for (const r of results) {
+              const weekKey = getWeekKey(new Date(r.createdAt))
+              if (!weeklyMap.has(weekKey)) weeklyMap.set(weekKey, [])
+              weeklyMap.get(weekKey)!.push(r.overallScore || 0)
+            }
+            const chartData = Array.from(weeklyMap.entries()).map(([label, scores]) => ({
+              label,
+              value: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+            })).reverse() // oldest first
+            setAiVisibilityHistory(chartData)
+            console.log('📊 AI Visibility history (weekly):', chartData)
+          }
+        }
+
+        // Fetch previous time window aggregate for delta comparison
+        // Compare current window (last N days) vs previous window (N-2N days ago)
+        const prevController = new AbortController()
+        const prevTimeoutId = setTimeout(() => prevController.abort(), 10000)
+
+        const prevPromptResponse = await fetch(
+          `/api/prompts/with-results?brandProfileId=${profile.id}&fromDate=${previousWindowStart.toISOString()}&toDate=${previousWindowEnd.toISOString()}${countryParam}`,
+          { signal: prevController.signal }
+        )
+        clearTimeout(prevTimeoutId)
+
+        if (prevPromptResponse.ok) {
+          const prevPromptResult = await prevPromptResponse.json()
+          if (prevPromptResult.success && prevPromptResult.aggregate) {
+            const prevAvgPos = prevPromptResult.aggregate.averagePosition
+            setAveragePositionPrevious(prevAvgPos)
+            setHasPositionHistory(prevAvgPos > 0)
+            setAiVisibilityPrevious(Math.round(prevPromptResult.aggregate.overallScore || 0))
+            setHasAiHistory(true)
+            console.log('📊 Previous window score:', prevPromptResult.aggregate.overallScore, 'Avg Position:', prevAvgPos)
+          } else {
+            // No data in previous window
+            setHasAiHistory(false)
+            setAiVisibilityPrevious(null)
+            setAveragePositionPrevious(null)
+            setHasPositionHistory(false)
           }
         } else {
           setHasAiHistory(false)
           setAiVisibilityPrevious(null)
-          setAiVisibilityLatestRun(null)
-          // Set run count for single record or empty
-          setAnalysisRunCount(historyResult.data?.length || 0)
+          setAveragePositionPrevious(null)
+          setHasPositionHistory(false)
         }
       }
     } catch (error) {
@@ -529,7 +555,6 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       // Set safe defaults on error
       setHasAiHistory(false)
       setAiVisibilityPrevious(null)
-      setAiVisibilityLatestRun(null)
       setAiVisibilityScore(0)
       setAnalysisRunCount(0)
     } finally {
@@ -701,10 +726,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
       // loading skeletons instead of stale data from the previous monitor.
       setAiVisibilityScore(0)
       setAiVisibilityPrevious(null)
-      setAiVisibilityLatestRun(null)
       setHasAiHistory(false)
       setAiVisibilityHistory([])
-      setAnalysisRunCount(0)
       setMentionRate(0)
       setAveragePosition(0)
       setAveragePositionPrevious(null)
@@ -771,7 +794,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
   }, [profile.id])
 
   // Calculate deltas for display
-  // Compare current aggregate (all N runs) vs previous aggregate (N-1 runs)
+  // Compare current time window (last N days) vs previous time window (N-2N days ago)
   // Both use Firegeo per-provider-averaged methodology — same as displayed score
   const aiVisibilityCurrentForDelta = aiVisibilityScore
   const aiVisibilityDelta = hasAiHistory && aiVisibilityPrevious !== null && aiVisibilityPrevious > 0
@@ -847,18 +870,18 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
                 
                 <div className="relative h-[80px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart 
-                      data={aiVisibilityHistory.map((value, i) => ({ 
-                        name: `Run ${i + 1}`, 
-                        value: Math.round(value),
-                        index: i + 1
+                    <LineChart
+                      data={aiVisibilityHistory.map((point) => ({
+                        name: point.label,
+                        value: point.value,
+                        label: point.label
                       }))}
                       margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
                     >
-                      <XAxis 
-                        dataKey="index" 
-                        axisLine={false} 
-                        tickLine={false} 
+                      <XAxis
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
                         tick={false}
                         hide
                       />
@@ -897,7 +920,7 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
                 
                 {/* Min/Max labels */}
                 <div className="flex justify-between mt-2">
-                  <span className="text-[10px] text-white/30 tabular-nums">{Math.round(aiVisibilityHistory[0])}%</span>
+                  <span className="text-[10px] text-white/30 tabular-nums">{aiVisibilityHistory[0]?.label}: {aiVisibilityHistory[0]?.value}%</span>
                   <span className="text-[10px] text-white/50 tabular-nums font-medium">{aiVisibilityScore}%</span>
                 </div>
               </div>
@@ -1028,8 +1051,8 @@ export function OverviewMetrics({ showAll = false, timeRange, selectedModel, day
           <div className="mt-4 pt-4 border-t border-white/[0.06]">
             {/* KPI Chart */}
             {(() => {
-              const syncedHistory = analysisRunCount > 0 && technicalScoreHistory.length > analysisRunCount
-                ? technicalScoreHistory.slice(-analysisRunCount)
+              const syncedHistory = aiVisibilityHistory.length > 0 && technicalScoreHistory.length > aiVisibilityHistory.length
+                ? technicalScoreHistory.slice(-aiVisibilityHistory.length)
                 : technicalScoreHistory
 
               const lineColor = technicalScore >= 70 ? 'rgba(52,211,153,0.9)' : technicalScore >= 40 ? 'rgba(250,204,21,0.9)' : 'rgba(248,113,113,0.9)'

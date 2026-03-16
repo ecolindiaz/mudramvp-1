@@ -11,7 +11,7 @@ import {
   SelectLabel,
 } from "@/components/ui/select"
 
-export type TimeRange = "7d" | "15d" | "1m"
+export type TimeRange = "7d" | "14d" | "1m"
 
 interface TimeRangeSelectorProps {
   value?: TimeRange
@@ -33,7 +33,7 @@ export function TimeRangeSelector({ value = "7d", onValueChange }: TimeRangeSele
         <SelectGroup>
           <SelectLabel className="text-white/70">Time Range</SelectLabel>
           <SelectItem value="7d">Last 7 days</SelectItem>
-          <SelectItem value="15d">Last 15 days</SelectItem>
+          <SelectItem value="14d">Last 14 days</SelectItem>
           <SelectItem value="1m">Last month</SelectItem>
         </SelectGroup>
       </SelectContent>

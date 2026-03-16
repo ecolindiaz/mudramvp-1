@@ -34,7 +34,7 @@ const platformOptions = [
 
 const timeRangeOptions = [
   { value: "7d" as TimeRange, label: "Last 7 days" },
-  { value: "15d" as TimeRange, label: "Last 15 days" },
+  { value: "14d" as TimeRange, label: "Last 14 days" },
   { value: "1m" as TimeRange, label: "Last month" },
 ]
 
@@ -47,11 +47,11 @@ function DashboardPageInner() {
     getAbortSignal,
     checkForRecentCompletion
   } = useAnalysis(profile?.id ?? null)
-  const [timeRange, setTimeRange] = React.useState<TimeRange>("1m")
+  const [timeRange, setTimeRange] = React.useState<TimeRange>("7d")
   const [selectedPlatform, setSelectedPlatform] = React.useState<PlatformFilter>("all")
 
   // Calculate days from timeRange for API calls
-  const days = timeRange === '7d' ? 7 : timeRange === '15d' ? 15 : 30
+  const days = timeRange === '7d' ? 7 : timeRange === '14d' ? 14 : 30
 
   // Analysis cooldown state
   const [canRunAnalysis, setCanRunAnalysis] = React.useState(false)
@@ -286,7 +286,7 @@ function DashboardPageInner() {
                   {/* Time Range Filter */}
                   <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
                     <SelectTrigger className="w-[140px] h-9 !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-lg transition-all duration-200 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
-                      <SelectValue placeholder="Last month" />
+                      <SelectValue placeholder="Last 7 days" />
                     </SelectTrigger>
                     <SelectContent className="bg-[#1b1b1b] border-0 duration-200">
                       {timeRangeOptions.map((option) => (

@@ -32,6 +32,13 @@ export async function GET(request: NextRequest) {
     const countryFilter = searchParams.get('country') // Optional: filter by country (default: all)
     const excludeRunId = searchParams.get('excludeRunId') // Optional: exclude one GeoAnalysisResult by ID
     const excludeRunIdNum = excludeRunId ? parseInt(excludeRunId) : null
+    const fromDateParam = searchParams.get('fromDate') // Optional: filter GeoAnalysisResults created >= this date
+    const toDateParam = searchParams.get('toDate') // Optional: filter GeoAnalysisResults created < this date (exclusive)
+    const fromDate = fromDateParam ? new Date(fromDateParam) : null
+    const toDate = toDateParam ? new Date(toDateParam) : null
+    // Discard invalid dates
+    const validFromDate = fromDate && !isNaN(fromDate.getTime()) ? fromDate : null
+    const validToDate = toDate && !isNaN(toDate.getTime()) ? toDate : null
 
     if (!brandProfileId) {
       return NextResponse.json(
@@ -90,6 +97,12 @@ export async function GET(request: NextRequest) {
           brandProfileId: profileId,
           ...(countryFilter ? { country: countryFilter } : {}),
           ...(excludeRunIdNum && !isNaN(excludeRunIdNum) ? { NOT: { id: excludeRunIdNum } } : {}),
+          ...(validFromDate || validToDate ? {
+            createdAt: {
+              ...(validFromDate ? { gte: validFromDate } : {}),
+              ...(validToDate ? { lt: validToDate } : {}),
+            }
+          } : {}),
         },
         orderBy: {
           createdAt: 'desc'
@@ -103,6 +116,12 @@ export async function GET(request: NextRequest) {
           where: {
             brandProfileId: profileId,
             ...(excludeRunIdNum && !isNaN(excludeRunIdNum) ? { NOT: { id: excludeRunIdNum } } : {}),
+            ...(validFromDate || validToDate ? {
+              createdAt: {
+                ...(validFromDate ? { gte: validFromDate } : {}),
+                ...(validToDate ? { lt: validToDate } : {}),
+              }
+            } : {}),
           },
           orderBy: { createdAt: 'desc' }
         })

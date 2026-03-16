@@ -556,7 +556,6 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
       setHasAiHistory(false)
       setAiVisibilityPrevious(null)
       setAiVisibilityScore(0)
-      setAnalysisRunCount(0)
     } finally {
       setLoadingAIVisibility(false)
     }

@@ -431,47 +431,8 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Also check summary.competitorData if it exists
-      // Skip this when filtering by model since summary data doesn't have per-provider breakdown
-      if (!modelFilter || modelFilter === 'all') {
-        let summaryData: any = {}
-        if (typeof analysis.summary === 'string') {
-          try {
-            summaryData = JSON.parse(analysis.summary)
-          } catch {
-            summaryData = {}
-          }
-        } else if (analysis.summary) {
-          summaryData = analysis.summary
-        }
-
-        const competitorData = summaryData.competitorData || summaryData.competitorComparison || []
-        if (Array.isArray(competitorData)) {
-          for (const comp of competitorData) {
-            if (!comp.name) continue
-
-            const trimmedName = comp.name.trim()
-            const lowerName = trimmedName.toLowerCase()
-
-            // Skip user's brand
-            if (lowerName === userBrandName ||
-                lowerName.includes(userBrandName) ||
-                userBrandName.includes(lowerName)) {
-              continue
-            }
-
-            // Add mentions based on mentionCount
-            const mentionCount = comp.mentionCount || 1
-            for (let i = 0; i < mentionCount; i++) {
-              addCompetitorMention(
-                trimmedName,
-                comp.averagePosition || null,
-                'neutral'
-              )
-            }
-          }
-        }
-      }
+      // Note: summary.competitorData is derived from the same per-prompt test data above.
+      // We intentionally skip it to avoid double-counting competitor mentions.
     }
 
     // Dedup merge: merge "X" and "X suffix" entries (e.g., "akash" + "akash network")

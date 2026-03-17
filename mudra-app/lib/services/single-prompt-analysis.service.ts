@@ -211,20 +211,13 @@ export async function runSinglePromptAnalysis(
     console.warn('⚠️ Competitor validation failed for single-prompt analysis, using unvalidated results:', error)
   }
 
-  // Calculate overall visibility using per-test Firegeo average (consistent across all views)
-  // Each test: 0 if not mentioned, 50 + positionBonus if mentioned
+  // Calculate overall visibility using mention rate (consistent across all views)
+  // Each test: 100 if mentioned, 0 if not → average = mention rate × 100
   const successfulResults = providerResults.filter(r => !r.error)
   const failedResults = providerResults.filter(r => r.error)
-  const firegeoScores = successfulResults.map(r => {
-    if (!r.brandMentioned) return 0
-    let score = 50
-    if (r.brandPosition && r.brandPosition > 0) {
-      score += Math.max(0, (10 - r.brandPosition) / 10) * 50
-    }
-    return Math.round(score)
-  })
-  const overallVisibility = firegeoScores.length > 0
-    ? Math.round(firegeoScores.reduce((a, b) => a + b, 0) / firegeoScores.length)
+  const mentionScores = successfulResults.map(r => r.brandMentioned ? 100 : 0)
+  const overallVisibility = mentionScores.length > 0
+    ? Math.round(mentionScores.reduce((a, b) => a + b, 0) / mentionScores.length)
     : 0
 
   console.log(`✅ Single-prompt analysis complete: ${overallVisibility}% visibility`)
@@ -330,10 +323,29 @@ async function storePromptResults(
       // Add new results for this prompt (one entry per provider)
       analyses.push(...newEntries)
 
+      // Recalculate overallScore from all analyses entries
+      const providerScores = new Map<string, { mentioned: number; total: number }>()
+      for (const entry of analyses) {
+        const provider = entry.provider || entry.model || 'unknown'
+        if (!providerScores.has(provider)) {
+          providerScores.set(provider, { mentioned: 0, total: 0 })
+        }
+        const stats = providerScores.get(provider)!
+        stats.total++
+        if (entry.brandMentioned) stats.mentioned++
+      }
+      const scores = Array.from(providerScores.values()).map(s =>
+        s.total > 0 ? (s.mentioned / s.total) * 100 : 0
+      )
+      const recalculatedScore = scores.length > 0
+        ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+        : 0
+
       await prisma.geoAnalysisResult.update({
         where: { id: latestAnalysis.id },
         data: {
-          analyses: JSON.stringify(analyses)
+          analyses: JSON.stringify(analyses),
+          overallScore: recalculatedScore,
         }
       })
 

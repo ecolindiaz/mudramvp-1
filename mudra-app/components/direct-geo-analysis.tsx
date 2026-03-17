@@ -99,8 +99,8 @@ export default function DirectGEOAnalysis() {
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 70) return 'text-green-600';
-    if (score >= 40) return 'text-yellow-600';
+    if (score >= 60) return 'text-green-600';
+    if (score >= 30) return 'text-yellow-600';
     return 'text-red-600';
   };
 

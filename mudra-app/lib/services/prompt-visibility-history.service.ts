@@ -2,10 +2,8 @@
  * Prompt Visibility History Service
  *
  * Provides time-series visibility data for prompts, competitors, and the user's brand.
- * Uses Firegeo formula for consistency with other views:
- *   - Base 50 points for being mentioned
- *   - Position bonus: 0-45 points based on position (Position 1 = 45, Position 10 = 0)
- *   - Average across all tests on that day
+ * Uses mention rate scoring: mentioned = 100, not mentioned = 0.
+ * Chart uses cumulative moving average for smooth trend lines.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -13,28 +11,17 @@ import { prisma } from '@/lib/prisma'
 export interface VisibilityDataPoint {
   date: string // ISO date string (YYYY-MM-DD)
   displayDate: string // Formatted for display (e.g., "Oct 20")
-  you: number | null // User's brand visibility score (Firegeo), null if no data
-  competitors: { [name: string]: number } // Each competitor's visibility score
+  you: number | null // User's brand mention rate (0-100%), null if no data
+  competitors: { [name: string]: number } // Each competitor's mention rate
   totalResponses: number
 }
 
 /**
- * Calculate Firegeo visibility score for a single test result
- * Same formula used in visibility-scoring.service.ts
+ * Calculate mention score for a single test result.
+ * 100 if mentioned, 0 if not.
  */
-function calculateFiregeoScore(mentioned: boolean, position: number | null): number {
-  if (!mentioned) return 0;
-
-  // Base 50 points for being mentioned
-  let score = 50;
-
-  // Position bonus: 0-45 points
-  if (position && position > 0) {
-    const positionBonus = Math.max(0, (10 - position) / 10) * 50;
-    score += positionBonus;
-  }
-
-  return Math.round(score);
+function calculateMentionScore(mentioned: boolean): number {
+  return mentioned ? 100 : 0;
 }
 
 export interface CompetitorVisibilityMetrics {
@@ -99,15 +86,15 @@ export async function getPromptVisibilityHistory(
   // Normalize prompt text for matching
   const normalizedPromptText = normalizeText(promptText)
   
-  // Aggregate data by date - now tracking Firegeo scores instead of just mentions
+  // Aggregate data by date - tracking mention scores
   const dailyData = new Map<string, {
-    brandScores: number[] // Individual Firegeo scores for each test
+    brandScores: number[] // Individual mention scores for each test (100 or 0)
     brandMentions: number
     totalResponses: number
     brandPositions: number[]
     brandSentiments: string[]
     competitorData: Map<string, {
-      scores: number[] // Individual Firegeo scores
+      scores: number[] // Individual mention scores (100 or 0)
       mentions: number
       positions: number[]
       sentiments: string[]
@@ -172,11 +159,8 @@ export async function getPromptVisibilityHistory(
       
       dayData.totalResponses++
 
-      // Calculate Firegeo score for this test
-      const brandScore = calculateFiregeoScore(
-        matchingTest.brandMentioned,
-        matchingTest.brandPosition
-      )
+      // Calculate mention score for this test
+      const brandScore = calculateMentionScore(matchingTest.brandMentioned)
       dayData.brandScores.push(brandScore)
 
       // Track brand mentions
@@ -208,8 +192,8 @@ export async function getPromptVisibilityHistory(
         const compData = dayData.competitorData.get(competitor)!
         const compPosition = competitorPositions[competitor] || null
 
-        // Calculate Firegeo score for this competitor
-        const compScore = calculateFiregeoScore(true, compPosition)
+        // Calculate mention score for this competitor (always mentioned in this loop)
+        const compScore = calculateMentionScore(true)
         compData.scores.push(compScore)
         compData.mentions++
 
@@ -223,7 +207,7 @@ export async function getPromptVisibilityHistory(
     }
   }
   
-  // Build time series data using Firegeo scores
+  // Build time series data using cumulative moving averages for smooth trend lines
   const timeSeries: VisibilityDataPoint[] = []
   const allCompetitors = new Map<string, {
     totalScores: number[]
@@ -237,6 +221,9 @@ export async function getPromptVisibilityHistory(
   const allBrandScores: number[] = []
   const allBrandPositions: number[] = []
   const allBrandSentiments: string[] = []
+
+  // Track cumulative competitor scores for smooth chart lines
+  const cumulativeCompScores = new Map<string, { mentions: number; totalResponses: number }>()
 
   // Generate data points for each day in the range
   for (let d = new Date(startDate); d <= now; d.setDate(d.getDate() + 1)) {
@@ -254,29 +241,20 @@ export async function getPromptVisibilityHistory(
     }
 
     if (dayData && dayData.totalResponses > 0) {
-      // Calculate average Firegeo score for the day (not mention rate!)
-      const avgBrandScore = dayData.brandScores.length > 0
-        ? Math.round(dayData.brandScores.reduce((a, b) => a + b, 0) / dayData.brandScores.length)
-        : 0
-      dataPoint.you = avgBrandScore
-      dataPoint.totalResponses = dayData.totalResponses
-
       totalBrandMentions += dayData.brandMentions
       totalResponses += dayData.totalResponses
       allBrandScores.push(...dayData.brandScores)
       allBrandPositions.push(...dayData.brandPositions)
       allBrandSentiments.push(...dayData.brandSentiments)
 
-      // Add competitor data for this day (using Firegeo scores divided by total tests)
-      // This makes daily competitor scores consistent with how brand scores work:
-      // sum(per-test firegeo) / totalResponses (non-mention tests contribute 0)
-      for (const [competitor, compData] of dayData.competitorData) {
-        const avgCompScore = compData.scores.length > 0
-          ? Math.round(compData.scores.reduce((a, b) => a + b, 0) / dayData.totalResponses)
-          : 0
-        dataPoint.competitors[competitor] = avgCompScore
+      // Cumulative brand mention rate: average of ALL scores from start to this day
+      dataPoint.you = allBrandScores.length > 0
+        ? Math.round(allBrandScores.reduce((a, b) => a + b, 0) / allBrandScores.length)
+        : 0
+      dataPoint.totalResponses = totalResponses
 
-        // Aggregate competitor totals
+      // Accumulate competitor data
+      for (const [competitor, compData] of dayData.competitorData) {
         if (!allCompetitors.has(competitor)) {
           allCompetitors.set(competitor, {
             totalScores: [],
@@ -290,6 +268,31 @@ export async function getPromptVisibilityHistory(
         aggData.totalMentions += compData.mentions
         aggData.positions.push(...compData.positions)
         aggData.sentiments.push(...compData.sentiments)
+
+        // Track cumulative for chart
+        if (!cumulativeCompScores.has(competitor)) {
+          cumulativeCompScores.set(competitor, { mentions: 0, totalResponses: 0 })
+        }
+        const cumComp = cumulativeCompScores.get(competitor)!
+        cumComp.mentions += compData.mentions
+        cumComp.totalResponses += dayData.totalResponses
+      }
+
+      // Set cumulative competitor values for this day's data point
+      for (const [competitor, cumComp] of cumulativeCompScores) {
+        dataPoint.competitors[competitor] = cumComp.totalResponses > 0
+          ? Math.round((cumComp.mentions / cumComp.totalResponses) * 100)
+          : 0
+      }
+    } else if (allBrandScores.length > 0) {
+      // No data today but we have prior data — carry forward cumulative average
+      dataPoint.you = Math.round(allBrandScores.reduce((a, b) => a + b, 0) / allBrandScores.length)
+      dataPoint.totalResponses = totalResponses
+
+      for (const [competitor, cumComp] of cumulativeCompScores) {
+        dataPoint.competitors[competitor] = cumComp.totalResponses > 0
+          ? Math.round((cumComp.mentions / cumComp.totalResponses) * 100)
+          : 0
       }
     }
 
@@ -299,7 +302,7 @@ export async function getPromptVisibilityHistory(
   // Build competitor metrics array (including "You" as a row)
   const competitors: CompetitorVisibilityMetrics[] = []
 
-  // Add "You" row first - using average Firegeo score (not mention rate)
+  // Add "You" row first - using mention rate
   const brandVisibility = allBrandScores.length > 0
     ? Math.round(allBrandScores.reduce((a, b) => a + b, 0) / allBrandScores.length)
     : 0
@@ -317,10 +320,10 @@ export async function getPromptVisibilityHistory(
     isYou: true
   })
 
-  // Add other competitors - using per-test Firegeo average (dividing by total tests, not just mentions)
+  // Add other competitors - using mention rate (mentions / total responses)
   for (const [name, data] of allCompetitors) {
-    const visibility = data.totalScores.length > 0 && totalResponses > 0
-      ? Math.round(data.totalScores.reduce((a, b) => a + b, 0) / totalResponses)
+    const visibility = totalResponses > 0
+      ? Math.round((data.totalMentions / totalResponses) * 100)
       : 0
     const avgPosition = data.positions.length > 0
       ? Math.round((data.positions.reduce((a, b) => a + b, 0) / data.positions.length) * 10) / 10

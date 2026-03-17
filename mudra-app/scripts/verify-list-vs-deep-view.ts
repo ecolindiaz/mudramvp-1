@@ -11,15 +11,9 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// Firegeo per-test score
-function calculatePerTestScore(mentioned: boolean, position: number | null): number {
-  if (!mentioned) return 0
-  let score = 50
-  if (position && position > 0) {
-    const positionBonus = Math.max(0, (10 - position) / 10) * 50
-    score += positionBonus
-  }
-  return Math.round(score)
+// Mention rate per-test score
+function calculatePerTestScore(mentioned: boolean, _position: number | null): number {
+  return mentioned ? 100 : 0
 }
 
 // Normalize text for matching

@@ -951,7 +951,7 @@ function TrackedPromptDeepViewInner() {
       return dataWithValues.map((point: any) => {
         const row: any = { day: point.displayDate }
 
-        // Add "you" visibility (Firegeo score, not mention rate)
+        // Add "you" visibility (mention rate %)
         row['you'] = point.you
 
         // Add each competitor's visibility for this day
@@ -1484,8 +1484,8 @@ function TrackedPromptDeepViewInner() {
                                     <div className="flex items-center justify-center gap-2">
                                       <div className={cn(
                                         "w-2 h-2 rounded-full",
-                                        row.visibility >= 70 ? "bg-emerald-500" :
-                                        row.visibility >= 40 ? "bg-yellow-500" :
+                                        row.visibility >= 60 ? "bg-emerald-500" :
+                                        row.visibility >= 30 ? "bg-yellow-500" :
                                         row.visibility > 0 ? "bg-orange-500" : "bg-white/30"
                                       )} />
                                       <span className="text-white/80">{row.visibility}%</span>

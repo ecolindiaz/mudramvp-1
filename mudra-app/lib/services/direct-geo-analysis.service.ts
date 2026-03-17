@@ -2536,20 +2536,9 @@ function calculateBrandMetrics(tests: PromptTest[]): {
     ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition ?? 0), 0) / rankedTests.length) * 10) / 10
     : 0;
 
-  // Calculate visibility score using per-test Firegeo average (0-100)
-  // Each test: 0 if not mentioned, 50 + positionBonus if mentioned
-  // Average across ALL tests (properly weights mention rate and position)
-  const firegeoScores = tests.map(t => {
-    if (!t.brandMentioned) return 0;
-    let score = 50;
-    if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0) {
-      score += Math.max(0, (10 - t.brandPosition) / 10) * 50;
-    }
-    return Math.round(score);
-  });
-  const visibilityScore = firegeoScores.length > 0
-    ? firegeoScores.reduce((a, b) => a + b, 0) / firegeoScores.length
-    : 0;
+  // Calculate visibility score using mention rate (0-100)
+  // Each test: 100 if mentioned, 0 if not → average = mentionRate × 100
+  const visibilityScore = Math.round(mentionRate * 100);
   
   // Calculate overall sentiment
   const sentimentCounts = {
@@ -2584,7 +2573,7 @@ function generateRecommendations(
     recommendations.push(`Increase content marketing and thought leadership to improve AI model awareness of ${config.brandName}`);
   }
 
-  if (overallScore < 40) {
+  if (overallScore < 30) {
     recommendations.push(`Create more comprehensive documentation and case studies to help AI models better understand your value proposition`);
   }
 

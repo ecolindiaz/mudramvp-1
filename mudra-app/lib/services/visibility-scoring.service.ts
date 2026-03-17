@@ -1,15 +1,15 @@
 /**
  * Visibility Scoring Service
  *
- * Implements consistent Firegeo-style scoring methodology everywhere:
- * 1. Aggregate Score: Overall brand visibility across all prompts
- * 2. Per-Prompt Score: Individual prompt performance (now also uses Firegeo formula)
+ * Implements mention rate scoring methodology:
+ * 1. Aggregate Score: Overall brand mention rate across all prompts (0-100%)
+ * 2. Per-Prompt Score: Individual prompt mention (100 if mentioned, 0 if not)
  * 3. Weighted Score: Intent-based scoring with category weights
  *
- * Firegeo Formula:
- * - Base 50 points for being mentioned
- * - Position bonus: 0-45 points (Position 1 = 45, Position 10 = 0)
- * - Not mentioned = 0 points
+ * Mention Rate Formula:
+ * - Mentioned = 100, Not mentioned = 0
+ * - Average = mention rate × 100 (i.e., percentage of chats mentioning the brand)
+ * - Position is tracked as a separate metric
  *
  * Intent Weights (as per spec):
  * - Organic: 40%
@@ -32,7 +32,7 @@ export interface PromptTestResult {
 }
 
 export interface AggregateVisibilityScore {
-  overallScore: number;           // 0-100 (Firegeo formula)
+  overallScore: number;           // 0-100 (mention rate percentage)
   weightedScore: number;          // 0-100 (Intent-weighted score)
   mentionRate: number;            // 0-1 (percentage of prompts where brand mentioned)
   averagePosition: number;        // Average ranking across all mentions
@@ -55,7 +55,7 @@ export interface AggregateVisibilityScore {
 export interface PerPromptScore {
   promptId: string | number;
   promptText: string;
-  visibilityScore: number;        // 0-100 (Mudra formula)
+  visibilityScore: number;        // 0 or 100 (mention rate: 100 if mentioned, 0 if not)
   position: number | null;
   brandMentioned: boolean;
   sentiment: 'positive' | 'neutral' | 'negative' | null;
@@ -137,8 +137,8 @@ function calculateWeightedScore(tests: PromptTestResult[]): {
 }
 
 /**
- * Calculate score for a specific category
- * NEW: If brand is mentioned with NO competitors, score is 100% (ranking irrelevant)
+ * Calculate score for a specific category using mention rate.
+ * Score = (mentions / total) * 100
  */
 function calculateCategoryScore(categoryTests: PromptTestResult[]): {
   score: number;
@@ -150,73 +150,18 @@ function calculateCategoryScore(categoryTests: PromptTestResult[]): {
   }
 
   const mentions = categoryTests.filter(t => t.brandMentioned).length;
-  const mentionRate = mentions / categoryTests.length;
+  const score = Math.round((mentions / categoryTests.length) * 100);
 
-  // NEW: Check for brand-only mentions (no competitors)
-  // If brand mentioned with no competitors → 100% visibility for that test
-  const brandOnlyTests = categoryTests.filter(t => 
-    t.brandMentioned && 
-    (!t.competitors || t.competitors.length === 0)
-  );
-  
-  // Tests where brand competes with others
-  const competitiveTests = categoryTests.filter(t =>
-    t.brandMentioned && 
-    t.competitors && 
-    t.competitors.length > 0
-  );
-  
-  // Calculate weighted average:
-  // - Brand-only mentions get 100 points each
-  // - Competitive mentions use position-based scoring
-  
-  let totalScore = 0;
-  const mentionedTests = categoryTests.filter(t => t.brandMentioned);
-  
-  if (mentionedTests.length > 0) {
-    // Brand-only tests: 100% each
-    totalScore += brandOnlyTests.length * 100;
-    
-    // Competitive tests: position-based scoring
-    if (competitiveTests.length > 0) {
-      for (const test of competitiveTests) {
-        if (test.brandPosition != null && test.brandPosition > 0) {
-          // Position-based score: #1 = 100, #2 = 90, #3 = 80, etc.
-          const positionScore = Math.max(0, 110 - (test.brandPosition * 10));
-          totalScore += positionScore;
-        } else {
-          // Mentioned but no position → 50 points (mentioned, not ranked)
-          totalScore += 50;
-        }
-      }
-    }
-    
-    // Calculate final score as average across all mentioned tests
-    // Also factor in non-mentions (they get 0)
-    const avgMentionScore = totalScore / mentionedTests.length;
-    const score = mentionRate * avgMentionScore;
-    
-    return {
-      score: Math.round(score),
-      mentions,
-      total: categoryTests.length,
-    };
-  }
-
-  // No mentions at all
-  return {
-    score: 0,
-    mentions,
-    total: categoryTests.length,
-  };
+  return { score, mentions, total: categoryTests.length };
 }
 
 /**
- * Calculate aggregate visibility score using Firegeo methodology
- * Formula: avg(per-test Firegeo scores) where each test = 0 or 50 + positionBonus
- * 
- * Also calculates weighted score using intent category weights
- * 
+ * Calculate aggregate visibility score using mention rate methodology.
+ * Formula: avg(per-test mention scores) where each test = 100 if mentioned, 0 if not.
+ * Result equals mentionRate × 100 (i.e., percentage of chats mentioning the brand).
+ *
+ * Also calculates weighted score using intent category weights.
+ *
  * @param tests - Array of prompt test results
  * @returns Aggregate visibility metrics
  */
@@ -256,19 +201,11 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
     ? Math.round((rankedTests.reduce((sum, t) => sum + (t.brandPosition ?? 0), 0) / rankedTests.length) * 10) / 10
     : 0;
 
-  // Calculate visibility score using per-test Firegeo average
-  // Each test gets: 0 if not mentioned, 50 + positionBonus if mentioned
-  // Then average across ALL tests (properly weights both mention rate and position)
-  const firegeoScores = tests.map(t => {
-    if (!t.brandMentioned) return 0;
-    let score = 50;
-    if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0) {
-      score += Math.max(0, (10 - t.brandPosition) / 10) * 50;
-    }
-    return Math.round(score);
-  });
-  const overallScore = firegeoScores.length > 0
-    ? firegeoScores.reduce((a, b) => a + b, 0) / firegeoScores.length
+  // Calculate visibility score using mention rate
+  // Each test: 100 if mentioned, 0 if not → average = mentionRate × 100
+  const mentionScores = tests.map(t => t.brandMentioned ? 100 : 0);
+  const overallScore = mentionScores.length > 0
+    ? mentionScores.reduce((a, b) => a + b, 0) / mentionScores.length
     : 0;
 
   // Calculate weighted score by intent category
@@ -300,44 +237,22 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
 }
 
 /**
- * Calculate per-prompt visibility score using Firegeo methodology
- * Formula: Base 50 points for mention + position bonus (0-45 points based on position)
- *
- * Score Examples:
- * - Position 1, mentioned → 50 + 45 = 95
- * - Position 2, mentioned → 50 + 40 = 90
- * - Position 3, mentioned → 50 + 35 = 85
- * - Position 5, mentioned → 50 + 25 = 75
- * - Mentioned, no position → 50
- * - Not mentioned → 0
+ * Calculate per-prompt visibility score using mention rate.
+ * Score: 100 if mentioned, 0 if not. Position is tracked separately.
  *
  * @param test - Single prompt test result
  * @returns Per-prompt visibility score
  */
 export function calculatePerPromptScore(test: PromptTestResult): PerPromptScore {
-  let visibilityScore = 0;
-  let position: number | null = null;
+  const visibilityScore = test.brandMentioned ? 100 : 0;
 
-  if (test.brandMentioned) {
-    // Base score: 50 points for being mentioned
-    visibilityScore = 50;
-
-    const pos = test.brandPosition;
-    if (pos !== undefined && pos !== null && pos > 0) {
-      position = pos;
-      // Position bonus: 0-45 points based on position (Firegeo formula)
-      // Position 1 = 45 points, Position 10 = 0 points
-      const positionBonus = Math.max(0, (10 - pos) / 10) * 50;
-      visibilityScore += positionBonus;
-    }
-    // If mentioned but no position: just the 50 points (same as before)
-  }
-  // Not mentioned: 0 points
+  const pos = test.brandPosition;
+  const position = (pos !== undefined && pos !== null && pos > 0) ? pos : null;
 
   return {
     promptId: '', // Will be set by caller
     promptText: test.prompt,
-    visibilityScore: Math.round(visibilityScore),
+    visibilityScore,
     position,
     brandMentioned: test.brandMentioned,
     sentiment: test.sentiment || null,
@@ -366,42 +281,43 @@ export function calculateAllScores(tests: PromptTestResult[]): {
 }
 
 /**
- * Get visibility score tier/label for display
+ * Get visibility score tier/label for display.
+ * Thresholds calibrated for mention rate scale (0-100%).
  */
 export function getScoreTier(score: number): {
   label: string;
   color: string;
   description: string;
 } {
-  if (score >= 80) {
+  if (score >= 60) {
     return {
       label: 'Excellent',
       color: 'green',
-      description: 'Strong AI visibility with top rankings',
-    };
-  } else if (score >= 60) {
-    return {
-      label: 'Good',
-      color: 'blue',
-      description: 'Solid AI visibility with competitive rankings',
+      description: 'Strong AI mention rate across platforms',
     };
   } else if (score >= 40) {
     return {
-      label: 'Fair',
-      color: 'yellow',
-      description: 'Moderate AI visibility, room for improvement',
+      label: 'Good',
+      color: 'blue',
+      description: 'Solid AI mention rate, competitive presence',
     };
   } else if (score >= 20) {
     return {
+      label: 'Fair',
+      color: 'yellow',
+      description: 'Moderate AI mention rate, room for improvement',
+    };
+  } else if (score >= 10) {
+    return {
       label: 'Poor',
       color: 'orange',
-      description: 'Low AI visibility, needs optimization',
+      description: 'Low AI mention rate, needs optimization',
     };
   } else {
     return {
       label: 'Very Poor',
       color: 'red',
-      description: 'Minimal AI visibility, urgent action needed',
+      description: 'Minimal AI mention rate, urgent action needed',
     };
   }
 }

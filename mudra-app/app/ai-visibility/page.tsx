@@ -79,14 +79,14 @@ export default function ReportPage() {
   }, [timeframe]);
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-600";
-    if (score >= 60) return "text-yellow-600";
+    if (score >= 60) return "text-green-600";
+    if (score >= 30) return "text-yellow-600";
     return "text-red-600";
   };
 
   const getScoreBadgeVariant = (score: number): "default" | "secondary" | "destructive" => {
-    if (score >= 80) return "default";
-    if (score >= 60) return "secondary";
+    if (score >= 60) return "default";
+    if (score >= 30) return "secondary";
     return "destructive";
   };
 
@@ -223,8 +223,8 @@ export default function ReportPage() {
                   {metrics.summary.avgVisibilityScore.toFixed(1)}%
                 </div>
                 <Badge variant={getScoreBadgeVariant(metrics.summary.avgVisibilityScore)} className="mt-2">
-                  {metrics.summary.avgVisibilityScore >= 80 ? 'Excellent' : 
-                   metrics.summary.avgVisibilityScore >= 60 ? 'Good' : 'Needs Improvement'}
+                  {metrics.summary.avgVisibilityScore >= 60 ? 'Excellent' :
+                   metrics.summary.avgVisibilityScore >= 30 ? 'Good' : 'Needs Improvement'}
                 </Badge>
               </CardContent>
             </Card>

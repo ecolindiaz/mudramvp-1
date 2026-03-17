@@ -87,24 +87,22 @@ export function calculateAggregateFromResults(results: GeoAnalysisAggregateInput
   const rankedPositions: number[] = [];
 
   for (const tests of testsByProvider.values()) {
-    const firegeoScores = tests.map((test) => {
-      if (!test.brandMentioned) return 0;
-      let score = 50;
+    // Mention rate scoring: 100 if mentioned, 0 if not
+    const mentionedCount = tests.filter(t => t.brandMentioned).length;
+    const providerScore = tests.length > 0 ? (mentionedCount / tests.length) * 100 : 0;
+    providerScores.push(providerScore);
+
+    // Collect positions separately for averagePosition metric
+    for (const test of tests) {
       if (
+        test.brandMentioned &&
         test.brandPosition !== undefined &&
         test.brandPosition !== null &&
         test.brandPosition > 0
       ) {
-        score += Math.max(0, (10 - test.brandPosition) / 10) * 50;
         rankedPositions.push(test.brandPosition);
       }
-      return Math.round(score);
-    });
-
-    const providerScore = firegeoScores.length > 0
-      ? firegeoScores.reduce((a, b) => a + b, 0) / firegeoScores.length
-      : 0;
-    providerScores.push(providerScore);
+    }
   }
 
   const overallScore = providerScores.length > 0

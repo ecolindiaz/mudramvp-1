@@ -198,8 +198,8 @@ const createColumns = (router: ReturnType<typeof useRouter>, selectedCountry: st
       }
       const value = Number(row.getValue("visibility"))
       const getColor = () => {
-        if (value >= 70) return "bg-emerald-500"
-        if (value >= 40) return "bg-yellow-500"
+        if (value >= 60) return "bg-emerald-500"
+        if (value >= 30) return "bg-yellow-500"
         if (value > 0) return "bg-orange-500"
         return "bg-white/30"
       }

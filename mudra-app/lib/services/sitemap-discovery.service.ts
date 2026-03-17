@@ -16,6 +16,7 @@
 import { createFirecrawlApp } from "@/lib/config/firecrawl-config";
 import { detectPageType } from "@/lib/analysis/technical/dom-extractor";
 import OpenAI from "openai";
+import * as cheerio from "cheerio";
 import type {
 	PageType,
 	DiscoveryOptions,
@@ -24,6 +25,7 @@ import type {
 	AIDiscoveredPage,
 	DiscoveryResult,
 	AIDiscoveryResult,
+	DiscoveryTimings,
 	OpenAIPageAnalysisResponse,
 } from "@/lib/analysis/technical/types";
 import {
@@ -41,7 +43,7 @@ import {
 // CONSTANTS
 // ============================================================================
 
-const DEFAULT_MAX_PAGES = 35;
+const DEFAULT_MAX_PAGES = 50;
 const DEFAULT_MAX_BLOGS = 15;
 const DEFAULT_MAP_LIMIT = 500; // Fetch up to 500 URLs from Firecrawl in single call
 const DEFAULT_MAX_URLS_FOR_AI = 200; // Send top 200 URLs to AI for analysis (increased from 100 to capture more product pages at depth 2-3)
@@ -49,6 +51,9 @@ const DEFAULT_AI_MODEL = "gpt-5.2"; // Default OpenAI model for analysis
 
 // Feature flag for AI discovery (can be overridden via env var)
 const USE_AI_DISCOVERY = process.env.DISCOVERY_USE_AI !== "false";
+
+// Maximum nav links to extract from homepage navigation
+const NAV_LINK_CAP = 30;
 
 // Patterns to EXCLUDE from scraping (documentation, API references, etc.)
 const EXCLUDED_SUBDOMAINS = ['docs', 'api', 'developer', 'developers', 'status', 'support'];
@@ -276,6 +281,138 @@ function toDiscoveredPage(item: { url: string; title?: string; description?: str
 }
 
 // ============================================================================
+// NAV EXTRACTION & BUDGET ENFORCEMENT
+// ============================================================================
+
+/**
+ * Extracts navigation links from raw HTML (navbar, header, footer).
+ * Returns deduplicated, same-domain URLs sorted by depth (shallower first),
+ * capped at NAV_LINK_CAP.
+ */
+function extractNavLinks(html: string, baseUrl: string, domainHost: string): string[] {
+	try {
+		const $ = cheerio.load(html);
+		const links: string[] = [];
+		const seen = new Set<string>();
+
+		// Select <a> elements inside <nav>, <header>, and <footer>
+		$('nav a[href], header a[href], footer a[href]').each((_, el) => {
+			const href = $(el).attr('href');
+			if (!href) return;
+
+			// Skip anchors, mailto, tel, javascript
+			if (href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) return;
+
+			// Resolve relative URLs
+			let absoluteUrl: string;
+			try {
+				absoluteUrl = new URL(href, baseUrl).href;
+			} catch {
+				return;
+			}
+
+			// Same-domain only
+			try {
+				const hostname = new URL(absoluteUrl).hostname.toLowerCase();
+				if (hostname !== domainHost && hostname !== `www.${domainHost}`) return;
+			} catch {
+				return;
+			}
+
+			// Apply standard exclusions
+			if (shouldExcludeUrl(absoluteUrl)) return;
+
+			// Deduplicate by normalized URL
+			const normalized = absoluteUrl.replace(/\/+$/, '').toLowerCase();
+			if (seen.has(normalized)) return;
+			seen.add(normalized);
+
+			links.push(absoluteUrl);
+		});
+
+		// Sort by depth (shallower first), cap at limit
+		links.sort((a, b) => getUrlDepth(a) - getUrlDepth(b));
+		return links.slice(0, NAV_LINK_CAP);
+	} catch (error) {
+		console.warn('[SitemapDiscovery] Nav extraction failed:', error instanceof Error ? error.message : 'unknown');
+		return [];
+	}
+}
+
+/**
+ * Scrapes homepage raw HTML via Firecrawl for nav link extraction.
+ * Non-blocking — returns null on failure so the flow continues without nav data.
+ */
+async function scrapeHomepageHtml(
+	firecrawl: { scrapeUrl: (url: string, opts: Record<string, unknown>) => Promise<unknown> },
+	homepageUrl: string
+): Promise<string | null> {
+	try {
+		const result = await firecrawl.scrapeUrl(homepageUrl, {
+			formats: ['rawHtml'],
+			onlyMainContent: false,
+			timeout: 15000,
+		});
+
+		if (!result || typeof result !== 'object') return null;
+
+		// Handle different Firecrawl response shapes
+		const raw = (result as { rawHtml?: string }).rawHtml
+			?? (result as { data?: { rawHtml?: string } }).data?.rawHtml;
+
+		return typeof raw === 'string' && raw.length > 0 ? raw : null;
+	} catch (error) {
+		console.warn('[SitemapDiscovery] Homepage scrape for nav extraction failed:', error instanceof Error ? error.message : 'unknown');
+		return null;
+	}
+}
+
+/**
+ * Enforces a hard page budget on the final selection.
+ * Protected pages (nav, injected, home) are never trimmed.
+ * Trimmable pages are sorted: 'other' type first, then by priority descending,
+ * then by importance ascending.
+ */
+function enforcePageBudget(pages: DiscoveredPage[], budget: number): DiscoveredPage[] {
+	if (pages.length <= budget) return pages;
+
+	const isProtected = (p: DiscoveredPage) =>
+		p.discoverySource === 'nav' ||
+		p.discoverySource === 'injected' ||
+		p.discoverySource === 'home' ||
+		p.pageType === 'home';
+
+	const protectedPages = pages.filter(isProtected);
+	const trimmable = pages.filter(p => !isProtected(p));
+
+	// Sort trimmable: most-keepable first (non-other before other, lower priority number = more valuable, higher importance = more valuable)
+	trimmable.sort((a, b) => {
+		// Non-other pages are more valuable → keep first
+		const aIsOther = a.pageType === 'other' ? 1 : 0;
+		const bIsOther = b.pageType === 'other' ? 1 : 0;
+		if (aIsOther !== bIsOther) return aIsOther - bIsOther;
+
+		// Lower priority number = more valuable → keep first
+		if (a.priority !== b.priority) return a.priority - b.priority;
+
+		// Higher importance = more valuable → keep first
+		const aImp = (a as AIDiscoveredPage).importance ?? 5;
+		const bImp = (b as AIDiscoveredPage).importance ?? 5;
+		return bImp - aImp;
+	});
+
+	// If protected alone exceed budget, keep all protected (safety)
+	const slotsForTrimmable = Math.max(0, budget - protectedPages.length);
+	const kept = [...protectedPages, ...trimmable.slice(0, slotsForTrimmable)];
+
+	if (kept.length < pages.length) {
+		console.log(`[SitemapDiscovery] Budget enforcement: trimmed ${pages.length - kept.length} pages (${protectedPages.length} protected, ${slotsForTrimmable} trimmable slots)`);
+	}
+
+	return kept;
+}
+
+// ============================================================================
 // AI ANALYSIS FUNCTIONS
 // ============================================================================
 
@@ -290,7 +427,7 @@ function toDiscoveredPage(item: { url: string; title?: string; description?: str
 async function analyzeUrlsWithOpenAI(
 	urls: string[],
 	normalizedUrl: string,
-	options: { aiModel?: string; maxUrlsForAI?: number } = {}
+	options: { aiModel?: string; maxUrlsForAI?: number; navUrls?: string[] } = {}
 ): Promise<{ pages: AIDiscoveredPage[]; duration: number } | null> {
 	const startTime = Date.now();
 	const aiModel = options.aiModel ?? DEFAULT_AI_MODEL;
@@ -308,7 +445,7 @@ async function analyzeUrlsWithOpenAI(
 
 		// Take top URLs by depth (shallower first)
 		const urlsForAnalysis = urls.slice(0, maxUrls);
-		const userMessage = buildAnalysisUserMessage(normalizedUrl, urlsForAnalysis);
+		const userMessage = buildAnalysisUserMessage(normalizedUrl, urlsForAnalysis, options.navUrls);
 
 		console.log(`[SitemapDiscovery] Analyzing ${urlsForAnalysis.length} URLs with ${aiModel}...`);
 
@@ -709,10 +846,12 @@ export async function discoverPages(
 	const useAI = options.useAI ?? USE_AI_DISCOVERY;
 	const aiModel = options.aiModel ?? DEFAULT_AI_MODEL;
 	const maxUrlsForAI = options.maxUrlsForAI ?? DEFAULT_MAX_URLS_FOR_AI;
+	const skipNav = options.skipNavExtraction ?? false;
 
 	// Timing tracking
-	const timings = {
+	const timings: DiscoveryTimings = {
 		map: 0,
+		navExtraction: 0,
 		filter: 0,
 		analysis: 0,
 		total: 0,
@@ -723,15 +862,18 @@ export async function discoverPages(
 		const firecrawl = await createFirecrawlApp();
 
 		// =========================================================================
-		// STEP 1: SINGLE MAP CALL (high limit)
+		// STEP 1: PARALLEL MAP + HOMEPAGE SCRAPE
 		// =========================================================================
 		console.log(`[SitemapDiscovery] Starting AI-powered discovery for ${domain}...`);
 		const mapStartTime = Date.now();
 
-		const mapResult = await firecrawl.mapUrl(normalizedUrl, {
-			limit: DEFAULT_MAP_LIMIT,
-			...(sitemap !== "include" && { ignoreSitemap: sitemap === "skip" }),
-		});
+		const [mapResult, homepageHtml] = await Promise.all([
+			firecrawl.mapUrl(normalizedUrl, {
+				limit: DEFAULT_MAP_LIMIT,
+				...(sitemap !== "include" && { ignoreSitemap: sitemap === "skip" }),
+			}),
+			skipNav ? Promise.resolve(null) : scrapeHomepageHtml(firecrawl as any, normalizedUrl),
+		]);
 
 		// Check for Firecrawl error response
 		if (mapResult && typeof mapResult === "object" && "success" in mapResult && mapResult.success === false) {
@@ -742,6 +884,19 @@ export async function discoverPages(
 		const mapUrls = extractUrlsFromMapResult(mapResult);
 		timings.map = Date.now() - mapStartTime;
 		console.log(`[SitemapDiscovery] Map found ${mapUrls.length} URLs in ${(timings.map / 1000).toFixed(1)}s`);
+
+		// =========================================================================
+		// STEP 1b: EXTRACT NAV LINKS
+		// =========================================================================
+		const navStartTime = Date.now();
+		let navUrls: string[] = [];
+
+		if (homepageHtml) {
+			navUrls = extractNavLinks(homepageHtml, normalizedUrl, domainHost);
+			console.log(`[SitemapDiscovery] Extracted ${navUrls.length} nav links from homepage`);
+		}
+
+		timings.navExtraction = Date.now() - navStartTime;
 
 		// =========================================================================
 		// STEP 2: PRE-FILTER
@@ -756,8 +911,6 @@ export async function discoverPages(
 				const hostname = parsed.hostname.toLowerCase();
 
 				// Only allow exact base domain or www — reject ALL other subdomains
-				// Marketing analysis should only cover the public-facing website,
-				// not web apps (app.*), security portals (security.*), etc.
 				if (hostname !== domainHost && hostname !== `www.${domainHost}`) {
 					return false;
 				}
@@ -778,12 +931,30 @@ export async function discoverPages(
 			.map((item) => (typeof item === "string" ? item : item.url))
 			.filter((url, index, arr) => arr.indexOf(url) === index); // Deduplicate
 
+		// Merge nav URLs into the URL list (add any not already present)
+		const urlSet = new Set(urlStrings.map(u => u.replace(/\/+$/, '').toLowerCase()));
+		let navUrlsAdded = 0;
+		for (const navUrl of navUrls) {
+			const normalized = navUrl.replace(/\/+$/, '').toLowerCase();
+			if (!urlSet.has(normalized)) {
+				urlStrings.push(navUrl);
+				urlSet.add(normalized);
+				navUrlsAdded++;
+			}
+		}
+		if (navUrlsAdded > 0) {
+			console.log(`[SitemapDiscovery] Added ${navUrlsAdded} new URLs from nav (${navUrls.length - navUrlsAdded} already in map)`);
+		}
+
 		const sortedUrls = [...urlStrings].sort((a, b) => {
 			return getUrlDepth(a) - getUrlDepth(b);
 		});
 
 		timings.filter = Date.now() - filterStartTime;
 		console.log(`[SitemapDiscovery] Pre-filtered to ${sortedUrls.length} marketing URLs in ${(timings.filter / 1000).toFixed(1)}s`);
+
+		// Build a set of nav URLs for tagging later
+		const navUrlSet = new Set(navUrls.map(u => u.replace(/\/+$/, '').toLowerCase()));
 
 		// =========================================================================
 		// STEP 3: AI ANALYSIS OR FALLBACK
@@ -796,6 +967,7 @@ export async function discoverPages(
 			const aiResult = await analyzeUrlsWithOpenAI(sortedUrls, normalizedUrl, {
 				aiModel,
 				maxUrlsForAI,
+				navUrls: navUrls.length > 0 ? navUrls : undefined,
 			});
 
 			if (aiResult) {
@@ -814,9 +986,45 @@ export async function discoverPages(
 				// Use AI-selected pages, limit to maxPages
 				selectedPages = validAiPages.slice(0, maxPages);
 
+				// Tag nav pages in the AI selection
+				for (const page of selectedPages) {
+					if (navUrlSet.has(page.url.replace(/\/+$/, '').toLowerCase())) {
+						page.discoverySource = 'nav';
+					}
+				}
+
+				// Ensure ALL nav URLs are in the selection (must-include)
+				const selectedUrlSet = new Set(selectedPages.map(p => p.url.replace(/\/+$/, '').toLowerCase()));
+				for (const navUrl of navUrls) {
+					const norm = navUrl.replace(/\/+$/, '').toLowerCase();
+					if (!selectedUrlSet.has(norm)) {
+						const { pageType } = detectPageTypeEnhanced(navUrl);
+						selectedPages.push({
+							url: navUrl,
+							pageType,
+							priority: PAGE_PRIORITY[pageType],
+							discoverySource: 'nav',
+						});
+						selectedUrlSet.add(norm);
+					}
+				}
+
 				// Post-AI injection: ensure critical page types are represented
 				const injection = await injectCriticalPages(selectedPages, sortedUrls, domainHost);
 				selectedPages = injection.pages;
+
+				// Tag injected pages
+				for (const page of selectedPages) {
+					if (!page.discoverySource) {
+						// Pages added by injectCriticalPages that weren't in the AI selection
+						const wasInAi = validAiPages.some(
+							ap => ap.url.replace(/\/+$/, '').toLowerCase() === page.url.replace(/\/+$/, '').toLowerCase()
+						);
+						if (!wasInAi && !navUrlSet.has(page.url.replace(/\/+$/, '').toLowerCase())) {
+							page.discoverySource = 'injected';
+						}
+					}
+				}
 			} else {
 				// Fallback to pattern matching
 				console.log(`[SitemapDiscovery] Falling back to pattern matching...`);
@@ -830,6 +1038,29 @@ export async function discoverPages(
 					maxPages,
 					maxBlogs,
 				});
+
+				// Tag nav pages in fallback selection
+				for (const page of selectedPages) {
+					if (navUrlSet.has(page.url.replace(/\/+$/, '').toLowerCase())) {
+						page.discoverySource = 'nav';
+					}
+				}
+
+				// Inject missing nav URLs
+				const selectedUrlSet = new Set(selectedPages.map(p => p.url.replace(/\/+$/, '').toLowerCase()));
+				for (const navUrl of navUrls) {
+					const norm = navUrl.replace(/\/+$/, '').toLowerCase();
+					if (!selectedUrlSet.has(norm)) {
+						const { pageType } = detectPageTypeEnhanced(navUrl);
+						selectedPages.push({
+							url: navUrl,
+							pageType,
+							priority: PAGE_PRIORITY[pageType],
+							discoverySource: 'nav',
+						});
+						selectedUrlSet.add(norm);
+					}
+				}
 
 				timings.analysis = Date.now() - fallbackStartTime;
 			}
@@ -847,6 +1078,29 @@ export async function discoverPages(
 				maxBlogs,
 			});
 
+			// Tag nav pages
+			for (const page of selectedPages) {
+				if (navUrlSet.has(page.url.replace(/\/+$/, '').toLowerCase())) {
+					page.discoverySource = 'nav';
+				}
+			}
+
+			// Inject missing nav URLs
+			const selectedUrlSet = new Set(selectedPages.map(p => p.url.replace(/\/+$/, '').toLowerCase()));
+			for (const navUrl of navUrls) {
+				const norm = navUrl.replace(/\/+$/, '').toLowerCase();
+				if (!selectedUrlSet.has(norm)) {
+					const { pageType } = detectPageTypeEnhanced(navUrl);
+					selectedPages.push({
+						url: navUrl,
+						pageType,
+						priority: PAGE_PRIORITY[pageType],
+						discoverySource: 'nav',
+					});
+					selectedUrlSet.add(norm);
+				}
+			}
+
 			timings.analysis = Date.now() - fallbackStartTime;
 		}
 
@@ -857,15 +1111,25 @@ export async function discoverPages(
 				url: normalizedUrl,
 				pageType: "home",
 				priority: PAGE_PRIORITY.home,
+				discoverySource: 'home',
 			};
 			selectedPages.unshift(homePage);
-			if (selectedPages.length > maxPages) {
-				selectedPages.pop();
+		}
+		// Tag existing home page
+		for (const page of selectedPages) {
+			if (page.pageType === 'home' && !page.discoverySource) {
+				page.discoverySource = 'home';
 			}
 		}
 
+		// =========================================================================
+		// STEP 4: BUDGET ENFORCEMENT
+		// =========================================================================
+		const totalBudget = maxPages + maxBlogs;
+		selectedPages = enforcePageBudget(selectedPages, totalBudget);
+
 		timings.total = Date.now() - startTime;
-		console.log(`[SitemapDiscovery] Completed in ${(timings.total / 1000).toFixed(1)}s. Selected ${selectedPages.length} pages. AI: ${aiAnalyzed}`);
+		console.log(`[SitemapDiscovery] Completed in ${(timings.total / 1000).toFixed(1)}s. Selected ${selectedPages.length} pages. AI: ${aiAnalyzed}. Nav: ${navUrls.length}`);
 
 		return {
 			success: true,
@@ -877,6 +1141,7 @@ export async function discoverPages(
 			aiAnalyzed,
 			timings,
 			aiPages,
+			navUrls: navUrls.length > 0 ? navUrls : undefined,
 		};
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : "Unknown error during discovery";
@@ -962,6 +1227,7 @@ export function createFallbackDiscovery(domain: string): AIDiscoveryResult {
 		aiAnalyzed: false,
 		timings: {
 			map: 0,
+			navExtraction: 0,
 			filter: 0,
 			analysis: 0,
 			total: 0,
@@ -985,4 +1251,6 @@ export const _internal = {
 	detectPageTypeEnhanced,
 	injectCriticalPages,
 	probeUrl,
+	extractNavLinks,
+	enforcePageBudget,
 };

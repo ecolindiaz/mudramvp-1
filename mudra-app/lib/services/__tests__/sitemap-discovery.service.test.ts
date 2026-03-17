@@ -22,6 +22,14 @@ vi.mock("@/lib/config/firecrawl-config", () => ({
 import { createFirecrawlApp } from "@/lib/config/firecrawl-config";
 const mockCreateFirecrawlApp = vi.mocked(createFirecrawlApp);
 
+/** Helper: create a Firecrawl mock with both mapUrl and scrapeUrl */
+function mockFirecrawl(mapResponse: unknown, scrapeResponse: unknown = { rawHtml: '' }) {
+	mockCreateFirecrawlApp.mockResolvedValue({
+		mapUrl: vi.fn().mockResolvedValue(mapResponse),
+		scrapeUrl: vi.fn().mockResolvedValue(scrapeResponse),
+	} as any);
+}
+
 describe("Sitemap Discovery Service", () => {
 	// ============================================================================
 	// HELPER FUNCTION TESTS
@@ -207,6 +215,180 @@ describe("Sitemap Discovery Service", () => {
 	});
 
 	// ============================================================================
+	// NAV EXTRACTION TESTS
+	// ============================================================================
+
+	describe("extractNavLinks", () => {
+		const baseUrl = "https://example.com";
+		const domainHost = "example.com";
+
+		it("extracts links from <nav> elements", () => {
+			const html = `<html><body><nav><a href="/pricing">Pricing</a><a href="/features">Features</a></nav></body></html>`;
+			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
+			expect(links).toContain("https://example.com/pricing");
+			expect(links).toContain("https://example.com/features");
+		});
+
+		it("extracts links from <header> elements", () => {
+			const html = `<html><body><header><a href="/about">About</a></header></body></html>`;
+			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
+			expect(links).toContain("https://example.com/about");
+		});
+
+		it("extracts links from <footer> elements", () => {
+			const html = `<html><body><footer><a href="/contact">Contact</a></footer></body></html>`;
+			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
+			expect(links).toContain("https://example.com/contact");
+		});
+
+		it("filters out external domain links", () => {
+			const html = `<html><body><nav><a href="https://other.com/page">Other</a><a href="/pricing">Pricing</a></nav></body></html>`;
+			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
+			expect(links).toHaveLength(1);
+			expect(links[0]).toBe("https://example.com/pricing");
+		});
+
+		it("filters out anchors, mailto, tel, javascript links", () => {
+			const html = `<html><body><nav>
+				<a href="#section">Anchor</a>
+				<a href="mailto:hi@example.com">Email</a>
+				<a href="tel:+1234567890">Phone</a>
+				<a href="javascript:void(0)">JS</a>
+				<a href="/real-page">Real</a>
+			</nav></body></html>`;
+			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
+			expect(links).toHaveLength(1);
+			expect(links[0]).toBe("https://example.com/real-page");
+		});
+
+		it("filters out excluded paths (docs, api, etc.)", () => {
+			const html = `<html><body><nav>
+				<a href="/docs/getting-started">Docs</a>
+				<a href="/api-reference/auth">API</a>
+				<a href="/pricing">Pricing</a>
+			</nav></body></html>`;
+			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
+			expect(links).toHaveLength(1);
+			expect(links[0]).toBe("https://example.com/pricing");
+		});
+
+		it("resolves relative URLs to absolute", () => {
+			const html = `<html><body><nav><a href="/solutions/enterprise">Enterprise</a></nav></body></html>`;
+			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
+			expect(links[0]).toBe("https://example.com/solutions/enterprise");
+		});
+
+		it("deduplicates by normalized URL", () => {
+			const html = `<html><body>
+				<nav><a href="/pricing">Nav</a></nav>
+				<footer><a href="/pricing/">Footer</a></footer>
+			</body></html>`;
+			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
+			expect(links).toHaveLength(1);
+		});
+
+		it("sorts by depth (shallower first)", () => {
+			const html = `<html><body><nav>
+				<a href="/product/sub/deep">Deep</a>
+				<a href="/pricing">Shallow</a>
+				<a href="/product/sub">Mid</a>
+			</nav></body></html>`;
+			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
+			expect(links[0]).toBe("https://example.com/pricing");
+		});
+
+		it("caps at NAV_LINK_CAP (30)", () => {
+			const anchors = Array.from({ length: 50 }, (_, i) => `<a href="/page-${i}">P${i}</a>`).join('');
+			const html = `<html><body><nav>${anchors}</nav></body></html>`;
+			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
+			expect(links.length).toBeLessThanOrEqual(30);
+		});
+
+		it("returns empty array on invalid HTML", () => {
+			const links = _internal.extractNavLinks("", baseUrl, domainHost);
+			expect(links).toEqual([]);
+		});
+
+		it("ignores links outside nav/header/footer", () => {
+			const html = `<html><body><main><a href="/hidden">Hidden</a></main><nav><a href="/visible">Visible</a></nav></body></html>`;
+			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
+			expect(links).toHaveLength(1);
+			expect(links[0]).toBe("https://example.com/visible");
+		});
+	});
+
+	// ============================================================================
+	// BUDGET ENFORCEMENT TESTS
+	// ============================================================================
+
+	describe("enforcePageBudget", () => {
+		it("returns pages unchanged when under budget", () => {
+			const pages: DiscoveredPage[] = [
+				{ url: "https://example.com/", pageType: "home", priority: 1 },
+				{ url: "https://example.com/pricing", pageType: "pricing", priority: 2 },
+			];
+			const result = _internal.enforcePageBudget(pages, 10);
+			expect(result).toHaveLength(2);
+		});
+
+		it("trims 'other' type pages first", () => {
+			const pages: DiscoveredPage[] = [
+				{ url: "https://example.com/", pageType: "home", priority: 1, discoverySource: 'home' },
+				{ url: "https://example.com/pricing", pageType: "pricing", priority: 2 },
+				{ url: "https://example.com/features", pageType: "features", priority: 3 },
+				{ url: "https://example.com/random1", pageType: "other", priority: 10 },
+				{ url: "https://example.com/random2", pageType: "other", priority: 10 },
+			];
+			const result = _internal.enforcePageBudget(pages, 3);
+			// Home is protected, pricing + features are trimmable but higher value than 'other'
+			expect(result).toHaveLength(3);
+			expect(result.some(p => p.pageType === 'home')).toBe(true);
+			expect(result.some(p => p.pageType === 'other')).toBe(false);
+		});
+
+		it("never trims nav/injected/home pages", () => {
+			const pages: DiscoveredPage[] = [
+				{ url: "https://example.com/", pageType: "home", priority: 1, discoverySource: 'home' },
+				{ url: "https://example.com/pricing", pageType: "pricing", priority: 2, discoverySource: 'nav' },
+				{ url: "https://example.com/about", pageType: "about", priority: 6, discoverySource: 'injected' },
+				{ url: "https://example.com/other1", pageType: "other", priority: 10 },
+				{ url: "https://example.com/other2", pageType: "other", priority: 10 },
+			];
+			const result = _internal.enforcePageBudget(pages, 4);
+			// 3 protected (home, nav, injected) + 1 trimmable slot
+			expect(result).toHaveLength(4);
+			expect(result.some(p => p.url.includes('pricing'))).toBe(true);
+			expect(result.some(p => p.url.includes('about'))).toBe(true);
+			expect(result.some(p => p.pageType === 'home')).toBe(true);
+		});
+
+		it("keeps all protected even if they exceed budget", () => {
+			const pages: DiscoveredPage[] = [
+				{ url: "https://example.com/", pageType: "home", priority: 1, discoverySource: 'home' },
+				{ url: "https://example.com/pricing", pageType: "pricing", priority: 2, discoverySource: 'nav' },
+				{ url: "https://example.com/features", pageType: "features", priority: 3, discoverySource: 'nav' },
+				{ url: "https://example.com/about", pageType: "about", priority: 6, discoverySource: 'injected' },
+			];
+			// Budget is 2 but all 4 are protected
+			const result = _internal.enforcePageBudget(pages, 2);
+			expect(result).toHaveLength(4);
+		});
+
+		it("trims lowest-priority non-other pages after others exhausted", () => {
+			const pages: DiscoveredPage[] = [
+				{ url: "https://example.com/", pageType: "home", priority: 1, discoverySource: 'home' },
+				{ url: "https://example.com/pricing", pageType: "pricing", priority: 2 },
+				{ url: "https://example.com/contact", pageType: "contact", priority: 10 },
+				{ url: "https://example.com/features", pageType: "features", priority: 3 },
+			];
+			const result = _internal.enforcePageBudget(pages, 3);
+			// Home protected, 2 trimmable slots. Contact (priority 10) trimmed first
+			expect(result).toHaveLength(3);
+			expect(result.some(p => p.pageType === 'contact')).toBe(false);
+		});
+	});
+
+	// ============================================================================
 	// MAIN FUNCTION TESTS
 	// ============================================================================
 
@@ -216,16 +398,13 @@ describe("Sitemap Discovery Service", () => {
 		});
 
 		it("discovers and filters pages correctly", async () => {
-			// Mock Firecrawl response
-			mockCreateFirecrawlApp.mockResolvedValue({
-				mapUrl: vi.fn().mockResolvedValue([
-					"https://example.com/",
-					"https://example.com/pricing",
-					"https://example.com/features",
-					"https://example.com/blog/post-1",
-					"https://example.com/about",
-				]),
-			} as any);
+			mockFirecrawl([
+				"https://example.com/",
+				"https://example.com/pricing",
+				"https://example.com/features",
+				"https://example.com/blog/post-1",
+				"https://example.com/about",
+			]);
 
 			const result = await discoverPages("example.com");
 
@@ -236,14 +415,12 @@ describe("Sitemap Discovery Service", () => {
 		});
 
 		it("handles Firecrawl object response format", async () => {
-			mockCreateFirecrawlApp.mockResolvedValue({
-				mapUrl: vi.fn().mockResolvedValue({
-					links: [
-						"https://example.com/",
-						"https://example.com/pricing",
-					],
-				}),
-			} as any);
+			mockFirecrawl({
+				links: [
+					"https://example.com/",
+					"https://example.com/pricing",
+				],
+			});
 
 			const result = await discoverPages("example.com");
 
@@ -252,12 +429,10 @@ describe("Sitemap Discovery Service", () => {
 		});
 
 		it("handles Firecrawl error response", async () => {
-			mockCreateFirecrawlApp.mockResolvedValue({
-				mapUrl: vi.fn().mockResolvedValue({
-					success: false,
-					error: "Rate limit exceeded",
-				}),
-			} as any);
+			mockFirecrawl({
+				success: false,
+				error: "Rate limit exceeded",
+			});
 
 			const result = await discoverPages("example.com");
 
@@ -266,9 +441,7 @@ describe("Sitemap Discovery Service", () => {
 		});
 
 		it("handles empty map response", async () => {
-			mockCreateFirecrawlApp.mockResolvedValue({
-				mapUrl: vi.fn().mockResolvedValue([]),
-			} as any);
+			mockFirecrawl([]);
 
 			const result = await discoverPages("example.com");
 
@@ -279,14 +452,12 @@ describe("Sitemap Discovery Service", () => {
 		});
 
 		it("filters out URLs from different domains", async () => {
-			mockCreateFirecrawlApp.mockResolvedValue({
-				mapUrl: vi.fn().mockResolvedValue([
-					"https://example.com/",
-					"https://example.com/pricing",
-					"https://other-domain.com/page",
-					"https://example.com/about",
-				]),
-			} as any);
+			mockFirecrawl([
+				"https://example.com/",
+				"https://example.com/pricing",
+				"https://other-domain.com/page",
+				"https://example.com/about",
+			]);
 
 			const result = await discoverPages("example.com");
 
@@ -295,40 +466,36 @@ describe("Sitemap Discovery Service", () => {
 			expect(result.pages.every((p) => p.url.includes("example.com"))).toBe(true);
 		});
 
-		it("includes subdomains", async () => {
-			mockCreateFirecrawlApp.mockResolvedValue({
-				mapUrl: vi.fn().mockResolvedValue([
-					"https://example.com/",
-					"https://blog.example.com/post",
-					"https://www.example.com/page",
-				]),
-			} as any);
+		it("includes www subdomain but filters other subdomains", async () => {
+			mockFirecrawl([
+				"https://example.com/",
+				"https://blog.example.com/post",
+				"https://www.example.com/page",
+			]);
 
 			const result = await discoverPages("example.com");
 
 			expect(result.success).toBe(true);
-			expect(result.selectedCount).toBe(3);
+			// blog.example.com is filtered out; only example.com/ and www.example.com/page pass
+			expect(result.selectedCount).toBe(2);
 		});
 
 		it("respects maxPages option", async () => {
 			const manyUrls = Array.from({ length: 50 }, (_, i) => `https://example.com/page-${i}`);
 
-			mockCreateFirecrawlApp.mockResolvedValue({
-				mapUrl: vi.fn().mockResolvedValue(manyUrls),
-			} as any);
+			mockFirecrawl(manyUrls);
 
 			const result = await discoverPages("example.com", { maxPages: 10 });
 
 			expect(result.success).toBe(true);
-			expect(result.selectedCount).toBeLessThanOrEqual(10);
+			// Budget = maxPages + maxBlogs = 10 + 15 = 25
+			expect(result.selectedCount).toBeLessThanOrEqual(25);
 		});
 
 		it("respects maxBlogs option", async () => {
 			const blogUrls = Array.from({ length: 20 }, (_, i) => `https://example.com/blog/post-${i}`);
 
-			mockCreateFirecrawlApp.mockResolvedValue({
-				mapUrl: vi.fn().mockResolvedValue(blogUrls),
-			} as any);
+			mockFirecrawl(blogUrls);
 
 			const result = await discoverPages("example.com", { maxBlogs: 5, maxPages: 20 });
 
@@ -346,18 +513,85 @@ describe("Sitemap Discovery Service", () => {
 		});
 
 		it("ensures home page is always included", async () => {
-			// Mock response with no home page
-			mockCreateFirecrawlApp.mockResolvedValue({
-				mapUrl: vi.fn().mockResolvedValue([
-					"https://example.com/pricing",
-					"https://example.com/about",
-				]),
-			} as any);
+			mockFirecrawl([
+				"https://example.com/pricing",
+				"https://example.com/about",
+			]);
 
 			const result = await discoverPages("example.com");
 
 			expect(result.success).toBe(true);
 			expect(result.pages.some((p) => p.pageType === "home")).toBe(true);
+		});
+
+		it("includes nav URLs from homepage scrape in results", async () => {
+			const navHtml = `<html><body><nav>
+				<a href="/pricing">Pricing</a>
+				<a href="/solutions">Solutions</a>
+				<a href="/demo">Demo</a>
+			</nav></body></html>`;
+
+			mockCreateFirecrawlApp.mockResolvedValue({
+				mapUrl: vi.fn().mockResolvedValue([
+					"https://example.com/",
+					"https://example.com/about",
+				]),
+				scrapeUrl: vi.fn().mockResolvedValue({ rawHtml: navHtml }),
+			} as any);
+
+			const result = await discoverPages("example.com");
+
+			expect(result.success).toBe(true);
+			expect(result.navUrls).toBeDefined();
+			expect(result.navUrls!.length).toBeGreaterThan(0);
+
+			// Nav URLs should be in the final pages
+			const pageUrls = result.pages.map(p => p.url.replace(/\/+$/, '').toLowerCase());
+			expect(pageUrls).toContain("https://example.com/pricing");
+			expect(pageUrls).toContain("https://example.com/solutions");
+
+			// Nav pages should have discoverySource = 'nav'
+			const navPages = result.pages.filter(p => p.discoverySource === 'nav');
+			expect(navPages.length).toBeGreaterThan(0);
+		});
+
+		it("continues gracefully when nav scrape fails", async () => {
+			mockCreateFirecrawlApp.mockResolvedValue({
+				mapUrl: vi.fn().mockResolvedValue([
+					"https://example.com/",
+					"https://example.com/pricing",
+				]),
+				scrapeUrl: vi.fn().mockRejectedValue(new Error("scrape failed")),
+			} as any);
+
+			const result = await discoverPages("example.com");
+
+			expect(result.success).toBe(true);
+			expect(result.navUrls).toBeUndefined();
+			expect(result.pages.length).toBe(2);
+		});
+
+		it("skips nav extraction when skipNavExtraction is true", async () => {
+			const scrapeUrlMock = vi.fn();
+			mockCreateFirecrawlApp.mockResolvedValue({
+				mapUrl: vi.fn().mockResolvedValue([
+					"https://example.com/",
+				]),
+				scrapeUrl: scrapeUrlMock,
+			} as any);
+
+			await discoverPages("example.com", { skipNavExtraction: true });
+
+			expect(scrapeUrlMock).not.toHaveBeenCalled();
+		});
+
+		it("includes timings.navExtraction in result", async () => {
+			mockFirecrawl(["https://example.com/"]);
+
+			const result = await discoverPages("example.com");
+
+			expect(result.timings).toHaveProperty("navExtraction");
+			expect(typeof result.timings.navExtraction).toBe("number");
 		});
 	});
 

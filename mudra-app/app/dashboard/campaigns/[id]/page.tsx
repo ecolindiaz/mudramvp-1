@@ -18,6 +18,7 @@ import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Check
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { BlogSetupDialog } from "@/components/content-lab/blog-setup-dialog"
 import { computeContentLabSchemaSourceHash } from "@/lib/content-lab/schema-hash"
+import { hasFootnoteCitations, convertFootnotesToInlineLinks } from "@/lib/utils/convert-footnotes"
 
 // Helper function to accurately count words in markdown content
 function countWordsInMarkdown(content: string): number {
@@ -328,7 +329,15 @@ function CampaignCanvasPageInner({
           if (data.success && data.campaign) {
             const campaign = data.campaign
             setTitle(campaign.title || "Untitled Campaign")
-            setBody(campaign.body || "## Welcome to Campaign Canvas\n\nStart editing your content here.")
+            const rawBody = campaign.body || "## Welcome to Campaign Canvas\n\nStart editing your content here."
+            // Convert footnote citations to inline links (safety net for content generated before this fix)
+            const campaignMetadata = campaign.metadata && typeof campaign.metadata === 'object'
+              ? campaign.metadata as Record<string, unknown>
+              : {}
+            const metaSources = Array.isArray((campaignMetadata as any).sources)
+              ? (campaignMetadata as any).sources as { title: string; url: string }[]
+              : undefined
+            setBody(hasFootnoteCitations(rawBody) ? convertFootnotesToInlineLinks(rawBody, metaSources) : rawBody)
             setPublished(campaign.status === "published")
             setSlug(campaign.slug || "")
             setCampaignPrompt(campaign.prompt || "")
@@ -396,7 +405,7 @@ function CampaignCanvasPageInner({
           const data = JSON.parse(stored)
           if (data.generated && data.title && data.body) {
             setTitle(data.title)
-            setBody(data.body)
+            setBody(hasFootnoteCitations(data.body) ? convertFootnotesToInlineLinks(data.body) : data.body)
             // Set fields from URL parameters if they exist
             if (prompt) setCampaignPrompt(prompt)
             if (icp) setTargetIcp(icp)
@@ -429,7 +438,7 @@ function CampaignCanvasPageInner({
               const data = JSON.parse(stored)
               if (data.generated && data.title && data.body) {
                 setTitle(data.title)
-                setBody(data.body)
+                setBody(hasFootnoteCitations(data.body) ? convertFootnotesToInlineLinks(data.body) : data.body)
                 setContentLoaded(true)
                 setIsLoading(false)
                 console.log('✅ Loaded generated content from storage')

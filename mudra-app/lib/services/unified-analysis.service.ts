@@ -747,7 +747,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       // FIRST RUN: Discover pages via Firecrawl /map
       console.log('[Technical Core] Step 1: First run — discovering pages...');
       onProgress?.({ phase: 'discovery', status: 'started' });
-      let discovery = await discoverPages(domain, { maxPages: 35, maxBlogs: 15 });
+      let discovery = await discoverPages(domain, { maxPages: 50, maxBlogs: 15 });
 
       if (!discovery.success || discovery.pages.length === 0) {
         console.log('[Technical Core] Firecrawl discovery failed, using fallback...');
@@ -780,7 +780,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
         domain,
         'full_site',
         pageCount,
-        { maxPages: 35, maxBlogs: 15 }
+        { maxPages: 50, maxBlogs: 15 }
       );
       jobId = job.id;
       await updateScrapeJobProgress(jobId, { status: 'running' });

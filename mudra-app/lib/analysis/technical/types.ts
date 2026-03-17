@@ -472,7 +472,7 @@ export const PAGE_TYPE_LIMITS: Partial<Record<PageType, number>> = {
  * Options for sitemap discovery
  */
 export interface DiscoveryOptions {
-	/** Maximum total pages to discover (default: 35) */
+	/** Maximum total pages to discover (default: 50) */
 	maxPages?: number;
 	/** Maximum blog posts to include (default: 15) */
 	maxBlogs?: number;
@@ -480,6 +480,8 @@ export interface DiscoveryOptions {
 	sitemap?: "include" | "only" | "skip";
 	/** Search filter for specific URL patterns */
 	search?: string;
+	/** Skip navigation link extraction from homepage (default: false) */
+	skipNavExtraction?: boolean;
 }
 
 /**
@@ -503,6 +505,8 @@ export interface DiscoveredPage {
 	description?: string;
 	pageType: PageType;
 	priority: number;
+	/** How this page was discovered */
+	discoverySource?: 'map' | 'nav' | 'injected' | 'home';
 }
 
 /**
@@ -536,6 +540,8 @@ export interface DiscoveryResult {
 export interface DiscoveryTimings {
 	/** Time spent on Firecrawl map call (ms) */
 	map: number;
+	/** Time spent on nav link extraction (ms) */
+	navExtraction: number;
 	/** Time spent on pre-filtering (ms) */
 	filter: number;
 	/** Time spent on AI analysis (ms) */
@@ -554,6 +560,8 @@ export interface AIDiscoveryResult extends DiscoveryResult {
 	timings: DiscoveryTimings;
 	/** AI-analyzed pages with enhanced metadata */
 	aiPages?: AIDiscoveredPage[];
+	/** URLs extracted from site navigation (navbar/footer) */
+	navUrls?: string[];
 }
 
 /**

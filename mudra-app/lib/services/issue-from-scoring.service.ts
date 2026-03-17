@@ -20,6 +20,9 @@ import { normalizeUrl } from '@/lib/utils/normalize-url'
 // Types
 export type IssuePriority = 'low' | 'medium' | 'high'
 
+/** Max identified issues before we stop creating new ones */
+const ISSUE_BACKLOG_THRESHOLD = 10
+
 /**
  * Mapping from scoring check codes to agent types
  */
@@ -162,6 +165,15 @@ export async function createIssuesFromPageScore(
   // Skip non-marketing pages — they produce irrelevant issues
   if (NON_MARKETING_PAGE_TYPES.has(pageScore.page_type)) {
     return { created: 0, updated: 0, skipped: 0 }
+  }
+
+  // Enforce backlog threshold: don't create new issues if too many are already pending
+  const identifiedCount = await prisma.issue.count({
+    where: { brandProfileId, status: 'identified' },
+  })
+  if (identifiedCount >= ISSUE_BACKLOG_THRESHOLD) {
+    console.log(`[IssueFromScoring] Skipping ${pageScore.page_url}: ${identifiedCount} identified issues already pending (threshold: ${ISSUE_BACKLOG_THRESHOLD})`)
+    return { created: 0, updated: 0, skipped: pageScore.issues.length }
   }
 
   let created = 0
@@ -343,6 +355,16 @@ export async function createIssuesFromMultiplePageScores(
   let totalSkipped = 0
 
   for (const pageScore of pageScores) {
+    // Stop early if backlog is full (createIssuesFromPageScore checks too,
+    // but this avoids unnecessary iterations)
+    const identifiedCount = await prisma.issue.count({
+      where: { brandProfileId, status: 'identified' },
+    })
+    if (identifiedCount >= ISSUE_BACKLOG_THRESHOLD) {
+      console.log(`[IssueFromScoring] Bulk create stopping early: ${identifiedCount} identified issues pending (threshold: ${ISSUE_BACKLOG_THRESHOLD})`)
+      break
+    }
+
     const result = await createIssuesFromPageScore(brandProfileId, pageScore)
     totalCreated += result.created
     totalUpdated += result.updated

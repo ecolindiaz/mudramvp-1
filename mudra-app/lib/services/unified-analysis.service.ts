@@ -1171,52 +1171,42 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
 
     // Step 8: Progressive issue discovery — create issues for pages up to current index
     // First run = homepage only, each subsequent run reveals one more page's issues
-    // Pauses when too many identified issues are already pending (prevents overwhelming users)
+    // Backlog threshold is enforced inside createIssuesFromMultiplePageScores
     console.log('[Technical Core] Step 8: Progressive issue discovery...');
     try {
-      // Check if user already has too many unaddressed issues
-      const ISSUE_BACKLOG_THRESHOLD = 10;
-      const identifiedCount = await prisma.issue.count({
-        where: { brandProfileId: config.brandProfileId, status: 'identified' },
+      const currentProfile = await prisma.brandProfile.findUnique({
+        where: { id: config.brandProfileId },
+        select: { issueDiscoveryPageIndex: true },
+      });
+      const currentIndex = currentProfile?.issueDiscoveryPageIndex ?? 0;
+
+      // Sort pageScores: homepage first, then by type priority
+      const PAGE_TYPE_ORDER: Record<string, number> = {
+        home: 0, pricing: 1, features: 2, product: 3, solutions: 4,
+        about: 5, contact: 6, blog: 7, other: 8, documentation: 9,
+      };
+      const sortedScores = [...pageScores].sort((a, b) => {
+        return (PAGE_TYPE_ORDER[a.page_type] ?? 99) - (PAGE_TYPE_ORDER[b.page_type] ?? 99);
       });
 
-      if (identifiedCount >= ISSUE_BACKLOG_THRESHOLD) {
-        console.log(`[Technical Core] Skipping issue discovery: ${identifiedCount} identified issues already pending (threshold: ${ISSUE_BACKLOG_THRESHOLD})`);
-      } else {
-        const currentProfile = await prisma.brandProfile.findUnique({
-          where: { id: config.brandProfileId },
-          select: { issueDiscoveryPageIndex: true },
-        });
-        const currentIndex = currentProfile?.issueDiscoveryPageIndex ?? 0;
+      // Progressive slice: reveal one more page per analysis run
+      const newIndex = currentIndex + 1;
+      const pagesToReveal = sortedScores.slice(0, newIndex);
 
-        // Sort pageScores: homepage first, then by type priority
-        const PAGE_TYPE_ORDER: Record<string, number> = {
-          home: 0, pricing: 1, features: 2, product: 3, solutions: 4,
-          about: 5, contact: 6, blog: 7, other: 8, documentation: 9,
-        };
-        const sortedScores = [...pageScores].sort((a, b) => {
-          return (PAGE_TYPE_ORDER[a.page_type] ?? 99) - (PAGE_TYPE_ORDER[b.page_type] ?? 99);
-        });
+      console.log(`[Technical Core] Revealing issues for ${pagesToReveal.length}/${sortedScores.length} pages (index ${currentIndex} -> ${newIndex})`);
 
-        // Progressive slice: reveal one more page per analysis run
-        const newIndex = currentIndex + 1;
-        const pagesToReveal = sortedScores.slice(0, newIndex);
+      const { createIssuesFromMultiplePageScores } = await import('./issue-from-scoring.service');
+      const issueResult = await createIssuesFromMultiplePageScores(config.brandProfileId, pagesToReveal);
+      console.log(`[Technical Core] Issues: ${issueResult.totalCreated} created, ${issueResult.totalUpdated} updated, ${issueResult.totalSkipped} skipped`);
 
-        console.log(`[Technical Core] Revealing issues for ${pagesToReveal.length}/${sortedScores.length} pages (index ${currentIndex} -> ${newIndex})`);
-
-        const { createIssuesFromMultiplePageScores } = await import('./issue-from-scoring.service');
-        const issueResult = await createIssuesFromMultiplePageScores(config.brandProfileId, pagesToReveal);
-        console.log(`[Technical Core] Issues: ${issueResult.totalCreated} created, ${issueResult.totalUpdated} updated, ${issueResult.totalSkipped} skipped`);
-
-        // Update page index for next run
-        await prisma.brandProfile.update({
-          where: { id: config.brandProfileId },
-          data: {
-            issueDiscoveryPageIndex: newIndex,
-            issueDiscoveryTotalPages: sortedScores.length,
-          },
-        });
-      }
+      // Update page index for next run
+      await prisma.brandProfile.update({
+        where: { id: config.brandProfileId },
+        data: {
+          issueDiscoveryPageIndex: newIndex,
+          issueDiscoveryTotalPages: sortedScores.length,
+        },
+      });
     } catch (issueError) {
       console.warn('[Technical Core] Issue creation failed:', issueError);
     }

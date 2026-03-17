@@ -92,8 +92,6 @@ export async function GET(request: NextRequest) {
       priority: filters.priority
     })
 
-    // Show all issues (progressive reveal removed — all issues are created
-    // in Step 8.5 on every analysis run, so hiding them is counter-productive)
     let filteredIssues = issues
 
     // Additional filter by page param if requested
@@ -114,21 +112,34 @@ export async function GET(request: NextRequest) {
     }
 
     // Group by status for Kanban view
+    // Cap identified issues to avoid overwhelming the user — show the top 10 by priority.
+    // Issues in other statuses (in_progress, completed, merged) always show in full.
+    const MAX_IDENTIFIED_DISPLAY = 10
+    const allIdentified = filteredIssues.filter(i => i.status === 'identified')
     const grouped = {
-      identified: filteredIssues.filter(i => i.status === 'identified'),
+      identified: allIdentified.slice(0, MAX_IDENTIFIED_DISPLAY),
       in_progress: filteredIssues.filter(i => i.status === 'in_progress'),
       completed: filteredIssues.filter(i => i.status === 'completed'),
       merged: filteredIssues.filter(i => i.status === 'merged')
     }
 
+    // Only return the capped set to the client
+    const displayedIssues = [
+      ...grouped.identified,
+      ...grouped.in_progress,
+      ...grouped.completed,
+      ...grouped.merged
+    ]
+
     return NextResponse.json({
       success: true,
       data: {
-        issues: filteredIssues,
+        issues: displayedIssues,
         grouped,
         counts: {
           total: filteredIssues.length,
-          identified: grouped.identified.length,
+          identified: allIdentified.length,
+          identifiedShown: grouped.identified.length,
           in_progress: grouped.in_progress.length,
           completed: grouped.completed.length,
           merged: grouped.merged.length

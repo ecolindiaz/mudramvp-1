@@ -85,7 +85,7 @@ function TasksPageInner() {
                 <div className="flex gap-2">
                   <Button 
                     size="sm" 
-                    className="h-9 rounded-xl"
+                    className="h-9 rounded-2xl"
                     variant="outline"
                     onClick={async () => {
                       // Get latest snapshot from database and generate tasks

@@ -386,7 +386,7 @@ function AccountPageInner() {
                     <CardContent className="space-y-3">
                       <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/[0.04]">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 bg-white rounded-lg flex items-center justify-center">
+                          <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center">
                             <svg className="h-5 w-5" viewBox="0 0 24 24">
                               <path
                                 fill="#4285F4"

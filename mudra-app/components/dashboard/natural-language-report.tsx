@@ -748,7 +748,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Summary */}
-        <div className="rounded-xl bg-[#1b1b1b] overflow-hidden flex flex-col">
+        <div className="rounded-2xl bg-[#1b1b1b] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
             <div className="text-base font-medium text-white">Summary</div>
             <Tooltip>
@@ -830,7 +830,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
 		                      key={`summary-${widget.title}`}
 		                      type="button"
 		                      onClick={() => router.push(widget.href)}
-		                      className="inline-flex w-full items-center justify-center gap-1.5 px-2.5 py-[5px] rounded-md bg-white/[0.05] text-[11.5px] text-white/60 hover:text-white/80 hover:bg-white/[0.08] transition-colors"
+		                      className="inline-flex w-full items-center justify-center gap-1.5 px-2.5 py-[5px] rounded-full bg-white/[0.05] text-[11.5px] text-white/60 hover:text-white/80 hover:bg-white/[0.08] transition-colors"
 		                      aria-label={widget.title}
 		                    >
 		                      <WidgetIcon className="w-3.5 h-3.5" />
@@ -846,7 +846,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
             <Button
               variant="ghost"
               size="sm"
-              className="group h-8 px-3.5 text-white/60 hover:text-white hover:bg-white/[0.08] text-xs font-medium rounded-lg transition-all gap-1.5"
+              className="group h-8 px-3.5 text-white/60 hover:text-white hover:bg-white/[0.08] text-xs font-medium rounded-full transition-all gap-1.5"
               onClick={() => setShowReportHistory(true)}
             >
               <FileText className="size-3.5" />
@@ -858,7 +858,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
           
           <div className="flex flex-col gap-5">
             {/* Competitor Rankings Table - Share of Voice */}
-            <div className="rounded-xl bg-[#1b1b1b] overflow-hidden">
+            <div className="rounded-2xl bg-[#1b1b1b] overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-2">
                   <div className="text-base font-medium text-white/90">Competitor Rankings</div>
@@ -917,7 +917,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                             href={`https://${competitor.domain || getCompanyDomain(competitor.name)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-3 py-3.5 transition-colors hover:bg-white/[0.06] rounded-xl group"
+                            className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-3 py-3.5 transition-colors hover:bg-white/[0.06] rounded-2xl group"
                           >
                             <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
                             <div className="flex items-center gap-2.5 min-w-0">
@@ -936,7 +936,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                         <div className="flex justify-end px-5 py-3 border-t border-white/[0.06]">
                           <button
                             onClick={() => setIsCompetitorRankingsExpanded(!isCompetitorRankingsExpanded)}
-                            className="px-3 py-1.5 text-sm text-black bg-white hover:bg-white/90 rounded-lg transition-colors font-medium"
+                            className="px-3 py-1.5 text-sm text-black bg-white hover:bg-white/90 rounded-full transition-colors font-medium"
                           >
                             {isCompetitorRankingsExpanded ? 'Show less' : `Show all ${competitorRankings.length} items`}
                           </button>
@@ -949,7 +949,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
           </div>
 
           {/* Citations list */}
-          <div className="rounded-xl bg-[#1b1b1b] overflow-hidden">
+          <div className="rounded-2xl bg-[#1b1b1b] overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
               <div className="flex items-center gap-2">
                 <div className="text-base font-medium text-white/90">Citations</div>
@@ -1006,7 +1006,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                   {(isCitationsExpanded ? citations : citations.slice(0, 5)).map((c, idx) => (
                     <div
                       key={idx}
-                      className="grid grid-cols-[auto_1fr_100px_130px] items-center gap-4 px-3 py-3.5 hover:bg-white/[0.06] rounded-xl transition-colors cursor-pointer"
+                      className="grid grid-cols-[auto_1fr_100px_130px] items-center gap-4 px-3 py-3.5 hover:bg-white/[0.06] rounded-2xl transition-colors cursor-pointer"
                       onClick={() => {
                         setCameFromCitationsModal(false)
                         setSelectedSource({
@@ -1026,7 +1026,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                         <span className="truncate text-sm text-white/90">{c.domain}</span>
                       </div>
                       <div className="flex justify-center">
-                        <Badge className="inline-flex items-center gap-1.5 h-6 px-2 text-[11px] rounded-md bg-white/95 text-black font-medium shadow-sm">
+                        <Badge className="inline-flex items-center gap-1.5 h-6 px-2 text-[11px] rounded-full bg-white/95 text-black font-medium shadow-sm">
                           <CitationTypeIcon type={c.type as CitationType} />
                           {c.type}
                         </Badge>
@@ -1039,7 +1039,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                     <div className="flex justify-end px-5 py-3 border-t border-white/[0.06]">
                       <button
                         onClick={() => setIsCitationsExpanded(!isCitationsExpanded)}
-                        className="px-3 py-1.5 text-sm text-black bg-white hover:bg-white/90 rounded-lg transition-colors font-medium"
+                        className="px-3 py-1.5 text-sm text-black bg-white hover:bg-white/90 rounded-full transition-colors font-medium"
                       >
                         {isCitationsExpanded ? 'Show less' : `Show all ${citations.length} items`}
                       </button>
@@ -1051,7 +1051,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
           </div>
           
           {/* Recent Chats - right column */}
-          <div className="rounded-xl bg-[#1b1b1b] overflow-hidden">
+          <div className="rounded-2xl bg-[#1b1b1b] overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
               <div className="flex items-center gap-2">
                 <div className="text-base font-medium text-white/90">Recent Chats</div>
@@ -1071,7 +1071,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                   {[1, 2, 3, 4].map((i) => (
                     <div
                       key={i}
-                      className="p-5 rounded-xl border border-white/[0.04] bg-white/[0.01]"
+                      className="p-5 rounded-2xl border border-white/[0.04] bg-white/[0.01]"
                     >
                       <div className="flex items-center gap-3 mb-3">
                         <span className="size-6 rounded-md bg-white/10 animate-pulse" />
@@ -1093,7 +1093,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                     <div
                       key={chat.id}
                       onClick={() => handleChatClick(chat.promptId)}
-                      className="relative p-5 rounded-xl border border-white/[0.04] hover:border-white/[0.06] hover:bg-white/[0.01] transition-all cursor-pointer group"
+                      className="relative p-5 rounded-2xl border border-white/[0.04] hover:border-white/[0.06] hover:bg-white/[0.01] transition-all cursor-pointer group"
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
@@ -1163,7 +1163,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 w-8 p-0 rounded-md opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-all flex-shrink-0"
+                        className="h-8 w-8 p-0 rounded-full opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-all flex-shrink-0"
                         onClick={(e) => {
                           e.stopPropagation()
                           console.log('Download report:', report.id)
@@ -1291,7 +1291,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
             width: "100px",
             sortable: true,
             render: (item) => (
-              <Badge className="inline-flex items-center gap-1.5 h-6 px-2 text-[11px] rounded-md bg-white/95 text-black font-medium shadow-sm w-fit">
+              <Badge className="inline-flex items-center gap-1.5 h-6 px-2 text-[11px] rounded-full bg-white/95 text-black font-medium shadow-sm w-fit">
                 <CitationTypeIcon type={item.type as CitationType} />
                 {item.type}
               </Badge>
@@ -1358,7 +1358,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
               {/* Toolbar */}
               <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06] bg-white/[0.01]">
                 <div className="flex items-center gap-2">
-                  <Badge className="inline-flex items-center gap-1.5 h-6 px-2 text-[11px] rounded-md bg-white/95 text-black font-medium">
+                  <Badge className="inline-flex items-center gap-1.5 h-6 px-2 text-[11px] rounded-full bg-white/95 text-black font-medium">
                     <CitationTypeIcon type={selectedSource.type as CitationType} />
                     {selectedSource.type}
                   </Badge>
@@ -1466,7 +1466,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                       setCameFromCitationsModal(false)
                       setShowCitationsModal(true)
                     }}
-                    className="h-8 px-3 text-white/60 hover:text-white hover:bg-white/[0.08] rounded-lg text-[13px] font-medium gap-1.5"
+                    className="h-8 px-3 text-white/60 hover:text-white hover:bg-white/[0.08] rounded-full text-[13px] font-medium gap-1.5"
                   >
                     <ArrowUpRight className="size-3.5 rotate-[-135deg]" />
                     Back to Citations
@@ -1479,7 +1479,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                     setSelectedSource(null)
                     setCameFromCitationsModal(false)
                   }}
-                  className="h-8 px-4 bg-white text-black hover:bg-white/90 rounded-lg text-[13px] font-medium"
+                  className="h-8 px-4 bg-white text-black hover:bg-white/90 rounded-full text-[13px] font-medium"
                 >
                   Done
                 </Button>
@@ -1608,14 +1608,14 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                 <Button
                   variant="ghost"
                   onClick={() => setSelectedUrl(null)}
-                  className="h-8 px-3 text-white/60 hover:text-white hover:bg-white/[0.08] rounded-lg text-[13px] font-medium gap-1.5"
+                  className="h-8 px-3 text-white/60 hover:text-white hover:bg-white/[0.08] rounded-full text-[13px] font-medium gap-1.5"
                 >
                   <ArrowUpRight className="size-3.5 rotate-[-135deg]" />
                   Back to URLs
                 </Button>
                 <Button
                   onClick={() => setSelectedUrl(null)}
-                  className="h-8 px-4 bg-white text-black hover:bg-white/90 rounded-lg text-[13px] font-medium"
+                  className="h-8 px-4 bg-white text-black hover:bg-white/90 rounded-full text-[13px] font-medium"
                 >
                   Done
                 </Button>

@@ -422,7 +422,7 @@ export default function PromptsPage() {
               <select
                 value={newPromptCategory}
                 onChange={(e) => setNewPromptCategory(e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
+                className="w-full mt-1 px-3 py-2 border rounded-full"
               >
                 {CATEGORIES.map(cat => (
                   <option key={cat.value} value={cat.value}>{cat.label}</option>

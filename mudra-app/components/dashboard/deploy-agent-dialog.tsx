@@ -251,7 +251,7 @@ export function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?:
   }
 
   return (
-    <div className="rounded-xl bg-[#111111] overflow-hidden">
+    <div className="rounded-2xl bg-[#111111] overflow-hidden">
       {sortedDeployments.map((deployment, index) => {
         const Icon = deployment.icon
         const isDisabled = !deployment.isActive
@@ -384,7 +384,7 @@ export function DeploymentList({ onDeploy, deployedAgentIds = [] }: { onDeploy?:
               {/* Deploy Button */}
               <div className="flex-shrink-0">
                 {isDeployed ? (
-                  <div className="flex items-center gap-2 h-9 px-4 rounded-md border border-green-500/30 bg-green-500/10 shadow-sm">
+                  <div className="flex items-center gap-2 h-9 px-4 rounded-full border border-green-500/30 bg-green-500/10 shadow-sm">
                     <div className="w-2 h-2 bg-green-500 rounded-full shadow-sm shadow-green-500/50"></div>
                     <span className="text-xs font-medium text-green-500">Deployed</span>
                   </div>

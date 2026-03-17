@@ -284,7 +284,7 @@ function SortableIssueCard({
       {...attributes}
       {...listeners}
       onClick={() => onClick?.(issue)}
-      className="bg-white/[0.03] rounded-xl p-3.5 hover:bg-white/[0.05] transition-colors cursor-grab active:cursor-grabbing group"
+      className="bg-white/[0.03] rounded-2xl p-3.5 hover:bg-white/[0.05] transition-colors cursor-grab active:cursor-grabbing group"
     >
       <div className="flex items-start gap-3 mb-3">
         <StatusIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${statusConf.color}`} animate={issue.status === "in_progress"} />
@@ -376,7 +376,7 @@ function SortableIssueCard({
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
-          className="flex items-center gap-1.5 ml-7 mb-2 px-2 py-1 rounded-md bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 transition-colors w-fit"
+          className="flex items-center gap-1.5 ml-7 mb-2 px-2 py-1 rounded-full bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 transition-colors w-fit"
         >
           <IconGitPullRequest className="w-3.5 h-3.5" />
           <span className="text-[11px] font-medium">PR #{issue.prNumber}</span>
@@ -385,12 +385,12 @@ function SortableIssueCard({
       )}
       <div className="flex items-center justify-between pl-7">
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05]">
             <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
             <span className="text-[11px] text-white/50">{categoryConf.label}</span>
           </span>
           {issue.priority && priorityConfig[issue.priority] && (
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05]">
               <span className={`w-1.5 h-1.5 rounded-full ${priorityConfig[issue.priority].dot}`} />
               <span className="text-[11px] text-white/50 capitalize">{issue.priority}</span>
             </span>
@@ -406,7 +406,7 @@ function SortableIssueCard({
               onPointerDown={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
               disabled={isDeploying}
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white text-black hover:bg-white/90 transition-colors text-[11px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white text-black hover:bg-white/90 transition-colors text-[11px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               data-no-dnd="true"
             >
               <IconWand className="w-3 h-3" />
@@ -419,7 +419,7 @@ function SortableIssueCard({
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white text-black hover:bg-white/90 transition-colors text-[11px] font-medium"
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white text-black hover:bg-white/90 transition-colors text-[11px] font-medium"
                   data-no-dnd="true"
                 >
                   <IconWand className="w-3 h-3" />
@@ -464,7 +464,7 @@ function IssueCardOverlay({ issue }: { issue: Issue }) {
   const StatusIcon = statusConf.icon
 
   return (
-    <div className="bg-white/[0.08] rounded-xl p-3.5 shadow-xl cursor-grabbing w-[260px]">
+    <div className="bg-white/[0.08] rounded-2xl p-3.5 shadow-xl cursor-grabbing w-[260px]">
       <div className="flex items-start gap-3 mb-3">
         <StatusIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${statusConf.color}`} animate={issue.status === "in_progress"} />
         <p className="text-[13px] text-white/90 font-medium leading-relaxed">
@@ -472,7 +472,7 @@ function IssueCardOverlay({ issue }: { issue: Issue }) {
         </p>
       </div>
       <div className="flex items-center justify-between pl-7">
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]">
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05]">
           <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
           <span className="text-[11px] text-white/50">{categoryConf.label}</span>
         </span>
@@ -496,7 +496,7 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
         {/* Skeleton metric cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-6">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-[#1b1b1b] rounded-xl p-5 flex flex-col">
+            <div key={i} className="bg-[#1b1b1b] rounded-2xl p-5 flex flex-col">
               <div className="h-4 w-24 rounded bg-white/[0.06] animate-pulse mb-3" />
               <div className="h-8 w-16 rounded bg-white/[0.06] animate-pulse" />
               <div className="mt-auto pt-3 border-t border-white/[0.06]">
@@ -506,12 +506,12 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
           ))}
         </div>
         {/* Skeleton tracked pages */}
-        <div className="bg-[#1b1b1b] rounded-xl p-5">
+        <div className="bg-[#1b1b1b] rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="h-4 w-28 rounded bg-white/[0.06] animate-pulse" />
             <div className="h-3 w-16 rounded bg-white/[0.06] animate-pulse" />
           </div>
-          <div className="h-9 w-full rounded-lg bg-white/[0.04] animate-pulse mb-4" />
+          <div className="h-9 w-full rounded-full bg-white/[0.04] animate-pulse mb-4" />
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-3 py-2">
@@ -531,7 +531,7 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
       <div className="flex-1 px-4 lg:px-6 py-6">
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <div className="w-12 h-12 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-4">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/40">
                 <line x1="18" y1="20" x2="18" y2="10"/>
                 <line x1="12" y1="20" x2="12" y2="4"/>
@@ -555,7 +555,7 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
       {/* Metric Cards — matches Overview page style */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-6">
         {/* Total Issues */}
-        <div className="bg-[#1b1b1b] rounded-xl p-5 flex flex-col">
+        <div className="bg-[#1b1b1b] rounded-2xl p-5 flex flex-col">
           <span className="text-sm text-white/50 font-medium mb-2">Total Issues</span>
           <div className="flex items-end justify-between">
             <span className="text-[24px] font-medium text-white">{stats.total}</span>
@@ -566,7 +566,7 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
         </div>
 
         {/* Completion Rate */}
-        <div className="bg-[#1b1b1b] rounded-xl p-5 flex flex-col">
+        <div className="bg-[#1b1b1b] rounded-2xl p-5 flex flex-col">
           <span className="text-sm text-white/50 font-medium mb-2">Completion Rate</span>
           <div className="flex items-end justify-between">
             <span className="text-[24px] font-medium text-white">{completionRate}%</span>
@@ -580,7 +580,7 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
         </div>
 
         {/* Active Issues */}
-        <div className="bg-[#1b1b1b] rounded-xl p-5 flex flex-col">
+        <div className="bg-[#1b1b1b] rounded-2xl p-5 flex flex-col">
           <span className="text-sm text-white/50 font-medium mb-2">In Progress</span>
           <div className="flex items-end justify-between">
             <span className="text-[24px] font-medium text-white">{stats.byStatus.in_progress}</span>
@@ -594,7 +594,7 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
         </div>
 
         {/* High Priority */}
-        <div className="bg-[#1b1b1b] rounded-xl p-5 flex flex-col">
+        <div className="bg-[#1b1b1b] rounded-2xl p-5 flex flex-col">
           <span className="text-sm text-white/50 font-medium mb-2">High Priority</span>
           <div className="flex items-end justify-between">
             <span className="text-[24px] font-medium text-white">{stats.byPriority.high}</span>
@@ -1028,7 +1028,7 @@ function IssueDetailDialog({
                   href={urlMatch[0]}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 shrink-0 mt-0.5 px-2 py-0.5 rounded-md bg-white/[0.05] text-[11px] text-white/40 hover:text-white/60 hover:bg-white/[0.08] transition-colors"
+                  className="inline-flex items-center gap-1.5 shrink-0 mt-0.5 px-2 py-0.5 rounded-full bg-white/[0.05] text-[11px] text-white/40 hover:text-white/60 hover:bg-white/[0.08] transition-colors"
                 >
                   <span className="truncate max-w-[180px]">{urlMatch[0].replace(/^https?:\/\//, '')}</span>
                   <IconExternalLink className="w-3 h-3 shrink-0 opacity-50" />
@@ -1055,17 +1055,17 @@ function IssueDetailDialog({
           {/* Metadata & Copy */}
           <div className="flex items-center justify-between">
            <div className="flex flex-wrap items-center gap-2">
-             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]">
+             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05]">
                <span className={`w-1.5 h-1.5 rounded-full ${categoryConf.color}`} />
                <span className="text-[11px] text-white/50">{categoryConf.label}</span>
              </span>
              {issue.agentType && (
-               <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-white/[0.05] text-[11px] text-white/40 font-mono">{issue.agentType}</span>
+               <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-white/[0.05] text-[11px] text-white/40 font-mono">{issue.agentType}</span>
              )}
            </div>
            <div className="flex items-center gap-2">
              <span className="text-[11px] text-white/25">Copy for agent</span>
-             <div className="inline-flex items-center rounded-lg border border-white/[0.06] overflow-hidden">
+             <div className="inline-flex items-center rounded-full border border-white/[0.06] overflow-hidden">
                <button
                  onClick={() => handleCopyPrompt("claude")}
                  className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-white/[0.06] transition-colors"
@@ -1256,7 +1256,7 @@ function IssueColumnWithHandlers({
         <div className="flex items-center gap-2.5">
           <StatusIcon className={`w-[18px] h-[18px] ${config.color}`} />
           <span className="text-[13px] font-medium text-white/80">{title}</span>
-          <span className="text-[11px] text-white/40 bg-white/[0.05] px-1.5 py-0.5 rounded-md">
+          <span className="text-[11px] text-white/40 bg-white/[0.05] px-1.5 py-0.5 rounded-full">
             {issues.length}
           </span>
         </div>
@@ -1286,7 +1286,7 @@ function IssueColumnWithHandlers({
               />
           ))}
           {issues.length === 0 && (
-            <div className="text-[13px] text-white/30 py-8 text-center border border-dashed border-white/[0.08] rounded-xl">
+            <div className="text-[13px] text-white/30 py-8 text-center border border-dashed border-white/[0.08] rounded-2xl">
               No issues
             </div>
           )}
@@ -2006,7 +2006,7 @@ function IssuesPageInner() {
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setActiveTab("all")}
-                    className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                    className={`flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium transition-colors ${
                       activeTab === "all"
                         ? "bg-white/[0.08] text-white"
                         : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
@@ -2019,7 +2019,7 @@ function IssuesPageInner() {
                   </button>
                   <button
                     onClick={() => setActiveTab("active")}
-                    className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                    className={`flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium transition-colors ${
                       activeTab === "active"
                         ? "bg-white/[0.08] text-white"
                         : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
@@ -2030,7 +2030,7 @@ function IssuesPageInner() {
                   </button>
                   <button
                     onClick={() => setActiveTab("identified")}
-                    className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                    className={`flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium transition-colors ${
                       activeTab === "identified"
                         ? "bg-white/[0.08] text-white"
                         : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
@@ -2048,7 +2048,7 @@ function IssuesPageInner() {
               <div className="flex items-center gap-1.5 ml-auto">
                 <button
                   onClick={() => setViewMode("issues")}
-                  className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium transition-colors ${
                     viewMode === "issues"
                       ? "bg-white/[0.08] text-white"
                       : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
@@ -2063,7 +2063,7 @@ function IssuesPageInner() {
                 </button>
                 <button
                   onClick={() => setViewMode("analysis")}
-                  className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium transition-colors ${
                     viewMode === "analysis"
                       ? "bg-white/[0.08] text-white"
                       : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
@@ -2116,7 +2116,7 @@ function IssuesPageInner() {
                         {/* Card skeletons */}
                         <div className="space-y-3">
                           {Array.from({ length: title === "Identified" ? 3 : title === "In Progress" ? 2 : 1 }).map((_, i) => (
-                            <div key={i} className="bg-white/[0.03] rounded-xl p-3.5">
+                            <div key={i} className="bg-white/[0.03] rounded-2xl p-3.5">
                               <div className="flex items-start gap-3 mb-3">
                                 <div className="h-4 w-4 rounded bg-white/[0.06] animate-pulse mt-0.5 shrink-0" />
                                 <div className="flex-1 space-y-1.5">

@@ -252,25 +252,25 @@ function OpportunityDetailPageInner() {
                   {/* Metadata pills */}
                   <div className="flex items-center gap-2 flex-wrap mt-3">
                     {opportunity.subreddit && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-white/[0.06] text-xs text-white/60">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/[0.06] text-xs text-white/60">
                         <Hash className="w-3 h-3" />
                         r/{opportunity.subreddit}
                       </span>
                     )}
                     {opportunity.postedAt && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-white/[0.06] text-xs text-white/50">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/[0.06] text-xs text-white/50">
                         <Calendar className="w-3 h-3" />
                         {formatRelativeTime(opportunity.postedAt)}
                       </span>
                     )}
                     {opportunity.mode && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-white/[0.06] text-xs text-white/50">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/[0.06] text-xs text-white/50">
                         <Radio className="w-3 h-3" />
                         {opportunity.mode === 'cited' ? 'Cited' : 'Proactive'}
                       </span>
                     )}
                     {typeof opportunity.relevanceScore === 'number' && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-md border border-white/[0.06] text-xs font-medium text-white/60">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full border border-white/[0.06] text-xs font-medium text-white/60">
                         {opportunity.relevanceScore}% match
                       </span>
                     )}

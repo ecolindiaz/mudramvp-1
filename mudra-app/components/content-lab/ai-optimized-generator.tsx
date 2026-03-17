@@ -479,7 +479,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
       <DialogTrigger asChild>
         <Button
           size="sm"
-          className="group h-9 rounded-lg bg-white text-[#0a0a0a] hover:bg-white/90 shadow-sm hover:shadow-md border-0 gap-2"
+          className="group h-9 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 shadow-sm hover:shadow-md border-0 gap-2"
         >
           <Plus className="size-4 transition-transform duration-300 ease-out group-hover:-translate-y-0.5 group-hover:rotate-6" />
           AI-Optimized Content
@@ -573,7 +573,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                           }
                         }}
                         className={cn(
-                          "relative rounded-xl bg-[#111111] p-5 flex flex-col gap-3 transition-all duration-200 border",
+                          "relative rounded-2xl bg-[#111111] p-5 flex flex-col gap-3 transition-all duration-200 border",
                           isDisabled
                             ? "opacity-40 cursor-not-allowed border-transparent"
                             : "cursor-pointer group",
@@ -631,7 +631,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                           </p>
                         </div>
                         {isDisabled && (
-                          <Badge className="absolute top-3 right-3 h-5 text-[9px] px-1.5 rounded-md bg-white/[0.06] text-white/30 border-0">
+                          <Badge className="absolute top-3 right-3 h-5 text-[9px] px-1.5 rounded-full bg-white/[0.06] text-white/30 border-0">
                             Soon
                           </Badge>
                         )}
@@ -644,7 +644,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
               {/* Step 2: Select Category & Prompt */}
               {step === 2 && (
                 <div className="space-y-4">
-                  <div className="rounded-xl bg-[#111111] overflow-hidden">
+                  <div className="rounded-2xl bg-[#111111] overflow-hidden">
                     {!selectedCategory ? (
                       <div className="divide-y divide-white/[0.03]">
                     {promptCategories.length > 0 ? (
@@ -657,7 +657,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                             className="px-6 py-4 flex items-center justify-between gap-6 transition-all duration-200 cursor-pointer group hover:bg-white/[0.03]"
                           >
                             <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="flex items-center justify-center size-11 rounded-xl bg-white/[0.05] group-hover:bg-white/[0.08] transition-all duration-200 flex-shrink-0">
+                              <div className="flex items-center justify-center size-11 rounded-2xl bg-white/[0.05] group-hover:bg-white/[0.08] transition-all duration-200 flex-shrink-0">
                                 <Icon className="h-5 w-5 text-white/90 group-hover:text-white transition-colors" />
                               </div>
                               <div className="flex-1 min-w-0">
@@ -763,7 +763,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                         setSelectedCategory(null);
                         setSelectedPrompt(null);
                       }}
-                      className="h-9 px-4 rounded-lg border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white"
+                      className="h-9 px-4 rounded-full border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white"
                     >
                       <ChevronLeft className="size-4 mr-1" />
                       Back
@@ -775,7 +775,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
               {/* Step 3: Select ICP */}
               {step === 3 && (
                 <div className="space-y-4">
-                  <div className="rounded-xl bg-[#111111] overflow-hidden">
+                  <div className="rounded-2xl bg-[#111111] overflow-hidden">
                 {isLoadingICPs ? (
                   <div className="px-6 py-12 text-center">
                     <UnicodeLoader className="w-6 text-[18px] text-white/40 mx-auto mb-2" animate />
@@ -803,7 +803,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                           <div className="flex items-center gap-4 flex-1 min-w-0">
                             <div
                               className={cn(
-                                "flex items-center justify-center size-11 rounded-xl transition-all duration-200 flex-shrink-0",
+                                "flex items-center justify-center size-11 rounded-2xl transition-all duration-200 flex-shrink-0",
                                 isSelected
                                   ? "bg-white/[0.1]"
                                   : "bg-white/[0.05] group-hover:bg-white/[0.08]"
@@ -847,7 +847,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                       variant="outline"
                       size="sm"
                       onClick={() => setStep(2)}
-                      className="h-9 px-4 rounded-lg border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white"
+                      className="h-9 px-4 rounded-full border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white"
                     >
                       <ChevronLeft className="size-4 mr-1" />
                       Back to prompts
@@ -859,7 +859,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
               {/* Step 4: Select Citation Sources */}
               {step === 4 && !isGenerating && (
                 <div className="space-y-4">
-                  <div className="rounded-xl bg-[#111111] overflow-hidden">
+                  <div className="rounded-2xl bg-[#111111] overflow-hidden">
                     <div className="px-5 py-4 border-b border-white/[0.03]">
                       <p className="text-[11px] uppercase tracking-[0.2em] text-white/40 font-semibold mb-1">
                         {selectedCategoryLabel}
@@ -975,7 +975,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                     setStep(3);
                     setSelectedSources(new Set());
                   }}
-                  className="h-9 px-4 rounded-lg border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white"
+                  className="h-9 px-4 rounded-full border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white"
                 >
                   <ChevronLeft className="size-4 mr-1" />
                   Back
@@ -983,7 +983,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                 <Button
                   onClick={handleStartGeneration}
                   disabled={selectedSources.size < 2}
-                  className="h-9 px-5 rounded-lg bg-white text-[#0a0a0a] hover:bg-white/90 shadow-sm hover:shadow-md border-0 disabled:opacity-50 disabled:cursor-not-allowed gap-2"
+                  className="h-9 px-5 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 shadow-sm hover:shadow-md border-0 disabled:opacity-50 disabled:cursor-not-allowed gap-2"
                 >
                   Generate Content
                   <ChevronRight className="size-4" />

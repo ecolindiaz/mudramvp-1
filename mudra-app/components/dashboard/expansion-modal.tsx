@@ -316,7 +316,7 @@ export function ExpansionModal<T extends Record<string, unknown>>({
                       variant="ghost"
                       size="sm"
                       onClick={() => setIsExpanded(!isExpanded)}
-                      className="h-8 px-4 bg-white text-black hover:bg-white text-xs font-medium rounded-lg transition-all gap-1.5"
+                      className="h-8 px-4 bg-white text-black hover:bg-white text-xs font-medium rounded-full transition-all gap-1.5"
                     >
                       {isExpanded ? 'Show less' : `Show all ${filteredData.length} items`}
                       {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}

@@ -233,7 +233,7 @@ function IntegrationsPageInner() {
                   <Button
                     variant={filterView === 'all' ? 'default' : 'ghost'}
                     size="sm"
-                    className={filterView === 'all' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
+                    className={filterView === 'all' ? 'h-8 rounded-full bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-full bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
                     onClick={() => setFilterView('all')}
                   >
                     All
@@ -241,7 +241,7 @@ function IntegrationsPageInner() {
                   <Button
                     variant={filterView === 'installed' ? 'default' : 'ghost'}
                     size="sm"
-                    className={filterView === 'installed' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
+                    className={filterView === 'installed' ? 'h-8 rounded-full bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-full bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
                     onClick={() => setFilterView('installed')}
                   >
                     Installed {githubConnected ? 1 : 0}
@@ -259,7 +259,7 @@ function IntegrationsPageInner() {
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-center size-8 rounded-md bg-white/5 border border-white/10">
+                        <div className="flex items-center justify-center size-8 rounded-full bg-white/5 border border-white/10">
                           <svg width="16" height="16" viewBox="0 0 14 21" fill="currentColor" className="text-white/70">
                             <path d="M0 0h14v7H7L0 0zm0 7h7l7 7H7v7L0 7z"/>
                           </svg>
@@ -267,7 +267,7 @@ function IntegrationsPageInner() {
                         <CardTitle className="text-white text-base font-semibold">Framer</CardTitle>
                       </div>
                       {websitePlatform === 'framer' && (
-                        <span className="text-[11px] px-2 py-0.5 rounded-md border border-green-500/20 bg-green-500/10 text-green-400">Active</span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-full border border-green-500/20 bg-green-500/10 text-green-400">Active</span>
                       )}
                     </div>
                   </CardHeader>
@@ -283,7 +283,7 @@ function IntegrationsPageInner() {
                         </div>
                         <Button
                           onClick={() => handlePlatformSave('')}
-                          className="w-full h-10 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium"
+                          className="w-full h-10 rounded-full bg-white/10 hover:bg-white/15 text-white text-sm font-medium"
                         >
                           Remove
                         </Button>
@@ -291,7 +291,7 @@ function IntegrationsPageInner() {
                     ) : (
                       <Button
                         onClick={() => handlePlatformSave('framer')}
-                        className="w-full h-10 rounded-lg bg-white text-black hover:bg-white/90 text-sm font-medium"
+                        className="w-full h-10 rounded-full bg-white text-black hover:bg-white/90 text-sm font-medium"
                       >
                         Select Framer
                       </Button>
@@ -310,7 +310,7 @@ function IntegrationsPageInner() {
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-center size-8 rounded-md bg-white/5 border border-white/10">
+                        <div className="flex items-center justify-center size-8 rounded-full bg-white/5 border border-white/10">
                           <Image src="/github.svg" alt="GitHub" width={16} height={16} />
                         </div>
                         <CardTitle className="text-white text-base font-semibold">GitHub</CardTitle>
@@ -341,7 +341,7 @@ function IntegrationsPageInner() {
                         </div>
                         <Button 
                           onClick={handleGitHubDisconnect}
-                          className="w-full h-10 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium"
+                          className="w-full h-10 rounded-full bg-white/10 hover:bg-white/15 text-white text-sm font-medium"
                         >
                           Disconnect
                         </Button>
@@ -378,7 +378,7 @@ function IntegrationsPageInner() {
                             <Button 
                               onClick={handleGitHubLink}
                               disabled={loading}
-                              className="ml-7 w-[calc(100%-1.75rem)] h-9 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium"
+                              className="ml-7 w-[calc(100%-1.75rem)] h-9 rounded-full bg-white/10 hover:bg-white/15 text-white text-sm font-medium"
                             >
                               <Link2 className="h-4 w-4 mr-2" />
                               Link Account
@@ -406,7 +406,7 @@ function IntegrationsPageInner() {
                           <Button 
                             onClick={handleGitHubConnect}
                             disabled={loading || !githubLinked}
-                            className="ml-7 w-[calc(100%-1.75rem)] h-9 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="ml-7 w-[calc(100%-1.75rem)] h-9 rounded-full bg-white/10 hover:bg-white/15 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <GitBranch className="h-4 w-4 mr-2" />
                             Install App
@@ -437,12 +437,12 @@ function IntegrationsPageInner() {
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-center size-8 rounded-md bg-white/5 border border-white/10">
+                        <div className="flex items-center justify-center size-8 rounded-full bg-white/5 border border-white/10">
                           <Image src="/gitlab-3.svg" alt="GitLab" width={18} height={18} />
                         </div>
                         <CardTitle className="text-white text-base font-semibold">GitLab</CardTitle>
                       </div>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md border border-white/10 bg-white/5 text-white/60">Soon</span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-white/60">Soon</span>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -450,7 +450,7 @@ function IntegrationsPageInner() {
                       Connect your repositories so Mudra can open Pull Requests for issues that it finds
                     </p>
                     <div>
-                      <Button disabled className="w-full h-10 rounded-lg bg-white/10 text-white/60 text-sm font-medium">
+                      <Button disabled className="w-full h-10 rounded-full bg-white/10 text-white/60 text-sm font-medium">
                         Install
                       </Button>
                     </div>
@@ -462,12 +462,12 @@ function IntegrationsPageInner() {
                   <CardHeader className="border-0 pb-1">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-center size-8 rounded-md bg-white/5 border border-white/10">
+                        <div className="flex items-center justify-center size-8 rounded-full bg-white/5 border border-white/10">
                           <Image src="/slack-logo-thumb.png" alt="Slack" width={18} height={18} />
                         </div>
                         <CardTitle className="text-white text-base font-semibold">Slack</CardTitle>
                       </div>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md border border-white/10 bg-white/5 text-white/60">Soon</span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-white/60">Soon</span>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -477,7 +477,7 @@ function IntegrationsPageInner() {
                     <div>
                       <Button
                         disabled
-                        className="w-full h-10 rounded-lg bg-white/10 text-white/60 text-sm font-medium"
+                        className="w-full h-10 rounded-full bg-white/10 text-white/60 text-sm font-medium"
                       >
                         Connect to Slack
                       </Button>

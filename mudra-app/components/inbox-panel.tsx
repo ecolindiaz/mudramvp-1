@@ -194,7 +194,7 @@ export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
         side="right"
         align="start"
         sideOffset={8}
-        className="w-[380px] p-0 bg-dark-grey border border-white/[0.06] shadow-2xl shadow-black/50 rounded-xl overflow-hidden"
+        className="w-[380px] p-0 bg-dark-grey border border-white/[0.06] shadow-2xl shadow-black/50 rounded-2xl overflow-hidden"
       >
         {/* Header */}
         <div className="border-b border-white/[0.06] px-4 py-3">
@@ -221,7 +221,7 @@ export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
             ) : (
               <button
                 onClick={() => onOpenChange(false)}
-                className="p-1 rounded-md hover:bg-white/[0.05] transition-colors"
+                className="p-1 rounded-full hover:bg-white/[0.05] transition-colors"
               >
                 <X className="w-4 h-4 text-white/40 hover:text-white/70" />
               </button>
@@ -253,7 +253,7 @@ export function InboxPanel({ open, onOpenChange, children }: InboxPanelProps) {
                           }`}
                         />
                       </div>
-                      <div className="flex-shrink-0 p-1.5 rounded-md bg-white/[0.05] text-white/50">
+                      <div className="flex-shrink-0 p-1.5 rounded-lg bg-white/[0.05] text-white/50">
                         {getNotificationIcon(notification.type)}
                       </div>
                     </div>

@@ -491,7 +491,7 @@ function CampaignsPageInner() {
             <div className="px-4 lg:px-6 pt-4">
               <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-4 py-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex items-center justify-center size-8 rounded-md bg-amber-500/10 border border-amber-500/20 flex-shrink-0">
+                  <div className="flex items-center justify-center size-8 rounded-full bg-amber-500/10 border border-amber-500/20 flex-shrink-0">
                     <FileText className="size-4 text-amber-400" />
                   </div>
                   <div className="min-w-0">
@@ -513,14 +513,14 @@ function CampaignsPageInner() {
                       href={blogSetupStatus.prUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-medium transition-colors border border-amber-500/20"
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-medium transition-colors border border-amber-500/20"
                     >
                       View PR
                     </a>
                   ) : (
                     <button
                       onClick={() => setBlogSetupDialogOpen(true)}
-                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-white/10 text-white hover:bg-white/15 text-xs font-medium transition-colors border border-white/[0.06]"
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-white/10 text-white hover:bg-white/15 text-xs font-medium transition-colors border border-white/[0.06]"
                     >
                       Set Up Blog
                     </button>
@@ -542,7 +542,7 @@ function CampaignsPageInner() {
           {/* Progress Animation - Shown on main page when generating */}
           {isGenerating && (
             <div className="flex flex-col items-center justify-center min-h-[500px] px-4 lg:px-6 py-10">
-              <div className="relative w-full max-w-2xl bg-transparent backdrop-blur-sm rounded-xl border border-white/[0.03] p-6 shadow-xl overflow-hidden">
+              <div className="relative w-full max-w-2xl bg-transparent backdrop-blur-sm rounded-2xl border border-white/[0.03] p-6 shadow-xl overflow-hidden">
                 {/* Title Section */}
                 <div className="text-center mb-6">
                   <div className="flex items-center justify-center mb-4">
@@ -612,7 +612,7 @@ function CampaignsPageInner() {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => setStatusFilter("draft")}
-                      className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                      className={`flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium transition-colors ${
                         statusFilter === "draft"
                           ? "bg-white/[0.08] text-white"
                           : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
@@ -623,7 +623,7 @@ function CampaignsPageInner() {
                     </button>
                     <button
                       onClick={() => setStatusFilter("published")}
-                      className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                      className={`flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium transition-colors ${
                         statusFilter === "published"
                           ? "bg-white/[0.08] text-white"
                           : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
@@ -663,7 +663,7 @@ function CampaignsPageInner() {
                               </TableCell>
                               {/* Mode */}
                               <TableCell className="py-3">
-                                <Skeleton className="h-6 w-14 rounded-md bg-white/[0.06]" />
+                                <Skeleton className="h-6 w-14 rounded-full bg-white/[0.06]" />
                               </TableCell>
                               {/* Updated */}
                               <TableCell className="py-3">
@@ -671,7 +671,7 @@ function CampaignsPageInner() {
                               </TableCell>
                               {/* Status */}
                               <TableCell className="py-3">
-                                <Skeleton className="h-6 w-16 rounded-md bg-white/[0.06]" />
+                                <Skeleton className="h-6 w-16 rounded-full bg-white/[0.06]" />
                               </TableCell>
                             </TableRow>
                           ))}
@@ -711,7 +711,7 @@ function CampaignsPageInner() {
                                 <span className="text-xs text-white/50">Blog Post</span>
                               </TableCell>
                               <TableCell className="py-3">
-                                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.03]">
+                                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
                                   <div className="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
                                   <span className="text-xs text-white/70 font-medium">GEO</span>
                                 </div>
@@ -720,7 +720,7 @@ function CampaignsPageInner() {
                                 <span className="text-xs text-white/50">Generating...</span>
                               </TableCell>
                               <TableCell className="py-3">
-                                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.03]">
+                                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
                                   <Loader2 className="w-3 h-3 text-primary animate-spin" />
                                   <span className="text-xs text-white/70 font-medium">Generating</span>
                                 </div>
@@ -749,7 +749,7 @@ function CampaignsPageInner() {
                                   <span className="text-xs text-white/50">{c.type}</span>
                                 </TableCell>
                                 <TableCell className="py-3">
-                                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.03]">
+                                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
                                     <div className={cn(
                                       "w-1.5 h-1.5 rounded-full",
                                       c.mode.toUpperCase() === "GEO" ? "bg-sky-400" : "bg-amber-400"
@@ -763,7 +763,7 @@ function CampaignsPageInner() {
                                   </span>
                                 </TableCell>
                                 <TableCell className="py-3">
-                                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.03]">
+                                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
                                     <div className={cn(
                                       "w-1.5 h-1.5 rounded-full",
                                       c.status === "Published" ? "bg-green-500" : "bg-white/40"

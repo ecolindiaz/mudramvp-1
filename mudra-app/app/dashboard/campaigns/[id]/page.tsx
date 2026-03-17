@@ -534,7 +534,7 @@ function CampaignCanvasPageInner({
                     variant="outline" 
                     size="sm" 
                     title={blogSetupStatus?.canPublish ? 'Publish to your website' : blogSetupStatus?.actionRequired || 'Set up blog first'}
-                    className={`h-9 px-4 rounded-md gap-2 text-xs font-medium transition-all duration-200 ${
+                    className={`h-9 px-4 rounded-full gap-2 text-xs font-medium transition-all duration-200 ${
                       published 
                         ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" 
                         : blogSetupStatus?.canPublish
@@ -566,7 +566,7 @@ function CampaignCanvasPageInner({
                     </div>
                   )}
                   
-                  <Button onClick={handleSave} disabled={saving} variant="outline" size="sm" className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.04] text-xs font-medium gap-2 disabled:opacity-50">
+                  <Button onClick={handleSave} disabled={saving} variant="outline" size="sm" className="h-9 px-4 rounded-full bg-white/5 text-white hover:bg-white/10 border-white/[0.04] text-xs font-medium gap-2 disabled:opacity-50">
                     <Save className="size-3.5" />{saving ? 'Saving…' : 'Save'}
                   </Button>
                   
@@ -574,12 +574,12 @@ function CampaignCanvasPageInner({
                     onClick={() => setShowDeleteConfirm(true)} 
                     variant="outline" 
                     size="sm" 
-                    className="h-9 px-4 rounded-md bg-white/5 text-red-400 hover:bg-red-500/10 border-red-500/20 text-xs font-medium gap-2"
+                    className="h-9 px-4 rounded-full bg-white/5 text-red-400 hover:bg-red-500/10 border-red-500/20 text-xs font-medium gap-2"
                   >
                     <Trash2 className="size-3.5" />Delete
                   </Button>
                   
-                  <Button asChild size="sm" className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.04] text-xs font-medium">
+                  <Button asChild size="sm" className="h-9 px-4 rounded-full bg-white/5 text-white hover:bg-white/10 border-white/[0.04] text-xs font-medium">
                     <Link href="/dashboard/campaigns">Back</Link>
                   </Button>
                 </div>
@@ -608,7 +608,7 @@ function CampaignCanvasPageInner({
               {isLoading ? (
                 /* Droid-lab style loading card */
                 <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                  <Card className="w-full max-w-md rounded-xl border border-white/[0.04] bg-[#121212] shadow-md">
+                  <Card className="w-full max-w-md rounded-2xl border border-white/[0.04] bg-[#121212] shadow-md">
                     <CardContent className="pt-6 pb-6 px-6 relative overflow-hidden">
                       <div className="pointer-events-none absolute inset-0">
                         <div className="absolute -bottom-20 -left-12 w-48 h-48 bg-primary/10 blur-3xl rounded-full" />
@@ -640,7 +640,7 @@ function CampaignCanvasPageInner({
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4 items-start h-full">
                 {/* Editor (left side) */}
                 <div className="lg:col-span-2 space-y-2 order-1 lg:order-1 flex flex-col">
-                    <Card className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col">
+                    <Card className="rounded-2xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col">
                     <CardHeader className="pb-2 px-5 pt-4 flex-shrink-0">
                       <div className="flex items-center justify-between">
                         <div>
@@ -653,7 +653,7 @@ function CampaignCanvasPageInner({
                           <Button
                             variant="outline"
                             size="sm"
-                            className={`h-8 px-3 rounded-md text-xs font-medium gap-1.5 ${editMode ? "bg-primary text-white hover:bg-primary/90 border-primary" : "bg-white/5 text-white hover:bg-white/10 border-white/[0.04]"}`}
+                            className={`h-8 px-3 rounded-full text-xs font-medium gap-1.5 ${editMode ? "bg-primary text-white hover:bg-primary/90 border-primary" : "bg-white/5 text-white hover:bg-white/10 border-white/[0.04]"}`}
                             onClick={() => setEditMode((v) => !v)}
                           >
                             <Edit className="size-3.5" /> {editMode ? "Editing" : "Edit"}
@@ -662,7 +662,7 @@ function CampaignCanvasPageInner({
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-white/[0.04] text-xs font-medium gap-1.5"
+                              className="h-8 px-3 rounded-full bg-white/5 text-white hover:bg-white/10 border-white/[0.04] text-xs font-medium gap-1.5"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 setShowCopyMenu((v) => !v)
@@ -726,7 +726,7 @@ function CampaignCanvasPageInner({
                           value={title} 
                           onChange={(e) => setTitle(e.target.value)} 
                           disabled={isLoading || !editMode}
-                          className="h-9 rounded-lg bg-white/[0.03] border-white/[0.04] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] disabled:opacity-50 text-sm" 
+                          className="h-9 rounded-full bg-white/[0.03] border-white/[0.04] text-white/90 placeholder:text-white/50 focus-visible:border-white/[0.12] focus-visible:bg-white/[0.05] disabled:opacity-50 text-sm" 
                           placeholder="Post title" 
                         />
                       <div className="h-[70vh]">
@@ -760,7 +760,7 @@ function CampaignCanvasPageInner({
                 <div className="order-2 lg:order-2 flex flex-col h-full self-start">
                   {editMode ? (
                     /* AI Edit - Coming Soon */
-                    <div className="rounded-xl bg-[#1a1a1a] overflow-hidden flex flex-col w-full">
+                    <div className="rounded-2xl bg-[#1a1a1a] overflow-hidden flex flex-col w-full">
                       <div className="p-6 flex flex-col items-center text-center">
                         <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center">
                           <img 
@@ -783,14 +783,14 @@ function CampaignCanvasPageInner({
                     </div>
                   ) : (
                     /* Normal Tabs */
-                    <Card className="rounded-xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col w-full flex-1 min-h-0">
+                    <Card className="rounded-2xl border border-white/[0.04] bg-[#1a1a1a] overflow-hidden shadow-sm flex flex-col w-full flex-1 min-h-0">
                       <CardContent className="p-0 flex flex-col flex-1 min-h-0">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col flex-1 min-h-0">
                         <div className="px-5 pt-4 pb-3 border-b border-white/[0.04] flex-shrink-0">
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => setActiveTab("copy")}
-                              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium transition-colors ${
                                 activeTab === "copy"
                                   ? "bg-white/[0.08] text-white"
                                   : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
@@ -801,7 +801,7 @@ function CampaignCanvasPageInner({
                             </button>
                             <button
                               onClick={() => setActiveTab("seo")}
-                              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium transition-colors ${
                                 activeTab === "seo"
                                   ? "bg-white/[0.08] text-white"
                                   : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
@@ -812,7 +812,7 @@ function CampaignCanvasPageInner({
                             </button>
                             <button
                               onClick={() => setActiveTab("backlinks")}
-                              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium transition-colors ${
                                 activeTab === "backlinks"
                                   ? "bg-white/[0.08] text-white"
                                   : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
@@ -937,7 +937,7 @@ function CampaignCanvasPageInner({
                                       setTitleCopied(true)
                                       setTimeout(() => setTitleCopied(false), 2000)
                                     }}
-                                    className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
+                                    className="p-1.5 rounded-full hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
                                     title="Copy meta title"
                                   >
                                     {titleCopied ? (
@@ -960,7 +960,7 @@ function CampaignCanvasPageInner({
                                       setDescCopied(true)
                                       setTimeout(() => setDescCopied(false), 2000)
                                     }}
-                                    className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
+                                    className="p-1.5 rounded-full hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
                                     title="Copy meta description"
                                   >
                                     {descCopied ? (
@@ -983,7 +983,7 @@ function CampaignCanvasPageInner({
                                       setSlugCopied(true)
                                       setTimeout(() => setSlugCopied(false), 2000)
                                     }}
-                                    className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
+                                    className="p-1.5 rounded-full hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors"
                                     title="Copy slug"
                                   >
                                     {slugCopied ? (
@@ -1010,7 +1010,7 @@ function CampaignCanvasPageInner({
                                   <button
                                     onClick={handleRegenerateSchema}
                                     disabled={schemaRegenerating}
-                                    className="h-7 px-2.5 rounded-md text-white/50 hover:text-white/70 hover:bg-white/[0.04] text-[11px] font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                    className="h-7 px-2.5 rounded-full text-white/50 hover:text-white/70 hover:bg-white/[0.04] text-[11px] font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                     title="Regenerate schema with GPT 5.2"
                                   >
                                     {schemaRegenerating ? (
@@ -1028,7 +1028,7 @@ function CampaignCanvasPageInner({
                                       setTimeout(() => setSchemaCopied(false), 2000)
                                     }}
                                     disabled={!contentLabSchema?.scriptTag}
-                                    className="p-1.5 rounded-md hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="p-1.5 rounded-full hover:bg-white/[0.05] text-white/50 hover:text-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Copy schema script tag"
                                   >
                                     {schemaCopied ? (
@@ -1043,7 +1043,7 @@ function CampaignCanvasPageInner({
                               {contentLabSchema?.scriptTag ? (
                                 <div className="relative">
                                   <pre
-                                    className={`text-[11px] leading-5 text-white/85 bg-black/25 border border-white/[0.06] rounded-md p-3 overflow-x-auto whitespace-pre-wrap break-all transition-all ${schemaExpanded ? 'max-h-none overflow-y-auto' : 'overflow-hidden'}`}
+                                    className={`text-[11px] leading-5 text-white/85 bg-black/25 border border-white/[0.06] rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all transition-all ${schemaExpanded ? 'max-h-none overflow-y-auto' : 'overflow-hidden'}`}
                                     style={schemaExpanded ? undefined : { maxHeight: 'calc(100vh - 710px)', minHeight: '100px' }}
                                   >
                                     {contentLabSchema.scriptTag}
@@ -1090,7 +1090,7 @@ function CampaignCanvasPageInner({
                               return (
                                 <div className="space-y-2">
                                   {matches.map((match, index) => (
-                                    <div key={index} className="flex items-start gap-2 p-2 rounded-md bg-white/[0.03] border border-white/[0.06]">
+                                    <div key={index} className="flex items-start gap-2 p-2 rounded-full bg-white/[0.03] border border-white/[0.06]">
                                       <LinkIcon className="size-3.5 text-blue-400 mt-0.5 flex-shrink-0" />
                                       <div className="flex-1 min-w-0">
                                         <p className="text-xs font-medium text-white/90 truncate">{match[1]}</p>

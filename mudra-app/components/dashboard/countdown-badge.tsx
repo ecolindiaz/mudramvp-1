@@ -63,7 +63,7 @@ export function CountdownBadge({ targetMs, className }: CountdownBadgeProps) {
     return (
       <div
         className={cn(
-          "inline-flex items-center gap-2 h-9 rounded-xl border border-dashed px-3 text-sm font-medium",
+          "inline-flex items-center gap-2 h-9 rounded-2xl border border-dashed px-3 text-sm font-medium",
           "bg-green-500/10 text-green-400 border-green-400/40 hover:bg-green-500/20 transition-colors",
           className
         )}
@@ -81,7 +81,7 @@ export function CountdownBadge({ targetMs, className }: CountdownBadgeProps) {
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 h-9 rounded-xl border border-dashed px-3 text-sm font-medium",
+        "inline-flex items-center gap-2 h-9 rounded-2xl border border-dashed px-3 text-sm font-medium",
         "bg-transparent text-white/90 border-white/40 hover:bg-white/5 transition-colors",
         className
       )}

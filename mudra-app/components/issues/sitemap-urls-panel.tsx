@@ -204,7 +204,7 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
 
   if (isLoading) {
     return (
-      <div className="bg-white/[0.03] rounded-xl p-5">
+      <div className="bg-white/[0.03] rounded-2xl p-5">
         <div className="flex items-center gap-2">
           <IconLoader2 className="w-4 h-4 text-white/40 animate-spin" />
           <span className="text-sm text-white/50">Loading tracked pages...</span>
@@ -214,7 +214,7 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
   }
 
   return (
-    <div className="bg-white/[0.03] rounded-xl p-5">
+    <div className="bg-white/[0.03] rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-white/80">Tracked Pages</h3>
         <span className="text-[11px] text-white/40">{pages.length} pages</span>

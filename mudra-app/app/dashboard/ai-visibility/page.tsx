@@ -166,19 +166,19 @@ function AIVisibilityPageContent() {
                         {/* Score Summary */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           {/* AI Visibility Score */}
-                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
+                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
                             <div className="text-[11px] text-white/50 uppercase tracking-wide mb-2">Visibility Score</div>
                             <div className="text-2xl font-semibold text-white">{currentScore.percentage}%</div>
                           </div>
 
                           {/* Mentions */}
-                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
+                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
                             <div className="text-[11px] text-white/50 uppercase tracking-wide mb-2">Mentions</div>
                             <div className="text-2xl font-semibold text-white">{currentScore.mentionCount}<span className="text-white/40 text-lg">/10</span></div>
                           </div>
 
                           {/* Average Position */}
-                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
+                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
                             <div className="text-[11px] text-white/50 uppercase tracking-wide mb-2">Avg Position</div>
                             <div className="text-2xl font-semibold text-white">
                               {currentScore.averagePosition > 0 ? `#${currentScore.averagePosition.toFixed(1)}` : '—'}
@@ -186,7 +186,7 @@ function AIVisibilityPageContent() {
                           </div>
 
                           {/* Total Score */}
-                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
+                          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all">
                             <div className="text-[11px] text-white/50 uppercase tracking-wide mb-2">Total Score</div>
                             <div className="text-2xl font-semibold text-white">{currentScore.totalScore.toFixed(1)}</div>
                           </div>
@@ -202,7 +202,7 @@ function AIVisibilityPageContent() {
                             {currentScore.results.map((result, index) => (
                               <Dialog key={index}>
                                 <DialogTrigger asChild>
-                                  <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3.5 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all cursor-pointer group">
+                                  <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-3.5 hover:bg-white/[0.05] hover:border-white/[0.12] transition-all cursor-pointer group">
                                     <div className="flex items-start gap-3">
                                       {result.mentioned ? (
                                         <CheckCircle className="w-4 h-4 mt-0.5 text-emerald-400 flex-shrink-0" />
@@ -219,7 +219,7 @@ function AIVisibilityPageContent() {
                                       </div>
                                       <div className="flex items-center gap-2 flex-shrink-0">
                                         {result.position && (
-                                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] text-white/50">
+                                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.05] text-white/50">
                                             #{result.position}
                                           </span>
                                         )}
@@ -235,18 +235,18 @@ function AIVisibilityPageContent() {
                                   <DialogHeader className="pb-3">
                                     <div className="flex items-center gap-2 mb-2">
                                       {result.mentioned ? (
-                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[11px]">
+                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px]">
                                           <CheckCircle className="w-3 h-3" />
                                           Mentioned
                                         </span>
                                       ) : (
-                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05] text-white/50 text-[11px]">
+                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05] text-white/50 text-[11px]">
                                           <XCircle className="w-3 h-3" />
                                           Not Mentioned
                                         </span>
                                       )}
                                       {result.position && (
-                                        <span className="text-[11px] px-2 py-0.5 rounded-md bg-white/[0.05] text-white/50">
+                                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/[0.05] text-white/50">
                                           Position #{result.position}
                                         </span>
                                       )}

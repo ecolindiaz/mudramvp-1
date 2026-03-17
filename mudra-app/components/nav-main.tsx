@@ -47,7 +47,7 @@ const NavigationItem = memo(({
         tooltip={item.title}
         isActive={isActive}
         asChild
-        className={`h-8 px-3 text-sm font-medium relative transition-all duration-200 group rounded ${
+        className={`h-8 px-3 text-sm font-medium relative transition-all duration-200 group rounded-lg ${
           isActive
             ? 'text-white bg-white/10'
             : 'text-white hover:text-white hover:bg-white/10'

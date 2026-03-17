@@ -375,7 +375,7 @@ const createColumns = (router: ReturnType<typeof useRouter>, selectedCountry: st
       const config = intentConfig[intent] || { icon: null, label: intent }
       return (
         <div className="flex items-center justify-center">
-          <Badge className="px-2 py-0.5 rounded text-xs font-medium bg-white text-black border-0 gap-1.5">
+          <Badge className="px-2 py-0.5 rounded-full text-xs font-medium bg-white text-black border-0 gap-1.5">
             {config.icon}
             {config.label}
           </Badge>
@@ -414,7 +414,7 @@ const createColumns = (router: ReturnType<typeof useRouter>, selectedCountry: st
       }
       return (
         <div className="flex items-center justify-center">
-          <Badge className="px-2 py-0.5 rounded text-xs font-medium bg-white/10 text-white/80 border-0">
+          <Badge className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white/80 border-0">
             {sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase()}
           </Badge>
         </div>
@@ -1207,7 +1207,7 @@ function TrackedPromptsPageInner() {
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
-                    className="h-9 rounded-lg bg-white/5 text-white hover:bg-white/10 border-0"
+                    className="h-9 rounded-full bg-white/5 text-white hover:bg-white/10 border-0"
                     onClick={() => {
                       if (showAll) {
                         setPagination((p: PaginationState) => ({ ...p, pageIndex: 0, pageSize: 15 }))
@@ -1223,7 +1223,7 @@ function TrackedPromptsPageInner() {
                   </Button>
                   <Button
                     size="sm"
-                    className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5"
+                    className="h-9 rounded-full bg-white text-black hover:bg-white/90 border-transparent gap-1.5"
                     onClick={() => setAddOpen(true)}
                     disabled={isLoading || data.length >= 100}
                   >
@@ -1246,7 +1246,7 @@ function TrackedPromptsPageInner() {
                     <span className="text-sm text-muted-foreground">Filter by:</span>
                   </div>
                   <Select value={selectedModel} onValueChange={setSelectedModel}>
-                    <SelectTrigger className="w-[160px] h-9 !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-lg transition-all duration-200">
+                    <SelectTrigger className="w-[160px] h-9 !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-full transition-all duration-200">
                       <SelectValue placeholder="All Models" />
                     </SelectTrigger>
                     <SelectContent className="bg-[#1b1b1b] border-0">
@@ -1274,7 +1274,7 @@ function TrackedPromptsPageInner() {
                     </SelectContent>
                   </Select>
                   <Select value={selectedIntent} onValueChange={setSelectedIntent}>
-                    <SelectTrigger className="w-[180px] h-9 !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-lg transition-all duration-200">
+                    <SelectTrigger className="w-[180px] h-9 !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-full transition-all duration-200">
                       <SelectValue placeholder="All Intents" />
                     </SelectTrigger>
                     <SelectContent className="bg-[#1b1b1b] border-0">
@@ -1309,7 +1309,7 @@ function TrackedPromptsPageInner() {
                         Updating
                       </div>
                     )}
-                    <div className={`px-2.5 py-1 rounded-md text-sm font-medium ${
+                    <div className={`px-2.5 py-1 rounded-full text-sm font-medium ${
                       data.length >= 100
                         ? 'bg-amber-500/15 text-amber-400'
                         : 'bg-white/5 text-muted-foreground'
@@ -1318,7 +1318,7 @@ function TrackedPromptsPageInner() {
                     </div>
                     <Button
                       size="sm"
-                      className="h-8 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 hover:text-white border-0 gap-1.5 text-sm"
+                      className="h-8 rounded-full bg-white/5 text-white/70 hover:bg-white/10 hover:text-white border-0 gap-1.5 text-sm"
                       onClick={handleExportCSV}
                       disabled={isLoading || filteredData.length === 0}
                     >
@@ -1327,7 +1327,7 @@ function TrackedPromptsPageInner() {
                     </Button>
                   </div>
                 </div>
-                <div className="overflow-hidden rounded-xl border border-white/[0.04] relative">
+                <div className="overflow-hidden rounded-2xl border border-white/[0.04] relative">
                   <div className="absolute top-0 left-0 right-0 h-12 bg-white/[0.04] pointer-events-none" />
                   <Table className="relative table-fixed text-sm px-2 [&_tbody>tr:hover>td]:bg-white/[0.06]" style={{ borderSpacing: '0 4px' }}>
                     <TableHeader>
@@ -1558,7 +1558,7 @@ function TrackedPromptsPageInner() {
                     setAddOpen(true)
                   }
                 }}>
-                  <DialogContent className="sm:max-w-lg rounded-xl border-0 bg-dark-grey overflow-hidden">
+                  <DialogContent className="sm:max-w-lg rounded-2xl border-0 bg-dark-grey overflow-hidden">
                     <DialogHeader>
                       <DialogTitle>Add Prompt</DialogTitle>
                       <DialogDescription>
@@ -1575,10 +1575,10 @@ function TrackedPromptsPageInner() {
 
                     {/* Mode toggle pill */}
                     {aiStep !== 'running' && (
-                      <div className="p-1 rounded-lg bg-white/[0.04] flex">
+                      <div className="p-1 rounded-full bg-white/[0.04] flex">
                         <button
                           className={cn(
-                            "flex-1 text-sm font-medium py-1.5 rounded-md transition-colors",
+                            "flex-1 text-sm font-medium py-1.5 rounded-full transition-colors",
                             dialogMode === 'manual'
                               ? "bg-white/10 text-white"
                               : "text-white/50 hover:text-white/70"
@@ -1590,7 +1590,7 @@ function TrackedPromptsPageInner() {
                         </button>
                         <button
                           className={cn(
-                            "flex-1 text-sm font-medium py-1.5 rounded-md transition-colors flex items-center justify-center gap-1.5",
+                            "flex-1 text-sm font-medium py-1.5 rounded-full transition-colors flex items-center justify-center gap-1.5",
                             dialogMode === 'ai'
                               ? "bg-white/10 text-white"
                               : "text-white/50 hover:text-white/70"
@@ -1648,7 +1648,7 @@ function TrackedPromptsPageInner() {
                               onValueChange={(v) => setNewIntent(v ?? "Organic")}
                               disabled={isAdding}
                             >
-                              <SelectTrigger id="intent" className="w-full rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 outline-none border-white/10">
+                              <SelectTrigger id="intent" className="w-full rounded-full focus-visible:ring-0 focus-visible:ring-offset-0 outline-none border-white/10">
                                 <SelectValue placeholder="Select intent" />
                               </SelectTrigger>
                               <SelectContent className="rounded-lg">
@@ -1686,14 +1686,14 @@ function TrackedPromptsPageInner() {
                               setRunAnalysisOnAdd(true)
                               resetAiState()
                             }}
-                            className="h-9 rounded-lg"
+                            className="h-9 rounded-full"
                             disabled={isAdding}
                           >
                             Cancel
                           </Button>
                           <Button
                             onClick={handleAddPrompt}
-                            className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
+                            className="h-9 rounded-full bg-white text-black hover:bg-white/90 border-transparent"
                             disabled={isAdding || !newPromptText.trim() || newPromptText.length > MAX_PROMPT_LENGTH}
                           >
                             {isAdding ? (
@@ -1738,7 +1738,7 @@ function TrackedPromptsPageInner() {
                                   key={n}
                                   size="sm"
                                   className={cn(
-                                    "h-9 rounded-lg border-0 transition-colors",
+                                    "h-9 rounded-full border-0 transition-colors",
                                     aiCount === n
                                       ? "bg-white text-black hover:bg-white/90"
                                       : "bg-white/5 text-white hover:bg-white/10"
@@ -1759,14 +1759,14 @@ function TrackedPromptsPageInner() {
                               setAddOpen(false)
                               resetAiState()
                             }}
-                            className="h-9 rounded-lg"
+                            className="h-9 rounded-full"
                             disabled={isAiGenerating}
                           >
                             Cancel
                           </Button>
                           <Button
                             onClick={handleGenerate}
-                            className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent gap-1.5"
+                            className="h-9 rounded-full bg-white text-black hover:bg-white/90 border-transparent gap-1.5"
                             disabled={isAiGenerating || !aiDescription.trim()}
                           >
                             {isAiGenerating ? (
@@ -1814,13 +1814,13 @@ function TrackedPromptsPageInner() {
                           <Button
                             variant="outline"
                             onClick={() => setAiStep('describe')}
-                            className="h-9 rounded-lg gap-1.5"
+                            className="h-9 rounded-full gap-1.5"
                           >
                             ← Back
                           </Button>
                           <Button
                             onClick={handleRunAnalysis}
-                            className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
+                            className="h-9 rounded-full bg-white text-black hover:bg-white/90 border-transparent"
                           >
                             Run Analysis
                           </Button>
@@ -1901,7 +1901,7 @@ function TrackedPromptsPageInner() {
                               analysisAbortRef.current = true
                               setAddOpen(false)
                             }}
-                            className="h-8 rounded-lg text-xs"
+                            className="h-8 rounded-full text-xs"
                           >
                             Close
                           </Button>
@@ -1921,7 +1921,7 @@ function TrackedPromptsPageInner() {
                     setErrorMessage(null)
                   }
                 }}>
-                  <DialogContent className="sm:max-w-lg rounded-xl border-0 bg-dark-grey">
+                  <DialogContent className="sm:max-w-lg rounded-2xl border-0 bg-dark-grey">
                     <DialogHeader>
                       <DialogTitle>Edit Prompt</DialogTitle>
                       <DialogDescription>
@@ -1973,7 +1973,7 @@ function TrackedPromptsPageInner() {
                           }}
                           disabled={isEditing}
                         >
-                          <SelectTrigger id="edit-intent" className="w-full rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 outline-none border-white/10">
+                          <SelectTrigger id="edit-intent" className="w-full rounded-full focus-visible:ring-0 focus-visible:ring-offset-0 outline-none border-white/10">
                             <SelectValue placeholder="Select intent" />
                           </SelectTrigger>
                           <SelectContent className="rounded-lg bg-[#1b1b1b] border-0">
@@ -1997,14 +1997,14 @@ function TrackedPromptsPageInner() {
                           setEditIntent("Organic")
                           setErrorMessage(null)
                         }} 
-                        className="h-9 rounded-lg"
+                        className="h-9 rounded-full"
                         disabled={isEditing}
                       >
                         Cancel
                       </Button>
                       <Button 
                         onClick={handleEditPrompt} 
-                        className="h-9 rounded-lg bg-white text-black hover:bg-white/90 border-transparent"
+                        className="h-9 rounded-full bg-white text-black hover:bg-white/90 border-transparent"
                         disabled={isEditing || !editPromptText.trim() || editPromptText.length > MAX_PROMPT_LENGTH}
                       >
                         {isEditing ? (

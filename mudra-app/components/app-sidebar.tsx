@@ -644,7 +644,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                       return (
                         <div
                           key={monitor.id || monitor.domain || monitor.label}
-                          className="rounded-md px-3 h-10 flex items-center gap-2.5 cursor-not-allowed opacity-50"
+                          className="rounded-lg px-3 h-10 flex items-center gap-2.5 cursor-not-allowed opacity-50"
                         >
                           <div className="w-6 h-6 bg-white/[0.06] rounded-full flex-shrink-0 animate-pulse" />
                           <span className="flex-1 truncate text-sm text-white/40">{monitor.domain || monitor.label}</span>
@@ -660,7 +660,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                       <DropdownMenuItem
                         key={monitor.id || monitor.domain || monitor.label}
                         onClick={() => handleMonitorSwitch(monitor)}
-                        className={`rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-2.5 ${monitor.isCurrent ? 'bg-white/[0.04]' : ''}`}
+                        className={`rounded-lg text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-2.5 ${monitor.isCurrent ? 'bg-white/[0.04]' : ''}`}
                       >
                         <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center flex-shrink-0 border border-white/[0.08] overflow-hidden">
                           {monitor.domain ? (
@@ -682,7 +682,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                 <DropdownMenuSeparator className="!bg-white/[0.08] my-2 mx-2" />
                 <div className="px-2 py-1">
                   <DropdownMenuItem
-                    className="rounded-md text-white/50 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-2.5">
+                    className="rounded-lg text-white/50 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-9 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-2.5">
                     <IconPlus className="w-4 h-4" />
                     <span className="text-sm">Add Monitor</span>
                   </DropdownMenuItem>
@@ -695,7 +695,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/[0.06] transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                  className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/[0.06] transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                   aria-label={`Current region: ${REGIONS.find(r => r.code === selectedCountry)?.label || selectedCountry}. Click to change.`}
                 >
                   <CircleFlag countryCode={selectedCountry.toLowerCase()} height="18" width="18" className="flex-shrink-0" style={{ width: 18, height: 18 }} />
@@ -719,7 +719,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                     return (
                       <div
                         key={region.code}
-                        className="flex items-center gap-2.5 px-2.5 py-2 rounded-md w-full cursor-not-allowed opacity-50"
+                        className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg w-full cursor-not-allowed opacity-50"
                       >
                         <div className="flex-shrink-0 w-4 h-4 rounded-full bg-white/[0.08] animate-pulse" />
                         <div className="flex-1 flex items-center gap-2">
@@ -738,7 +738,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                       key={region.code}
                       type="button"
                       onClick={() => selectRegion(region.code)}
-                      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md cursor-pointer hover:bg-white/[0.06] transition-colors w-full text-left ${
+                      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer hover:bg-white/[0.06] transition-colors w-full text-left ${
                         isSelected ? 'bg-white/[0.04]' : ''
                       }`}
                     >
@@ -780,7 +780,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                   <SidebarMenuButton
                     tooltip="Inbox"
                     onClick={handleInboxClick}
-                    className="h-8 px-3 text-sm font-medium relative transition-all duration-200 group rounded text-white hover:text-white hover:bg-white/10 cursor-pointer"
+                    className="h-8 px-3 text-sm font-medium relative transition-all duration-200 group rounded-lg text-white hover:text-white hover:bg-white/10 cursor-pointer"
                   >
                     <InboxIcon strokeWidth={2.5} className={`w-[25px] h-[25px] mr-1.25 transition-all duration-200 text-white/60 group-hover:text-white/80 ${inboxAnimating ? 'animate-icon-drop' : ''}`} onAnimationEnd={() => setInboxAnimating(false)} />
                     <span className="transition-all duration-200 font-normal">
@@ -802,7 +802,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
             {/* Help menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="w-9 h-9 flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.05] rounded-md transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0">
+                <button className="w-9 h-9 flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.06] rounded-full transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 border border-transparent hover:border-white/[0.08]">
                   <IconQuestionMark strokeWidth={2} className="w-5 h-5" />
                 </button>
               </DropdownMenuTrigger>
@@ -815,7 +815,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                 <DropdownMenuGroup className="px-2 py-2 space-y-0.5">
                   <DropdownMenuItem
                     onClick={() => window.open('https://cal.com/nano-mudra/quick-30-min', '_blank')}
-                    className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center justify-between">
+                    className="rounded-lg text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <IconCalendar className="w-4 h-4 text-white/50" />
                       <span>Book a demo</span>
@@ -824,7 +824,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => window.open('https://docs.trymudra.com/', '_blank')}
-                    className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center justify-between">
+                    className="rounded-lg text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <IconFileText className="w-4 h-4 text-white/50" />
                       <span>Docs</span>
@@ -838,7 +838,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
             {/* Settings menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="w-9 h-9 flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.05] rounded-md transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0">
+                <button className="w-9 h-9 flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.06] rounded-full transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 border border-transparent hover:border-white/[0.08]">
                   <IconSettings strokeWidth={1.5} className="w-5 h-5" />
                 </button>
               </DropdownMenuTrigger>
@@ -851,14 +851,14 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                 <DropdownMenuGroup className="px-2 py-2 space-y-0.5">
                   <DropdownMenuItem
                     onClick={() => router.push('/dashboard/account')}
-                    className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
+                    className="rounded-lg text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
                     <IconUserCircle className="w-4 h-4 text-white/50" />
                     <span>Account</span>
                   </DropdownMenuItem>
                   {process.env.NODE_ENV !== 'production' && (
                     <DropdownMenuItem
                       onClick={() => router.push('/dashboard/billing')}
-                      className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
+                      className="rounded-lg text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
                       <IconCreditCard className="w-4 h-4 text-white/50" />
                       <span>Billing</span>
                     </DropdownMenuItem>
@@ -866,7 +866,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                   {process.env.NODE_ENV !== 'production' && (
                     <DropdownMenuItem
                       onClick={() => router.push('/dashboard/notifications')}
-                      className="rounded-md text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
+                      className="rounded-lg text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
                       <IconNotification className="w-4 h-4 text-white/50" />
                       <span>Notifications</span>
                     </DropdownMenuItem>
@@ -877,7 +877,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                   <DropdownMenuItem
                     onClick={handleSignOut}
                     onSelect={(e) => e.preventDefault()}
-                    className="rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 focus:text-red-300 cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
+                    className="rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 focus:text-red-300 cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
                     <IconLogout className="w-4 h-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>

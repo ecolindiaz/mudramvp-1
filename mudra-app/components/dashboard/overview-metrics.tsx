@@ -812,7 +812,7 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
     <div className="grid grid-cols-1 gap-4 md:gap-5 px-4 lg:px-6 @xl/main:grid-cols-2 @3xl/main:grid-cols-4">
       {/* AI Visibility Score */}
       <div 
-        className="bg-[#1b1b1b]  rounded-xl p-5 flex flex-col cursor-pointer transition-all"
+        className="bg-[#1b1b1b]  rounded-2xl p-5 flex flex-col cursor-pointer transition-all"
         onClick={() => setAiVisibilityExpanded(!aiVisibilityExpanded)}
       >
         <div className="flex items-center justify-between mb-2">
@@ -962,7 +962,7 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
       </div>
 
       {/* Average Position */}
-      <div className="bg-[#1b1b1b]  rounded-xl p-5 min-h-[140px] flex flex-col">
+      <div className="bg-[#1b1b1b]  rounded-2xl p-5 min-h-[140px] flex flex-col">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-white/50 font-medium">Avg Position</span>
           <Tooltip>
@@ -1008,7 +1008,7 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
 
       {/* Technical Structure Score */}
       <div 
-        className="bg-[#1b1b1b]  rounded-xl p-5 flex flex-col cursor-pointer transition-all"
+        className="bg-[#1b1b1b]  rounded-2xl p-5 flex flex-col cursor-pointer transition-all"
         onClick={() => setTechnicalScoreExpanded(!technicalScoreExpanded)}
       >
         <div className="flex items-center justify-between mb-2">
@@ -1165,7 +1165,7 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
       </div>
 
       {/* AI Referral Traffic */}
-      <div className="bg-[#1b1b1b]  rounded-xl p-5 min-h-[140px] flex flex-col">
+      <div className="bg-[#1b1b1b]  rounded-2xl p-5 min-h-[140px] flex flex-col">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-white/50 font-medium">AI Referral</span>
           <Tooltip>
@@ -1205,7 +1205,7 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
               <Button 
                 size="sm" 
                 onClick={handleConnect}
-                className="h-7 px-3 rounded-md bg-white text-black hover:bg-white/90 text-xs font-medium"
+                className="h-7 px-3 rounded-full bg-white text-black hover:bg-white/90 text-xs font-medium"
               >
                 Connect
               </Button>
@@ -1249,7 +1249,7 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
 
       {/* AI Referral Tracking Setup Modal */}
       <Dialog open={showTrackingModal} onOpenChange={setShowTrackingModal}>
-        <DialogContent className={`${modalView === 'traffic' && isTrackingConnected ? '!max-w-md' : '!max-w-lg'} bg-[#1b1b1b] border-white/[0.08] p-0 !rounded-xl overflow-hidden [&>button]:hidden`}>
+        <DialogContent className={`${modalView === 'traffic' && isTrackingConnected ? '!max-w-md' : '!max-w-lg'} bg-[#1b1b1b] border-white/[0.08] p-0 !rounded-2xl overflow-hidden [&>button]:hidden`}>
           <DialogHeader className="sr-only">
             <DialogTitle>AI Referral Tracking</DialogTitle>
           </DialogHeader>
@@ -1294,7 +1294,7 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
 
                 <div className="flex gap-2 pt-2">
                   <Button
-                    className="flex-1 h-9 bg-white text-black hover:bg-white/90 text-sm font-medium rounded-lg"
+                    className="flex-1 h-9 bg-white text-black hover:bg-white/90 text-sm font-medium rounded-full"
                     onClick={() => setShowTrackingModal(false)}
                   >
                     Done
@@ -1438,7 +1438,7 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
 
                   {(verificationStatus === 'idle' || verificationStatus === 'verifying' || verificationStatus === 'failed') && (
                     <Button
-                      className="w-full h-9 bg-white text-black hover:bg-white/90 text-sm font-medium rounded-lg"
+                      className="w-full h-9 bg-white text-black hover:bg-white/90 text-sm font-medium rounded-full"
                       onClick={handleVerifyScript}
                       disabled={verificationStatus === 'verifying'}
                     >
@@ -1454,7 +1454,7 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
 
                   {verificationStatus === 'success' && (
                     <Button
-                      className="w-full h-9 bg-white text-black hover:bg-white/90 text-sm font-medium rounded-lg"
+                      className="w-full h-9 bg-white text-black hover:bg-white/90 text-sm font-medium rounded-full"
                       onClick={() => setShowTrackingModal(false)}
                     >
                       Done

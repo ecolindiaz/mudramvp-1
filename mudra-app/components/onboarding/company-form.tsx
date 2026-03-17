@@ -44,13 +44,13 @@ function MultiRowInput({
             className="flex-1 bg-white/[0.03] border-[1.5px] border-white/[0.06] text-white placeholder:text-white/40 rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:!border-blue-500"
           />
           {rows.length > 1 && (
-            <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-lg border-white/[0.08] hover:bg-white/[0.04]" onClick={() => removeRow(i)}>
+            <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-full border-white/[0.08] hover:bg-white/[0.04]" onClick={() => removeRow(i)}>
               <X className="size-4" />
             </Button>
           )}
         </div>
       ))}
-      <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg gap-2 border-white/[0.08] hover:bg-white/[0.04]" onClick={addRow}>
+      <Button type="button" variant="outline" size="sm" className="h-9 rounded-full gap-2 border-white/[0.08] hover:bg-white/[0.04]" onClick={addRow}>
         <Plus className="size-4" /> Add another
       </Button>
     </div>

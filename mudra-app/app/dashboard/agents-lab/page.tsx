@@ -1091,7 +1091,7 @@ function AgentsLabPageInner() {
                         }
                       }}
                       disabled={isLoadingRadar}
-                      className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5 disabled:opacity-50"
+                      className="h-8 px-3 rounded-full bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5 disabled:opacity-50"
                     >
                       {isLoadingRadar ? (
                         <>
@@ -1110,7 +1110,7 @@ function AgentsLabPageInner() {
                     <Button
                       size="sm"
                       onClick={() => setIsPrSheetOpen(true)}
-                      className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5"
+                      className="h-8 px-3 rounded-full bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5"
                     >
                       <GitPullRequest className="w-3.5 h-3.5" />
                       View PR
@@ -1124,7 +1124,7 @@ function AgentsLabPageInner() {
                         : "https://docs.trymudra.com/agentic-features/agent-lab/llms-txt-indexer-agent"
                       window.open(docsUrl, "_blank", "noopener")
                     }}
-                    className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5"
+                    className="h-8 px-3 rounded-full bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5"
                   >
                     <BookOpen className="w-3.5 h-3.5" />
                     Documentation
@@ -1132,7 +1132,7 @@ function AgentsLabPageInner() {
                   {!isDetailView && (
                     <Button
                       size="sm"
-                      className="h-8 px-3 rounded-md bg-white text-black hover:bg-white/90 text-xs font-medium shadow-sm hover:shadow transition-shadow gap-1.5"
+                      className="h-8 px-3 rounded-full bg-white text-black hover:bg-white/90 text-xs font-medium shadow-sm hover:shadow transition-shadow gap-1.5"
                       onClick={() => setIsDeployDialogOpen(true)}
                     >
                       <Bot className="h-3.5 w-3.5" />
@@ -1153,7 +1153,7 @@ function AgentsLabPageInner() {
                 {isDetailView && isConversationRadar ? (
                   <>
                     {/* Active Opportunities */}
-                    <div className="bg-[#1b1b1b] rounded-xl p-5 min-h-[140px] flex flex-col">
+                    <div className="bg-[#1b1b1b] rounded-2xl p-5 min-h-[140px] flex flex-col">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Radio className="size-4 text-amber-400/80" />
@@ -1190,7 +1190,7 @@ function AgentsLabPageInner() {
                     </div>
 
                     {/* Total Discovered */}
-                    <div className="bg-[#1b1b1b] rounded-xl p-5 min-h-[140px] flex flex-col">
+                    <div className="bg-[#1b1b1b] rounded-2xl p-5 min-h-[140px] flex flex-col">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <MessageSquare className="size-4 text-violet-400/80" />
@@ -1227,7 +1227,7 @@ function AgentsLabPageInner() {
                     </div>
 
                     {/* High Relevance */}
-                    <div className="bg-[#1b1b1b] rounded-xl p-5 min-h-[140px] flex flex-col">
+                    <div className="bg-[#1b1b1b] rounded-2xl p-5 min-h-[140px] flex flex-col">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <TrendingUp className="size-4 text-emerald-400/80" />
@@ -1344,7 +1344,7 @@ function AgentsLabPageInner() {
                               <Button
                                 size="sm"
                                 disabled
-                                className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="h-8 px-3 rounded-full bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                   <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
@@ -1356,7 +1356,7 @@ function AgentsLabPageInner() {
                                 size="sm"
                                 onClick={handleGithubConnect}
                                 disabled={isConnectingGithub}
-                                className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="h-8 px-3 rounded-full bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {isConnectingGithub ? (
                                   <>
@@ -1377,7 +1377,7 @@ function AgentsLabPageInner() {
                                 <DropdownMenuTrigger asChild>
                                   <Button
                                     size="sm"
-                                    className="h-8 px-3 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5"
+                                    className="h-8 px-3 rounded-full bg-white/5 text-white hover:bg-white/10 border-0 text-xs font-medium gap-1.5"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                       <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
@@ -1437,7 +1437,7 @@ function AgentsLabPageInner() {
                           >
                             <SelectTrigger
                               size="sm"
-                              className="h-8 px-3 gap-2 max-w-[200px] rounded-md bg-white/5 text-white hover:bg-white/10 border border-white/[0.04] text-xs font-medium transition-colors focus-visible:ring-0 focus-visible:ring-offset-0 outline-none [&>*[data-slot='select-value']]:flex [&>*[data-slot='select-value']]:items-center [&>*[data-slot='select-value']]:gap-2 [&>svg:not(:first-child)]:hidden [&>span>svg]:hidden"
+                              className="h-8 px-3 gap-2 max-w-[200px] rounded-full bg-white/5 text-white hover:bg-white/10 border border-white/[0.04] text-xs font-medium transition-colors focus-visible:ring-0 focus-visible:ring-offset-0 outline-none [&>*[data-slot='select-value']]:flex [&>*[data-slot='select-value']]:items-center [&>*[data-slot='select-value']]:gap-2 [&>svg:not(:first-child)]:hidden [&>span>svg]:hidden"
                             >
                               <GitBranch className="w-3.5 h-3.5 text-white/60 shrink-0 pointer-events-none" />
                               <SelectValue className="text-xs truncate" />
@@ -1550,7 +1550,7 @@ function AgentsLabPageInner() {
                       {selectedAgent.agentName === "Content Optimizer" ? (
                         <div className="space-y-4">
                           {/* Run Optimizer Buttons */}
-                          <div className="rounded-xl border border-white/[0.04] bg-[#1b1b1b] p-6 shadow-sm">
+                          <div className="rounded-2xl border border-white/[0.04] bg-[#1b1b1b] p-6 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
                               <div>
                                 <h3 className="text-lg font-semibold text-white mb-1">Run Optimization</h3>
@@ -1590,7 +1590,7 @@ function AgentsLabPageInner() {
 
                           {/* Optimization Results */}
                           {optimizerResults.length > 0 && (
-                            <div className="rounded-xl border border-white/[0.04] bg-[#1b1b1b] overflow-hidden shadow-sm">
+                            <div className="rounded-2xl border border-white/[0.04] bg-[#1b1b1b] overflow-hidden shadow-sm">
                               <div className="px-6 py-4 border-b border-white/[0.03]">
                                 <h3 className="text-sm font-semibold text-white">
                                   Optimization Results ({optimizerResults.filter(r => r.prUrl).length} of {optimizerResults.length} successful)
@@ -1634,7 +1634,7 @@ function AgentsLabPageInner() {
                                           <span
                                             key={impIdx}
                                             className={cn(
-                                              "inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium",
+                                              "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium",
                                               imp.impact === "high"
                                                 ? "bg-red-500/10 text-red-400 border border-red-500/20"
                                                 : imp.impact === "medium"
@@ -1655,7 +1655,7 @@ function AgentsLabPageInner() {
                         </div>
                       ) : (
                         /* Regular Task View for Other Agents */
-                      <div className="rounded-xl border border-white/[0.04] bg-[#1b1b1b] overflow-hidden shadow-sm">
+                      <div className="rounded-2xl border border-white/[0.04] bg-[#1b1b1b] overflow-hidden shadow-sm">
                         {filteredTasks.length > 0 ? (
                           filteredTasks.map((task, index) => {
                             const Icon = task.icon
@@ -1716,7 +1716,7 @@ function AgentsLabPageInner() {
                                 {!isConversationRadar || !task.platform ? (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[100px] px-3 py-1.5 rounded-md hover:bg-white/[0.03] transition-colors cursor-help">
+                                      <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[100px] px-3 py-1.5 rounded-full hover:bg-white/[0.03] transition-colors cursor-help">
                                         <Clock className="w-3.5 h-3.5 text-white/50 shrink-0" />
                                         <span className="text-xs text-white/70 font-medium whitespace-nowrap">
                                           {formatTimeAgo(task.lastActivity)}
@@ -1729,7 +1729,7 @@ function AgentsLabPageInner() {
 
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[95px] cursor-help px-3 py-1.5 rounded-md hover:bg-white/[0.03] transition-colors">
+                                    <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[95px] cursor-help px-3 py-1.5 rounded-full hover:bg-white/[0.03] transition-colors">
                                       <span className="text-xs text-white/50 font-medium uppercase tracking-wide">Impact</span>
                                       {isConversationRadar && task.platform
                                         ? renderOpportunityImpactChips(task)
@@ -1745,7 +1745,7 @@ function AgentsLabPageInner() {
                                   </TooltipContent>
                                 </Tooltip>
 
-                                <div className="flex items-center gap-2.5 flex-shrink-0 px-3 py-1.5 rounded-md bg-white/[0.02] border border-white/[0.03]">
+                                <div className="flex items-center gap-2.5 flex-shrink-0 px-3 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.03]">
                                   {task.status === "running" || task.status === "queued" ? (
                                     <>
                                       <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
@@ -1770,7 +1770,7 @@ function AgentsLabPageInner() {
                         ) : isAnalyzing ? (
                           // Analyzing State - Agent is generating tasks
                           <div className="flex flex-col items-center justify-center min-h-[400px] px-6 py-10">
-                            <div className="relative w-full max-w-md bg-[#1a1a1a] rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden">
+                            <div className="relative w-full max-w-md bg-[#1a1a1a] rounded-2xl border border-white/[0.08] p-6 shadow-xl overflow-hidden">
                               {/* Title Section */}
                               <div className="text-center mb-5">
                                 <div className="flex items-center justify-center mb-4">
@@ -1789,7 +1789,7 @@ function AgentsLabPageInner() {
                               </div>
                               
                               {/* Analyzing Preview */}
-                              <div className="bg-white/[0.02] rounded-xl p-4 space-y-3">
+                              <div className="bg-white/[0.02] rounded-2xl p-4 space-y-3">
                               {/* Header Section */}
                               <div className="flex items-center gap-3 pb-3 border-b border-white/[0.06]">
                                 <div className="flex items-center justify-center size-10 rounded-lg bg-white/[0.05]">
@@ -1830,7 +1830,7 @@ function AgentsLabPageInner() {
                           <div className="flex flex-col items-center justify-center py-12 px-6">
                             <div className="flex flex-col items-center max-w-md text-center w-full">
                               {/* Dashboard Preview Card */}
-                              <div className="relative w-full max-w-md bg-[#1a1a1a] rounded-xl border border-white/[0.08] p-6 shadow-xl overflow-hidden group">
+                              <div className="relative w-full max-w-md bg-[#1a1a1a] rounded-2xl border border-white/[0.08] p-6 shadow-xl overflow-hidden group">
                                 {/* Title Section */}
                                 <div className="text-center mb-5">
                                   <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
@@ -1905,7 +1905,7 @@ function AgentsLabPageInner() {
                                   }}
                                   disabled={isLoadingRadar}
                                   size="sm"
-                                  className="w-full h-9 px-5 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium gap-2 transition-all shadow-sm hover:shadow-md border-0 disabled:opacity-50"
+                                  className="w-full h-9 px-5 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium gap-2 transition-all shadow-sm hover:shadow-md border-0 disabled:opacity-50"
                                 >
                                   {isLoadingRadar ? (
                                     <>
@@ -1937,7 +1937,7 @@ function AgentsLabPageInner() {
                     </div>
                   ) : filteredDeployedAgents.length > 0 ? (
                     <div className="space-y-2">
-                      <div className="rounded-xl border border-white/[0.04] bg-[#1b1b1b] overflow-hidden shadow-sm">
+                      <div className="rounded-2xl border border-white/[0.04] bg-[#1b1b1b] overflow-hidden shadow-sm">
                         {filteredDeployedAgents.map((agent) => {
                           const Icon = agent.icon
                           const isLocked = agent.status !== "active"
@@ -1984,7 +1984,7 @@ function AgentsLabPageInner() {
                                 {/* Last Activity */}
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <div className="flex items-center gap-2 flex-shrink-0 min-w-[84px] px-2.5 py-1 rounded-md hover:bg-white/[0.03] transition-colors cursor-help">
+                                    <div className="flex items-center gap-2 flex-shrink-0 min-w-[84px] px-2.5 py-1 rounded-full hover:bg-white/[0.03] transition-colors cursor-help">
                                       <Clock className="w-3.5 h-3.5 text-white/50 shrink-0" />
                                       <span className="text-xs text-white/70 font-medium whitespace-nowrap max-[1100px]:hidden">
                                         {formatTimeAgo(agent.lastActivity)}
@@ -1999,7 +1999,7 @@ function AgentsLabPageInner() {
                                 {/* Impact Widget */}
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <div className="flex items-center gap-2 flex-shrink-0 min-w-[80px] cursor-help px-2.5 py-1 rounded-md hover:bg-white/[0.03] transition-colors">
+                                    <div className="flex items-center gap-2 flex-shrink-0 min-w-[80px] cursor-help px-2.5 py-1 rounded-full hover:bg-white/[0.03] transition-colors">
                                       <span className="text-xs text-white/50 font-medium uppercase tracking-wide max-[1200px]:hidden">Impact</span>
                                       {getImpactChips(agent.impact)}
                                     </div>
@@ -2011,7 +2011,7 @@ function AgentsLabPageInner() {
 
                                 {/* Status Indicator */}
                                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                                  <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.02] border border-white/[0.03]">
+                                  <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
                                     {agent.status === "deploying" ? (
                                       <>
                                         <Loader2 className="w-3.5 h-3.5 text-orange-500 animate-spin" />
@@ -2149,7 +2149,7 @@ function AgentsLabPageInner() {
                       </div>
                     </div>
                     <span className={cn(
-                      "text-[11px] font-medium px-2 py-0.5 rounded-md border shrink-0",
+                      "text-[11px] font-medium px-2 py-0.5 rounded-full border shrink-0",
                       pr.status === "open" 
                         ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                         : "bg-white/10 text-white/70 border-white/15"

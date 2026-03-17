@@ -41,7 +41,7 @@ export function KnowledgeBaseForm() {
           <div className="rounded-lg border border-white/20 bg-black/40 p-4">
             <input type="file" multiple accept={accepted} onChange={handleFiles} className="hidden" id="kb-files" />
             <label htmlFor="kb-files">
-              <Button type="button" variant="outline" className="h-9 rounded-lg gap-2">
+              <Button type="button" variant="outline" className="h-9 rounded-full gap-2">
                 <Upload className="size-4" /> Select files
               </Button>
             </label>

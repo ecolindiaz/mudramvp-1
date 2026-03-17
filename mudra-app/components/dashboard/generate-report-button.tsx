@@ -52,7 +52,7 @@ export function GenerateReportButton() {
   return (
     <Button
       variant="outline"
-      className="h-9 rounded-lg"
+      className="h-9 rounded-full"
       onClick={handleGenerateReport}
       disabled={isGenerating}
     >

@@ -213,7 +213,7 @@ function ResponseRenderer({ responseText, brandName }: { responseText: string; b
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.04]">
         <div className="flex items-center gap-3">
           <span className="text-xs text-white/40">Response</span>
-          <span className="text-[11px] text-white/30 bg-white/[0.05] px-1.5 py-0.5 rounded">{wordCount} words</span>
+          <span className="text-[11px] text-white/30 bg-white/[0.05] px-1.5 py-0.5 rounded-full">{wordCount} words</span>
         </div>
         <button
           onClick={handleCopy}
@@ -371,7 +371,7 @@ function CitationsList({ citations }: { citations: Array<{ url: string }> }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   title={citation.url}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.04] text-[13px] text-white/70 hover:text-white/90 transition-all"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.04] text-[13px] text-white/70 hover:text-white/90 transition-all"
                 >
                   {domain ? (
                     <DomainLogo domain={domain} size={16} />
@@ -1092,7 +1092,7 @@ function TrackedPromptDeepViewInner() {
                     </Card>
 
                     {/* Table Card Skeleton */}
-                    <Card className="bg-transparent rounded-xl border border-white/[0.04] overflow-hidden py-0 shadow-none gap-0">
+                    <Card className="bg-transparent rounded-2xl border border-white/[0.04] overflow-hidden py-0 shadow-none gap-0">
                       <CardContent className="p-0 min-h-[360px] md:min-h-[400px]">
                         <div className="overflow-hidden">
                           {/* Table Header */}
@@ -1122,8 +1122,8 @@ function TrackedPromptDeepViewInner() {
 
                   {/* Bottom Toggle Skeleton */}
                   <div className="flex items-center justify-start gap-2 px-4">
-                    <Skeleton className="h-8 w-28 rounded-lg bg-white/[0.06]" />
-                    <Skeleton className="h-8 w-20 rounded-lg bg-white/[0.06]" />
+                    <Skeleton className="h-8 w-28 rounded-full bg-white/[0.06]" />
+                    <Skeleton className="h-8 w-20 rounded-full bg-white/[0.06]" />
                   </div>
 
                   {/* Bottom Table Card Skeleton */}
@@ -1241,7 +1241,7 @@ function TrackedPromptDeepViewInner() {
                 </div>
                 <div className="hidden md:flex items-center gap-3 flex-shrink-0">
                   <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                    <SelectTrigger className="w-[140px] h-8 text-[13px] !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-lg transition-all duration-200 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
+                    <SelectTrigger className="w-[140px] h-8 text-[13px] !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-full transition-all duration-200 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
                       <SelectValue placeholder="All Platforms" />
                     </SelectTrigger>
                     <SelectContent className="bg-[#1b1b1b] border-0">
@@ -1318,7 +1318,7 @@ function TrackedPromptDeepViewInner() {
                         type="button"
                         onClick={() => setDateRange(opt.key)}
                         className={cn(
-                          "px-2 py-1 rounded transition-colors",
+                          "px-2 py-1 rounded-full transition-colors",
                           dateRange === opt.key 
                             ? "text-white bg-white/[0.06]" 
                             : "text-white/40 hover:text-white/60"
@@ -1403,7 +1403,7 @@ function TrackedPromptDeepViewInner() {
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-transparent rounded-xl border border-white/[0.04] overflow-hidden py-0 shadow-none gap-0">
+                  <Card className="bg-transparent rounded-2xl border border-white/[0.04] overflow-hidden py-0 shadow-none gap-0">
                     <CardContent className="p-0 min-h-[360px] md:min-h-[400px] flex flex-col">
                       <div className="sticky top-0 z-10 bg-white/[0.04]">
                         <table className="w-full text-sm">
@@ -1493,7 +1493,7 @@ function TrackedPromptDeepViewInner() {
                                   </TableCell>
                                   <TableCell className="text-center px-4 py-3.5 align-middle">
                                     <Badge className={cn(
-                                      "px-2 py-0.5 rounded text-xs font-medium border-0",
+                                      "px-2 py-0.5 rounded-full text-xs font-medium border-0",
                                       row.sentiment === 'Negative' && "bg-white/10 text-white/80",
                                       row.sentiment === 'Neutral' && "bg-white/10 text-white/80",
                                       row.sentiment === 'Positive' && "bg-white/10 text-white/80"
@@ -1519,7 +1519,7 @@ function TrackedPromptDeepViewInner() {
                     <Button
                       variant={bottomView === 'chats' ? 'default' : 'ghost'}
                       size="sm"
-                      className={bottomView === 'chats' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
+                      className={bottomView === 'chats' ? 'h-8 rounded-full bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-full bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
                       onClick={() => setBottomView('chats')}
                     >
                       Recent Chats
@@ -1527,7 +1527,7 @@ function TrackedPromptDeepViewInner() {
                     <Button
                       variant={bottomView === 'sources' ? 'default' : 'ghost'}
                       size="sm"
-                      className={bottomView === 'sources' ? 'h-8 rounded-lg bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-lg bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
+                      className={bottomView === 'sources' ? 'h-8 rounded-full bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-full bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
                       onClick={() => setBottomView('sources')}
                     >
                       Sources
@@ -1601,14 +1601,14 @@ function TrackedPromptDeepViewInner() {
                                     </TableCell>
                                     <TableCell className="text-center px-2">
                                       <div className="flex items-center justify-center">
-                                        <Badge variant="outline" className="inline-flex items-center justify-center h-6 min-w-[56px] px-2.5 text-[13px] rounded-md border border-white/[0.04] bg-white/[0.03] text-white/80 tabular-nums">
+                                        <Badge variant="outline" className="inline-flex items-center justify-center h-6 min-w-[56px] px-2.5 text-[13px] rounded-full border border-white/[0.04] bg-white/[0.03] text-white/80 tabular-nums">
                                           {row.citationFrequencyPercent || Math.round((row.frequency / Math.max(1, totalCitationFrequency)) * 100)}%
                                         </Badge>
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-center px-2">
                                       <div className="flex items-center justify-center">
-                                        <Badge className="inline-flex items-center justify-center gap-1.5 h-6 min-w-[140px] px-2.5 text-[13px] rounded-md bg-white/95 text-black font-medium shadow-sm">
+                                        <Badge className="inline-flex items-center justify-center gap-1.5 h-6 min-w-[140px] px-2.5 text-[13px] rounded-full bg-white/95 text-black font-medium shadow-sm">
                                           <CitationCategoryIcon category={mapCitationCategory(row.citationType)} />
                                           {mapCitationCategory(row.citationType)}
                                         </Badge>
@@ -1616,7 +1616,7 @@ function TrackedPromptDeepViewInner() {
                                     </TableCell>
                                   </TableRow>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-2xl rounded-xl border border-white/[0.04] bg-dark-grey p-0 max-h-[85vh] overflow-hidden">
+                                <DialogContent className="sm:max-w-2xl rounded-2xl border border-white/[0.04] bg-dark-grey p-0 max-h-[85vh] overflow-hidden">
                                   <DialogHeader className="sr-only">
                                     <DialogTitle>Source Details</DialogTitle>
                                   </DialogHeader>
@@ -1624,7 +1624,7 @@ function TrackedPromptDeepViewInner() {
                                   {/* Header section */}
                                   <div className="px-5 pt-5 pb-4 pr-12 border-b border-white/[0.04]">
                                     <div className="flex items-center gap-3">
-                                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.04] border border-white/[0.05]">
+                                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.04] border border-white/[0.05]">
                                         <DomainLogo domain={row.domain} size={20} className="text-white/70" />
                                       </div>
                                       <div className="space-y-0.5">
@@ -1657,7 +1657,7 @@ function TrackedPromptDeepViewInner() {
                                         type="button"
                                         onClick={() => setSourceDialogView('sources')}
                                         className={cn(
-                                          "px-3 py-1.5 rounded-md text-[13px] font-medium transition-all",
+                                          "px-3 py-1.5 rounded-full text-[13px] font-medium transition-all",
                                           sourceDialogView === 'sources'
                                             ? "bg-white text-black"
                                             : "text-white/50 hover:text-white/70"
@@ -1669,7 +1669,7 @@ function TrackedPromptDeepViewInner() {
                                         type="button"
                                         onClick={() => setSourceDialogView('prompt')}
                                         className={cn(
-                                          "px-3 py-1.5 rounded-md text-[13px] font-medium transition-all",
+                                          "px-3 py-1.5 rounded-full text-[13px] font-medium transition-all",
                                           sourceDialogView === 'prompt'
                                             ? "bg-white text-black"
                                             : "text-white/50 hover:text-white/70"
@@ -1699,7 +1699,7 @@ function TrackedPromptDeepViewInner() {
                                             <DialogTrigger asChild>
                                               <button 
                                                 type="button"
-                                                className="w-full text-left rounded-xl border border-white/[0.03] bg-white/[0.02] p-4 hover:bg-white/[0.06] hover:border-white/[0.06] transition-colors cursor-pointer group"
+                                                className="w-full text-left rounded-2xl border border-white/[0.03] bg-white/[0.02] p-4 hover:bg-white/[0.06] hover:border-white/[0.06] transition-colors cursor-pointer group"
                                               >
                                                 <div className="flex items-center justify-between mb-2">
                                                   <div className="flex items-center gap-2">
@@ -1711,7 +1711,7 @@ function TrackedPromptDeepViewInner() {
                                                 <p className="text-[13px] text-white/80 leading-relaxed line-clamp-2">{promptData?.text || 'Loading prompt...'}</p>
                                               </button>
                                             </DialogTrigger>
-                                            <DialogContent className="sm:max-w-lg rounded-xl border border-white/[0.04] bg-dark-grey p-0">
+                                            <DialogContent className="sm:max-w-lg rounded-2xl border border-white/[0.04] bg-dark-grey p-0">
                                               <DialogHeader className="px-5 pt-5 pb-3 pr-12 border-b border-white/[0.04]">
                                                 <DialogTitle className="flex items-center gap-2 text-sm font-medium text-white/90">
                                                   <MessageSquareText className="h-4 w-4 text-white/50" />
@@ -1766,7 +1766,7 @@ function TrackedPromptDeepViewInner() {
                                                         </div>
                                                       </button>
                                                     </DialogTrigger>
-                                                    <DialogContent className="sm:max-w-2xl rounded-xl border border-white/[0.04] bg-dark-grey p-0 max-h-[80vh] overflow-hidden">
+                                                    <DialogContent className="sm:max-w-2xl rounded-2xl border border-white/[0.04] bg-dark-grey p-0 max-h-[80vh] overflow-hidden">
                                                       <DialogHeader className="px-5 pt-5 pb-3 pr-12 border-b border-white/[0.04]">
                                                         <DialogTitle className="flex items-center gap-3 text-sm font-medium text-white/90">
                                                           <Image 
@@ -1904,7 +1904,7 @@ function TrackedPromptDeepViewInner() {
                               <Button
                               variant="outline"
                               size="sm"
-                              className="h-7 px-3 rounded-md border-white/[0.04] bg-white/[0.03] text-white/70 hover:text-white hover:bg-white/[0.06] transition-colors text-[13px]"
+                              className="h-7 px-3 rounded-full border-white/[0.04] bg-white/[0.03] text-white/70 hover:text-white hover:bg-white/[0.06] transition-colors text-[13px]"
                               onClick={() => setSourceVisibleCount(Math.min(sourceVisibleCount + INITIAL_VISIBLE, sortedCitationSources.length))}
                               aria-label="Expand sources"
                               disabled={remainingSources <= 0}
@@ -2016,13 +2016,13 @@ function TrackedPromptDeepViewInner() {
                                     </TableCell>
                                     <TableCell className="text-white/90">
                                       {chat.mentioned ? (
-                                        <Badge className="h-6 px-2 text-[12px] rounded border-0 bg-emerald-500/20 text-emerald-300 gap-1"><CheckCircle className="h-3.5 w-3.5" />Yes</Badge>
+                                        <Badge className="h-6 px-2 text-[12px] rounded-full border-0 bg-emerald-500/20 text-emerald-300 gap-1"><CheckCircle className="h-3.5 w-3.5" />Yes</Badge>
                                       ) : (
-                                        <Badge className="h-6 px-2 text-[12px] rounded border-0 bg-red-500/20 text-red-300 gap-1"><XCircle className="h-3.5 w-3.5" />No</Badge>
+                                        <Badge className="h-6 px-2 text-[12px] rounded-full border-0 bg-red-500/20 text-red-300 gap-1"><XCircle className="h-3.5 w-3.5" />No</Badge>
                                       )}
                                     </TableCell>
                                     <TableCell className="text-white/90">
-                                      <Badge variant="outline" className="h-6 px-2 text-[12px] rounded-md border-white/[0.04] bg-white/5 text-white/90">{chat.position != null ? `#${chat.position}` : '—'}</Badge>
+                                      <Badge variant="outline" className="h-6 px-2 text-[12px] rounded-full border-white/[0.04] bg-white/5 text-white/90">{chat.position != null ? `#${chat.position}` : '—'}</Badge>
                                     </TableCell>
                                     <TableCell>
                                       <div className="flex items-center justify-between gap-2">
@@ -2033,7 +2033,7 @@ function TrackedPromptDeepViewInner() {
                                 <TableCell className="text-center text-white/80 px-2">{chat.date}</TableCell>
                                   </TableRow>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-3xl rounded-xl border border-white/[0.03] bg-dark-grey p-0 max-h-[90vh] overflow-y-auto">
+                                <DialogContent className="sm:max-w-3xl rounded-2xl border border-white/[0.03] bg-dark-grey p-0 max-h-[90vh] overflow-y-auto">
                                   <DialogHeader>
                                     <DialogTitle className="sr-only">Chat Details</DialogTitle>
                                   </DialogHeader>
@@ -2041,7 +2041,7 @@ function TrackedPromptDeepViewInner() {
                                     {/* Header with model info */}
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-3">
-                                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.05]">
+                                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.05]">
                                           <Image src={getProviderIconSrc(chat.provider)} alt={`${chat.provider} icon`} width={18} height={18} />
                                         </span>
                                         <div>
@@ -2085,7 +2085,7 @@ function TrackedPromptDeepViewInner() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-8 px-3 rounded-md border-white/[0.04] bg-white/5 text-white/80 hover:text-white"
+                              className="h-8 px-3 rounded-full border-white/[0.04] bg-white/5 text-white/80 hover:text-white"
                               onClick={() => setChatVisibleCount(Math.min(chatVisibleCount + INITIAL_VISIBLE, filteredChats.length))}
                               aria-label="Expand recent chats"
                               disabled={remainingChats <= 0}

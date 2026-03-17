@@ -323,7 +323,7 @@ function ConversationRadarPageInner() {
                       size="sm"
                       onClick={runRadarSearch}
                       disabled={isLoading}
-                      className="h-9 px-4 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2 disabled:opacity-50"
+                      className="h-9 px-4 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2 disabled:opacity-50"
                     >
                       {isLoading ? (
                         <>
@@ -341,7 +341,7 @@ function ConversationRadarPageInner() {
                   <Button
                     size="sm"
                     onClick={() => window.open("https://docs.trymudra.com/agentic-features/conversation-radar", "_blank", "noopener")}
-                    className="h-9 px-4 rounded-md bg-white/5 text-white hover:bg-white/10 border-0 text-sm font-medium gap-2"
+                    className="h-9 px-4 rounded-full bg-white/5 text-white hover:bg-white/10 border-0 text-sm font-medium gap-2"
                   >
                     <BookOpen className="w-4 h-4" />
                     Documentation
@@ -357,7 +357,7 @@ function ConversationRadarPageInner() {
             <div className="py-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5 px-4 lg:px-6">
                 {/* Active Opportunities */}
-                <div className="bg-[#1b1b1b] rounded-xl p-5 min-h-[140px] flex flex-col">
+                <div className="bg-[#1b1b1b] rounded-2xl p-5 min-h-[140px] flex flex-col">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Radio className="size-4 text-white/50" />
@@ -394,7 +394,7 @@ function ConversationRadarPageInner() {
                 </div>
 
                 {/* Total Discovered */}
-                <div className="bg-[#1b1b1b] rounded-xl p-5 min-h-[140px] flex flex-col">
+                <div className="bg-[#1b1b1b] rounded-2xl p-5 min-h-[140px] flex flex-col">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <MessageSquare className="size-4 text-white/50" />
@@ -431,7 +431,7 @@ function ConversationRadarPageInner() {
                 </div>
 
                 {/* High Relevance */}
-                <div className="bg-[#1b1b1b] rounded-xl p-5 min-h-[140px] flex flex-col">
+                <div className="bg-[#1b1b1b] rounded-2xl p-5 min-h-[140px] flex flex-col">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="size-4 text-white/50" />
@@ -481,7 +481,7 @@ function ConversationRadarPageInner() {
                   <button
                     onClick={() => setViewFilter("active")}
                     className={cn(
-                      "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                      "px-3 py-1.5 text-sm font-medium rounded-full transition-colors",
                       viewFilter === "active"
                         ? "text-white bg-white/10"
                         : "text-white/40 hover:text-white/60"
@@ -493,7 +493,7 @@ function ConversationRadarPageInner() {
                     <button
                       onClick={() => setViewFilter("all")}
                       className={cn(
-                        "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                        "px-3 py-1.5 text-sm font-medium rounded-full transition-colors",
                         viewFilter === "all"
                           ? "text-white bg-white/10"
                           : "text-white/40 hover:text-white/60"
@@ -513,14 +513,14 @@ function ConversationRadarPageInner() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search opportunities"
-                    className="h-8 rounded-xl !bg-[#1b1b1b] border-[1.5px] border-transparent text-xs text-white/80 placeholder:text-white/30 pl-8 pr-3 focus-visible:ring-0 focus-visible:border-blue-500 focus-visible:!bg-[#1b1b1b]"
+                    className="h-8 rounded-2xl !bg-[#1b1b1b] border-[1.5px] border-transparent text-xs text-white/80 placeholder:text-white/30 pl-8 pr-3 focus-visible:ring-0 focus-visible:border-blue-500 focus-visible:!bg-[#1b1b1b]"
                   />
                 </div>
               </div>
 
               {/* Opportunities Table */}
               {isInitialLoad ? (
-                <div className="rounded-xl bg-[#1b1b1b] overflow-hidden">
+                <div className="rounded-2xl bg-[#1b1b1b] overflow-hidden">
                   {/* Table header skeleton */}
                   <div className="px-5 py-3 border-b border-white/[0.06]">
                     <div className="h-3 w-20 rounded bg-white/[0.04]" />
@@ -536,7 +536,7 @@ function ConversationRadarPageInner() {
                   ))}
                 </div>
               ) : filteredOpportunities.length === 0 ? (
-                <div className="rounded-xl bg-[#1b1b1b] overflow-hidden">
+                <div className="rounded-2xl bg-[#1b1b1b] overflow-hidden">
                   {/* Table header */}
                   <div className="grid grid-cols-[1fr_120px_100px] gap-4 px-5 py-3 border-b border-white/[0.06]">
                     <span className="text-xs font-medium text-white/30">Name</span>
@@ -567,7 +567,7 @@ function ConversationRadarPageInner() {
                         onClick={runRadarSearch}
                         disabled={isLoading}
                         size="sm"
-                        className="h-8 px-4 rounded-md bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-xs font-medium gap-2 transition-all border-0 disabled:opacity-50"
+                        className="h-8 px-4 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-xs font-medium gap-2 transition-all border-0 disabled:opacity-50"
                       >
                         {isLoading ? (
                           <>
@@ -585,7 +585,7 @@ function ConversationRadarPageInner() {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-xl bg-[#1b1b1b] overflow-hidden">
+                <div className="rounded-2xl bg-[#1b1b1b] overflow-hidden">
                   {/* Table header */}
                   <div className="grid grid-cols-[1fr_120px_100px] gap-4 px-5 py-3 border-b border-white/[0.06]">
                     <span className="text-xs font-medium text-white/30">Name</span>
@@ -600,7 +600,7 @@ function ConversationRadarPageInner() {
                       href={`/dashboard/conversation-radar/${opportunity.dbId || opportunity.id}`}
                       className="block"
                     >
-                      <div className="grid grid-cols-[1fr_120px_100px] gap-4 px-3 py-3.5 items-center transition-colors hover:bg-white/[0.06] rounded-xl group">
+                      <div className="grid grid-cols-[1fr_120px_100px] gap-4 px-3 py-3.5 items-center transition-colors hover:bg-white/[0.06] rounded-2xl group">
                         {/* Name cell */}
                         <div className="min-w-0">
                           <p className="text-sm text-white truncate transition-colors">
@@ -612,7 +612,7 @@ function ConversationRadarPageInner() {
                         <div className="flex justify-end">
                           {typeof opportunity.relevanceScore === 'number' ? (
                             <span className={cn(
-                              "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05]",
+                              "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05]",
                             )}>
                               <span className={cn(
                                 "w-1.5 h-1.5 rounded-full",

@@ -14,7 +14,7 @@ import { getLanguageForCountry, isAllowedCountry, type CountryCode } from '@/lib
  * GET /api/prompts/with-results?brandProfileId={id}
  * Get prompts with their visibility scores averaged across ALL analysis runs
  * This ensures consistency with the Deep View (prompt detail page)
- * Includes both aggregate metrics (Firegeo-style) and per-prompt scores (Mudra-style)
+ * Includes both aggregate metrics (mention rate) and per-prompt scores
  */
 export async function GET(request: NextRequest) {
   let profileId: number = NaN
@@ -194,12 +194,16 @@ export async function GET(request: NextRequest) {
       // Continue processing with allAnalysisResults (skip the early return below)
     }
 
-    // Compute language filter from the ORIGINAL country filter (not the effective one)
-    // so prompts are always shown in the correct language for the selected region,
-    // even when analysis results fell back to a different country's data.
-    promptLanguageFilter = countryFilter && isAllowedCountry(countryFilter as CountryCode)
-      ? getLanguageForCountry(countryFilter as CountryCode)
-      : undefined
+    // Compute language filter: if analysis data fell back to all countries,
+    // also drop the language filter so prompts match the analysis data.
+    // Otherwise use the selected country's language.
+    if (effectiveCountryFilter === null && countryFilter) {
+      promptLanguageFilter = undefined
+    } else {
+      promptLanguageFilter = countryFilter && isAllowedCountry(countryFilter as CountryCode)
+        ? getLanguageForCountry(countryFilter as CountryCode)
+        : undefined
+    }
 
     // Helper function to get and return prompts without results
     const getPromptsWithoutResults = async () => {
@@ -596,7 +600,7 @@ export async function GET(request: NextRequest) {
       // Calculate per-prompt scores using new service
       const perPromptScores = testResults.map(test => calculatePerPromptScore(test))
 
-      // Calculate aggregate for this specific prompt across models (Firegeo methodology)
+      // Calculate aggregate for this specific prompt across models (mention rate)
       const promptAggregate = testResults.length > 0 
         ? calculateAggregateScore(testResults)
         : null
@@ -623,7 +627,7 @@ export async function GET(request: NextRequest) {
         text: prompt.text,
         category: prompt.category,
         isCustom: prompt.isCustom,
-        // Top-level metrics - use aggregate across all providers (Firegeo methodology)
+        // Top-level metrics - use aggregate across all providers (mention rate)
         visibility: promptAggregate?.overallScore ?? 0,
         position: promptAggregate?.averagePosition ?? null,
         model: firstResult?.model ?? null,
@@ -631,7 +635,7 @@ export async function GET(request: NextRequest) {
         sentiment: firstResult?.sentiment ?? null,
         // Detailed breakdown by provider
         results,
-        // Aggregate metrics for this prompt across all providers (Firegeo)
+        // Aggregate metrics for this prompt across all providers
         promptAggregate: promptAggregate ? {
           overallScore: Math.round(promptAggregate.overallScore * 10) / 10, // Round to 1 decimal
           mentionRate: Math.round(promptAggregate.mentionRate * 100), // Convert to percentage
@@ -702,8 +706,7 @@ export async function GET(request: NextRequest) {
       const sentimentCounts = { positive: 0, neutral: 0, negative: 0 }
 
       for (const [provider, tests] of testsByProvider) {
-        // Calculate this provider's score using per-test Firegeo average
-        // Each test gets: 0 if not mentioned, 50 + positionBonus if mentioned
+        // Calculate this provider's mention rate score
         const mentionedTests = tests.filter(t => t.brandMentioned)
 
         // Get average position for this provider (for aggregate metrics)
@@ -711,18 +714,9 @@ export async function GET(request: NextRequest) {
           t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0
         )
 
-        // Per-test Firegeo scores averaged across ALL tests for this provider
-        const firegeoScores = tests.map(t => {
-          if (!t.brandMentioned) return 0
-          let score = 50
-          if (t.brandPosition !== undefined && t.brandPosition !== null && t.brandPosition > 0) {
-            score += Math.max(0, (10 - t.brandPosition) / 10) * 50
-          }
-          return Math.round(score)
-        })
-        const providerScore = firegeoScores.length > 0
-          ? firegeoScores.reduce((a, b) => a + b, 0) / firegeoScores.length
-          : 0
+        // Mention rate scoring: 100 if mentioned, 0 if not, averaged across tests
+        const mentionedCount = tests.filter(t => t.brandMentioned).length
+        const providerScore = tests.length > 0 ? (mentionedCount / tests.length) * 100 : 0
         providerScores.push(providerScore)
 
         // Accumulate for aggregate metrics
@@ -786,7 +780,8 @@ export async function GET(request: NextRequest) {
         totalTests: overallAggregate.totalPrompts,
         mentionedIn: overallAggregate.totalMentions,
         sentiment: overallAggregate.sentiment
-      } : null
+      } : null,
+      countryFallback: effectiveCountryFilter === null && !!countryFilter
     })
   } catch (error) {
     console.error('❌ Error fetching prompts with results:', error)

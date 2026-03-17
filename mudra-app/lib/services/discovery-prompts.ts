@@ -14,7 +14,9 @@ import type { PageType } from "@/lib/analysis/technical/types";
 export const DISCOVERY_ANALYSIS_PROMPT = `You are an expert at analyzing company websites to identify the most important marketing pages for SEO/AEO (Answer Engine Optimization) technical analysis.
 
 ## YOUR TASK
-Analyze the provided list of URLs and select the 30-35 MOST IMPORTANT marketing pages.
+Analyze the provided list of URLs and select up to 50 marketing/product pages + up to 15 high-value blog posts.
+
+NOTE: Some pages may already be pre-selected from the site's navigation. Those are listed separately and excluded from the candidate list. Focus your selection on deeper pages that the navigation doesn't surface.
 
 ## CRITICAL REQUIREMENTS - MUST INCLUDE (if they exist):
 
@@ -169,14 +171,30 @@ export function buildUrlListForAnalysis(urls: string[]): string {
 }
 
 /**
- * Builds the user message for OpenAI analysis
+ * Builds the user message for OpenAI analysis.
+ * When navUrls are provided, they are excluded from the candidate list
+ * and listed separately as already-selected pages.
  */
 export function buildAnalysisUserMessage(
 	normalizedUrl: string,
-	urls: string[]
+	urls: string[],
+	navUrls?: string[]
 ): string {
-	const urlListText = buildUrlListForAnalysis(urls);
-	return `Analyze these ${urls.length} URLs from ${normalizedUrl} and select the 30-35 most important marketing pages:\n\n${urlListText}`;
+	// Filter out nav URLs from candidate list so AI doesn't waste slots
+	const navSet = new Set((navUrls ?? []).map(u => u.replace(/\/+$/, '').toLowerCase()));
+	const candidateUrls = navSet.size > 0
+		? urls.filter(u => !navSet.has(u.replace(/\/+$/, '').toLowerCase()))
+		: urls;
+
+	const urlListText = buildUrlListForAnalysis(candidateUrls);
+	let message = `Analyze these ${candidateUrls.length} URLs from ${normalizedUrl} and select up to 50 marketing/product pages + up to 15 high-value blog posts:\n\n${urlListText}`;
+
+	if (navUrls && navUrls.length > 0) {
+		const navListText = navUrls.map((url, i) => `${i + 1}. ${url}`).join('\n');
+		message += `\n\nALREADY SELECTED (from site navigation — ${navUrls.length} pages, do NOT re-select these):\n${navListText}`;
+	}
+
+	return message;
 }
 
 /**

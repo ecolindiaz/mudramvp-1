@@ -7,6 +7,7 @@ import {
 import { gapAnalysisOutputSchema } from "../../agents/gap-analysis-agent";
 import { researchOutputSchema } from "../../agents/schemas/research-schema";
 import { logAIModelCall, estimateAICost } from "@/lib/services/ai-model-logging.service";
+import { hasFootnoteCitations, convertFootnotesToInlineLinks } from "@/lib/utils/convert-footnotes";
 
 // Timeout helper for long-running operations
 const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
@@ -221,7 +222,12 @@ ${research.additionalSources.map((s) => `- ${s.keyInsight} — [${s.title}](${s.
       `[GenerateContent] Word count: ${response.object?.metadata?.wordCount}`
     );
 
-    return response.object!;
+    const result = response.object!;
+    if (result.content && hasFootnoteCitations(result.content)) {
+      console.log(`[GenerateContent] Detected footnote citations, converting to inline links`);
+      result.content = convertFootnotesToInlineLinks(result.content, result.metadata?.sources);
+    }
+    return result;
   },
 });
 

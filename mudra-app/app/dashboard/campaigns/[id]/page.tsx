@@ -1043,7 +1043,7 @@ function CampaignCanvasPageInner({
                               {contentLabSchema?.scriptTag ? (
                                 <div className="relative">
                                   <pre
-                                    className={`text-[11px] leading-5 text-white/85 bg-black/25 border border-white/[0.06] rounded-full p-3 overflow-x-auto whitespace-pre-wrap break-all transition-all ${schemaExpanded ? 'max-h-none overflow-y-auto' : 'overflow-hidden'}`}
+                                    className={`text-[11px] leading-5 text-white/85 bg-black/25 border border-white/[0.06] rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all transition-all ${schemaExpanded ? 'max-h-none overflow-y-auto' : 'overflow-hidden'}`}
                                     style={schemaExpanded ? undefined : { maxHeight: 'calc(100vh - 710px)', minHeight: '100px' }}
                                   >
                                     {contentLabSchema.scriptTag}

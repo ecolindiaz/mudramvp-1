@@ -215,7 +215,7 @@ export async function runSinglePromptAnalysis(
   // Each test: 100 if mentioned, 0 if not → average = mention rate × 100
   const successfulResults = providerResults.filter(r => !r.error)
   const failedResults = providerResults.filter(r => r.error)
-  const mentionScores = successfulResults.map(r => r.brandMentioned ? 100 : 0)
+  const mentionScores = successfulResults.map(r => r.brandMentioned ? 100 : 0) as number[]
   const overallVisibility = mentionScores.length > 0
     ? Math.round(mentionScores.reduce((a, b) => a + b, 0) / mentionScores.length)
     : 0

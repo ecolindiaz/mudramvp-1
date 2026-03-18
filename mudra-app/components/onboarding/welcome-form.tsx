@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { CircleFlag } from "react-circle-flags"
 import { useOnboarding, type DomainEntry } from "./onboarding-context"
 import { useCompanyExtraction } from "@/hooks/use-company-extraction"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 const REGIONS = [
   { code: "US", label: "USA" },
@@ -144,6 +145,7 @@ export function WelcomeForm() {
   const handleNext = async () => {
     setIsLoading(true)
     try {
+      trackEvent.onboardingStepCompleted(1, 'welcome')
       updateData({
         companyName,
         companyWebsite: domainEntries[0]?.domain || "",

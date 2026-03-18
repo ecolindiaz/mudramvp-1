@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertCircle, Camera, Check, Key, Mail, Shield, Trash2, User as UserIcon, X } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { toast } from "sonner"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 function AccountPageInner() {
   const { data: session, update } = useSession()
@@ -84,6 +85,7 @@ function AccountPageInner() {
       const result = await response.json()
 
       if (response.ok) {
+        trackEvent.profileUpdated()
         await update({ name, email })
         toast.success("Profile updated successfully")
       } else {
@@ -122,6 +124,7 @@ function AccountPageInner() {
       const result = await response.json()
 
       if (response.ok) {
+        trackEvent.passwordChanged()
         setCurrentPassword("")
         setNewPassword("")
         setConfirmPassword("")
@@ -153,6 +156,7 @@ function AccountPageInner() {
       const result = await response.json()
 
       if (response.ok) {
+        trackEvent.accountDeleted()
         toast.success("Account deleted successfully")
         window.location.href = "/login"
       } else {

@@ -20,7 +20,7 @@ export const trackEvent = {
   /**
    * Track when user starts any analysis
    */
-  analysisStarted: (brandProfileId: number, analysisType: 'geo' | 'technical' | 'unified') => {
+  analysisStarted: (brandProfileId: number, analysisType: string) => {
     posthog.capture('analysis_started', {
       brand_profile_id: brandProfileId,
       analysis_type: analysisType,
@@ -84,16 +84,17 @@ export const trackEvent = {
    * Track content generation via AI
    */
   contentGenerated: (
-    campaignId: number, 
-    contentType: string, 
-    aiModel: string,
+    contentTypeOrCampaignId: string | number, 
+    aiModelOrSource?: string, 
+    wordCountOrModel?: string | number,
     wordCount?: number
   ) => {
     posthog.capture('content_generated', {
-      campaign_id: campaignId,
-      content_type: contentType,
-      ai_model: aiModel,
-      word_count: wordCount,
+      content_type: typeof contentTypeOrCampaignId === 'string' ? contentTypeOrCampaignId : undefined,
+      campaign_id: typeof contentTypeOrCampaignId === 'number' ? contentTypeOrCampaignId : undefined,
+      ai_model: aiModelOrSource,
+      source: aiModelOrSource,
+      word_count: typeof wordCountOrModel === 'number' ? wordCountOrModel : wordCount,
     })
   },
 
@@ -177,9 +178,9 @@ export const trackEvent = {
   /**
    * Track GitHub integration connection
    */
-  githubIntegrationConnected: (brandProfileId: number, repoCount?: number) => {
+  githubIntegrationConnected: (method: string, repoCount?: number) => {
     posthog.capture('github_integration_connected', {
-      brand_profile_id: brandProfileId,
+      method,
       repo_count: repoCount,
     })
   },
@@ -187,19 +188,20 @@ export const trackEvent = {
   /**
    * Track GitHub integration disconnection
    */
-  githubIntegrationDisconnected: (brandProfileId: number) => {
+  githubIntegrationDisconnected: (method: string) => {
     posthog.capture('github_integration_disconnected', {
-      brand_profile_id: brandProfileId,
+      method,
     })
   },
 
   /**
    * Track tracking script installation
    */
-  trackingScriptInstalled: (brandProfileId: number, websiteUrl: string) => {
+  trackingScriptInstalled: (repoOrBrandId: string | number, method?: string) => {
     posthog.capture('tracking_script_installed', {
-      brand_profile_id: brandProfileId,
-      website_url: websiteUrl,
+      repository: typeof repoOrBrandId === 'string' ? repoOrBrandId : undefined,
+      brand_profile_id: typeof repoOrBrandId === 'number' ? repoOrBrandId : undefined,
+      method,
     })
   },
 
@@ -208,7 +210,7 @@ export const trackEvent = {
   /**
    * Track when agent is created/deployed
    */
-  agentDeployed: (agentId: number, agentType: string, brandProfileId: number) => {
+  agentDeployed: (agentId: string | number, agentType?: string, brandProfileId?: number) => {
     posthog.capture('agent_deployed', {
       agent_id: agentId,
       agent_type: agentType,
@@ -220,16 +222,12 @@ export const trackEvent = {
    * Track agent execution
    */
   agentExecuted: (
-    agentId: number, 
     agentType: string, 
-    durationMs: number,
-    status: 'success' | 'failed'
+    metadata?: Record<string, any>
   ) => {
     posthog.capture('agent_executed', {
-      agent_id: agentId,
       agent_type: agentType,
-      duration_ms: durationMs,
-      status: status,
+      ...metadata,
     })
   },
 
@@ -294,6 +292,221 @@ export const trackEvent = {
       pages_scraped: pagesScraped,
       duration_ms: durationMs,
     })
+  },
+
+  // ==================== Auth Events ====================
+
+  loginAttempted: (method: 'credentials' | 'google') => {
+    posthog.capture('login_attempted', { method })
+  },
+
+  loginSucceeded: (method: 'credentials' | 'google') => {
+    posthog.capture('login_succeeded', { method })
+  },
+
+  loginFailed: (method: 'credentials' | 'google', error: string) => {
+    posthog.capture('login_failed', { method, error_message: error })
+  },
+
+  signupAttempted: (method: 'credentials' | 'google') => {
+    posthog.capture('signup_attempted', { method })
+  },
+
+  signupSucceeded: (method: 'credentials' | 'google') => {
+    posthog.capture('signup_succeeded', { method })
+  },
+
+  signupFailed: (method: 'credentials' | 'google', error: string) => {
+    posthog.capture('signup_failed', { method, error_message: error })
+  },
+
+  passwordResetRequested: () => {
+    posthog.capture('password_reset_requested')
+  },
+
+  passwordResetCompleted: () => {
+    posthog.capture('password_reset_completed')
+  },
+
+  loggedOut: () => {
+    posthog.capture('logged_out')
+  },
+
+  // ==================== Navigation Events ====================
+
+  sidebarNavigated: (destination: string) => {
+    posthog.capture('sidebar_navigated', { destination })
+  },
+
+  monitorSwitched: (monitorId: number, monitorName: string) => {
+    posthog.capture('monitor_switched', { monitor_id: monitorId, monitor_name: monitorName })
+  },
+
+  // ==================== Prompt Management Events ====================
+
+  promptCreated: (brandProfileId: number, category?: string) => {
+    posthog.capture('prompt_created', { brand_profile_id: brandProfileId, category })
+  },
+
+  promptEdited: (promptId: number) => {
+    posthog.capture('prompt_edited', { prompt_id: promptId })
+  },
+
+  promptDeleted: (promptId: number) => {
+    posthog.capture('prompt_deleted', { prompt_id: promptId })
+  },
+
+  promptsBatchGenerated: (brandProfileId: number, count: number) => {
+    posthog.capture('prompts_batch_generated', { brand_profile_id: brandProfileId, count })
+  },
+
+  // ==================== Tracked Prompt Events ====================
+
+  trackedPromptAdded: (brandProfileId: number, promptText: string) => {
+    posthog.capture('tracked_prompt_added', { brand_profile_id: brandProfileId, prompt_text: promptText })
+  },
+
+  trackedPromptDeleted: (promptId: number) => {
+    posthog.capture('tracked_prompt_deleted', { prompt_id: promptId })
+  },
+
+  trackedPromptExported: (countOrFormat: string | number, count?: number) => {
+    posthog.capture('tracked_prompt_exported', {
+      format: typeof countOrFormat === 'string' ? countOrFormat : 'csv',
+      count: typeof countOrFormat === 'number' ? countOrFormat : count,
+    })
+  },
+
+  // ==================== Conversation Radar Events ====================
+
+  conversationScanStarted: (brandProfileId: number, platform: string) => {
+    posthog.capture('conversation_scan_started', { brand_profile_id: brandProfileId, platform })
+  },
+
+  conversationScanCompleted: (brandProfileId: number, resultsCount: number) => {
+    posthog.capture('conversation_scan_completed', { brand_profile_id: brandProfileId, results_count: resultsCount })
+  },
+
+  opportunityViewed: (opportunityId: string | number, platform?: string) => {
+    posthog.capture('opportunity_viewed', { opportunity_id: String(opportunityId), platform })
+  },
+
+  opportunityDismissed: (opportunityId: string | number) => {
+    posthog.capture('opportunity_dismissed', { opportunity_id: String(opportunityId) })
+  },
+
+  opportunityCompleted: (opportunityId: string | number) => {
+    posthog.capture('opportunity_completed', { opportunity_id: String(opportunityId) })
+  },
+
+  // ==================== Issue Board Events ====================
+
+  issueCreated: (issueIdOrBrandId: string | number, categoryOrPriority?: string) => {
+    posthog.capture('issue_created', { id: String(issueIdOrBrandId), category: categoryOrPriority })
+  },
+
+  issueStatusChanged: (issueId: string | number, newStatus: string) => {
+    posthog.capture('issue_status_changed', { issue_id: String(issueId), new_status: newStatus })
+  },
+
+  issueDeleted: (issueId: string | number) => {
+    posthog.capture('issue_deleted', { issue_id: String(issueId) })
+  },
+
+  // ==================== Technical Analysis Events ====================
+
+  technicalScrapeStarted: (brandProfileId: number, url: string) => {
+    posthog.capture('technical_scrape_started', { brand_profile_id: brandProfileId, url })
+  },
+
+  technicalScrapeCompleted: (brandProfileId: number, score: number) => {
+    posthog.capture('technical_scrape_completed', { brand_profile_id: brandProfileId, score })
+  },
+
+  // ==================== Notification Events ====================
+
+  notificationRead: (notificationId: string) => {
+    posthog.capture('notification_read', { notification_id: notificationId })
+  },
+
+  notificationsAllRead: () => {
+    posthog.capture('notifications_all_read')
+  },
+
+  notificationSettingsChanged: (category: string, setting: string | boolean, value?: boolean) => {
+    posthog.capture('notification_settings_changed', {
+      category,
+      setting: typeof setting === 'string' ? setting : undefined,
+      enabled: typeof setting === 'boolean' ? setting : value,
+    })
+  },
+
+  // ==================== Billing Events ====================
+
+  planUpgradeClicked: (currentPlan: string, targetPlan: string) => {
+    posthog.capture('plan_upgrade_clicked', { current_plan: currentPlan, target_plan: targetPlan })
+  },
+
+  // ==================== Account Events ====================
+
+  profileUpdated: (fields?: string[]) => {
+    posthog.capture('profile_updated', { fields_changed: fields })
+  },
+
+  passwordChanged: () => {
+    posthog.capture('password_changed')
+  },
+
+  accountDeleted: () => {
+    posthog.capture('account_deleted')
+  },
+
+  // ==================== Report Events ====================
+
+  reportGenerated: (brandProfileId: number) => {
+    posthog.capture('report_generated', { brand_profile_id: brandProfileId })
+  },
+
+  reportViewed: (brandProfileId: number) => {
+    posthog.capture('report_viewed', { brand_profile_id: brandProfileId })
+  },
+
+  // ==================== Content Lab Events ====================
+
+  articleCreated: (brandProfileId: number) => {
+    posthog.capture('article_created', { brand_profile_id: brandProfileId })
+  },
+
+  articlePublished: (articleId: number, platform: string) => {
+    posthog.capture('article_published', { article_id: articleId, platform })
+  },
+
+  blogSetupStarted: (brandProfileId: number) => {
+    posthog.capture('blog_setup_started', { brand_profile_id: brandProfileId })
+  },
+
+  blogSetupCompleted: (brandProfileId: number) => {
+    posthog.capture('blog_setup_completed', { brand_profile_id: brandProfileId })
+  },
+
+  // ==================== Tasks Events ====================
+
+  taskGenerated: (brandProfileId: number, count: number) => {
+    posthog.capture('task_generated', { brand_profile_id: brandProfileId, count })
+  },
+
+  taskVerified: (taskId: string) => {
+    posthog.capture('task_verified', { task_id: taskId })
+  },
+
+  // ==================== Direct GEO Events ====================
+
+  directGeoAnalysisStarted: (companyName: string) => {
+    posthog.capture('direct_geo_analysis_started', { company_name: companyName })
+  },
+
+  directGeoAnalysisCompleted: (companyName: string, score: number) => {
+    posthog.capture('direct_geo_analysis_completed', { company_name: companyName, score })
   },
 }
 

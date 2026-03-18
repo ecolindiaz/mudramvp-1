@@ -24,6 +24,7 @@ import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profil
 import { DeployAgentDialog, DeploymentList } from "@/components/dashboard/deploy-agent-dialog"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 const RedditIcon = (props: LucideProps) => (
   <svg
@@ -371,6 +372,8 @@ function AgentsLabPageInner() {
     // Generate unique ID for this deployment instance
     const uniqueId = `${deployment.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     
+    trackEvent.agentDeployed(deployment.id, deployment.agentName)
+    
     // Wait to show loading state in popup first (allows user to see "Deploying..." button)
     // This delay ensures the loading state is visible before anything else happens
     await new Promise(resolve => setTimeout(resolve, 1500))
@@ -631,6 +634,7 @@ function AgentsLabPageInner() {
 
     setIsOptimizerRunning(true)
     setOptimizerResults([])
+    trackEvent.agentExecuted('content_optimizer', { maxPages })
 
     try {
       console.log('[ContentOptimizer] Starting with brandProfileId:', profile.id, 'maxPages:', maxPages)

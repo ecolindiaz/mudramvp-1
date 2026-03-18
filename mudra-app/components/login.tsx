@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import Image from 'next/image'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { trackEvent } from '@/lib/analytics/posthog-events'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -45,6 +46,7 @@ export default function LoginPage() {
     const onSubmit = async (data: LoginFormData) => {
         try {
             setIsLoading(true)
+            trackEvent.loginAttempted('credentials')
             
             // Clear any cached data from previous user session
             if (typeof window !== 'undefined') {
@@ -61,16 +63,19 @@ export default function LoginPage() {
             })
 
             if (result?.error) {
+                trackEvent.loginFailed('credentials', result.error || 'Invalid email or password')
                 toast.error(result.error || 'Invalid email or password')
                 return
             }
 
             if (result?.ok) {
+                trackEvent.loginSucceeded('credentials')
                 toast.success('Login successful!')
                 router.push('/dashboard')
                 router.refresh()
             }
         } catch (error) {
+            trackEvent.loginFailed('credentials', 'An error occurred')
             toast.error('An error occurred. Please try again.')
             console.error('Login error:', error)
         } finally {
@@ -81,6 +86,7 @@ export default function LoginPage() {
     const handleGoogleSignIn = async () => {
         try {
             setIsGoogleLoading(true)
+            trackEvent.loginAttempted('google')
             
             // Clear any cached data from previous user session
             if (typeof window !== 'undefined') {
@@ -92,6 +98,7 @@ export default function LoginPage() {
 
             await signIn('google', { callbackUrl: '/dashboard' })
         } catch (error) {
+            trackEvent.loginFailed('google', 'Failed to sign in with Google')
             toast.error('Failed to sign in with Google')
             console.error('Google sign in error:', error)
             setIsGoogleLoading(false)

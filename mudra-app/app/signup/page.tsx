@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { trackEvent } from '@/lib/analytics/posthog-events'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -39,6 +40,7 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
 
   async function onSubmit(data: SignupFormData) {
     setIsLoading(true)
+    trackEvent.signupAttempted('credentials')
 
     // Clear any cached data from previous user session
     if (typeof window !== 'undefined') {
@@ -68,6 +70,7 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
         throw new Error(msg)
       }
 
+      trackEvent.signupSucceeded('credentials')
       toast.success('Account created successfully!')
       
       // Auto-login after registration
@@ -86,6 +89,7 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
         router.push('/login')
       }
     } catch (error: any) {
+      trackEvent.signupFailed('credentials', error.message || 'Failed to create account')
       toast.error(error.message || 'Failed to create account')
       console.error('Signup error:', error)
     } finally {
@@ -96,6 +100,7 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
   const handleGoogleSignUp = async () => {
     try {
       setIsGoogleLoading(true)
+      trackEvent.signupAttempted('google')
 
       // Clear any cached data from previous user session
       if (typeof window !== 'undefined') {
@@ -107,6 +112,7 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
 
       await signIn('google', { callbackUrl: '/welcome' })
     } catch (error) {
+      trackEvent.signupFailed('google', 'Failed to sign up with Google')
       toast.error('Failed to sign up with Google')
       console.error('Google sign up error:', error)
       setIsGoogleLoading(false)

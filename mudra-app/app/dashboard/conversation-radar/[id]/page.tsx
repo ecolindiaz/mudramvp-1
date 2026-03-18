@@ -27,6 +27,7 @@ import {
   CircleDot,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 interface OpportunityData {
   id: number
@@ -77,6 +78,7 @@ function OpportunityDetailPageInner() {
         if (result.success && result.data) {
           setOpportunity(result.data)
           setCurrentStatus(result.data.status || 'new')
+          trackEvent.opportunityViewed(result.data.id, result.data.platform)
         }
       } catch (error) {
         console.error('Failed to fetch opportunity:', error)
@@ -100,6 +102,7 @@ function OpportunityDetailPageInner() {
       })
       const result = await response.json()
       if (result.success) {
+        trackEvent.opportunityCompleted(parseInt(opportunityId))
         setCurrentStatus('engaged')
         setTimeout(() => router.push('/dashboard/conversation-radar'), 500)
       }
@@ -122,6 +125,7 @@ function OpportunityDetailPageInner() {
       })
       const result = await response.json()
       if (result.success) {
+        trackEvent.opportunityDismissed(parseInt(opportunityId))
         setCurrentStatus('dismissed')
         setTimeout(() => router.push('/dashboard/conversation-radar'), 500)
       }

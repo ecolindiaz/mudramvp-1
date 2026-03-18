@@ -32,6 +32,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 interface NotificationSettings {
   email: {
@@ -196,6 +197,7 @@ function NotificationsPageInner() {
         setSettings(settings)
         toast.error("Failed to update settings")
       } else {
+        trackEvent.notificationSettingsChanged(category, setting, value)
         toast.success("Settings updated")
       }
     } catch (error) {
@@ -212,6 +214,7 @@ function NotificationsPageInner() {
       })
 
       if (response.ok) {
+        trackEvent.notificationRead(notificationId)
         setNotifications(notifications.map(n => 
           n.id === notificationId ? { ...n, read: true } : n
         ))
@@ -230,6 +233,7 @@ function NotificationsPageInner() {
       })
 
       if (response.ok) {
+        trackEvent.notificationsAllRead()
         setNotifications(notifications.map(n => ({ ...n, read: true })))
         toast.success("All notifications marked as read")
       } else {

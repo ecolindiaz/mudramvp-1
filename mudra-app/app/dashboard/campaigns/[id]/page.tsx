@@ -19,6 +19,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { BlogSetupDialog } from "@/components/content-lab/blog-setup-dialog"
 import { computeContentLabSchemaSourceHash } from "@/lib/content-lab/schema-hash"
 import { hasFootnoteCitations, convertFootnotesToInlineLinks } from "@/lib/utils/convert-footnotes"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 // Helper function to accurately count words in markdown content
 function countWordsInMarkdown(content: string): number {
@@ -227,6 +228,7 @@ function CampaignCanvasPageInner({
       setContentLabSchema(data.schema)
       setSchemaStatus("ready")
       setSchemaError("")
+      trackEvent.featureUsed('schema_regenerated', { campaignId: id })
     } catch (error) {
       console.error("Failed to regenerate schema:", error)
       const message = "Failed to regenerate schema"
@@ -259,6 +261,7 @@ function CampaignCanvasPageInner({
       
       if (response.ok) {
         setSavedAt(Date.now())
+        trackEvent.featureUsed('campaign_saved', { campaignId: id, type, mode })
         console.log("✅ Campaign saved successfully")
       }
     } catch (error) {
@@ -277,6 +280,7 @@ function CampaignCanvasPageInner({
       })
       
       if (response.ok) {
+        trackEvent.featureUsed('campaign_deleted', { campaignId: id })
         console.log("✅ Campaign deleted successfully")
         // Redirect to campaigns list
         window.location.href = "/dashboard/campaigns"

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Plus, X } from "lucide-react"
 import { useOnboarding } from "./onboarding-context"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 function MultiRowInput({
   values,
@@ -183,6 +184,7 @@ export function CompanyForm() {
 
   const handleNext = async () => {
     try {
+      trackEvent.onboardingStepCompleted(3, 'company')
       // Determine final industry value - use custom if "Other" selected
       const finalIndustry = formData.companyIndustry === "Other" && customIndustry.trim()
         ? customIndustry.trim()

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Upload } from "lucide-react"
 import { safeParseArray, safeParseICPArray } from "@/lib/utils/safe-parse-array"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 // Consistent styles for Mudra theme
 const inputStyles = "bg-white/[0.03] border-0 text-white placeholder-white/30 focus:bg-white/[0.05] disabled:opacity-50 disabled:cursor-not-allowed"
@@ -112,6 +113,7 @@ export function BrandProfileForm() {
     }
     try {
       await setProfile(profileToSave as any) // ✅ Persist to context and API
+      trackEvent.profileUpdated()
       setIsEditing(false) // ✅ Close editing UI on successful save
     } catch (error) {
       console.error('❌ Failed to save brand profile:', error)

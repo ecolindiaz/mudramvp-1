@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowRight, Copy, CheckCircle2, Eye, EyeOff } from "lucide-react"
 import { useOnboarding } from "./onboarding-context"
 import { signIn } from "next-auth/react"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 export function AccountForm() {
   const router = useRouter()
@@ -119,6 +120,7 @@ export function AccountForm() {
   }
 
   const handleNext = () => {
+    trackEvent.onboardingStepCompleted(0, 'account')
     // Navigate to brand profile creation
     router.push("/welcome/basics")
   }

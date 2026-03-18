@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { cn } from "@/lib/utils"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import { AppSidebar } from "@/components/app-sidebar"
@@ -194,6 +195,7 @@ function ResponseRenderer({ responseText, brandName }: { responseText: string; b
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(responseText)
+    trackEvent.featureUsed('prompt_response_copied')
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }

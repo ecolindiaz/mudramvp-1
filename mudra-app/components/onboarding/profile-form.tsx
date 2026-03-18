@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
 import { useOnboarding } from "./onboarding-context"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 export function ProfileForm() {
   const router = useRouter()
@@ -26,6 +27,7 @@ export function ProfileForm() {
 
   const handleNext = async () => {
     try {
+      trackEvent.onboardingStepCompleted(2, 'profile')
       // Save form data to onboarding context
       updateData({
         userName: formData.userName,

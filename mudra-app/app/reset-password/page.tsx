@@ -11,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { trackEvent } from '@/lib/analytics/posthog-events'
 
 const resetPasswordSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -61,6 +62,7 @@ function ResetPasswordContent() {
                 throw new Error(result.error || 'Failed to reset password')
             }
 
+            trackEvent.passwordResetCompleted()
             setIsSuccess(true)
             toast.success('Password reset successful!')
             

@@ -18,6 +18,7 @@ import { Loader2, Search, Radio, BookOpen, Info, MessageSquare, TrendingUp, Cloc
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { cn } from "@/lib/utils"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 const RADAR_RUNNING_KEY = 'mudra_radar_running'
 const RADAR_RUN_TIMEOUT = 150_000 // 150s (backend maxDuration is 120s + buffer)
@@ -238,6 +239,7 @@ function ConversationRadarPageInner() {
     if (isLoading || !profile.id) return
 
     setIsLoading(true)
+    trackEvent.conversationScanStarted(profile.id, selectedCountry || 'default')
     localStorage.setItem(RADAR_RUNNING_KEY, JSON.stringify({
       startedAt: Date.now(),
       brandProfileId: profile.id,
@@ -258,6 +260,7 @@ function ConversationRadarPageInner() {
       })
       const result = await response.json()
       console.log('📊 Radar run result:', result)
+      trackEvent.conversationScanCompleted(profile.id, result?.opportunities?.length ?? 0)
       await refreshData()
       await fetchCronInfo() // Refresh "Next scan" after run stamps lastRadarRunAt
     } catch (error) {

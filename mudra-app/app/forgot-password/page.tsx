@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import Image from 'next/image'
+import { trackEvent } from '@/lib/analytics/posthog-events'
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -41,6 +42,7 @@ export default function ForgotPasswordPage() {
                 throw new Error(result.error || 'Failed to send reset email')
             }
 
+            trackEvent.passwordResetRequested()
             setEmailSent(true)
             toast.success('Password reset email sent!')
         } catch (error: any) {

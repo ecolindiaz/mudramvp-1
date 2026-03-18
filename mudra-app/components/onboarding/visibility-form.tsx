@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Upload } from "lucide-react"
 import { useOnboarding } from "./onboarding-context"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 export function VisibilityForm() {
   const router = useRouter()
@@ -21,6 +22,7 @@ export function VisibilityForm() {
 
   const handleNext = async () => {
     try {
+      trackEvent.onboardingStepCompleted(5, 'visibility')
       // Save knowledge base files to onboarding context
       updateData({
         knowledgeBaseFiles: files

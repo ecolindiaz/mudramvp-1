@@ -52,6 +52,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { toast } from "sonner"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 import { getLanguageForCountry, isAllowedCountry, type CountryCode } from "@/lib/geo/country-config"
 
 type TrackedPrompt = {
@@ -662,6 +663,7 @@ function TrackedPromptsPageInner() {
       console.log('📥 Delete prompt response:', result)
 
       if (result.success) {
+        trackEvent.trackedPromptDeleted(numericId)
         console.log('✅ Prompt deleted successfully')
         // Immediately remove from local state for instant UI feedback
         setData((prev) => prev.filter((p) => p.id !== promptId))
@@ -791,6 +793,7 @@ function TrackedPromptsPageInner() {
       console.log('📥 Add prompt response:', { status: response.status, result })
 
       if (response.ok && result.success) {
+        trackEvent.trackedPromptAdded(profile.id, text)
         const analysisComplete = Boolean(result.data?.analysisComplete)
         console.log('✅ Prompt added successfully', analysisComplete ? `(analysis complete: ${result.data?.visibility}% visibility)` : result.data?.analysisTriggered ? '(analysis triggered)' : '')
 
@@ -1161,6 +1164,7 @@ function TrackedPromptsPageInner() {
   }
 
   const handleExportCSV = () => {
+    trackEvent.trackedPromptExported(filteredData.length)
     const headers = ["Prompt", "Visibility (%)", "Position", "Models", "Last Run", "Intent", "Sentiment"]
     const rows = filteredData.map((item) => [
       `"${item.prompt.replace(/"/g, '""')}"`,

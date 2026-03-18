@@ -10,6 +10,7 @@ import { useBrandProfile } from "@/components/brand-profile-context"
 import { useOnboarding } from "./onboarding-context"
 import { useAnalysis } from "@/components/analysis-context"
 import { UnicodeLoader } from "@/components/ui/unicode-loader"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 
 
@@ -252,6 +253,7 @@ export function PromptsForm() {
   }, [recoveryState, analysisStarted, profile?.id])
 
   const handleFinish = () => {
+    trackEvent.onboardingCompleted(6, Date.now())
     // Clear onboarding data from localStorage
     if (typeof window !== 'undefined') {
       localStorage.removeItem('onboardingData')

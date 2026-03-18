@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { AIOptimizedGenerator, type GeneratingContent } from "@/components/content-lab/ai-optimized-generator"
 import { BlogSetupDialog } from "@/components/content-lab/blog-setup-dialog"
+import { trackEvent } from "@/lib/analytics/posthog-events"
  
 
 // Format types mapping
@@ -283,6 +284,7 @@ function CampaignsPageInner() {
   const handleOpenCampaign = (c: { id: string; type: string; mode: string }) => {
     const typeParam = c.type.toLowerCase().includes("blog") ? "blog" : c.type.toLowerCase().includes("newsletter") ? "newsletter" : "case"
     const modeParam = c.mode.toLowerCase()
+    trackEvent.featureUsed('campaign_opened', { campaignId: c.id, type: typeParam, mode: modeParam })
     router.push(`/dashboard/campaigns/${c.id}?type=${typeParam}&mode=${modeParam}`)
   }
   
@@ -300,6 +302,8 @@ function CampaignsPageInner() {
 
   const startGeneration = async () => {
     if (!selectedPrompt || !selectedIcp || !selectedContentType) return
+    
+    trackEvent.contentGenerated(selectedContentType, 'geo')
     
     // Close the dialog immediately
     setDialogOpen(false)

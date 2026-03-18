@@ -27,6 +27,7 @@ import {
 import { useBrandProfile } from "@/components/brand-profile-context"
 import { toast } from "sonner"
 import { getLanguageForCountry, isAllowedCountry, type CountryCode } from "@/lib/geo/country-config"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 interface Prompt {
   id: string
@@ -136,6 +137,7 @@ export default function PromptsPage() {
       const data = await response.json()
 
       if (data.success) {
+        trackEvent.promptCreated(profile.id, newPromptCategory)
         toast.success("Prompt added successfully")
         setNewPromptText("")
         loadPrompts()
@@ -167,6 +169,7 @@ export default function PromptsPage() {
       const data = await response.json()
 
       if (data.success) {
+        trackEvent.promptEdited(parseInt(promptId))
         toast.success("Prompt updated successfully")
         setEditingPrompt(null)
         setEditText("")
@@ -189,6 +192,7 @@ export default function PromptsPage() {
       const data = await response.json()
 
       if (data.success) {
+        trackEvent.promptDeleted(parseInt(promptId))
         toast.success("Prompt deleted successfully")
         loadPrompts()
       } else {
@@ -227,6 +231,7 @@ export default function PromptsPage() {
       const data = await response.json()
 
       if (data.success) {
+        trackEvent.promptsBatchGenerated(profile.id, data.prompts.length)
         toast.success(`Generated ${data.prompts.length} new prompts`)
         loadPrompts()
       } else {

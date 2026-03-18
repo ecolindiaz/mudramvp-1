@@ -58,6 +58,7 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import type { PointerEvent as RPointerEvent } from "react"
 import { toast } from "sonner"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 /**
  * Custom PointerSensor that skips drag activation when the event
@@ -1489,6 +1490,7 @@ function IssuesPageInner() {
     if (isRunningAnalysis) return
 
     setIsRunningAnalysis(true)
+    trackEvent.analysisStarted(profile.id, 'issues_page')
     const toastId = 'run-analysis'
     toast.loading('Running analysis... This may take 1-2 minutes.', { id: toastId })
 
@@ -1557,6 +1559,7 @@ function IssuesPageInner() {
     }
 
     setDeployingId(issueId)
+    trackEvent.agentDeployed(issueId, 'issue_fix')
     
     // Immediately move issue to in_progress in UI for visual feedback
     setIssues(prev => prev.map(issue => 
@@ -1821,6 +1824,11 @@ function IssuesPageInner() {
       
       const result = await response.json()
       if (result.success) {
+        if (editingIssue) {
+          trackEvent.issueStatusChanged(editingIssue.id, data.status || editingIssue.status)
+        } else {
+          trackEvent.issueCreated(result.data?.id, data.priority || 'medium')
+        }
         await fetchIssues()
         setIssueDialogOpen(false)
         setEditingIssue(null)
@@ -1848,6 +1856,7 @@ function IssuesPageInner() {
       })
       const result = await response.json()
       if (result.success) {
+        trackEvent.issueDeleted(deletingIssue.id)
         await fetchIssues()
         toast.success("Issue deleted successfully")
       } else {
@@ -1894,6 +1903,10 @@ function IssuesPageInner() {
       return issue
     })
     setIssues(newIssues)
+
+    if (targetStatus !== activeIssue.status) {
+      trackEvent.issueStatusChanged(activeIssue.id as number, targetStatus)
+    }
 
     // API call
     try {

@@ -18,6 +18,7 @@ import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Loader2, Play, CheckCircle, XCircle, Bot } from "lucide-react"
 import { toast } from "sonner"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 import { AIVisibilityProvider, useAIVisibility } from "@/contexts/ai-visibility-context"
 import { BrandProfileProvider } from "@/components/brand-profile-context"
 import React from "react"
@@ -46,6 +47,7 @@ function AIVisibilityPageContent() {
 
     try {
       const result = await calculateScore(companyName.trim())
+      trackEvent.featureUsed('ai_visibility_score', { score: result.percentage })
       toast.success(`AI Visibility score calculated: ${result.percentage}%`)
     } catch (error) {
       console.error('Error calculating AI Visibility score:', error)

@@ -46,20 +46,10 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         // Capture when users leave pages
         capture_pageleave: true,
         
-        // Enable autocapture with smart filtering
+        // Enable autocapture for all user interactions
         autocapture: {
-          // Only capture specific DOM events to reduce noise
+          // Capture specific DOM events to reduce noise
           dom_event_allowlist: ['click', 'submit', 'change'],
-          
-          // Only autocapture on key pages (reduces data volume)
-          url_allowlist: [
-            '/dashboard',
-            '/analysis',
-            '/campaigns',
-            '/analytics',
-            '/tracking',
-            '/settings',
-          ],
         },
         
         // Enable session recording (optional - can be expensive)

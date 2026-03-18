@@ -219,6 +219,7 @@ import {
 } from "@/components/ui/avatar"
 import { DomainLogo } from "@/components/ui/company-logo"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 // Interface for company data
 interface CompanyData {
@@ -404,6 +405,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
       console.log('Sign out response:', response.status)
 
       // Redirect to login
+      trackEvent.loggedOut()
       window.location.href = '/login'
     } catch (error) {
       console.error('Sign out error:', error)
@@ -574,6 +576,7 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
 
   const handleMonitorSwitch = React.useCallback(async (monitor: MonitorEntry) => {
     if (monitor.isCurrent || !monitor.id) return
+    trackEvent.monitorSwitched(monitor.id, monitor.label)
     setIsDropdownOpen(false)
     await switchProfile(monitor.id)
   }, [switchProfile])

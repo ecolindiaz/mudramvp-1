@@ -34,6 +34,7 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 // Custom Reddit icon (not available in Lucide)
 const RedditIcon = (props: LucideProps) => (
@@ -113,6 +114,7 @@ export default function TaskDeepViewPage() {
       })
       const result = await response.json()
       if (result.success) {
+        trackEvent.opportunityCompleted(parseInt(dbId))
         setOpportunityStatus('engaged')
         // Navigate back after a short delay
         setTimeout(() => handleBack(), 500)
@@ -136,6 +138,7 @@ export default function TaskDeepViewPage() {
       })
       const result = await response.json()
       if (result.success) {
+        trackEvent.opportunityDismissed(parseInt(dbId))
         setOpportunityStatus('dismissed')
         // Navigate back after a short delay
         setTimeout(() => handleBack(), 500)

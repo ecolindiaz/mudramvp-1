@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Copy, Check, Code, Activity, Bot, GitBranch, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
 import { useBrandProfile } from '@/components/brand-profile-context';
+import { trackEvent } from '@/lib/analytics/posthog-events';
 
 interface TrackingCodeData {
   trackingId: string;
@@ -85,6 +86,7 @@ export default function TrackingCodeManager() {
 
     try {
       await navigator.clipboard.writeText(data.script);
+      trackEvent.featureUsed('tracking_code_copied');
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -115,6 +117,7 @@ export default function TrackingCodeManager() {
       const result = await response.json();
 
       if (result.success) {
+        trackEvent.trackingScriptInstalled(selectedRepo, 'agent');
         setInstallSuccess({
           prUrl: result.data.prUrl,
           prNumber: result.data.prNumber

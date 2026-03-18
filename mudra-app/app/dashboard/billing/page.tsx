@@ -17,6 +17,7 @@ import { AlertCircle, Check, CreditCard, Download, ExternalLink, Sparkles, Zap }
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { toast } from "sonner"
 import { format } from "date-fns"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 interface BillingInfo {
   plan: "free" | "starter" | "pro" | "enterprise"
@@ -165,6 +166,7 @@ function BillingPageInner() {
   const confirmUpgrade = async () => {
     if (!selectedPlan) return
     
+    trackEvent.planUpgradeClicked(selectedPlan, billingCycle)
     setLoading(true)
 
     try {

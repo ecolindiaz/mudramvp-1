@@ -30,6 +30,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 export function NavUser({
   user,
@@ -77,6 +78,7 @@ export function NavUser({
       console.log('Sign out response:', response.status)
       
       // Redirect to login
+      trackEvent.loggedOut()
       window.location.href = '/login'
     } catch (error) {
       console.error('Sign out error:', error)

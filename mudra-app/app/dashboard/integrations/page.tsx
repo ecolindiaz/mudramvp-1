@@ -10,6 +10,7 @@ import Image from "next/image"
 import { useState, useEffect } from "react"
 import { Check, Link2, GitBranch, RefreshCw } from "lucide-react"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 function IntegrationsPageInner() {
   const { profile, setProfile } = useBrandProfile()
@@ -105,6 +106,7 @@ function IntegrationsPageInner() {
   }
 
   const handleGitHubLink = () => {
+    trackEvent.githubIntegrationConnected('link')
     // Redirect to GitHub OAuth to link account
     window.location.href = '/api/auth/github/link'
   }
@@ -116,6 +118,7 @@ function IntegrationsPageInner() {
       })
       
       if (response.ok) {
+        trackEvent.githubIntegrationDisconnected('unlink')
         setGithubLinked(false)
         setLinkedGithubUsername(null)
         setSyncMessage({ type: 'success', text: 'GitHub account unlinked successfully.' })
@@ -137,6 +140,7 @@ function IntegrationsPageInner() {
     
     // Store a flag to show we're expecting a callback
     sessionStorage.setItem('github_app_connecting', 'true')
+    trackEvent.githubIntegrationConnected('app_install')
     
     window.location.href = githubAuthUrl
   }
@@ -148,6 +152,7 @@ function IntegrationsPageInner() {
       })
       
       if (response.ok) {
+        trackEvent.githubIntegrationDisconnected('app_uninstall')
         setGithubConnected(false)
         setGithubUsername(null)
       }
@@ -168,6 +173,7 @@ function IntegrationsPageInner() {
       const data = await response.json()
       
       if (data.success) {
+        trackEvent.featureUsed('github_sync', { repositories: data.data.repositories })
         setSyncMessage({ 
           type: 'success', 
           text: `✓ Synced successfully! Found ${data.data.repositories} repositories.` 

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Plus, X } from "lucide-react"
 import { useOnboarding } from "./onboarding-context"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 // Validate URL format
 function isValidUrl(url: string): boolean {
@@ -71,6 +72,7 @@ export function CompetitorsForm() {
 
   const handleNext = async () => {
     try {
+      trackEvent.onboardingStepCompleted(4, 'competitors')
       // Save competitors data to onboarding context
       updateData({
         competitors: competitors.filter(c => c.trim() !== "")

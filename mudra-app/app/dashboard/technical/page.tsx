@@ -17,6 +17,7 @@ import {
   PageDetailPanel,
   ScrapeJobTrigger 
 } from "../../../components/technical-structure"
+import { trackEvent } from "@/lib/analytics/posthog-events"
 
 interface PageScore {
   pageUrl: string;
@@ -118,6 +119,7 @@ function TechnicalStructurePageInner() {
   }, [selectedPage, brandProfile?.id])
 
   const handleJobComplete = () => {
+    trackEvent.technicalScrapeCompleted(brandProfile?.id || 0, siteScore?.overall || 0)
     // Refresh scores when job completes
     fetchScores()
   }

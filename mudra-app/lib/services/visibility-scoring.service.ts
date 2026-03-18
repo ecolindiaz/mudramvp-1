@@ -203,7 +203,7 @@ export function calculateAggregateScore(tests: PromptTestResult[]): AggregateVis
 
   // Calculate visibility score using mention rate
   // Each test: 100 if mentioned, 0 if not → average = mentionRate × 100
-  const mentionScores = tests.map(t => t.brandMentioned ? 100 : 0);
+  const mentionScores = tests.map(t => t.brandMentioned ? 100 : 0) as number[];
   const overallScore = mentionScores.length > 0
     ? mentionScores.reduce((a, b) => a + b, 0) / mentionScores.length
     : 0;

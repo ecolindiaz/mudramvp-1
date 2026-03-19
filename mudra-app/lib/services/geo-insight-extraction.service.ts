@@ -16,6 +16,7 @@ import { geoInsightExtractorAgent, geoInsightSchema } from '@/mastra/agents/geo-
 import type { ExtractedInsight } from '@/mastra/agents/geo-insight-extractor-agent'
 
 const ISSUE_BACKLOG_THRESHOLD = 10
+const MAX_NEW_AI_ISSUES_PER_RUN = 5
 const MAX_GEO_RESULTS = 3
 const MAX_RESPONSE_LENGTH = 2000
 const MAX_ENTRIES_PER_BATCH = 15
@@ -62,7 +63,7 @@ export async function extractGeoInsights(
     // 1. Check backlog threshold
     if (!options?.forceExtraction) {
       const identifiedCount = await prisma.issue.count({
-        where: { brandProfileId, status: 'identified' },
+        where: { brandProfileId, status: 'identified', category: 'ai_visibility' },
       })
       if (identifiedCount >= ISSUE_BACKLOG_THRESHOLD) {
         console.log(`[GeoInsight] Skipping: ${identifiedCount} identified issues pending (threshold: ${ISSUE_BACKLOG_THRESHOLD})`)
@@ -108,8 +109,17 @@ export async function extractGeoInsights(
       return defaultResult
     }
 
-    // 5. Deduplicate and create issues
-    const { created, skipped } = await upsertInsightIssues(brandProfileId, allInsights)
+    // 5. Sort insights: fundamental > intermediate > advanced, then high > medium > low
+    const tierOrder: Record<string, number> = { fundamental: 0, intermediate: 1, advanced: 2 }
+    const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 }
+    allInsights.sort((a, b) => {
+      const tierDiff = (tierOrder[a.discoveryTier] ?? 2) - (tierOrder[b.discoveryTier] ?? 2)
+      if (tierDiff !== 0) return tierDiff
+      return (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1)
+    })
+
+    // 6. Deduplicate and create issues (capped at MAX_NEW_AI_ISSUES_PER_RUN new creations)
+    const { created, skipped } = await upsertInsightIssues(brandProfileId, allInsights, MAX_NEW_AI_ISSUES_PER_RUN)
 
     console.log(`[GeoInsight] Extracted: ${allInsights.length}, Created: ${created}, Skipped (dedup): ${skipped}`)
     return {
@@ -289,7 +299,8 @@ function buildExtractionPrompt(entries: PromptResponseEntry[], brand: BrandConte
  */
 async function upsertInsightIssues(
   brandProfileId: number,
-  insights: ExtractedInsight[]
+  insights: ExtractedInsight[],
+  maxNewCreations?: number
 ): Promise<{ created: number; skipped: number }> {
   let created = 0
   let skipped = 0
@@ -315,6 +326,12 @@ async function upsertInsightIssues(
           },
         })
       }
+      skipped++
+      continue
+    }
+
+    // Respect per-run cap on new creations (deduped updates don't count)
+    if (maxNewCreations !== undefined && created >= maxNewCreations) {
       skipped++
       continue
     }

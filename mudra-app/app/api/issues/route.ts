@@ -112,12 +112,35 @@ export async function GET(request: NextRequest) {
     }
 
     // Group by status for Kanban view
-    // Cap identified issues to avoid overwhelming the user — show the top 10 by priority.
-    // Issues in other statuses (in_progress, completed, merged) always show in full.
+    // Cap identified issues to avoid overwhelming the user — show the top 10 by priority,
+    // balanced across categories so both technical and AI visibility issues are represented.
     const MAX_IDENTIFIED_DISPLAY = 10
+    const SLOTS_PER_CATEGORY = 5
     const allIdentified = filteredIssues.filter(i => i.status === 'identified')
+    const techIdentified = allIdentified.filter(i => i.category === 'technical_structure')
+    const aiIdentified = allIdentified.filter(i => i.category === 'ai_visibility')
+
+    // Take up to SLOTS_PER_CATEGORY from each, then fill remaining from whichever has more
+    const techSlice = techIdentified.slice(0, SLOTS_PER_CATEGORY)
+    const aiSlice = aiIdentified.slice(0, SLOTS_PER_CATEGORY)
+    const used = techSlice.length + aiSlice.length
+    const remaining = MAX_IDENTIFIED_DISPLAY - used
+
+    let balancedIdentified: typeof allIdentified
+    if (remaining > 0 && techIdentified.length > SLOTS_PER_CATEGORY) {
+      balancedIdentified = [...techSlice, ...aiSlice, ...techIdentified.slice(SLOTS_PER_CATEGORY, SLOTS_PER_CATEGORY + remaining)]
+    } else if (remaining > 0 && aiIdentified.length > SLOTS_PER_CATEGORY) {
+      balancedIdentified = [...techSlice, ...aiSlice, ...aiIdentified.slice(SLOTS_PER_CATEGORY, SLOTS_PER_CATEGORY + remaining)]
+    } else {
+      balancedIdentified = [...techSlice, ...aiSlice]
+    }
+
+    // Re-sort combined set by priority (high > medium > low)
+    const priorityRank: Record<string, number> = { high: 0, medium: 1, low: 2 }
+    balancedIdentified.sort((a, b) => (priorityRank[a.priority ?? 'medium'] ?? 1) - (priorityRank[b.priority ?? 'medium'] ?? 1))
+
     const grouped = {
-      identified: allIdentified.slice(0, MAX_IDENTIFIED_DISPLAY),
+      identified: balancedIdentified,
       in_progress: filteredIssues.filter(i => i.status === 'in_progress'),
       completed: filteredIssues.filter(i => i.status === 'completed'),
       merged: filteredIssues.filter(i => i.status === 'merged')

@@ -167,12 +167,12 @@ export async function createIssuesFromPageScore(
     return { created: 0, updated: 0, skipped: 0 }
   }
 
-  // Enforce backlog threshold: don't create new issues if too many are already pending
+  // Enforce backlog threshold: don't create new issues if too many technical issues are already pending
   const identifiedCount = await prisma.issue.count({
-    where: { brandProfileId, status: 'identified' },
+    where: { brandProfileId, status: 'identified', category: 'technical_structure' },
   })
   if (identifiedCount >= ISSUE_BACKLOG_THRESHOLD) {
-    console.log(`[IssueFromScoring] Skipping ${pageScore.page_url}: ${identifiedCount} identified issues already pending (threshold: ${ISSUE_BACKLOG_THRESHOLD})`)
+    console.log(`[IssueFromScoring] Skipping ${pageScore.page_url}: ${identifiedCount} identified technical issues already pending (threshold: ${ISSUE_BACKLOG_THRESHOLD})`)
     return { created: 0, updated: 0, skipped: pageScore.issues.length }
   }
 
@@ -358,10 +358,10 @@ export async function createIssuesFromMultiplePageScores(
     // Stop early if backlog is full (createIssuesFromPageScore checks too,
     // but this avoids unnecessary iterations)
     const identifiedCount = await prisma.issue.count({
-      where: { brandProfileId, status: 'identified' },
+      where: { brandProfileId, status: 'identified', category: 'technical_structure' },
     })
     if (identifiedCount >= ISSUE_BACKLOG_THRESHOLD) {
-      console.log(`[IssueFromScoring] Bulk create stopping early: ${identifiedCount} identified issues pending (threshold: ${ISSUE_BACKLOG_THRESHOLD})`)
+      console.log(`[IssueFromScoring] Bulk create stopping early: ${identifiedCount} identified technical issues pending (threshold: ${ISSUE_BACKLOG_THRESHOLD})`)
       break
     }
 

@@ -148,6 +148,7 @@ export async function getBrandsForScheduledRun(opts?: { onlyDue?: boolean }): Pr
 
   const brands = await prisma.brandProfile.findMany({
     where: {
+      cronEnabled: true,
       // Only brands with active prompts
       prompts: {
         some: { isActive: true },

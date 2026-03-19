@@ -233,7 +233,11 @@ function canGenerateScript(issue: Issue): boolean {
     issue.agentType === "faq_sections" ||
     issue.agentType === "llms_txt" ||
     issue.agentType === "llms_txt_missing" ||
-    issue.agentType === "llms_txt_optimizer"
+    issue.agentType === "llms_txt_optimizer" ||
+    issue.agentType === "citation_signals" ||
+    issue.agentType === "ai_content_optimizer" ||
+    issue.agentType === "authority_building" ||
+    issue.agentType === "brand_messaging"
   )
 }
 
@@ -857,6 +861,38 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
 - Keep FAQs at 3–6 with [Source](URL) links in every answer, using canonical docs/pricing/security pages for core claims.
 - Include policies and security/pricing sections with verified source links when public.
 - Validate before final output: no duplicate links, no out-of-scope URLs, no missing required sections, and every security/pricing/FAQ claim has a source link.`,
+
+  citation_signals: `Citation Signals — AI Visibility
+- Add structured data that helps AI systems cite your website as a source.
+- Include author attribution, publication dates, and canonical URLs on key pages.
+- Add authoritative content markers: research data, statistics, expert quotes.
+- Ensure meta descriptions clearly summarize the page's unique value proposition.
+- Add schema.org Article/WebPage markup with datePublished and author properties.
+- Include BreadcrumbList schema to help AI understand site hierarchy.`,
+
+  ai_content_optimizer: `AI Content Optimization — Brand Visibility
+- Strengthen brand mentions by ensuring your brand name appears naturally in key content sections.
+- Add clear product/service descriptions with differentiated value propositions.
+- Include comparison-friendly content: feature lists, pricing tiers, use cases.
+- Add "About" structured content that AI systems can reference.
+- Ensure each key page has a clear, unique meta description with brand name.
+- Add FAQ content addressing common industry queries where your brand is the answer.`,
+
+  authority_building: `Authority Building — Brand Positioning
+- Add trust signals: customer logos, testimonials, case study summaries.
+- Include industry credentials, certifications, and awards.
+- Add quantitative proof points: user counts, performance metrics, uptime stats.
+- Create comparative content showing your unique differentiators.
+- Add expert authorship attribution to blog and resource pages.
+- Strengthen internal linking between high-authority pages.`,
+
+  brand_messaging: `Brand Messaging — Sentiment Optimization
+- Review and strengthen positive brand messaging across key pages.
+- Add customer success stories and positive proof points.
+- Ensure product descriptions focus on benefits and outcomes.
+- Add or improve testimonial sections with specific, verifiable results.
+- Address common concerns or misconceptions proactively in FAQ content.
+- Strengthen "About" and "Why Us" content with factual differentiators.`,
 }
 
 // Issue Detail Dialog (popup when clicking on an issue)

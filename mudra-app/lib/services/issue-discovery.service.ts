@@ -206,7 +206,7 @@ async function discoverTechnicalIssuesFromScoring(
 }
 
 /**
- * Discover AI visibility issues based on policy file checks (deterministic)
+ * Discover AI visibility issues based on policy file checks AND GEO analysis data (deterministic)
  */
 async function discoverAIVisibilityIssues(
   brandProfileId: number,
@@ -214,7 +214,7 @@ async function discoverAIVisibilityIssues(
 ): Promise<DiscoveredIssue[]> {
   const issues: DiscoveredIssue[] = []
 
-  // Check if llms.txt exists
+  // --- Policy file checks (llms.txt) ---
   const policyFile = await prisma.policyFile.findFirst({
     where: {
       brand_profile_id: brandProfileId
@@ -254,6 +254,117 @@ async function discoverAIVisibilityIssues(
         discoveryTier: 'intermediate',
         discoveredFromScore: currentScore
       })
+    }
+  }
+
+  // --- GEO analysis-based issues (from AI provider test results) ---
+  const geoResult = await prisma.geoAnalysisResult.findFirst({
+    where: { brandProfileId },
+    orderBy: { createdAt: 'desc' },
+    select: { overallScore: true, analyses: true, summary: true }
+  })
+
+  if (geoResult) {
+    const analyses = geoResult.analyses as Array<{
+      provider: string
+      brandVisibilityScore: number
+      mentionRate: number
+      averagePosition: number
+      sentiment: string
+      promptTests?: Array<{
+        brandMentioned: boolean
+        citations?: Array<{ url: string }>
+        sources?: Array<{ url: string }>
+      }>
+    }> | null
+
+    if (analyses && Array.isArray(analyses)) {
+      // Calculate aggregate metrics
+      const avgMentionRate = analyses.reduce((sum, a) => sum + (a.mentionRate || 0), 0) / analyses.length
+      const avgPosition = analyses.reduce((sum, a) => sum + (a.averagePosition || 0), 0) / analyses.length
+
+      // Check for citation gaps — low citation count across providers
+      const totalPrompts = analyses.reduce((sum, a) => sum + (a.promptTests?.length || 0), 0)
+      const promptsWithCitations = analyses.reduce((sum, a) => {
+        return sum + (a.promptTests?.filter(pt =>
+          pt.brandMentioned && ((pt.citations?.length || 0) > 0 || (pt.sources?.length || 0) > 0)
+        ).length || 0)
+      }, 0)
+      const citationRate = totalPrompts > 0 ? promptsWithCitations / totalPrompts : 0
+
+      // Low mention rate across providers — brand not being referenced
+      if (avgMentionRate < 0.4 && currentScore < 50) {
+        const hash = generateIssueHash(brandProfileId, 'ai_visibility', 'Improve Brand Mention Rate')
+        const existing = await prisma.issue.findUnique({ where: { issueHash: hash } })
+        if (!existing) {
+          issues.push({
+            title: 'Improve Brand Mention Rate',
+            description: `Your brand is mentioned in only ${Math.round(avgMentionRate * 100)}% of AI responses across providers. Improving your content structure, adding authoritative signals, and strengthening your brand messaging can increase how often AI systems reference your brand.`,
+            priority: 'high',
+            agentType: 'ai_content_optimizer',
+            estimatedImpact: '+10-20 visibility points',
+            category: 'ai_visibility',
+            discoveryTier: 'fundamental',
+            discoveredFromScore: currentScore
+          })
+        }
+      }
+
+      // Low citation rate — AI mentions the brand but doesn't link to website
+      if (citationRate < 0.3 && avgMentionRate > 0.2) {
+        const hash = generateIssueHash(brandProfileId, 'ai_visibility', 'Strengthen Citation Signals')
+        const existing = await prisma.issue.findUnique({ where: { issueHash: hash } })
+        if (!existing) {
+          issues.push({
+            title: 'Strengthen Citation Signals',
+            description: `AI systems mention your brand but rarely cite your website as a source (${Math.round(citationRate * 100)}% citation rate). Adding structured data, authoritative content, and clear source attribution can help AI systems link back to your site.`,
+            priority: 'medium',
+            agentType: 'citation_signals',
+            estimatedImpact: '+5-10 visibility points',
+            category: 'ai_visibility',
+            discoveryTier: 'intermediate',
+            discoveredFromScore: currentScore
+          })
+        }
+      }
+
+      // Poor brand positioning — brand appears but ranked low
+      if (avgPosition > 3 && avgMentionRate > 0.3) {
+        const hash = generateIssueHash(brandProfileId, 'ai_visibility', 'Improve Brand Position in AI Responses')
+        const existing = await prisma.issue.findUnique({ where: { issueHash: hash } })
+        if (!existing) {
+          issues.push({
+            title: 'Improve Brand Position in AI Responses',
+            description: `Your brand appears in AI responses but is typically mentioned in position ${avgPosition.toFixed(1)} (lower is better). Strengthening authority signals and content differentiation can help your brand appear earlier in AI-generated responses.`,
+            priority: 'medium',
+            agentType: 'authority_building',
+            estimatedImpact: '+5-8 visibility points',
+            category: 'ai_visibility',
+            discoveryTier: 'intermediate',
+            discoveredFromScore: currentScore
+          })
+        }
+      }
+
+      // Negative sentiment — AI describes brand negatively
+      const negativeSentimentProviders = analyses.filter(a => a.sentiment === 'negative')
+      if (negativeSentimentProviders.length > 0) {
+        const providerNames = negativeSentimentProviders.map(p => p.provider).join(', ')
+        const hash = generateIssueHash(brandProfileId, 'ai_visibility', 'Address Negative Brand Sentiment')
+        const existing = await prisma.issue.findUnique({ where: { issueHash: hash } })
+        if (!existing) {
+          issues.push({
+            title: 'Address Negative Brand Sentiment',
+            description: `AI systems on ${providerNames} portray your brand with negative sentiment. Improving your public content, adding positive proof points, and strengthening your brand messaging can help shift AI-generated perceptions.`,
+            priority: 'high',
+            agentType: 'brand_messaging',
+            estimatedImpact: 'Sentiment improvement',
+            category: 'ai_visibility',
+            discoveryTier: 'fundamental',
+            discoveredFromScore: currentScore
+          })
+        }
+      }
     }
   }
 

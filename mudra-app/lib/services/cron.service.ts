@@ -47,9 +47,10 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
   console.log('🔄 [CRON] Starting weekly analysis job...');
 
   try {
-    // Fetch all active brand profiles with user relationships
+    // Fetch cron-eligible brand profiles (must have cronEnabled=true and at least one prior analysis)
     const brandProfiles = await prisma.brandProfile.findMany({
       where: {
+        cronEnabled: true,
         // Only process profiles that have been analyzed at least once
         // This prevents running analysis on incomplete onboarding profiles
         analysisRuns: {

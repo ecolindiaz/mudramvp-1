@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     // Fetch all brand profiles that have a website and a user
     const profiles = await prisma.brandProfile.findMany({
       where: {
+        cronEnabled: true,
         companyWebsite: { not: null },
         userId: { not: null },
       },

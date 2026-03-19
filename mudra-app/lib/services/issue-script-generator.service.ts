@@ -24,7 +24,11 @@ type ScriptAgentType =
 	| "faq_sections"
 	| "llms_txt"
 	| "llms_txt_missing"
-	| "llms_txt_optimizer";
+	| "llms_txt_optimizer"
+	| "citation_signals"
+	| "ai_content_optimizer"
+	| "authority_building"
+	| "brand_messaging";
 
 export interface ScriptGeneratorIssue {
 	id: number;
@@ -58,12 +62,23 @@ const SUPPORTED_AGENT_TYPES = new Set<ScriptAgentType>([
 	"llms_txt",
 	"llms_txt_missing",
 	"llms_txt_optimizer",
+	"citation_signals",
+	"ai_content_optimizer",
+	"authority_building",
+	"brand_messaging",
 ]);
 
 const LLMS_AGENT_TYPES = new Set<ScriptAgentType>([
 	"llms_txt",
 	"llms_txt_missing",
 	"llms_txt_optimizer",
+]);
+
+const AI_VISIBILITY_AGENT_TYPES = new Set<ScriptAgentType>([
+	"citation_signals",
+	"ai_content_optimizer",
+	"authority_building",
+	"brand_messaging",
 ]);
 
 const KNOWN_SCHEMA_TYPES = new Set<string>([
@@ -410,6 +425,13 @@ function isLlmsAgentType(
 ): agentType is "llms_txt" | "llms_txt_missing" | "llms_txt_optimizer" {
 	if (!agentType) return false;
 	return LLMS_AGENT_TYPES.has(agentType as ScriptAgentType);
+}
+
+function isAiVisibilityAgentType(
+	agentType: string | null | undefined
+): agentType is "citation_signals" | "ai_content_optimizer" | "authority_building" | "brand_messaging" {
+	if (!agentType) return false;
+	return AI_VISIBILITY_AGENT_TYPES.has(agentType as ScriptAgentType);
 }
 
 function toHttpsUrl(url: string): string {
@@ -1764,6 +1786,9 @@ export function generateScriptForIssue(
 	if (isLlmsAgentType(issue.agentType)) {
 		return buildLlmsTxtTemplate(issue, brandProfile);
 	}
+	if (isAiVisibilityAgentType(issue.agentType)) {
+		return buildAiVisibilityGuidance(issue, brandProfile);
+	}
 	return buildSchemaScript(issue, brandProfile);
 }
 
@@ -2146,6 +2171,169 @@ function buildLlmsProductsFromUrls(
 	}
 
 	return products.slice(0, 5);
+}
+
+/**
+ * Build guidance output for AI visibility agent types.
+ * These produce actionable recommendations rather than injectable code.
+ */
+function buildAiVisibilityGuidance(
+	issue: ScriptGeneratorIssue,
+	brandProfile: ScriptGeneratorBrandProfile
+): ScriptGenerationResult {
+	const brandName = brandProfile.companyName || "your brand";
+	const website = brandProfile.companyWebsite || "your website";
+	const industry = brandProfile.companyIndustry || "your industry";
+
+	const guidanceMap: Record<string, string> = {
+		citation_signals: `# Citation Signal Improvements for ${brandName}
+
+## Priority Actions
+
+### 1. Add Article Schema to Key Pages
+Add structured data to blog posts and resource pages:
+\`\`\`html
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Your Page Title",
+  "author": { "@type": "Organization", "name": "${brandName}" },
+  "datePublished": "${new Date().toISOString().split('T')[0]}",
+  "publisher": { "@type": "Organization", "name": "${brandName}", "url": "${website}" }
+}
+</script>
+\`\`\`
+
+### 2. Strengthen Source Attribution
+- Add clear authorship to all content pages
+- Include publication and last-modified dates
+- Add canonical URLs to every page
+- Include BreadcrumbList schema for site navigation
+
+### 3. Create Citable Content
+- Add data-driven content: statistics, benchmarks, research findings
+- Create definitive guides that AI systems can reference as authoritative sources
+- Include quotable summaries at the top of long-form content
+
+### 4. Improve Link Profile
+- Ensure consistent internal linking between related pages
+- Add a comprehensive sitemap.xml
+- Create a resources/references page linking to your best content`,
+
+		ai_content_optimizer: `# AI Content Optimization Plan for ${brandName}
+
+## Priority Actions
+
+### 1. Strengthen Brand Presence on Key Pages
+- Ensure "${brandName}" appears naturally in the first paragraph of every key page
+- Add a clear value proposition within the first 100 words
+- Include brand name in meta titles and descriptions
+
+### 2. Create Comparison-Friendly Content
+- Add a "Why ${brandName}" or comparison page
+- Include feature comparison tables with competitors
+- Add use-case-specific landing pages
+
+### 3. Optimize for AI Question Patterns
+- Add FAQ sections addressing "${industry}" questions where ${brandName} is relevant
+- Structure content with clear H2/H3 headings that match common queries
+- Include "What is ${brandName}?" content in your about page
+
+### 4. Add Structured Context
+\`\`\`html
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "${brandName}",
+  "url": "${website}",
+  "description": "${brandProfile.companyDescription || `Leading solution in ${industry}`}"
+}
+</script>
+\`\`\`
+
+### 5. Build Topical Authority
+- Publish content covering key topics in ${industry}
+- Create pillar pages for your main product categories
+- Link between related content to build topic clusters`,
+
+		authority_building: `# Authority Building Plan for ${brandName}
+
+## Priority Actions
+
+### 1. Add Trust Signals
+- Add customer logos/testimonials section to homepage
+- Include specific metrics: user counts, uptime stats, performance benchmarks
+- Add industry certifications and compliance badges
+
+### 2. Strengthen "About" Content
+- Expand your about page with company history, mission, and team
+- Add founder/team bios with credentials
+- Include any press mentions, awards, or industry recognition
+
+### 3. Create Authoritative Resources
+- Publish original research or industry reports
+- Create comprehensive guides that demonstrate expertise
+- Add case studies with measurable results
+
+### 4. Improve Content Differentiation
+- Clearly articulate what makes ${brandName} unique vs competitors
+- Add comparison content highlighting specific advantages
+- Include quantitative proof points (e.g., "50% faster", "used by 10,000+ teams")
+
+### 5. Structured Data for Authority
+\`\`\`html
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "${brandName}",
+  "url": "${website}",
+  "foundingDate": "YYYY",
+  "numberOfEmployees": { "@type": "QuantitativeValue", "value": "N" },
+  "award": ["Award 1", "Award 2"]
+}
+</script>
+\`\`\``,
+
+		brand_messaging: `# Brand Messaging Optimization for ${brandName}
+
+## Priority Actions
+
+### 1. Strengthen Positive Messaging
+- Lead with customer outcomes and benefits on every key page
+- Replace feature-first copy with benefit-first messaging
+- Add specific success metrics and ROI data
+
+### 2. Add Social Proof
+- Include customer testimonials with real names and companies
+- Add case study summaries with measurable outcomes
+- Display review scores or ratings if available
+
+### 3. Address Common Concerns
+- Add a FAQ section addressing potential objections
+- Include transparent pricing information
+- Add security/compliance/privacy information prominently
+
+### 4. Improve Brand Consistency
+- Ensure consistent brand voice and messaging across all pages
+- Align meta descriptions with page content
+- Use consistent terminology for products and features
+
+### 5. Proactive Reputation Management
+- Create content that highlights positive differentiators
+- Add a "Customers" or "Success Stories" page
+- Include industry expert endorsements or partnerships`,
+	};
+
+	const guidance = guidanceMap[issue.agentType || ""] || `# Optimization Recommendations\n\nReview your website content and structure to improve AI visibility for ${brandName}.`;
+
+	return {
+		generatedOutput: guidance,
+		outputType: "guidance",
+		source: "template",
+	};
 }
 
 function buildLlmsTxtTemplate(
@@ -3444,6 +3632,57 @@ async function buildLlmPrompts(
 		return { userPrompt, systemPrompt: LLMS_TXT_SYSTEM_PROMPT };
 	}
 
+	if (isAiVisibilityAgentType(issue.agentType)) {
+		const agentType = issue.agentType as "citation_signals" | "ai_content_optimizer" | "authority_building" | "brand_messaging";
+
+		const typePrompts: Record<string, { system: string; instruction: string }> = {
+			citation_signals: {
+				system: `You are an AI visibility optimization expert specializing in citation signals.
+Your task is to produce actionable, brand-specific guidance for improving how AI systems cite and reference this brand.
+Focus on structured data, authoritative content patterns, and citation-friendly page structures.
+Base all recommendations on the provided page content and grounding evidence.`,
+				instruction: "Analyze the page and generate specific, actionable recommendations to improve citation signals for AI systems. Include concrete code snippets (schema.org JSON-LD, meta tags) where applicable.",
+			},
+			ai_content_optimizer: {
+				system: `You are an AI content optimization specialist.
+Your task is to produce actionable guidance for increasing brand mention rates in AI-generated responses.
+Focus on content clarity, entity disambiguation, authority signals, and AI-friendly content structuring.
+Base all recommendations on the provided page content and grounding evidence.`,
+				instruction: "Analyze the page content and generate specific recommendations to increase this brand's mention rate in AI responses. Include content restructuring suggestions, key phrase recommendations, and any code changes needed.",
+			},
+			authority_building: {
+				system: `You are a brand authority and positioning expert for AI visibility.
+Your task is to produce actionable guidance for improving brand positioning in AI-generated recommendations.
+Focus on E-E-A-T signals, authoritative content, competitive positioning, and trust indicators.
+Base all recommendations on the provided page content and grounding evidence.`,
+				instruction: "Analyze the brand's current positioning and generate specific recommendations to improve authority signals that AI systems use for ranking and recommendation. Include structural changes, content additions, and schema markup suggestions.",
+			},
+			brand_messaging: {
+				system: `You are a brand sentiment and messaging optimization expert for AI visibility.
+Your task is to produce actionable guidance for improving how AI systems perceive and represent this brand's messaging.
+Focus on consistent messaging, positive sentiment signals, clear value propositions, and testimonial/review structuring.
+Base all recommendations on the provided page content and grounding evidence.`,
+				instruction: "Analyze the brand messaging and sentiment signals on this page. Generate specific recommendations to improve how AI systems interpret and represent this brand. Include content, markup, and structural suggestions.",
+			},
+		};
+
+		const prompts = typePrompts[agentType];
+
+		const systemPrompt = `${prompts.system}
+
+OUTPUT FORMAT:
+- Return well-structured Markdown guidance.
+- Use clear headings (##) for each recommendation category.
+- Include concrete code snippets in fenced code blocks where applicable.
+- Prioritize recommendations by impact (high → low).
+- Keep recommendations specific to this brand — no generic advice.
+- Base everything on the grounding evidence provided.`;
+
+		const userPrompt = `${prompts.instruction}${brandContext}${pageContext}${issueContext}${evidenceContext}`;
+
+		return { userPrompt, systemPrompt };
+	}
+
 	if (check === "J1_present" || check === "J3_relevant" || check === "J4_coverage" || check === "FAQ_schema_gap") {
 		const issueText = `${issue.checkCode || ""} ${issue.description || ""}`;
 		const schemaKb = await readSchemaKnowledge(issueText);
@@ -3722,11 +3961,25 @@ export async function generateScriptWithLlm(
 			userPrompt,
 			systemPrompt,
 			maxTokens: 4096,
-			reasoningEffort: isLlmsAgentType(issue.agentType) ? "medium" : "high",
+			reasoningEffort: isLlmsAgentType(issue.agentType) || isAiVisibilityAgentType(issue.agentType) ? "medium" : "high",
 		});
 
 		if (!llmResult) {
 			console.warn("[ScriptGen] All LLM providers failed, using template fallback");
+			return buildTemplateFallback();
+		}
+
+		// 5b. AI visibility types return markdown guidance — skip code extraction/validation
+		if (isAiVisibilityAgentType(issue.agentType)) {
+			const guidanceOutput = llmResult.text.trim();
+			if (guidanceOutput.length > 50) {
+				return {
+					generatedOutput: guidanceOutput,
+					outputType: "guidance",
+					source: "llm",
+				};
+			}
+			console.warn("[ScriptGen] AI visibility LLM output too short, using template fallback");
 			return buildTemplateFallback();
 		}
 

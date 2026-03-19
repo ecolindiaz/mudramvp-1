@@ -78,6 +78,9 @@ model BrandProfile {
   // Website platform (no-code/low-code)
   websitePlatform            String?                     // "framer" | null
 
+  // Cron job eligibility — only brands with cronEnabled=true are processed by scheduled jobs
+  cronEnabled                Boolean  @default(false)
+
   @@index([userId])
 }
 

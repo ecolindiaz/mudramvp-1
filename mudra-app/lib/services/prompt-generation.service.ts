@@ -325,16 +325,16 @@ function computeCategoryCounts(totalPrompts: number): Record<string, number> {
 }
 
 function getBestBeginningOrganicQuota(organicCount: number): { min: number; max: number } {
-  const max = Math.floor(organicCount * 0.20);
+  const max = Math.floor(organicCount * 0.35);
   if (organicCount < 5 || max === 0) {
     return { min: 0, max };
   }
 
   const min = organicCount >= 20
-    ? 3
+    ? 8
     : organicCount >= 10
-      ? 2
-      : 1;
+      ? 4
+      : 2;
 
   return { min: Math.min(min, max), max };
 }
@@ -442,7 +442,7 @@ export function validatePromptQuality(
     }
   }
 
-  // Track "Best" openings allowed (max 20% of organic count)
+  // Track "Best" openings allowed (max 35% of organic count)
   const { min: minBestTarget, max: maxBestAllowed } = getBestBeginningOrganicQuota(organic.length);
   let bestCount = 0;
 
@@ -485,7 +485,18 @@ export function validatePromptQuality(
       titleCaseCount++;
     }
 
-    // 3. "Best" opening — allow up to 20%, reject excess
+    // 3. Operational/How-To leak detection for Organic prompts
+    const operationalPattern = language === 'es'
+      ? /^(?:¿)?cómo (?:puedo|podemos|puedo yo|puede mi equipo) (configurar|migrar|instalar|integrar|conectar|detener|manejar|agregar|detectar|acelerar)/i
+      : /^how (?:can|do|should) (?:I|we|my team|our team) (set up|roll back|configure|migrate|stop|handle|add|detect|install|integrate|connect|speed up|manage|enforce|keep|centralize)/i;
+
+    if (operationalPattern.test(text)) {
+      if (!reject) {
+        reject = true;
+      }
+    }
+
+    // 4. "Best" opening — allow up to 35%, reject excess
     if (textLower.startsWith('best ')) {
       bestCount++;
       if (bestCount > maxBestAllowed && !reject) {
@@ -493,12 +504,12 @@ export function validatePromptQuality(
       }
     }
 
-    // 4. First-person metric (count only, no rejection)
+    // 5. First-person metric (count only, no rejection)
     if (firstPersonRegex.test(text)) {
       firstPersonCount++;
     }
 
-    // 5. Scenario-based metric (count only, no rejection)
+    // 6. Scenario-based metric (count only, no rejection)
     if (scenarioRegex.test(text)) {
       scenarioBasedCount++;
     }
@@ -815,6 +826,12 @@ GOOD Organic (directo, conciso — la mayoría menos de 20 palabras):
 - "¿Cómo puedo automatizar reportes financieros sin hacerlo manual?"
 - "¿Qué usan las empresas para enriquecer datos de contacto B2B?"
 
+GOOD "Mejor" Organic (apunta a 25-35% del Organic):
+- "Mejores empresas de etiquetado de datos para entrenar modelos de IA"
+- "Mejor plataforma para desplegar aplicaciones fullstack"
+- "Mejor software de gestión de gastos para equipos remotos"
+- "Mejor infraestructura de IA para startups"
+
 GOOD How-to (with tool-seeking bridge):
 - "cómo automatizar reportes financieros, ¿qué herramientas ayudan con esto?"
 - "cómo mejorar el SEO de mi sitio web, ¿qué plataformas recomiendan?"
@@ -869,6 +886,16 @@ GOOD Organic (direct, concise — most under 20 words, prefer question forms ove
 - "[competitor] alternatives for [use case]?"
 - "trying to find a CRM that doesn't require a PhD to set up"
 - "where can I run batch ML jobs without managing clusters?"
+
+GOOD "Best" Organic (aim for 25-35% of Organic — these are the highest-signal buying-intent queries):
+- "Best data labeling companies for training AI models"
+- "Best platforms to deploy fullstack applications"
+- "Best expense management software for remote teams"
+- "Best AI infrastructure for startups"
+- "Best corporate card for SaaS companies"
+- "Best all-in-one finance platform for growing startups"
+- "Best code execution sandbox for AI agents"
+- "Best serverless hosting for Next.js in 2026"
 
 GOOD How-to (MUST end with tool-seeking bridge):
 - "how to automate financial reporting — what tools help with this?"
@@ -1010,7 +1037,7 @@ export async function generateInitialPrompts(brandInfo: BrandInfo, redditContext
 
 Generate exactly ${totalPrompts} unique search queries with this EXACT category distribution:
 
-1. **Organic** — exactly ${counts['Organic']} prompts: Discovery queries with BOTH (a) clear intent AND (b) situational context from the ICP. The brand name must NOT appear in these.
+1. **Organic** — exactly ${counts['Organic']} prompts: Discovery queries where the user is **searching for a product, platform, tool, or solution** to evaluate or buy. The brand name must NOT appear. These must express buying/evaluation intent — NOT ask how to accomplish a technical task. "Best deploy platform for Next.js" is good (looking for a tool). "How can we roll back after a bad deploy?" is bad (asking how to do a task — that belongs in How-to Guides).
 2. **Generic** — exactly ${counts['Generic']} prompts: Short discovery queries of 5-15 words that add a USE CASE or CONTEXT to a broad category search. NOT bare keywords — instead, anchor the query to a specific workflow, vertical, or goal. Example: "data labeling platforms for training foundational models" instead of just "data labeling platform". The brand name must NOT appear in these.
 3. **Competitor** — exactly ${counts['Competitor']} prompts, split into two sub-types:
 
@@ -1037,13 +1064,32 @@ ORGANIC STYLE RULES (critical — follow these strictly):
 - Every Organic prompt MUST have clear intent. Keep most prompts SHORT and DIRECT — under 20 words. "What's the best platform to run AI workloads without managing Kubernetes?" is good. "we're a SaaS company with heavy batch data processing, what cloud platforms are good for scaling containerized batch jobs on demand?" is too long and over-specific.
 - Some prompts can include light situational context (role, company type, use case) but do NOT pad every prompt with backstory. A minority should have context, the majority should be concise direct questions.
 - Do NOT put the brand name in any Organic or Generic prompt. These test whether AI discovers the brand unprompted.
-- Keep an explicit buying-intent slice in Organic: target 10-20% of Organic prompts starting exactly with "Best". These should feel like real buyer searches, not SEO headlines.
-- No more than 20% of Organic prompts may start with the word "best". Vary your openings: "What should I use for...", "Which platform is best for...", "How can I...", "[competitor] alternatives for...", "Where can I..."
+- Keep a strong buying-intent slice in Organic: target 25-35% of Organic prompts starting exactly with "Best". "Best X for Y" is the #1 query pattern that triggers AI engines to list and compare brands — prioritize it. These should feel like real buyer searches, not SEO headlines.
+- No more than 35% of Organic prompts may start with the word "best". Vary the rest of your openings: "What should I use for...", "Which platform is best for...", "Where can I...", "What tools do people recommend for..."
 - No more than 20% of Organic prompts should start with "I need". Strongly prefer question forms: "What should I use for...", "Which platform is best for...", "What's the best way to...", "Where can I...", "How can I..."
 - At least 10% must be decision-help or opinion-seeking: "is it worth...", "which should I use...", "thoughts on..."
 - Cover topics relevant to the ICP but do NOT force ICP-specific backstory into every prompt.
 - Include some time-anchored queries: "in 2026", "latest", "right now"
-- Include some budget/cost queries: "free", "affordable", "pricing"${styleAnchors}
+- Include some budget/cost queries: "free", "affordable", "pricing"
+
+ORGANIC INTENT FILTER (critical — these MUST be followed):
+- Organic prompts must seek a PRODUCT or SOLUTION. They must NOT describe a technical task or operational procedure.
+- REJECT patterns: "How can I/we [set up|roll back|configure|migrate|stop|handle|add|detect|install|integrate|connect|speed up]..." — these are operational questions, not product discovery. Move them to How-to Guides.
+- GOOD: "Best platform for preview deployments" (seeking a product)
+- GOOD: "What should I use for automated expense tracking?" (seeking a tool)
+- BAD: "How can we roll back instantly after a bad frontend deploy?" (operational task)
+- BAD: "How can I set up card controls by role and department?" (configuration task)
+- BAD: "How do finance teams speed up month-end close?" (process question)
+
+BUYER VOCABULARY RULE (critical for technical brands):
+- Write prompts using the BUYER's vocabulary, not the PRODUCT TEAM's vocabulary. A VP evaluating tools does not search "LoRA adaptation workflows" — they search "best model fine-tuning platform."
+- Use plain-language descriptions of outcomes and problems, not technical implementation jargon.
+- GOOD: "Best data labeling companies for training AI models"
+- GOOD: "Best model fine-tuning platform for enterprise teams"
+- BAD: "GPU providers that support LoRA adaptation workflows out of the box" (engineer-spec)
+- BAD: "platforms that stream stdout from remote code execution" (insider jargon)
+- BAD: "best infrastructure for running asynchronous reinforcement learning at scale" (researcher language)
+- Rule of thumb: if a non-technical decision-maker at the ICP company wouldn't use these exact words, simplify them.${styleAnchors}
 
 ANTI-HALLUCINATION RULE:
 - ONLY reference products, features, and competitors that are explicitly listed in the brand context below. Do NOT invent product names, competitor names, or feature names.

@@ -1,7 +1,10 @@
+"use client"
+
 // 6. User Output Display
 // This component displays campaign cards and user actions (save, copy, rate, etc.)
 
 import React from "react"
+import { FeedbackWidget } from "@/components/feedback-widget"
 
 interface Campaign {
   title?: string
@@ -33,10 +36,7 @@ export default function CampaignCards({ campaigns }: CampaignCardsProps) {
     // TODO: Implement save logic
     alert(`Saved: ${campaign.title}`)
   }
-  const handleRate = (campaign: Campaign, rating: 'up' | 'down') => {
-    // TODO: Implement rating logic
-    alert(`Rated ${rating}: ${campaign.title}`)
-  }
+  // handleRate stub removed — replaced by FeedbackWidget below
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -66,16 +66,12 @@ export default function CampaignCards({ campaigns }: CampaignCardsProps) {
               onClick={() => handleSave(c)}
               title="Save to dashboard"
             >Save</button>
-            <button
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-              onClick={() => handleRate(c, 'up')}
-              title="Thumbs up"
-            >👍</button>
-            <button
-              className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-              onClick={() => handleRate(c, 'down')}
-              title="Thumbs down"
-            >👎</button>
+            <FeedbackWidget
+              targetType="CAMPAIGN"
+              targetId={String(i)}
+              variant="compact"
+              label="Rate this campaign"
+            />
           </div>
         </div>
       ))}

@@ -63,6 +63,7 @@ model BrandProfile {
   issues                     Issue[]
   notifications              Notification[]
   analysisJobs               AnalysisJob[]
+  userFeedbacks              UserFeedback[]
 
   // Issue discovery pagination
   issueDiscoveryPageIndex    Int      @default(0)  // Current page index for issue discovery
@@ -223,6 +224,7 @@ model User {
   accounts            Account[]
   sessions            Session[]
   notifications       Notification[]
+  userFeedbacks       UserFeedback[]
 
   @@index([githubId])
   @@map("users")
@@ -1131,4 +1133,48 @@ model AnalysisJob {
   @@index([status, priority])
   @@index([brandProfileId, status])
   @@map("analysis_jobs")
+}
+
+// ============================================================================
+// USER FEEDBACK (Universal feedback collection across all surfaces)
+// ============================================================================
+
+enum FeedbackTargetType {
+  REPORT
+  PROMPT
+  TECHNICAL
+  CAMPAIGN
+  ISSUE
+  OPPORTUNITY
+  AGENT_TASK
+  GENERAL
+}
+
+enum FeedbackThumb {
+  UP
+  DOWN
+}
+
+model UserFeedback {
+  id              Int                @id @default(autoincrement())
+  brandProfileId  Int
+  userId          String
+  targetType      FeedbackTargetType
+  targetId        String?            // ID of the specific item (prompt id, report id, etc.)
+  thumb           FeedbackThumb?     // Quick thumbs up/down
+  rating          Int?               // 1-5 star rating
+  comment         String?            @db.Text
+  pageUrl         String?            // URL where feedback was submitted
+  metadata        Json?              // Additional context
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  brandProfile    BrandProfile       @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([brandProfileId])
+  @@index([targetType, targetId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("user_feedbacks")
 }

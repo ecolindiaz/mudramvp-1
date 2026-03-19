@@ -28,6 +28,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
+import { FeedbackWidget } from "@/components/feedback-widget"
 import { useParams } from "next/navigation"
 import { useEffect } from "react"
 import { CompanyLogo, DomainLogo } from "@/components/ui/company-logo"
@@ -2107,6 +2108,15 @@ function TrackedPromptDeepViewInner() {
                   </CardContent>
                 </Card>
               </div>
+            </div>
+
+            {/* Prompt Detail Feedback */}
+            <div className="px-4 lg:px-6 py-6">
+              <FeedbackWidget
+                targetType="PROMPT"
+                targetId={promptId}
+                label="How useful is this prompt analysis?"
+              />
             </div>
           </div>
         </div>

@@ -10,6 +10,7 @@ import {
   SidebarProvider,
 } from "../../../components/ui/sidebar"
 import { Separator } from "../../../components/ui/separator"
+import { FeedbackWidget } from "@/components/feedback-widget"
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card"
 import { 
   TechnicalStructureScoreCard, 
@@ -233,6 +234,15 @@ function TechnicalStructurePageInner() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Technical Page Feedback */}
+            <div className="px-4 lg:px-6 py-6">
+              <FeedbackWidget
+                targetType="TECHNICAL"
+                brandProfileId={brandProfile?.id > 0 ? brandProfile.id : undefined}
+                label="How useful is this technical analysis?"
+              />
             </div>
           </div>
         </div>

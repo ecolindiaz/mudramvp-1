@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { CountdownBadge } from "@/components/dashboard/countdown-badge"
 import { Loader2, PlayCircle } from "lucide-react"
 import Image from "next/image"
+import { FeedbackWidget } from "@/components/feedback-widget"
 import toast from "react-hot-toast"
 import { trackEvent } from "@/lib/analytics/posthog-events"
 
@@ -347,6 +348,15 @@ function DashboardPageInner() {
                   timeRange={timeRange}
                   selectedModel={selectedPlatform}
                   days={days}
+                />
+              </div>
+
+              {/* General Dashboard Feedback */}
+              <div className="px-4 lg:px-6 py-6">
+                <FeedbackWidget
+                  targetType="GENERAL"
+                  brandProfileId={profile?.id > 0 ? profile.id : undefined}
+                  label="How useful is this dashboard?"
                 />
               </div>
             </div>

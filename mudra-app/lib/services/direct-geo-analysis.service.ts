@@ -1539,21 +1539,17 @@ Extract the following information:
      * Response entirely about Y Combinator (brand-specific question) → 1
      * "Y Combinator is mentioned in a list but no ranking" → null
 
-3. **competitorsMentioned**: Array of companies that DIRECTLY COMPETE with "${config.brandName}" in the same product category (EXCLUDING "${config.brandName}" itself)
+3. **competitorsMentioned**: Array of ALL companies, products, platforms, and services that are recommended, compared, ranked, or listed as options/alternatives/solutions in this response (EXCLUDING "${config.brandName}" itself)
    - "${config.brandName}" is: ${config.description || config.keyProducts?.join(', ') || 'a technology company'}${config.industry ? ` (industry: ${config.industry})` : ''}
-   - A competitor is a company that offers SIMILAR or SUBSTITUTE products — a realistic alternative a buyer would evaluate
-   - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
-   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
-   - **CONTEXT-AWARE EXTRACTION**: Determine WHY each company/product is mentioned:
-     * If the response RECOMMENDS, COMPARES, or LISTS it as an alternative/option/solution → it IS a competitor, even if it is an API provider, SDK, platform, or fintech service
-     * Example: "For real-time balance tracking, consider Flinks, Atto, or Akoya" → all three are competitors
-   - EXCLUDE only when a company is mentioned as an incidental building block, NOT as an alternative:
-     * Dependencies, libraries, or frameworks used to BUILD products (e.g., React, NumPy, Docker, Redis) — unless the response recommends them as alternatives to "${config.brandName}"
-     * Companies in completely different product categories with no functional overlap (e.g., Canva for a GPU cloud company)
-     * Infrastructure providers mentioned ONLY as hosting/deployment targets (e.g., "deployed on AWS") — but if recommended as an alternative solution, include it
+   - GOAL: Capture EVERY real company/product/service/platform name that appears as a recommendation, option, or alternative — this tracks which companies appear alongside "${config.brandName}" in AI responses
+   - Include companies in adjacent product categories (e.g., VPS hosting, cloud compute, databases, CDNs) as long as they are presented as options, recommendations, or alternatives the reader might evaluate
+   - These are known competitors — ALWAYS include if mentioned, even briefly: ${config.competitors?.join(', ') || 'None'}
+   - Include full company names with proper formatting (e.g., "DigitalOcean", "Google Cloud Run", "AWS Amplify", "Hetzner")
+   - EXCLUDE ONLY:
      * Generic terms, category headings, section labels, feature names, or sentence fragments
-   - Return empty array [] if no relevant competitors are mentioned
-   - **PRODUCT vs COMPANY naming**: Use the specific product/brand name when it represents a DISTINCT offering being compared (e.g., "Mastercard Cash Flow Analytics" not just "Mastercard"). Only prefer the parent company name when the product is a generic sub-feature.
+     * Pure infrastructure dependencies mentioned only as building blocks (e.g., "React", "Docker", "Redis" used as tools to build with, NOT as recommended alternatives)
+   - Return empty array [] if no companies are mentioned
+   - **PRODUCT vs COMPANY naming**: Use the specific product/brand name when it represents a DISTINCT offering being compared (e.g., "Cloudflare Pages" not "Cloudflare" when Pages is the specific product). Only prefer parent company name when product is a generic sub-feature.
 
 4. **competitorPositions**: Object mapping competitor names to their positions (if they appear in a ranking)
    - Extract numerical positions for each competitor mentioned
@@ -1809,20 +1805,16 @@ Extract the following information:
    - **IMPORTANT**: If the response is primarily/entirely dedicated to "${config.brandName}" (brand-specific question), assign position 1.
    - If the response is a comparison/list and "${config.brandName}" is mentioned but has no explicit ranking, return null
 
-3. **competitorsMentioned**: Array of companies that DIRECTLY COMPETE with "${config.brandName}" in the same product category (EXCLUDING "${config.brandName}" itself)
-   - A competitor is a company that offers SIMILAR or SUBSTITUTE products — a realistic alternative a buyer would evaluate
-   - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
-   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
-   - **CONTEXT-AWARE EXTRACTION**: Determine WHY each company/product is mentioned:
-     * If the response RECOMMENDS, COMPARES, or LISTS it as an alternative/option/solution → it IS a competitor, even if it is an API provider, SDK, platform, or fintech service
-     * Example: "For real-time balance tracking, consider Flinks, Atto, or Akoya" → all three are competitors
-   - EXCLUDE only when a company is mentioned as an incidental building block, NOT as an alternative:
-     * Dependencies, libraries, or frameworks used to BUILD products (e.g., React, NumPy, Docker, Redis) — unless the response recommends them as alternatives to "${config.brandName}"
-     * Companies in completely different product categories with no functional overlap (e.g., Canva for a GPU cloud company)
-     * Infrastructure providers mentioned ONLY as hosting/deployment targets (e.g., "deployed on AWS") — but if recommended as an alternative solution, include it
+3. **competitorsMentioned**: Array of ALL companies, products, platforms, and services that are recommended, compared, ranked, or listed as options/alternatives/solutions in this response (EXCLUDING "${config.brandName}" itself)
+   - GOAL: Capture EVERY real company/product/service/platform name that appears as a recommendation, option, or alternative — this tracks which companies appear alongside "${config.brandName}" in AI responses
+   - Include companies in adjacent product categories (e.g., VPS hosting, cloud compute, databases, CDNs) as long as they are presented as options, recommendations, or alternatives the reader might evaluate
+   - These are known competitors — ALWAYS include if mentioned, even briefly: ${config.competitors?.join(', ') || 'None'}
+   - Include full company names with proper formatting (e.g., "DigitalOcean", "Google Cloud Run", "AWS Amplify", "Hetzner")
+   - EXCLUDE ONLY:
      * Generic terms, category headings, section labels, feature names, or sentence fragments
-   - Return empty array [] if no relevant competitors are mentioned
-   - **PRODUCT vs COMPANY naming**: Use the specific product/brand name when it represents a DISTINCT offering being compared (e.g., "Mastercard Cash Flow Analytics" not just "Mastercard"). Only prefer the parent company name when the product is a generic sub-feature.
+     * Pure infrastructure dependencies mentioned only as building blocks (e.g., "React", "Docker", "Redis" used as tools to build with, NOT as recommended alternatives)
+   - Return empty array [] if no companies are mentioned
+   - **PRODUCT vs COMPANY naming**: Use the specific product/brand name when it represents a DISTINCT offering being compared (e.g., "Cloudflare Pages" not "Cloudflare" when Pages is the specific product). Only prefer parent company name when product is a generic sub-feature.
 
 4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 
@@ -2071,13 +2063,14 @@ Extract the following information:
 
 1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
 2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position. IMPORTANT: If the response is primarily/entirely dedicated to "${config.brandName}" (brand-specific question), assign position 1.
-3. **competitorsMentioned**: Array of companies that DIRECTLY COMPETE with "${config.brandName}" in the same product category (EXCLUDING "${config.brandName}")
-   - A competitor offers SIMILAR or SUBSTITUTE products — a realistic alternative a buyer would evaluate
-   - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
-   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
-   - **CONTEXT-AWARE**: If the response RECOMMENDS or COMPARES a company/API/SDK as an alternative → it IS a competitor, include it. EXCLUDE only: dependencies/libraries used as building blocks (NOT recommended as alternatives), companies in unrelated product categories, infrastructure mentioned ONLY as hosting (NOT as alternative solutions), generic terms/category headings/feature names
-   - **PRODUCT vs COMPANY**: Use the specific product name when it is a distinct offering being compared (e.g., "Mastercard Cash Flow Analytics" not "Mastercard"). Only prefer parent company when the product is a generic sub-feature.
-   - Return empty array [] if no relevant competitors are mentioned
+3. **competitorsMentioned**: Array of ALL companies, products, platforms, and services that are recommended, compared, ranked, or listed as options/alternatives/solutions in this response (EXCLUDING "${config.brandName}")
+   - GOAL: Capture EVERY real company/product/service/platform name that appears as a recommendation, option, or alternative
+   - Include companies in adjacent product categories as long as they are presented as options or recommendations
+   - These are known competitors — ALWAYS include if mentioned: ${config.competitors?.join(', ') || 'None'}
+   - Include full company names with proper formatting (e.g., "DigitalOcean", "Google Cloud Run", "Hetzner")
+   - EXCLUDE ONLY: generic terms/category headings/feature descriptions, and pure building-block dependencies (e.g., "React", "Docker") NOT recommended as alternatives
+   - **PRODUCT vs COMPANY**: Use specific product name when distinct (e.g., "Cloudflare Pages" not "Cloudflare"). Prefer parent when product is a generic sub-feature.
+   - Return empty array [] if no companies are mentioned
 4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
 6. **sentiment**: Overall sentiment toward "${config.brandName}" ("positive" | "neutral" | "negative")
@@ -2407,13 +2400,14 @@ Extract the following information:
 
 1. **brandMentioned**: Is "${config.brandName}" mentioned anywhere in the response? (true/false)
 2. **brandPosition**: What numerical ranking/position is "${config.brandName}" given? Extract ONLY the number (1, 2, 3, etc.) or null if no explicit position. IMPORTANT: If the response is primarily/entirely dedicated to "${config.brandName}" (brand-specific question), assign position 1.
-3. **competitorsMentioned**: Array of companies that DIRECTLY COMPETE with "${config.brandName}" in the same product category (EXCLUDING "${config.brandName}")
-   - A competitor offers SIMILAR or SUBSTITUTE products — a realistic alternative a buyer would evaluate
-   - For reference, these are known competitors (but do NOT limit extraction to only these): ${config.competitors?.join(', ') || 'None'}
-   - Include full company names with proper formatting (e.g., "Techstars", "500 Global", "Scale AI")
-   - **CONTEXT-AWARE**: If the response RECOMMENDS or COMPARES a company/API/SDK as an alternative → it IS a competitor, include it. EXCLUDE only: dependencies/libraries used as building blocks (NOT recommended as alternatives), companies in unrelated product categories, infrastructure mentioned ONLY as hosting (NOT as alternative solutions), generic terms/category headings/feature names
-   - **PRODUCT vs COMPANY**: Use the specific product name when it is a distinct offering being compared (e.g., "Mastercard Cash Flow Analytics" not "Mastercard"). Only prefer parent company when the product is a generic sub-feature.
-   - Return empty array [] if no relevant competitors are mentioned
+3. **competitorsMentioned**: Array of ALL companies, products, platforms, and services that are recommended, compared, ranked, or listed as options/alternatives/solutions in this response (EXCLUDING "${config.brandName}")
+   - GOAL: Capture EVERY real company/product/service/platform name that appears as a recommendation, option, or alternative
+   - Include companies in adjacent product categories as long as they are presented as options or recommendations
+   - These are known competitors — ALWAYS include if mentioned: ${config.competitors?.join(', ') || 'None'}
+   - Include full company names with proper formatting (e.g., "DigitalOcean", "Google Cloud Run", "Hetzner")
+   - EXCLUDE ONLY: generic terms/category headings/feature descriptions, and pure building-block dependencies (e.g., "React", "Docker") NOT recommended as alternatives
+   - **PRODUCT vs COMPANY**: Use specific product name when distinct (e.g., "Cloudflare Pages" not "Cloudflare"). Prefer parent when product is a generic sub-feature.
+   - Return empty array [] if no companies are mentioned
 4. **competitorPositions**: Object mapping competitor names to their positions { "CompanyName": number }
 5. **competitorSentiments**: Object mapping competitor names to sentiment { "CompanyName": "positive" | "neutral" | "negative" }
 6. **sentiment**: Overall sentiment toward "${config.brandName}" ("positive" | "neutral" | "negative")

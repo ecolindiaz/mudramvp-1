@@ -81,10 +81,10 @@ Return ONLY valid JSON (no markdown, no explanation):
 
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-5.2',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.1, // Low temperature for consistency
-      max_tokens: 2000,
+      max_completion_tokens: 2000,
       response_format: { type: 'json_object' }
     })
 

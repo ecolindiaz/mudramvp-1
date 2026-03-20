@@ -136,7 +136,7 @@ export async function POST(
 		const updated = await prisma.issue.update({
 			where: { id: issueId },
 			data: {
-				status: "in_progress",
+				status: "completed",
 				generatedOutput: generated.generatedOutput,
 				outputType: generated.outputType,
 				scriptSource: generated.source,

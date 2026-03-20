@@ -17,6 +17,11 @@ import {
 	readSchemaKnowledge,
 	readFaqTemplates,
 } from "@/lib/analysis/technical/knowledge";
+import {
+	geoInsightGuidanceAgent,
+	geoInsightGuidanceSchema,
+	formatGuidanceAsMarkdown,
+} from "@/mastra/agents/geo-insight-guidance-agent";
 
 type ScriptAgentType =
 	| "schema_markup"
@@ -28,7 +33,8 @@ type ScriptAgentType =
 	| "citation_signals"
 	| "ai_content_optimizer"
 	| "authority_building"
-	| "brand_messaging";
+	| "brand_messaging"
+	| "geo_insight";
 
 export interface ScriptGeneratorIssue {
 	id: number;
@@ -66,6 +72,7 @@ const SUPPORTED_AGENT_TYPES = new Set<ScriptAgentType>([
 	"ai_content_optimizer",
 	"authority_building",
 	"brand_messaging",
+	"geo_insight",
 ]);
 
 const LLMS_AGENT_TYPES = new Set<ScriptAgentType>([
@@ -79,6 +86,7 @@ const AI_VISIBILITY_AGENT_TYPES = new Set<ScriptAgentType>([
 	"ai_content_optimizer",
 	"authority_building",
 	"brand_messaging",
+	"geo_insight",
 ]);
 
 const KNOWN_SCHEMA_TYPES = new Set<string>([
@@ -429,7 +437,7 @@ function isLlmsAgentType(
 
 function isAiVisibilityAgentType(
 	agentType: string | null | undefined
-): agentType is "citation_signals" | "ai_content_optimizer" | "authority_building" | "brand_messaging" {
+): agentType is "citation_signals" | "ai_content_optimizer" | "authority_building" | "brand_messaging" | "geo_insight" {
 	if (!agentType) return false;
 	return AI_VISIBILITY_AGENT_TYPES.has(agentType as ScriptAgentType);
 }
@@ -2325,6 +2333,38 @@ Add structured data to blog posts and resource pages:
 - Create content that highlights positive differentiators
 - Add a "Customers" or "Success Stories" page
 - Include industry expert endorsements or partnerships`,
+
+		geo_insight: `# AI Visibility Action Plan for ${brandName}
+
+## Issue Summary
+${issue.description || "An AI visibility gap was identified from analyzing how AI systems currently describe your brand."}
+
+## Priority Actions
+
+### 1. Create Missing Content
+- Identify the specific content gap described in the issue above
+- Create dedicated pages or sections addressing it directly
+- Use clear, factual language that AI systems can easily parse and cite
+
+### 2. Strengthen Brand Signals
+- Ensure ${brandName} is clearly described on your homepage and about page
+- Add structured data (Organization, Product/Service schema) to key pages
+- Include specific metrics, case studies, or testimonials that AI can reference
+
+### 3. Improve Discoverability
+- Add FAQ sections addressing the topic raised in this issue
+- Create comparison or "Why ${brandName}" content if competitors are mentioned instead
+- Publish blog posts or resources covering the gap area
+
+### 4. Build External Authority
+- Seek third-party reviews, mentions, or partnerships in ${industry}
+- Create press-worthy content (research, benchmarks, case studies)
+- Engage in relevant communities where AI systems gather training data
+
+### 5. Monitor & Iterate
+- Re-run your GEO analysis after publishing new content
+- Track whether AI responses improve for the specific prompt that surfaced this issue
+- Iterate on content based on which AI providers still show gaps`,
 	};
 
 	const guidance = guidanceMap[issue.agentType || ""] || `# Optimization Recommendations\n\nReview your website content and structure to improve AI visibility for ${brandName}.`;
@@ -3633,7 +3673,7 @@ async function buildLlmPrompts(
 	}
 
 	if (isAiVisibilityAgentType(issue.agentType)) {
-		const agentType = issue.agentType as "citation_signals" | "ai_content_optimizer" | "authority_building" | "brand_messaging";
+		const agentType = issue.agentType as "citation_signals" | "ai_content_optimizer" | "authority_building" | "brand_messaging" | "geo_insight";
 
 		const typePrompts: Record<string, { system: string; instruction: string }> = {
 			citation_signals: {
@@ -3663,6 +3703,14 @@ Your task is to produce actionable guidance for improving how AI systems perceiv
 Focus on consistent messaging, positive sentiment signals, clear value propositions, and testimonial/review structuring.
 Base all recommendations on the provided page content and grounding evidence.`,
 				instruction: "Analyze the brand messaging and sentiment signals on this page. Generate specific recommendations to improve how AI systems interpret and represent this brand. Include content, markup, and structural suggestions.",
+			},
+			geo_insight: {
+				system: `You are an AI visibility strategist who turns GEO analysis findings into clear, actionable resolution plans.
+You receive an issue that was discovered by analyzing how AI systems (ChatGPT, Claude, Gemini, Perplexity) currently describe and recommend a brand.
+Your job is to produce a step-by-step action plan the brand can follow to resolve the specific gap identified in the issue.
+Be concrete: name specific pages to create or update, content to write, formats to use, and distribution channels to leverage.
+Base all recommendations on the issue details and the brand's current page content.`,
+				instruction: "Read the issue details carefully — they describe a specific gap found in how AI systems talk about this brand. Generate a detailed, step-by-step action plan to resolve this gap. Include: what content to create or update, where to publish it, how to structure it for AI discoverability, and any technical changes (schema markup, meta tags) that would help. Be specific to this brand and this issue — no generic advice.",
 			},
 		};
 
@@ -3945,7 +3993,59 @@ export async function generateScriptWithLlm(
 			return templateResult;
 		};
 
-		// 4. Build prompts with KB grounding
+		// 4a. GEO Insight: use dedicated Mastra agent for structured guidance
+		if (issue.agentType === "geo_insight") {
+			console.log(`[ScriptGen] Using Mastra geoInsightGuidanceAgent for issue #${issue.id}...`);
+			try {
+				const brandName = brandProfile.companyName || "your brand";
+				const industry = brandProfile.companyIndustry || "technology";
+				const agentPrompt = [
+					`## Brand Context`,
+					`- **Brand:** ${brandName}`,
+					`- **Industry:** ${industry}`,
+					`- **Website:** ${brandProfile.companyWebsite || "N/A"}`,
+					brandProfile.companyDescription ? `- **Description:** ${brandProfile.companyDescription}` : "",
+					brandProfile.companyServices ? `- **Services:** ${brandProfile.companyServices}` : "",
+					"",
+					`## Issue to Resolve`,
+					`**Title:** ${issue.title}`,
+					issue.description ? `**Details:** ${issue.description}` : "",
+					issue.affectedUrl ? `**Affected URL:** ${issue.affectedUrl}` : "",
+					"",
+					pageContent ? `## Current Page Content\n${pageContent.slice(0, 3000)}` : "",
+				].filter(Boolean).join("\n");
+
+				const response = await geoInsightGuidanceAgent.generate(agentPrompt, {
+					structuredOutput: { schema: geoInsightGuidanceSchema },
+				});
+
+				if (response.object) {
+					const markdown = formatGuidanceAsMarkdown(response.object, brandName);
+					console.log(`[ScriptGen] Mastra agent produced structured guidance for issue #${issue.id} (${response.object.actionSteps.length} steps)`);
+					return {
+						generatedOutput: markdown,
+						outputType: "guidance",
+						source: "llm",
+					};
+				}
+
+				// If structured output failed but text was returned, use the raw text
+				const rawText = response.text?.trim();
+				if (rawText && rawText.length > 50) {
+					console.warn("[ScriptGen] Mastra agent returned text but not structured output, using raw text");
+					return {
+						generatedOutput: rawText,
+						outputType: "guidance",
+						source: "llm",
+					};
+				}
+			} catch (agentError) {
+				console.warn(`[ScriptGen] Mastra agent failed for issue #${issue.id}, falling back to template:`, agentError);
+			}
+			return buildTemplateFallback();
+		}
+
+		// 4b. Build prompts with KB grounding (non-geo_insight types)
 		const { userPrompt, systemPrompt } = await buildLlmPrompts(
 			issue,
 			brandProfile,

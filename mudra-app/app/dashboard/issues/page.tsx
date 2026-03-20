@@ -237,7 +237,8 @@ function canGenerateScript(issue: Issue): boolean {
     issue.agentType === "citation_signals" ||
     issue.agentType === "ai_content_optimizer" ||
     issue.agentType === "authority_building" ||
-    issue.agentType === "brand_messaging"
+    issue.agentType === "brand_messaging" ||
+    issue.agentType === "geo_insight"
   )
 }
 

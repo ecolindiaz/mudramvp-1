@@ -6,7 +6,7 @@ import {
 } from "../../agents/content-generator-agent";
 import { gapAnalysisOutputSchema } from "../../agents/gap-analysis-agent";
 import { researchOutputSchema } from "../../agents/schemas/research-schema";
-import { logAIModelCall, estimateAICost } from "../../../../lib/services/ai-model-logging.service";
+import { logAIModelCall, estimateAICost } from "../../utils/ai-logging-stub";
 import { hasFootnoteCitations, convertFootnotesToInlineLinks } from "../../../../lib/utils/convert-footnotes";
 
 // Timeout helper for long-running operations

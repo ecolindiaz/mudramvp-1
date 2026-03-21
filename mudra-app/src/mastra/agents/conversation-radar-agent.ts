@@ -1,6 +1,6 @@
 import { Agent } from '@mastra/core/agent';
 import { z } from 'zod';
-import { logAIModelCall, estimateAICost } from '../../../lib/services/ai-model-logging.service';
+import { logAIModelCall, estimateAICost } from '../utils/ai-logging-stub';
 
 /**
  * Conversation Radar Agent

@@ -22,8 +22,8 @@ import type {
 // CONSTANTS
 // ============================================================================
 
-const DEFAULT_CONCURRENCY = 4; // Firecrawl hobby plan has 5 browser limit, use 4 for buffer
-const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds per page
+const DEFAULT_CONCURRENCY = 3; // Keep low to avoid Firecrawl concurrency queue throttling
+const DEFAULT_TIMEOUT_MS = 60000; // 60 seconds per page (includes potential queue wait)
 const DEFAULT_BYPASS_CACHE = true; // For analysis, we want fresh data
 
 // ============================================================================
@@ -186,10 +186,15 @@ export async function scrapePages(
 		// Split into batches
 		const batches = chunkArray(uniqueUrls, concurrency);
 		const allResults: PageScrapeResult[] = [];
+		let successSoFar = 0;
+		let failSoFar = 0;
+
+		console.log(`[MultiPageScraper] Starting: ${uniqueUrls.length} pages in ${batches.length} batches (concurrency ${concurrency})`);
 
 		// Process batches sequentially, pages within batch in parallel
 		for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
 			const batch = batches[batchIndex];
+			const batchStart = Date.now();
 
 			// Scrape all pages in this batch concurrently
 			const batchPromises = batch.map((url) =>
@@ -200,9 +205,17 @@ export async function scrapePages(
 			const batchSettled = await Promise.allSettled(batchPromises);
 
 			// Process results
+			let batchSuccess = 0;
+			let batchFail = 0;
 			for (const result of batchSettled) {
 				if (result.status === "fulfilled") {
 					allResults.push(result.value);
+					if (result.value.success) {
+						batchSuccess++;
+					} else {
+						batchFail++;
+						console.log(`[MultiPageScraper] Failed: ${result.value.url} — ${result.value.error}`);
+					}
 				} else {
 					// This shouldn't happen since scrapeSinglePage catches errors,
 					// but handle it just in case
@@ -213,10 +226,16 @@ export async function scrapePages(
 						error: result.reason?.message || "Unknown batch error",
 						scrapedAt: new Date().toISOString(),
 					});
+					batchFail++;
 				}
 			}
 
-			onBatchComplete?.({ scraped: allResults.filter(r => r.success).length, total: uniqueUrls.length });
+			successSoFar += batchSuccess;
+			failSoFar += batchFail;
+			const batchMs = Date.now() - batchStart;
+			console.log(`[MultiPageScraper] Batch ${batchIndex + 1}/${batches.length}: ${batchSuccess}/${batch.length} ok in ${(batchMs / 1000).toFixed(1)}s (total: ${successSoFar}/${uniqueUrls.length})`);
+
+			onBatchComplete?.({ scraped: successSoFar, total: uniqueUrls.length });
 
 			// Small delay between batches to avoid rate limiting (except for last batch)
 			if (batchIndex < batches.length - 1) {
@@ -275,8 +294,10 @@ export async function scrapePages(
 		}
 
 		// Calculate statistics
+		const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
 		const successCount = allResults.filter((r) => r.success).length;
 		const failureCount = allResults.filter((r) => !r.success).length;
+		console.log(`[MultiPageScraper] Complete: ${successCount}/${uniqueUrls.length} pages in ${totalDuration}s (${failureCount} failed)`);
 		const errors = allResults
 			.filter((r) => !r.success)
 			.map((r) => ({ url: r.url, error: r.error || "Unknown error" }));

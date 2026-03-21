@@ -73,6 +73,10 @@ function detectComparativeIntent(prompt: string): boolean {
   const rankingStructural = /\branking\s+of\s+\w+|\btop[- ]ranked\s+\w+/i;
   if (rankingStructural.test(prompt)) return true;
 
+  // Layer 3: Replacement/migration patterns — user is looking for alternatives
+  const replacementPattern = /\binstead\s+of\s+\w+|\balternative\s+to\s+\w+|\breplace(?:ment)?\s+(?:for|of)\s+\w+|\bswitch(?:ing)?\s+from\s+\w+|\bmigrat(?:e|ing)\s+(?:from|off|away)\s+\w+|\bmov(?:e|ing)\s+(?:away\s+)?from\s+\w+|\bwhat\s+to\s+use\s+(?:instead|over|rather)/i;
+  if (replacementPattern.test(prompt)) return true;
+
   return false;
 }
 
@@ -206,7 +210,13 @@ export async function POST(req: NextRequest) {
       userRole: brandProfile.userRole || "Editor",
       brandWebsite: brandProfile.companyWebsite || undefined,
       brandIndustry: brandProfile.companyIndustry || undefined,
-      competitors: (brandProfile.competitors as string[]) || undefined,
+      competitors: brandProfile.competitors
+        ? (typeof brandProfile.competitors === 'string'
+          ? brandProfile.competitors.startsWith('[')
+            ? JSON.parse(brandProfile.competitors)
+            : brandProfile.competitors.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : brandProfile.competitors)
+        : undefined,
       isComparativeIntent: detectComparativeIntent(promptText),
     };
 

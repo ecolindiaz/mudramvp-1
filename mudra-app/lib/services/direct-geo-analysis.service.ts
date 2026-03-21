@@ -878,12 +878,17 @@ async function generateGEOPrompts(config: DirectGEOConfig): Promise<Array<{ text
       competitors: config.competitors || [],
     };
 
+    // Derive language from country so prompts are generated in the correct language
+    const language: 'en' | 'es' = config.country
+      ? getLanguageForCountry(config.country)
+      : 'en';
+
     // Generate prompts using the unified GPT-5.1 pipeline
-    const generatedPrompts = await generateInitialPrompts(brandInfo);
+    const generatedPrompts = await generateInitialPrompts(brandInfo, null, language);
 
     const allPrompts = generatedPrompts.map(p => ({ text: p.text, category: p.category }));
 
-    console.log(`✅ Generated ${allPrompts.length} prompts with categories`);
+    console.log(`✅ Generated ${allPrompts.length} prompts with categories (language: ${language})`);
 
     return allPrompts;
 

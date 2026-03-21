@@ -228,12 +228,13 @@ export async function canAddCustomPrompt(brandProfileId: number, language?: stri
 export async function createCustomPrompt(
   brandProfileId: number,
   text: string,
-  category: string
+  category: string,
+  language: 'en' | 'es' = 'en'
 ): Promise<SavedPrompt> {
   try {
     // Check limits before creating
     const limits = await canAddCustomPrompt(brandProfileId)
-    
+
     if (!limits.canAdd) {
       if (limits.currentCustom >= PROMPT_LIMITS.MAX_CUSTOM_PROMPTS) {
         throw new Error(`Custom prompt limit reached (${PROMPT_LIMITS.MAX_CUSTOM_PROMPTS} max). Please delete an existing custom prompt to add a new one.`)
@@ -242,12 +243,13 @@ export async function createCustomPrompt(
         throw new Error(`Total prompt limit reached (${PROMPT_LIMITS.MAX_TOTAL_PROMPTS} max). Please delete an existing prompt to add a new one.`)
       }
     }
-    
+
     return await prisma.prompt.create({
       data: {
         brandProfileId,
         text,
         category,
+        language,
         isCustom: true,
         isActive: true
       }

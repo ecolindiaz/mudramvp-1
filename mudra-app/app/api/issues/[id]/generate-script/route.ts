@@ -120,6 +120,7 @@ export async function POST(
 				agentType: issue.agentType,
 				checkCode: issue.checkCode,
 				affectedUrl: issue.affectedUrl,
+				brandProfileId: issue.brandProfileId,
 			},
 			{
 				companyName: issue.brandProfile.companyName,
@@ -136,7 +137,7 @@ export async function POST(
 		const updated = await prisma.issue.update({
 			where: { id: issueId },
 			data: {
-				status: "in_progress",
+				status: "completed",
 				generatedOutput: generated.generatedOutput,
 				outputType: generated.outputType,
 				scriptSource: generated.source,

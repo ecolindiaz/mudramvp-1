@@ -11,7 +11,7 @@
 
 import * as cheerio from "cheerio";
 import { callLlm } from "./llm-provider.service";
-import { scrapeFaqContext, scrapePageContent, scrapePageContentForSchema } from "./page-scrape-context.service";
+import { scrapePageContent, scrapePageContentForSchema } from "./page-scrape-context.service";
 import { getRequiredSchemaTypesForCheck } from "./schema-contracts";
 import {
 	readSchemaKnowledge,
@@ -37,6 +37,7 @@ export interface ScriptGeneratorIssue {
 	agentType: string | null;
 	checkCode: string | null;
 	affectedUrl: string | null;
+	brandProfileId?: number;
 }
 
 export interface ScriptGeneratorBrandProfile {
@@ -142,8 +143,24 @@ const FAQ_GENERIC_PHRASES = [
 	"learn more",
 ];
 
-const FAQ_FORBIDDEN_LEAK_PATTERN =
-	/\b(?:prompt|system prompt|instruction|llm|language model|assistant|chatgpt|gpt-?\d*|claude|gemini)\b/i;
+// Always forbidden — meta/process terms that never belong in user-facing FAQs
+const FAQ_ALWAYS_FORBIDDEN_PATTERN =
+	/\b(?:prompt|system prompt|instruction|language model|assistant)\b/i;
+
+// Conditionally forbidden — blocked unless the term appears in the brand's own page content
+const FAQ_CONDITIONALLY_FORBIDDEN_TERMS = ['llm', 'chatgpt', 'gpt', 'claude', 'gemini'];
+
+function extractBrandAllowedTerms(pageContent: string | null): Set<string> {
+	const allowed = new Set<string>();
+	if (!pageContent) return allowed;
+	const lower = pageContent.toLowerCase();
+	for (const term of FAQ_CONDITIONALLY_FORBIDDEN_TERMS) {
+		if (new RegExp(`\\b${term}(?:-?\\d*)?\\b`, 'i').test(lower)) {
+			allowed.add(term.toLowerCase());
+		}
+	}
+	return allowed;
+}
 
 const FAQ_META_QUESTION_PATTERNS: RegExp[] = [
 	/\bhomepage\b/i,
@@ -164,13 +181,11 @@ const FAQ_META_ANSWER_PATTERNS: RegExp[] = [
 	/\bheadline\b/i,
 	/\bcall[- ]to[- ]action\b/i,
 	/\bcta\b/i,
-	/\bclick\b/i,
-	/\bselect\b/i,
+	/\bthe site (?:says|mentions|includes|features|links)\b/i,
+	/\bthe page (?:says|mentions|includes|features|links)\b/i,
+	/\bthe homepage (?:says|mentions|includes|features|links)\b/i,
 	/\blinks? to\b/i,
 	/\bpoints? to\b/i,
-	/\bthe site\b/i,
-	/\bsays\b/i,
-	/\bincludes\b/i,
 ];
 
 const STOPWORDS = new Set([
@@ -3070,7 +3085,8 @@ function normalizeSchemaOutput(
 function validateGeneratedScript(
 	output: string,
 	issue: ScriptGeneratorIssue,
-	evidence: GroundingEvidence
+	evidence: GroundingEvidence,
+	brandAllowedTerms?: Set<string>
 ): ValidationResult {
 	const errors: string[] = [];
 	const check = issue.checkCode || "";
@@ -3344,7 +3360,7 @@ function validateGeneratedScript(
 		if (qaPairs.length > 0 && genericCount === qaPairs.length) {
 			errors.push("FAQ questions are too generic");
 		}
-		errors.push(...evaluateFaqLeakSignals(qaPairs));
+		errors.push(...evaluateFaqLeakSignals(qaPairs, brandAllowedTerms));
 	} else if (check === "M1_title") {
 		if (!output.includes("<title")) {
 			errors.push("Missing <title> tag");
@@ -3471,7 +3487,8 @@ function extractTypesFromParsed(parsed: unknown): Set<string> {
 }
 
 function evaluateFaqLeakSignals(
-	qaPairs: Array<{ question: string; answer: string }>
+	qaPairs: Array<{ question: string; answer: string }>,
+	brandAllowedTerms?: Set<string>
 ): string[] {
 	if (qaPairs.length === 0) return [];
 
@@ -3484,8 +3501,19 @@ function evaluateFaqLeakSignals(
 		const answer = pair.answer.trim();
 		const combined = `${question} ${answer}`;
 
-		if (FAQ_FORBIDDEN_LEAK_PATTERN.test(combined)) {
+		// Always-forbidden terms (meta/process language)
+		if (FAQ_ALWAYS_FORBIDDEN_PATTERN.test(combined)) {
 			promptLeakCount++;
+		} else {
+			// Conditionally forbidden — only flag if NOT in brand's own content
+			const allowed = brandAllowedTerms || new Set<string>();
+			for (const term of FAQ_CONDITIONALLY_FORBIDDEN_TERMS) {
+				if (allowed.has(term.toLowerCase())) continue;
+				if (new RegExp(`\\b${term}(?:-?\\d*)?\\b`, 'i').test(combined)) {
+					promptLeakCount++;
+					break;
+				}
+			}
 		}
 		if (FAQ_META_QUESTION_PATTERNS.some((pattern) => pattern.test(question))) {
 			metaQuestionCount++;
@@ -3777,24 +3805,33 @@ FRAMER PLATFORM:
 		const pageType = parsePageTypeFromDescription(issue.description) || "home";
 		const faqKb = await readFaqTemplates(pageType);
 
-		const systemPrompt = `You are an FAQ writing specialist.
+		const systemPrompt = `You are an FAQ writing specialist optimized for AI engine citation (GEO/AEO).
+
+PAGE-SPECIFIC FOCUS:
+- Write FAQs about THIS specific page's topic — not a brand overview.
+- Each FAQ must address a distinct aspect of what this page covers.
+- Prioritize questions a prospective customer would ask about this page's specific content.
 
 STRICT GROUNDING:
 - Write FAQs only from Grounding Evidence facts.
 - Every answer must include at least one concrete term/fact from the page evidence.
 - Avoid generic boilerplate questions.
 
-CONTENT FOCUS:
-- Prioritize representative brand questions: what the product does, who it serves, key capabilities, deployment/getting started, performance/infrastructure, security/trust, and pricing.
-- When multiple source pages are provided, synthesize common core offering facts across those pages.
-- Avoid low-signal topics like cookie banners, tracking-preference controls, navigation/UI copy, or legal boilerplate unless the page is explicitly legal/privacy focused.
+GEO ANSWER FORMAT — STRICT WORD LIMITS:
+- Each answer MUST be 25-40 words. No answer may exceed 40 words. This is a hard limit.
+- 1-2 sentences per answer. Be direct and dense — every word must carry information.
+- Lead with a direct factual statement, not a setup sentence.
+- Include one concrete fact, number, or specific detail per answer.
+- Write as the product authority, not an observer describing a page.
+- NEVER quote or echo page copy verbatim — rephrase into authoritative product statements.
+- NEVER use filler like "specifically", "prominently", "explicitly", "positioned as", "framed as", "alongside".
 
 VOICE + INTENT:
 - Write customer-facing FAQs, not page analysis.
 - NEVER mention "homepage", "this page", "the page", "headline", "CTA", "button", or where links point.
 - NEVER use navigation instructions like "click", "select", "tap", or "use the call-to-action".
 - NEVER mention prompts, instructions, LLMs, AI models, assistants, or generation process.
-- Avoid observer phrasing like "${brandName} says", "the page includes", or "the homepage headline is".
+- NEVER use observer phrasing like "${brandName} says", "the page includes", "the homepage headline is", "is presented as", "is stated as", "the announcement is".
 
 OUTPUT CONTRACT:
 - Return ONLY one HTML <section> block.
@@ -3901,6 +3938,7 @@ export async function generateScriptWithLlm(
 		let pageContent: string | null = null;
 		let evidence: GroundingEvidence;
 		let llmsContext: Pick<LlmsCollectionResult, "rootUrl" | "docsBase" | "sourcePages"> | undefined;
+		let brandAllowedTerms: Set<string> | undefined;
 
 		if (isLlmsAgentType(issue.agentType)) {
 			const collected = await collectLlmsContext(brandProfile, targetUrl);
@@ -3917,11 +3955,14 @@ export async function generateScriptWithLlm(
 		} else {
 			const isFaqCheck = (issue.checkCode || "") === "FAQ_count";
 			const isSchemaCheck = SCHEMA_CHECK_CODES.has(issue.checkCode || "");
-			pageContent = isFaqCheck
-				? await scrapeFaqContext(targetUrl)
-				: isSchemaCheck
-					? await scrapePageContentForSchema(targetUrl)
-					: await scrapePageContent(targetUrl);
+			if (isFaqCheck) {
+				pageContent = await scrapePageContent(targetUrl, 4200);
+				brandAllowedTerms = extractBrandAllowedTerms(pageContent);
+			} else if (isSchemaCheck) {
+				pageContent = await scrapePageContentForSchema(targetUrl);
+			} else {
+				pageContent = await scrapePageContent(targetUrl);
+			}
 			evidence = buildGroundingEvidence(pageContent, targetUrl);
 		}
 		const shouldPrependIssueHeader = !isLlmsAgentType(issue.agentType);
@@ -3992,7 +4033,7 @@ export async function generateScriptWithLlm(
 		}
 
 		// 7. Validate
-		const validation = validateGeneratedScript(output, issue, evidence);
+		const validation = validateGeneratedScript(output, issue, evidence, brandAllowedTerms);
 		if (validation.warnings?.length) {
 			console.warn(`[ScriptGen] Quality warnings for issue #${issue.id}: ${validation.warnings.join("; ")}`);
 		}
@@ -4049,7 +4090,8 @@ Fix these errors and return the corrected output. Follow the same output contrac
 			const repairValidation = validateGeneratedScript(
 				repairedOutput,
 				issue,
-				evidence
+				evidence,
+				brandAllowedTerms
 			);
 			if (repairValidation.valid) {
 				if (!shouldPrependIssueHeader) {

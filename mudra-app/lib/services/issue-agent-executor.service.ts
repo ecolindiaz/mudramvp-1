@@ -497,7 +497,7 @@ async function gatherIssueContext(issue: {
   // 1. Scrape live page content (what users actually see)
   const pageContentPromise = targetUrl
     ? issue.agentType === 'faq_sections'
-      ? scrapeFaqContext(targetUrl)
+      ? scrapeFaqContext(targetUrl, issue.brandProfileId)
       : scrapePageContent(targetUrl)
     : Promise.resolve(null)
 

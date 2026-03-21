@@ -52,14 +52,23 @@ ${STRUCTURE_PROMPT || "[Content Structure guidelines will be loaded at runtime]"
 
 ## ⚠️ CRITICAL: SOURCE CITATIONS & LINK FORMAT ⚠️
 - **ALWAYS** include a "## Sources" or "## References" section at the end
-- Use inline citations with PROPER MARKDOWN LINK SYNTAX:
-  ✅ CORRECT: "According to [Gartner](https://gartner.com/report), 80% of enterprises..."
-  ✅ CORRECT: "Research from [McKinsey](https://mckinsey.com/insights) shows..."
-  ❌ WRONG: "According to Gartner (https://gartner.com), 80%..." (URL not clickable!)
-  ❌ WRONG: "According to Gartner, 80%..." (no source link!)
+- **NAME-DROP + LINK is the ONLY acceptable citation pattern** — name the source IN the sentence with a markdown link:
+  ✅ CORRECT: "According to [Gartner](https://gartner.com/report), 80% of enterprises will adopt AI by 2026."
+  ✅ CORRECT: "Research from [McKinsey](https://mckinsey.com/insights) shows a 35% productivity gain."
+  ✅ CORRECT: "A [Forrester study](https://forrester.com/report) found that companies using AI saw 2.5x ROI."
+  ❌ WRONG: "80% of enterprises will adopt AI ([Gartner](https://gartner.com/report))." (trailing parenthetical — AI models miss the source association)
+  ❌ WRONG: "According to Gartner (https://gartner.com), 80%..." (URL not in markdown link!)
+  ❌ WRONG: "According to Gartner, 80%..." (no source link at all!)
   ❌ WRONG: Outputting literal "[sources]" placeholder text — NEVER do this
-- All statistics MUST be cited inline: "stat here ([Source](URL))"
-- All expert quotes MUST include: "quote" — Speaker Name, [Source](URL)
+- **MINIMUM 3 STATISTICS** with name-drop + link format across the body sections. Statistics Addition increases AI visibility by +41% (Princeton GEO research) — this is the single highest-impact optimization.
+- Multiple citations per section are encouraged — do NOT limit to 1 link per paragraph. Citation density correlates with AI visibility.
+- **EXPERT QUOTES — IN-TEXT ATTRIBUTION ONLY**:
+  ✅ CORRECT: "As Dr. Jane Smith, Chief AI Officer at Acme Corp, explains: 'AI adoption requires a data-first strategy.'"
+  ✅ CORRECT: "According to Sarah Lee, VP of Engineering at DataCo: 'The key is starting with clean data.'"
+  ❌ WRONG: > "AI adoption requires a data-first strategy." — Dr. Jane Smith (blockquote style — AI models treat blockquotes as decorative, not semantic)
+  ❌ WRONG: "AI adoption requires a data-first strategy." (no speaker attribution)
+- Include at least 1 expert quote with in-text attribution when expert quotes are provided.
+- **SOURCE AUTHORITY**: prefer well-known industry sources (Gartner, McKinsey, Forrester, HBR, peer-reviewed journals) when available. Niche sources are acceptable for specialized topics.
 - Format ALL source links as: [Source Title](https://url.com) — brackets around text, parentheses around URL
 - Include BOTH scraped sources AND research sources in the References section
 - In the References section, list each source on its own line:

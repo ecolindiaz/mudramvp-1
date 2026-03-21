@@ -12,8 +12,8 @@
 
 import { prisma } from '@/lib/prisma'
 import { generateIssueHash } from './issue-discovery.service'
-import { geoInsightExtractorAgent, geoInsightSchema } from '@/mastra/agents/geo-insight-extractor-agent'
-import type { ExtractedInsight } from '@/mastra/agents/geo-insight-extractor-agent'
+import { geoInsightExtractorAgent, geoInsightSchema } from '@/src/mastra/agents/geo-insight-extractor-agent'
+import type { ExtractedInsight } from '@/src/mastra/agents/geo-insight-extractor-agent'
 
 const ISSUE_BACKLOG_THRESHOLD = 10
 const MAX_NEW_AI_ISSUES_PER_RUN = 5

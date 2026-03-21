@@ -5,7 +5,7 @@
  * (issue-agent-executor) and the generate-script path.
  */
 
-import { getFirecrawlClient } from "@/mastra/tools/firecrawl-client";
+import { getFirecrawlClient } from "@/src/mastra/tools/firecrawl-client";
 
 const FAQ_CONTEXT_MAX_PAGES = 5;
 const FAQ_CONTEXT_MAX_CHARS = 18000;

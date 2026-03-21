@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
-import { mastra } from "@/mastra";
+import { mastra } from "@/src/mastra";
 import { getBrandProfileByUserId } from "@/lib/prisma-brand-profile";
 import { requireAuth } from '@/lib/auth/require-auth';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';

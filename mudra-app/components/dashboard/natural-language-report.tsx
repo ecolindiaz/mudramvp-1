@@ -28,6 +28,7 @@ import { CompanyLogo, DomainLogo } from "@/components/ui/company-logo"
 import { getCompanyDomain } from "@/lib/logo"
 import { buildExecutiveSummaryFromJson, isJsonLikeText } from "@/lib/analysis/nlr/narrative"
 import { IssuesIcon, ContentLabIcon } from "@/components/icons"
+import { FeedbackWidget } from "@/components/feedback-widget"
 import { useAnalysis } from "@/components/analysis-context"
 
 interface NaturalLanguageReportProps {
@@ -1624,6 +1625,16 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
           )}
         </SheetContent>
       </Sheet>
+
+      {/* User Feedback */}
+      <div className="mt-6 pt-4 border-t border-white/10">
+        <FeedbackWidget
+          targetType="REPORT"
+          targetId={profile?.id ? String(profile.id) : undefined}
+          brandProfileId={profile?.id > 0 ? profile.id : undefined}
+          label="How useful was this report?"
+        />
+      </div>
     </div>
   )
 }

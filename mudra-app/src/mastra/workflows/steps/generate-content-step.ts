@@ -6,9 +6,9 @@ import {
 } from "../../agents/content-generator-agent";
 import { gapAnalysisOutputSchema } from "../../agents/gap-analysis-agent";
 import { researchOutputSchema } from "../../agents/schemas/research-schema";
-import { logAIModelCall, estimateAICost } from "@/lib/services/ai-model-logging.service";
-import { hasFootnoteCitations, convertFootnotesToInlineLinks } from "@/lib/utils/convert-footnotes";
-import { isBrandDomain } from "@/lib/utils/domain-utils";
+import { logAIModelCall, estimateAICost } from "../../utils/ai-logging-stub";
+import { hasFootnoteCitations, convertFootnotesToInlineLinks } from "../../../../lib/utils/convert-footnotes";
+import { isBrandDomain } from "../../../../lib/utils/domain-utils";
 
 // Timeout helper for long-running operations
 const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {

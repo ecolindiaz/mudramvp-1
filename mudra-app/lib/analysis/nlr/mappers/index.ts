@@ -9,10 +9,11 @@ import { resolveBrandProfileIds } from "@/lib/analysis/nlr/mappers/resolve-brand
 
 export async function collectNlrInputs(
   companyId: string,
-  weekStartUtc: Date | string
+  weekStartUtc: Date | string,
+  userId?: string
 ): Promise<NlrInput> {
   // Resolve once — avoids 6 redundant DB queries in the mappers
-  const brandProfileIds = await resolveBrandProfileIds(companyId);
+  const brandProfileIds = await resolveBrandProfileIds(companyId, userId);
 
   const [aiVisibility, technical, tasks, opportunities, aiReferralTraffic, agentDeployments] = await Promise.all([
     mapAiVisibility(brandProfileIds, weekStartUtc),

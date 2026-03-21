@@ -81,7 +81,11 @@ export async function GET(request: NextRequest) {
         const { resolveBrandProfileIds } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles')
         const bpIds = await resolveBrandProfileIds(site.companyId)
         if (bpIds.length > 0) {
-          await queueNlrJob(site.companyId, bpIds[0], weekStartIso).catch(() => {})
+          const bpRecord = await prisma.brandProfile.findUnique({
+            where: { id: bpIds[0] },
+            select: { userId: true },
+          })
+          await queueNlrJob(site.companyId, bpIds[0], weekStartIso, bpRecord?.userId ?? undefined).catch(() => {})
         }
       } catch {}
     }

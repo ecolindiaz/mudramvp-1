@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { getFirecrawlClient } from '@/mastra/tools/firecrawl-client';
+import { getFirecrawlClient } from '@/src/mastra/tools/firecrawl-client';
 import { extractDomain, isDomainBlocked, isBrandDomain } from '@/lib/utils/domain-utils';
 
 export const maxDuration = 30;

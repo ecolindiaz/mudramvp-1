@@ -42,6 +42,6 @@
     ".next",
     "scripts",
     "**/__tests__/**",
-    "mastra/**/*"
+    "src/mastra/**/*"
   ]
 }

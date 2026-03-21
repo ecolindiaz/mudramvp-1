@@ -10,7 +10,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { mastra } from '@/mastra'
+import { mastra } from '@/src/mastra'
 import OpenAI from 'openai'
 import {
   validateSchemaInSandbox,
@@ -30,7 +30,7 @@ import {
   type ContentType,
 } from './github.service'
 import { reviewGeneratedContent, type ReviewResult } from './pr-review.service'
-import { getFirecrawlClient } from '@/mastra/tools/firecrawl-client'
+import { getFirecrawlClient } from '@/src/mastra/tools/firecrawl-client'
 import { scrapeFaqContext, scrapePageContent } from './page-scrape-context.service'
 import {
   hallucinationScorer,
@@ -38,7 +38,7 @@ import {
   relevancyScorer,
   promptAlignmentScorer,
   EVAL_MODEL,
-} from '@/mastra/evals'
+} from '@/src/mastra/evals'
 import { createFaithfulnessScorer } from '@mastra/evals/scorers/prebuilt'
 import type { ScorerRunInputForAgent, ScorerRunOutputForAgent } from '@mastra/core/evals'
 import { createHash } from 'crypto'

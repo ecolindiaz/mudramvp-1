@@ -18,7 +18,7 @@ debug-*.js
 quick-*.js
 
 # Mastra test files (agents folder is needed for production)
-mastra/tests/
+src/mastra/tests/
 
 # Scripts
 scripts/

@@ -21,7 +21,7 @@ import {
 	geoInsightGuidanceAgent,
 	geoInsightGuidanceSchema,
 	formatGuidanceAsMarkdown,
-} from "@/mastra/agents/geo-insight-guidance-agent";
+} from "@/src/mastra/agents/geo-insight-guidance-agent";
 
 type ScriptAgentType =
 	| "schema_markup"

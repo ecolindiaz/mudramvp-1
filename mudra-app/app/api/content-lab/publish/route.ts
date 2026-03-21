@@ -14,7 +14,7 @@ import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 import { getBrandProfileByUserId } from '@/lib/prisma-brand-profile';
 import { isBlogSetupComplete } from '@/lib/services/blog-setup.service';
 import { prisma } from '@/lib/prisma';
-import { mastra } from '@/mastra';
+import { mastra } from '@/src/mastra';
 import { createBlogPostPR } from '@/lib/services/github.service';
 
 export const maxDuration = 120; // 2 minutes for agent + PR creation

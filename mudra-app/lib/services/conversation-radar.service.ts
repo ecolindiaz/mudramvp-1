@@ -12,7 +12,7 @@ import {
   analyzeOpportunityWithAgent, 
   batchAnalyzeOpportunities,
   type OpportunityAnalysis 
-} from '@/mastra/agents/conversation-radar-agent';
+} from '@/src/mastra/agents/conversation-radar-agent';
 import { scrapeRedditUrls, searchReddit, type RedditPost } from '@/lib/apify/reddit-scraper';
 import { 
   extractRedditCitationsFromAnalysis, 

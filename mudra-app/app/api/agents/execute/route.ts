@@ -198,7 +198,7 @@ async function analyzeCodebase(agent: any) {
   try {
     // TODO: Mastra agents are not deployed yet (excluded in .vercelignore)
     // Uncomment when ready for production:
-    // const { aeoGeoOptimizerAgent } = await import('@/mastra/agents/aeo-geo-optimizer');
+    // const { aeoGeoOptimizerAgent } = await import('@/src/mastra/agents/aeo-geo-optimizer');
     
     console.log('[Agent] Codebase analysis not yet implemented in production');
     
@@ -242,7 +242,7 @@ async function optimizeCodebase(agent: any, task: any) {
   try {
     // TODO: Mastra agents are not deployed yet (excluded in .vercelignore)
     // Uncomment when ready for production:
-    // const { aeoGeoOptimizerAgent } = await import('@/mastra/agents/aeo-geo-optimizer');
+    // const { aeoGeoOptimizerAgent } = await import('@/src/mastra/agents/aeo-geo-optimizer');
     
     console.log('[Agent] Code optimization not yet implemented in production');
     

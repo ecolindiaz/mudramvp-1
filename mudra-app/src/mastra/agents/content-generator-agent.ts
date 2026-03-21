@@ -3,7 +3,7 @@ import { contentOutputSchema } from "./schemas/content-schema";
 import {
   getContentQualityPrompt,
   getContentStructurePrompt,
-} from "../../lib/prompts/load-prompts";
+} from "../../../lib/prompts/load-prompts";
 
 // Load prompts at module initialization
 let QUALITY_PROMPT = "";

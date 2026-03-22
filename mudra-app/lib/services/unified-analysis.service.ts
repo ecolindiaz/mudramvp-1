@@ -836,9 +836,14 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     const successfulScrapes = getSuccessfulScrapes(scrapeResult);
 
     // Deduplicate pages with identical HTML (handles redirects)
+    // Store rawHtml separately in a Map so we can free each page's HTML as soon as it's processed,
+    // rather than holding all 65 pages' HTML (~15-30MB) in memory for the entire scoring phase.
     const { createHash } = await import("node:crypto");
     const seenHashes = new Set<string>();
     const deduplicatedScrapes: typeof successfulScrapes = [];
+    const htmlByUrl = new Map<string, string>();
+    const scrapeCount = successfulScrapes.length;
+    const avgScrapeDurationMs = scrapeResult.durationMs / (scrapeCount || 1);
 
     for (const page of successfulScrapes) {
       if (!page.rawHtml) continue;
@@ -848,8 +853,16 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
         continue;
       }
       seenHashes.add(hash);
+      htmlByUrl.set(page.url, page.rawHtml);
       deduplicatedScrapes.push(page);
     }
+
+    // Free all rawHtml from page objects — htmlByUrl is now the sole owner
+    for (const page of successfulScrapes) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (page as any).rawHtml = undefined;
+    }
+    successfulScrapes.length = 0;
 
     let bogusExcluded = 0;
     let scoredCount = 0;
@@ -857,13 +870,15 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     const pageResults = await mapWithConcurrency(
       deduplicatedScrapes,
       async (page) => {
+        const rawHtml = htmlByUrl.get(page.url);
+        if (!rawHtml) return null;
         try {
           const pageIdx = ++scoredCount;
           const shortUrl = page.url.replace(/^https?:\/\//, '');
           console.log(`[Technical Core] Scoring page ${pageIdx}/${totalToScore}: ${shortUrl}`);
           // Extract DOM data (use effective URL for redirects)
           const effectiveUrl = page.metadata?.sourceURL || page.url;
-          const extraction = htmlToExtraction(page.rawHtml!, effectiveUrl);
+          const extraction = htmlToExtraction(rawHtml, effectiveUrl);
 
           // Bogus page detection: exclude redirects, soft 404s, auth walls
           const { detectBogusPage } = await import('@/lib/analysis/technical/bogus-page-detector');
@@ -875,8 +890,8 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
             if (sitemapPageId) {
               try {
                 await savePageSnapshot(
-                  config.brandProfileId, sitemapPageId, page.url, page.rawHtml!, extraction,
-                  { scrapeDurationMs: scrapeResult.durationMs / successfulScrapes.length },
+                  config.brandProfileId, sitemapPageId, page.url, rawHtml, extraction,
+                  { scrapeDurationMs: avgScrapeDurationMs },
                 );
                 const { updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
                 await updateSitemapPageStatus(sitemapPageId, 'unreachable', bogus.reason ?? undefined);
@@ -884,6 +899,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
                 console.warn(`[Technical Core] DB save error for bogus ${page.url}:`, dbErr);
               }
             }
+            htmlByUrl.delete(page.url);
             return null;
           }
 
@@ -908,9 +924,9 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
                 config.brandProfileId,
                 sitemapPageId,
                 page.url,
-                page.rawHtml!,
+                rawHtml,
                 extraction,
-                { scrapeDurationMs: scrapeResult.durationMs / successfulScrapes.length }
+                { scrapeDurationMs: avgScrapeDurationMs }
               );
 
               await savePageScore(
@@ -930,13 +946,15 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
           }
 
           console.log(`[Technical Core] Scored ${page.url}: ${score.scores.total}/100 (${score.status})`);
+          htmlByUrl.delete(page.url);
           return score;
         } catch (scoreError) {
           console.error(`[Technical Core] Error scoring ${page.url}:`, scoreError);
+          htmlByUrl.delete(page.url);
           return null;
         }
       },
-      5
+      3
     );
 
     const pageScores: Array<ReturnType<typeof computePageScore>> = pageResults.filter(

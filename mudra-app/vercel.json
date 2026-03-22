@@ -36,7 +36,8 @@
       "maxDuration": 300
     },
     "app/api/analysis/**/*.ts": {
-      "maxDuration": 540
+      "maxDuration": 540,
+      "memory": 1024
     },
     "app/api/content-lab/**/*.ts": {
       "maxDuration": 300

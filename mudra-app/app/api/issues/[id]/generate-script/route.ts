@@ -120,6 +120,7 @@ export async function POST(
 				agentType: issue.agentType,
 				checkCode: issue.checkCode,
 				affectedUrl: issue.affectedUrl,
+				brandProfileId: issue.brandProfileId,
 			},
 			{
 				companyName: issue.brandProfile.companyName,

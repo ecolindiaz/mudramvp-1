@@ -791,7 +791,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     // Step 2: Scrape pages in parallel batches
     console.log(`[Technical Core] Step 2: Scraping ${urls.length} pages...`);
     onProgress?.({ phase: 'scraping', status: 'started', data: { total: urls.length } });
-    const scrapeResult = await scrapePages(urls, { concurrency: 4, timeoutMs: 30000, waitForMs: 2000 }, (info) => {
+    const scrapeResult = await scrapePages(urls, { concurrency: 3, timeoutMs: 60000, waitForMs: 2000 }, (info) => {
       onProgress?.({ phase: 'scraping', status: 'progress', data: { scraped: info.scraped, total: info.total } });
     });
 
@@ -830,6 +830,7 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     }
 
     // Step 3: Extract DOM and score each successful page
+    const step3Start = Date.now();
     console.log('[Technical Core] Step 3: Extracting and scoring pages...');
     onProgress?.({ phase: 'scoring', status: 'started' });
     const successfulScrapes = getSuccessfulScrapes(scrapeResult);
@@ -850,18 +851,48 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       deduplicatedScrapes.push(page);
     }
 
+    let bogusExcluded = 0;
+    let scoredCount = 0;
+    const totalToScore = deduplicatedScrapes.length;
     const pageResults = await mapWithConcurrency(
       deduplicatedScrapes,
       async (page) => {
         try {
+          const pageIdx = ++scoredCount;
+          const shortUrl = page.url.replace(/^https?:\/\//, '');
+          console.log(`[Technical Core] Scoring page ${pageIdx}/${totalToScore}: ${shortUrl}`);
           // Extract DOM data (use effective URL for redirects)
           const effectiveUrl = page.metadata?.sourceURL || page.url;
           const extraction = htmlToExtraction(page.rawHtml!, effectiveUrl);
 
+          // Bogus page detection: exclude redirects, soft 404s, auth walls
+          const { detectBogusPage } = await import('@/lib/analysis/technical/bogus-page-detector');
+          const bogus = detectBogusPage(page.url, page.metadata?.sourceURL, extraction, config.brandName);
+          if (bogus.isBogus) {
+            console.log(`[Technical Core] Bogus page excluded: ${page.url} (${bogus.heuristic}: ${bogus.reason})`);
+            bogusExcluded++;
+            const sitemapPageId = urlToSitemapPageId.get(page.url);
+            if (sitemapPageId) {
+              try {
+                await savePageSnapshot(
+                  config.brandProfileId, sitemapPageId, page.url, page.rawHtml!, extraction,
+                  { scrapeDurationMs: scrapeResult.durationMs / successfulScrapes.length },
+                );
+                const { updateSitemapPageStatus } = await import('@/lib/analysis/technical/repo');
+                await updateSitemapPageStatus(sitemapPageId, 'unreachable', bogus.reason ?? undefined);
+              } catch (dbErr) {
+                console.warn(`[Technical Core] DB save error for bogus ${page.url}:`, dbErr);
+              }
+            }
+            return null;
+          }
+
           // Pre-compute LLM-powered schema recommendations
           try {
+            const llmStart = Date.now();
             const { getRecommendedSchemasWithAI } = await import('@/lib/analysis/technical/schema-recommender');
             extraction.recommendedSchemas = await getRecommendedSchemasWithAI(extraction);
+            console.log(`[Technical Core] Schema LLM for ${shortUrl}: ${Date.now() - llmStart}ms (${extraction.recommendedSchemas.length} recommended)`);
           } catch (schemaErr) {
             console.warn(`[Technical Core] Schema recommendation failed for ${page.url}:`, schemaErr);
           }
@@ -911,6 +942,10 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     const pageScores: Array<ReturnType<typeof computePageScore>> = pageResults.filter(
       (s): s is NonNullable<typeof s> => s !== null
     );
+
+    const step3Duration = ((Date.now() - step3Start) / 1000).toFixed(1);
+    console.log(`[Technical Core] Step 3 complete: scored ${pageScores.length}/${totalToScore} pages in ${step3Duration}s${bogusExcluded > 0 ? ` (${bogusExcluded} bogus excluded)` : ''}`);
+
 
     const allIssues = pageScores.flatMap(score => score.issues);
     const pagesScored = pageScores.length;

@@ -8,7 +8,7 @@
 ## General Constraints
 
 - Generate exactly **3–5 Q&As** per page
-- Keep each answer to **1–3 sentences**, directly quotable
+- Keep each answer to **1–2 sentences, 25–40 words max**. Lead with a direct factual statement. Include a concrete fact, number, or specific claim per answer. No filler words.
 - Questions must reflect what an ideal customer would ask on **this specific page type**
 - Start answers with a direct response (no preamble like "Great question!")
 - Use the company/product name naturally in questions where appropriate
@@ -27,6 +27,8 @@
 5. "How do I get started with {Product}?" → Pull from CTA text, onboarding mentions
 
 **Answer guidance**:
+- Each answer: 25-40 words max, 1-2 sentences. Lead with a direct factual statement.
+- Include a concrete fact, number, or specific claim from the page
 - Lead with the company's own positioning language
 - Reference specific claims visible on the page
 - Keep answers accessible to first-time visitors
@@ -50,6 +52,8 @@
 5. "Do you offer discounts for annual billing?" → Check for annual/monthly toggle, savings mentions
 
 **Answer guidance**:
+- Each answer: 25-40 words max, 1-2 sentences. Lead with a direct factual statement.
+- Include a concrete fact, number, or specific claim from the page
 - Reference actual plan names and prices visible on the page
 - Mention specific features that differentiate tiers
 - Include any free trial duration if stated
@@ -73,6 +77,8 @@
 5. "What's new in {Product}?" → Pull from any "new" or "recently added" badges
 
 **Answer guidance**:
+- Each answer: 25-40 words max, 1-2 sentences. Lead with a direct factual statement.
+- Include a concrete fact, number, or specific claim from the page
 - Use the feature names exactly as they appear on the page
 - Reference specific functionality rather than vague benefits
 - Mention integration partners by name if listed
@@ -96,6 +102,8 @@
 5. "How does {Product} compare to alternatives?" → Pull from comparison sections if present
 
 **Answer guidance**:
+- Each answer: 25-40 words max, 1-2 sentences. Lead with a direct factual statement.
+- Include a concrete fact, number, or specific claim from the page
 - Focus on the specific product being described, not the company overall
 - Reference concrete outcomes or metrics if stated on the page
 - Use the product's own terminology
@@ -119,6 +127,8 @@
 5. "How do I implement {Product}?" → Pull from implementation or onboarding sections
 
 **Answer guidance**:
+- Each answer: 25-40 words max, 1-2 sentences. Lead with a direct factual statement.
+- Include a concrete fact, number, or specific claim from the page
 - Match the solution framing used on the page
 - Reference specific industries or roles if mentioned
 - Include concrete outcomes or metrics if stated
@@ -142,6 +152,8 @@
 5. "Where can I learn more about {Topic}?" → Pull from related links or resources mentioned
 
 **Answer guidance**:
+- Each answer: 25-40 words max, 1-2 sentences. Lead with a direct factual statement.
+- Include a concrete fact, number, or specific claim from the page
 - Ground questions in the specific article topic, not generic blog questions
 - Use terminology from the article
 - Keep answers factual — summarize what the article states
@@ -165,6 +177,8 @@
 5. "How do I get started with {Use Case}?" → Pull from CTA or next-steps section
 
 **Answer guidance**:
+- Each answer: 25-40 words max, 1-2 sentences. Lead with a direct factual statement.
+- Include a concrete fact, number, or specific claim from the page
 - Focus tightly on the specific use case described on the page
 - Reference customer outcomes if stated
 - Connect features to the use case context
@@ -188,6 +202,8 @@
 5. "What do customers say about {Product}?" → Pull from testimonial quotes if visible
 
 **Answer guidance**:
+- Each answer: 25-40 words max, 1-2 sentences. Lead with a direct factual statement.
+- Include a concrete fact, number, or specific claim from the page
 - Only name customers explicitly shown on the page
 - Only cite metrics that are directly stated
 - Reference specific testimonial quotes if visible

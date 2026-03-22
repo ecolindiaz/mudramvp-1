@@ -496,10 +496,22 @@ export function validatePromptQuality(
       }
     }
 
-    // 4. "Best" opening — allow up to 35%, reject excess
-    if (textLower.startsWith('best ')) {
+    // 4. "Best"/"Mejor" opening — allow up to 35%, reject excess
+    const bestOpener = language === 'es' ? textLower.startsWith('mejor ') || textLower.startsWith('mejores ') : textLower.startsWith('best ');
+    if (bestOpener) {
       bestCount++;
       if (bestCount > maxBestAllowed && !reject) {
+        reject = true;
+      }
+    }
+
+    // 4b. English-leak rejection for Spanish prompts
+    if (language === 'es' && !reject) {
+      // Reject English openers
+      const englishOpenerPattern = /^(best |i need |how can i |which |what |where can |looking for |trying to )/i;
+      // Reject common English words that have obvious Spanish equivalents mid-sentence
+      const englishMidPattern = /\b(alternatives|cheaper than|moving away|instead of|looking for|affordable|tools for|platforms for|software for)\b/i;
+      if (englishOpenerPattern.test(text) || englishMidPattern.test(text)) {
         reject = true;
       }
     }
@@ -550,13 +562,19 @@ const BEST_ALTERNATIVES = [
   'highest-rated', 'leading', 'most reliable', 'go-to',
 ];
 
+const BEST_ALTERNATIVES_ES = [
+  'más recomendadas', 'mejor valoradas', 'más populares',
+  'más confiables', 'líderes', 'más usadas',
+];
+
 /**
  * Apply deterministic fixes to 1-5 rejected prompts.
  * Returns rewritten prompts with original categories preserved.
  */
 export function deterministicRewrite(
   rejected: InitialGeneratedPrompt[],
-  brandName: string
+  brandName: string,
+  language: 'en' | 'es' = 'en'
 ): InitialGeneratedPrompt[] {
   let bestAltIndex = 0;
   const brandLower = brandName.toLowerCase().trim();
@@ -569,21 +587,48 @@ export function deterministicRewrite(
     `\\b${brandName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'
   );
 
+  const brandReplacementPhrase = language === 'es' ? 'este tipo de herramienta' : 'this kind of tool';
+
   return rejected.map(prompt => {
     let text = prompt.text;
 
     // Fix 1: Remove brand name leaks (skip for Brand-Specific — they MUST contain the brand)
     if (prompt.category !== 'Brand-Specific') {
-      text = text.replace(fullBrandRegex, 'this kind of tool');
+      text = text.replace(fullBrandRegex, brandReplacementPhrase);
       for (const rx of brandWordRegexes) {
-        text = text.replace(rx, 'this kind of tool');
+        text = text.replace(rx, brandReplacementPhrase);
       }
-      // Clean up double "this kind of tool" from multi-word brands
-      text = text.replace(/(this kind of tool\s*){2,}/gi, 'this kind of tool ');
+      // Clean up double brand replacement from multi-word brands
+      const escPhrase = brandReplacementPhrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      text = text.replace(new RegExp(`(${escPhrase}\\s*){2,}`, 'gi'), `${brandReplacementPhrase} `);
     }
 
-    // Fix 2: Rewrite "Best X" openings
-    if (text.trimStart().toLowerCase().startsWith('best ')) {
+    // Fix 2: Rewrite "Best X" / English leak openers
+    if (language === 'es') {
+      // Rewrite English "Best" → Spanish "¿Cuáles son las más recomendadas"
+      if (text.trimStart().toLowerCase().startsWith('best ')) {
+        const alt = BEST_ALTERNATIVES_ES[bestAltIndex % BEST_ALTERNATIVES_ES.length];
+        bestAltIndex++;
+        text = text.replace(/^(\s*)best\s+/i, `$1¿Cuáles son las ${alt} `);
+      }
+      // Rewrite "I need" → "Necesito"
+      text = text.replace(/^(\s*)I need\s+/i, '$1Necesito ');
+      // Rewrite "How can I" → "¿Cómo puedo"
+      text = text.replace(/^(\s*)How can I\s+/i, '$1¿Cómo puedo ');
+      // Rewrite "Which platform" → "¿Qué plataforma"
+      text = text.replace(/^(\s*)Which platform\s+/i, '$1¿Qué plataforma ');
+      // Rewrite "Which" → "¿Cuál"
+      text = text.replace(/^(\s*)Which\s+/i, '$1¿Cuál ');
+      // Rewrite "What" → "¿Qué"
+      text = text.replace(/^(\s*)What\s+/i, '$1¿Qué ');
+      // Fix mid-sentence English words
+      text = text.replace(/\balternatives\b/gi, 'alternativas');
+      text = text.replace(/\bcheaper than\b/gi, 'más barato que');
+      text = text.replace(/\bmoving away from\b/gi, 'migrar desde');
+      text = text.replace(/\binstead of\b/gi, 'en vez de');
+      text = text.replace(/\blooking for\b/gi, 'buscando');
+      text = text.replace(/\baffordable\b/gi, 'asequible');
+    } else if (text.trimStart().toLowerCase().startsWith('best ')) {
       const alt = BEST_ALTERNATIVES[bestAltIndex % BEST_ALTERNATIVES.length];
       bestAltIndex++;
       text = text.replace(/^(\s*)best\s+/i, `$1what are the ${alt} `);
@@ -1061,18 +1106,42 @@ Business type: ${businessType}
 ${businessGuidance}
 
 ORGANIC STYLE RULES (critical — follow these strictly):
-- Every Organic prompt MUST have clear intent. Keep most prompts SHORT and DIRECT — under 20 words. "What's the best platform to run AI workloads without managing Kubernetes?" is good. "we're a SaaS company with heavy batch data processing, what cloud platforms are good for scaling containerized batch jobs on demand?" is too long and over-specific.
+- Every Organic prompt MUST have clear intent. Keep most prompts SHORT and DIRECT — under 20 words.${language === 'es' ? ' "¿Cuál es la mejor plataforma para correr cargas de IA sin manejar Kubernetes?" is good. "somos una empresa SaaS con procesamiento pesado de datos, ¿qué plataformas cloud sirven para escalar jobs en contenedores bajo demanda?" is too long and over-specific.' : ' "What\'s the best platform to run AI workloads without managing Kubernetes?" is good. "we\'re a SaaS company with heavy batch data processing, what cloud platforms are good for scaling containerized batch jobs on demand?" is too long and over-specific.'}
 - Some prompts can include light situational context (role, company type, use case) but do NOT pad every prompt with backstory. A minority should have context, the majority should be concise direct questions.
 - Do NOT put the brand name in any Organic or Generic prompt. These test whether AI discovers the brand unprompted.
-- Keep a strong buying-intent slice in Organic: target 25-35% of Organic prompts starting exactly with "Best". "Best X for Y" is the #1 query pattern that triggers AI engines to list and compare brands — prioritize it. These should feel like real buyer searches, not SEO headlines.
+${language === 'es'
+  ? `- Keep a strong buying-intent slice in Organic: target 25-35% of Organic prompts starting exactly with "Mejor" or "Mejores". "Mejor X para Y" is the #1 query pattern that triggers AI engines to list and compare brands — prioritize it. These should feel like real buyer searches, not SEO headlines.
+- No more than 35% of Organic prompts may start with the word "Mejor"/"Mejores". Vary the rest of your openings: "¿Qué debería usar para...", "¿Cuál es la mejor plataforma para...", "¿Dónde puedo...", "¿Qué herramientas recomiendan para..."
+- No more than 20% of Organic prompts should start with "Necesito" or "Busco". Strongly prefer question forms: "¿Qué debería usar para...", "¿Cuál es la mejor...", "¿Dónde puedo...", "¿Cómo puedo..."
+- At least 10% must be decision-help or opinion-seeking: "¿vale la pena...", "¿cuál debería usar...", "opiniones sobre..."
+- CRITICAL: Do NOT use any English words as prompt openers. Never start a prompt with "Best", "I need", "How can I", "Which", "What" — use their Spanish equivalents: "Mejor", "Necesito", "¿Cómo puedo", "¿Cuál", "¿Qué".`
+  : `- Keep a strong buying-intent slice in Organic: target 25-35% of Organic prompts starting exactly with "Best". "Best X for Y" is the #1 query pattern that triggers AI engines to list and compare brands — prioritize it. These should feel like real buyer searches, not SEO headlines.
 - No more than 35% of Organic prompts may start with the word "best". Vary the rest of your openings: "What should I use for...", "Which platform is best for...", "Where can I...", "What tools do people recommend for..."
 - No more than 20% of Organic prompts should start with "I need". Strongly prefer question forms: "What should I use for...", "Which platform is best for...", "What's the best way to...", "Where can I...", "How can I..."
-- At least 10% must be decision-help or opinion-seeking: "is it worth...", "which should I use...", "thoughts on..."
+- At least 10% must be decision-help or opinion-seeking: "is it worth...", "which should I use...", "thoughts on..."`}
 - Cover topics relevant to the ICP but do NOT force ICP-specific backstory into every prompt.
 - Include some time-anchored queries: "in 2026", "latest", "right now"
-- Include some budget/cost queries: "free", "affordable", "pricing"
+- Include some budget/cost queries: ${language === 'es' ? '"gratis", "asequible", "precios"' : '"free", "affordable", "pricing"'}
 
-ORGANIC INTENT FILTER (critical — these MUST be followed):
+${language === 'es'
+  ? `ORGANIC INTENT FILTER (critical — these MUST be followed):
+- Organic prompts must seek a PRODUCT or SOLUTION. They must NOT describe a technical task or operational procedure.
+- REJECT patterns: "¿Cómo puedo/podemos [configurar|migrar|instalar|integrar|conectar|detener|manejar|agregar|detectar|acelerar]..." — these are operational questions, not product discovery. Move them to How-to Guides.
+- GOOD: "Mejor plataforma para preview deployments" (seeking a product)
+- GOOD: "¿Qué debería usar para automatizar el seguimiento de gastos?" (seeking a tool)
+- BAD: "¿Cómo podemos hacer rollback después de un deploy fallido?" (operational task)
+- BAD: "¿Cómo puedo configurar controles de tarjeta por rol y departamento?" (configuration task)
+- BAD: "¿Cómo aceleran los equipos de finanzas el cierre mensual?" (process question)
+
+BUYER VOCABULARY RULE (critical for technical brands):
+- Write prompts using the BUYER's vocabulary, not the PRODUCT TEAM's vocabulary. A VP evaluating tools does not search "flujos de adaptación LoRA" — they search "mejor plataforma de fine-tuning de modelos."
+- Use plain-language descriptions of outcomes and problems, not technical implementation jargon.
+- GOOD: "Mejores empresas de etiquetado de datos para entrenar modelos de IA"
+- GOOD: "Mejor plataforma de fine-tuning de modelos para equipos enterprise"
+- BAD: "proveedores de GPU que soporten flujos de adaptación LoRA" (engineer-spec)
+- BAD: "plataformas que hagan stream de stdout desde ejecución remota de código" (insider jargon)
+- Rule of thumb: if a non-technical decision-maker at the ICP company wouldn't use these exact words, simplify them.`
+  : `ORGANIC INTENT FILTER (critical — these MUST be followed):
 - Organic prompts must seek a PRODUCT or SOLUTION. They must NOT describe a technical task or operational procedure.
 - REJECT patterns: "How can I/we [set up|roll back|configure|migrate|stop|handle|add|detect|install|integrate|connect|speed up]..." — these are operational questions, not product discovery. Move them to How-to Guides.
 - GOOD: "Best platform for preview deployments" (seeking a product)
@@ -1089,7 +1158,7 @@ BUYER VOCABULARY RULE (critical for technical brands):
 - BAD: "GPU providers that support LoRA adaptation workflows out of the box" (engineer-spec)
 - BAD: "platforms that stream stdout from remote code execution" (insider jargon)
 - BAD: "best infrastructure for running asynchronous reinforcement learning at scale" (researcher language)
-- Rule of thumb: if a non-technical decision-maker at the ICP company wouldn't use these exact words, simplify them.${styleAnchors}
+- Rule of thumb: if a non-technical decision-maker at the ICP company wouldn't use these exact words, simplify them.`}${styleAnchors}
 
 ANTI-HALLUCINATION RULE:
 - ONLY reference products, features, and competitors that are explicitly listed in the brand context below. Do NOT invent product names, competitor names, or feature names.
@@ -1231,7 +1300,7 @@ Generate exactly ${totalPrompts} prompts now.`;
       );
       if (replacements.length === 0) {
         // API failed — fall back to deterministic rewrite of originals
-        const rewritten = deterministicRewrite(rejected, brandInfo.companyName);
+        const rewritten = deterministicRewrite(rejected, brandInfo.companyName, language);
         finalPrompts.push(...rewritten);
         console.log(`[PromptValidation] Replacement API failed, deterministically rewrote ${rewritten.length} original rejected prompts`);
       } else {
@@ -1240,7 +1309,7 @@ Generate exactly ${totalPrompts} prompts now.`;
         finalPrompts.push(...replacementValidation.passed);
         // Any still-rejected replacements get deterministic rewrite
         if (replacementValidation.rejected.length > 0) {
-          const rewritten = deterministicRewrite(replacementValidation.rejected, brandInfo.companyName);
+          const rewritten = deterministicRewrite(replacementValidation.rejected, brandInfo.companyName, language);
           finalPrompts.push(...rewritten);
         }
         console.log(`[PromptValidation] Retry: ${replacements.length} requested, ` +
@@ -1248,7 +1317,7 @@ Generate exactly ${totalPrompts} prompts now.`;
       }
     } else {
       // 1-5 rejections — apply fast deterministic fixes
-      const rewritten = deterministicRewrite(rejected, brandInfo.companyName);
+      const rewritten = deterministicRewrite(rejected, brandInfo.companyName, language);
       finalPrompts.push(...rewritten);
       console.log(`[PromptValidation] Deterministically rewrote ${rewritten.length} prompts`);
     }

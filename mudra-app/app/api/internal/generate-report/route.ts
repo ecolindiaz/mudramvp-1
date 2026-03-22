@@ -43,11 +43,11 @@ export async function POST(req: NextRequest) {
     const bp = await prisma.brandProfile.findFirst({
       where: { id: { in: bpIds } },
       orderBy: { monitorOrder: 'asc' },
-      select: { id: true },
+      select: { id: true, userId: true },
     });
     const brandProfileId = bp?.id ?? bpIds[0];
 
-    const job = await queueNlrJob(site.companyId, brandProfileId, weekStartUtc);
+    const job = await queueNlrJob(site.companyId, brandProfileId, weekStartUtc, bp?.userId ?? undefined);
     return NextResponse.json({ success: true, data: { jobId: job.id } });
   } catch (err) {
     console.error('[Internal Generate Report] Error:', err);

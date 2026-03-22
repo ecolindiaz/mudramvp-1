@@ -48,7 +48,7 @@ function extractBaseDomain(domain: string): string {
  * BrandProfile.siteId is a tracking token (site_<hex>), NOT a Site.id (cuid),
  * so we match exclusively on companyWebsite / domain variants.
  */
-export async function resolveBrandProfileIds(companyId: string): Promise<number[]> {
+export async function resolveBrandProfileIds(companyId: string, userId?: string): Promise<number[]> {
   const sites = await prisma.site.findMany({
     where: { companyId },
     select: { id: true, domain: true },
@@ -80,6 +80,7 @@ export async function resolveBrandProfileIds(companyId: string): Promise<number[
   const brandProfiles = await prisma.brandProfile.findMany({
     where: {
       companyWebsite: { in: websiteVariants },
+      ...(userId ? { userId } : {}),
     },
     select: { id: true, userId: true },
   });

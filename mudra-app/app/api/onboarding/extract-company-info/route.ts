@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
 5) Competitor URLs: Any competitor websites mentioned (exclude the company's own website)`
         },
         onlyMainContent: false,
-        timeout: 45000
+        timeout: 90000
       } as any);
     } catch (scrapeError: any) {
       // Firecrawl SDK v1 has a bug: when axios throws without an HTTP response

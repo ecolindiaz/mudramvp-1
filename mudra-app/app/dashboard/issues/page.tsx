@@ -56,7 +56,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import type { PointerEvent as RPointerEvent } from "react"
+
 import { toast } from "sonner"
 import { trackEvent } from "@/lib/analytics/posthog-events"
 
@@ -123,7 +123,7 @@ function UnicodeExecutionSpinner({ className = "" }: { className?: string }) {
 }
 
 // Custom status icons
-const IdentifiedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
+const IdentifiedIcon = ({ className }: { className?: string; animate?: boolean }) => (
   <UnicodeStatusGlyph glyph="⠒" className={className} />
 )
 
@@ -133,15 +133,15 @@ const InProgressIcon = ({ className, animate = false }: { className?: string; an
     : <UnicodeStatusGlyph glyph="⠶" className={className} />
 )
 
-const CompletedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
+const CompletedIcon = ({ className }: { className?: string; animate?: boolean }) => (
   <UnicodeStatusGlyph glyph="⠿" className={className} />
 )
 
-const MergedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
+const MergedIcon = ({ className }: { className?: string; animate?: boolean }) => (
   <UnicodeStatusGlyph glyph="⠯" className={className} />
 )
 
-const FailedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
+const FailedIcon = ({ className }: { className?: string; animate?: boolean }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>
     <path d="M12 9v4"/>
@@ -149,7 +149,7 @@ const FailedIcon = ({ className, animate: _animate }: { className?: string; anim
   </svg>
 )
 
-const DismissedIcon = ({ className, animate: _animate }: { className?: string; animate?: boolean }) => (
+const DismissedIcon = ({ className }: { className?: string; animate?: boolean }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <circle cx="12" cy="12" r="10"/>
     <path d="m15 9-6 6"/>
@@ -250,6 +250,9 @@ function SortableIssueCard({
   onGenerateScript,
   onRetry,
   onViewOutput,
+
+
+  onMarkComplete,
   onClick,
   isDeploying,
   isGeneratingScript,
@@ -260,6 +263,7 @@ function SortableIssueCard({
   onGenerateScript?: (issueId: number) => void
   onRetry?: (issueId: number) => void
   onViewOutput?: (issue: Issue) => void
+  onMarkComplete?: (issueId: number) => void
   onClick?: (issue: Issue) => void
   isDeploying?: boolean
   isGeneratingScript?: boolean
@@ -371,6 +375,15 @@ function SortableIssueCard({
               <IconTrash className="w-4 h-4 mr-2" />
               Delete
             </DropdownMenuItem>
+            {issue.status !== "completed" && issue.status !== "dismissed" && onMarkComplete && (
+              <DropdownMenuItem
+                onClick={(e) => { e.stopPropagation(); onMarkComplete(issue.id); }}
+                className="text-green-400 hover:bg-green-400/10 cursor-pointer"
+              >
+                <IconCheck className="w-4 h-4 mr-2" />
+                Mark Complete
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -488,8 +501,8 @@ function IssueCardOverlay({ issue }: { issue: Issue }) {
   )
 }
 
-// Analysis View Component
-function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { stats: IssueStats | null; isLoading: boolean; brandProfileId?: number; companyWebsite?: string }) {
+// Sitemap View Component
+function SitemapView({ stats, isLoading, brandProfileId, companyWebsite }: { stats: IssueStats | null; isLoading: boolean; brandProfileId?: number; companyWebsite?: string }) {
   const trackedPagesPanel = brandProfileId && brandProfileId > 0 ? (
     <div className="mt-2">
       <SitemapUrlsPanel brandProfileId={brandProfileId} companyWebsite={companyWebsite || ""} />
@@ -500,11 +513,13 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
     return (
       <div className="flex-1 px-4 lg:px-6 py-6">
         {/* Skeleton metric cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-6">
+        <div className="grid grid-cols-1 gap-4 md:gap-5 mb-6 @xl/main:grid-cols-2 @3xl/main:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-[#1b1b1b] rounded-2xl p-5 flex flex-col">
+            <div key={i} className="bg-[#1b1b1b] rounded-2xl p-5 min-h-[140px] flex flex-col">
               <div className="h-4 w-24 rounded bg-white/[0.06] animate-pulse mb-3" />
-              <div className="h-8 w-16 rounded bg-white/[0.06] animate-pulse" />
+              <div className="flex-1 flex flex-col justify-center">
+                <div className="h-8 w-16 rounded bg-white/[0.06] animate-pulse" />
+              </div>
               <div className="mt-auto pt-3 border-t border-white/[0.06]">
                 <div className="h-3 w-32 rounded bg-white/[0.06] animate-pulse" />
               </div>
@@ -559,12 +574,17 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
   return (
     <div className="flex-1 px-4 lg:px-6 py-6">
       {/* Metric Cards — matches Overview page style */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-6">
+      <div className="grid grid-cols-1 gap-4 md:gap-5 mb-6 @xl/main:grid-cols-2 @3xl/main:grid-cols-4">
         {/* Total Issues */}
-        <div className="bg-[#1b1b1b] rounded-2xl p-5 flex flex-col">
-          <span className="text-sm text-white/50 font-medium mb-2">Total Issues</span>
-          <div className="flex items-end justify-between">
-            <span className="text-[24px] font-medium text-white">{stats.total}</span>
+        <div className="bg-[#1b1b1b] rounded-2xl p-5 min-h-[140px] flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-white/50 font-medium">Total Issues</span>
+          </div>
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-white">{stats.total}</span>
+              <span className="text-sm font-medium text-white/40">—</span>
+            </div>
           </div>
           <div className="mt-auto pt-3 border-t border-white/[0.06]">
             <span className="text-xs text-white/30">{stats.recentIssues} added this week</span>
@@ -572,13 +592,19 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
         </div>
 
         {/* Completion Rate */}
-        <div className="bg-[#1b1b1b] rounded-2xl p-5 flex flex-col">
-          <span className="text-sm text-white/50 font-medium mb-2">Completion Rate</span>
-          <div className="flex items-end justify-between">
-            <span className="text-[24px] font-medium text-white">{completionRate}%</span>
-            {completionRate > 0 && (
-              <span className="text-xs text-emerald-400">{stats.byStatus.completed + stats.byStatus.merged} resolved</span>
-            )}
+        <div className="bg-[#1b1b1b] rounded-2xl p-5 min-h-[140px] flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-white/50 font-medium">Completion Rate</span>
+          </div>
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-white">{completionRate}%</span>
+              {completionRate > 0 ? (
+                <span className="text-xs text-emerald-400">{stats.byStatus.completed + stats.byStatus.merged} resolved</span>
+              ) : (
+                <span className="text-sm font-medium text-white/40">—</span>
+              )}
+            </div>
           </div>
           <div className="mt-auto pt-3 border-t border-white/[0.06]">
             <span className="text-xs text-white/30">{stats.completedThisWeek} completed this week</span>
@@ -586,13 +612,19 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
         </div>
 
         {/* Active Issues */}
-        <div className="bg-[#1b1b1b] rounded-2xl p-5 flex flex-col">
-          <span className="text-sm text-white/50 font-medium mb-2">In Progress</span>
-          <div className="flex items-end justify-between">
-            <span className="text-[24px] font-medium text-white">{stats.byStatus.in_progress}</span>
-            {stats.byStatus.identified > 0 && (
-              <span className="text-xs text-white/40">{stats.byStatus.identified} in backlog</span>
-            )}
+        <div className="bg-[#1b1b1b] rounded-2xl p-5 min-h-[140px] flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-white/50 font-medium">In Progress</span>
+          </div>
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-white">{stats.byStatus.in_progress}</span>
+              {stats.byStatus.identified > 0 ? (
+                <span className="text-xs text-white/40">{stats.byStatus.identified} in backlog</span>
+              ) : (
+                <span className="text-sm font-medium text-white/40">—</span>
+              )}
+            </div>
           </div>
           <div className="mt-auto pt-3 border-t border-white/[0.06]">
             <span className="text-xs text-white/30">Actively being worked on</span>
@@ -600,13 +632,19 @@ function AnalysisView({ stats, isLoading, brandProfileId, companyWebsite }: { st
         </div>
 
         {/* High Priority */}
-        <div className="bg-[#1b1b1b] rounded-2xl p-5 flex flex-col">
-          <span className="text-sm text-white/50 font-medium mb-2">High Priority</span>
-          <div className="flex items-end justify-between">
-            <span className="text-[24px] font-medium text-white">{stats.byPriority.high}</span>
-            {stats.byPriority.high > 0 && (
-              <span className="text-xs text-red-400">Needs attention</span>
-            )}
+        <div className="bg-[#1b1b1b] rounded-2xl p-5 min-h-[140px] flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-white/50 font-medium">High Priority</span>
+          </div>
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-white">{stats.byPriority.high}</span>
+              {stats.byPriority.high > 0 ? (
+                <span className="text-xs text-red-400">Needs attention</span>
+              ) : (
+                <span className="text-sm font-medium text-white/40">—</span>
+              )}
+            </div>
           </div>
           <div className="mt-auto pt-3 border-t border-white/[0.06]">
             <span className="text-xs text-white/30">{stats.byCategory.technical_structure} technical issues</span>
@@ -1267,6 +1305,7 @@ function IssueColumnWithHandlers({
   onGenerateScript,
   onRetry,
   onViewOutput,
+  onMarkComplete,
   onIssueClick,
   deployingId,
   generatingScriptId,
@@ -1280,6 +1319,7 @@ function IssueColumnWithHandlers({
   onGenerateScript?: (issueId: number) => void
   onRetry?: (issueId: number) => void
   onViewOutput?: (issue: Issue) => void
+  onMarkComplete?: (issueId: number) => void
   onIssueClick?: (issue: Issue) => void
   deployingId?: number | null
   generatingScriptId?: number | null
@@ -1318,6 +1358,7 @@ function IssueColumnWithHandlers({
                 onGenerateScript={onGenerateScript}
                 onRetry={onRetry}
                 onViewOutput={onViewOutput}
+                onMarkComplete={onMarkComplete}
                 onClick={onIssueClick}
                 isDeploying={deployingId === issue.id}
                 isGeneratingScript={generatingScriptId === issue.id}
@@ -1340,7 +1381,7 @@ function IssuesPageInner() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [isStatsLoading, setIsStatsLoading] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
-  const [viewMode, setViewMode] = React.useState<"issues" | "analysis">("issues")
+  const [viewMode, setViewMode] = React.useState<"issues" | "sitemap">("issues")
   const [activeTab, setActiveTab] = React.useState<"all" | "active" | "identified">("all")
   
   // Dialog states
@@ -1459,7 +1500,7 @@ function IssuesPageInner() {
   }, [fetchIssues])
 
   React.useEffect(() => {
-    if (viewMode === "analysis") {
+    if (viewMode === "sitemap") {
       fetchStats()
     }
   }, [viewMode, fetchStats])
@@ -1996,6 +2037,27 @@ function IssuesPageInner() {
     setDeleteDialogOpen(true)
   }
 
+  const handleMarkComplete = async (issueId: number) => {
+    try {
+      const response = await fetch(`/api/issues/${issueId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "completed" }),
+      })
+      const result = await response.json()
+      if (result.success) {
+        setIssues(prev => prev.map(issue =>
+          issue.id === issueId ? { ...issue, status: "completed" as const } : issue
+        ))
+        toast.success("Issue marked as complete")
+      } else {
+        toast.error("Failed to mark issue as complete")
+      }
+    } catch {
+      toast.error("Failed to mark issue as complete")
+    }
+  }
+
   return (
     <SidebarProvider
       className="bg-dark-grey !h-svh !min-h-0 overflow-hidden"
@@ -2092,7 +2154,7 @@ function IssuesPageInner() {
                 </div>
               )}
 
-              {viewMode === "analysis" && <div />}
+              {viewMode === "sitemap" && <div />}
 
               {/* Right side - View Mode Selector */}
               <div className="flex items-center gap-1.5 ml-auto">
@@ -2112,19 +2174,20 @@ function IssuesPageInner() {
                   Issues
                 </button>
                 <button
-                  onClick={() => setViewMode("analysis")}
+                  onClick={() => setViewMode("sitemap")}
                   className={`flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium transition-colors ${
-                    viewMode === "analysis"
+                    viewMode === "sitemap"
                       ? "bg-white/[0.08] text-white"
                       : "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
                   }`}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-70">
-                    <line x1="18" y1="20" x2="18" y2="10"/>
-                    <line x1="12" y1="20" x2="12" y2="4"/>
-                    <line x1="6" y1="20" x2="6" y2="14"/>
+                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/>
                   </svg>
-                  Analysis
+                  Sitemap
                 </button>
               </div>
             </div>
@@ -2209,6 +2272,7 @@ function IssuesPageInner() {
                         onGenerateScript={handleGenerateScript}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
+                        onMarkComplete={handleMarkComplete}
                         onIssueClick={handleIssueClick}
                         deployingId={deployingId}
                         generatingScriptId={generatingScriptId}
@@ -2223,6 +2287,7 @@ function IssuesPageInner() {
                         onGenerateScript={handleGenerateScript}
                         onRetry={handleRetryAgent}
                         onViewOutput={handleViewOutput}
+                        onMarkComplete={handleMarkComplete}
                         onIssueClick={handleIssueClick}
                         deployingId={deployingId}
                         generatingScriptId={generatingScriptId}
@@ -2264,10 +2329,10 @@ function IssuesPageInner() {
               </DndContext>
             )}
 
-            {/* Analysis View */}
-            {viewMode === "analysis" && (
+            {/* Sitemap View */}
+            {viewMode === "sitemap" && (
               <div className="flex-1 overflow-y-auto min-h-0">
-                <AnalysisView stats={stats} isLoading={isStatsLoading} brandProfileId={profile?.id} companyWebsite={profile?.companyWebsite ?? undefined} />
+                <SitemapView stats={stats} isLoading={isStatsLoading} brandProfileId={profile?.id} companyWebsite={profile?.companyWebsite ?? undefined} />
               </div>
             )}
           </div>

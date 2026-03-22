@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { extractDomain, isDomainBlocked, isBrandDomain } from '@/lib/utils/domain-utils';
 
 interface Citation {
   url: string;
   title?: string;
   domain: string;
   provider: string;
+  isBrandOwned: boolean;
 }
 
 interface CitationRecord {
@@ -72,16 +74,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Extract domain from URL
-    const extractDomain = (url: string): string => {
-      try {
-        const parsed = new URL(url);
-        return parsed.hostname.replace(/^www\./, '');
-      } catch {
-        return url;
-      }
-    };
-
     const normalizeText = (text: string): string =>
       text
         .normalize('NFD')
@@ -133,16 +125,22 @@ export async function GET(request: NextRequest) {
     const seenUrls = new Set<string>();
     const citations: Citation[] = [];
 
+    const brandWebsite = userBrandProfile.companyWebsite;
+
     const addCitation = (provider: string, record: CitationRecord): void => {
       if (!record.url) return;
       if (seenUrls.has(record.url)) return;
 
+      const domain = extractDomain(record.url);
+      if (isDomainBlocked(domain)) return;
+
       seenUrls.add(record.url);
       citations.push({
         url: record.url,
-        title: record.title || extractDomain(record.url),
-        domain: extractDomain(record.url),
+        title: record.title || domain,
+        domain,
         provider,
+        isBrandOwned: isBrandDomain(record.url, brandWebsite),
       });
     };
 

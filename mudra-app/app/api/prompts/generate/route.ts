@@ -3,6 +3,8 @@ import { generateInitialPrompts } from '@/lib/services/prompt-generation.service
 import { createCustomPrompt } from '@/lib/services/prompt-storage.service'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
+import { prisma } from '@/lib/prisma'
+import { getLanguageForCountry, type CountryCode } from '@/lib/geo/country-config'
 
 /**
  * POST /api/prompts/generate
@@ -41,23 +43,32 @@ export async function POST(request: NextRequest) {
       competitors: Array.isArray(brandInfo.competitors) ? brandInfo.competitors : [],
     }
 
-    console.log(`🎯 Generating prompts for user request: "${userRequest || 'initial prompts'}"`)
+    // Fetch brand profile to determine language from primaryCountry
+    const brandProfile = await prisma.brandProfile.findUnique({
+      where: { id: authResult.brandProfileId! },
+      select: { primaryCountry: true }
+    })
+    const language: 'en' | 'es' = brandProfile?.primaryCountry
+      ? getLanguageForCountry(brandProfile.primaryCountry as CountryCode)
+      : 'en'
+
+    console.log(`🎯 Generating prompts for user request: "${userRequest || 'initial prompts'}" (language: ${language})`)
 
     // Generate prompts using the unified GPT-5.1 pipeline
-    const generatedPrompts = await generateInitialPrompts(normalizedBrandInfo)
+    const generatedPrompts = await generateInitialPrompts(normalizedBrandInfo, null, language)
 
     // If this is a custom request, save a subset as custom prompts
     if (userRequest) {
       const byCategory = (cat: string) => generatedPrompts.filter(p => p.category === cat)
       const savedPrompts = await Promise.all([
         ...byCategory('Organic').slice(0, 5).map(p =>
-          createCustomPrompt(authResult.brandProfileId!, p.text, 'Organic')
+          createCustomPrompt(authResult.brandProfileId!, p.text, 'Organic', language)
         ),
         ...byCategory('Competitor').slice(0, 3).map(p =>
-          createCustomPrompt(authResult.brandProfileId!, p.text, 'Competitor')
+          createCustomPrompt(authResult.brandProfileId!, p.text, 'Competitor', language)
         ),
         ...byCategory('How-to Guides').slice(0, 2).map(p =>
-          createCustomPrompt(authResult.brandProfileId!, p.text, 'How-to Guides')
+          createCustomPrompt(authResult.brandProfileId!, p.text, 'How-to Guides', language)
         )
       ])
 

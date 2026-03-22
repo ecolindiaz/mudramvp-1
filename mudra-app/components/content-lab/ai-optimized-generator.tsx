@@ -48,6 +48,7 @@ interface CitationSource {
   url?: string;
   title?: string;
   provider?: string;
+  isBrandOwned?: boolean;
 }
 
 const MAX_SELECTED_SOURCES = 5;
@@ -140,6 +141,117 @@ const CONTENT_TYPES: Array<{
   },
 ];
 
+// Abstract document preview illustrations for each content type
+const ContentTypeIllustration = ({ type }: { type: ContentType }) => {
+  const card =
+    "space-y-2 rounded-lg p-2.5 bg-white/[0.04] ring-1 ring-white/[0.06] shadow-lg shadow-black/25";
+  const bar = "bg-white/[0.12] h-[3px] rounded-full";
+
+  switch (type) {
+    case "blog":
+      return (
+        <div className={cn(card, "w-[68px]")}>
+          {/* Author + title */}
+          <div className="flex items-center gap-1.5">
+            <div className="bg-white/[0.12] size-3 rounded-full flex-shrink-0" />
+            <div className={cn(bar, "w-6")} />
+          </div>
+          {/* Hero image */}
+          <div className="bg-white/[0.06] h-5 w-full rounded" />
+          {/* Body text */}
+          <div className="space-y-1">
+            <div className={cn(bar, "w-full")} />
+            <div className="flex gap-1">
+              <div className={cn(bar, "w-2/3")} />
+              <div className={cn(bar, "w-1/3")} />
+            </div>
+            <div className={cn(bar, "w-4/5")} />
+          </div>
+        </div>
+      );
+
+    case "listicle":
+      return (
+        <div className={cn(card, "w-[68px]")}>
+          {/* Title */}
+          <div className={cn(bar, "w-8")} />
+          {/* Numbered list items */}
+          <div className="space-y-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <div className="bg-white/[0.18] size-[5px] rounded-full flex-shrink-0" />
+                <div
+                  className={cn(bar, i % 2 === 0 ? "w-full" : "w-3/4")}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case "guide":
+      return (
+        <div className={cn(card, "w-[68px]")}>
+          {/* Main title */}
+          <div className={cn(bar, "w-10 h-[4px]")} />
+          {/* Sections with sub-headings */}
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <div className={cn(bar, "w-5 bg-white/[0.18]")} />
+              <div className={cn(bar, "w-full")} />
+              <div className={cn(bar, "w-3/4")} />
+            </div>
+            <div className="space-y-1">
+              <div className={cn(bar, "w-7 bg-white/[0.18]")} />
+              <div className={cn(bar, "w-full")} />
+              <div className={cn(bar, "w-2/3")} />
+            </div>
+          </div>
+        </div>
+      );
+
+    case "howto":
+      return (
+        <div className={cn(card, "w-[68px]")}>
+          {/* Step indicators with descriptions */}
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-start gap-1.5">
+                <div className="bg-white/[0.18] size-[7px] rounded-[2px] flex-shrink-0 mt-px" />
+                <div className="flex-1 space-y-1">
+                  <div
+                    className={cn(bar, i === 1 ? "w-3/4" : "w-full")}
+                  />
+                  <div className={cn(bar, "w-2/3 bg-white/[0.08]")} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case "comparison":
+      return (
+        <div className="flex gap-1.5">
+          {[0, 1].map((i) => (
+            <div
+              key={i}
+              className="w-[30px] space-y-1.5 rounded-md p-1.5 bg-white/[0.04] ring-1 ring-white/[0.06] shadow-lg shadow-black/25"
+            >
+              <div className={cn(bar, "w-full")} />
+              <div className={cn(bar, "w-2/3")} />
+              <div className={cn(bar, "w-full")} />
+              <div className={cn(bar, "w-1/2")} />
+            </div>
+          ))}
+        </div>
+      );
+
+    default:
+      return null;
+  }
+};
+
 // ICP suggestion with icon mapping
 interface ICPSuggestion {
   label: string;
@@ -204,6 +316,8 @@ export function AIOptimizedGenerator({
     new Set()
   );
   const [isLoadingCitations, setIsLoadingCitations] = useState(false);
+  const [isAutoSearching, setIsAutoSearching] = useState(false);
+  const [autoSearchTriggered, setAutoSearchTriggered] = useState(false);
 
   // ICP suggestions from brand profile
   const [icpSuggestions, setIcpSuggestions] = useState<ICPSuggestion[]>([]);
@@ -319,6 +433,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
             url: c.url,
             title: c.title,
             provider: c.provider,
+            isBrandOwned: c.isBrandOwned,
           }));
           setAvailableSources(citations);
           // Auto-select first 5 sources by unique key (URL-based, not domain)
@@ -341,6 +456,21 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
 
     fetchCitations();
   }, [selectedPrompt, brandProfileId]);
+
+  // Auto-trigger web search when citations are insufficient (< 2)
+  useEffect(() => {
+    if (
+      !isLoadingCitations &&
+      selectedPrompt &&
+      brandProfileId &&
+      availableSources.length < 2 &&
+      !isAutoSearching &&
+      !autoSearchTriggered
+    ) {
+      setAutoSearchTriggered(true);
+      handleAutoSearch();
+    }
+  }, [isLoadingCitations, selectedPrompt, brandProfileId, availableSources.length, isAutoSearching, autoSearchTriggered]);
 
   // Handle completion
   useEffect(() => {
@@ -386,13 +516,45 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
       setSelectedIcp(null);
       setAvailableSources([]);
       setSelectedSources(new Set());
+      setAutoSearchTriggered(false);
       reset();
     }
   };
 
   const handlePromptSelect = (prompt: TrackedPrompt) => {
     setSelectedPrompt(prompt);
+    setAutoSearchTriggered(false);
     setStep(3);
+  };
+
+  const handleAutoSearch = async () => {
+    if (!selectedPrompt || !brandProfileId) return;
+    setIsAutoSearching(true);
+    try {
+      const res = await fetch('/api/content-lab/search-sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: selectedPrompt.text, brandProfileId }),
+      });
+      const data = await res.json();
+      if (data.success && data.citations?.length > 0) {
+        const citations: CitationSource[] = data.citations.map((c: any) => ({
+          domain: c.domain,
+          url: c.url,
+          title: c.title,
+          provider: c.provider,
+        }));
+        setAvailableSources(citations);
+        const initialSelection = citations
+          .slice(0, MAX_SELECTED_SOURCES)
+          .map((c) => getCitationKey(c));
+        setSelectedSources(new Set(initialSelection));
+      }
+    } catch (error) {
+      console.error('Auto-search failed:', error);
+    } finally {
+      setIsAutoSearching(false);
+    }
   };
 
   const toggleSource = (key: string) => {
@@ -409,7 +571,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
   };
 
   const handleStartGeneration = async () => {
-    if (!selectedPrompt || selectedSources.size < 2) return;
+    if (!selectedPrompt || selectedSources.size < 1) return;
 
     setStep(5);
 
@@ -502,7 +664,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
 
             {/* Horizontal step indicator */}
             {!isGenerating && (
-              <div className="mt-5 flex items-center gap-0">
+              <div className="mt-5 flex items-center">
                 {(["Content", "Prompt", "Audience", "Sources", "Generate"] as const).map((label, idx) => {
                   const stepNum = (idx + 1) as 1 | 2 | 3 | 4 | 5;
                   const isActive = step === stepNum;
@@ -512,35 +674,35 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                       <div className="flex flex-col items-center gap-1.5">
                         <div
                           className={cn(
-                            "flex items-center justify-center size-7 rounded-full text-xs font-semibold transition-all duration-300",
+                            "flex items-center justify-center size-5 rounded-full text-[10px] font-medium transition-colors duration-200",
                             isCompleted
                               ? "bg-white text-[#0a0a0a]"
                               : isActive
-                                ? "bg-white/15 text-white ring-1 ring-white/30"
-                                : "bg-white/[0.06] text-white/30"
+                                ? "bg-white/20 text-white"
+                                : "bg-white/[0.06] text-white/25"
                           )}
                         >
                           {isCompleted ? (
-                            <CheckCircle2 className="size-3.5" />
+                            <CheckCircle2 className="size-3" />
                           ) : (
                             stepNum
                           )}
                         </div>
                         <span
                           className={cn(
-                            "text-[10px] font-medium tracking-wide transition-colors",
-                            isActive ? "text-white/80" : isCompleted ? "text-white/60" : "text-white/25"
+                            "text-[10px] transition-colors",
+                            isActive ? "text-white/70" : isCompleted ? "text-white/50" : "text-white/20"
                           )}
                         >
                           {label}
                         </span>
                       </div>
                       {idx < 4 && (
-                        <div className="flex-1 mx-1.5 mb-5">
+                        <div className="flex-1 mx-2 mb-5">
                           <div
                             className={cn(
-                              "h-px transition-colors duration-300",
-                              isCompleted ? "bg-white/30" : "bg-white/[0.06]"
+                              "h-px transition-colors duration-200",
+                              isCompleted ? "bg-white/20" : "bg-white/[0.06]"
                             )}
                           />
                         </div>
@@ -560,7 +722,6 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
               {step === 1 && (
                 <div className="grid grid-cols-2 gap-2.5">
                   {CONTENT_TYPES.map((contentType) => {
-                    const Icon = contentType.icon;
                     const isSelected = selectedContentType === contentType.value;
                     const isDisabled = contentType.value !== "blog";
                     return (
@@ -573,7 +734,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                           }
                         }}
                         className={cn(
-                          "relative rounded-2xl bg-[#111111] p-5 flex flex-col gap-3 transition-all duration-200 border",
+                          "relative rounded-2xl bg-[#111111] p-5 flex flex-col items-center gap-4 transition-all duration-200 border",
                           isDisabled
                             ? "opacity-40 cursor-not-allowed border-transparent"
                             : "cursor-pointer group",
@@ -587,28 +748,10 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                             <CheckCircle2 className="size-4 text-white" />
                           </div>
                         )}
-                        <div
-                          className={cn(
-                            "flex items-center justify-center size-10 rounded-lg flex-shrink-0",
-                            isDisabled
-                              ? "bg-white/[0.03]"
-                              : isSelected
-                                ? "bg-white/[0.12]"
-                                : "bg-white/[0.05]"
-                          )}
-                        >
-                          <Icon
-                            className={cn(
-                              "h-[18px] w-[18px]",
-                              isDisabled
-                                ? "text-white/40"
-                                : isSelected
-                                  ? "text-white"
-                                  : "text-white/70"
-                            )}
-                          />
+                        <div className="py-2">
+                          <ContentTypeIllustration type={contentType.value} />
                         </div>
-                        <div>
+                        <div className="text-center">
                           <p
                             className={cn(
                               "text-sm font-semibold leading-5 mb-0.5",
@@ -644,70 +787,89 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
               {/* Step 2: Select Category & Prompt */}
               {step === 2 && (
                 <div className="space-y-4">
-                  <div className="rounded-2xl bg-[#111111] overflow-hidden">
-                    {!selectedCategory ? (
-                      <div className="divide-y divide-white/[0.03]">
-                    {promptCategories.length > 0 ? (
-                      promptCategories.map((category, index) => {
-                        const Icon = categoryIcons[index % categoryIcons.length];
-                        return (
-                          <div
-                            key={category.key}
-                            onClick={() => setSelectedCategory(category.key)}
-                            className="px-6 py-4 flex items-center justify-between gap-6 transition-all duration-200 cursor-pointer group hover:bg-white/[0.03]"
-                          >
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="flex items-center justify-center size-11 rounded-2xl bg-white/[0.05] group-hover:bg-white/[0.08] transition-all duration-200 flex-shrink-0">
-                                <Icon className="h-5 w-5 text-white/90 group-hover:text-white transition-colors" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <p className="text-sm font-semibold leading-5 text-white group-hover:text-white transition-colors">
+                  {!selectedCategory ? (
+                    <>
+                      <div>
+                        <p className="text-sm font-medium text-white mb-1">Intent Category</p>
+                        <p className="text-xs text-white/40">Select the prompt category to optimize for.</p>
+                      </div>
+
+                      <div className="rounded-xl bg-[#111111] ring-1 ring-white/[0.06] overflow-hidden">
+                        {promptCategories.length > 0 ? (
+                          promptCategories.map((category, index) => {
+                            const Icon = categoryIcons[index % categoryIcons.length];
+                            return (
+                              <div
+                                key={category.key}
+                                onClick={() => setSelectedCategory(category.key)}
+                                className="px-4 py-3.5 flex items-center justify-between gap-3 border-b border-white/[0.04] last:border-b-0 transition-all duration-150 cursor-pointer hover:bg-white/[0.03]"
+                              >
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <Icon className="size-4 text-white/40 flex-shrink-0" />
+                                  <p className="text-sm text-white/80">
                                     {category.label}
                                   </p>
+                                  <span className="text-[11px] text-white/30">
+                                    {category.count}
+                                  </span>
                                   {category.key === SUGGESTED_CATEGORY_KEY && (
                                     <Badge className="h-5 text-[10px] px-2 rounded-full bg-orange-500/15 text-orange-200 border border-orange-500/30">
                                       Suggested
                                     </Badge>
                                   )}
                                 </div>
-                                <p className="text-xs text-white/60">
-                                  {category.count} tracked{" "}
-                                  {category.count === 1 ? "prompt" : "prompts"}
-                                </p>
+                                <ChevronRight className="size-3.5 text-white/25 flex-shrink-0" />
                               </div>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors" />
-                          </div>
-                        );
-                      })
-                    ) : (
-                          <div className="px-6 py-12 text-center text-sm text-white/50">
+                            );
+                          })
+                        ) : (
+                          <div className="px-5 py-10 text-center text-sm text-white/50">
                             No tracked prompts found. Add prompts first.
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <>
-                        <div className="px-6 py-4 flex items-center gap-3 border-b border-white/[0.03] bg-white/[0.02]">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedCategory(null);
-                              setSelectedPrompt(null);
-                            }}
-                            className="h-8 px-3 text-white/70 hover:text-white hover:bg-white/5"
-                          >
-                            <ChevronLeft className="w-4 h-4 mr-1" />
-                            Back to Categories
-                          </Button>
-                          <div className="h-4 w-px bg-white/20" />
-                          <span className="text-sm font-medium text-white/80 truncate">
-                            {selectedCategoryLabel}
-                          </span>
+
+                      <div className="flex justify-between pt-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setStep(1);
+                            setSelectedCategory(null);
+                            setSelectedPrompt(null);
+                          }}
+                          className="h-9 px-4 rounded-full border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white"
+                        >
+                          <ChevronLeft className="size-4 mr-1" />
+                          Back
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedCategory(null);
+                            setSelectedPrompt(null);
+                          }}
+                          className="h-8 px-2 text-white/50 hover:text-white hover:bg-white/5"
+                        >
+                          <ChevronLeft className="size-4" />
+                        </Button>
+                        <div>
+                          <p className="text-sm font-medium text-white mb-0.5">Select Prompt</p>
+                          <p className="text-xs text-white/40">
+                            {selectedCategoryLabel} &middot; {promptsForSelectedCategory.length} prompt{promptsForSelectedCategory.length !== 1 ? "s" : ""}
+                          </p>
                         </div>
+                      </div>
+
+                      <div className="relative rounded-xl bg-[#111111] ring-1 ring-white/[0.06] overflow-hidden">
                         <ScrollArea className="h-[360px]">
+                          <div className={promptsForSelectedCategory.length > 7 ? "pb-10" : ""}>
                           {promptsForSelectedCategory.length > 0 ? (
                             promptsForSelectedCategory.map((prompt) => {
                               const isSelected = selectedPrompt?.id === prompt.id;
@@ -716,133 +878,112 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                                   key={prompt.id}
                                   onClick={() => handlePromptSelect(prompt)}
                                   className={cn(
-                                    "px-6 py-4 flex items-center justify-between gap-4 border-b border-white/[0.03] last:border-b-0 transition-all duration-200 cursor-pointer group",
+                                    "px-4 py-3.5 flex items-center justify-between gap-3 border-b border-white/[0.04] last:border-b-0 transition-all duration-150 cursor-pointer",
                                     isSelected
                                       ? "bg-white/[0.05]"
                                       : "hover:bg-white/[0.03]"
                                   )}
                                 >
-                                  <div className="flex-1 min-w-0">
-                                    <p
-                                      className={cn(
-                                        "text-sm font-medium leading-5 mb-1 transition-colors",
-                                        isSelected
-                                          ? "text-white"
-                                          : "text-white/90 group-hover:text-white"
-                                      )}
-                                    >
-                                      {prompt.text}
-                                    </p>
-                                    <Badge
-                                      variant="outline"
-                                      className="text-[10px] text-white/50 border-white/10"
-                                    >
-                                      {prompt.category}
-                                    </Badge>
-                                  </div>
-                                  <ChevronRight className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors flex-shrink-0" />
+                                  <p
+                                    className={cn(
+                                      "text-sm leading-5 flex-1 min-w-0",
+                                      isSelected
+                                        ? "text-white font-medium"
+                                        : "text-white/80"
+                                    )}
+                                  >
+                                    {prompt.text}
+                                  </p>
+                                  {isSelected && (
+                                    <CheckCircle2 className="size-4 text-white flex-shrink-0" />
+                                  )}
                                 </div>
                               );
                             })
                           ) : (
-                            <div className="px-6 py-12 text-center text-sm text-white/50">
+                            <div className="px-5 py-10 text-center text-sm text-white/50">
                               No prompts found in this category.
                             </div>
                           )}
+                          </div>
                         </ScrollArea>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="flex justify-between pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setStep(1);
-                        setSelectedCategory(null);
-                        setSelectedPrompt(null);
-                      }}
-                      className="h-9 px-4 rounded-full border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white"
-                    >
-                      <ChevronLeft className="size-4 mr-1" />
-                      Back
-                    </Button>
-                  </div>
+                        {promptsForSelectedCategory.length > 7 && (
+                          <div className="pointer-events-none absolute -bottom-px inset-x-0 h-14 z-10 rounded-b-xl bg-gradient-to-t from-[#111111] from-10% via-[#111111]/80 to-transparent" />
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
               {/* Step 3: Select ICP */}
               {step === 3 && (
                 <div className="space-y-4">
-                  <div className="rounded-2xl bg-[#111111] overflow-hidden">
-                {isLoadingICPs ? (
-                  <div className="px-6 py-12 text-center">
-                    <UnicodeLoader className="w-6 text-[18px] text-white/40 mx-auto mb-2" animate />
-                    <p className="text-sm text-white/50">Loading customer profiles...</p>
-                  </div>
-                ) : icpSuggestions.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-sm text-white/50">
-                    No ideal customer profiles defined. Add ICPs in your brand profile settings.
-                  </div>
-                ) : icpSuggestions.map((icp) => {
-                  const isSelected = selectedIcp === icp.label;
-                  const Icon = icp.icon;
-                      return (
-                        <div
-                      key={icp.label}
-                          onClick={() => {
-                        setSelectedIcp(icp.label);
-                            setTimeout(() => setStep(4), 200);
-                          }}
-                          className={cn(
-                            "px-6 py-4 flex items-center justify-between gap-6 border-b border-white/[0.03] last:border-b-0 transition-all duration-200 cursor-pointer group",
-                            isSelected ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"
-                          )}
-                        >
-                          <div className="flex items-center gap-4 flex-1 min-w-0">
-                            <div
-                              className={cn(
-                                "flex items-center justify-center size-11 rounded-2xl transition-all duration-200 flex-shrink-0",
-                                isSelected
-                                  ? "bg-white/[0.1]"
-                                  : "bg-white/[0.05] group-hover:bg-white/[0.08]"
-                              )}
-                            >
-                          <Icon
-                                className={cn(
-                                  "h-5 w-5 transition-colors",
-                                  isSelected
-                                    ? "text-white"
-                                    : "text-white/90 group-hover:text-white"
-                                )}
-                              />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p
-                                className={cn(
-                                  "text-sm font-semibold leading-5 transition-colors",
-                                  isSelected
-                                    ? "text-white"
-                                    : "text-white group-hover:text-white"
-                                )}
-                                title={icp.label}
-                              >
-                                {truncateICP(icp.label)}
-                              </p>
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <div className="flex-shrink-0">
-                              <CheckCircle2 className="size-4 text-white" />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                  <div>
+                    <p className="text-sm font-medium text-white mb-1">Persona</p>
+                    <p className="text-xs text-white/40">Content will be generated for this persona.</p>
                   </div>
 
-                  <div className="flex justify-between pt-2">
+                  <div className="rounded-xl bg-[#111111] ring-1 ring-white/[0.06] overflow-hidden">
+                    {isLoadingICPs ? (
+                      <div className="px-5 py-10 text-center">
+                        <UnicodeLoader className="w-6 text-[18px] text-white/40 mx-auto mb-2" animate />
+                        <p className="text-sm text-white/50">Loading personas...</p>
+                      </div>
+                    ) : icpSuggestions.length === 0 ? (
+                      <div className="px-5 py-10 text-center text-sm text-white/50">
+                        No personas defined. Add ICPs in your brand profile settings.
+                      </div>
+                    ) : (
+                      icpSuggestions.map((icp) => {
+                        const isSelected = selectedIcp === icp.label;
+                        const Icon = icp.icon;
+                        return (
+                          <div
+                            key={icp.label}
+                            onClick={() => {
+                              setSelectedIcp(icp.label);
+                              setTimeout(() => setStep(4), 200);
+                            }}
+                            className={cn(
+                              "px-4 py-3.5 flex items-center justify-between gap-3 border-b border-white/[0.04] last:border-b-0 transition-all duration-150 cursor-pointer",
+                              isSelected
+                                ? "bg-white/[0.05]"
+                                : "hover:bg-white/[0.03]"
+                            )}
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <Icon
+                                className={cn(
+                                  "size-4 flex-shrink-0",
+                                  isSelected ? "text-white" : "text-white/40"
+                                )}
+                              />
+                              <p
+                                className={cn(
+                                  "text-sm leading-5 transition-colors",
+                                  isSelected
+                                    ? "text-white font-medium"
+                                    : "text-white/80"
+                                )}
+                              >
+                                {icp.label}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <CheckCircle2 className="size-4 text-white flex-shrink-0" />
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-white/30">
+                    The writing style the AI agent uses. Can be overridden per document.
+                  </p>
+
+                  <div className="flex justify-between pt-1">
                     <Button
                       variant="outline"
                       size="sm"
@@ -888,7 +1029,8 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                               </td>
                             </tr>
                           ) : availableSources.length > 0 ? (
-                            availableSources.map((source) => {
+                            <>
+                            {availableSources.map((source) => {
                               const key = getCitationKey(source);
                               const isSelected = selectedSources.has(key);
                               return (
@@ -912,9 +1054,16 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                                     />
                                   </td>
                                   <td className="px-3 py-3 align-middle">
-                                    <p className="text-sm font-medium text-white/90 truncate" title={source.title || source.domain}>
-                                      {source.title || source.domain}
-                                    </p>
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <p className="text-sm font-medium text-white/90 truncate" title={source.title || source.domain}>
+                                        {source.title || source.domain}
+                                      </p>
+                                      {source.isBrandOwned && (
+                                        <Badge className="h-4 text-[9px] px-1.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/25 flex-shrink-0">
+                                          Your site
+                                        </Badge>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="px-3 py-3 align-middle">
                                     <p className="text-xs text-white/60 truncate" title={source.domain}>
@@ -950,14 +1099,69 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                                   </td>
                                 </tr>
                               );
-                            })
+                            })}
+                            {availableSources.length < 3 && !isAutoSearching && (
+                              <tr>
+                                <td colSpan={5} className="px-5 py-3 text-center border-t border-white/[0.03]">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleAutoSearch}
+                                    disabled={isAutoSearching}
+                                    className="h-7 px-3 text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.04] gap-1.5"
+                                  >
+                                    <Search className="size-3" />
+                                    Search for more sources
+                                  </Button>
+                                </td>
+                              </tr>
+                            )}
+                            </>
                           ) : (
                             <tr>
                               <td
                                 colSpan={5}
-                                className="px-5 py-8 text-center text-sm text-white/50"
+                                className="px-5 py-8 text-center"
                               >
-                                No citation sources available for this prompt.
+                                {isAutoSearching ? (
+                                  <div>
+                                    <UnicodeLoader className="w-5 text-[16px] text-white/40 mx-auto mb-2" animate />
+                                    <p className="text-sm text-white/50">Searching the web for relevant sources...</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <p className="text-sm text-white/50">
+                                      {autoSearchTriggered
+                                        ? "No sources found from citations or web search. Try a different prompt."
+                                        : "No citation sources available yet. Search the web to find relevant sources for this prompt."}
+                                    </p>
+                                    {!autoSearchTriggered && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleAutoSearch}
+                                        className="h-8 px-4 rounded-full border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white gap-2"
+                                      >
+                                        <Search className="size-3.5" />
+                                        Auto-search for sources
+                                      </Button>
+                                    )}
+                                    {autoSearchTriggered && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          setAutoSearchTriggered(false);
+                                          handleAutoSearch();
+                                        }}
+                                        className="h-8 px-4 rounded-full border-0 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white gap-2"
+                                      >
+                                        <Search className="size-3.5" />
+                                        Retry search
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           )}
@@ -965,6 +1169,16 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                       </table>
                     </div>
                   </div>
+
+                  {/* Low source warning */}
+                  {availableSources.length > 0 && selectedSources.size === 1 && (
+                    <div className="rounded-lg bg-amber-500/10 ring-1 ring-amber-500/20 px-4 py-2.5 flex items-start gap-2.5">
+                      <Search className="size-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-amber-200/80 leading-relaxed">
+                        Only 1 source selected. Content quality improves with more references — consider searching for additional sources.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Action buttons */}
               <div className="flex items-center justify-between pt-2">
@@ -982,7 +1196,7 @@ const categoryIcons = [Compass, Layers, Shield, MessagesSquare, Brain];
                 </Button>
                 <Button
                   onClick={handleStartGeneration}
-                  disabled={selectedSources.size < 2}
+                  disabled={selectedSources.size < 1}
                   className="h-9 px-5 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 shadow-sm hover:shadow-md border-0 disabled:opacity-50 disabled:cursor-not-allowed gap-2"
                 >
                   Generate Content

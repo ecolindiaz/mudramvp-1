@@ -40,13 +40,13 @@ export async function GET(request: NextRequest) {
 
     // Resolve companyId for each profile and deduplicate by companyId
     const { resolveCompanyIdFromBrandProfile } = await import('@/lib/analysis/nlr/mappers/resolve-brand-profiles')
-    const companyProfileMap = new Map<string, { companyId: string; brandProfileId: number }>()
+    const companyProfileMap = new Map<string, { companyId: string; brandProfileId: number; userId: string }>()
 
     for (const profile of profiles) {
       try {
         const companyId = await resolveCompanyIdFromBrandProfile(profile.id)
-        if (companyId && !companyProfileMap.has(companyId)) {
-          companyProfileMap.set(companyId, { companyId, brandProfileId: profile.id })
+        if (companyId && !companyProfileMap.has(companyId) && profile.userId) {
+          companyProfileMap.set(companyId, { companyId, brandProfileId: profile.id, userId: profile.userId })
         }
       } catch { /* skip profiles without a company */ }
     }
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     const entries = Array.from(companyProfileMap.values())
     console.log(`[Weekly NLR Cron] Starting for ${entries.length} companies (from ${profiles.length} monitors), week of ${weekStart.toISOString()}`)
 
-    const results: Array<{ companyId: string; brandProfileId: number; status: 'success' | 'error'; message?: string }> = []
+    const results: Array<{ companyId: string; brandProfileId: number; userId?: string; status: 'success' | 'error'; message?: string }> = []
 
     for (const entry of entries) {
       try {
@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
           companyId: entry.companyId,
           brandProfileId: entry.brandProfileId,
           weekStartUtc: weekStart,
+          userId: entry.userId,
         })
 
         results.push({ companyId: entry.companyId, brandProfileId: entry.brandProfileId, status: 'success' })

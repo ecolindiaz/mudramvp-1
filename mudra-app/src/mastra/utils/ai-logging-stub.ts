@@ -46,7 +46,7 @@ async function getRealLogger() {
   try {
     // Dynamic import — only succeeds when Prisma is available (Next.js app)
     const mod = await import('../../../lib/services/ai-model-logging.service');
-    _realLogger = { logAIModelCall: mod.logAIModelCall };
+    _realLogger = { logAIModelCall: mod.logAIModelCall as (input: AIModelLogInput) => Promise<void> };
   } catch {
     // Prisma not available (Mastra Cloud) — use console fallback
     _realLogger = null;

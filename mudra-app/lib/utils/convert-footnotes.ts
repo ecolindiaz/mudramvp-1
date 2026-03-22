@@ -1,6 +1,7 @@
 /**
- * Converts footnote-style citations ([^1], [^2]) to inline [Source](URL) links.
+ * Converts footnote-style citations to inline [Source](URL) links.
  * GPT-5.1 sometimes generates footnotes despite instructions to use inline links.
+ * Handles both numeric ([^1]) and named ([^aapanel], [^softwarescout]) footnotes.
  * The Lexical editor and marked don't support footnote markdown, so these render as raw text.
  */
 
@@ -10,11 +11,12 @@ interface FootnoteDefinition {
 }
 
 /**
- * Quick check: returns true only if BOTH [^N] references AND [^N]: definitions exist.
+ * Quick check: returns true only if BOTH [^ref] references AND [^ref]: definitions exist.
+ * Supports numeric ([^1]) and named ([^aapanel]) footnotes.
  */
 export function hasFootnoteCitations(markdown: string): boolean {
-  const hasReference = /\[\^\d+\](?!:)/.test(markdown);
-  const hasDefinition = /^\[\^\d+\]:\s*.+$/m.test(markdown);
+  const hasReference = /\[\^[\w-]+\](?!:)/.test(markdown);
+  const hasDefinition = /^\[\^[\w-]+\]:\s*.+$/m.test(markdown);
   return hasReference && hasDefinition;
 }
 
@@ -47,9 +49,9 @@ export function convertFootnotesToInlineLinks(
     return `__INLINE_CODE_${inlineCode.length - 1}__`;
   });
 
-  // Phase 2: Parse footnote definitions
+  // Phase 2: Parse footnote definitions (numeric or named)
   const definitions = new Map<string, FootnoteDefinition>();
-  const definitionRegex = /^\[\^(\d+)\]:\s*(.+)$/gm;
+  const definitionRegex = /^\[\^([\w-]+)\]:\s*(.+)$/gm;
   let match: RegExpExecArray | null;
 
   while ((match = definitionRegex.exec(text)) !== null) {
@@ -59,16 +61,16 @@ export function convertFootnotesToInlineLinks(
     definitions.set(id, def);
   }
 
-  // Phase 3: Replace [^N] references in body
-  text = text.replace(/\[\^(\d+)\](?!:)/g, (fullMatch, id: string) => {
+  // Phase 3: Replace [^ref] references in body (numeric or named)
+  text = text.replace(/\[\^([\w-]+)\](?!:)/g, (fullMatch, id: string) => {
     const def = definitions.get(id);
     if (!def) return fullMatch; // No matching definition — leave as-is
     if (def.url) return `[${def.label}](${def.url})`;
     return `(${def.label})`; // No URL — parenthetical attribution
   });
 
-  // Phase 4: Remove footnote definition lines
-  text = text.replace(/^\[\^\d+\]:\s*.+$/gm, "");
+  // Phase 4: Remove footnote definition lines (numeric or named)
+  text = text.replace(/^\[\^[\w-]+\]:\s*.+$/gm, "");
 
   // Remove empty Sources/References headings
   text = text.replace(

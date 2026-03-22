@@ -55,7 +55,7 @@ export const scrapeSourcesStep = createStep({
       );
 
       // Validate minimum threshold
-      validateMinimumScrapes(result, 2);
+      validateMinimumScrapes(result, 1);
 
       const scrapedSources = result.successful.map((s) => ({
         url: s.url,

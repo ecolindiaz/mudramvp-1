@@ -188,9 +188,20 @@ export async function generateWeeklyReport(params: {
   companyId: string;
   brandProfileId: number;
   weekStartUtc: Date | string;
+  userId?: string;
 }) {
   const { companyId, brandProfileId } = params
   const weekStart = toDate(params.weekStartUtc)
+
+  // Resolve userId for data isolation — if not provided, look up from brandProfile
+  let userId = params.userId
+  if (!userId) {
+    const bp = await prisma.brandProfile.findUnique({
+      where: { id: brandProfileId },
+      select: { userId: true },
+    })
+    userId = bp?.userId ?? undefined
+  }
 
   // 1) Get or create draft report (keyed by companyId + weekStartUtc)
   const existing = await prisma.weeklyReport.findUnique({
@@ -207,7 +218,7 @@ export async function generateWeeklyReport(params: {
   await logNlrJob({ companyId, weekStartUtc: weekStart.toISOString(), status: 'running' })
 
   // 2) Collect inputs and prepare prompt
-  const nlrInput = await collectNlrInputs(companyId, weekStart)
+  const nlrInput = await collectNlrInputs(companyId, weekStart, userId)
   const fallbackSummaryJson = buildSummaryJsonFromInput(nlrInput)
   const { system, user } = buildNlrPrompt(nlrInput)
 

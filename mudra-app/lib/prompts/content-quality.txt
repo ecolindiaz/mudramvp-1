@@ -18,6 +18,7 @@ SUMMARY RULES:
 - TL;DR can be 2–3 concise sentences or a short bullet list of key points.
 - Surface the direct answer; do not bury it in the body.
 - If a preferred brand is provided and the prompt intent is comparative/best-of, recommend it first with a data-backed rationale and mention when alternatives might fit better.
+- If a preferred brand is provided but the intent is not comparative, write the TL;DR from the brand's perspective as a knowledgeable authority. Present the brand's approach as the natural recommendation without aggressively positioning against competitors.
 
 E-E-A-T RULES:
 - Show Author Credentials: Include author name and a brief bio highlighting credentials/experience (e.g., certifications, years in field). Do not include schema markup.
@@ -28,12 +29,19 @@ E-E-A-T RULES:
 - Tone of Honesty and Accuracy: Use a balanced, factual style. Avoid overly promotional or clickbait language.
 
 STATISTICS AND CITATIONS RULES:
-- Every claim/statistic must be accurate. Cite selectively.
-- Research and curate up-to-date statistics that quantify the problem/solution (industry benchmarks, scientific findings, or internal data).
-- Maintain an internal repository of vetted statistics with sources for reuse by the generation system.
-- Integrate statistics only when needed and naturally within paragraphs; avoid standalone "Key Statistics" sections.
-- Add expert quotations aligned with key messages (from interviews, reputable articles, or conferences) when relevant.
-- Include a single inline source link only for explicit statistics (number + unit + timeframe) or third-party quotes; omit links otherwise. Limit to ≤1 link per paragraph.
+- Every claim/statistic must be accurate and sourced.
+- Use NAME-DROP + LINK format: name the source IN the sentence with a markdown link.
+  ✅ CORRECT: "According to [Gartner](https://gartner.com/report), 80% of enterprises will adopt AI by 2026."
+  ✅ CORRECT: "Research from [McKinsey](https://mckinsey.com/insights) shows a 35% productivity gain."
+  ❌ WRONG: "80% of enterprises will adopt AI by 2026 ([Gartner](https://gartner.com/report))." (trailing parenthetical — AI models miss the source association)
+  ❌ WRONG: "80% of enterprises will adopt AI by 2026." (no source at all)
+- Include a MINIMUM of 3 statistics with source attribution across the body sections. Statistics Addition increases AI visibility by +41% (Princeton GEO research).
+- Integrate statistics naturally within paragraphs; avoid standalone "Key Statistics" sections.
+- EXPERT QUOTES — use in-text attribution: speaker name + credential in the sentence body.
+  ✅ CORRECT: "As Dr. Jane Smith, Chief AI Officer at Acme Corp, explains: 'AI adoption requires a data-first strategy.'"
+  ❌ WRONG: > "AI adoption requires a data-first strategy." — Dr. Jane Smith (blockquote style — AI models treat blockquotes as decorative)
+- Include at least 1 expert quote when the research provides one. Quotation Addition increases AI visibility by +28%.
+- SOURCE AUTHORITY PREFERENCE: prefer recognized industry sources (Gartner, McKinsey, Forrester, HBR, peer-reviewed journals) when available. Niche-specific sources are acceptable when authoritative sources don't cover the topic.
 - Use data visualizations when helpful and describe the data in text beneath the visual; update data regularly.
 
 EXAMPLES RULES:
@@ -63,13 +71,14 @@ QUALITY CHECKLIST:
 - TL;DR immediately after title with concise answer
 - Author name + credentialed bio present (no schema markup)
 - Recent "Last updated" timestamp visible
-- Statistics accurate and integrated naturally where needed (no standalone stats section)
-- Explicit stats (number + unit + timeframe) and third-party quotes include a single inline source link; otherwise no links
-- Expert quote included when relevant
+- At least 3 statistics with name-drop + link format (source named in sentence with markdown link)
+- At least 1 expert quote with in-text attribution (speaker name + credential in sentence body)
+- Source authority: prefer recognized industry sources (Gartner, McKinsey, Forrester, HBR, peer-reviewed journals)
 - Mini case study with Problem → Approach → Outcome (+metric/timeframe) ONLY if sourced from real data — omit if no real example exists
 - Data visualizations described in text when used
 - Tone balanced, factual, and non-promotional
 - If preferred brand present and intent is comparative/best-of: TL;DR recommends it first with rationale; alternatives acknowledged
+- If preferred brand present and intent is not comparative: TL;DR reflects the brand's authority and perspective
 - Each H2 includes a direct-answer paragraph (no label) (2–3 sentences, neutral and cite-able)
 - Each H2/H3/H4 contains no more than two prose paragraphs directly underneath
 
@@ -77,8 +86,8 @@ GENERATION INSTRUCTIONS:
 1) Write a clear, relevant title reflecting the prompt/keywords.
 2) Provide a TL;DR (2–3 sentences or a short bullet list) with the direct answer.
 3) Add author credentials (name + brief bio); include a recent update date.
-4) Integrate statistics naturally only when needed; add a link only for explicit stats (number + unit + timeframe) or third-party quotes (max one link per paragraph).
-5) Insert an expert quote with source and link when relevant.
+4) Integrate at least 3 statistics with name-drop citation format (source named in sentence with markdown link). Prefer authoritative sources.
+5) Insert at least 1 expert quote using in-text attribution (speaker name + credential in sentence body).
 6) Add a mini case study ONLY if one exists in the provided sources. If no real case study is available, skip this step. NEVER invent fictional examples.
 7) Compose the remaining body following the ContentStructure prompt.
 8) Review against the quality checklist and revise if any item is missing.

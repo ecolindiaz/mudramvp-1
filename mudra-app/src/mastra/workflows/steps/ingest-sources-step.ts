@@ -1,5 +1,6 @@
 import { createStep } from "@mastra/core/workflows";
 import { z } from "zod";
+import { isDomainBlocked } from "@/lib/utils/domain-utils";
 
 const inputSchema = z.object({
   sources: z.array(
@@ -22,10 +23,16 @@ export const ingestSourcesStep = createStep({
   execute: async ({ inputData }) => {
     const { sources } = inputData;
 
-    // Validate and deduplicate URLs
+    // Validate, filter unscrappable domains, and deduplicate URLs
     const validatedUrls = sources
       .map((s) => s.url)
       .filter((url) => url.startsWith("http://") || url.startsWith("https://"))
+      .filter((url) => {
+        try {
+          const hostname = new URL(url).hostname.replace(/^www\./, '');
+          return !isDomainBlocked(hostname);
+        } catch { return true; }
+      })
       .filter((url, index, self) => self.indexOf(url) === index) // dedupe
       .slice(0, 10); // max 10
 

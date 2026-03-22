@@ -53,7 +53,8 @@ const DEFAULT_AI_MODEL = "gpt-5.2"; // Default OpenAI model for analysis
 const USE_AI_DISCOVERY = process.env.DISCOVERY_USE_AI !== "false";
 
 // Maximum nav links to extract from homepage navigation
-const NAV_LINK_CAP = 30;
+// Set high enough to cover complex enterprise navbars (budget enforcement handles the rest)
+const NAV_LINK_CAP = 60;
 
 // Patterns to EXCLUDE from scraping (documentation, API references, etc.)
 const EXCLUDED_SUBDOMAINS = ['docs', 'api', 'developer', 'developers', 'status', 'support'];
@@ -319,8 +320,16 @@ function extractNavLinks(html: string, baseUrl: string, domainHost: string): str
 				return;
 			}
 
-			// Apply standard exclusions
-			if (shouldExcludeUrl(absoluteUrl)) return;
+			// Nav-specific filter: lighter than shouldExcludeUrl but still
+			// excludes docs/API refs (too many pages, not marketing content)
+			// and file URLs.
+			try {
+				const navPath = new URL(absoluteUrl).pathname.toLowerCase();
+				if (/\.(xml|json|pdf|csv|zip|tar|gz)$/i.test(navPath)) return;
+				if (navPath.includes('/robots.txt') || navPath.includes('/sitemap')) return;
+				if (/^\/docs(\/|$)/.test(navPath) || /^\/documentation(\/|$)/.test(navPath)) return;
+				if (/^\/api-reference(\/|$)/.test(navPath) || /^\/reference(\/|$)/.test(navPath)) return;
+			} catch { return; }
 
 			// Deduplicate by normalized URL
 			const normalized = absoluteUrl.replace(/\/+$/, '').toLowerCase();
@@ -330,8 +339,18 @@ function extractNavLinks(html: string, baseUrl: string, domainHost: string): str
 			links.push(absoluteUrl);
 		});
 
-		// Sort by depth (shallower first), cap at limit
-		links.sort((a, b) => getUrlDepth(a) - getUrlDepth(b));
+		// Sort: high-value page types first, then by depth (shallower first)
+		links.sort((a, b) => {
+			const aHV = isHighValuePage(a);
+			const bHV = isHighValuePage(b);
+			if (aHV.isHighValue !== bHV.isHighValue) return aHV.isHighValue ? -1 : 1;
+			if (aHV.isHighValue && bHV.isHighValue) {
+				const aPri = aHV.matchPriority ?? 99;
+				const bPri = bHV.matchPriority ?? 99;
+				if (aPri !== bPri) return aPri - bPri;
+			}
+			return getUrlDepth(a) - getUrlDepth(b);
+		});
 		return links.slice(0, NAV_LINK_CAP);
 	} catch (error) {
 		console.warn('[SitemapDiscovery] Nav extraction failed:', error instanceof Error ? error.message : 'unknown');
@@ -351,7 +370,7 @@ async function scrapeHomepageHtml(
 		const result = await firecrawl.scrapeUrl(homepageUrl, {
 			formats: ['rawHtml'],
 			onlyMainContent: false,
-			timeout: 15000,
+			timeout: 30000,
 		});
 
 		if (!result || typeof result !== 'object') return null;
@@ -654,8 +673,10 @@ function deduplicatePages<T extends DiscoveredPage>(pages: T[]): T[] {
 }
 
 /**
- * Probes a URL via HEAD request to check if it exists (returns 200).
- * Times out after 4 seconds to avoid blocking discovery.
+ * Probes a URL via HEAD request to check if it exists at this exact path.
+ * Uses redirect: "manual" to reject pages that redirect to a different path
+ * (e.g. /features → /login), while allowing benign redirects (trailing slash,
+ * locale prefix).  Times out after 4 seconds.
  */
 async function probeUrl(url: string): Promise<boolean> {
 	try {
@@ -663,11 +684,29 @@ async function probeUrl(url: string): Promise<boolean> {
 		const timeout = setTimeout(() => controller.abort(), 4000);
 		const res = await fetch(url, {
 			method: "HEAD",
-			redirect: "follow",
+			redirect: "manual",
 			signal: controller.signal,
 		});
 		clearTimeout(timeout);
-		return res.ok;
+
+		if (res.ok) return true;
+
+		// Allow benign redirects (trailing slash, locale prefix)
+		if (res.status >= 300 && res.status < 400) {
+			const location = res.headers.get("location");
+			if (!location) return false;
+			try {
+				const stripLocale = (p: string) =>
+					p.replace(/^\/(?:[a-z]{2}(?:-[a-z]{2})?)(?=\/|$)/, "") || "/";
+				const reqPath = stripLocale(new URL(url).pathname.replace(/\/+$/, "").toLowerCase());
+				const destPath = stripLocale(new URL(location, url).pathname.replace(/\/+$/, "").toLowerCase());
+				if (reqPath === destPath) return true;
+				console.log(`[SitemapDiscovery] Probe rejected redirect: ${url} -> ${destPath}`);
+			} catch { /* URL parse error */ }
+			return false;
+		}
+
+		return false;
 	} catch {
 		return false;
 	}

@@ -8,6 +8,7 @@ import { gapAnalysisOutputSchema } from "../../agents/gap-analysis-agent";
 import { researchOutputSchema } from "../../agents/schemas/research-schema";
 import { logAIModelCall, estimateAICost } from "../../utils/ai-logging-stub";
 import { hasFootnoteCitations, convertFootnotesToInlineLinks } from "../../../../lib/utils/convert-footnotes";
+import { isBrandDomain } from "../../../../lib/utils/domain-utils";
 
 // Timeout helper for long-running operations
 const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
@@ -62,7 +63,12 @@ export const generateContentStep = createStep({
       brandContext,
     } = inputData;
 
-    // Prepare context for content generation (truncate to avoid token overflow)
+    // Partition scraped sources: brand-owned vs external
+    const brandWebsite = brandContext.brandWebsite;
+    const brandScrapedSources = scrapedSources.filter(s => isBrandDomain(s.url, brandWebsite));
+    const externalScrapedSources = scrapedSources.filter(s => !isBrandDomain(s.url, brandWebsite));
+
+    // Full summary includes ALL sources — the LLM needs brand content for knowledge
     const sourcesSummary = scrapedSources
       .map(
         (s, i) =>
@@ -70,31 +76,43 @@ export const generateContentStep = createStep({
       )
       .join("\n\n");
 
-    // Prepare source URLs for citation
-    let scrapedSourcesList = scrapedSources
+    // Citation list uses ONLY external sources
+    const scrapedSourcesList = externalScrapedSources
       .map((s) => `- [${s.title || s.url}](${s.url})`)
       .join("\n");
 
-    // Note: brand website is NOT added to scraped sources — the brand is the author,
-    // so citing its own website as a third-party source would be self-referential.
+    // Partition research outputs: brand-owned vs external
+    const externalResearchSources = research.additionalSources.filter(s => !isBrandDomain(s.url, brandWebsite));
+    const brandResearchSources = research.additionalSources.filter(s => isBrandDomain(s.url, brandWebsite));
+    const externalStatistics = research.statistics.filter(s => !isBrandDomain(s.url, brandWebsite));
+    const externalQuotes = research.expertQuotes.filter(q => !q.url || !isBrandDomain(q.url, brandWebsite));
 
-    // Prepare research sources with URLs
-    const researchSourcesList = research.additionalSources
+    // Prepare research sources with URLs (external only)
+    const researchSourcesList = externalResearchSources
       .map((s) => `- [${s.title}](${s.url}) - ${s.keyInsight}`)
       .join("\n");
 
-    // Format statistics with source attribution for inline citation
-    const statisticsWithSources = research.statistics
+    // Format statistics with source attribution for inline citation (external only)
+    const statisticsWithSources = externalStatistics
       .map((s) => `- "${s.stat}" — Source: [${s.source}](${s.url})`)
       .join("\n");
 
-    // Format expert quotes with speaker attribution
-    const quotesWithSpeakers = research.expertQuotes
+    // Format expert quotes with speaker attribution (external only)
+    const quotesWithSpeakers = externalQuotes
       .map((q) => {
         const sourceInfo = q.url ? ` — [${q.source || "Source"}](${q.url})` : q.source ? ` — ${q.source}` : "";
         return `- "${q.quote}" — ${q.speaker}${sourceInfo}`;
       })
       .join("\n");
+
+    // Build brand knowledge section from brand-owned sources
+    const brandKnowledgeSummary = brandScrapedSources
+      .map((s) => `- ${s.title || s.url}: ${s.markdown.slice(0, 800)}`)
+      .join("\n");
+    const brandResearchInsights = brandResearchSources
+      .map((s) => `- ${s.keyInsight}`)
+      .join("\n");
+    const hasBrandKnowledge = brandKnowledgeSummary || brandResearchInsights;
 
     // Generate today's date for freshness signal
     const today = new Date().toISOString().split("T")[0]; // Format: YYYY-MM-DD
@@ -129,17 +147,28 @@ VOICE INSTRUCTIONS — You are writing ON BEHALF of ${brandContext.brandName}:
 - NEVER quote ${brandContext.brandName}'s marketing copy and attribute it to "${brandContext.brandName} marketing site"
 - Instead, state product features directly and authoritatively as your own: "With ${brandContext.brandName}, you get..." or "${brandContext.brandName} offers..."
 - Only use third-party sources (reviews, benchmarks, industry reports) for inline citations — not your own brand's pages
-- DO still link to ${brandContext.brandWebsite || 'the brand website'} naturally when first introducing ${brandContext.brandName}${brandContext.brandWebsite ? ` (e.g. "[${brandContext.brandName}](${brandContext.brandWebsite})" in the intro or TL;DR)` : ''} — just don't use it as a citation source` : `## Brand Context
+- DO still link to ${brandContext.brandWebsite || 'the brand website'} naturally when first introducing ${brandContext.brandName}${brandContext.brandWebsite ? ` (e.g. "[${brandContext.brandName}](${brandContext.brandWebsite})" in the intro or TL;DR)` : ''} — just don't use it as a citation source` : `## Brand Context — Author Voice
 - Brand: ${brandContext.brandName}
 - Description: ${brandContext.brandDescription || "N/A"}
 - Target ICP: ${brandContext.targetICP || "N/A"}
 - Unique Value: ${brandContext.uniqueValueProp || "N/A"}
-- IMPORTANT: You are writing on behalf of ${brandContext.brandName}. Do NOT cite ${brandContext.brandName}'s own website as a third-party source or quote its marketing copy with attribution like "${brandContext.brandName} marketing site". State your own product features directly.`}
+
+AUTHOR VOICE INSTRUCTIONS — You are writing AS ${brandContext.brandName}:
+- Write from ${brandContext.brandName}'s perspective as a knowledgeable authority in ${brandContext.brandIndustry || "this space"}
+- Present ${brandContext.brandName}'s products and capabilities naturally and authoritatively when relevant to the topic
+- Do NOT position competitors as equal or superior alternatives to ${brandContext.brandName}
+- When competitors are mentioned for context, briefly acknowledge them but frame ${brandContext.brandName}'s approach as the recommended path
+- NEVER cite ${brandContext.brandName}'s own website as a third-party source — state product features directly
+- DO link to ${brandContext.brandWebsite || "the brand website"} naturally when first introducing ${brandContext.brandName}`}
 - Author: ${brandContext.userName}, ${brandContext.userRole}
 - Publication Date: ${today}
 - Include "Last updated: ${today}" right after the author byline
 
-## Source Content Summary
+${hasBrandKnowledge ? `## Brand Knowledge (YOUR OWN product — state authoritatively, do NOT cite as third-party)
+${brandKnowledgeSummary}
+${brandResearchInsights}
+
+` : ''}## Source Content Summary
 ${sourcesSummary}
 
 ## Sources to Cite
@@ -162,7 +191,7 @@ ${statisticsWithSources || "No statistics gathered"}
 ${quotesWithSpeakers || "No expert quotes gathered"}
 
 ## Key Insights from Research
-${research.additionalSources.map((s) => `- ${s.keyInsight} — [${s.title}](${s.url})`).join("\n")}`,
+${externalResearchSources.map((s) => `- ${s.keyInsight} — [${s.title}](${s.url})`).join("\n")}`,
           {
             structuredOutput: { schema: contentOutputSchema },
           }
@@ -227,6 +256,23 @@ ${research.additionalSources.map((s) => `- ${s.keyInsight} — [${s.title}](${s.
       console.log(`[GenerateContent] Detected footnote citations, converting to inline links`);
       result.content = convertFootnotesToInlineLinks(result.content, result.metadata?.sources);
     }
+
+    // Citation density monitoring (non-blocking)
+    if (result.content) {
+      const inlineCitationMatches = result.content.match(/\[[^\]]+\]\(https?:\/\/[^)]+\)/g);
+      const inlineCitationCount = inlineCitationMatches ? inlineCitationMatches.length : 0;
+      const referenceSectionMatch = result.content.match(/##\s*(Sources|References)\s*\n([\s\S]*?)$/i);
+      const referenceLinks = referenceSectionMatch
+        ? (referenceSectionMatch[2].match(/^-\s*\[/gm) || []).length
+        : 0;
+      const bodyCitationCount = inlineCitationCount - referenceLinks;
+      if (bodyCitationCount < 3) {
+        console.warn(
+          `[GenerateContent] LOW CITATION DENSITY: Only ${bodyCitationCount} inline citations in body (target: ≥3). Prompt: "${trackedPrompt.slice(0, 80)}"`
+        );
+      }
+    }
+
     return result;
   },
 });

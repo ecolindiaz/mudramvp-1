@@ -8,7 +8,8 @@ export async function queueNlrJob(
   companyId: string,
   brandProfileId: number,
   weekStartUtc: string,
+  userId?: string,
 ) {
-  await generateWeeklyReport({ companyId, brandProfileId, weekStartUtc })
+  await generateWeeklyReport({ companyId, brandProfileId, weekStartUtc, userId })
   return { id: `inline:${companyId}:${weekStartUtc}` } as any
 }

@@ -136,7 +136,8 @@ function scoreFaqContextUrl(url: string, siteRoot: string): number {
  * Returns markdown content (truncated to 6000 chars) or null on failure.
  */
 export async function scrapePageContent(
-	url: string
+	url: string,
+	maxChars: number = 6000
 ): Promise<string | null> {
 	try {
 		const firecrawl = getFirecrawlClient();
@@ -148,8 +149,8 @@ export async function scrapePageContent(
 		});
 		if (result.success && result.markdown) {
 			const content =
-				result.markdown.length > 6000
-					? result.markdown.slice(0, 6000) +
+				result.markdown.length > maxChars
+					? result.markdown.slice(0, maxChars) +
 						"\n\n[...content truncated...]"
 					: result.markdown;
 			console.log(
@@ -219,12 +220,28 @@ export async function scrapePageContentForSchema(
 	}
 }
 
+const FAQ_RELEVANT_PAGE_TYPES = new Set([
+	"home", "pricing", "features", "product", "solutions", "blog", "use-cases", "customers",
+]);
+
+async function getFaqRelevantSitemapUrls(brandProfileId: number, siteRoot: string): Promise<string[]> {
+	const { getSitemapPages } = await import("@/lib/analysis/technical/repo");
+	const domain = new URL(siteRoot).hostname;
+	const pages = await getSitemapPages(brandProfileId, domain);
+	return pages
+		.filter(p => p.page_type && FAQ_RELEVANT_PAGE_TYPES.has(p.page_type))
+		.map(p => normalizeUrl(p.page_url) || p.page_url)
+		.filter((url): url is string => Boolean(url));
+}
+
 /**
  * Build enriched FAQ context from multiple brand-representative pages.
  * Includes the target page, homepage, and high-value product/pricing pages.
+ * When brandProfileId is provided, uses discovered SitemapPages instead of hardcoded fallbacks.
  */
 export async function scrapeFaqContext(
-	targetUrl: string
+	targetUrl: string,
+	brandProfileId?: number
 ): Promise<string | null> {
 	const normalizedTarget = normalizeUrl(targetUrl);
 	if (!normalizedTarget) {
@@ -258,23 +275,46 @@ export async function scrapeFaqContext(
 		)
 	).sort((a, b) => scoreFaqContextUrl(b, siteRoot) - scoreFaqContextUrl(a, siteRoot));
 
-	const fallbackUrls = FAQ_FALLBACK_PATHS
-		.map((path) => normalizeUrl(path, homepageUrl))
-		.filter((url): url is string => Boolean(url));
+	// Try discovered sitemap pages first, fall back to hardcoded paths
+	let sitemapUrls: string[] = [];
+	if (brandProfileId) {
+		try {
+			sitemapUrls = await getFaqRelevantSitemapUrls(brandProfileId, siteRoot);
+		} catch (err) {
+			console.warn("[PageScrape] Failed to fetch sitemap pages, using fallbacks:", err instanceof Error ? err.message : err);
+		}
+	}
 
-	const selectedUrls: string[] = [];
-	const addUrl = (url: string) => {
-		if (selectedUrls.length >= FAQ_CONTEXT_MAX_PAGES) return;
-		if (selectedUrls.includes(url)) return;
-		selectedUrls.push(url);
+	// Over-select candidates so dead/thin pages can be dropped without losing slots
+	const candidateLimit = FAQ_CONTEXT_MAX_PAGES + 3;
+	const candidateUrls: string[] = [];
+	const addCandidate = (url: string) => {
+		if (candidateUrls.length >= candidateLimit) return;
+		if (candidateUrls.includes(url)) return;
+		candidateUrls.push(url);
 	};
 
-	addUrl(normalizedTarget);
-	addUrl(homepageUrl);
-	for (const url of highValueLinked) addUrl(url);
-	for (const url of fallbackUrls) addUrl(url);
+	addCandidate(normalizedTarget);
+	addCandidate(homepageUrl);
 
-	const urlsToScrape = selectedUrls.filter((url) => !contentByUrl.has(url));
+	if (sitemapUrls.length > 0) {
+		// Use discovered pages, scored and sorted by FAQ relevance
+		const scoredSitemapUrls = sitemapUrls
+			.filter(url => scoreFaqContextUrl(url, siteRoot) >= 0)
+			.sort((a, b) => scoreFaqContextUrl(b, siteRoot) - scoreFaqContextUrl(a, siteRoot));
+		for (const url of scoredSitemapUrls) addCandidate(url);
+		// Supplement with high-value homepage links
+		for (const url of highValueLinked) addCandidate(url);
+	} else {
+		// Fallback: homepage links + hardcoded paths
+		const fallbackUrls = FAQ_FALLBACK_PATHS
+			.map((path) => normalizeUrl(path, homepageUrl))
+			.filter((url): url is string => Boolean(url));
+		for (const url of highValueLinked) addCandidate(url);
+		for (const url of fallbackUrls) addCandidate(url);
+	}
+
+	const urlsToScrape = candidateUrls.filter((url) => !contentByUrl.has(url));
 	const additionalResults = await Promise.all(
 		urlsToScrape.map(async (url) => ({ url, content: await scrapePageContent(url) }))
 	);
@@ -282,10 +322,15 @@ export async function scrapeFaqContext(
 		if (result.content) contentByUrl.set(result.url, result.content);
 	}
 
+	// Build sections, filtering out thin pages (<500 chars = likely 404/redirect)
 	const sections: string[] = [];
-	for (const url of selectedUrls) {
+	for (const url of candidateUrls) {
+		if (sections.length >= FAQ_CONTEXT_MAX_PAGES) break;
 		const content = contentByUrl.get(url);
-		if (!content) continue;
+		if (!content || content.length < 500) {
+			if (content) console.warn(`[PageScrape] Skipping thin page (${content.length} chars): ${url}`);
+			continue;
+		}
 		sections.push(`## Source Page: ${url}\n${content}`);
 	}
 
@@ -299,7 +344,7 @@ export async function scrapeFaqContext(
 	}
 
 	console.log(
-		`[PageScrape] Built FAQ context from ${sections.length}/${selectedUrls.length} pages for ${targetUrl}`
+		`[PageScrape] Built FAQ context from ${sections.length}/${candidateUrls.length} pages for ${targetUrl}`
 	);
 
 	return combined;

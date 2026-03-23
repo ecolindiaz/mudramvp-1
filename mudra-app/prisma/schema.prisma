@@ -30,6 +30,7 @@ model BrandProfile {
   resources                  String?
   lastAnalysisRunAt          DateTime?
   lastRadarRunAt             DateTime?
+  lastRecommenderRunAt       DateTime?
   createdAt                  DateTime                     @default(now())
   updatedAt                  DateTime                     @updatedAt
   trackingError              String?

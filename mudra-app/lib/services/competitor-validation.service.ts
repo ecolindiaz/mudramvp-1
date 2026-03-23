@@ -365,6 +365,14 @@ export async function validateCompetitors(
 
   // Use existing competitors as the primary source, deduplicated
   const rawCandidates = existingCompetitors || []
+
+  // Count raw frequency of each name before deduplication (for frequency floor override)
+  const frequencyMap = new Map<string, number>()
+  for (const name of rawCandidates) {
+    const lower = name.toLowerCase()
+    frequencyMap.set(lower, (frequencyMap.get(lower) || 0) + 1)
+  }
+
   const seen = new Set<string>()
   const candidates: string[] = []
   for (const name of rawCandidates) {
@@ -406,6 +414,8 @@ export async function validateCompetitors(
   // Unknown companies must pass both "is real?" and "is competitor?" checks
   const allCandidates = [...knownCompanies, ...unknownCompanies]
   let aiValidatedCompanies: string[] = []
+  const overriddenNames = new Set<string>()
+
   if (allCandidates.length > 0) {
     console.log(`  AI validation: Processing ${allCandidates.length} names for competitive relevance...`)
     const aiResults = await batchValidateWithAI(allCandidates, brandName, brandDescription, brandIndustry, knownCompetitors)
@@ -415,6 +425,30 @@ export async function validateCompetitors(
       console.log(`  Category filter: Rejected ${knownRejected.length} known entities as non-competitors: ${knownRejected.slice(0, 10).join(', ')}${knownRejected.length > 10 ? '...' : ''}`)
     }
     console.log(`  AI validation: ${aiValidatedCompanies.length} confirmed as relevant competitors`)
+
+    // Frequency floor safety net: auto-include high-frequency entities that AI rejected.
+    // If an entity is mentioned 5+ times across AI responses, it's almost certainly relevant
+    // even if the AI category check said otherwise.
+    const FREQUENCY_FLOOR_MIN_MENTIONS = 5
+    const FREQUENCY_FLOOR_TOP_N = 5
+
+    const aiValidatedLowerSet = new Set(aiValidatedCompanies.map(v => v.toLowerCase()))
+    const rejectedByAI = allCandidates.filter(name => !aiValidatedLowerSet.has(name.toLowerCase()))
+
+    const highFreqOverrides = rejectedByAI
+      .map(name => ({ name, freq: frequencyMap.get(name.toLowerCase()) || 0 }))
+      .filter(r => r.freq >= FREQUENCY_FLOOR_MIN_MENTIONS)
+      .sort((a, b) => b.freq - a.freq)
+      .slice(0, FREQUENCY_FLOOR_TOP_N)
+
+    if (highFreqOverrides.length > 0) {
+      console.log(`  Frequency floor override: Re-including ${highFreqOverrides.length} high-frequency entities:`,
+        highFreqOverrides.map(r => `${r.name} (${r.freq} mentions)`).join(', '))
+      for (const { name } of highFreqOverrides) {
+        aiValidatedCompanies.push(name)
+        overriddenNames.add(name.toLowerCase())
+      }
+    }
   }
 
   // Build final results with confidence scores
@@ -423,15 +457,18 @@ export async function validateCompetitors(
 
   for (const name of aiValidatedCompanies) {
     const isKnown = knownSet.has(name.toLowerCase())
+    const isOverride = overriddenNames.has(name.toLowerCase())
     const verification = knownCompanyResults.get(name)
 
     results.push({
       name,
-      confidence: isKnown ? 'high' : 'medium',
-      confidenceScore: isKnown ? 1.0 : 0.7,
-      verificationSources: isKnown
-        ? ['known_company_list', 'ai_category_validation', verification?.source || 'whitelist']
-        : ['ai_validation']
+      confidence: isOverride ? 'medium' : (isKnown ? 'high' : 'medium'),
+      confidenceScore: isOverride ? 0.6 : (isKnown ? 1.0 : 0.7),
+      verificationSources: isOverride
+        ? ['high_frequency_override']
+        : (isKnown
+          ? ['known_company_list', 'ai_category_validation', verification?.source || 'whitelist']
+          : ['ai_validation'])
     })
   }
 

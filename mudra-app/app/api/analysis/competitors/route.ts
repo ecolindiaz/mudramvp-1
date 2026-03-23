@@ -269,6 +269,11 @@ export async function GET(request: NextRequest) {
     const limit = limitParam ? parseInt(limitParam) : null // null means no limit (return all)
     const modelFilter = searchParams.get('model') // Optional: filter by specific AI model
     const countryFilter = searchParams.get('country') // Optional: filter by country code
+    const daysParam = searchParams.get('days')
+    const days = daysParam ? parseInt(daysParam, 10) : 30
+    const sinceDate = days && !isNaN(days) && days > 0
+      ? new Date(Date.now() - days * 86400000)
+      : null
 
     // Helper to normalize model names for comparison
     const normalizeModelName = (name: string): string => {
@@ -303,11 +308,12 @@ export async function GET(request: NextRequest) {
 
     const userBrandName = (brandProfile.companyName || '').toLowerCase()
 
-    // Get ALL GEO analysis results for this brand profile
+    // Get GEO analysis results for this brand profile (filtered by time range)
     const geoAnalyses = await prisma.geoAnalysisResult.findMany({
       where: {
         brandProfileId: profileId,
         ...(countryFilter ? { country: countryFilter } : {}),
+        ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
       },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -336,6 +342,9 @@ export async function GET(request: NextRequest) {
     const competitorDisplayNames = new Map<string, Map<string, number>>() // lowerKey -> { displayName -> count }
     // Collect all citations/sources for domain resolution
     const allCitations: Array<{ url?: string }> = []
+    // Track brand mentions separately (for "You" row in SOV table)
+    let brandMentionCount = 0
+    const brandMentions: Array<{ position: number | null; sentiment: 'positive' | 'neutral' | 'negative' }> = []
 
     // Helper to add a competitor mention with case-insensitive deduplication
     const addCompetitorMention = (
@@ -408,16 +417,25 @@ export async function GET(request: NextRequest) {
           if (test.citations) allCitations.push(...test.citations)
           if (test.sources) allCitations.push(...test.sources)
 
+          // Track brand mentions from the brandMentioned field (for "You" row)
+          if (test.brandMentioned === true) {
+            brandMentionCount++
+            brandMentions.push({
+              position: test.brandPosition ?? null,
+              sentiment: test.sentiment || 'neutral'
+            })
+          }
+
           for (const competitorName of competitors) {
             if (!competitorName || typeof competitorName !== 'string') continue
 
             const trimmedName = competitorName.trim()
             const lowerName = trimmedName.toLowerCase()
 
-            // Skip if this is the user's brand
+            // Skip if this is the user's brand (shouldn't be in competitors, but safety check)
             if (lowerName === userBrandName ||
                 lowerName.includes(userBrandName) ||
-                userBrandName.includes(lowerName)) {
+                (userBrandName.length >= 3 && userBrandName.includes(lowerName))) {
               continue
             }
 
@@ -532,7 +550,7 @@ export async function GET(request: NextRequest) {
     const competitorNames = Array.from(competitorMentionMap.keys()).map(k => getBestDisplayName(k))
     const resolvedDomains = resolveCompetitorDomains(competitorNames, allCitations)
 
-    // Calculate aggregated stats for each competitor
+    // Calculate aggregated stats for each competitor (SOV placeholder — recalculated below)
     const aggregatedCompetitors: AggregatedCompetitor[] = []
 
     competitorMentionMap.forEach((mentions, lowerKey) => {
@@ -540,11 +558,6 @@ export async function GET(request: NextRequest) {
 
       // Get the best display name (most frequently used casing)
       const displayName = getBestDisplayName(lowerKey)
-
-      // Calculate SOV: (competitor mentions ÷ all competitor mentions) × 100
-      const shareOfVoice = totalMentions > 0
-        ? (mentionCount / totalMentions) * 100
-        : 0
 
       // Calculate average position (only from mentions with positions)
       const positionsWithValues = mentions.filter(m => m.position !== null && m.position > 0)
@@ -566,14 +579,49 @@ export async function GET(request: NextRequest) {
       aggregatedCompetitors.push({
         name: displayName,
         mentionCount,
-        shareOfVoice: Math.round(shareOfVoice * 10) / 10, // Round to 1 decimal
+        shareOfVoice: 0, // Placeholder — recalculated with top-10 denominator below
         averagePosition: Math.round(averagePosition * 10) / 10,
         sentiment: overallSentiment,
         domain
       })
     })
 
-    // Sort by SOV (highest first) and optionally limit results
+    // Sort by mention count to determine the top 10 competitors
+    aggregatedCompetitors.sort((a, b) => b.mentionCount - a.mentionCount)
+
+    // Calculate SOV using top-10 denominator for meaningful percentages
+    // Industry standard: SOV is scoped to top competitors, not all 90+ entities
+    const TOP_N = 10
+    const topNTotalMentions = aggregatedCompetitors
+      .slice(0, TOP_N)
+      .reduce((sum, c) => sum + c.mentionCount, 0)
+
+    for (const competitor of aggregatedCompetitors) {
+      competitor.shareOfVoice = topNTotalMentions > 0
+        ? Math.round((competitor.mentionCount / topNTotalMentions) * 100 * 10) / 10
+        : 0
+    }
+
+    // Calculate brand SOV + stats using the same top-10 denominator
+    const brandShareOfVoice = topNTotalMentions > 0
+      ? Math.round((brandMentionCount / topNTotalMentions) * 100 * 10) / 10
+      : 0
+
+    const brandPositionsWithValues = brandMentions.filter(m => m.position !== null && m.position! > 0)
+    const brandAvgPosition = brandPositionsWithValues.length > 0
+      ? Math.round(brandPositionsWithValues.reduce((sum, m) => sum + (m.position || 0), 0) / brandPositionsWithValues.length * 10) / 10
+      : 0
+
+    const brandSentimentCounts = { positive: 0, neutral: 0, negative: 0 }
+    brandMentions.forEach(m => { brandSentimentCounts[m.sentiment]++ })
+    const brandSentiment = (Object.entries(brandSentimentCounts)
+      .sort(([, a], [, b]) => b - a)[0]?.[0] || 'neutral') as 'positive' | 'neutral' | 'negative'
+
+    const brandDomain = brandProfile.companyWebsite
+      ? brandProfile.companyWebsite.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]
+      : ''
+
+    // Re-sort by SOV (same order as mentionCount since denominator is constant)
     const sortedCompetitors = aggregatedCompetitors.sort((a, b) => b.shareOfVoice - a.shareOfVoice)
     const topCompetitors = limit !== null ? sortedCompetitors.slice(0, limit) : sortedCompetitors
 
@@ -581,7 +629,16 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         competitors: topCompetitors,
+        brandData: brandMentionCount > 0 ? {
+          name: brandProfile.companyName || 'Your Brand',
+          mentionCount: brandMentionCount,
+          shareOfVoice: brandShareOfVoice,
+          averagePosition: brandAvgPosition,
+          sentiment: brandSentiment,
+          domain: brandDomain
+        } : null,
         totalMentions,
+        topNTotalMentions,
         analysisCount: geoAnalyses.length,
         lastAnalysisAt: geoAnalyses[0]?.createdAt
       }

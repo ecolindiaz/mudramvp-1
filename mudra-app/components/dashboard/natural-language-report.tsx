@@ -384,28 +384,53 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
     }
   )
 
-  // Transform competitor data for display (preview - top 5)
-  // Note: User's brand is already excluded by the API
+  // Transform competitor data for display (preview - top 5 + "You" row)
   // Data is already sorted by SOV (highest first) by the API
-  const competitorRankings: Array<{ name: string; sov: number; domain?: string }> = React.useMemo(() => {
+  const competitorRankings: Array<{ name: string; sov: number; domain?: string; isYou?: boolean }> = React.useMemo(() => {
     if (!competitorsData?.competitors) return []
 
-    return competitorsData.competitors.map((comp: any) => ({
+    const competitors = competitorsData.competitors.map((comp: any) => ({
       name: comp.name || '',
-      sov: comp.shareOfVoice || 0, // SOV % already calculated by API
-      domain: comp.domain
+      sov: comp.shareOfVoice || 0,
+      domain: comp.domain,
+      isYou: false
     }))
+
+    // Prepend "You" row if brand data exists
+    if (competitorsData.brandData) {
+      competitors.unshift({
+        name: competitorsData.brandData.name,
+        sov: competitorsData.brandData.shareOfVoice,
+        domain: competitorsData.brandData.domain,
+        isYou: true
+      })
+    }
+
+    return competitors
   }, [competitorsData])
 
   // Transform ALL competitor data for expansion modal
-  const allCompetitorRankings: Array<{ name: string; sov: number; domain?: string }> = React.useMemo(() => {
+  const allCompetitorRankings: Array<{ name: string; sov: number; domain?: string; isYou?: boolean }> = React.useMemo(() => {
     if (!allCompetitorsData?.competitors) return []
 
-    return allCompetitorsData.competitors.map((comp: any) => ({
+    const competitors = allCompetitorsData.competitors.map((comp: any) => ({
       name: comp.name || '',
       sov: comp.shareOfVoice || 0,
-      domain: comp.domain
+      domain: comp.domain,
+      isYou: false
     }))
+
+    // Prepend "You" row if brand data exists
+    if (allCompetitorsData.brandData) {
+      competitors.unshift({
+        name: allCompetitorsData.brandData.name,
+        sov: allCompetitorsData.brandData.shareOfVoice,
+        domain: allCompetitorsData.brandData.domain,
+        isYou: true
+      })
+    }
+
+    return competitors
   }, [allCompetitorsData])
 
   // Listen for analysis completion to refresh competitor data
@@ -546,7 +571,8 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
       report += `| Rank | Company | SOV % |\n`
       report += `|------|---------|-------|\n`
       competitorRankings.forEach((comp, idx) => {
-        report += `| ${idx + 1} | ${comp.name} | ${comp.sov}% |\n`
+        const suffix = comp.isYou ? ' (You)' : ''
+        report += `| ${idx + 1} | ${comp.name}${suffix} | ${comp.sov}% |\n`
       })
       report += `\n`
     }
@@ -911,7 +937,24 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                   ) : (
                     <>
                       <div className="px-2 py-1">
-                      {(isCompetitorRankingsExpanded ? competitorRankings : competitorRankings.slice(0, 5)).map((competitor, idx) => {
+                      {(isCompetitorRankingsExpanded ? competitorRankings : competitorRankings.slice(0, 6)).map((competitor, idx) => {
+                        if (competitor.isYou) {
+                          return (
+                            <div
+                              key="you-row"
+                              className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-3 py-3.5 rounded-2xl bg-white/[0.04]"
+                            >
+                              <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <CompanyLogo company={competitor.name} size={24} />
+                                <span className="text-sm truncate text-white font-medium">
+                                  {competitor.name} (You)
+                                </span>
+                              </div>
+                              <div className="text-sm tabular-nums text-white font-medium">{competitor.sov}%</div>
+                            </div>
+                          )
+                        }
                         return (
                           <a
                             key={idx}
@@ -933,7 +976,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                         )
                       })}
                       </div>
-                      {competitorRankings.length > 5 && (
+                      {competitorRankings.length > 6 && (
                         <div className="flex justify-end px-5 py-3 border-t border-white/[0.06]">
                           <button
                             onClick={() => setIsCompetitorRankingsExpanded(!isCompetitorRankingsExpanded)}
@@ -1209,6 +1252,14 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
             width: "1fr",
             sortable: true,
             render: (item) => {
+              if (item.isYou) {
+                return (
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <CompanyLogo company={item.name} size={24} />
+                    <span className="truncate text-white font-medium">{item.name} (You)</span>
+                  </div>
+                )
+              }
               return (
                 <a
                   href={`https://${item.domain || getCompanyDomain(item.name)}`}
@@ -1231,10 +1282,10 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
             align: "right",
             sortable: true,
             render: (item) => (
-              <span className="tabular-nums text-white/70 font-medium">{item.sov}%</span>
+              <span className={`tabular-nums font-medium ${item.isYou ? 'text-white' : 'text-white/70'}`}>{item.sov}%</span>
             ),
           },
-        ] as ExpansionModalColumn<{ name: string; sov: number; domain?: string }>[]}
+        ] as ExpansionModalColumn<{ name: string; sov: number; domain?: string; isYou?: boolean }>[]}
       />
 
       {/* Citations Expansion Modal - shows ALL citations */}

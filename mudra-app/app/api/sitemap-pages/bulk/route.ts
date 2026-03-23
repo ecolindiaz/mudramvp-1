@@ -139,7 +139,8 @@ export async function POST(request: NextRequest) {
               brandProfileId,
               domain,
               item.sitemapPageId,
-              item.url
+              item.url,
+              { skipIssueCreation: true }
             );
           } catch (err) {
             console.error(

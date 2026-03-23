@@ -53,7 +53,8 @@ export async function addAndProcessUrl(
   brandProfileId: number,
   domain: string,
   sitemapPageId: string,
-  url: string
+  url: string,
+  options?: { skipIssueCreation?: boolean }
 ): Promise<void> {
   try {
     // 1. Scrape via Firecrawl
@@ -106,8 +107,10 @@ export async function addAndProcessUrl(
     // 6. Update sitemap page status
     await updateSitemapPageStatus(sitemapPageId, "scraped");
 
-    // 7. Create issues from scoring
-    await createIssuesFromPageScore(brandProfileId, pageScore);
+    // 7. Create issues from scoring (skipped for bulk-add / Discover to defer to progressive unveil)
+    if (!options?.skipIssueCreation) {
+      await createIssuesFromPageScore(brandProfileId, pageScore);
+    }
 
     // 8. Recalculate aggregate score and sync to dashboard
     try {

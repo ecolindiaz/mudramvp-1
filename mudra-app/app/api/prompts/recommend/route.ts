@@ -7,7 +7,7 @@ export const maxDuration = 60
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { brandProfileId } = body
+    const { brandProfileId, country } = body
 
     const auth = await requireAuthWithBrandAccess(brandProfileId)
     if (!auth.success) return auth.response!
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const recommendations = await generateRecommendations(resolvedId)
+    const recommendations = await generateRecommendations(resolvedId, country || "US")
 
     return NextResponse.json({
       success: true,

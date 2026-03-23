@@ -1569,7 +1569,7 @@ function TrackedPromptsPageInner() {
                             const res = await fetch("/api/prompts/recommend", {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ brandProfileId: profile.id }),
+                              body: JSON.stringify({ brandProfileId: profile.id, country: selectedCountry || "US" }),
                             })
                             const data = await res.json()
 

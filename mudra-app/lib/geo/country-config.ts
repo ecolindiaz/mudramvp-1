@@ -161,6 +161,30 @@ export function isGeminiProxyNeeded(country: CountryCode): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// DataForSEO location codes
+// ---------------------------------------------------------------------------
+
+export const DATAFORSEO_LOCATION_MAP: Record<CountryCode, number> = {
+  US: 2840,
+  GB: 2826,
+  ES: 2724,
+  MX: 2484,
+  CO: 2170,
+  AR: 2032,
+  PE: 2604,
+};
+
+export const DATAFORSEO_LANGUAGE_MAP: Record<CountryCode, string> = {
+  US: 'English',
+  GB: 'English',
+  ES: 'Spanish',
+  MX: 'Spanish',
+  CO: 'Spanish',
+  AR: 'Spanish',
+  PE: 'Spanish',
+};
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

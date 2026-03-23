@@ -2,6 +2,7 @@ import { getJigsawClient } from "@/lib/clients/jigsawstack"
 import { getDataForSEOClient } from "@/lib/clients/dataforseo"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { prisma } from "@/lib/prisma"
+import { DATAFORSEO_LOCATION_MAP, DATAFORSEO_LANGUAGE_MAP, isAllowedCountry, type CountryCode } from "@/lib/geo/country-config"
 
 // --- Types ---
 
@@ -519,8 +520,10 @@ function diversifyByCompetitor(
 // --- Main Orchestrator ---
 
 export async function generateRecommendations(
-  brandProfileId: number
+  brandProfileId: number,
+  country: string = "US"
 ): Promise<RecommendedPromptResult[]> {
+  const countryCode: CountryCode = isAllowedCountry(country) ? country : "US"
   // 1. Load brand context
   const profile = await prisma.brandProfile.findUnique({
     where: { id: brandProfileId },
@@ -617,8 +620,10 @@ export async function generateRecommendations(
 
   console.log("[Recommender] Validated candidates for volume lookup:", uniqueCandidates.length)
 
-  // 6. Get AI search volumes from DataForSEO
-  const volumes = await getAISearchVolumes(uniqueCandidates)
+  // 6. Get AI search volumes from DataForSEO (region-aware)
+  const locationCode = DATAFORSEO_LOCATION_MAP[countryCode]
+  const languageName = DATAFORSEO_LANGUAGE_MAP[countryCode]
+  const volumes = await getAISearchVolumes(uniqueCandidates, locationCode, languageName)
   const volumeMap = new Map(volumes.map(v => [v.keyword.toLowerCase().trim(), v.aiSearchVolume]))
 
   // 7. Get existing prompts to avoid duplicates

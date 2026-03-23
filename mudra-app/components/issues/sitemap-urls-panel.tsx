@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { IconPlus, IconTrash, IconLoader2, IconExternalLink } from "@tabler/icons-react"
+import { IconPlus, IconTrash, IconLoader2, IconExternalLink, IconRadar } from "@tabler/icons-react"
+import { DiscoverPagesModal } from "@/components/issues/discover-pages-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
@@ -27,6 +28,7 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
   const [isAdding, setIsAdding] = React.useState(false)
   const [removingId, setRemovingId] = React.useState<string | null>(null)
   const [confirmRemoveId, setConfirmRemoveId] = React.useState<string | null>(null)
+  const [discoverOpen, setDiscoverOpen] = React.useState(false)
   const pendingIdsRef = React.useRef<Set<string>>(new Set())
 
   // Derive domain prefix for display
@@ -217,7 +219,18 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
     <div className="bg-[#1b1b1b] rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-white/80">Tracked Pages</h3>
-        <span className="text-[11px] text-white/40">{pages.length} pages</span>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setDiscoverOpen(true)}
+            size="sm"
+            variant="ghost"
+            className="text-[11px] text-white/40 hover:text-white/60 h-7 px-2"
+          >
+            <IconRadar className="w-3.5 h-3.5 mr-1" />
+            Discover
+          </Button>
+          <span className="text-[11px] text-white/40">{pages.length} pages</span>
+        </div>
       </div>
 
       {/* Add URL input */}
@@ -341,6 +354,15 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
           ))}
         </div>
       )}
+
+      <DiscoverPagesModal
+        open={discoverOpen}
+        onOpenChange={setDiscoverOpen}
+        brandProfileId={brandProfileId}
+        companyWebsite={companyWebsite}
+        trackedCount={pages.length}
+        onPagesAdded={fetchPages}
+      />
     </div>
   )
 }

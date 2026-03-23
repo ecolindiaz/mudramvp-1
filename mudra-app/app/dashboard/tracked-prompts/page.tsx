@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useEffect, useRef } from "react"
+import { Fragment, useCallback, useMemo, useState, useEffect, useRef } from "react"
 import {
   ColumnDef,
   flexRender,
@@ -11,10 +11,11 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ChevronDownIcon, ChevronUpIcon, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, Sword, BookOpen, Building2, Download, CheckCircle2, AlertCircle, HelpCircle } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, ChevronRight, Plus, Trash2, X, Loader2, Pencil, Leaf, Swords, Sword, BookOpen, Building2, Download, CheckCircle2, AlertCircle, HelpCircle, Compass, Sparkles } from "lucide-react"
 import { CircleFlag } from "react-circle-flags"
 import { useRouter } from "next/navigation"
 
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -66,6 +67,26 @@ type TrackedPrompt = {
   position: number | null
   lastRun: string | null
   isPending?: boolean // True when prompt is added but not yet analyzed
+}
+
+type RecommendedPrompt = {
+  id: string
+  prompt: string
+  intent: string
+  volume: "High" | "Medium" | "Low"
+  difficulty: "Easy" | "Medium" | "Hard"
+  aiSearchVolume?: number
+}
+
+// Intent config for icons and labels
+const intentConfig: Record<string, { icon: React.ReactNode; label: string }> = {
+  "Organic": { icon: <Leaf className="h-3.5 w-3.5" />, label: "Organic" },
+  "Generic": { icon: <Sword className="h-3.5 w-3.5" />, label: "Generic" },
+  "Competitor": { icon: <Swords className="h-3.5 w-3.5" />, label: "Competitor" },
+  "How-to": { icon: <BookOpen className="h-3.5 w-3.5" />, label: "How to" },
+  "How-to Guides": { icon: <BookOpen className="h-3.5 w-3.5" />, label: "How to" },
+  "Brand-Specific": { icon: <Building2 className="h-3.5 w-3.5" />, label: "Brand-Specific" },
+  "FAQ": { icon: <HelpCircle className="h-3.5 w-3.5" />, label: "FAQ" },
 }
 
 // Format date as relative time (e.g., "2h ago", "1d ago")
@@ -437,7 +458,27 @@ function TrackedPromptsPageInner() {
   const [newIntent, setNewIntent] = useState<string>("Organic")
   const [runAnalysisOnAdd, setRunAnalysisOnAdd] = useState(true) // BUG-3: Option to run immediate analysis
   const [showAll, setShowAll] = useState(true)
-  
+  const [viewMode, setViewMode] = useState<"tracked" | "explore">("tracked")
+
+  // Recommender state — persisted in localStorage (loaded via useEffect to avoid hydration mismatch)
+  const storageKey = profile?.id ? `mudra:recommendations:${profile.id}` : null
+  const [recommendedPrompts, _setRecommendedPrompts] = useState<RecommendedPrompt[]>([])
+  const setRecommendedPrompts = useCallback((updater: RecommendedPrompt[] | ((prev: RecommendedPrompt[]) => RecommendedPrompt[])) => {
+    _setRecommendedPrompts(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater
+      if (storageKey) {
+        try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch {}
+      }
+      return next
+    })
+  }, [storageKey])
+  const [isRecommending, setIsRecommending] = useState(false)
+  const [expandedIntents, setExpandedIntents] = useState<Set<string>>(new Set())
+  const [selectedRecommended, setSelectedRecommended] = useState<Set<string>>(new Set())
+  const [recommenderCooldown, setRecommenderCooldown] = useState<{ allowed: boolean; timeUntilNext?: number; lastRunAt?: string } | null>(null)
+  const [recommenderError, setRecommenderError] = useState<string | null>(null)
+  const [isAddingRecommended, setIsAddingRecommended] = useState(false)
+
   // Edit dialog state
   const [editOpen, setEditOpen] = useState(false)
   const [editingPrompt, setEditingPrompt] = useState<TrackedPrompt | null>(null)
@@ -480,6 +521,31 @@ function TrackedPromptsPageInner() {
   const hasCompletedFirstFetchRef = useRef(false)
 
   const isLoading = isInitialLoading || isRefreshing
+
+  // Load persisted recommendations when profile becomes available
+  useEffect(() => {
+    if (!profile?.id) return
+    const key = `mudra:recommendations:${profile.id}`
+    try {
+      const stored = localStorage.getItem(key)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          _setRecommendedPrompts(parsed)
+          setExpandedIntents(new Set(["Organic", "Competitor", "How-to Guides", "Brand-Specific", "Generic", "FAQ"]))
+        }
+      }
+    } catch {}
+  }, [profile?.id])
+
+  // Check recommender cooldown when explore tab is viewed
+  useEffect(() => {
+    if (viewMode !== "explore" || !profile?.id) return
+    fetch(`/api/prompts/recommend?brandProfileId=${profile.id}`)
+      .then(res => res.json())
+      .then(data => setRecommenderCooldown(data))
+      .catch(() => {})
+  }, [viewMode, profile?.id])
 
   // Fetch prompts function (extracted for reuse)
   const fetchPrompts = async () => {
@@ -898,6 +964,44 @@ function TrackedPromptsPageInner() {
     }
   }
 
+  // --- Add recommended prompts (batch or single) ---
+  const handleAddRecommended = async (promptsToAdd?: RecommendedPrompt[]) => {
+    const selected = promptsToAdd || recommendedPrompts.filter(p => selectedRecommended.has(p.id))
+    if (selected.length === 0 || !profile?.id) return
+
+    setIsAddingRecommended(true)
+    const lang = selectedCountry && isAllowedCountry(selectedCountry) ? getLanguageForCountry(selectedCountry as CountryCode) : 'en'
+
+    for (const rec of selected) {
+      try {
+        await fetch("/api/prompts/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            promptText: rec.prompt,
+            category: rec.intent,
+            brandProfileId: String(profile.id),
+            runAnalysis: true,
+            language: lang,
+            country: selectedCountry,
+          }),
+        })
+      } catch (err) {
+        console.error(`Error adding recommended prompt: ${rec.prompt}`, err)
+      }
+    }
+
+    // Remove added prompts from recommendations
+    const addedIds = new Set(selected.map(p => p.id))
+    setRecommendedPrompts(prev => prev.filter(p => !addedIds.has(p.id)))
+    setSelectedRecommended(new Set())
+    setIsAddingRecommended(false)
+
+    // Refresh tracked prompts list
+    await fetchPrompts()
+    window.dispatchEvent(new CustomEvent("mudra:analysis-complete"))
+  }
+
   const resetAiState = () => {
     setDialogMode('manual')
     setAiStep('describe')
@@ -1209,31 +1313,90 @@ function TrackedPromptsPageInner() {
                   <p className="text-muted-foreground">Monitor prompts and mentions across AI models</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    className="h-9 rounded-full bg-white/5 text-white hover:bg-white/10 border-0"
-                    onClick={() => {
-                      if (showAll) {
-                        setPagination((p: PaginationState) => ({ ...p, pageIndex: 0, pageSize: 15 }))
-                        setShowAll(false)
-                      } else {
-                        setPagination((p: PaginationState) => ({ ...p, pageIndex: 0, pageSize: filteredData.length }))
-                        setShowAll(true)
-                      }
-                    }}
-                    disabled={isLoading || filteredData.length === 0}
-                  >
-                    {showAll ? "Collapse" : "Expand"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="h-9 rounded-full bg-white text-black hover:bg-white/90 border-transparent gap-1.5"
-                    onClick={() => setAddOpen(true)}
-                    disabled={isLoading || data.length >= 100}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Prompt
-                  </Button>
+                  {/* View toggle: Tracked / Suggestions */}
+                  <div className="flex items-center rounded-full bg-white/[0.06] p-0.5">
+                    <button
+                      className={cn(
+                        "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
+                        viewMode === "tracked"
+                          ? "bg-white text-black"
+                          : "text-white/60 hover:text-white"
+                      )}
+                      onClick={() => setViewMode("tracked")}
+                    >
+                      Tracked
+                    </button>
+                    <button
+                      className={cn(
+                        "px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5",
+                        viewMode === "explore"
+                          ? "bg-white text-black"
+                          : "text-white/60 hover:text-white"
+                      )}
+                      onClick={() => setViewMode("explore")}
+                    >
+                      <Compass className="h-3 w-3" />
+                      Suggestions
+                      {recommendedPrompts.length > 0 && (
+                        <span className={cn(
+                          "flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full text-[10px] font-semibold",
+                          viewMode === "explore" ? "bg-black/20 text-black" : "bg-white/15 text-white/70"
+                        )}>
+                          {recommendedPrompts.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
+                  {viewMode === "tracked" && (
+                    <>
+                      <Button
+                        size="sm"
+                        className="h-9 rounded-full bg-white/5 text-white hover:bg-white/10 border-0"
+                        onClick={() => {
+                          if (showAll) {
+                            setPagination((p: PaginationState) => ({ ...p, pageIndex: 0, pageSize: 15 }))
+                            setShowAll(false)
+                          } else {
+                            setPagination((p: PaginationState) => ({ ...p, pageIndex: 0, pageSize: filteredData.length }))
+                            setShowAll(true)
+                          }
+                        }}
+                        disabled={isLoading || filteredData.length === 0}
+                      >
+                        {showAll ? "Collapse" : "Expand"}
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            className="h-9 rounded-full bg-white text-black hover:bg-white/90 border-transparent gap-1.5"
+                            disabled={isLoading || data.length >= 100}
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Prompt
+                            <ChevronDownIcon className="h-3.5 w-3.5 opacity-60" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48 bg-[#1b1b1b] border-white/[0.08]">
+                          <DropdownMenuItem
+                            className="flex items-center gap-2 px-3 py-2.5 text-white hover:bg-white/10 cursor-pointer focus:bg-white/10"
+                            onClick={() => { setDialogMode('manual'); setAddOpen(true) }}
+                          >
+                            <Pencil className="h-4 w-4 text-white/60" />
+                            Add Manual
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="flex items-center gap-2 px-3 py-2.5 text-white hover:bg-white/10 cursor-pointer focus:bg-white/10"
+                            onClick={() => { setDialogMode('ai'); setAddOpen(true) }}
+                          >
+                            <Sparkles className="h-4 w-4 text-white/60" />
+                            AI Generated
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1243,6 +1406,267 @@ function TrackedPromptsPageInner() {
 
             {/* Content Area */}
             <div className="flex flex-col flex-1">
+              {viewMode === "explore" ? (
+                <div className="px-4 lg:px-6 pt-6 pb-6 md:pb-8 space-y-4">
+                  {isRecommending ? (
+                    /* Loading state */
+                    <div className="rounded-2xl border border-white/[0.08] overflow-hidden bg-[#141414]">
+                      {Array.from({ length: 4 }).map((_, groupIdx) => (
+                        <div key={`skel-group-${groupIdx}`}>
+                          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/[0.08] bg-white/[0.03]">
+                            <Skeleton className="h-3.5 w-3.5 rounded bg-white/[0.08]" />
+                            <Skeleton className="h-5 w-20 rounded-full bg-white/[0.08]" />
+                            <Skeleton className="h-3 w-6 rounded bg-white/[0.06]" />
+                          </div>
+                          {Array.from({ length: 2 }).map((_, rowIdx) => (
+                            <div key={`skel-row-${groupIdx}-${rowIdx}`} className="flex items-center px-5 py-3 pl-12 border-b border-white/[0.04]">
+                              <Skeleton className="h-4 w-4 rounded bg-white/[0.06] shrink-0" />
+                              <Skeleton className="h-4 w-[60%] bg-white/[0.06] ml-3" />
+                              <div className="flex items-center gap-3 ml-auto shrink-0">
+                                <Skeleton className="h-5 w-14 rounded-full bg-white/[0.06]" />
+                                <Skeleton className="h-5 w-14 rounded-full bg-white/[0.06]" />
+                                <Skeleton className="h-7 w-14 rounded-full bg-white/[0.06]" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  ) : recommendedPrompts.length > 0 ? (
+                    (() => {
+                      const groupedByIntent = recommendedPrompts.reduce<Record<string, RecommendedPrompt[]>>((acc, p) => {
+                        const key = p.intent || "Other"
+                        if (!acc[key]) acc[key] = []
+                        acc[key].push(p)
+                        return acc
+                      }, {})
+                      return (
+                        <div className="rounded-2xl border border-white/[0.08] overflow-hidden bg-[#141414]">
+                          {/* Column headers */}
+                          <div className="grid grid-cols-[1fr_120px_120px_80px] items-center px-5 py-2.5 border-b border-white/[0.08] bg-white/[0.04]">
+                            <div className="text-[11px] font-medium text-white/40 uppercase tracking-wider pl-7">Prompt</div>
+                            <div className="text-[11px] font-medium text-white/40 uppercase tracking-wider text-center">AI Volume</div>
+                            <div className="text-[11px] font-medium text-white/40 uppercase tracking-wider text-center">Difficulty</div>
+                            <div />
+                          </div>
+
+                          {Object.entries(groupedByIntent).map(([intent, prompts]) => {
+                            const isExpanded = expandedIntents.has(intent)
+                            const config = intentConfig[intent] || { icon: null, label: intent }
+                            return (
+                              <div key={intent}>
+                                <button
+                                  className="w-full flex items-center gap-3 px-5 py-3.5 border-b border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] transition-colors text-left"
+                                  onClick={() => {
+                                    setExpandedIntents(prev => {
+                                      const next = new Set(prev)
+                                      if (next.has(intent)) next.delete(intent)
+                                      else next.add(intent)
+                                      return next
+                                    })
+                                  }}
+                                >
+                                  <ChevronRight className={cn(
+                                    "h-3.5 w-3.5 text-white/50 transition-transform duration-200 shrink-0",
+                                    isExpanded && "rotate-90"
+                                  )} />
+                                  <Badge className="px-2 py-0.5 rounded-full text-xs font-medium bg-white text-black border-0 gap-1.5">
+                                    {config.icon}
+                                    {config.label}
+                                  </Badge>
+                                  <span className="text-xs text-white/30">({prompts.length})</span>
+                                </button>
+
+                                {isExpanded && prompts.map((rec, idx) => (
+                                  <div
+                                    key={rec.id}
+                                    className={cn(
+                                      "grid grid-cols-[1fr_120px_120px_80px] items-center px-5 py-3 hover:bg-white/[0.05] transition-colors",
+                                      idx < prompts.length - 1
+                                        ? "border-b border-white/[0.04]"
+                                        : "border-b border-white/[0.08]"
+                                    )}
+                                  >
+                                    <div className="flex items-center pl-7">
+                                      <Checkbox
+                                        className="scale-105 shrink-0"
+                                        checked={selectedRecommended.has(rec.id)}
+                                        onCheckedChange={(checked) => {
+                                          setSelectedRecommended(prev => {
+                                            const next = new Set(prev)
+                                            if (checked) next.add(rec.id)
+                                            else next.delete(rec.id)
+                                            return next
+                                          })
+                                        }}
+                                      />
+                                      <span className="text-sm text-white/80 ml-3 truncate">{rec.prompt}</span>
+                                    </div>
+                                    <div className="flex justify-center">
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05] text-[11px] text-white/50">
+                                        <span className={cn(
+                                          "h-1.5 w-1.5 rounded-full shrink-0",
+                                          rec.volume === "High" && "bg-emerald-400",
+                                          rec.volume === "Medium" && "bg-amber-400",
+                                          rec.volume === "Low" && "bg-white/30"
+                                        )} />
+                                        {rec.aiSearchVolume != null && rec.aiSearchVolume > 0
+                                          ? rec.aiSearchVolume.toLocaleString()
+                                          : rec.volume}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-center">
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05] text-[11px] text-white/50">
+                                        <span className={cn(
+                                          "h-1.5 w-1.5 rounded-full shrink-0",
+                                          rec.difficulty === "Easy" && "bg-emerald-400",
+                                          rec.difficulty === "Medium" && "bg-amber-400",
+                                          rec.difficulty === "Hard" && "bg-red-400"
+                                        )} />
+                                        {rec.difficulty}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-center">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2.5 rounded-full bg-white/5 text-white/70 hover:bg-white/10 hover:text-white border-0 text-xs gap-1"
+                                        onClick={() => handleAddRecommended([rec])}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                        Add
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })()
+                  ) : (
+                    /* Empty state */
+                    <div className="flex flex-col items-center justify-center py-20 px-6 rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50">
+                      <div className="flex items-center justify-center size-12 rounded-lg bg-white/[0.04] border border-white/[0.04] mb-4">
+                        <Compass className="h-5 w-5 text-white/40" />
+                      </div>
+                      <div className="text-sm font-medium text-white/60 mb-1">
+                        No prompt recommendations yet
+                      </div>
+                      <div className="text-xs text-white/40 mb-5">
+                        Prompt recommendations based on your brand will appear here
+                      </div>
+                      <Button
+                        size="sm"
+                        className="h-9 rounded-full bg-white text-black hover:bg-white/90 border-transparent gap-1.5 disabled:opacity-50"
+                        disabled={isRecommending || (recommenderCooldown !== null && !recommenderCooldown.allowed)}
+                        onClick={async () => {
+                          if (!profile?.id) return
+                          setIsRecommending(true)
+                          setRecommenderError(null)
+                          try {
+                            const res = await fetch("/api/prompts/recommend", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ brandProfileId: profile.id, country: selectedCountry || "US" }),
+                            })
+                            const data = await res.json()
+
+                            if (!res.ok) {
+                              if (res.status === 429) {
+                                setRecommenderCooldown({
+                                  allowed: false,
+                                  timeUntilNext: data.timeUntilNext,
+                                  lastRunAt: data.lastRunAt,
+                                })
+                                setRecommenderError(data.message)
+                              } else {
+                                setRecommenderError(data.error || "Failed to generate recommendations")
+                              }
+                              return
+                            }
+
+                            setRecommendedPrompts(
+                              data.data.map((r: any, idx: number) => ({
+                                id: `rec-${idx}`,
+                                prompt: r.prompt,
+                                intent: r.intent,
+                                volume: r.volumeTier,
+                                difficulty: "Medium" as const,
+                                aiSearchVolume: r.aiSearchVolume,
+                              }))
+                            )
+                            setExpandedIntents(new Set(["Organic", "Competitor", "How-to Guides", "Brand-Specific", "Generic", "FAQ"]))
+                            setRecommenderCooldown({ allowed: false, timeUntilNext: 7 * 24 * 60 * 60 * 1000 })
+                          } catch (err: any) {
+                            setRecommenderError(err.message || "Network error")
+                          } finally {
+                            setIsRecommending(false)
+                          }
+                        }}
+                      >
+                        <Compass className="h-4 w-4" />
+                        Run Recommender
+                      </Button>
+                      {recommenderCooldown && !recommenderCooldown.allowed && (
+                        <p className="text-xs text-white/40 mt-2">
+                          Available again in {Math.ceil((recommenderCooldown.timeUntilNext || 0) / (1000 * 60 * 60 * 24))} days
+                        </p>
+                      )}
+                      {recommenderError && (
+                        <p className="text-xs text-red-400/60 mt-2">{recommenderError}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Selection footer for recommended prompts */}
+                  {selectedRecommended.size > 0 && (
+                    <div className="fixed left-1/2 -translate-x-1/2 bottom-6 z-30">
+                      <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[#1a1a1a]/90 px-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+                        <div className="flex items-center gap-2 text-sm text-white/80 font-medium">
+                          <div className="flex items-center justify-center h-5 w-5 rounded-full bg-white/10">
+                            <span className="text-xs">{selectedRecommended.size}</span>
+                          </div>
+                          <span className="text-white/60">selected</span>
+                        </div>
+                        <div className="h-4 w-px bg-white/10 mx-1" />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3 rounded-full gap-1.5 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                          disabled={isAddingRecommended}
+                          onClick={() => handleAddRecommended()}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          {isAddingRecommended ? "Adding..." : "Add Prompt"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3 rounded-full gap-1.5 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                          onClick={() => setSelectedRecommended(new Set())}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Clear
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3 rounded-full gap-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                          onClick={() => {
+                            setRecommendedPrompts(prev => prev.filter(p => !selectedRecommended.has(p.id)))
+                            setSelectedRecommended(new Set())
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
               <div className="px-4 lg:px-6 pt-6 pb-6 md:pb-8 space-y-4">
                 {/* Filters */}
                 <div className="flex items-center gap-3">
@@ -1537,6 +1961,9 @@ function TrackedPromptsPageInner() {
                     </div>
                   </div>
                 )}
+
+              </div>
+              )}
 
                 {/* Unified Add Prompt Dialog */}
                 <Dialog open={addOpen} onOpenChange={(open) => {
@@ -2023,7 +2450,6 @@ function TrackedPromptsPageInner() {
                     </div>
                   </DialogContent>
                 </Dialog>
-              </div>
             </div>
           </div>
         </div>

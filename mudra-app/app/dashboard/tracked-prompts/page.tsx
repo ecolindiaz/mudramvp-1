@@ -1366,7 +1366,7 @@ function TrackedPromptsPageInner() {
                       >
                         {showAll ? "Collapse" : "Expand"}
                       </Button>
-                      <DropdownMenu>
+                      <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
                           <Button
                             size="sm"

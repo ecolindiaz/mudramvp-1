@@ -1510,9 +1510,7 @@ function TrackedPromptsPageInner() {
                                           rec.volume === "Medium" && "bg-amber-400",
                                           rec.volume === "Low" && "bg-white/30"
                                         )} />
-                                        {rec.aiSearchVolume != null && rec.aiSearchVolume > 0
-                                          ? rec.aiSearchVolume.toLocaleString()
-                                          : rec.volume}
+                                        {rec.volume}
                                       </span>
                                     </div>
                                     <div className="flex justify-center">

@@ -22,6 +22,11 @@ interface BrandContext {
   icp: string[]
 }
 
+interface GeminiValidationResult {
+  relevantSet: Set<string>        // lowercased relevant prompt strings
+  keywordMap: Map<string, string> // prompt (lowercased) → core keyword (lowercased)
+}
+
 // --- Constants ---
 
 // 20 total: weighted toward Organic (40%) + Competitor (25%)
@@ -194,7 +199,7 @@ function isValidSuggestion(suggestion: string): boolean {
 // --- Seed Generation ---
 
 function generateSeedQueries(brand: BrandContext): Record<string, string[]> {
-  const { companyName, description, industry, services, competitors } = brand
+  const { companyName, industry, services, competitors } = brand
   // Filter out overly generic single-word services for seed diversity
   const topServices = services.filter(s => s.split(/\s+/).length >= 2).slice(0, 5)
   const topCompetitors = competitors.slice(0, 4)
@@ -334,11 +339,15 @@ function volumeTier(volume: number): "High" | "Medium" | "Low" {
 async function validateRelevanceWithGemini(
   candidates: string[],
   brand: BrandContext
-): Promise<Set<string>> {
+): Promise<GeminiValidationResult> {
+  const fallbackAll = (): GeminiValidationResult => ({
+    relevantSet: new Set(candidates.map(c => c.toLowerCase().trim())),
+    keywordMap: new Map(),
+  })
+
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY
   if (!apiKey || candidates.length === 0) {
-    // No API key — skip validation, return all
-    return new Set(candidates.map(c => c.toLowerCase().trim()))
+    return fallbackAll()
   }
 
   try {
@@ -363,7 +372,10 @@ REJECT queries that are:
 - About physical business cards when the service is corporate spending cards
 - Comparing corporate cards to physical business cards (these are unrelated products)
 
-Return ONLY a JSON array of the numbers (1-indexed) of RELEVANT queries. Example: [1, 3, 5, 8]
+For each RELEVANT query, also extract the core 2-3 word keyword phrase that captures the main search intent (strip modifiers like "best", "top", "how to", "for [industry]", competitor names, etc.).
+
+Return ONLY a JSON array of objects with "idx" (1-indexed query number) and "kw" (core keyword).
+Example: [{"idx": 1, "kw": "labeling software"}, {"idx": 3, "kw": "expense management"}]
 
 QUERIES:
 ${candidates.map((c, i) => `${i + 1}. ${c}`).join("\n")}
@@ -373,23 +385,45 @@ Return ONLY the JSON array, no explanation.`
     const result = await model.generateContent(prompt)
     const text = result.response.text().trim()
 
-    // Parse the JSON array (may span multiple lines for large sets)
-    const match = text.match(/\[[\d,\s\n\r]*\]/s)
-    if (!match) return new Set(candidates.map(c => c.toLowerCase().trim()))
+    // Try to parse JSON array from response
+    const match = text.match(/\[[\s\S]*\]/s)
+    if (!match) return fallbackAll()
 
-    const validIndices: number[] = JSON.parse(match[0])
-    const validSet = new Set<string>()
-    for (const idx of validIndices) {
-      if (idx >= 1 && idx <= candidates.length) {
-        validSet.add(candidates[idx - 1].toLowerCase().trim())
+    const parsed = JSON.parse(match[0])
+    if (!Array.isArray(parsed) || parsed.length === 0) return fallbackAll()
+
+    const relevantSet = new Set<string>()
+    const keywordMap = new Map<string, string>()
+
+    if (typeof parsed[0] === "object" && parsed[0].idx !== undefined) {
+      // New format: [{idx, kw}, ...]
+      for (const item of parsed) {
+        const idx = item.idx
+        if (idx >= 1 && idx <= candidates.length) {
+          const promptKey = candidates[idx - 1].toLowerCase().trim()
+          relevantSet.add(promptKey)
+          if (item.kw && typeof item.kw === "string") {
+            keywordMap.set(promptKey, item.kw.toLowerCase().trim())
+          }
+        }
       }
+      console.log(`[Recommender] Gemini validated ${relevantSet.size}/${candidates.length} candidates, extracted ${keywordMap.size} core keywords`)
+    } else if (typeof parsed[0] === "number") {
+      // Fallback: old format [1, 3, 5, 8]
+      for (const idx of parsed) {
+        if (idx >= 1 && idx <= candidates.length) {
+          relevantSet.add(candidates[idx - 1].toLowerCase().trim())
+        }
+      }
+      console.log(`[Recommender] Gemini returned old format, validated ${relevantSet.size}/${candidates.length} (no keywords extracted)`)
+    } else {
+      return fallbackAll()
     }
 
-    console.log(`[Recommender] Gemini validated ${validSet.size}/${candidates.length} candidates as relevant`)
-    return validSet
+    return { relevantSet, keywordMap }
   } catch (error) {
     console.error("[Recommender] Gemini validation failed, keeping all candidates:", error)
-    return new Set(candidates.map(c => c.toLowerCase().trim()))
+    return fallbackAll()
   }
 }
 
@@ -608,20 +642,14 @@ export async function generateRecommendations(
     Object.entries(candidatesByIntent).map(([k, v]) => [k, v.length])
   ))
 
-  // 4+5+6. Run Gemini validation and DataForSEO volume lookup in parallel
+  // 4. Gemini validation + core keyword extraction
   const allCandidatesRaw = Object.values(candidatesByIntent).flat()
   const uniqueCandidatesRaw = [...new Set(allCandidatesRaw)]
   const uniqueCandidatesLower = [...new Set(allCandidatesRaw.map(c => c.toLowerCase().trim()))]
 
-  console.log("[Recommender] Running Gemini + DataForSEO in parallel for", uniqueCandidatesLower.length, "candidates")
+  console.log("[Recommender] Running Gemini validation for", uniqueCandidatesLower.length, "candidates")
 
-  const locationCode = DATAFORSEO_LOCATION_MAP[countryCode]
-  const languageName = DATAFORSEO_LANGUAGE_MAP[countryCode]
-
-  const [relevantSet, volumes] = await Promise.all([
-    validateRelevanceWithGemini(uniqueCandidatesRaw, brand),
-    getAISearchVolumes(uniqueCandidatesLower, locationCode, languageName),
-  ])
+  const { relevantSet, keywordMap } = await validateRelevanceWithGemini(uniqueCandidatesRaw, brand)
 
   // Apply Gemini filter to categories
   for (const cat of Object.keys(candidatesByIntent)) {
@@ -631,7 +659,36 @@ export async function generateRecommendations(
   }
 
   const allCandidates = Object.values(candidatesByIntent).flat()
-  const volumeMap = new Map(volumes.map(v => [v.keyword.toLowerCase().trim(), v.aiSearchVolume]))
+
+  // 5. Build DataForSEO keyword list using core keywords when available
+  const keywordsForVolume: string[] = []
+  const coreKeywordToPrompts = new Map<string, string[]>()
+
+  for (const candidate of uniqueCandidatesLower) {
+    const coreKw = keywordMap.get(candidate) || candidate
+    if (!coreKeywordToPrompts.has(coreKw)) {
+      coreKeywordToPrompts.set(coreKw, [])
+      keywordsForVolume.push(coreKw)
+    }
+    coreKeywordToPrompts.get(coreKw)!.push(candidate)
+  }
+
+  console.log(`[Recommender] Sending ${keywordsForVolume.length} core keywords to DataForSEO (from ${uniqueCandidatesLower.length} candidates)`)
+
+  // 6. DataForSEO volume lookup using core keywords
+  const locationCode = DATAFORSEO_LOCATION_MAP[countryCode]
+  const languageName = DATAFORSEO_LANGUAGE_MAP[countryCode]
+  const volumes = await getAISearchVolumes(keywordsForVolume, locationCode, languageName)
+
+  // Map volumes back to original prompts via core keywords
+  const coreVolumeMap = new Map(volumes.map(v => [v.keyword.toLowerCase().trim(), v.aiSearchVolume]))
+  const volumeMap = new Map<string, number>()
+  for (const [coreKw, prompts] of coreKeywordToPrompts) {
+    const vol = coreVolumeMap.get(coreKw) ?? 0
+    for (const prompt of prompts) {
+      volumeMap.set(prompt, vol)
+    }
+  }
 
   // 7. Get existing prompts to avoid duplicates
   const existingPrompts = await prisma.prompt.findMany({

@@ -574,11 +574,17 @@ export async function generateRecommendations(
     Object.entries(seedsByIntent).map(([k, v]) => [k, v.length])
   ))
 
-  // 3. Expand each category via JigsawStack
+  // 3. Expand all categories via JigsawStack in parallel
   const candidatesByIntent: Record<string, string[]> = {}
 
-  for (const [intent, seeds] of Object.entries(seedsByIntent)) {
-    const expanded = await expandWithSuggestions(seeds)
+  const intentEntries = Object.entries(seedsByIntent)
+  const expandedPerIntent = await Promise.all(
+    intentEntries.map(([, seeds]) => expandWithSuggestions(seeds))
+  )
+
+  for (let i = 0; i < intentEntries.length; i++) {
+    const [intent] = intentEntries[i]
+    const expanded = expandedPerIntent[i]
 
     for (const suggestion of expanded) {
       const actualIntent = classifySuggestion(suggestion, brand, intent)
@@ -602,28 +608,29 @@ export async function generateRecommendations(
     Object.entries(candidatesByIntent).map(([k, v]) => [k, v.length])
   ))
 
-  // 4. Gemini relevance validation — filter out irrelevant suggestions
+  // 4+5+6. Run Gemini validation and DataForSEO volume lookup in parallel
   const allCandidatesRaw = Object.values(candidatesByIntent).flat()
   const uniqueCandidatesRaw = [...new Set(allCandidatesRaw)]
-  const relevantSet = await validateRelevanceWithGemini(uniqueCandidatesRaw, brand)
+  const uniqueCandidatesLower = [...new Set(allCandidatesRaw.map(c => c.toLowerCase().trim()))]
 
-  // Remove irrelevant candidates from each category
+  console.log("[Recommender] Running Gemini + DataForSEO in parallel for", uniqueCandidatesLower.length, "candidates")
+
+  const locationCode = DATAFORSEO_LOCATION_MAP[countryCode]
+  const languageName = DATAFORSEO_LANGUAGE_MAP[countryCode]
+
+  const [relevantSet, volumes] = await Promise.all([
+    validateRelevanceWithGemini(uniqueCandidatesRaw, brand),
+    getAISearchVolumes(uniqueCandidatesLower, locationCode, languageName),
+  ])
+
+  // Apply Gemini filter to categories
   for (const cat of Object.keys(candidatesByIntent)) {
     candidatesByIntent[cat] = candidatesByIntent[cat].filter(
       c => relevantSet.has(c.toLowerCase().trim())
     )
   }
 
-  // 5. Flatten validated candidates for DataForSEO volume lookup
   const allCandidates = Object.values(candidatesByIntent).flat()
-  const uniqueCandidates = [...new Set(allCandidates.map(c => c.toLowerCase().trim()))]
-
-  console.log("[Recommender] Validated candidates for volume lookup:", uniqueCandidates.length)
-
-  // 6. Get AI search volumes from DataForSEO (region-aware)
-  const locationCode = DATAFORSEO_LOCATION_MAP[countryCode]
-  const languageName = DATAFORSEO_LANGUAGE_MAP[countryCode]
-  const volumes = await getAISearchVolumes(uniqueCandidates, locationCode, languageName)
   const volumeMap = new Map(volumes.map(v => [v.keyword.toLowerCase().trim(), v.aiSearchVolume]))
 
   // 7. Get existing prompts to avoid duplicates

@@ -1,8 +1,8 @@
 /**
- * Cron Service - Automated Weekly Analysis Execution
+ * Cron Service - Automated Weekday Analysis Execution
  * 
- * Implements automated weekly prompt runs for all active brand profiles
- * Rate: Runs every Sunday at 2 AM UTC
+ * Implements automated weekday prompt runs for all active brand profiles with cronEnabled=true
+ * Rate: Runs Monday-Friday at 2 AM UTC
  */
 
 import cron from 'node-cron';
@@ -32,7 +32,8 @@ interface CronExecutionLog {
 }
 
 /**
- * Execute weekly analysis for all active brand profiles
+ * Execute weekday analysis for brand profiles with cron enabled
+ * Only processes profiles where cronEnabled=true and have at least one prior analysis
  */
 export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
   const startTime = Date.now();
@@ -422,8 +423,8 @@ export async function executeLlmsTxtRefresh(): Promise<{
 
 /**
  * Initialize cron job (for development/self-hosted environments)
- * Schedule: Every Sunday at 2:00 AM UTC
- * Cron expression: '0 2 * * 0'
+ * Schedule: Monday-Friday at 2:00 AM UTC
+ * Cron expression: '0 2 * * 1-5'
  */
 export function initializeCronJobs() {
   if (isInitialized) {
@@ -439,11 +440,11 @@ export function initializeCronJobs() {
     return;
   }
 
-  console.log('🚀 [CRON] Initializing weekly analysis job...');
+  console.log('🚀 [CRON] Initializing weekday analysis job...');
 
-  // Schedule: Every Sunday at 2:00 AM UTC
-  cronJob = cron.schedule('0 2 * * 0', async () => {
-    console.log('⏰ [CRON] Triggered weekly analysis job');
+  // Schedule: Monday-Friday at 2:00 AM UTC
+  cronJob = cron.schedule('0 2 * * 1-5', async () => {
+    console.log('⏰ [CRON] Triggered weekday analysis job');
     await executeWeeklyAnalysis();
   }, {
     timezone: 'UTC',
@@ -466,7 +467,7 @@ export function initializeCronJobs() {
   });
 
   isInitialized = true;
-  console.log('✅ [CRON] Weekly analysis job scheduled (Sundays 2:00 AM UTC)');
+  console.log('✅ [CRON] Weekday analysis job scheduled (Mon-Fri 2:00 AM UTC)');
   console.log('✅ [CRON] Monthly llms.txt refresh scheduled (Last day of month 3:00 AM UTC)');
 }
 

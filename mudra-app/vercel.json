@@ -9,7 +9,7 @@
   "crons": [
     {
       "path": "/api/cron/weekly-analysis",
-      "schedule": "0 2 * * 0"
+      "schedule": "0 2 * * 1-5"
     },
     {
       "path": "/api/cron/weekly",

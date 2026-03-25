@@ -1,10 +1,10 @@
 /**
- * Vercel Cron Route - Weekly Analysis
+ * Vercel Cron Route - Weekday Analysis
  * 
  * Triggered by Vercel Cron (configured in vercel.json)
  * Protected by CRON_SECRET to prevent unauthorized execution
  * 
- * Schedule: Every Sunday at 2:00 AM UTC
+ * Schedule: Monday-Friday at 2:00 AM UTC (only runs for brands with cronEnabled=true)
  */
 
 import { NextRequest, NextResponse } from 'next/server';

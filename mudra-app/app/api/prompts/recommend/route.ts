@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuthWithBrandAccess } from "@/lib/auth/require-auth"
 import { canRunRecommender, generateRecommendations } from "@/lib/services/prompt-recommender.service"
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   try {

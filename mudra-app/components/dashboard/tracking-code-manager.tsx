@@ -315,6 +315,8 @@ export default function TrackingCodeManager() {
               <AlertDescription>
                 {profile?.websitePlatform === 'framer' ? (
                   <>In Framer: Go to <strong>Site Settings → Custom Code → End of &lt;body&gt;</strong> and paste this code.</>
+                ) : profile?.websitePlatform === 'webflow' ? (
+                  <>In Webflow: Go to <strong>Site Settings → Custom Code → Footer Code</strong> and paste this code on every page.</>
                 ) : (
                   <>Copy this code and paste it before the closing <code>&lt;/body&gt;</code> tag on all pages of your website.</>
                 )}

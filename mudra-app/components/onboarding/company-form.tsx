@@ -292,6 +292,7 @@ export function CompanyForm() {
             <SelectContent className="bg-[#161616] border-white/[0.06]">
               <SelectItem value="__none__" className="text-white/50 hover:bg-white/[0.06] focus:bg-white/[0.06]">None</SelectItem>
               <SelectItem value="framer" className="text-white hover:bg-white/[0.06] focus:bg-white/[0.06]">Framer</SelectItem>
+              <SelectItem value="webflow" className="text-white hover:bg-white/[0.06] focus:bg-white/[0.06]">Webflow</SelectItem>
             </SelectContent>
           </Select>
         </div>

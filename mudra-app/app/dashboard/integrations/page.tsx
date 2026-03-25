@@ -250,7 +250,7 @@ function IntegrationsPageInner() {
                     className={filterView === 'installed' ? 'h-8 rounded-full bg-white text-black hover:bg-white/90 transition-all duration-200' : 'h-8 rounded-full bg-[#1b1b1b] hover:bg-[#1f1f1f] text-white/70 hover:text-white border-0 transition-all duration-200'}
                     onClick={() => setFilterView('installed')}
                   >
-                    Installed {githubConnected ? 1 : 0}
+                    Installed {(githubConnected ? 1 : 0) + (websitePlatform ? 1 : 0)}
                   </Button>
                 </div>
 
@@ -300,6 +300,50 @@ function IntegrationsPageInner() {
                         className="w-full h-10 rounded-full bg-white text-black hover:bg-white/90 text-sm font-medium"
                       >
                         Select Framer
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="group relative overflow-hidden bg-[#1b1b1b] rounded-lg border border-white/[0.04]">
+                  <CardHeader className="border-0 pb-1">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-center size-8 rounded-full bg-white/5 border border-white/10">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-white/70">
+                            <path d="M17.803 6.072c-1.024 1.01-1.724 2.186-2.1 3.527l-2.658 6.168c-.107.24-.347.24-.454 0l-1.725-4.308c-.107-.24-.347-.24-.454 0l-1.725 4.308c-.107.24-.347.24-.454 0L5.575 9.599c-.376-1.341-1.076-2.518-2.1-3.527h3.85c.644 0 1.192.422 1.387 1.021l1.064 2.984c.107.24.347.24.454 0l1.509-3.505c.107-.24.347-.24.454 0l1.509 3.505c.107.24.347.24.454 0l1.064-2.984c.195-.599.743-1.021 1.387-1.021h3.85z"/>
+                          </svg>
+                        </div>
+                        <CardTitle className="text-white text-base font-semibold">Webflow</CardTitle>
+                      </div>
+                      {websitePlatform === 'webflow' && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full border border-green-500/20 bg-green-500/10 text-green-400">Active</span>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-[15px] text-white/80 leading-relaxed">
+                      Select Webflow as your platform so Mudra provides Webflow-specific instructions with generated code
+                    </p>
+                    {websitePlatform === 'webflow' ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded-lg border border-green-500/20">
+                          <Check className="h-4 w-4 text-green-500" />
+                          <span className="text-sm text-green-400">Webflow selected</span>
+                        </div>
+                        <Button
+                          onClick={() => handlePlatformSave('')}
+                          className="w-full h-10 rounded-full bg-white/10 hover:bg-white/15 text-white text-sm font-medium"
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={() => handlePlatformSave('webflow')}
+                        className="w-full h-10 rounded-full bg-white text-black hover:bg-white/90 text-sm font-medium"
+                      >
+                        Select Webflow
                       </Button>
                     )}
                   </CardContent>

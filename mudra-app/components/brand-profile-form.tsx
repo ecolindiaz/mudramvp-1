@@ -377,6 +377,7 @@ export function BrandProfileForm() {
               <SelectContent className="bg-[#161616] border-white/[0.06]">
                 <SelectItem value="__none__">None</SelectItem>
                 <SelectItem value="framer">Framer</SelectItem>
+                <SelectItem value="webflow">Webflow</SelectItem>
               </SelectContent>
             </Select>
           </div>

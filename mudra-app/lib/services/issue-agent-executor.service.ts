@@ -39,7 +39,7 @@ import {
   promptAlignmentScorer,
   EVAL_MODEL,
 } from '@/src/mastra/evals'
-import { createFaithfulnessScorer } from '@mastra/evals/scorers/prebuilt'
+import { createFaithfulnessScorer, createHallucinationScorer } from '@mastra/evals/scorers/prebuilt'
 import type { ScorerRunInputForAgent, ScorerRunOutputForAgent } from '@mastra/core/evals'
 import { createHash } from 'crypto'
 import { readSchemaKnowledge, readFaqTemplates } from '@/lib/analysis/technical/knowledge'
@@ -433,10 +433,24 @@ export async function resolveFrameworkAwareFilePath(
     const candidates = mapUrlToFile(targetUrl, repoStructure, contentType, isGlobalContent)
 
     if (candidates.length > 0) {
-      // Verify the top candidate actually exists in the repo's page catalog
-      const bestCandidate = repoStructure.pageFiles.find(pf =>
-        candidates.some(c => pf === c || pf.endsWith(c))
-      ) || candidates[0]
+      // Find the first candidate (in priority order) that exists in pageFiles.
+      // Previously we iterated pageFiles first, which could match the root fallback
+      // before the specific page (e.g., /request-access → src/app/page.tsx instead
+      // of src/app/request-access/page.tsx). Now we iterate candidates in priority order.
+      let bestCandidate: string | null = null
+      for (const candidate of candidates) {
+        const match = repoStructure.pageFiles.find(pf => 
+          pf === candidate || pf.endsWith(candidate) || candidate.endsWith(pf)
+        )
+        if (match) {
+          bestCandidate = match
+          break
+        }
+      }
+      // Fallback to first candidate if no match found in pageFiles
+      if (!bestCandidate) {
+        bestCandidate = candidates[0]
+      }
 
       console.log(`[IssueExecutor] Framework-aware path: ${bestCandidate} (from ${candidates.length} candidates)`)
       return { filePath: bestCandidate, framework: repoStructure.framework, hasSrcDir: repoStructure.hasSrcDir, repoStructure }
@@ -1204,22 +1218,28 @@ async function runProductionScoring(
   // Build scorer list — alignment scorer needs system prompt, so skip it
   // when no system prompt is available (it uses evaluationMode: 'both').
   //
-  // Faithfulness scorer needs context to evaluate against. Extract it from
-  // the prompt (same sections the hallucination scorer's getContext parses).
-  // Without context, it scores everything as 0 ("no context was provided").
+  // Extract context from the prompt for scorers that need it.
+  // Both faithfulness and hallucination scorers need context to evaluate against.
+  // Without explicit context, hallucination scorer's getContext callback may fail
+  // to extract text from Mastra's run.input format, causing false "no context" scores.
   const contextChunks: string[] = extractContextFromPrompt(prompt)
 
-  // Create a context-aware faithfulness scorer for this specific run
+  // Create context-aware scorers with explicit context for this run.
+  // This bypasses the getContext callback which may fail to parse run.input.
   const contextAwareFaithfulness = contextChunks.length > 0
     ? createFaithfulnessScorer({ model: EVAL_MODEL, options: { context: contextChunks } })
     : faithfulnessScorer // fall back to static scorer if no context found
+
+  const contextAwareHallucination = contextChunks.length > 0
+    ? createHallucinationScorer({ model: EVAL_MODEL, options: { context: contextChunks } })
+    : hallucinationScorer // fall back to static scorer (uses getContext callback)
 
   // Use a minimal interface for the scorer array — each scorer has different
   // generic params but they all share the same .run() signature.
   type AnyScorer = { run(args: { input: ScorerRunInputForAgent; output: ScorerRunOutputForAgent }): Promise<{ score: unknown; reason?: string }> }
 
   const scorers: Array<{ key: string; scorer: AnyScorer; field: keyof Omit<ScoringResult, 'details'> }> = [
-    { key: 'hallucination', scorer: hallucinationScorer, field: 'hallucination' },
+    { key: 'hallucination', scorer: contextAwareHallucination, field: 'hallucination' },
     { key: 'faithfulness', scorer: contextAwareFaithfulness, field: 'faithfulness' },
     { key: 'relevancy', scorer: relevancyScorer, field: 'relevancy' },
   ]

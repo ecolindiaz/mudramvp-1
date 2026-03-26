@@ -26,6 +26,105 @@ import {
 export const EVAL_MODEL = 'anthropic/claude-sonnet-4-5-20250929'
 
 /**
+ * Extract raw text from structured scorer input.
+ * Handles multiple formats:
+ * - Raw strings
+ * - ScorerRunInputForAgent: { inputMessages: [{ content: { parts: [{ text }] } }] }
+ * - Mastra run context: { input: { messages: [...] } } or { input: string }
+ */
+function extractTextFromInput(input: unknown): string {
+  // Already a string
+  if (typeof input === 'string') return input
+
+  if (input && typeof input === 'object') {
+    const obj = input as Record<string, unknown>
+
+    // Check for inputMessages array (ScorerRunInputForAgent format)
+    if (Array.isArray(obj.inputMessages)) {
+      const texts: string[] = []
+      for (const msg of obj.inputMessages) {
+        if (msg && typeof msg === 'object') {
+          const msgObj = msg as Record<string, unknown>
+          // Handle content.parts[].text structure
+          if (msgObj.content && typeof msgObj.content === 'object') {
+            const content = msgObj.content as Record<string, unknown>
+            if (Array.isArray(content.parts)) {
+              for (const part of content.parts) {
+                if (part && typeof part === 'object' && 'text' in part) {
+                  texts.push(String((part as { text: unknown }).text))
+                }
+              }
+            }
+          }
+          // Handle simple content string
+          if (typeof msgObj.content === 'string') {
+            texts.push(msgObj.content)
+          }
+        }
+      }
+      if (texts.length > 0) return texts.join('\n')
+    }
+
+    // Check for nested input property (Mastra run context wrapping)
+    if ('input' in obj) {
+      const nestedInput = obj.input
+      if (typeof nestedInput === 'string') return nestedInput
+      if (nestedInput && typeof nestedInput === 'object') {
+        // Recursively extract from nested input
+        return extractTextFromInput(nestedInput)
+      }
+    }
+
+    // Check for messages array (alternative format)
+    if (Array.isArray(obj.messages)) {
+      const texts: string[] = []
+      for (const msg of obj.messages) {
+        if (msg && typeof msg === 'object') {
+          const msgObj = msg as Record<string, unknown>
+          if (typeof msgObj.content === 'string') {
+            texts.push(msgObj.content)
+          }
+        }
+      }
+      if (texts.length > 0) return texts.join('\n')
+    }
+  }
+
+  // Fallback: stringify and hope regex works
+  const stringified = JSON.stringify(input)
+  console.warn(`[extractTextFromInput] Falling back to JSON.stringify (${stringified.slice(0, 100)}...)`)
+  return stringified
+}
+
+/**
+ * Extract context sections from prompt text for eval scoring.
+ * Shared helper for hallucination scorer.
+ */
+function extractContextSections(promptText: string): string[] {
+  const contextChunks: string[] = []
+
+  // Extract "Live Page Content" section
+  const pageContentMatch = promptText.match(/## Live Page Content[\s\S]*?```markdown\n([\s\S]*?)```/)
+  if (pageContentMatch) {
+    contextChunks.push(`Page content: ${pageContentMatch[1].trim()}`)
+  }
+
+  // Extract "Source File" section
+  const sourceFileMatch = promptText.match(/## Source File[\s\S]*?```tsx?\n([\s\S]*?)```/)
+  if (sourceFileMatch) {
+    contextChunks.push(`Source file: ${sourceFileMatch[1].trim()}`)
+  }
+
+  // Extract brand info
+  const brandMatch = promptText.match(/## Brand\n([\s\S]*?)(?=\n## |$)/)
+  if (brandMatch) {
+    contextChunks.push(`Brand info: ${brandMatch[1].trim()}`)
+  }
+
+  return contextChunks
+}
+
+/**
  * Hallucination Scorer
  * 
  * Detects factual contradictions and unsupported claims.
@@ -41,31 +140,22 @@ export const hallucinationScorer = createHallucinationScorer({
   model: EVAL_MODEL,
   options: {
     getContext: ({ run }) => {
-      // Extract context sections from the agent's input prompt
-      const input = typeof run.input === 'string' ? run.input : JSON.stringify(run.input)
-      const contextChunks: string[] = []
+      // Extract raw text from structured message input
+      const promptText = extractTextFromInput(run.input)
+      
+      // Parse context sections from the prompt
+      const contextChunks = extractContextSections(promptText)
 
-      // Extract "Live Page Content" section
-      const pageContentMatch = input.match(/## Live Page Content[\s\S]*?```markdown\n([\s\S]*?)```/)
-      if (pageContentMatch) {
-        contextChunks.push(`Page content: ${pageContentMatch[1].trim()}`)
-      }
-
-      // Extract "Source File" section
-      const sourceFileMatch = input.match(/## Source File[\s\S]*?```tsx?\n([\s\S]*?)```/)
-      if (sourceFileMatch) {
-        contextChunks.push(`Source file: ${sourceFileMatch[1].trim()}`)
-      }
-
-      // Extract brand info
-      const brandMatch = input.match(/## Brand\n([\s\S]*?)(?=\n## |$)/)
-      if (brandMatch) {
-        contextChunks.push(`Brand info: ${brandMatch[1].trim()}`)
-      }
-
-      // If no context found, flag everything as potentially hallucinated
+      // If no context found, return empty array so scorer doesn't assume
+      // everything is hallucinated. The scorer will handle missing context.
       if (contextChunks.length === 0) {
-        contextChunks.push('No context was provided to the agent.')
+        // Log for debugging but don't inject false "no context" message
+        console.warn('[HallucinationScorer] No context sections found in prompt')
+        // Return brand name at minimum if we can find it
+        const brandMatch = promptText.match(/\*\*Company\*\*:\s*([^\n]+)/)
+        if (brandMatch) {
+          contextChunks.push(`Brand: ${brandMatch[1].trim()}`)
+        }
       }
 
       return contextChunks

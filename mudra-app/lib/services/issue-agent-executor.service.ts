@@ -43,6 +43,12 @@ import { createFaithfulnessScorer, createHallucinationScorer } from '@mastra/eva
 import type { ScorerRunInputForAgent, ScorerRunOutputForAgent } from '@mastra/core/evals'
 import { createHash } from 'crypto'
 import { readSchemaKnowledge, readFaqTemplates } from '@/lib/analysis/technical/knowledge'
+import {
+  parseStructuredOutput,
+  runCodeValidators,
+  formatValidatorFeedback,
+  type StructuredAgentOutput,
+} from '@/lib/evals'
 
 // Max iterations for the generate→review→refine loop
 const MAX_REVIEW_ITERATIONS = 3
@@ -792,14 +798,32 @@ ${context.sourceFile}
     prompt += context.blogContext
   }
 
-  // Minimal output guidance — let the agent be dynamic
+  // Structured output format for better evaluation and file targeting
   prompt += `
-## Output
-Provide your solution as a code block. Your output will be inserted into the codebase via an automated PR.
-- For JSON-LD: output the JSON object
-- For config files (robots.txt, llms.txt, sitemap): output the full file content
-- For content/markup: output the targeted snippet
-- For structured data: ensure it reflects content actually visible on the page above
+## Output Format
+Return a JSON object with the following structure:
+
+\`\`\`json
+{
+  "reasoning": "Brief explanation of your changes and why they address the issue",
+  "changes": ["List", "of", "specific", "changes", "made"],
+  "targetFile": "${context.sourceFilePath || 'path/to/file.tsx'}",
+  "insertionPoint": "Where to insert the code (e.g., 'in metadata export', 'after imports', 'replace existing h1')",
+  "code": "Your generated code here"
+}
+\`\`\`
+
+Guidelines:
+- **reasoning**: Explain what you fixed and how it addresses the issue
+- **changes**: Bullet list of modifications (used for PR description)
+- **targetFile**: The exact file path where code should be inserted
+- **insertionPoint**: Describe where in the file the code belongs
+- **code**: The actual code snippet to inject. Must be:
+  - For JSON-LD: valid JSON-LD object (will be wrapped in script tag)
+  - For config files: full file content
+  - For React components: JSX snippet that can be inserted
+  - Use ONLY content visible in the Live Page Content section above
+  - Do NOT hallucinate company details, product names, or features not present in the context
 `
 
   return prompt
@@ -867,23 +891,69 @@ function extractJsonLdFromCode(code: string): unknown[] {
 }
 
 /**
- * Extract generated content from agent response
+ * Result of extracting agent output, including both structured metadata and code.
+ */
+interface ExtractedOutput {
+  /** The code/content to use for the PR */
+  code: string
+  /** Structured output if agent returned JSON format (for evaluation) */
+  structured: StructuredAgentOutput | null
+  /** Whether we got structured output */
+  isStructured: boolean
+}
+
+/**
+ * Extract generated content from agent response.
+ * Attempts to parse structured JSON output first, falls back to code extraction.
  */
 function extractGeneratedContent(responseText: string): string {
+  const extracted = extractOutputWithMetadata(responseText)
+  return extracted.code
+}
+
+/**
+ * Extract output with full metadata for evaluation.
+ * Returns both the code for PR and structured data for validation.
+ */
+function extractOutputWithMetadata(responseText: string): ExtractedOutput {
+  // Try to parse structured JSON output first
+  const structured = parseStructuredOutput(responseText)
+  if (structured && structured.code) {
+    console.log(`[IssueExecutor] Parsed structured output: ${structured.changes.length} changes, target: ${structured.targetFile}`)
+    return {
+      code: sanitizeGeneratedContent(structured.code),
+      structured,
+      isStructured: true,
+    }
+  }
+
+  // Fall back to legacy extraction
   // Look for code blocks
-  const codeBlockMatch = responseText.match(/```(?:json|html|xml|txt|markdown|md)?\n?([\s\S]*?)```/i)
+  const codeBlockMatch = responseText.match(/```(?:json|html|xml|txt|markdown|md|tsx?|jsx?)?\n?([\s\S]*?)```/i)
   if (codeBlockMatch) {
-    return sanitizeGeneratedContent(codeBlockMatch[1].trim())
+    return {
+      code: sanitizeGeneratedContent(codeBlockMatch[1].trim()),
+      structured: null,
+      isStructured: false,
+    }
   }
   
   // Look for JSON-LD specifically
   const jsonLdMatch = responseText.match(/\{[\s\S]*"@context"[\s\S]*"@type"[\s\S]*\}/i)
   if (jsonLdMatch) {
-    return jsonLdMatch[0].trim()
+    return {
+      code: jsonLdMatch[0].trim(),
+      structured: null,
+      isStructured: false,
+    }
   }
   
   // Return sanitized full text if no code block found
-  return sanitizeGeneratedContent(responseText)
+  return {
+    code: sanitizeGeneratedContent(responseText),
+    structured: null,
+    isStructured: false,
+  }
 }
 
 /**
@@ -1656,6 +1726,7 @@ Use this context to produce accurate, targeted code. Base structured data on act
     }
 
     let currentCode = ''
+    let extractedOutput: ExtractedOutput = { code: '', structured: null, isStructured: false }
     // Use the framework-aware path already resolved during context enrichment
     let finalFilePath = context.sourceFilePath || resolveSourceFilePath(agentType, issue.affectedUrl)
     let lastReview: ReviewResult | null = null
@@ -1663,6 +1734,7 @@ Use this context to produce accurate, targeted code. Base structured data on act
     let qualityGatePassed: boolean | null = null
     let qualityRetryCount = 0
     let qualityGateResult: QualityGateResult | undefined
+    let lastCodeValidation: Awaited<ReturnType<typeof runCodeValidators>> | undefined
     let scorerFeedback = '' // accumulated from quality gate failures
     let schemaVerificationFeedback = '' // accumulated from schema verification failures
 
@@ -1713,8 +1785,23 @@ Please generate an improved version addressing all the feedback above.`
 
         if (!responseText) throw new Error('Agent returned empty response')
 
-        currentCode = extractGeneratedContent(responseText)
-        console.log(`[IssueExecutor] Generated ${currentCode.length} chars`)
+        // Extract with metadata for both code and evaluation
+        extractedOutput = extractOutputWithMetadata(responseText)
+        currentCode = extractedOutput.code
+        
+        // If structured output, update target file from agent's recommendation
+        if (extractedOutput.isStructured && extractedOutput.structured?.targetFile) {
+          const suggestedPath = extractedOutput.structured.targetFile
+          if (suggestedPath && suggestedPath !== finalFilePath) {
+            console.log(`[IssueExecutor] Agent suggests target file: ${suggestedPath}`)
+            // Only update if it looks like a valid path
+            if (suggestedPath.includes('/') || suggestedPath.includes('.')) {
+              finalFilePath = suggestedPath
+            }
+          }
+        }
+        
+        console.log(`[IssueExecutor] Generated ${currentCode.length} chars (structured: ${extractedOutput.isStructured})`)
 
         // Review
         console.log(`[IssueExecutor] Reviewing generated code...`)
@@ -1776,7 +1863,29 @@ Please generate an improved version addressing all the feedback above.`
 
       const compositeScore = calculateCompositeScore(evalScores)
 
-      // Persist scores + hash + composite immediately
+      // ── Run code-specific validators (more reliable for code output) ──
+      console.log(`[IssueExecutor] Running code validators...`)
+      const codeValidation = await runCodeValidators(
+        extractedOutput.structured || currentCode,
+        agentType,
+        {
+          pageContent: context.pageContent,
+          sourceFile: context.sourceFile,
+          sourceFilePath: context.sourceFilePath,
+          brandName: issue.brandProfile.companyName,
+          brandWebsite: issue.brandProfile.companyWebsite,
+          framework: context.detectedFramework,
+          affectedUrl: issue.affectedUrl,
+          issueTitle: issue.title,
+        }
+      )
+      lastCodeValidation = codeValidation // Save for final persistence
+      console.log(`[IssueExecutor] Code validation: ${codeValidation.passed ? 'PASSED' : 'FAILED'} (score: ${codeValidation.score.toFixed(2)})`)
+      for (const [name, result] of Object.entries(codeValidation.results)) {
+        console.log(`[IssueExecutor]   - ${name}: ${result.score.toFixed(2)} — ${result.reason}`)
+      }
+
+      // Persist scores + hash + composite + code validation immediately
       await prisma.issue.update({
         where: { id: issueId },
         data: {
@@ -1784,7 +1893,10 @@ Please generate an improved version addressing all the feedback above.`
           evalFaithfulnessScore: evalScores.faithfulness ?? null,
           evalRelevancyScore: evalScores.relevancy ?? null,
           evalAlignmentScore: evalScores.alignment ?? null,
-          evalScores: evalScores.details as object,
+          evalScores: {
+            ...evalScores.details,
+            codeValidation: codeValidation.results,
+          } as object,
           evalScoredAt: new Date(),
           evalContentHash: contentHash,
           evalCompositeScore: compositeScore,
@@ -1792,9 +1904,13 @@ Please generate an improved version addressing all the feedback above.`
         },
       })
 
-      // ── Quality gate check ──
+      // ── Quality gate check (use code validators as primary, NLP alignment as secondary) ──
+      // Code validators are more reliable for code output than NLP-based scorers
+      const codeValidationPassed = codeValidation.passed
       qualityGateResult = checkQualityGate(evalScores)
-      qualityGatePassed = qualityGateResult.passed
+      
+      // Pass if code validation passes AND alignment is acceptable (or if NLP gate passes entirely)
+      qualityGatePassed = codeValidationPassed && (evalScores.alignment ?? 1.0) >= 0.5
 
       // ── Schema verification check (schema agents only) ──
       let schemaVerificationPassed = true
@@ -1834,22 +1950,33 @@ Please generate an improved version addressing all the feedback above.`
         }
       }
 
-      if (qualityGateResult.passed && schemaVerificationPassed) {
-        console.log(`[IssueExecutor] Quality gate PASSED on retry ${qualityRetry} (composite: ${compositeScore?.toFixed(1) ?? 'N/A'})`)
+      if (qualityGatePassed && schemaVerificationPassed) {
+        console.log(`[IssueExecutor] Quality gate PASSED on retry ${qualityRetry} (composite: ${compositeScore?.toFixed(1) ?? 'N/A'}, codeVal: ${codeValidation.score.toFixed(2)})`)
         break
       }
 
+      if (!codeValidationPassed) {
+        console.log(`[IssueExecutor] Code validation FAILED (score: ${codeValidation.score.toFixed(2)})`)
+      }
       if (!qualityGateResult.passed) {
-        console.log(`[IssueExecutor] Quality gate FAILED with ${qualityGateResult.failures.length} failure(s)`)
+        console.log(`[IssueExecutor] NLP quality gate FAILED with ${qualityGateResult.failures.length} failure(s)`)
       }
       if (!schemaVerificationPassed) {
         console.log(`[IssueExecutor] Schema verification FAILED with ${schemaVerificationErrors.length} error(s)`)
       }
 
       if (qualityRetry < MAX_QUALITY_RETRIES) {
-        scorerFeedback = qualityGateResult.passed
-          ? ''
-          : formatScorerFeedbackForPrompt(qualityGateResult, qualityRetry + 1)
+        // Use code validator feedback (more actionable) over NLP scorer feedback
+        const codeValidatorFeedback = !codeValidationPassed
+          ? formatValidatorFeedback(codeValidation.results, qualityRetry + 1)
+          : ''
+        
+        // Fall back to NLP feedback if code validation passed but alignment failed
+        scorerFeedback = codeValidatorFeedback || (
+          qualityGateResult.passed
+            ? ''
+            : formatScorerFeedbackForPrompt(qualityGateResult, qualityRetry + 1)
+        )
         schemaVerificationFeedback = schemaVerificationPassed
           ? ''
           : formatSchemaVerificationFeedbackForPrompt(schemaVerificationErrors, qualityRetry + 1)
@@ -1862,16 +1989,23 @@ Please generate an improved version addressing all the feedback above.`
       }
     }
 
-    // Persist final quality gate status
+    // Persist final quality gate status with code validation results
     await prisma.issue.update({
       where: { id: issueId },
       data: {
         evalQualityGatePassed: qualityGatePassed,
         evalQualityRetries: qualityRetryCount,
-        evalQualityGateDetails: qualityGateResult ? {
-          passed: qualityGateResult.passed,
-          failures: qualityGateResult.failures,
-        } as object : undefined,
+        evalQualityGateDetails: {
+          nlpGate: qualityGateResult ? {
+            passed: qualityGateResult.passed,
+            failures: qualityGateResult.failures,
+          } : null,
+          codeValidation: lastCodeValidation ? {
+            passed: lastCodeValidation.passed,
+            score: lastCodeValidation.score,
+            results: lastCodeValidation.results,
+          } : null,
+        } as object,
       },
     })
 

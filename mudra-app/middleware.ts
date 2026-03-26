@@ -12,6 +12,7 @@ const PUBLIC_ROUTES = [
     '/api/health',
     '/api/analytics',
     '/api/track',       // AI referral tracking endpoint (must be public for external scripts)
+    '/api/cron',        // Cron endpoints use CRON_SECRET for auth, not session
     '/images',
     '/_next',
     '/favicon.ico',

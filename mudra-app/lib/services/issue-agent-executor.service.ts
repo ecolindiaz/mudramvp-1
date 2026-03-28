@@ -619,6 +619,17 @@ function isSchemaAgentType(agentType: string): boolean {
   return agentType === 'schema_markup'
 }
 
+function isConfigFileAgentType(agentType: string): boolean {
+  return [
+    'site_config',
+    'robots_txt',
+    'sitemap',
+    'llms_txt',
+    'llms_txt_missing',
+    'llms_txt_optimizer',
+  ].includes(agentType)
+}
+
 /**
  * Extract the page type from an issue description.
  * The scorer embeds `<!-- PAGE_TYPE: ... -->` in FAQ_count issues.
@@ -1819,6 +1830,7 @@ Use this context to produce accurate, targeted code. Base structured data on act
     let scorerFeedback = '' // accumulated from quality gate failures
     let schemaVerificationFeedback = '' // accumulated from schema verification failures
     const maxQualityRetries = isSchemaAgentType(agentType) ? MAX_SCHEMA_QUALITY_RETRIES : MAX_QUALITY_RETRIES
+    const bypassNlpQualityGate = isConfigFileAgentType(agentType)
 
     for (let qualityRetry = 0; qualityRetry <= maxQualityRetries; qualityRetry++) {
       qualityRetryCount = qualityRetry
@@ -1938,19 +1950,24 @@ Please generate an improved version addressing all the feedback above.`
       // ── Scoring (with cache check) ──
       const contentHash = computeEvalContentHash(basePrompt, currentCode)
 
-      const cachedScores = await getCachedScores(contentHash, issueId)
-      if (cachedScores) {
-        evalScores = cachedScores
-        console.log(`[IssueExecutor] Using cached eval scores`)
+      if (bypassNlpQualityGate) {
+        evalScores = { details: {} }
+        console.log(`[IssueExecutor] Skipping production eval scoring for config-file agent "${agentType}"`) 
       } else {
-        try {
-          console.log(`[IssueExecutor] Running production eval scoring...`)
-          evalScores = await runProductionScoring(basePrompt, currentCode, systemPrompt)
-          const scoreCount = Object.keys(evalScores.details).length
-          console.log(`[IssueExecutor] Eval scoring complete: ${scoreCount}/4 scorers returned results`)
-        } catch (scoringError) {
-          console.warn(`[IssueExecutor] Scoring failed:`, scoringError instanceof Error ? scoringError.message : scoringError)
-          break // Can't check quality gate without scores
+        const cachedScores = await getCachedScores(contentHash, issueId)
+        if (cachedScores) {
+          evalScores = cachedScores
+          console.log(`[IssueExecutor] Using cached eval scores`)
+        } else {
+          try {
+            console.log(`[IssueExecutor] Running production eval scoring...`)
+            evalScores = await runProductionScoring(basePrompt, currentCode, systemPrompt)
+            const scoreCount = Object.keys(evalScores.details).length
+            console.log(`[IssueExecutor] Eval scoring complete: ${scoreCount}/4 scorers returned results`)
+          } catch (scoringError) {
+            console.warn(`[IssueExecutor] Scoring failed:`, scoringError instanceof Error ? scoringError.message : scoringError)
+            break // Can't check quality gate without scores
+          }
         }
       }
 
@@ -1997,13 +2014,17 @@ Please generate an improved version addressing all the feedback above.`
         },
       })
 
-      // ── Quality gate check (use code validators as primary, NLP alignment as secondary) ──
-      // Code validators are more reliable for code output than NLP-based scorers
+      // ── Quality gate check (code validators primary; NLP gate optional) ──
       const codeValidationPassed = codeValidation.passed
-      qualityGateResult = checkQualityGate(evalScores)
-      
-      // Pass if code validation passes AND alignment is acceptable (or if NLP gate passes entirely)
-      qualityGatePassed = codeValidationPassed && (evalScores.alignment ?? 1.0) >= 0.5
+      if (bypassNlpQualityGate) {
+        qualityGateResult = { passed: true, failures: [] }
+        qualityGatePassed = codeValidationPassed
+        console.log(`[IssueExecutor] NLP quality gate bypassed for config-file agent "${agentType}"`)
+      } else {
+        qualityGateResult = checkQualityGate(evalScores)
+        // Pass if code validation passes AND alignment is acceptable.
+        qualityGatePassed = codeValidationPassed && (evalScores.alignment ?? 1.0) >= 0.5
+      }
 
       // ── Schema verification check (schema agents only) ──
       let schemaVerificationPassed = true
@@ -2051,7 +2072,7 @@ Please generate an improved version addressing all the feedback above.`
       if (!codeValidationPassed) {
         console.log(`[IssueExecutor] Code validation FAILED (score: ${codeValidation.score.toFixed(2)})`)
       }
-      if (!qualityGateResult.passed) {
+      if (!bypassNlpQualityGate && !qualityGateResult.passed) {
         console.log(`[IssueExecutor] NLP quality gate FAILED with ${qualityGateResult.failures.length} failure(s)`)
       }
       if (!schemaVerificationPassed) {
@@ -2066,7 +2087,7 @@ Please generate an improved version addressing all the feedback above.`
         
         // Fall back to NLP feedback if code validation passed but alignment failed
         scorerFeedback = codeValidatorFeedback || (
-          qualityGateResult.passed
+          bypassNlpQualityGate || qualityGateResult.passed
             ? ''
             : formatScorerFeedbackForPrompt(qualityGateResult, qualityRetry + 1)
         )

@@ -56,6 +56,10 @@ const MAX_REVIEW_ITERATIONS = 3
 // Outer loop: if eval scores or schema verification fail, retry the generate→review→refine cycle
 const MAX_QUALITY_RETRIES = 2
 
+// Schema generations are typically slower (high-reasoning model + schema verification).
+// Keep retries lower to avoid hitting Vercel 300s function timeout.
+const MAX_SCHEMA_QUALITY_RETRIES = 1
+
 // Quality thresholds for the gate check
 const QUALITY_THRESHOLDS = {
   minFaithfulness: 0.7,
@@ -66,6 +70,9 @@ const QUALITY_THRESHOLDS = {
 
 // Timeout for agent generation (deploy route has maxDuration=300s on Vercel Pro)
 const AGENT_TIMEOUT_MS = 120_000
+
+// End execution early if there is not enough budget left for another full attempt.
+const EXECUTION_SOFT_TIMEOUT_MS = 270_000
 
 // Direct OpenAI client for schema injection agent (GPT-5.2 high reasoning)
 const openai = new OpenAI({
@@ -975,6 +982,12 @@ function sanitizeGeneratedContent(content: string): string {
       // Not valid JSON, continue cleaning
     }
   }
+
+  // If JSON-LD appears inside wrappers (component/script), extract and normalize it.
+  const jsonLdObject = extractFirstJsonLdObjectString(cleaned)
+  if (jsonLdObject) {
+    return jsonLdObject
+  }
   
   // If it's a standalone config file (robots.txt, llms.txt, sitemap), return as-is
   if (cleaned.startsWith('User-agent:') || cleaned.startsWith('# ') || cleaned.startsWith('<?xml')) {
@@ -1045,12 +1058,7 @@ function sanitizeGeneratedContent(content: string): string {
     // Extract the JSX from inside the return statement
     const returnMatch = cleaned.match(/return\s*\(([\s\S]*?)\)\s*;?\s*\}\s*$/)
     if (returnMatch) {
-      let jsx = returnMatch[1].trim()
-      // Strip the outermost wrapper div/fragment if it's just a container
-      const outerWrapperMatch = jsx.match(/^<(?:div|>|React\.Fragment)[^>]*>([\s\S]*)<\/(?:div|>|React\.Fragment)>$/)
-      if (outerWrapperMatch) {
-        jsx = outerWrapperMatch[1].trim()
-      }
+      const jsx = returnMatch[1].trim()
       if (jsx.length > 20) {
         cleaned = jsx
         console.log(`[IssueExecutor] Extracted JSX content from component (${cleaned.length} chars)`)
@@ -1059,6 +1067,73 @@ function sanitizeGeneratedContent(content: string): string {
   }
   
   return cleaned
+}
+
+/**
+ * Extract the first valid JSON-LD object from mixed content.
+ * Supports script-tag payloads and brace-balanced raw objects.
+ */
+function extractFirstJsonLdObjectString(content: string): string | null {
+  const scriptMatch = content.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i)
+  if (scriptMatch?.[1]) {
+    const candidate = scriptMatch[1].trim()
+    try {
+      const parsed = JSON.parse(candidate)
+      if (parsed && typeof parsed === 'object' && '@context' in parsed) {
+        return JSON.stringify(parsed, null, 2)
+      }
+    } catch {
+      // Fall through to brace-balanced extraction.
+    }
+  }
+
+  const contextIdx = content.indexOf('"@context"')
+  if (contextIdx === -1) return null
+
+  let start = contextIdx
+  while (start >= 0 && content[start] !== '{') start--
+  if (start < 0) return null
+
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let i = start; i < content.length; i++) {
+    const ch = content[i]
+    if (inString) {
+      if (escaped) {
+        escaped = false
+      } else if (ch === '\\') {
+        escaped = true
+      } else if (ch === '"') {
+        inString = false
+      }
+      continue
+    }
+
+    if (ch === '"') {
+      inString = true
+      continue
+    }
+
+    if (ch === '{') depth++
+    if (ch === '}') {
+      depth--
+      if (depth === 0) {
+        const candidate = content.slice(start, i + 1)
+        try {
+          const parsed = JSON.parse(candidate)
+          if (parsed && typeof parsed === 'object' && '@context' in parsed) {
+            return JSON.stringify(parsed, null, 2)
+          }
+        } catch {
+          return null
+        }
+      }
+    }
+  }
+
+  return null
 }
 
 /**
@@ -1664,6 +1739,12 @@ You will be given:
 
 Use the knowledge base below as your authoritative reference for which properties to include, their types, and validation rules. Base all property values on actual page content.
 
+OUTPUT CONTRACT:
+- Return ONLY the required structured JSON wrapper with fields: reasoning, changes, targetFile, insertionPoint, and code.
+- code must be JSON only (no TSX/JSX, no React component, no imports/exports, no markdown fences, no <script> tag).
+- If multiple schema types are requested (e.g. Product + BreadcrumbList + FAQPage), return a single JSON-LD object using @graph.
+- Never return full page/component replacements.
+
 ${schemaKb}`
     } else if (agentType === 'faq_sections') {
       const pageType = parsePageTypeFromDescription(issue.description) || 'home'
@@ -1737,12 +1818,24 @@ Use this context to produce accurate, targeted code. Base structured data on act
     let lastCodeValidation: Awaited<ReturnType<typeof runCodeValidators>> | undefined
     let scorerFeedback = '' // accumulated from quality gate failures
     let schemaVerificationFeedback = '' // accumulated from schema verification failures
+    const maxQualityRetries = isSchemaAgentType(agentType) ? MAX_SCHEMA_QUALITY_RETRIES : MAX_QUALITY_RETRIES
 
-    for (let qualityRetry = 0; qualityRetry <= MAX_QUALITY_RETRIES; qualityRetry++) {
+    for (let qualityRetry = 0; qualityRetry <= maxQualityRetries; qualityRetry++) {
       qualityRetryCount = qualityRetry
 
+      const elapsedMs = Date.now() - agentStartTime
+      const remainingMs = EXECUTION_SOFT_TIMEOUT_MS - elapsedMs
+      const minMsNeededForAttempt = AGENT_TIMEOUT_MS + SCORING_TIMEOUT_MS + 10_000
+      if (qualityRetry > 0 && remainingMs < minMsNeededForAttempt) {
+        console.warn(
+          `[IssueExecutor] Skipping quality retry ${qualityRetry}: low runtime budget (${remainingMs}ms remaining, need ~${minMsNeededForAttempt}ms)`
+        )
+        qualityGatePassed = false
+        break
+      }
+
       if (qualityRetry > 0) {
-        console.log(`[IssueExecutor] === QUALITY RETRY ${qualityRetry}/${MAX_QUALITY_RETRIES} ===`)
+        console.log(`[IssueExecutor] === QUALITY RETRY ${qualityRetry}/${maxQualityRetries} ===`)
       }
 
       // ── Inner generate→review→refine loop ──
@@ -1965,7 +2058,7 @@ Please generate an improved version addressing all the feedback above.`
         console.log(`[IssueExecutor] Schema verification FAILED with ${schemaVerificationErrors.length} error(s)`)
       }
 
-      if (qualityRetry < MAX_QUALITY_RETRIES) {
+      if (qualityRetry < maxQualityRetries) {
         // Use code validator feedback (more actionable) over NLP scorer feedback
         const codeValidatorFeedback = !codeValidationPassed
           ? formatValidatorFeedback(codeValidation.results, qualityRetry + 1)
@@ -1985,7 +2078,7 @@ Please generate an improved version addressing all the feedback above.`
         if (!schemaVerificationPassed) {
           throw new Error(`Schema verification failed: ${schemaVerificationErrors.join('; ')}`)
         }
-        console.warn(`[IssueExecutor] Quality gate failed after all ${MAX_QUALITY_RETRIES + 1} attempts — will NOT create PR`)
+        console.warn(`[IssueExecutor] Quality gate failed after all ${maxQualityRetries + 1} attempts — will NOT create PR`)
       }
     }
 

@@ -112,35 +112,62 @@ export async function GET(request: NextRequest) {
     }
 
     // Group by status for Kanban view
-    // Cap identified issues to avoid overwhelming the user — show the top 10 by priority,
-    // balanced across categories so both technical and AI visibility issues are represented.
+    // The "Identified" column uses batch-aware logic:
+    //   - Issues from PRIOR runs that are still identified ("carry-over") are always shown
+    //   - Slots freed up by completed carry-over issues are filled from the LATEST run's new issues
+    //   - Completing an issue does NOT immediately pull in a new one mid-day
     const MAX_IDENTIFIED_DISPLAY = 10
     const SLOTS_PER_CATEGORY = 5
-    const allIdentified = filteredIssues.filter(i => i.status === 'identified')
-    const techIdentified = allIdentified.filter(i => i.category === 'technical_structure')
-    const aiIdentified = allIdentified.filter(i => i.category === 'ai_visibility')
 
-    // Take up to SLOTS_PER_CATEGORY from each, then fill remaining from whichever has more
-    const techSlice = techIdentified.slice(0, SLOTS_PER_CATEGORY)
-    const aiSlice = aiIdentified.slice(0, SLOTS_PER_CATEGORY)
-    const used = techSlice.length + aiSlice.length
-    const remaining = MAX_IDENTIFIED_DISPLAY - used
+    // Find the most recent analysis run to determine the current batch
+    const lastAnalysisRun = await prisma.analysisRun.findFirst({
+      where: { brandProfileId: brandProfile.id },
+      orderBy: { ranAt: 'desc' },
+      select: { id: true }
+    })
 
-    let balancedIdentified: typeof allIdentified
-    if (remaining > 0 && techIdentified.length > SLOTS_PER_CATEGORY) {
-      balancedIdentified = [...techSlice, ...aiSlice, ...techIdentified.slice(SLOTS_PER_CATEGORY, SLOTS_PER_CATEGORY + remaining)]
-    } else if (remaining > 0 && aiIdentified.length > SLOTS_PER_CATEGORY) {
-      balancedIdentified = [...techSlice, ...aiSlice, ...aiIdentified.slice(SLOTS_PER_CATEGORY, SLOTS_PER_CATEGORY + remaining)]
+    const allIdentifiedIssues = filteredIssues.filter(i => i.status === 'identified')
+
+    // Carry-over: identified issues from runs OTHER than the latest (or legacy issues with no runId)
+    // These always show — the user hasn't finished them yet
+    const carryOver = lastAnalysisRun
+      ? allIdentifiedIssues.filter(i => (i as { analysisRunId?: number | null }).analysisRunId !== lastAnalysisRun.id)
+      : allIdentifiedIssues
+
+    // New batch: identified issues stamped with the latest run
+    const newBatch = lastAnalysisRun
+      ? allIdentifiedIssues.filter(i => (i as { analysisRunId?: number | null }).analysisRunId === lastAnalysisRun.id)
+      : []
+
+    // How many new slots are available after carry-over fills the board
+    const newSlots = Math.max(0, MAX_IDENTIFIED_DISPLAY - carryOver.length)
+
+    // Fill new slots with top-priority issues from the new batch, balanced by category
+    const newTech = newBatch.filter(i => i.category === 'technical_structure')
+    const newAi = newBatch.filter(i => i.category === 'ai_visibility')
+    const newTechSlice = newTech.slice(0, SLOTS_PER_CATEGORY)
+    const newAiSlice = newAi.slice(0, Math.min(SLOTS_PER_CATEGORY, newSlots))
+    const usedNewSlots = newTechSlice.length + newAiSlice.length
+    const remainingNewSlots = newSlots - usedNewSlots
+    let newBatchSlice: typeof newBatch
+    if (remainingNewSlots > 0 && newTech.length > SLOTS_PER_CATEGORY) {
+      newBatchSlice = [...newTechSlice, ...newAiSlice, ...newTech.slice(SLOTS_PER_CATEGORY, SLOTS_PER_CATEGORY + remainingNewSlots)]
+    } else if (remainingNewSlots > 0 && newAi.length > SLOTS_PER_CATEGORY) {
+      newBatchSlice = [...newTechSlice, ...newAiSlice, ...newAi.slice(SLOTS_PER_CATEGORY, SLOTS_PER_CATEGORY + remainingNewSlots)]
     } else {
-      balancedIdentified = [...techSlice, ...aiSlice]
+      newBatchSlice = [...newTechSlice, ...newAiSlice]
     }
+    // Cap the new batch fill to available slots
+    newBatchSlice = newBatchSlice.slice(0, newSlots)
+
+    const allIdentified = [...carryOver, ...newBatchSlice]
 
     // Re-sort combined set by priority (high > medium > low)
     const priorityRank: Record<string, number> = { high: 0, medium: 1, low: 2 }
-    balancedIdentified.sort((a, b) => (priorityRank[a.priority ?? 'medium'] ?? 1) - (priorityRank[b.priority ?? 'medium'] ?? 1))
+    allIdentified.sort((a, b) => (priorityRank[a.priority ?? 'medium'] ?? 1) - (priorityRank[b.priority ?? 'medium'] ?? 1))
 
     const grouped = {
-      identified: balancedIdentified,
+      identified: allIdentified,
       in_progress: filteredIssues.filter(i => i.status === 'in_progress'),
       completed: filteredIssues.filter(i => i.status === 'completed'),
       merged: filteredIssues.filter(i => i.status === 'merged')
@@ -161,7 +188,7 @@ export async function GET(request: NextRequest) {
         grouped,
         counts: {
           total: filteredIssues.length,
-          identified: allIdentified.length,
+          identified: allIdentifiedIssues.length,
           identifiedShown: grouped.identified.length,
           in_progress: grouped.in_progress.length,
           completed: grouped.completed.length,

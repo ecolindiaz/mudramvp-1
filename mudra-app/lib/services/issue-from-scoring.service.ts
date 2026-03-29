@@ -160,7 +160,8 @@ export function generateIssueHashWithUrl(
  */
 export async function createIssuesFromPageScore(
   brandProfileId: number,
-  pageScore: FullPageScore
+  pageScore: FullPageScore,
+  analysisRunId?: number
 ): Promise<{ created: number; updated: number; skipped: number }> {
   // Skip non-marketing pages — they produce irrelevant issues
   if (NON_MARKETING_PAGE_TYPES.has(pageScore.page_type)) {
@@ -285,6 +286,7 @@ export async function createIssuesFromPageScore(
             priority: mapSeverityToPriority(issue.severity),
             estimatedImpact: impact,
             checkCode: check,
+            analysisRunId: analysisRunId ?? undefined,
             updatedAt: new Date()
           }
         })
@@ -313,7 +315,8 @@ export async function createIssuesFromPageScore(
         discoveredFromScore: pageScore.scores.total,
         sourceAnalysis: 'technical_analysis',
         issueHash: hash,
-        checkCode: check
+        checkCode: check,
+        analysisRunId: analysisRunId ?? undefined
       }
     })
     created++
@@ -348,7 +351,8 @@ function getPageName(url: string): string {
  */
 export async function createIssuesFromMultiplePageScores(
   brandProfileId: number,
-  pageScores: FullPageScore[]
+  pageScores: FullPageScore[],
+  analysisRunId?: number
 ): Promise<{ totalCreated: number; totalUpdated: number; totalSkipped: number }> {
   let totalCreated = 0
   let totalUpdated = 0
@@ -365,7 +369,7 @@ export async function createIssuesFromMultiplePageScores(
       break
     }
 
-    const result = await createIssuesFromPageScore(brandProfileId, pageScore)
+    const result = await createIssuesFromPageScore(brandProfileId, pageScore, analysisRunId)
     totalCreated += result.created
     totalUpdated += result.updated
     totalSkipped += result.skipped

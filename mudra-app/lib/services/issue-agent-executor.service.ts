@@ -627,6 +627,7 @@ function isConfigFileAgentType(agentType: string): boolean {
     'llms_txt',
     'llms_txt_missing',
     'llms_txt_optimizer',
+    'meta_optimization',
   ].includes(agentType)
 }
 
@@ -1806,6 +1807,20 @@ You will be given:
 Use the templates below as guidance for what kinds of questions to generate. Adapt them to the actual page content.
 
 ${faqKb}`
+    } else if (agentType === 'meta_optimization') {
+      systemPrompt = `You are a metadata optimization specialist. You make precise, minimal changes to add or fix metadata in Next.js/React pages for SEO and AI visibility.
+
+Your task is ALWAYS a small, targeted change — never rewrite the whole component.
+
+OUTPUT CONTRACT:
+- Return ONLY the required structured JSON wrapper with fields: reasoning, changes, targetFile, insertionPoint, and code.
+- code must be ONLY the metadata snippet to add or modify (e.g. the export const metadata object, or a <link rel="canonical"> tag).
+- For Next.js App Router files: output a TypeScript metadata export or update to the existing one.
+  Example: export const metadata: Metadata = { alternates: { canonical: 'https://example.com/page' } }
+- For Next.js Pages Router files: output only the <Head> tag contents (no full component).
+- NEVER return a full React component, full file replacement, or any import/export other than the metadata export itself.
+- NEVER wrap output in a React component function.
+- If the file already has a metadata export, output only the updated metadata export (not the rest of the file).`
     } else {
       systemPrompt = `You are a GEO (Generative Engine Optimization) code generation agent. You generate code that will be committed to the user's repository via an automated PR.
 

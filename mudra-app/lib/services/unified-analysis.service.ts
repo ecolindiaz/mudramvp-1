@@ -386,7 +386,13 @@ async function runPostAnalysisSteps(
     onProgress?.({ phase: 'issues', status: 'started' });
     try {
       const { discoverIssues } = await import('./issue-discovery.service');
-      const discoveryResult = await discoverIssues(config.brandProfileId);
+      // Fetch the latest analysis run so issues can be stamped with the correct batch
+      const latestRun = await prisma.analysisRun.findFirst({
+        where: { brandProfileId: config.brandProfileId },
+        orderBy: { ranAt: 'desc' },
+        select: { id: true },
+      });
+      const discoveryResult = await discoverIssues(config.brandProfileId, latestRun?.id);
       console.log(`[Unified Analysis] Issue discovery: ${discoveryResult.discovered} new issues`);
 
       if (discoveryResult.discovered > 0) {
@@ -1249,7 +1255,13 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
       console.log(`[Technical Core] Revealing issues for ${pagesToReveal.length}/${sortedScores.length} pages (index ${currentIndex} -> ${newIndex})`);
 
       const { createIssuesFromMultiplePageScores } = await import('./issue-from-scoring.service');
-      const issueResult = await createIssuesFromMultiplePageScores(config.brandProfileId, pagesToReveal);
+      // Stamp issues with the current analysis run so the Identified column can freeze the batch
+      const latestRunForIssues = await prisma.analysisRun.findFirst({
+        where: { brandProfileId: config.brandProfileId },
+        orderBy: { ranAt: 'desc' },
+        select: { id: true },
+      });
+      const issueResult = await createIssuesFromMultiplePageScores(config.brandProfileId, pagesToReveal, latestRunForIssues?.id);
       console.log(`[Technical Core] Issues: ${issueResult.totalCreated} created, ${issueResult.totalUpdated} updated, ${issueResult.totalSkipped} skipped`);
 
       // Update page index for next run

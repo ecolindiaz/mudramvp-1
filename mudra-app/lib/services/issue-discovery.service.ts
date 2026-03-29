@@ -376,7 +376,8 @@ async function discoverAIVisibilityIssues(
  */
 async function upsertDiscoveredIssues(
   brandProfileId: number,
-  issues: DiscoveredIssue[]
+  issues: DiscoveredIssue[],
+  analysisRunId?: number
 ): Promise<number> {
   let created = 0
 
@@ -422,7 +423,8 @@ async function upsertDiscoveredIssues(
         sourceAnalysis: issue.category === 'technical_structure'
           ? 'technical_analysis'
           : 'geo_analysis',
-        issueHash: hash
+        issueHash: hash,
+        analysisRunId: analysisRunId ?? undefined
       }
     })
     created++
@@ -439,7 +441,7 @@ async function upsertDiscoveredIssues(
  * (unified-analysis.service.ts Step 8.5 calls createIssuesFromMultiplePageScores).
  * This function only discovers AI visibility issues.
  */
-export async function discoverIssues(brandProfileId: number): Promise<DiscoveryResult> {
+export async function discoverIssues(brandProfileId: number, analysisRunId?: number): Promise<DiscoveryResult> {
   console.log(`[IssueDiscovery] Starting discovery for brand ${brandProfileId}`)
 
   // 1. Get current AI visibility score for policy-based issues
@@ -451,7 +453,7 @@ export async function discoverIssues(brandProfileId: number): Promise<DiscoveryR
   console.log(`[IssueDiscovery] AI Visibility: ${aiVisibilityIssues.length} found`)
 
   // 3. Upsert AI visibility issues
-  const created = await upsertDiscoveredIssues(brandProfileId, aiVisibilityIssues)
+  const created = await upsertDiscoveredIssues(brandProfileId, aiVisibilityIssues, analysisRunId)
   console.log(`[IssueDiscovery] Total created: ${created}`)
 
   // 4. Calculate tier distribution

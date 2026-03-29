@@ -115,6 +115,7 @@ model AnalysisRun {
   ranAt          DateTime     @default(now())
   completedAt    DateTime?
   brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  issues         Issue[]
 
   @@index([brandProfileId])
   @@index([brandProfileId, ranAt])
@@ -189,14 +190,19 @@ model Issue {
   issueHash          String?      @unique
   checkCode          String?
 
+  // Batch tracking — which analysis run created/re-opened this issue
+  analysisRunId      Int?
+
   // Relations
   brandProfile       BrandProfile  @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
   deployedAgent      DeployedAgent? @relation(fields: [deployedAgentId], references: [id])
   agentTask          AgentTask?    @relation(fields: [agentTaskId], references: [id])
+  analysisRun        AnalysisRun?  @relation(fields: [analysisRunId], references: [id], onDelete: SetNull)
 
   @@index([brandProfileId])
   @@index([brandProfileId, status])
   @@index([brandProfileId, category])
+  @@index([brandProfileId, analysisRunId])
   @@index([category, discoveryTier])
   @@index([evalContentHash])
   @@index([agentTaskId])

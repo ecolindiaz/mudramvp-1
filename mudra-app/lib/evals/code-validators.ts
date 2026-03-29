@@ -81,6 +81,10 @@ const ISSUE_REQUIREMENTS: Record<string, {
     requiredPatterns: [/canonical|alternates/i],
     description: 'Canonical URL link or alternates',
   },
+  'meta_optimization': {
+    requiredPatterns: [/canonical|alternates|metadata|<title>|description/i],
+    description: 'Metadata export or canonical URL',
+  },
   'robots_txt': {
     requiredPatterns: [/User-agent:/i],
     description: 'robots.txt with User-agent directive',

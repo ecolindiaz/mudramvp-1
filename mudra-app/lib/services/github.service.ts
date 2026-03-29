@@ -1477,6 +1477,15 @@ ${improvements.map((imp, idx) => `
       fileContent = insertCodeIntoFile(existingFileContent, improvement.code, targetFilePath)
       commitMessage = `Add GEO optimization: ${improvement.description}`
       console.log(`[GitHub] Modifying existing file: ${targetFilePath}`)
+    } else if (isStandaloneFile) {
+      // STANDALONE FILE: Create the file at the requested path with raw content
+      console.log(`[GitHub] ❌ No existing standalone file found at ${requestedFilePath}`)
+      console.log(`[GitHub] Creating standalone file: ${requestedFilePath}`)
+      
+      targetFilePath = requestedFilePath
+      fileContent = improvement.code
+      commitMessage = `Create ${requestedFilePath}: ${improvement.description}`
+      console.log(`[GitHub] Created new standalone file: ${targetFilePath}`)
     } else {
       // NO EXISTING FILE: Create index.html with the optimization code
       console.log(`[GitHub] ❌ No existing file found in any of the ${allPaths.length} checked paths`)

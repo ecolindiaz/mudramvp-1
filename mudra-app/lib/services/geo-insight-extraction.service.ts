@@ -60,10 +60,10 @@ export async function extractGeoInsights(
   }
 
   try {
-    // 1. Check backlog threshold
+    // 1. Check backlog threshold (count ALL identified issues, not just ai_visibility)
     if (!options?.forceExtraction) {
       const identifiedCount = await prisma.issue.count({
-        where: { brandProfileId, status: 'identified', category: 'ai_visibility' },
+        where: { brandProfileId, status: 'identified' },
       })
       if (identifiedCount >= ISSUE_BACKLOG_THRESHOLD) {
         console.log(`[GeoInsight] Skipping: ${identifiedCount} identified issues pending (threshold: ${ISSUE_BACKLOG_THRESHOLD})`)

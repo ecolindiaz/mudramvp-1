@@ -17,7 +17,8 @@ import {
   createIssuesFromPageScore,
 } from './issue-from-scoring.service'
 import type { FullPageScore } from '@/lib/analysis/technical/types'
-
+/** Max identified issues (across all categories) before we stop creating new ones */
+const ISSUE_BACKLOG_THRESHOLD = 10
 // Types
 export type IssueCategory = 'technical_structure' | 'ai_visibility'
 export type DiscoveryTier = 'fundamental' | 'intermediate' | 'advanced' | 'polish'
@@ -382,6 +383,15 @@ async function upsertDiscoveredIssues(
   let created = 0
 
   for (const issue of issues) {
+    // Enforce global backlog threshold across all categories
+    const identifiedCount = await prisma.issue.count({
+      where: { brandProfileId, status: 'identified' },
+    })
+    if (identifiedCount >= ISSUE_BACKLOG_THRESHOLD) {
+      console.log(`[IssueDiscovery] Stopping AI visibility upsert: ${identifiedCount} identified issues already pending (threshold: ${ISSUE_BACKLOG_THRESHOLD})`)
+      break
+    }
+
     const hash = generateIssueHash(brandProfileId, issue.category, issue.title)
 
     // Check if issue already exists (by hash)

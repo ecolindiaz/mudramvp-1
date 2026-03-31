@@ -723,9 +723,9 @@ async function runTechnicalAnalysisCore(config: UnifiedAnalysisConfig, onProgres
     // Extract domain from website URL
     let domain: string;
     try {
-      domain = new URL(config.website).hostname;
+      domain = new URL(config.website).hostname.replace(/^www\./i, '');
     } catch {
-      domain = config.website.replace(/^https?:\/\//, '').split('/')[0];
+      domain = config.website.replace(/^https?:\/\//, '').split('/')[0].replace(/^www\./i, '');
     }
 
     console.log('[Technical Core] Starting multi-page analysis for:', domain);

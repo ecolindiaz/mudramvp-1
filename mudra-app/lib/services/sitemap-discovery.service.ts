@@ -154,6 +154,8 @@ function normalizeDomain(domain: string): string {
 	let normalized = domain.replace(/^https?:\/\//, "");
 	// Remove trailing slashes
 	normalized = normalized.replace(/\/+$/, "");
+	// Strip www. so subdomains like compute.hivenet.com aren't broken
+	normalized = normalized.replace(/^www\./i, "");
 	// Add https protocol
 	return `https://${normalized}`;
 }

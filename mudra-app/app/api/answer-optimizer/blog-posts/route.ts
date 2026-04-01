@@ -11,10 +11,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'brandProfileId required' }, { status: 400 });
   }
 
+  // Include pages typed as blog OR pages with blog-like URLs (page_type can be null for manually added pages)
   const pages = await prisma.sitemapPage.findMany({
     where: {
       brand_profile_id: parseInt(brandProfileId),
-      page_type: { in: ['blog_post', 'article', 'blog', 'post'] },
+      OR: [
+        { page_type: { in: ['blog_post', 'article', 'blog', 'post'] } },
+        { page_url: { contains: '/blog/' } },
+        { page_url: { contains: '/posts/' } },
+        { page_url: { contains: '/articles/' } },
+      ],
     },
     select: {
       id: true,
@@ -22,7 +28,7 @@ export async function GET(request: NextRequest) {
       page_type: true,
       last_modified: true,
     },
-    orderBy: { last_modified: 'desc' },
+    orderBy: { updated_at: 'desc' },
     take: 100,
   });
 

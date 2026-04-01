@@ -6,13 +6,37 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/auth/require-auth';
 import type { PromptTest, Citation } from '@/lib/services/direct-geo-analysis.service';
-import { firecrawlScraperTool } from '@/src/mastra/tools/firecrawl-scraper';
-import { firecrawlSearchTool } from '@/src/mastra/tools/firecrawl-search';
+import { getFirecrawlClient } from '@/src/mastra/tools/firecrawl-client';
 import { gapAnalysisAgent, gapAnalysisOutputSchema } from '@/src/mastra/agents/gap-analysis-agent';
 import { researchAgent, researchOutputSchema } from '@/src/mastra/agents/research-agent';
 import { contentOptimizerAgent, optimizationOutputSchema } from '@/src/mastra/agents/content-optimizer-agent';
 import { computeContentDiff, computeDiffStats } from '@/lib/utils/compute-content-diff';
 import { prisma } from '@/lib/prisma';
+
+async function scrapeUrl(url: string) {
+  const fc = getFirecrawlClient();
+  try {
+    const r = await fc.scrapeUrl(url, { formats: ['markdown'], onlyMainContent: true, timeout: 30000 });
+    if (!r.success) return { success: false as const, url, markdown: '', title: '', error: r.error };
+    return { success: true as const, url, title: r.metadata?.title || '', markdown: r.markdown || '' };
+  } catch (e: any) {
+    return { success: false as const, url, markdown: '', title: '', error: e.message };
+  }
+}
+
+async function searchWeb(query: string, limit = 5, maxAgeMonths = 10) {
+  const fc = getFirecrawlClient();
+  const now = new Date();
+  const min = new Date(now); min.setMonth(min.getMonth() - maxAgeMonths);
+  const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+  try {
+    const res = await fc.search(query, { limit, tbs: `cdr:1,cd_min:${fmt(min)},cd_max:${fmt(now)}`, scrapeOptions: { formats: ['markdown'], onlyMainContent: true } });
+    if (!res.success) return { success: false as const, results: [] as any[] };
+    return { success: true as const, results: (res.data || []).map((i: any) => ({ url: i.url || '', title: i.title || '', description: i.description || '', markdown: (i.markdown || '').slice(0, 2000) })) };
+  } catch {
+    return { success: false as const, results: [] as any[] };
+  }
+}
 
 export const maxDuration = 540;
 
@@ -104,7 +128,7 @@ export async function POST(request: NextRequest) {
       // Phase 1: Scrape Existing Page
       await sendEvent({ phase: 'scrape-page', status: 'started', stepIndex, totalSteps });
 
-      const scrapeResult = await firecrawlScraperTool.execute!({ url: pageUrl });
+      const scrapeResult = await scrapeUrl(pageUrl);
       if (!scrapeResult.success || !scrapeResult.markdown) {
         await sendEvent({ phase: 'scrape-page', status: 'failed', message: scrapeResult.error || 'Failed to scrape page' });
         await sendEvent({ phase: 'error', status: 'failed', message: 'Could not scrape the target page' });
@@ -174,7 +198,7 @@ export async function POST(request: NextRequest) {
 
         for (const url of urlsToScrape) {
           try {
-            const result = await firecrawlScraperTool.execute!({ url });
+            const result = await scrapeUrl(url);
             if (result.success && result.markdown) {
               citedSourceContent.push({
                 url: result.url,
@@ -232,8 +256,8 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
       await sendEvent({ phase: 'faq-research', status: 'started', stepIndex, totalSteps });
 
       const [faqSearch, paaSearch] = await Promise.allSettled([
-        firecrawlSearchTool.execute!({ query: `${coreQuery} FAQ`, limit: 5, maxAgeMonths: 12 }),
-        firecrawlSearchTool.execute!({ query: `${coreQuery} questions people ask`, limit: 5, maxAgeMonths: 12 }),
+        searchWeb(`${coreQuery} FAQ`, 5, 12),
+        searchWeb(`${coreQuery} questions people ask`, 5, 12),
       ]);
 
       const allFaqContent: string[] = [];
@@ -266,14 +290,12 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
       if (tools.competitorAnalysis) {
         await sendEvent({ phase: 'competitor-analysis', status: 'started', stepIndex, totalSteps });
 
-        const competitorSearch = await firecrawlSearchTool.execute!({
-          query: coreQuery, limit: 5, maxAgeMonths: 10,
-        });
+        const competitorSearch = await searchWeb(coreQuery, 5, 10);
 
         const competitorPages: Array<{ url: string; title: string; wordCount: number; headings: number }> = [];
         if (competitorSearch.success) {
           for (const result of competitorSearch.results.slice(0, 5)) {
-            const scrape = await firecrawlScraperTool.execute!({ url: result.url });
+            const scrape = await scrapeUrl(result.url);
             if (scrape.success && scrape.markdown) {
               competitorPages.push({
                 url: result.url,

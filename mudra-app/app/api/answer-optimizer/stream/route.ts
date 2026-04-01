@@ -47,6 +47,8 @@ interface ProgressEvent {
   data?: Record<string, any>;
   stepIndex?: number;
   totalSteps?: number;
+  /** Milliseconds since pipeline start — used by frontend for accurate timing */
+  pipelineMs?: number;
 }
 
 const DEPTH_TARGETS = {
@@ -81,12 +83,28 @@ export async function POST(request: NextRequest) {
     return new Response(JSON.stringify({ error: 'pageUrl and promptText required' }), { status: 400 });
   }
 
+  const runId = `ao_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  const pipelineStart = Date.now();
+  const elapsed = () => `${((Date.now() - pipelineStart) / 1000).toFixed(1)}s`;
+
+  console.log(`[AnswerOptimizer ${runId}] Pipeline started`, {
+    pageUrl,
+    promptText: promptText.slice(0, 80),
+    brandProfileId,
+    depthLevel,
+    voiceTone,
+    icpDescription: icpDescription ? icpDescription.slice(0, 60) : '(none)',
+    enabledTools,
+    userId: authResult.user.id,
+  });
+
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
 
   const sendEvent = async (event: ProgressEvent) => {
     try {
+      event.pipelineMs = Date.now() - pipelineStart;
       await writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
     } catch { /* writer closed */ }
   };
@@ -128,8 +146,10 @@ export async function POST(request: NextRequest) {
       // Phase 1: Scrape Existing Page
       await sendEvent({ phase: 'scrape-page', status: 'started', stepIndex, totalSteps });
 
+      const phaseStart = Date.now();
       const scrapeResult = await scrapeUrl(pageUrl);
       if (!scrapeResult.success || !scrapeResult.markdown) {
+        console.error(`[AnswerOptimizer ${runId}] Phase 1 scrape-page FAILED at ${elapsed()}:`, scrapeResult.error || 'Empty markdown');
         await sendEvent({ phase: 'scrape-page', status: 'failed', message: scrapeResult.error || 'Failed to scrape page' });
         await sendEvent({ phase: 'error', status: 'failed', message: 'Could not scrape the target page' });
         return;
@@ -138,6 +158,10 @@ export async function POST(request: NextRequest) {
       originalMarkdown = scrapeResult.markdown;
       originalWordCount = originalMarkdown.split(/\s+/).filter(Boolean).length;
       headingStructure = (originalMarkdown.match(/^##\s+.+$/gm) || []).map(h => h.replace(/^##\s+/, ''));
+
+      console.log(`[AnswerOptimizer ${runId}] Phase 1 scrape-page completed in ${((Date.now() - phaseStart) / 1000).toFixed(1)}s:`, {
+        wordCount: originalWordCount, headingCount: headingStructure.length, title: scrapeResult.title,
+      });
 
       await sendEvent({
         phase: 'scrape-page', status: 'completed', stepIndex: stepIndex++, totalSteps,
@@ -148,6 +172,7 @@ export async function POST(request: NextRequest) {
       // Instead of running live queries (expensive + exhausts connection pool),
       // we pull from the most recent GeoAnalysisResult for this brand + prompt.
       if (tools.queryAiModels) {
+        const p2Start = Date.now();
         await sendEvent({ phase: 'query-ai', status: 'started', stepIndex, totalSteps });
 
         try {
@@ -180,8 +205,12 @@ export async function POST(request: NextRequest) {
           }
           allCitations = Array.from(seen.values());
         } catch (err) {
-          console.error('[AnswerOptimizer] Phase 2 - Error fetching GEO results:', err);
+          console.error(`[AnswerOptimizer ${runId}] Phase 2 query-ai FAILED at ${elapsed()}:`, err);
         }
+
+        console.log(`[AnswerOptimizer ${runId}] Phase 2 query-ai completed in ${((Date.now() - p2Start) / 1000).toFixed(1)}s:`, {
+          aiResponses: aiResponses.length, citations: allCitations.length,
+        });
 
         await sendEvent({
           phase: 'query-ai', status: 'completed', stepIndex: stepIndex++, totalSteps,
@@ -191,6 +220,7 @@ export async function POST(request: NextRequest) {
 
       // Phase 3: Scrape AI Citations (top 5, sequentially to avoid overwhelming Firecrawl)
       if (tools.scrapeCitations && tools.queryAiModels && allCitations.length > 0) {
+        const p3Start = Date.now();
         await sendEvent({ phase: 'scrape-citations', status: 'started', stepIndex, totalSteps });
 
         const urlsToScrape = allCitations.slice(0, 5).map(c => c.url);
@@ -206,12 +236,17 @@ export async function POST(request: NextRequest) {
                 markdown: result.markdown.slice(0, 3000),
               });
             } else {
+              console.warn(`[AnswerOptimizer ${runId}] Citation scrape failed for ${url}`);
               failedCount++;
             }
           } catch {
             failedCount++;
           }
         }
+
+        console.log(`[AnswerOptimizer ${runId}] Phase 3 scrape-citations completed in ${((Date.now() - p3Start) / 1000).toFixed(1)}s:`, {
+          scraped: citedSourceContent.length, failed: failedCount,
+        });
 
         await sendEvent({
           phase: 'scrape-citations', status: 'completed', stepIndex: stepIndex++, totalSteps,
@@ -220,6 +255,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Phase 4: Derive Core Search Query
+      const p4Start = Date.now();
       await sendEvent({ phase: 'derive-query', status: 'started', stepIndex, totalSteps });
 
       try {
@@ -242,10 +278,15 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
           coreQuery = promptText;
           queryIntent = 'informational';
         }
-      } catch {
+      } catch (err) {
+        console.warn(`[AnswerOptimizer ${runId}] Phase 4 derive-query fallback to promptText:`, err);
         coreQuery = promptText;
         queryIntent = 'informational';
       }
+
+      console.log(`[AnswerOptimizer ${runId}] Phase 4 derive-query completed in ${((Date.now() - p4Start) / 1000).toFixed(1)}s:`, {
+        coreQuery, intent: queryIntent,
+      });
 
       await sendEvent({
         phase: 'derive-query', status: 'completed', stepIndex: stepIndex++, totalSteps,
@@ -253,6 +294,7 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
       });
 
       // Phase 5: FAQ + PAA Research
+      const p5Start = Date.now();
       await sendEvent({ phase: 'faq-research', status: 'started', stepIndex, totalSteps });
 
       const [faqSearch, paaSearch] = await Promise.allSettled([
@@ -281,6 +323,10 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
         answerDraft: '',
       }));
 
+      console.log(`[AnswerOptimizer ${runId}] Phase 5 faq-research completed in ${((Date.now() - p5Start) / 1000).toFixed(1)}s:`, {
+        faqSources: allFaqContent.length, questionsExtracted: faqCandidates.length,
+      });
+
       await sendEvent({
         phase: 'faq-research', status: 'completed', stepIndex: stepIndex++, totalSteps,
         data: { questionsFound: faqCandidates.length },
@@ -288,6 +334,7 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
 
       // Phase 5b: Competitor Analysis (if enabled)
       if (tools.competitorAnalysis) {
+        const p5bStart = Date.now();
         await sendEvent({ phase: 'competitor-analysis', status: 'started', stepIndex, totalSteps });
 
         const competitorSearch = await searchWeb(coreQuery, 5, 10);
@@ -314,6 +361,10 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
             : 0,
         };
 
+        console.log(`[AnswerOptimizer ${runId}] Phase 5b competitor-analysis completed in ${((Date.now() - p5bStart) / 1000).toFixed(1)}s:`, {
+          pagesAnalyzed: competitorPages.length, avgWordCount: competitorContext.avgWordCount,
+        });
+
         await sendEvent({
           phase: 'competitor-analysis', status: 'completed', stepIndex: stepIndex++, totalSteps,
           data: { pagesAnalyzed: competitorPages.length, avgWordCount: competitorContext.avgWordCount },
@@ -321,6 +372,7 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
       }
 
       // Phase 6: Gap Analysis
+      const p6Start = Date.now();
       await sendEvent({ phase: 'gap-analysis', status: 'started', stepIndex, totalSteps });
 
       const gapPrompt = `Analyze the following content and identify gaps across four categories.
@@ -358,7 +410,8 @@ Identify content gaps, data gaps, format gaps, depth gaps, and suggest up to 7 s
           contentGaps: [], dataGaps: [], formatGaps: [], depthGaps: [],
           recommendedSearchQueries: [coreQuery + ' statistics', coreQuery + ' expert analysis'],
         };
-      } catch {
+      } catch (err) {
+        console.warn(`[AnswerOptimizer ${runId}] Phase 6 gap-analysis agent fallback:`, err);
         gapAnalysis = {
           contentGaps: ['Unable to complete full gap analysis'],
           dataGaps: ['Missing current statistics'],
@@ -368,18 +421,22 @@ Identify content gaps, data gaps, format gaps, depth gaps, and suggest up to 7 s
         };
       }
 
+      const gapCounts = {
+        contentGaps: gapAnalysis.contentGaps?.length || 0,
+        dataGaps: gapAnalysis.dataGaps?.length || 0,
+        formatGaps: gapAnalysis.formatGaps?.length || 0,
+        depthGaps: gapAnalysis.depthGaps?.length || 0,
+      };
+      console.log(`[AnswerOptimizer ${runId}] Phase 6 gap-analysis completed in ${((Date.now() - p6Start) / 1000).toFixed(1)}s:`, gapCounts);
+
       await sendEvent({
         phase: 'gap-analysis', status: 'completed', stepIndex: stepIndex++, totalSteps,
-        data: {
-          contentGaps: gapAnalysis.contentGaps?.length || 0,
-          dataGaps: gapAnalysis.dataGaps?.length || 0,
-          formatGaps: gapAnalysis.formatGaps?.length || 0,
-          depthGaps: gapAnalysis.depthGaps?.length || 0,
-        },
+        data: gapCounts,
       });
 
       // Phase 7: Research Enrichment
       if (tools.freshResearch) {
+        const p7Start = Date.now();
         await sendEvent({ phase: 'research', status: 'started', stepIndex, totalSteps });
 
         try {
@@ -405,21 +462,26 @@ IMPORTANT: Run a MAXIMUM of 7 searches. Prioritize sources from the last 12 mont
           researchData = researchResponse.object || {
             additionalSources: [], statistics: [], expertQuotes: [], recommendations: [],
           };
-        } catch {
+        } catch (err) {
+          console.warn(`[AnswerOptimizer ${runId}] Phase 7 research agent fallback:`, err);
           researchData = { additionalSources: [], statistics: [], expertQuotes: [], recommendations: [] };
         }
 
+        const researchCounts = {
+          sourcesFound: researchData.additionalSources?.length || 0,
+          statsFound: researchData.statistics?.length || 0,
+          quotesFound: researchData.expertQuotes?.length || 0,
+        };
+        console.log(`[AnswerOptimizer ${runId}] Phase 7 research completed in ${((Date.now() - p7Start) / 1000).toFixed(1)}s:`, researchCounts);
+
         await sendEvent({
           phase: 'research', status: 'completed', stepIndex: stepIndex++, totalSteps,
-          data: {
-            sourcesFound: researchData.additionalSources?.length || 0,
-            statsFound: researchData.statistics?.length || 0,
-            quotesFound: researchData.expertQuotes?.length || 0,
-          },
+          data: researchCounts,
         });
       }
 
       // Phase 8: Content Optimization
+      const p8Start = Date.now();
       await sendEvent({ phase: 'optimize', status: 'started', stepIndex, totalSteps });
 
       const depthConfig = DEPTH_TARGETS[depthLevel as keyof typeof DEPTH_TARGETS] || DEPTH_TARGETS.moderate;
@@ -499,22 +561,30 @@ Target exactly ${targetWordCount} words. Follow ${depthLevel} depth rules strict
         });
         optimizationResult = response.object;
       } catch (err: any) {
+        console.error(`[AnswerOptimizer ${runId}] Phase 8 optimize FAILED at ${elapsed()}:`, err.message || err);
         await sendEvent({ phase: 'optimize', status: 'failed', message: err.message || 'Optimization failed' });
         await sendEvent({ phase: 'error', status: 'failed', message: 'Content optimization failed' });
         return;
       }
 
       if (!optimizationResult?.optimizedContent) {
+        console.error(`[AnswerOptimizer ${runId}] Phase 8 optimize returned empty content at ${elapsed()}`);
         await sendEvent({ phase: 'error', status: 'failed', message: 'Optimizer returned empty content' });
         return;
       }
 
+      const optimizedWordCount = optimizationResult.metadata?.wordCount || 0;
+      console.log(`[AnswerOptimizer ${runId}] Phase 8 optimize completed in ${((Date.now() - p8Start) / 1000).toFixed(1)}s:`, {
+        wordCount: optimizedWordCount, targetWordCount, delta: optimizedWordCount - originalWordCount,
+      });
+
       await sendEvent({
         phase: 'optimize', status: 'completed', stepIndex: stepIndex++, totalSteps,
-        data: { wordCount: optimizationResult.metadata?.wordCount || 0 },
+        data: { wordCount: optimizedWordCount },
       });
 
       // Phase 9: Schema + Diff
+      const p9Start = Date.now();
       await sendEvent({ phase: 'finalize', status: 'started', stepIndex, totalSteps });
 
       const diffSections = computeContentDiff(originalMarkdown, optimizationResult.optimizedContent);
@@ -560,6 +630,11 @@ Target exactly ${targetWordCount} words. Follow ${depthLevel} depth rules strict
         }
       }
 
+      console.log(`[AnswerOptimizer ${runId}] Phase 9 finalize completed in ${((Date.now() - p9Start) / 1000).toFixed(1)}s:`, {
+        schemasGenerated: schemaMarkup.length, diffSections: diffSections.length,
+        diffStats,
+      });
+
       await sendEvent({
         phase: 'finalize', status: 'completed', stepIndex: stepIndex++, totalSteps,
         data: { schemasGenerated: schemaMarkup.length },
@@ -587,7 +662,16 @@ Target exactly ${targetWordCount} words. Follow ${depthLevel} depth rules strict
         },
       });
 
+      const totalDuration = ((Date.now() - pipelineStart) / 1000).toFixed(1);
+      console.log(`[AnswerOptimizer ${runId}] Pipeline completed in ${totalDuration}s`, {
+        originalWordCount,
+        optimizedWordCount: optimizationResult.metadata?.wordCount || 0,
+        schemas: schemaMarkup.length,
+        steps: stepIndex,
+      });
+
     } catch (err: any) {
+      console.error(`[AnswerOptimizer ${runId}] Pipeline FAILED at ${elapsed()}:`, err.message || err);
       await sendEvent({ phase: 'error', status: 'failed', message: err.message || 'Pipeline failed' });
     } finally {
       try { await writer.close(); } catch { /* already closed */ }

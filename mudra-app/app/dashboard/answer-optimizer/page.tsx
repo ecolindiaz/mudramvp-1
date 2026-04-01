@@ -11,6 +11,16 @@ import {
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowRight, Plus, FileText, MessageSquare, UserCircle, Mic, Pencil, RefreshCw, PenTool, ChevronDown, ChevronRight, Search, Link, Globe, Check, Loader2, Circle, X, Play, ScanText, Crosshair, HelpCircle, ListFilter, Users, Swords, Sparkles, Clock, GitCompare, SendHorizontal, Braces, type LucideIcon } from "lucide-react"
@@ -28,6 +38,8 @@ interface OptimizerSSEEvent {
   data?: Record<string, any>
   stepIndex?: number
   totalSteps?: number
+  /** Milliseconds since pipeline start — backend-authoritative timing */
+  pipelineMs?: number
 }
 
 // Phase-to-step mapping for SSE events
@@ -627,9 +639,10 @@ function PipelineStepRow({ step, status, isLast, elapsed, stepRef, isOpen, onTog
 }
 
 // --- Optimization Process View ---
-function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, activeSteps, onResult }: { onClose: () => void; onCancel: () => void; onViewDiff: () => void; requestBody?: Record<string, any>; activeSteps: PipelineStep[]; onResult?: (data: any) => void }) {
+function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, activeSteps, onResult, onPipelineData }: { onClose: () => void; onCancel: () => void; onViewDiff: () => void; requestBody?: Record<string, any>; activeSteps: PipelineStep[]; onResult?: (data: any) => void; onPipelineData?: (steps: { id: string; label: string; status: string; elapsed: number }[], totalElapsed: number) => void }) {
   const [stepStatuses, setStepStatuses] = useState<Record<string, StepStatus>>({})
   const [stepElapsed, setStepElapsed] = useState<Record<string, number>>({})
+  const stepElapsedRef = useRef<Record<string, number>>({})
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [isComplete, setIsComplete] = useState(false)
   const [isCancelled, setIsCancelled] = useState(false)
@@ -643,6 +656,8 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, a
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+  /** Backend pipelineMs when the current step started — used for accurate elapsed */
+  const stepStartMsRef = useRef<number>(0)
 
   const completedCount = Object.values(stepStatuses).filter(s => s === "completed").length
   const progressPercent = Math.round((completedCount / activeSteps.length) * 100)
@@ -710,8 +725,15 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, a
                 if (event.phase === "complete") {
                   // Mark all remaining as completed
                   setIsComplete(true)
-                  setTotalElapsed(Date.now() - startTimeRef.current)
+                  // Use backend pipeline duration if available for accuracy
+                  const finalElapsed = event.pipelineMs ?? (Date.now() - startTimeRef.current)
+                  setTotalElapsed(finalElapsed)
                   onResult?.(event.data)
+                  // Emit pipeline step data for persistence
+                  onPipelineData?.(
+                    activeSteps.map(s => ({ id: s.id, label: s.label, status: "completed", elapsed: stepElapsedRef.current[s.id] || 0 })),
+                    finalElapsed,
+                  )
                 } else if (event.phase === "error") {
                   setIsCancelled(true)
                   setTotalElapsed(Date.now() - startTimeRef.current)
@@ -721,12 +743,18 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, a
                     const idx = activeSteps.findIndex(st => st.id === stepId)
                     if (idx >= 0) {
                       setCurrentStepIndex(idx)
+                      // Use backend timestamp if available, fall back to local clock
+                      stepStartMsRef.current = event.pipelineMs ?? (Date.now() - startTimeRef.current)
                       stepStartRef.current = Date.now()
                     }
                   } else if (event.status === "completed") {
-                    const elapsed = Date.now() - stepStartRef.current
+                    // Use backend-authoritative timing to avoid SSE buffering skew
+                    const elapsed = event.pipelineMs != null
+                      ? event.pipelineMs - stepStartMsRef.current
+                      : Date.now() - stepStartRef.current
                     setStepStatuses(s => ({ ...s, [stepId]: "completed" }))
                     setStepElapsed(e => ({ ...e, [stepId]: elapsed }))
+                    stepElapsedRef.current[stepId] = elapsed
                   } else if (event.status === "failed") {
                     setStepStatuses(s => ({ ...s, [stepId]: "error" }))
                   }
@@ -866,6 +894,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   // SSE state
   const [requestBody, setRequestBody] = useState<Record<string, any> | null>(null)
   const [optimizationResult, setOptimizationResult] = useState<any>(null)
+  const [pipelineStepsData, setPipelineStepsData] = useState<{ steps: { id: string; label: string; status: string; elapsed: number }[]; totalElapsed: number } | null>(null)
   const [isApplying, setIsApplying] = useState(false)
   const router = useRouter()
 
@@ -962,6 +991,8 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               originalWordCount: optimizationResult.metadata?.originalWordCount || 0,
               optimizedWordCount: optimizationResult.metadata?.wordCount || 0,
               diffStats: optimizationResult.diffStats || {},
+              pipelineSteps: pipelineStepsData?.steps || [],
+              pipelineTotalElapsed: pipelineStepsData?.totalElapsed || 0,
             },
           },
         }),
@@ -1005,6 +1036,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 requestBody={requestBody || undefined}
                 activeSteps={activeSteps}
                 onResult={(data) => setOptimizationResult(data)}
+                onPipelineData={(steps, totalElapsed) => setPipelineStepsData({ steps, totalElapsed })}
               />
             )}
           </div>
@@ -1320,8 +1352,82 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   )
 }
 
+interface OptimizationRow {
+  id: string
+  title: string
+  status: string
+  sourceUrl: string
+  promptText: string
+  depthLevel: string
+  voiceTone: string
+  enabledTools: string[]
+  originalWordCount: number
+  optimizedWordCount: number
+  createdAt: number
+  pipelineSteps: { id: string; label: string; status: string; elapsed: number }[]
+  pipelineTotalElapsed: number
+}
+
+function formatTimeAgo(timestamp: number) {
+  const diffInSeconds = Math.floor((Date.now() - timestamp) / 1000)
+  if (diffInSeconds < 60) return "Just now"
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`
+  const days = Math.floor(diffInSeconds / 86400)
+  return days === 1 ? "1d ago" : `${days}d ago`
+}
+
+const DEPTH_LABELS: Record<string, string> = {
+  light: "Light Touch",
+  moderate: "Smart Rewrite",
+  deep: "Deep Overhaul",
+}
+
 function AnswerOptimizerPageInner() {
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [optimizations, setOptimizations] = useState<OptimizationRow[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [pipelineRow, setPipelineRow] = useState<OptimizationRow | null>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    const fetchOptimizations = async () => {
+      setIsLoading(true)
+      try {
+        const res = await fetch("/api/campaigns/save?status=all")
+        const data = await res.json()
+        if (data.success && data.campaigns) {
+          const optimizerCampaigns = data.campaigns
+            .filter((c: any) => c.mode === "optimizer")
+            .map((c: any) => {
+              const meta = typeof c.metadata === "object" && c.metadata ? c.metadata : {}
+              const src = meta.optimizerSource || {}
+              return {
+                id: c.id,
+                title: c.title,
+                status: c.status === "draft" ? "Draft" : "Published",
+                sourceUrl: src.originalUrl || "",
+                promptText: src.promptText || c.prompt || "",
+                depthLevel: src.depthLevel || "moderate",
+                voiceTone: src.voiceTone || "professional",
+                enabledTools: src.enabledTools || [],
+                originalWordCount: src.originalWordCount || 0,
+                optimizedWordCount: src.optimizedWordCount || 0,
+                createdAt: new Date(c.createdAt).getTime(),
+                pipelineSteps: src.pipelineSteps || [],
+                pipelineTotalElapsed: src.pipelineTotalElapsed || 0,
+              }
+            })
+          setOptimizations(optimizerCampaigns)
+        }
+      } catch (error) {
+        console.error("Failed to load optimizations:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchOptimizations()
+  }, [dialogOpen])
 
   return (
     <SidebarProvider
@@ -1358,57 +1464,344 @@ function AnswerOptimizerPageInner() {
             {/* Divider */}
             <div className="h-[0.25px] bg-white/10"></div>
 
-            {/* Empty State */}
             <div className="flex-1 px-4 lg:px-6 py-6">
-              <div className="flex flex-col items-center justify-center py-20 px-6 rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50">
-                {/* Illustration Card */}
-                <div aria-hidden="true" className="w-20 space-y-2.5 rounded-lg p-2.5 shadow-lg shadow-black/20 ring-1 ring-white/[0.08] bg-white/[0.04] mb-5">
-                  <div className="flex items-center gap-1.5">
-                    <div className="size-3 rounded-full bg-white/[0.12]" />
-                    <div className="h-1 w-5 rounded-full bg-white/[0.12]" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-1">
-                      <div className="h-1 w-3 rounded-full bg-white/[0.10]" />
-                      <div className="h-1 w-8 rounded-full bg-white/[0.10]" />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="h-1 w-3 rounded-full bg-white/[0.10]" />
-                      <div className="h-1 w-8 rounded-full bg-white/[0.10]" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-1 w-full rounded-full bg-white/[0.10]" />
-                    <div className="flex items-center gap-1">
-                      <div className="h-1 w-2/3 rounded-full bg-white/[0.10]" />
-                      <div className="h-1 w-1/3 rounded-full bg-white/[0.10]" />
-                    </div>
-                  </div>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto size-3 text-white/25">
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
+              {isLoading ? (
+                /* Loading skeleton */
+                <div className="rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50 overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-white/[0.04] bg-white/[0.03] hover:bg-white/[0.03]">
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Title</TableHead>
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Source URL</TableHead>
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Depth</TableHead>
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Created</TableHead>
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Status</TableHead>
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px] w-[1%]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <TableRow key={i} className="border-white/[0.04]">
+                          <TableCell className="py-3"><Skeleton className="h-4 w-48 bg-white/[0.06]" /></TableCell>
+                          <TableCell className="py-3"><Skeleton className="h-4 w-36 bg-white/[0.06]" /></TableCell>
+                          <TableCell className="py-3"><Skeleton className="h-4 w-24 bg-white/[0.06]" /></TableCell>
+                          <TableCell className="py-3"><Skeleton className="h-4 w-16 bg-white/[0.06]" /></TableCell>
+                          <TableCell className="py-3"><Skeleton className="h-4 w-16 bg-white/[0.06]" /></TableCell>
+                          <TableCell className="py-3"><Skeleton className="h-4 w-8 bg-white/[0.06]" /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
-
-                <div className="text-sm font-medium text-white/70 mb-1">No optimizations yet</div>
-                <div className="text-xs text-white/40 mb-5">
-                  Analyze AI answers about your brand and get actionable suggestions to improve visibility.
+              ) : optimizations.length === 0 ? (
+                /* Empty State */
+                <div className="flex flex-col items-center justify-center py-20 px-6 rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50">
+                  <div aria-hidden="true" className="w-20 space-y-2.5 rounded-lg p-2.5 shadow-lg shadow-black/20 ring-1 ring-white/[0.08] bg-white/[0.04] mb-5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="size-3 rounded-full bg-white/[0.12]" />
+                      <div className="h-1 w-5 rounded-full bg-white/[0.12]" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1">
+                        <div className="h-1 w-3 rounded-full bg-white/[0.10]" />
+                        <div className="h-1 w-8 rounded-full bg-white/[0.10]" />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="h-1 w-3 rounded-full bg-white/[0.10]" />
+                        <div className="h-1 w-8 rounded-full bg-white/[0.10]" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-1 w-full rounded-full bg-white/[0.10]" />
+                      <div className="flex items-center gap-1">
+                        <div className="h-1 w-2/3 rounded-full bg-white/[0.10]" />
+                        <div className="h-1 w-1/3 rounded-full bg-white/[0.10]" />
+                      </div>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto size-3 text-white/25">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  </div>
+                  <div className="text-sm font-medium text-white/70 mb-1">No optimizations yet</div>
+                  <div className="text-xs text-white/40 mb-5">
+                    Analyze AI answers about your brand and get actionable suggestions to improve visibility.
+                  </div>
+                  <Button
+                    onClick={() => setDialogOpen(true)}
+                    className="h-8 px-4 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-xs font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2"
+                  >
+                    Get Started
+                    <ArrowRight className="size-3.5" />
+                  </Button>
                 </div>
-
-                <Button
-                  onClick={() => setDialogOpen(true)}
-                  className="h-8 px-4 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-xs font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2"
-                >
-                  Get Started
-                  <ArrowRight className="size-3.5" />
-                </Button>
-              </div>
+              ) : (
+                /* Optimizations Table */
+                <div className="rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50 overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-white/[0.04] bg-white/[0.03] hover:bg-white/[0.03]">
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Title</TableHead>
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Source URL</TableHead>
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Depth</TableHead>
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Created</TableHead>
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Status</TableHead>
+                        <TableHead className="text-white/50 font-medium h-11 text-[13px] w-[1%]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {optimizations.map((o) => (
+                        <TableRow
+                          key={o.id}
+                          onClick={() => router.push(`/dashboard/campaigns/${o.id}?type=blog&mode=optimizer`)}
+                          className="border-white/[0.04] hover:bg-white/[0.03] cursor-pointer group"
+                        >
+                          <TableCell className="max-w-md py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="flex items-center justify-center size-7 rounded bg-white/[0.04] border border-white/[0.04] group-hover:bg-white/[0.06] transition-colors flex-shrink-0">
+                                <PenTool className="h-3.5 w-3.5 text-white/60 group-hover:text-white/80 transition-colors" />
+                              </div>
+                              <span className="text-[13px] font-medium text-white truncate group-hover:text-white/90 transition-colors">
+                                {o.title}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 max-w-[200px]">
+                            <span className="text-xs text-white/40 truncate block" title={o.sourceUrl}>
+                              {o.sourceUrl ? (() => { try { return new URL(o.sourceUrl).pathname } catch { return o.sourceUrl } })() : "—"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
+                              <div className="w-1.5 h-1.5 rounded-full bg-violet-400"></div>
+                              <span className="text-xs text-white/70 font-medium">
+                                {DEPTH_LABELS[o.depthLevel] || o.depthLevel}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <span className="text-xs text-white/50">{formatTimeAgo(o.createdAt)}</span>
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
+                              <div className={`w-1.5 h-1.5 rounded-full ${o.status === "Published" ? "bg-green-500" : "bg-white/40"}`}></div>
+                              <span className="text-xs text-white/70 font-medium">{o.status}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setPipelineRow(o) }}
+                              className="flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-medium transition-colors text-violet-300/70 hover:text-violet-200 hover:bg-violet-500/10 bg-violet-500/[0.04] border border-violet-500/10 whitespace-nowrap"
+                            >
+                              <Sparkles className="size-3" />
+                              Pipeline
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </SidebarInset>
 
       <NewOptimizationDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+
+      {/* Pipeline Workflow Sheet */}
+      <PipelineWorkflowSheet
+        row={pipelineRow}
+        onClose={() => setPipelineRow(null)}
+      />
     </SidebarProvider>
+  )
+}
+
+// --- Pipeline step icon lookup ---
+const STEP_ICON_MAP: Record<string, LucideIcon> = {
+  "scrape": ScanText,
+  "query-ai": Search,
+  "scrape-citations": ScanText,
+  "derive-query": Crosshair,
+  "faq-research": HelpCircle,
+  "competitor-analysis": Swords,
+  "gap-analysis": ListFilter,
+  "research": Search,
+  "content-optimization": Sparkles,
+  "finalize": GitCompare,
+}
+
+const STEP_DESCRIPTION_MAP: Record<string, string> = {
+  "scrape": "Fetching and parsing target page content",
+  "query-ai": "Querying AI models for current answers",
+  "scrape-citations": "Scraping cited sources from AI responses",
+  "derive-query": "Identifying the core search query",
+  "faq-research": "Researching FAQ & People Also Ask",
+  "competitor-analysis": "Analyzing top-ranking competitors",
+  "gap-analysis": "Identifying content gaps to fill",
+  "research": "Enriching with statistics & quotes",
+  "content-optimization": "Rewriting and optimizing content",
+  "finalize": "Computing diffs and generating schema",
+}
+
+function formatPipelineElapsed(ms: number): string {
+  const seconds = ms / 1000
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.round(seconds % 60)
+  return `${mins}m ${secs}s`
+}
+
+const TOOL_DEFS = [
+  { id: "query-ai-models", label: "AI Models", icon: Search },
+  { id: "scrape-citations", label: "Citations", icon: ScanText },
+  { id: "research-stats", label: "Research", icon: Globe },
+  { id: "competitor-analysis", label: "Competitors", icon: Swords },
+] as const
+
+function PipelineWorkflowSheet({ row, onClose }: { row: OptimizationRow | null; onClose: () => void }) {
+  const [expandedStep, setExpandedStep] = useState<string | null>(null)
+
+  if (!row) return (
+    <Sheet open={false} onOpenChange={() => {}}>
+      <SheetContent side="right" className="w-[420px] sm:max-w-[420px]" />
+    </Sheet>
+  )
+
+  const steps = row.pipelineSteps
+  const totalElapsed = row.pipelineTotalElapsed
+  const depthLabel = DEPTH_LABELS[row.depthLevel] || row.depthLevel
+
+  return (
+    <Sheet open={!!row} onOpenChange={(open) => { if (!open) onClose() }}>
+      <SheetContent side="right" className="w-[420px] sm:max-w-[420px] bg-[#141414] border-white/[0.08] text-white p-0 flex flex-col">
+        <SheetHeader className="px-5 pt-5 pb-0">
+          <SheetTitle className="text-white text-base">Optimization Pipeline</SheetTitle>
+          <p className="text-xs text-white/40 mt-0.5">
+            {depthLabel}
+            {" \u00b7 "}{row.voiceTone || "professional"}
+            {totalElapsed > 0 && ` \u00b7 ${formatPipelineElapsed(totalElapsed)} total`}
+          </p>
+        </SheetHeader>
+
+        {/* Summary bar */}
+        <div className="px-5 py-3 border-b border-white/[0.06]">
+          <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-1.5 text-white/50">
+              <ScanText className="size-3" />
+              <span className="font-mono truncate">
+                {row.sourceUrl ? (() => { try { return new URL(row.sourceUrl).pathname } catch { return row.sourceUrl } })() : "\u2014"}
+              </span>
+            </div>
+            <span className="text-white/20 shrink-0">|</span>
+            <span className="text-white/50 tabular-nums shrink-0">
+              {row.originalWordCount.toLocaleString()}
+              <span className="text-white/20 mx-1">&rarr;</span>
+              {row.optimizedWordCount.toLocaleString()}
+              {row.optimizedWordCount > row.originalWordCount && (
+                <span className="text-emerald-400/70 ml-1">
+                  +{(row.optimizedWordCount - row.originalWordCount).toLocaleString()}
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+
+        {/* Tools used */}
+        <div className="px-5 py-3 border-b border-white/[0.06]">
+          <div className="flex flex-wrap gap-1.5">
+            {TOOL_DEFS.map((tool) => {
+              if (!row.enabledTools.includes(tool.id)) return null
+              return (
+                <div
+                  key={tool.id}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-violet-500/10 text-violet-300/80 border border-violet-500/20"
+                >
+                  <tool.icon className="size-3" />
+                  {tool.label}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Pipeline steps */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-0.5">
+          {steps.length > 0 ? (
+            steps.map((step, i) => {
+              const StepIcon = STEP_ICON_MAP[step.id] || Sparkles
+              const isExpanded = expandedStep === step.id
+              const description = STEP_DESCRIPTION_MAP[step.id] || ""
+
+              return (
+                <div key={step.id}>
+                  {i > 0 && (
+                    <div className="flex justify-start pl-[15px] h-4">
+                      <div className="w-px h-full border-l border-dashed border-white/[0.08]" />
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setExpandedStep(isExpanded ? null : step.id)}
+                    className="w-full text-left rounded-xl border px-4 py-3 transition-all bg-white/[0.02] border-white/[0.05] hover:border-white/[0.10] hover:bg-white/[0.03]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="size-7 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
+                        <StepIcon className="size-3.5 text-white/40" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium text-white/80 truncate">{step.label}</p>
+                        {description && !isExpanded && (
+                          <p className="text-[11px] text-white/30 truncate mt-0.5">{description}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        {step.elapsed > 0 && (
+                          <span className="text-[10px] text-white/20 font-mono tabular-nums">
+                            {formatPipelineElapsed(step.elapsed)}
+                          </span>
+                        )}
+                        <div className="size-5 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                          <Check className="size-3 text-emerald-400/70" />
+                        </div>
+                        <ChevronDown className={`size-3.5 text-white/20 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                      </div>
+                    </div>
+
+                    {isExpanded && description && (
+                      <div className="mt-3 pt-3 border-t border-white/[0.04]">
+                        <p className="text-[12px] text-white/40 leading-relaxed">{description}</p>
+                      </div>
+                    )}
+                  </button>
+                </div>
+              )
+            })
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="size-10 rounded-xl bg-white/[0.04] flex items-center justify-center mb-3">
+                <Sparkles className="size-5 text-white/20" />
+              </div>
+              <p className="text-sm text-white/40">No step data available</p>
+              <p className="text-xs text-white/25 mt-1">Pipeline timing is recorded for new optimizations</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {totalElapsed > 0 && (
+          <div className="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.04]">
+              <Clock className="size-3 text-white/25" />
+              <span className="text-xs text-white/40 font-mono tabular-nums">{formatPipelineElapsed(totalElapsed)}</span>
+              <span className="text-xs text-white/15">|</span>
+              <span className="text-xs text-white/40 tabular-nums">{steps.length} steps</span>
+            </div>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
   )
 }
 

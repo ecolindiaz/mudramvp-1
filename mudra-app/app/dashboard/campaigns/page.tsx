@@ -229,7 +229,7 @@ function CampaignsPageInner() {
     const fetchCampaigns = async () => {
       setIsLoadingCampaigns(true)
       try {
-        const res = await fetch(`/api/campaigns/save?status=${statusFilter}`)
+        const res = await fetch(`/api/campaigns/save?status=${statusFilter}&mode=geo`)
         const data = await res.json()
         if (data.success && data.campaigns) {
           setCampaigns(data.campaigns.map((c: any) => ({

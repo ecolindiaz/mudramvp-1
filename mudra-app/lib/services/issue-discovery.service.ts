@@ -434,7 +434,7 @@ async function upsertDiscoveredIssues(
           ? 'technical_analysis'
           : 'geo_analysis',
         issueHash: hash,
-        analysisRunId: analysisRunId ?? undefined
+        ...(analysisRunId ? { analysisRun: { connect: { id: analysisRunId } } } : {})
       }
     })
     created++

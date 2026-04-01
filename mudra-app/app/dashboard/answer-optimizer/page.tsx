@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
-import { BrandProfileProvider } from "@/components/brand-profile-context"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -14,22 +14,66 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowRight, Plus, FileText, MessageSquare, UserCircle, Mic, Pencil, RefreshCw, PenTool, ChevronDown, ChevronRight, Search, Link, Globe, Check, Loader2, Circle, X, Play, ScanText, Crosshair, HelpCircle, ListFilter, Users, Swords, Sparkles, Clock, GitCompare, SendHorizontal, Braces, type LucideIcon } from "lucide-react"
 
-// Mock data for development — will be replaced with real data
-const PLACEHOLDER_POSTS = [
-  { id: "post-1", title: "How to Choose the Best CRM for Small Business", url: "/blog/best-crm-small-business" },
-  { id: "post-2", title: "Enterprise SEO Strategy Guide for 2026", url: "/blog/enterprise-seo-strategy" },
-  { id: "post-3", title: "AI-Powered Customer Support: Complete Guide", url: "/blog/ai-customer-support-guide" },
-]
-const PLACEHOLDER_PROMPTS = [
-  { id: "prompt-1", text: "What is the best CRM for small businesses?", intent: "Informational" },
-  { id: "prompt-2", text: "Compare top enterprise SEO tools", intent: "Commercial" },
-  { id: "prompt-3", text: "How does AI improve customer support?", intent: "Informational" },
-]
-const PLACEHOLDER_ICPS = [
-  { id: "icp-1", name: "SaaS Founders", description: "Early-stage startup founders evaluating tools" },
-  { id: "icp-2", name: "Marketing Directors", description: "Mid-market marketing leaders" },
-  { id: "icp-3", name: "Enterprise IT Buyers", description: "Enterprise decision makers" },
-]
+// Types for real API data
+interface BlogPost { id: string; title: string; url: string }
+interface TrackedPrompt { id: string; text: string; category?: string }
+interface IcpProfile { id: string; name: string; description: string }
+
+// SSE event from /api/answer-optimizer/stream
+interface OptimizerSSEEvent {
+  phase: string
+  status: "started" | "progress" | "completed" | "failed"
+  message?: string
+  data?: Record<string, any>
+  stepIndex?: number
+  totalSteps?: number
+}
+
+// Phase-to-step mapping for SSE events
+const PHASE_TO_STEP: Record<string, string> = {
+  "scrape-page": "scrape",
+  "query-ai": "query-ai",
+  "scrape-citations": "scrape-citations",
+  "derive-query": "derive-query",
+  "faq-research": "faq-research",
+  "competitor-analysis": "competitor-analysis",
+  "gap-analysis": "gap-analysis",
+  "research": "research",
+  "optimize": "content-optimization",
+  "finalize": "finalize",
+}
+
+/** Build active pipeline steps based on which tools are enabled */
+function getActiveSteps(enabledTools: Set<string>): PipelineStep[] {
+  const steps: PipelineStep[] = [
+    { id: "scrape", label: "Scrape Existing Page", icon: ScanText, inputLabel: "Target URL", outputLabel: "Page Content" },
+  ]
+
+  if (enabledTools.has("query-ai-models")) {
+    steps.push({ id: "query-ai", label: "Query AI Models", icon: Search, inputLabel: "Target Prompt", outputLabel: "AI Responses" })
+  }
+  if (enabledTools.has("scrape-citations") && enabledTools.has("query-ai-models")) {
+    steps.push({ id: "scrape-citations", label: "Scrape AI Citations", icon: ScanText, inputLabel: "Citation URLs", outputLabel: "Source Content" })
+  }
+
+  steps.push({ id: "derive-query", label: "Derive Core Search Query", icon: Crosshair, inputLabel: "Page + Prompt", outputLabel: "Search Query" })
+  steps.push({ id: "faq-research", label: "FAQ & PAA Research", icon: HelpCircle, inputLabel: "Search Query", outputLabel: "FAQ Candidates" })
+
+  if (enabledTools.has("competitor-analysis")) {
+    steps.push({ id: "competitor-analysis", label: "Competitor Analysis", icon: Swords, inputLabel: "Search Query", outputLabel: "Competitive Insights" })
+  }
+
+  steps.push({ id: "gap-analysis", label: "Gap Analysis", icon: ListFilter, inputLabel: "All Sources", outputLabel: "Content Gaps" })
+
+  if (enabledTools.has("research-stats")) {
+    steps.push({ id: "research", label: "Research Enrichment", icon: Search, inputLabel: "Identified Gaps", outputLabel: "Statistics & Quotes" })
+  }
+
+  steps.push({ id: "content-optimization", label: "Content Optimization", icon: Sparkles, inputLabel: "All Inputs", outputLabel: "Optimized Content" })
+  steps.push({ id: "finalize", label: "Finalize & Diff", icon: GitCompare, inputLabel: "Original + Optimized", outputLabel: "Content Diff" })
+
+  return steps
+}
 
 // AI model logo badges — ignores parent size class, renders its own layout
 function AIModelsIcon(_props: { className?: string }) {
@@ -342,15 +386,16 @@ const MOCK_SECTIONS: DiffSection[] = [
   },
 ]
 
-function ContentDiffView({ onBack, onClose }: { onBack: () => void; onClose: () => void }) {
-  const stats = MOCK_SECTIONS.reduce((acc, s) => {
+function ContentDiffView({ onBack, onClose, sections: sectionsProp }: { onBack: () => void; onClose: () => void; sections?: DiffSection[] }) {
+  const displaySections = sectionsProp || MOCK_SECTIONS
+  const stats = displaySections.reduce((acc, s) => {
     s.paragraphs.forEach(p => p.forEach(span => {
       if (span.type === "added") acc.added += span.content.split(/\s+/).length
       if (span.type === "removed") acc.removed += span.content.split(/\s+/).length
     }))
     return acc
   }, { added: 0, removed: 0 })
-  const newSections = MOCK_SECTIONS.filter(s => s.isNew).length
+  const newSections = displaySections.filter(s => s.isNew).length
 
   return (
     <div className="flex flex-col h-full">
@@ -386,7 +431,7 @@ function ContentDiffView({ onBack, onClose }: { onBack: () => void; onClose: () 
 
       {/* Diff content — flowing readable paragraphs */}
       <div className="flex-1 overflow-y-auto pt-5 pb-4 scrollbar-thin space-y-6">
-        {MOCK_SECTIONS.map((section, si) => (
+        {displaySections.map((section, si) => (
           <div key={si}>
             {/* Section heading */}
             {section.heading && (
@@ -432,7 +477,7 @@ function ContentDiffView({ onBack, onClose }: { onBack: () => void; onClose: () 
       <div className="pt-3 border-t border-white/[0.04] flex items-center justify-between">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.03]">
           <GitCompare className="size-3 text-white/25" />
-          <span className="text-xs text-white/40">{MOCK_SECTIONS.length} sections</span>
+          <span className="text-xs text-white/40">{displaySections.length} sections</span>
         </div>
         <div className="flex items-center gap-3">
           <Button
@@ -570,7 +615,7 @@ function PipelineStepRow({ step, status, isLast, elapsed, stepRef, isOpen, onTog
 }
 
 // --- Optimization Process View ---
-function OptimizationProcessView({ onClose, onCancel, onViewDiff }: { onClose: () => void; onCancel: () => void; onViewDiff: () => void }) {
+function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, activeSteps, onResult }: { onClose: () => void; onCancel: () => void; onViewDiff: () => void; requestBody?: Record<string, any>; activeSteps: PipelineStep[]; onResult?: (data: any) => void }) {
   const [stepStatuses, setStepStatuses] = useState<Record<string, StepStatus>>({})
   const [stepElapsed, setStepElapsed] = useState<Record<string, number>>({})
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
@@ -585,8 +630,10 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff }: { onClose: (
   const activeStepRef = useRef<HTMLDivElement | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
+  const abortRef = useRef<AbortController | null>(null)
+
   const completedCount = Object.values(stepStatuses).filter(s => s === "completed").length
-  const progressPercent = Math.round((completedCount / OPTIMIZATION_STEPS.length) * 100)
+  const progressPercent = Math.round((completedCount / activeSteps.length) * 100)
 
   // Auto-scroll to active step
   useEffect(() => {
@@ -604,57 +651,92 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff }: { onClose: (
     return () => clearInterval(interval)
   }, [isComplete, isCancelled])
 
-  // Advance pipeline — uses ref for index to avoid stale closure issues
-  const advanceStep = useCallback(() => {
-    const now = Date.now()
-    const prev = stepIndexRef.current
-    const currentStep = OPTIMIZATION_STEPS[prev]
-    const elapsed = now - stepStartRef.current
-    stepStartRef.current = now
-
-    // Mark current as completed
-    setStepStatuses(s => ({ ...s, [currentStep.id]: "completed" }))
-    setStepElapsed(e => ({ ...e, [currentStep.id]: elapsed }))
-
-    const nextIndex = prev + 1
-    if (nextIndex >= OPTIMIZATION_STEPS.length) {
-      setIsComplete(true)
-      setTotalElapsed(now - startTimeRef.current)
-    } else {
-      // Mark next as running
-      setStepStatuses(s => ({ ...s, [OPTIMIZATION_STEPS[nextIndex].id]: "running" }))
-      stepIndexRef.current = nextIndex
-      setCurrentStepIndex(nextIndex)
-    }
-  }, [])
-
   const handleCancel = () => {
-    timersRef.current.forEach(t => clearTimeout(t))
-    timersRef.current = []
+    abortRef.current?.abort()
     setIsCancelled(true)
     setTotalElapsed(Date.now() - startTimeRef.current)
   }
 
+  // SSE-driven pipeline
   useEffect(() => {
-    setStepStatuses({ [OPTIMIZATION_STEPS[0].id]: "running" })
-    stepIndexRef.current = 0
+    if (!requestBody) return
+
+    setStepStatuses({ [activeSteps[0].id]: "running" })
     startTimeRef.current = Date.now()
     stepStartRef.current = Date.now()
 
-    let totalDelay = 0
-    const timers: NodeJS.Timeout[] = []
-    OPTIMIZATION_STEPS.forEach((step) => {
-      totalDelay += step.duration || 2000
-      timers.push(setTimeout(() => advanceStep(), totalDelay))
-    })
-    timersRef.current = timers
+    const controller = new AbortController()
+    abortRef.current = controller
 
-    return () => timers.forEach(t => clearTimeout(t))
-  }, [advanceStep])
+    ;(async () => {
+      try {
+        const response = await fetch("/api/answer-optimizer/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        })
 
-  const runningStep = !isComplete && !isCancelled ? OPTIMIZATION_STEPS[currentStepIndex] : null
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ""
 
-  const openStepData = openStep ? OPTIMIZATION_STEPS.find(s => s.id === openStep) : null
+        while (reader) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split("\n")
+          buffer = lines.pop() || ""
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const event: OptimizerSSEEvent = JSON.parse(line.slice(6))
+                const stepId = PHASE_TO_STEP[event.phase]
+
+                if (event.phase === "complete") {
+                  // Mark all remaining as completed
+                  setIsComplete(true)
+                  setTotalElapsed(Date.now() - startTimeRef.current)
+                  onResult?.(event.data)
+                } else if (event.phase === "error") {
+                  setIsCancelled(true)
+                  setTotalElapsed(Date.now() - startTimeRef.current)
+                } else if (stepId) {
+                  if (event.status === "started") {
+                    setStepStatuses(s => ({ ...s, [stepId]: "running" }))
+                    const idx = activeSteps.findIndex(st => st.id === stepId)
+                    if (idx >= 0) {
+                      setCurrentStepIndex(idx)
+                      stepStartRef.current = Date.now()
+                    }
+                  } else if (event.status === "completed") {
+                    const elapsed = Date.now() - stepStartRef.current
+                    setStepStatuses(s => ({ ...s, [stepId]: "completed" }))
+                    setStepElapsed(e => ({ ...e, [stepId]: elapsed }))
+                  } else if (event.status === "failed") {
+                    setStepStatuses(s => ({ ...s, [stepId]: "error" }))
+                  }
+                }
+              } catch { /* skip unparseable lines */ }
+            }
+          }
+        }
+      } catch (e: any) {
+        if (e.name !== "AbortError") {
+          setIsCancelled(true)
+          setTotalElapsed(Date.now() - startTimeRef.current)
+        }
+      }
+    })()
+
+    return () => controller.abort()
+  }, [requestBody, activeSteps, onResult])
+
+  const runningStep = !isComplete && !isCancelled ? activeSteps[currentStepIndex] : null
+
+  const openStepData = openStep ? activeSteps.find(s => s.id === openStep) : null
 
   return (
     <div className="relative flex flex-col h-full">
@@ -702,12 +784,12 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff }: { onClose: (
 
       {/* Steps */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto pt-4 pb-4 pr-1 -mr-1 scrollbar-thin space-y-1">
-        {OPTIMIZATION_STEPS.map((step, i) => (
+        {activeSteps.map((step, i) => (
           <PipelineStepRow
             key={step.id}
             step={step}
             status={stepStatuses[step.id] || "pending"}
-            isLast={i === OPTIMIZATION_STEPS.length - 1}
+            isLast={i === activeSteps.length - 1}
             elapsed={stepElapsed[step.id]}
             stepRef={activeStepRef}
             isOpen={openStep === step.id}
@@ -723,7 +805,7 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff }: { onClose: (
             <Clock className="size-3 text-white/25" />
             <span className="text-xs text-white/40 font-mono tabular-nums">{formatElapsed(totalElapsed)}</span>
             <span className="text-xs text-white/15">|</span>
-            <span className="text-xs text-white/40 tabular-nums">{completedCount}/{OPTIMIZATION_STEPS.length}</span>
+            <span className="text-xs text-white/40 tabular-nums">{completedCount}/{activeSteps.length}</span>
           </div>
           <div className="flex items-center gap-3">
             <Button
@@ -750,6 +832,9 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff }: { onClose: (
 }
 
 function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { brandProfile } = useBrandProfile()
+  const brandProfileId = brandProfile?.id
+
   const [selectedPost, setSelectedPost] = useState("")
   const [selectedPrompt, setSelectedPrompt] = useState("")
   const [selectedIcp, setSelectedIcp] = useState("")
@@ -760,10 +845,49 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set(["query-ai-models", "scrape-citations", "research-stats"]))
   const [view, setView] = useState<"form" | "process" | "diff">("form")
 
+  // Real data from APIs
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([])
+  const [prompts, setPrompts] = useState<TrackedPrompt[]>([])
+  const [icps, setIcps] = useState<IcpProfile[]>([])
+  const [loadingData, setLoadingData] = useState(false)
+
+  // SSE state
+  const [requestBody, setRequestBody] = useState<Record<string, any> | null>(null)
+  const [optimizationResult, setOptimizationResult] = useState<any>(null)
+
+  // Fetch form data when dialog opens
+  useEffect(() => {
+    if (!open || !brandProfileId) return
+    setLoadingData(true)
+
+    Promise.all([
+      fetch(`/api/answer-optimizer/blog-posts?brandProfileId=${brandProfileId}`).then(r => r.json()),
+      fetch(`/api/answer-optimizer/prompts?brandProfileId=${brandProfileId}`).then(r => r.json()),
+      fetch(`/api/answer-optimizer/icps?brandProfileId=${brandProfileId}`).then(r => r.json()),
+    ]).then(([postsRes, promptsRes, icpsRes]) => {
+      setBlogPosts((postsRes.pages || []).map((p: any) => ({
+        id: p.id,
+        title: p.page_url.split("/").filter(Boolean).pop()?.replace(/-/g, " ") || p.page_url,
+        url: p.page_url,
+      })))
+      setPrompts((promptsRes.prompts || []).map((p: any) => ({
+        id: String(p.id),
+        text: p.text,
+        category: p.category,
+      })))
+      setIcps(icpsRes.icps || [])
+      setLoadingData(false)
+    }).catch(() => setLoadingData(false))
+  }, [open, brandProfileId])
+
+  const activeSteps = useMemo(() => getActiveSteps(enabledTools), [enabledTools])
+
   const resetForm = () => {
     setSelectedPost(""); setSelectedPrompt(""); setSelectedIcp(""); setSelectedTone("")
     setSelectedDepth("")
     setView("form")
+    setRequestBody(null)
+    setOptimizationResult(null)
   }
 
   const handleClose = (v: boolean) => {
@@ -789,6 +913,9 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 onClose={() => handleClose(false)}
                 onCancel={() => { resetForm(); }}
                 onViewDiff={() => setView("diff")}
+                requestBody={requestBody || undefined}
+                activeSteps={activeSteps}
+                onResult={(data) => setOptimizationResult(data)}
               />
             )}
           </div>
@@ -803,6 +930,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               <ContentDiffView
                 onBack={() => setView("process")}
                 onClose={() => handleClose(false)}
+                sections={optimizationResult?.diffSections}
               />
             )}
           </div>
@@ -831,20 +959,20 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           <FileText className="size-4 text-white/30 shrink-0" />
                           <SelectValue placeholder="Select a blog post">
                             {selectedPost && (() => {
-                              const post = PLACEHOLDER_POSTS.find(p => p.id === selectedPost)
+                              const post = blogPosts.find(p => p.id === selectedPost)
                               return post ? <span className="truncate">{post.title}</span> : null
                             })()}
                           </SelectValue>
                         </div>
                       </SelectTrigger>
                       <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg">
-                        {PLACEHOLDER_POSTS.length === 0 ? (
+                        {blogPosts.length === 0 ? (
                           <div className="px-3 py-6 text-center">
                             <p className="text-sm text-white/40">No blog posts available</p>
                             <p className="text-xs text-white/25 mt-1">Create content in Content Lab first</p>
                           </div>
                         ) : (
-                          PLACEHOLDER_POSTS.map((post) => (
+                          blogPosts.map((post) => (
                             <SelectItem key={post.id} value={post.id}>
                               <div className="flex flex-col">
                                 <span className="text-sm">{post.title}</span>
@@ -866,24 +994,24 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           <MessageSquare className="size-4 text-white/30 shrink-0" />
                           <SelectValue placeholder="Select a target prompt">
                             {selectedPrompt && (() => {
-                              const prompt = PLACEHOLDER_PROMPTS.find(p => p.id === selectedPrompt)
+                              const prompt = prompts.find(p => p.id === selectedPrompt)
                               return prompt ? <span className="truncate">{prompt.text}</span> : null
                             })()}
                           </SelectValue>
                         </div>
                       </SelectTrigger>
                       <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg">
-                        {PLACEHOLDER_PROMPTS.length === 0 ? (
+                        {prompts.length === 0 ? (
                           <div className="px-3 py-6 text-center">
                             <p className="text-sm text-white/40">No tracked prompts available</p>
                             <p className="text-xs text-white/25 mt-1">Add prompts in Tracked Prompts first</p>
                           </div>
                         ) : (
-                          PLACEHOLDER_PROMPTS.map((prompt) => (
+                          prompts.map((prompt) => (
                             <SelectItem key={prompt.id} value={prompt.id}>
                               <div className="flex flex-col">
                                 <span className="text-sm">{prompt.text}</span>
-                                <span className="text-xs text-white/40">{prompt.intent}</span>
+                                <span className="text-xs text-white/40">{prompt.category}</span>
                               </div>
                             </SelectItem>
                           ))
@@ -900,20 +1028,20 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           <UserCircle className="size-4 text-white/30 shrink-0" />
                           <SelectValue placeholder="Customer profile">
                             {selectedIcp && (() => {
-                              const icp = PLACEHOLDER_ICPS.find(p => p.id === selectedIcp)
+                              const icp = icps.find(p => p.id === selectedIcp)
                               return icp ? <span className="truncate">{icp.name}</span> : null
                             })()}
                           </SelectValue>
                         </div>
                       </SelectTrigger>
                       <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg">
-                        {PLACEHOLDER_ICPS.length === 0 ? (
+                        {icps.length === 0 ? (
                           <div className="px-3 py-6 text-center">
                             <p className="text-sm text-white/40">No profiles available</p>
                             <p className="text-xs text-white/25 mt-1">Create in Brand Profile</p>
                           </div>
                         ) : (
-                          PLACEHOLDER_ICPS.map((icp) => (
+                          icps.map((icp) => (
                             <SelectItem key={icp.id} value={icp.id}>
                               <div className="flex flex-col">
                                 <span className="text-sm">{icp.name}</span>
@@ -998,25 +1126,35 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                         { id: "schema-markup", name: "Schema Markup", desc: "Auto-generate FAQ, Article & HowTo schema", icon: Braces },
                       ] as const).map((tool) => {
                         const enabled = enabledTools.has(tool.id)
+                        // scrape-citations requires query-ai-models
+                        const isDisabled = tool.id === "scrape-citations" && !enabledTools.has("query-ai-models")
                         return (
                           <button
                             key={tool.id}
                             type="button"
                             onClick={() => {
+                              if (isDisabled) return
                               const next = new Set(enabledTools)
-                              next.has(tool.id) ? next.delete(tool.id) : next.add(tool.id)
+                              if (tool.id === "query-ai-models" && next.has(tool.id)) {
+                                next.delete("query-ai-models")
+                                next.delete("scrape-citations")
+                              } else {
+                                next.has(tool.id) ? next.delete(tool.id) : next.add(tool.id)
+                              }
                               setEnabledTools(next)
                             }}
                             className={`relative flex flex-col items-start gap-3 rounded-lg p-4 text-left transition-all duration-200 ease-out active:scale-[0.97] cursor-pointer outline-none ${
-                              enabled
+                              isDisabled
+                                ? "bg-[#1b1b1b] ring-1 ring-white/[0.04] opacity-40 cursor-not-allowed"
+                                : enabled
                                 ? "bg-white/[0.06] ring-[1.5px] ring-inset ring-blue-500"
                                 : "bg-[#1b1b1b] hover:bg-[#1f1f1f] ring-1 ring-white/[0.04]"
                             }`}
                           >
                             <div className="flex items-center justify-between w-full">
-                              <tool.icon className={`size-4 ${enabled ? "text-blue-400" : "text-white/30"} transition-colors`} />
+                              <tool.icon className={`size-4 ${isDisabled ? "text-white/15" : enabled ? "text-blue-400" : "text-white/30"} transition-colors`} />
                               <div className={`size-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                                enabled ? "border-blue-500 bg-blue-500" : "border-white/20"
+                                isDisabled ? "border-white/10" : enabled ? "border-blue-500 bg-blue-500" : "border-white/20"
                               }`}>
                                 {enabled && (
                                   <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 5L4.5 7.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -1042,7 +1180,37 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                   )}
                   <div className={!canOptimize ? "" : "ml-auto"}>
                     <Button
-                      onClick={() => setView("process")}
+                      onClick={() => {
+                        const post = blogPosts.find(p => p.id === selectedPost)
+                        const prompt = prompts.find(p => p.id === selectedPrompt)
+                        setRequestBody({
+                          pageUrl: post?.url || '',
+                          promptText: prompt?.text || '',
+                          promptId: parseInt(selectedPrompt),
+                          brandProfileId,
+                          depthLevel: selectedDepth || 'moderate',
+                          voiceTone: selectedTone || 'professional',
+                          icpDescription: icps.find(i => i.id === selectedIcp)?.description || '',
+                          enabledTools: {
+                            queryAiModels: enabledTools.has('query-ai-models'),
+                            scrapeCitations: enabledTools.has('scrape-citations'),
+                            freshResearch: enabledTools.has('research-stats'),
+                            competitorAnalysis: enabledTools.has('competitor-analysis'),
+                            internalLinks: enabledTools.has('internal-links'),
+                            schemaMarkup: enabledTools.has('schema-markup'),
+                          },
+                          brandContext: {
+                            brandName: brandProfile?.companyName || '',
+                            brandWebsite: brandProfile?.companyWebsite || '',
+                            brandDescription: brandProfile?.companyDescription || '',
+                            brandIndustry: brandProfile?.companyIndustry || '',
+                            competitors: brandProfile?.competitors || [],
+                            userName: brandProfile?.userName || '',
+                            userRole: brandProfile?.userRole || '',
+                          },
+                        })
+                        setView("process")
+                      }}
                       disabled={!canOptimize}
                       className="h-9 px-5 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2 disabled:opacity-50"
                     >

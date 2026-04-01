@@ -14,7 +14,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Check, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, FileCode, Edit, ChevronDown } from "lucide-react"
+import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Check, MessageSquareText, Link as LinkIcon, Loader2, Trash2, FileText, Image as ImageIcon, FileCode, Edit, ChevronDown, Sparkles, Globe, ScanText, Search, Swords, Braces, Mic, PenTool } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { BlogSetupDialog } from "@/components/content-lab/blog-setup-dialog"
 import { computeContentLabSchemaSourceHash } from "@/lib/content-lab/schema-hash"
@@ -131,7 +131,20 @@ function CampaignCanvasPageInner({
   const [schemaCopied, setSchemaCopied] = React.useState(false)
   const [schemaExpanded, setSchemaExpanded] = React.useState(false)
   const [editMode, setEditMode] = React.useState(false)
-  
+  const [optimizerSource, setOptimizerSource] = React.useState<{
+    originalUrl: string
+    promptText: string
+    promptCategory: string
+    icpName: string
+    icpDescription: string
+    voiceTone: string
+    depthLevel: string
+    enabledTools: string[]
+    originalWordCount: number
+    optimizedWordCount: number
+    diffStats: { added?: number; removed?: number; newSections?: number }
+  } | null>(null)
+
   // Blog setup status
   const [blogSetupStatus, setBlogSetupStatus] = React.useState<{
     canPublish: boolean
@@ -370,6 +383,11 @@ function CampaignCanvasPageInner({
                 setSchemaStatus(isContentLabSchemaMetadata(schemaFromMetadata) ? "ready" : "none")
               }
               setSchemaError(typeof metadataSchemaError === "string" ? metadataSchemaError : "")
+              // Load optimizer source if present
+              const optSource = (metadata as any).optimizerSource
+              if (optSource && typeof optSource === "object") {
+                setOptimizerSource(optSource)
+              }
             } catch (e) {
               console.warn('Failed to parse campaign metadata:', e)
               setContentLabSchema(null)
@@ -902,6 +920,86 @@ function CampaignCanvasPageInner({
                               </div>
                             </div>
                           </div>
+
+                          {/* Optimization Pipeline Section (only for optimizer-sourced campaigns) */}
+                          {optimizerSource && (
+                            <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">
+                              <div className="flex items-center gap-2">
+                                <Sparkles className="size-4 text-white/80" />
+                                <h3 className="text-sm font-semibold text-white">Optimization Pipeline</h3>
+                              </div>
+                              <div className="space-y-2.5 pl-5">
+                                {/* Original URL */}
+                                <div className="flex items-start justify-between gap-4">
+                                  <span className="text-white/60 text-xs font-medium uppercase tracking-wide min-w-[60px]">Source</span>
+                                  <span className="text-white/90 text-sm truncate text-right flex-1 font-mono" title={optimizerSource.originalUrl}>
+                                    {optimizerSource.originalUrl ? new URL(optimizerSource.originalUrl, "https://x").pathname : "—"}
+                                  </span>
+                                </div>
+
+                                {/* Depth */}
+                                <div className="flex items-center justify-between gap-4">
+                                  <span className="text-white/60 text-xs font-medium uppercase tracking-wide">Depth</span>
+                                  <Badge variant="outline" className="capitalize bg-white/5 border-white/[0.04] text-white/90 text-xs">
+                                    {optimizerSource.depthLevel === "light" ? "Light Touch" : optimizerSource.depthLevel === "deep" ? "Deep Overhaul" : "Smart Rewrite"}
+                                  </Badge>
+                                </div>
+
+                                {/* Voice & Tone */}
+                                <div className="flex items-center justify-between gap-4">
+                                  <span className="text-white/60 text-xs font-medium uppercase tracking-wide">Voice</span>
+                                  <Badge variant="outline" className="capitalize bg-white/5 border-white/[0.04] text-white/90 text-xs">
+                                    {optimizerSource.voiceTone || "Professional"}
+                                  </Badge>
+                                </div>
+
+                                {/* Word Count Delta */}
+                                <div className="flex items-center justify-between gap-4">
+                                  <span className="text-white/60 text-xs font-medium uppercase tracking-wide">Words</span>
+                                  <span className="text-white/90 text-sm tabular-nums">
+                                    {optimizerSource.originalWordCount.toLocaleString()}
+                                    <span className="text-white/30 mx-1">&rarr;</span>
+                                    {optimizerSource.optimizedWordCount.toLocaleString()}
+                                    {optimizerSource.optimizedWordCount > optimizerSource.originalWordCount && (
+                                      <span className="text-emerald-400/70 ml-1 text-xs">
+                                        +{(optimizerSource.optimizedWordCount - optimizerSource.originalWordCount).toLocaleString()}
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+
+                                {/* Tools Used */}
+                                <div className="pt-1">
+                                  <span className="text-white/60 text-xs font-medium uppercase tracking-wide">Tools</span>
+                                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                    {([
+                                      { id: "query-ai-models", label: "AI Models", icon: Search },
+                                      { id: "scrape-citations", label: "Citations", icon: ScanText },
+                                      { id: "research-stats", label: "Research", icon: Globe },
+                                      { id: "competitor-analysis", label: "Competitors", icon: Swords },
+                                      { id: "internal-links", label: "Links", icon: LinkIcon },
+                                      { id: "schema-markup", label: "Schema", icon: Braces },
+                                    ] as const).map((tool) => {
+                                      const enabled = optimizerSource.enabledTools.includes(tool.id)
+                                      return (
+                                        <div
+                                          key={tool.id}
+                                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium ${
+                                            enabled
+                                              ? "bg-violet-500/10 text-violet-300/80 border border-violet-500/20"
+                                              : "bg-white/[0.02] text-white/25 border border-white/[0.04]"
+                                          }`}
+                                        >
+                                          <tool.icon className="size-3" />
+                                          {tool.label}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Status Section */}
                           <div className="space-y-2.5 pb-4 border-b border-white/[0.06]">

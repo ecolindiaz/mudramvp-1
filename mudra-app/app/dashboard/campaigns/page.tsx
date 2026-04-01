@@ -756,9 +756,11 @@ function CampaignsPageInner() {
                                   <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
                                     <div className={cn(
                                       "w-1.5 h-1.5 rounded-full",
-                                      c.mode.toUpperCase() === "GEO" ? "bg-sky-400" : "bg-amber-400"
+                                      c.mode.toUpperCase() === "GEO" ? "bg-sky-400"
+                                        : c.mode.toUpperCase() === "OPTIMIZER" ? "bg-violet-400"
+                                        : "bg-amber-400"
                                     )}></div>
-                                    <span className="text-xs text-white/70 font-medium">{c.mode.toUpperCase()}</span>
+                                    <span className="text-xs text-white/70 font-medium">{c.mode.toUpperCase() === "OPTIMIZER" ? "AEO" : c.mode.toUpperCase()}</span>
                                   </div>
                                 </TableCell>
                                 <TableCell className="py-3">

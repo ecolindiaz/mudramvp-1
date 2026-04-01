@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -386,7 +387,7 @@ const MOCK_SECTIONS: DiffSection[] = [
   },
 ]
 
-function ContentDiffView({ onBack, onClose, sections: sectionsProp }: { onBack: () => void; onClose: () => void; sections?: DiffSection[] }) {
+function ContentDiffView({ onBack, onClose, onApply, isApplying, sections: sectionsProp }: { onBack: () => void; onClose: () => void; onApply?: () => void; isApplying?: boolean; sections?: DiffSection[] }) {
   const displaySections = sectionsProp || MOCK_SECTIONS
   const stats = displaySections.reduce((acc, s) => {
     s.paragraphs.forEach(p => p.forEach(span => {
@@ -488,10 +489,21 @@ function ContentDiffView({ onBack, onClose, sections: sectionsProp }: { onBack: 
             Discard
           </Button>
           <Button
-            className="h-9 px-5 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2"
+            onClick={onApply}
+            disabled={isApplying}
+            className="h-9 px-5 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 hover:text-[#0a0a0a] text-sm font-medium shadow-sm hover:shadow-md transition-all border-0 gap-2 disabled:opacity-50"
           >
-            Apply Changes
-            <ArrowRight className="size-3.5" />
+            {isApplying ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                Apply Changes
+                <ArrowRight className="size-3.5" />
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -854,6 +866,8 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   // SSE state
   const [requestBody, setRequestBody] = useState<Record<string, any> | null>(null)
   const [optimizationResult, setOptimizationResult] = useState<any>(null)
+  const [isApplying, setIsApplying] = useState(false)
+  const router = useRouter()
 
   // Fetch form data when dialog opens
   useEffect(() => {
@@ -888,6 +902,81 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     setView("form")
     setRequestBody(null)
     setOptimizationResult(null)
+  }
+
+  const handleApplyChanges = async () => {
+    if (!optimizationResult) return
+    setIsApplying(true)
+
+    try {
+      const post = blogPosts.find(p => p.id === selectedPost)
+      const prompt = prompts.find(p => p.id === selectedPrompt)
+      const icpInfo = icps.find(i => i.id === selectedIcp)
+
+      // Build slug from page URL
+      const pageSlug = post?.url?.split("/").filter(Boolean).pop() || ""
+
+      // Convert optimizer schema to contentLabSchema format if schema tool was enabled
+      let contentLabSchema = null
+      let schemaStatus = "none"
+      if (optimizationResult.schemaMarkup?.length > 0) {
+        const combined = optimizationResult.schemaMarkup
+          .map((s: { type: string; jsonLd: string }) => s.jsonLd)
+          .join("\n\n")
+        contentLabSchema = {
+          schemaType: "BlogPosting",
+          scriptTag: `<script type="application/ld+json">\n${combined}\n</script>`,
+          generatedAt: new Date().toISOString(),
+          confidence: 0.85,
+          sourceHash: "",
+        }
+        schemaStatus = "ready"
+      }
+
+      const response = await fetch("/api/campaigns/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: optimizationResult.metadata?.title || post?.title || "Optimized Content",
+          body: optimizationResult.optimizedContent,
+          type: "blog",
+          mode: "optimizer",
+          status: "draft",
+          slug: pageSlug,
+          prompt: prompt?.text || "",
+          icp: icpInfo?.description || "",
+          metadata: {
+            metaDescription: optimizationResult.metadata?.metaDescription || "",
+            sources: optimizationResult.metadata?.sources || [],
+            contentLabSchema,
+            schemaStatus,
+            optimizerSource: {
+              originalUrl: post?.url || "",
+              promptText: prompt?.text || "",
+              promptCategory: prompt?.category || "",
+              icpName: icpInfo?.name || "",
+              icpDescription: icpInfo?.description || "",
+              voiceTone: selectedTone || "professional",
+              depthLevel: selectedDepth || "moderate",
+              enabledTools: Array.from(enabledTools),
+              originalWordCount: optimizationResult.metadata?.originalWordCount || 0,
+              optimizedWordCount: optimizationResult.metadata?.wordCount || 0,
+              diffStats: optimizationResult.diffStats || {},
+            },
+          },
+        }),
+      })
+
+      const data = await response.json()
+      if (data.success && data.campaign?.id) {
+        handleClose(false)
+        router.push(`/dashboard/campaigns/${data.campaign.id}?type=blog&mode=optimizer`)
+      }
+    } catch (error) {
+      console.error("Failed to save optimized content:", error)
+    } finally {
+      setIsApplying(false)
+    }
   }
 
   const handleClose = (v: boolean) => {
@@ -930,6 +1019,8 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               <ContentDiffView
                 onBack={() => setView("process")}
                 onClose={() => handleClose(false)}
+                onApply={handleApplyChanges}
+                isApplying={isApplying}
                 sections={optimizationResult?.diffSections}
               />
             )}

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -126,13 +126,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Fire-and-forget: process added pages sequentially
+    // Process added pages after response is sent (keeps serverless function alive)
     if (added.length > 0) {
       const domain = added[0].url.startsWith("http")
         ? new URL(added[0].url).origin
         : `https://${companyHost}`;
 
-      (async () => {
+      after(async () => {
         for (const item of added) {
           try {
             await addAndProcessUrl(
@@ -149,9 +149,7 @@ export async function POST(request: NextRequest) {
             );
           }
         }
-      })().catch((err) =>
-        console.error("[SitemapPages Bulk] Sequential processing failed:", err)
-      );
+      });
     }
 
     return NextResponse.json(

@@ -20,7 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowRight, Plus, FileText, MessageSquare, UserCircle, Mic, Pencil, RefreshCw, PenTool, ChevronDown, ChevronRight, Search, Link, Globe, Check, Loader2, Circle, X, Play, ScanText, Crosshair, HelpCircle, ListFilter, Users, Swords, Sparkles, Clock, GitCompare, SendHorizontal, Braces, type LucideIcon } from "lucide-react"
@@ -659,6 +658,12 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, a
   /** Backend pipelineMs when the current step started — used for accurate elapsed */
   const stepStartMsRef = useRef<number>(0)
 
+  // Stable refs for callbacks to avoid re-triggering the SSE effect
+  const onResultRef = useRef(onResult)
+  onResultRef.current = onResult
+  const onPipelineDataRef = useRef(onPipelineData)
+  onPipelineDataRef.current = onPipelineData
+
   const completedCount = Object.values(stepStatuses).filter(s => s === "completed").length
   const progressPercent = Math.round((completedCount / activeSteps.length) * 100)
 
@@ -728,9 +733,9 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, a
                   // Use backend pipeline duration if available for accuracy
                   const finalElapsed = event.pipelineMs ?? (Date.now() - startTimeRef.current)
                   setTotalElapsed(finalElapsed)
-                  onResult?.(event.data)
+                  onResultRef.current?.(event.data)
                   // Emit pipeline step data for persistence
-                  onPipelineData?.(
+                  onPipelineDataRef.current?.(
                     activeSteps.map(s => ({ id: s.id, label: s.label, status: "completed", elapsed: stepElapsedRef.current[s.id] || 0 })),
                     finalElapsed,
                   )
@@ -772,7 +777,7 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, a
     })()
 
     return () => controller.abort()
-  }, [requestBody, activeSteps, onResult])
+  }, [requestBody, activeSteps])
 
   const runningStep = !isComplete && !isCancelled ? activeSteps[currentStepIndex] : null
 
@@ -1001,7 +1006,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       const data = await response.json()
       if (data.success && data.campaign?.id) {
         handleClose(false)
-        router.push(`/dashboard/campaigns/${data.campaign.id}?type=blog&mode=optimizer`)
+        router.push(`/dashboard/answer-optimizer/${data.campaign.id}`)
       }
     } catch (error) {
       console.error("Failed to save optimized content:", error)
@@ -1387,7 +1392,6 @@ function AnswerOptimizerPageInner() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [optimizations, setOptimizations] = useState<OptimizationRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [pipelineRow, setPipelineRow] = useState<OptimizationRow | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -1476,7 +1480,6 @@ function AnswerOptimizerPageInner() {
                         <TableHead className="text-white/50 font-medium h-11 text-[13px]">Depth</TableHead>
                         <TableHead className="text-white/50 font-medium h-11 text-[13px]">Created</TableHead>
                         <TableHead className="text-white/50 font-medium h-11 text-[13px]">Status</TableHead>
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px] w-[1%]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1487,7 +1490,6 @@ function AnswerOptimizerPageInner() {
                           <TableCell className="py-3"><Skeleton className="h-4 w-24 bg-white/[0.06]" /></TableCell>
                           <TableCell className="py-3"><Skeleton className="h-4 w-16 bg-white/[0.06]" /></TableCell>
                           <TableCell className="py-3"><Skeleton className="h-4 w-16 bg-white/[0.06]" /></TableCell>
-                          <TableCell className="py-3"><Skeleton className="h-4 w-8 bg-white/[0.06]" /></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1545,14 +1547,13 @@ function AnswerOptimizerPageInner() {
                         <TableHead className="text-white/50 font-medium h-11 text-[13px]">Depth</TableHead>
                         <TableHead className="text-white/50 font-medium h-11 text-[13px]">Created</TableHead>
                         <TableHead className="text-white/50 font-medium h-11 text-[13px]">Status</TableHead>
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px] w-[1%]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {optimizations.map((o) => (
                         <TableRow
                           key={o.id}
-                          onClick={() => router.push(`/dashboard/campaigns/${o.id}?type=blog&mode=optimizer`)}
+                          onClick={() => router.push(`/dashboard/answer-optimizer/${o.id}`)}
                           className="border-white/[0.04] hover:bg-white/[0.03] cursor-pointer group"
                         >
                           <TableCell className="max-w-md py-3">
@@ -1587,15 +1588,6 @@ function AnswerOptimizerPageInner() {
                               <span className="text-xs text-white/70 font-medium">{o.status}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="py-3">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setPipelineRow(o) }}
-                              className="flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-medium transition-colors text-violet-300/70 hover:text-violet-200 hover:bg-violet-500/10 bg-violet-500/[0.04] border border-violet-500/10 whitespace-nowrap"
-                            >
-                              <Sparkles className="size-3" />
-                              Pipeline
-                            </button>
-                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1608,200 +1600,7 @@ function AnswerOptimizerPageInner() {
       </SidebarInset>
 
       <NewOptimizationDialog open={dialogOpen} onOpenChange={setDialogOpen} />
-
-      {/* Pipeline Workflow Sheet */}
-      <PipelineWorkflowSheet
-        row={pipelineRow}
-        onClose={() => setPipelineRow(null)}
-      />
     </SidebarProvider>
-  )
-}
-
-// --- Pipeline step icon lookup ---
-const STEP_ICON_MAP: Record<string, LucideIcon> = {
-  "scrape": ScanText,
-  "query-ai": Search,
-  "scrape-citations": ScanText,
-  "derive-query": Crosshair,
-  "faq-research": HelpCircle,
-  "competitor-analysis": Swords,
-  "gap-analysis": ListFilter,
-  "research": Search,
-  "content-optimization": Sparkles,
-  "finalize": GitCompare,
-}
-
-const STEP_DESCRIPTION_MAP: Record<string, string> = {
-  "scrape": "Fetching and parsing target page content",
-  "query-ai": "Querying AI models for current answers",
-  "scrape-citations": "Scraping cited sources from AI responses",
-  "derive-query": "Identifying the core search query",
-  "faq-research": "Researching FAQ & People Also Ask",
-  "competitor-analysis": "Analyzing top-ranking competitors",
-  "gap-analysis": "Identifying content gaps to fill",
-  "research": "Enriching with statistics & quotes",
-  "content-optimization": "Rewriting and optimizing content",
-  "finalize": "Computing diffs and generating schema",
-}
-
-function formatPipelineElapsed(ms: number): string {
-  const seconds = ms / 1000
-  if (seconds < 60) return `${seconds.toFixed(1)}s`
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.round(seconds % 60)
-  return `${mins}m ${secs}s`
-}
-
-const TOOL_DEFS = [
-  { id: "query-ai-models", label: "AI Models", icon: Search },
-  { id: "scrape-citations", label: "Citations", icon: ScanText },
-  { id: "research-stats", label: "Research", icon: Globe },
-  { id: "competitor-analysis", label: "Competitors", icon: Swords },
-] as const
-
-function PipelineWorkflowSheet({ row, onClose }: { row: OptimizationRow | null; onClose: () => void }) {
-  const [expandedStep, setExpandedStep] = useState<string | null>(null)
-
-  if (!row) return (
-    <Sheet open={false} onOpenChange={() => {}}>
-      <SheetContent side="right" className="w-[420px] sm:max-w-[420px]" />
-    </Sheet>
-  )
-
-  const steps = row.pipelineSteps
-  const totalElapsed = row.pipelineTotalElapsed
-  const depthLabel = DEPTH_LABELS[row.depthLevel] || row.depthLevel
-
-  return (
-    <Sheet open={!!row} onOpenChange={(open) => { if (!open) onClose() }}>
-      <SheetContent side="right" className="w-[420px] sm:max-w-[420px] bg-[#141414] border-white/[0.08] text-white p-0 flex flex-col">
-        <SheetHeader className="px-5 pt-5 pb-0">
-          <SheetTitle className="text-white text-base">Optimization Pipeline</SheetTitle>
-          <p className="text-xs text-white/40 mt-0.5">
-            {depthLabel}
-            {" \u00b7 "}{row.voiceTone || "professional"}
-            {totalElapsed > 0 && ` \u00b7 ${formatPipelineElapsed(totalElapsed)} total`}
-          </p>
-        </SheetHeader>
-
-        {/* Summary bar */}
-        <div className="px-5 py-3 border-b border-white/[0.06]">
-          <div className="flex items-center gap-3 text-xs">
-            <div className="flex items-center gap-1.5 text-white/50">
-              <ScanText className="size-3" />
-              <span className="font-mono truncate">
-                {row.sourceUrl ? (() => { try { return new URL(row.sourceUrl).pathname } catch { return row.sourceUrl } })() : "\u2014"}
-              </span>
-            </div>
-            <span className="text-white/20 shrink-0">|</span>
-            <span className="text-white/50 tabular-nums shrink-0">
-              {row.originalWordCount.toLocaleString()}
-              <span className="text-white/20 mx-1">&rarr;</span>
-              {row.optimizedWordCount.toLocaleString()}
-              {row.optimizedWordCount > row.originalWordCount && (
-                <span className="text-emerald-400/70 ml-1">
-                  +{(row.optimizedWordCount - row.originalWordCount).toLocaleString()}
-                </span>
-              )}
-            </span>
-          </div>
-        </div>
-
-        {/* Tools used */}
-        <div className="px-5 py-3 border-b border-white/[0.06]">
-          <div className="flex flex-wrap gap-1.5">
-            {TOOL_DEFS.map((tool) => {
-              if (!row.enabledTools.includes(tool.id)) return null
-              return (
-                <div
-                  key={tool.id}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-violet-500/10 text-violet-300/80 border border-violet-500/20"
-                >
-                  <tool.icon className="size-3" />
-                  {tool.label}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Pipeline steps */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-0.5">
-          {steps.length > 0 ? (
-            steps.map((step, i) => {
-              const StepIcon = STEP_ICON_MAP[step.id] || Sparkles
-              const isExpanded = expandedStep === step.id
-              const description = STEP_DESCRIPTION_MAP[step.id] || ""
-
-              return (
-                <div key={step.id}>
-                  {i > 0 && (
-                    <div className="flex justify-start pl-[15px] h-4">
-                      <div className="w-px h-full border-l border-dashed border-white/[0.08]" />
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => setExpandedStep(isExpanded ? null : step.id)}
-                    className="w-full text-left rounded-xl border px-4 py-3 transition-all bg-white/[0.02] border-white/[0.05] hover:border-white/[0.10] hover:bg-white/[0.03]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="size-7 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
-                        <StepIcon className="size-3.5 text-white/40" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-white/80 truncate">{step.label}</p>
-                        {description && !isExpanded && (
-                          <p className="text-[11px] text-white/30 truncate mt-0.5">{description}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2.5 shrink-0">
-                        {step.elapsed > 0 && (
-                          <span className="text-[10px] text-white/20 font-mono tabular-nums">
-                            {formatPipelineElapsed(step.elapsed)}
-                          </span>
-                        )}
-                        <div className="size-5 rounded-full bg-emerald-500/15 flex items-center justify-center">
-                          <Check className="size-3 text-emerald-400/70" />
-                        </div>
-                        <ChevronDown className={`size-3.5 text-white/20 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
-                      </div>
-                    </div>
-
-                    {isExpanded && description && (
-                      <div className="mt-3 pt-3 border-t border-white/[0.04]">
-                        <p className="text-[12px] text-white/40 leading-relaxed">{description}</p>
-                      </div>
-                    )}
-                  </button>
-                </div>
-              )
-            })
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="size-10 rounded-xl bg-white/[0.04] flex items-center justify-center mb-3">
-                <Sparkles className="size-5 text-white/20" />
-              </div>
-              <p className="text-sm text-white/40">No step data available</p>
-              <p className="text-xs text-white/25 mt-1">Pipeline timing is recorded for new optimizations</p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        {totalElapsed > 0 && (
-          <div className="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.04]">
-              <Clock className="size-3 text-white/25" />
-              <span className="text-xs text-white/40 font-mono tabular-nums">{formatPipelineElapsed(totalElapsed)}</span>
-              <span className="text-xs text-white/15">|</span>
-              <span className="text-xs text-white/40 tabular-nums">{steps.length} steps</span>
-            </div>
-          </div>
-        )}
-      </SheetContent>
-    </Sheet>
   )
 }
 

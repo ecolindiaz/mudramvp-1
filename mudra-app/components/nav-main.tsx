@@ -22,6 +22,7 @@ const iconAnimationMap: Record<string, string> = {
   "Conversation Radar": "animate-icon-radar",
   "Brand Profile": "animate-icon-wave",
   "Integrations": "animate-icon-link",
+  "Answer Optimizer": "animate-icon-mixer",
 }
 
 // Optimized navigation item component

@@ -783,15 +783,35 @@ function CampaignsPageInner() {
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-20 px-6 rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50">
-                      <div className="flex items-center justify-center size-12 rounded-lg bg-white/[0.04] border border-white/[0.04] mb-4">
-                        <FileText className="h-5 w-5 text-white/40" />
+                      {/* Illustration Card */}
+                      <div aria-hidden="true" className="w-20 space-y-2.5 rounded-lg p-2.5 shadow-lg shadow-black/20 ring-1 ring-white/[0.08] bg-white/[0.04] mb-5">
+                        <div className="flex items-center gap-1.5">
+                          <div className="size-3 rounded-full bg-white/[0.12]" />
+                          <div className="h-1 w-5 rounded-full bg-white/[0.12]" />
+                        </div>
+                        <div className="space-y-2">
+                          <div className="h-1 w-full rounded-full bg-white/[0.10]" />
+                          <div className="h-1 w-3/4 rounded-full bg-white/[0.10]" />
+                          <div className="h-1 w-full rounded-full bg-white/[0.10]" />
+                          <div className="h-1 w-1/2 rounded-full bg-white/[0.10]" />
+                        </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto size-3 text-white/25">
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
                       </div>
-                      <div className="text-sm font-medium text-white/60 mb-1">
+                      <div className="text-sm font-medium text-white/70 mb-1">
                         No {statusFilter} content yet
                       </div>
-                      <div className="text-xs text-white/40">
-                        Generate AI-optimized content to get started
+                      <div className="text-xs text-white/40 mb-5">
+                        Create AI-optimized content to boost your search presence.
                       </div>
+                      <button
+                        onClick={() => setGeneratorDialogOpen(true)}
+                        className="h-8 px-4 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 text-xs font-medium shadow-sm hover:shadow-md transition-all gap-2 inline-flex items-center"
+                      >
+                        <Plus className="size-3.5" />
+                        Generate Content
+                      </button>
                     </div>
                   )}
                 </div>

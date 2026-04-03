@@ -25,7 +25,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mudra - GEO Platform",
+  title: "Morphiq - GEO Platform",
   description: "Generative Engine Optimization platform for startups",
   icons: {
     icon: "/Mudra-Logo.png",

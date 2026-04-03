@@ -115,14 +115,14 @@ export default function LoginPage() {
                         <div className="mb-4">
                             <Image
                                 src="/images/MudraMainLogo.png"
-                                alt="Mudra"
+                                alt="Morphiq"
                                 width={80}
                                 height={80}
                                 className="mx-auto"
                                 priority
                             />
                         </div>
-                        <h1 className="text-2xl font-semibold text-white">Sign in to Mudra</h1>
+                        <h1 className="text-2xl font-semibold text-white">Sign in to Morphiq</h1>
                         <p className="text-base text-gray-400">Welcome back! Sign in to continue</p>
                     </div>
 

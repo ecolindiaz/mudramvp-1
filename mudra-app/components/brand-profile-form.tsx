@@ -20,7 +20,7 @@ const labelStyles = "text-white/80 text-sm font-medium"
 // Mock data - will be replaced with actual data from backend
 const initialData = {
   // Company Information
-  companyName: "Mudra Inc.",
+  companyName: "Morphiq Inc.",
   companyWebsite: "https://trymudra.com",
   companyLinkedIn: "https://linkedin.com/company/mudra",
   companyTwitter: "https://twitter.com/mudra",

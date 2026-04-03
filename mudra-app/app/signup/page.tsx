@@ -231,7 +231,7 @@ export default function SignUpPage() {
       <div className="relative hidden h-full flex-col bg-black text-white lg:flex overflow-hidden">
         <Image
           src="/images/SignUp.png"
-          alt="Mudra signup illustration"
+          alt="Morphiq signup illustration"
           fill
           className="object-cover object-center scale-105"
           priority
@@ -245,7 +245,7 @@ export default function SignUpPage() {
             <div className="mb-6">
               <Image
                 src="/images/MudraMainLogo.png"
-                alt="Mudra"
+                alt="Morphiq"
                 width={80}
                 height={80}
                 className="mx-auto"
@@ -256,7 +256,7 @@ export default function SignUpPage() {
               Create an account
             </h1>
             <p className="text-base text-gray-400">
-              Sign up to get started with Mudra
+              Sign up to get started with Morphiq
             </p>
           </div>
 

@@ -5,7 +5,7 @@ export function MudraLogo({ size = 140, className = "" }: { size?: number; class
     <div className={`flex items-center justify-center py-8 ${className}`}>
       <Image
         src="/images/MudraMainLogo.png"
-        alt="Mudra main logo"
+        alt="Morphiq main logo"
         width={size}
         height={size}
         className="object-contain"

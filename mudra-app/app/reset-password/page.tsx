@@ -86,7 +86,7 @@ function ResetPasswordContent() {
                         <div className="mb-4">
                             <Image
                                 src="/images/MudraMainLogo.png"
-                                alt="Mudra"
+                                alt="Morphiq"
                                 width={80}
                                 height={80}
                                 className="mx-auto"
@@ -115,7 +115,7 @@ function ResetPasswordContent() {
                         <div className="mb-4">
                             <Image
                                 src="/images/MudraMainLogo.png"
-                                alt="Mudra"
+                                alt="Morphiq"
                                 width={80}
                                 height={80}
                                 className="mx-auto"

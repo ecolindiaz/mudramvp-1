@@ -85,12 +85,12 @@ export default function SignUpPage() {
         <div className="absolute inset-0 bg-zinc-900" />
         <div className="relative z-20 flex items-center text-lg font-medium">
           <Icons.logo className="mr-2 h-6 w-6" />
-          Mudra
+          Morphiq
         </div>
         <div className="relative z-20 mt-auto">
           <blockquote className="space-y-2">
             <p className="text-lg">
-              &ldquo;Mudra has completely transformed how our startup appears in AI responses. The visibility boost has been incredible.&rdquo;
+              &ldquo;Morphiq has completely transformed how our startup appears in AI responses. The visibility boost has been incredible.&rdquo;
             </p>
             <footer className="text-sm">Sofia Davis, CEO of TechFlow</footer>
           </blockquote>

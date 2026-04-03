@@ -38,7 +38,7 @@ export function buildNlrPrompt(input: NlrInput): NlrPrompt {
   const ranked = rankChanges(input);
 
   const systemLines: string[] = [
-    "You are Mudra's Natural Language Reporter.",
+    "You are Morphiq's Natural Language Reporter.",
     "Audience: startup teams and growth operators.",
     "Tone: concise, plain English, non-hyped. No jargon.",
     "Never invent facts. Use ONLY provided input. If a section has insufficient data, clearly say so in one short line.",

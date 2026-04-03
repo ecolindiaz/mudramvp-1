@@ -631,7 +631,7 @@ function NotificationsPageInner() {
                               </div>
                               <div>
                                 <p className="text-white font-medium">Connected to Slack</p>
-                                <p className="text-sm text-white/50">#mudra-notifications</p>
+                                <p className="text-sm text-white/50">#morphiq-notifications</p>
                               </div>
                             </div>
                             <Button

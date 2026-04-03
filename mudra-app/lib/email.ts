@@ -14,7 +14,7 @@ function getResendClient() {
   return resend;
 }
 
-const FROM_EMAIL = process.env.EMAIL_FROM || 'Mudra <noreply@mudra.ai>';
+const FROM_EMAIL = process.env.EMAIL_FROM || 'Morphiq <noreply@mudra.ai>';
 const APP_URL = process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
 export async function sendVerificationEmail(email: string, token: string) {
@@ -45,7 +45,7 @@ export async function sendVerificationEmail(email: string, token: string) {
                           Verify your email address
                         </h1>
                         <p style="color: #999999; font-size: 16px; line-height: 24px; margin: 0 0 30px 0; text-align: center;">
-                          Thanks for signing up! Click the button below to verify your email address and get started with Mudra.
+                          Thanks for signing up! Click the button below to verify your email address and get started with Morphiq.
                         </p>
                         <table width="100%" cellpadding="0" cellspacing="0">
                           <tr>
@@ -61,7 +61,7 @@ export async function sendVerificationEmail(email: string, token: string) {
                           <a href="${verificationUrl}" style="color: #999999; word-break: break-all;">${verificationUrl}</a>
                         </p>
                         <p style="color: #666666; font-size: 14px; line-height: 20px; margin: 30px 0 0 0; text-align: center; border-top: 1px solid #222222; padding-top: 30px;">
-                          If you didn't create an account with Mudra, you can safely ignore this email.
+                          If you didn't create an account with Morphiq, you can safely ignore this email.
                         </p>
                       </td>
                     </tr>
@@ -154,14 +154,14 @@ export async function sendWelcomeEmail(email: string, name: string) {
     await client.emails.send({
       from: FROM_EMAIL,
       to: email,
-      subject: 'Welcome to Mudra!',
+      subject: 'Welcome to Morphiq!',
       html: `
         <!DOCTYPE html>
         <html>
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Welcome to Mudra</title>
+            <title>Welcome to Morphiq</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000; margin: 0; padding: 0;">
             <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #000000; padding: 40px 20px;">
@@ -171,7 +171,7 @@ export async function sendWelcomeEmail(email: string, name: string) {
                     <tr>
                       <td style="padding: 40px;">
                         <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 0 0 20px 0; text-align: center;">
-                          Welcome to Mudra, ${name}!
+                          Welcome to Morphiq, ${name}!
                         </h1>
                         <p style="color: #999999; font-size: 16px; line-height: 24px; margin: 0 0 30px 0; text-align: center;">
                           You're all set! Get started by setting up your brand profile and running your first AI visibility analysis.

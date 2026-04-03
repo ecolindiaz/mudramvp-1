@@ -778,7 +778,7 @@ function CampaignCanvasPageInner({
                         <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center">
                           <img 
                             src="/images/mudra-logo.png" 
-                            alt="Mudra" 
+                            alt="Morphiq"
                             className="w-7 h-7 object-contain opacity-90"
                           />
                         </div>

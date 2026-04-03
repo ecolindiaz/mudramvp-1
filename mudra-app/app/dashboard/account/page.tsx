@@ -270,7 +270,7 @@ function AccountPageInner() {
                     <CardHeader>
                       <CardTitle className="text-white">Profile Information</CardTitle>
                       <CardDescription className="text-white/60">
-                        Basic info used across Mudra.
+                        Basic info used across Morphiq.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">

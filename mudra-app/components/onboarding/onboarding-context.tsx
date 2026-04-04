@@ -156,7 +156,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       // Company Profile
       companyDescription: data.companyDescription,
       companyIndustry: data.companyIndustry,
-      companyServices: data.servicesProducts.join(", "),
+      companyServices: JSON.stringify(data.servicesProducts),
       companyICP: JSON.stringify(data.companyICP),
 
       // Competitors
@@ -192,7 +192,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       const primaryCompanyInfo = {
         companyDescription: data.companyDescription,
         companyIndustry: data.companyIndustry,
-        companyServices: data.servicesProducts.join(", "),
+        companyServices: JSON.stringify(data.servicesProducts),
         companyICP: JSON.stringify(data.companyICP),
         competitors: data.competitors.filter(c => c.trim() !== ""),
       }

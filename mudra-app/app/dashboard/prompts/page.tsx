@@ -28,6 +28,7 @@ import { useBrandProfile } from "@/components/brand-profile-context"
 import { toast } from "sonner"
 import { getLanguageForCountry, isAllowedCountry, type CountryCode } from "@/lib/geo/country-config"
 import { trackEvent } from "@/lib/analytics/posthog-events"
+import { safeParseArray } from "@/lib/utils/safe-parse-array"
 
 interface Prompt {
   id: string
@@ -219,9 +220,7 @@ export default function PromptsPage() {
             companyName: profile.companyName || '',
             companyDescription: profile.companyDescription || '',
             industry: profile.companyIndustry || '',
-            productsServices: profile.companyServices
-              ? profile.companyServices.split(',').map((s: string) => s.trim())
-              : [],
+            productsServices: safeParseArray(profile.companyServices),
             idealCustomer: profile.companyICP || '',
             competitors: profile.competitors || []
           }
@@ -270,9 +269,7 @@ export default function PromptsPage() {
             companyName: profile.companyName || '',
             companyDescription: profile.companyDescription || '',
             industry: profile.companyIndustry || '',
-            productsServices: profile.companyServices
-              ? profile.companyServices.split(',').map((s: string) => s.trim())
-              : [],
+            productsServices: safeParseArray(profile.companyServices),
             idealCustomer: profile.companyICP || '',
             competitors: profile.competitors || []
           }

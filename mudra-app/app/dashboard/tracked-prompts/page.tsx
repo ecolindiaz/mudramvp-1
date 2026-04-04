@@ -55,6 +55,7 @@ import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profil
 import { toast } from "sonner"
 import { trackEvent } from "@/lib/analytics/posthog-events"
 import { getLanguageForCountry, isAllowedCountry, type CountryCode } from "@/lib/geo/country-config"
+import { safeParseArray } from "@/lib/utils/safe-parse-array"
 
 type TrackedPrompt = {
   id: string
@@ -1036,9 +1037,7 @@ function TrackedPromptsPageInner() {
             companyName: profile.companyName || '',
             companyDescription: profile.companyDescription || '',
             industry: profile.companyIndustry || '',
-            productsServices: profile.companyServices
-              ? profile.companyServices.split(',').map((s: string) => s.trim())
-              : [],
+            productsServices: safeParseArray(profile.companyServices),
             idealCustomer: profile.companyICP || '',
             competitors: profile.competitors || []
           }

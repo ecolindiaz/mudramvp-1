@@ -1104,7 +1104,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           </SelectValue>
                         </div>
                       </SelectTrigger>
-                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg max-h-[280px]">
+                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg" viewportClassName="max-h-[280px]">
                         {blogPosts.length === 0 ? (
                           <div className="px-3 py-6 text-center">
                             <p className="text-sm text-white/40">No blog posts available</p>
@@ -1139,7 +1139,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           </SelectValue>
                         </div>
                       </SelectTrigger>
-                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg max-h-[280px]">
+                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg" viewportClassName="max-h-[280px]">
                         {prompts.length === 0 ? (
                           <div className="px-3 py-6 text-center">
                             <p className="text-sm text-white/40">No tracked prompts available</p>
@@ -1173,7 +1173,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           </SelectValue>
                         </div>
                       </SelectTrigger>
-                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg max-h-[280px]">
+                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg" viewportClassName="max-h-[280px]">
                         {icps.length === 0 ? (
                           <div className="px-3 py-6 text-center">
                             <p className="text-sm text-white/40">No profiles available</p>

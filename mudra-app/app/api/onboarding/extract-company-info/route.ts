@@ -224,10 +224,16 @@ export async function POST(request: NextRequest) {
       companyDescription: extractedData.companyDescription || '',
       industry: extractedData.industry || '',
       servicesProducts: Array.isArray(extractedData.servicesProducts)
-        ? extractedData.servicesProducts.filter((s: string) => typeof s === 'string' && s.trim()).slice(0, 7)
+        ? extractedData.servicesProducts
+            .filter((s: string) => typeof s === 'string' && s.trim())
+            .map((s: string) => s.replace(/\n/g, ' ').trim())
+            .slice(0, 7)
         : [],
       idealCustomerProfiles: Array.isArray(extractedData.idealCustomerProfiles)
-        ? extractedData.idealCustomerProfiles.filter((s: string) => typeof s === 'string' && s.trim()).slice(0, 5)
+        ? extractedData.idealCustomerProfiles
+            .filter((s: string) => typeof s === 'string' && s.trim())
+            .map((s: string) => s.replace(/\n/g, ' ').trim())
+            .slice(0, 5)
         : [],
       competitorUrls: Array.isArray(extractedData.competitorUrls)
         ? extractedData.competitorUrls.filter((competitorUrl: string) => {

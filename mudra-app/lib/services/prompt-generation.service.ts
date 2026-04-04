@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { logAIModelCall } from './ai-model-logging.service';
-import { safeParseICPArray } from '@/lib/utils/safe-parse-array';
+import { safeParseArray, safeParseICPArray } from '@/lib/utils/safe-parse-array';
 
 export interface BrandInfo {
   companyName: string;
@@ -236,11 +236,7 @@ export function profileToBrandInfo(profile: BrandProfileInput): BrandInfo {
     competitors = profile.competitors.split(',').map((c: string) => c.trim()).filter((c: string) => c);
   }
 
-  const services = Array.isArray(profile.companyServices)
-    ? profile.companyServices.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
-    : typeof profile.companyServices === 'string' && profile.companyServices.trim()
-      ? profile.companyServices.split(',').map((s: string) => s.trim())
-      : ['Software'];
+  const services = safeParseArray(profile.companyServices, ['Software']);
 
   const description = profile.companyDescription || 'A technology company';
   const industry = profile.companyIndustry || 'Technology';
@@ -860,7 +856,14 @@ GOOD Generic (short discovery queries, 5-15 words — anchor to a use case, vert
 - "plataformas de email marketing para recuperar carritos abandonados"
 - "herramientas de facturación para freelancers con clientes internacionales"
 
-GOOD Organic (directo, conciso — la mayoría menos de 20 palabras):
+GOOD Organic — descubrimiento corto (6-10 palabras, 5 estilos de inicio — incluir ~15-20% así):
+- "mejor software de gestión de gastos empresarial" (mejor)
+- "top plataformas de tarjetas corporativas para empresas" (top)
+- "¿cuál es el mejor software de cuentas por pagar?" (cuál)
+- "¿qué herramienta de control de gastos es mejor?" (qué)
+- "principales herramientas de automatización financiera para empresas" (principales)
+
+GOOD Organic — largo natural (la mayoría del Organic, directo, conciso — menos de 20 palabras):
 - "Mejor plataforma de datos de entrenamiento para modelos multimodales"
 - "¿Cuál es la mejor plataforma para correr cargas de IA sin manejar Kubernetes?"
 - "¿Qué herramientas usan las startups para desplegar modelos de ML rápido?"
@@ -916,7 +919,19 @@ GOOD Generic (short discovery queries, 5-15 words — anchor to a use case, vert
 - "companies that provide training data for AI research labs"
 - "deploy and manage ML models in production"
 
-GOOD Organic (direct, concise — most under 20 words, prefer question forms over "I need" statements):
+GOOD Organic — short top-of-funnel discovery (6-10 words, 5 opener styles — include ~15-20% like these):
+- "best expense management tools for businesses" (best)
+- "top corporate card platforms for companies" (top)
+- "which spend management solutions are best?" (which)
+- "what's the best accounts payable software?" (what's)
+- "leading finance automation tools for companies" (leading)
+- "best approval workflow tools in finance" (best)
+- "top platforms for automating corporate expenses" (top)
+- "which company has the best spend controls?" (which)
+- "what's the best tool for tracking expenses?" (what's)
+- "leading data labeling platforms for AI teams" (leading)
+
+GOOD Organic — natural-length (the majority of Organic, direct, concise — most under 20 words):
 - "Best training data platform for multimodal models"
 - "Best LLM evaluation tool for enterprise procurement teams"
 - "What's the best platform to run AI workloads without managing Kubernetes?"
@@ -1083,6 +1098,7 @@ export async function generateInitialPrompts(brandInfo: BrandInfo, redditContext
 Generate exactly ${totalPrompts} unique search queries with this EXACT category distribution:
 
 1. **Organic** — exactly ${counts['Organic']} prompts: Discovery queries where the user is **searching for a product, platform, tool, or solution** to evaluate or buy. The brand name must NOT appear. These must express buying/evaluation intent — NOT ask how to accomplish a technical task. "Best deploy platform for Next.js" is good (looking for a tool). "How can we roll back after a bad deploy?" is bad (asking how to do a task — that belongs in How-to Guides).
+   IMPORTANT: ~15-20% of Organic prompts (about ${Math.round(counts['Organic'] * 0.18)} prompts) must be SHORT top-of-funnel discovery queries of 6-10 words — just the product category with no persona or qualifying context. These are how people START searching. Use these 5 openers spread evenly: "best", "top", "which ... is/are best?", "what's the best ...?", "leading". The remaining ~80% should be your normal natural-length prompts (8-20 words).
 2. **Generic** — exactly ${counts['Generic']} prompts: Short discovery queries of 5-15 words that add a USE CASE or CONTEXT to a broad category search. NOT bare keywords — instead, anchor the query to a specific workflow, vertical, or goal. Example: "data labeling platforms for training foundational models" instead of just "data labeling platform". The brand name must NOT appear in these.
 3. **Competitor** — exactly ${counts['Competitor']} prompts, split into two sub-types:
 
@@ -1108,6 +1124,7 @@ ${businessGuidance}
 ORGANIC STYLE RULES (critical — follow these strictly):
 - Every Organic prompt MUST have clear intent. Keep most prompts SHORT and DIRECT — under 20 words.${language === 'es' ? ' "¿Cuál es la mejor plataforma para correr cargas de IA sin manejar Kubernetes?" is good. "somos una empresa SaaS con procesamiento pesado de datos, ¿qué plataformas cloud sirven para escalar jobs en contenedores bajo demanda?" is too long and over-specific.' : ' "What\'s the best platform to run AI workloads without managing Kubernetes?" is good. "we\'re a SaaS company with heavy batch data processing, what cloud platforms are good for scaling containerized batch jobs on demand?" is too long and over-specific.'}
 - Some prompts can include light situational context (role, company type, use case) but do NOT pad every prompt with backstory. A minority should have context, the majority should be concise direct questions.
+- TOP-OF-FUNNEL DISCOVERY: About ${Math.round(counts['Organic'] * 0.18)} of the Organic prompts must be SHORT pure-discovery queries (6-10 words). These are simple product-category searches with no persona or context. ${language === 'es' ? 'Use these 5 opener styles and spread evenly: "mejor [categoría]", "top [categoría]", "¿cuál es el mejor [categoría]?", "¿qué [categoría] es mejor?", "principales [categoría]". Examples: "mejor software de gestión de gastos empresarial", "top plataformas de tarjetas corporativas para empresas", "¿cuál es el mejor software de cuentas por pagar?", "principales herramientas de automatización financiera".' : 'Use these 5 opener styles and spread evenly across the short prompts: "best [category]", "top [category]", "which [category] is/are best?", "what\'s the best [category]?", "leading [category]". Examples: "best expense management tools for businesses", "top corporate card platforms for companies", "which spend management solutions are best?", "what\'s the best accounts payable software?", "leading finance automation tools for companies". Do NOT use "best" for more than 2 of these.'} Every prompt must be at least 6 words and make natural sense as a real search query.
 - Do NOT put the brand name in any Organic or Generic prompt. These test whether AI discovers the brand unprompted.
 ${language === 'es'
   ? `- Keep a strong buying-intent slice in Organic: target 25-35% of Organic prompts starting exactly with "Mejor" or "Mejores". "Mejor X para Y" is the #1 query pattern that triggers AI engines to list and compare brands — prioritize it. These should feel like real buyer searches, not SEO headlines.

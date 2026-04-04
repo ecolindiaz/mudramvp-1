@@ -1,4 +1,5 @@
 import { getJigsawClient } from "@/lib/clients/jigsawstack"
+import { safeParseArray } from "@/lib/utils/safe-parse-array"
 import { getDataForSEOClient } from "@/lib/clients/dataforseo"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { prisma } from "@/lib/prisma"
@@ -576,9 +577,7 @@ export async function generateRecommendations(
   }
 
   // Parse raw data into clean BrandContext
-  const rawServices = profile.companyServices
-    ? profile.companyServices.split(",").map(s => s.trim()).filter(Boolean)
-    : []
+  const rawServices = safeParseArray(profile.companyServices)
 
   const rawCompetitors = profile.competitors
     ? profile.competitors.split(",").map(s => s.trim()).filter(Boolean)

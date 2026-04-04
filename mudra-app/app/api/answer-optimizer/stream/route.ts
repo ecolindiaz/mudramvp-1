@@ -569,7 +569,7 @@ IMPORTANT: Run a MAXIMUM of 7 searches. Prioritize sources from the last 12 mont
           // Verify brand profile belongs to the authenticated user
           const bpId = parseInt(String(brandProfileId));
           const brandProfile = await prisma.brandProfile.findFirst({
-            where: { id: bpId, user_id: authResult.user.id },
+            where: { id: bpId, userId: authResult.user.id },
             select: { id: true },
           });
           if (!brandProfile) {

@@ -12,14 +12,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowRight, Plus, FileText, MessageSquare, UserCircle, Mic, Pencil, RefreshCw, PenTool, ChevronDown, ChevronRight, Search, Link, Globe, Check, Loader2, Circle, X, Play, ScanText, Crosshair, HelpCircle, ListFilter, Users, Swords, Sparkles, Clock, GitCompare, SendHorizontal, Braces, type LucideIcon } from "lucide-react"
@@ -62,7 +55,7 @@ function getActiveSteps(enabledTools: Set<string>): PipelineStep[] {
   ]
 
   if (enabledTools.has("query-ai-models")) {
-    steps.push({ id: "query-ai", label: "Query AI Models", icon: Search, inputLabel: "Target Prompt", outputLabel: "AI Responses" })
+    steps.push({ id: "query-ai", label: "Query AI Models", icon: Search, inputLabel: "Article Title", outputLabel: "AI Responses & Citations" })
   }
   if (enabledTools.has("scrape-citations") && enabledTools.has("query-ai-models")) {
     steps.push({ id: "scrape-citations", label: "Scrape AI Citations", icon: ScanText, inputLabel: "Citation URLs", outputLabel: "Source Content" })
@@ -111,7 +104,7 @@ function FirecrawlIcon({ className }: { className?: string }) {
   return <img src="/firecrawl-logo.png" alt="" className={`${className} object-contain`} />
 }
 
-const selectTriggerClass = "w-full h-12 !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-lg transition-all duration-200 ease-out active:scale-[0.98] focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=open]:ring-[1.5px] data-[state=open]:ring-inset data-[state=open]:ring-blue-500 data-[state=open]:!bg-[#1f1f1f] [&>svg]:text-white/40 [&>svg]:transition-transform [&>svg]:duration-200 data-[state=open]:[&>svg]:rotate-180"
+const selectTriggerClass = "w-full h-12 !bg-[#1b1b1b] hover:!bg-[#1f1f1f] !border-0 text-white rounded-lg transition-all duration-200 ease-out active:scale-[0.98] focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=open]:ring-[1.5px] data-[state=open]:ring-inset data-[state=open]:ring-blue-400 data-[state=open]:!bg-[#1f1f1f] [&>svg]:text-white/40 [&>svg]:transition-transform [&>svg]:duration-200 data-[state=open]:[&>svg]:rotate-180"
 
 // --- Pipeline Step Types & Definitions ---
 type StepStatus = "pending" | "running" | "completed" | "error"
@@ -555,11 +548,11 @@ function PipelineStepRow({ step, status, isLast, elapsed, stepRef, isOpen, onTog
             status === "completed" ? "cursor-pointer" : ""
           } ${
             isOpen
-              ? "bg-blue-500/[0.04] border-blue-500/25"
+              ? "bg-blue-400/[0.04] border-blue-400/25"
               : status === "running"
-              ? "bg-blue-500/[0.03] border-blue-500/20"
+              ? "bg-blue-400/[0.03] border-blue-400/20"
               : status === "completed"
-              ? "bg-blue-500/[0.02] border-blue-500/10 hover:border-blue-500/20"
+              ? "bg-blue-400/[0.02] border-blue-400/10 hover:border-blue-400/20"
               : status === "error"
               ? "bg-red-500/[0.03] border-red-500/20"
               : "bg-white/[0.01] border-white/[0.03] opacity-[0.4]"
@@ -568,7 +561,7 @@ function PipelineStepRow({ step, status, isLast, elapsed, stepRef, isOpen, onTog
           <div className="flex items-center gap-3">
             <div className={`size-7 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300 ${
               status === "completed" ? "bg-white/[0.04]" :
-              status === "running" ? "bg-blue-500/10" :
+              status === "running" ? "bg-blue-400/10" :
               status === "error" ? "bg-red-500/10" :
               "bg-white/[0.02]"
             }`}>
@@ -593,12 +586,12 @@ function PipelineStepRow({ step, status, isLast, elapsed, stepRef, isOpen, onTog
                 {elapsed != null && (
                   <span className="text-[10px] text-white/20 font-mono tabular-nums">{formatElapsed(elapsed)}</span>
                 )}
-                <div className="size-6 rounded-full bg-blue-500/15 flex items-center justify-center">
+                <div className="size-6 rounded-full bg-blue-400/15 flex items-center justify-center">
                   <Check className="size-3.5 text-blue-400/70" />
                 </div>
               </div>
             ) : status === "running" ? (
-              <div className="size-6 rounded-full bg-blue-500/15 flex items-center justify-center shrink-0">
+              <div className="size-6 rounded-full bg-blue-400/15 flex items-center justify-center shrink-0">
                 <Loader2 className="size-3.5 text-blue-400 animate-spin" />
               </div>
             ) : status === "error" ? (
@@ -984,6 +977,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             sources: optimizationResult.metadata?.sources || [],
             contentLabSchema,
             schemaStatus,
+            originalContent: optimizationResult.originalContent || "",
             optimizerSource: {
               originalUrl: post?.url || "",
               promptText: prompt?.text || "",
@@ -1007,15 +1001,32 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       if (data.success && data.campaign?.id) {
         handleClose(false)
         router.push(`/dashboard/answer-optimizer/${data.campaign.id}`)
+      } else {
+        console.error("Failed to save optimized content:", data.error || 'Unknown error')
+        // Show error inline since toast may not be available
+        alert('Failed to save optimization. Please try again.')
       }
     } catch (error) {
       console.error("Failed to save optimized content:", error)
+      alert('Failed to save optimization. Please try again.')
     } finally {
       setIsApplying(false)
     }
   }
 
+  // Track whether pipeline is actively running (not complete, not cancelled)
+  const isPipelineRunning = view === "process" && requestBody && !optimizationResult
+
   const handleClose = (v: boolean) => {
+    if (!v && isPipelineRunning) {
+      // Prevent closing while pipeline is actively running
+      return
+    }
+    if (!v && optimizationResult && view !== "form") {
+      // Confirm before discarding unsaved optimization results
+      const confirmed = window.confirm("You have unsaved optimization results. Close anyway?")
+      if (!confirmed) return
+    }
     onOpenChange(v)
     if (!v) resetForm()
   }
@@ -1023,7 +1034,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const canOptimize = selectedPost && selectedPrompt
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={isPipelineRunning ? undefined : handleClose}>
       <DialogContent className="sm:max-w-[720px] max-h-[85vh] bg-[#141414] border-white/[0.08] text-white !flex !flex-col overflow-hidden">
         {/* Crossfade wrapper */}
         <div className="relative flex flex-col overflow-hidden min-w-0">
@@ -1093,7 +1104,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           </SelectValue>
                         </div>
                       </SelectTrigger>
-                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg">
+                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg max-h-[280px]">
                         {blogPosts.length === 0 ? (
                           <div className="px-3 py-6 text-center">
                             <p className="text-sm text-white/40">No blog posts available</p>
@@ -1128,7 +1139,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           </SelectValue>
                         </div>
                       </SelectTrigger>
-                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg">
+                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg max-h-[280px]">
                         {prompts.length === 0 ? (
                           <div className="px-3 py-6 text-center">
                             <p className="text-sm text-white/40">No tracked prompts available</p>
@@ -1162,7 +1173,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           </SelectValue>
                         </div>
                       </SelectTrigger>
-                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg">
+                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg max-h-[280px]">
                         {icps.length === 0 ? (
                           <div className="px-3 py-6 text-center">
                             <p className="text-sm text-white/40">No profiles available</p>
@@ -1213,13 +1224,13 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           onClick={() => setSelectedDepth(opt.value)}
                           className={`relative flex flex-col items-start gap-2 rounded-lg p-4 text-left transition-all duration-200 ease-out active:scale-[0.97] cursor-pointer ${
                             selectedDepth === opt.value
-                              ? "bg-white/[0.06] ring-[1.5px] ring-inset ring-blue-500"
+                              ? "bg-white/[0.06] ring-[1.5px] ring-inset ring-blue-400"
                               : "bg-[#1b1b1b] hover:bg-[#1f1f1f] ring-1 ring-white/[0.04]"
                           }`}
                         >
                           <opt.icon className={`size-4 ${selectedDepth === opt.value ? "text-blue-400" : "text-white/30"} transition-colors`} />
                           {opt.recommended && (
-                            <span className="absolute top-2 right-2 text-[9px] font-medium text-blue-400 bg-blue-500/10 px-1.5 py-px rounded-full">Recommended</span>
+                            <span className="absolute top-2 right-2 text-[9px] font-medium text-blue-400 bg-blue-400/10 px-1.5 py-px rounded-full">Recommended</span>
                           )}
                           <div>
                             <p className={`text-sm font-medium ${selectedDepth === opt.value ? "text-white" : "text-white/70"} transition-colors`}>{opt.label}</p>
@@ -1275,14 +1286,14 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                               isDisabled
                                 ? "bg-[#1b1b1b] ring-1 ring-white/[0.04] opacity-40 cursor-not-allowed"
                                 : enabled
-                                ? "bg-white/[0.06] ring-[1.5px] ring-inset ring-blue-500"
+                                ? "bg-white/[0.06] ring-[1.5px] ring-inset ring-blue-400"
                                 : "bg-[#1b1b1b] hover:bg-[#1f1f1f] ring-1 ring-white/[0.04]"
                             }`}
                           >
                             <div className="flex items-center justify-between w-full">
                               <tool.icon className={`size-4 ${isDisabled ? "text-white/15" : enabled ? "text-blue-400" : "text-white/30"} transition-colors`} />
                               <div className={`size-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                                isDisabled ? "border-white/10" : enabled ? "border-blue-500 bg-blue-500" : "border-white/20"
+                                isDisabled ? "border-white/10" : enabled ? "border-blue-400 bg-blue-400" : "border-white/20"
                               }`}>
                                 {enabled && (
                                   <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 5L4.5 7.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -1471,25 +1482,30 @@ function AnswerOptimizerPageInner() {
             <div className="flex-1 px-4 lg:px-6 py-6">
               {isLoading ? (
                 /* Loading skeleton */
-                <div className="rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50 overflow-hidden">
+                <div className="rounded-xl border border-white/[0.04] bg-[#111111] overflow-hidden">
                   <Table>
                     <TableHeader>
-                      <TableRow className="border-white/[0.04] bg-white/[0.03] hover:bg-white/[0.03]">
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Title</TableHead>
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Source URL</TableHead>
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Depth</TableHead>
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Created</TableHead>
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Status</TableHead>
+                      <TableRow className="border-white/[0.04] bg-white/[0.02] hover:bg-white/[0.02]">
+                        <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider pl-4">Title</TableHead>
+                        <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Source</TableHead>
+                        <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Depth</TableHead>
+                        <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Status</TableHead>
+                        <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Created</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {Array.from({ length: 3 }).map((_, i) => (
-                        <TableRow key={i} className="border-white/[0.04]">
-                          <TableCell className="py-3"><Skeleton className="h-4 w-48 bg-white/[0.06]" /></TableCell>
-                          <TableCell className="py-3"><Skeleton className="h-4 w-36 bg-white/[0.06]" /></TableCell>
-                          <TableCell className="py-3"><Skeleton className="h-4 w-24 bg-white/[0.06]" /></TableCell>
-                          <TableCell className="py-3"><Skeleton className="h-4 w-16 bg-white/[0.06]" /></TableCell>
-                          <TableCell className="py-3"><Skeleton className="h-4 w-16 bg-white/[0.06]" /></TableCell>
+                        <TableRow key={i} className={i === 0 ? "border-0" : "border-white/[0.04]"}>
+                          <TableCell className="py-3.5 pl-4">
+                            <div className="flex items-center gap-3">
+                              <Skeleton className="size-2 rounded-full bg-blue-400/20" />
+                              <Skeleton className="h-4 w-48 bg-white/[0.06] rounded" />
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3.5"><Skeleton className="h-3 w-32 bg-white/[0.04] rounded" /></TableCell>
+                          <TableCell className="py-3.5"><Skeleton className="h-5 w-20 bg-white/[0.04] rounded-md" /></TableCell>
+                          <TableCell className="py-3.5"><Skeleton className="h-5 w-16 bg-white/[0.04] rounded-md" /></TableCell>
+                          <TableCell className="py-3.5"><Skeleton className="h-3 w-10 bg-white/[0.03] rounded" /></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1538,58 +1554,62 @@ function AnswerOptimizerPageInner() {
                 </div>
               ) : (
                 /* Optimizations Table */
-                <div className="rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50 overflow-hidden">
+                <div className="rounded-xl border border-white/[0.04] bg-[#111111] overflow-hidden">
                   <Table>
                     <TableHeader>
-                      <TableRow className="border-white/[0.04] bg-white/[0.03] hover:bg-white/[0.03]">
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Title</TableHead>
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Source URL</TableHead>
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Depth</TableHead>
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Created</TableHead>
-                        <TableHead className="text-white/50 font-medium h-11 text-[13px]">Status</TableHead>
+                      <TableRow className="border-white/[0.04] bg-white/[0.02] hover:bg-white/[0.02]">
+                        <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider pl-4">Title</TableHead>
+                        <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Source</TableHead>
+                        <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Depth</TableHead>
+                        <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Status</TableHead>
+                        <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Created</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {optimizations.map((o) => (
-                        <TableRow
-                          key={o.id}
-                          onClick={() => router.push(`/dashboard/answer-optimizer/${o.id}`)}
-                          className="border-white/[0.04] hover:bg-white/[0.03] cursor-pointer group"
-                        >
-                          <TableCell className="max-w-md py-3">
-                            <div className="flex items-center gap-2.5">
-                              <div className="flex items-center justify-center size-7 rounded bg-white/[0.04] border border-white/[0.04] group-hover:bg-white/[0.06] transition-colors flex-shrink-0">
-                                <PenTool className="h-3.5 w-3.5 text-white/60 group-hover:text-white/80 transition-colors" />
+                      {optimizations.map((o, idx) => {
+                        const sourcePath = o.sourceUrl ? (() => { try { return new URL(o.sourceUrl).pathname } catch { return o.sourceUrl } })() : null
+
+                        return (
+                          <TableRow
+                            key={o.id}
+                            onClick={() => router.push(`/dashboard/answer-optimizer/${o.id}`)}
+                            className={`hover:bg-white/[0.03] cursor-pointer group transition-colors ${idx === 0 ? "border-0" : "border-white/[0.04]"}`}
+                          >
+                            <TableCell className="py-3.5 pl-4 max-w-md">
+                              <div className="flex items-center gap-3">
+                                <div className="relative shrink-0 flex items-center justify-center size-4">
+                                  <span className="absolute inset-0 rounded-full bg-blue-400/10 animate-pulse" />
+                                  <span className="relative size-1.5 rounded-full bg-blue-400/70" />
+                                </div>
+                                <span className="text-[13px] font-medium text-white/85 truncate group-hover:text-white transition-colors">
+                                  {o.title}
+                                </span>
                               </div>
-                              <span className="text-[13px] font-medium text-white truncate group-hover:text-white/90 transition-colors">
-                                {o.title}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-3 max-w-[200px]">
-                            <span className="text-xs text-white/40 truncate block" title={o.sourceUrl}>
-                              {o.sourceUrl ? (() => { try { return new URL(o.sourceUrl).pathname } catch { return o.sourceUrl } })() : "—"}
-                            </span>
-                          </TableCell>
-                          <TableCell className="py-3">
-                            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
-                              <div className="w-1.5 h-1.5 rounded-full bg-violet-400"></div>
-                              <span className="text-xs text-white/70 font-medium">
-                                {DEPTH_LABELS[o.depthLevel] || o.depthLevel}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-3">
-                            <span className="text-xs text-white/50">{formatTimeAgo(o.createdAt)}</span>
-                          </TableCell>
-                          <TableCell className="py-3">
-                            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
-                              <div className={`w-1.5 h-1.5 rounded-full ${o.status === "Published" ? "bg-green-500" : "bg-white/40"}`}></div>
-                              <span className="text-xs text-white/70 font-medium">{o.status}</span>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            </TableCell>
+                            <TableCell className="py-3.5 max-w-[180px]">
+                              <span className="text-[12px] text-white/30 font-mono truncate block">{sourcePath || "—"}</span>
+                            </TableCell>
+                            <TableCell className="py-3.5">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.05]">
+                                <div className={`w-1.5 h-1.5 rounded-full ${o.depthLevel === "deep" ? "bg-violet-400" : o.depthLevel === "light" ? "bg-blue-400" : "bg-violet-400/60"}`} />
+                                <span className="text-[11px] text-white/50 font-medium">{DEPTH_LABELS[o.depthLevel] || o.depthLevel}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-3.5">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.05]">
+                                <div className={`w-1.5 h-1.5 rounded-full ${o.status === "Published" ? "bg-emerald-400" : "bg-white/30"}`} />
+                                <span className="text-[11px] text-white/50 font-medium">{o.status}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-3.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] text-white/30 tabular-nums">{formatTimeAgo(o.createdAt)}</span>
+                                <ChevronRight className="size-3.5 text-white/10 group-hover:text-white/35 transition-colors shrink-0" />
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
                     </TableBody>
                   </Table>
                 </div>

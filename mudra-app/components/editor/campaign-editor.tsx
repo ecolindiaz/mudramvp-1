@@ -289,16 +289,9 @@ export function CampaignEditor({
   return (
     <div className="flex flex-col h-full w-full">
       <LexicalComposer initialConfig={{ ...initialConfig, editable: !readOnly }}>
-        <div className="flex flex-col h-full w-full rounded-lg border border-white/[0.08] bg-white/[0.02] overflow-hidden">
-          {/* Toolbar - fixed at top, only shown when showToolbar is true and not readOnly */}
-          {!readOnly && showToolbar && (
-            <div className="border-b border-white/[0.08] bg-white/[0.03] px-3 py-2.5 flex-shrink-0 z-10">
-              <Toolbar />
-            </div>
-          )}
-
-          {/* Editor Content - scrollable area with fixed height */}
-          <div className="relative flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+        <div className="flex flex-col h-full w-full rounded-lg border border-white/[0.08] bg-white/[0.02]">
+          {/* Editor Content */}
+          <div className="relative flex-1 overflow-x-hidden min-h-0">
             <style jsx global>{`
               /* Block type labels - positioned in left margin */
               .editor-with-labels .editor-h1,
@@ -314,42 +307,51 @@ export function CampaignEditor({
               .editor-with-labels .editor-h4::before,
               .editor-with-labels .editor-p::before {
                 position: absolute;
-                left: -40px;
+                left: -38px;
                 top: 50%;
                 transform: translateY(-50%);
-                font-size: 9px;
-                font-weight: 600;
-                padding: 2px 5px;
+                font-size: 8px;
+                font-weight: 500;
+                padding: 1px 4px;
                 border-radius: 3px;
                 font-family: ui-monospace, monospace;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
+                text-transform: lowercase;
+                letter-spacing: 0.3px;
                 white-space: nowrap;
+                opacity: 0.7;
+                transition: opacity 0.15s;
+              }
+              .editor-with-labels .editor-h1:hover::before,
+              .editor-with-labels .editor-h2:hover::before,
+              .editor-with-labels .editor-h3:hover::before,
+              .editor-with-labels .editor-h4:hover::before,
+              .editor-with-labels .editor-p:hover::before {
+                opacity: 1;
               }
               .editor-with-labels .editor-h1::before {
-                content: 'H1';
-                color: rgba(255, 255, 255, 0.65);
-                background: rgba(255, 255, 255, 0.08);
+                content: 'h1';
+                color: rgba(255, 255, 255, 0.55);
+                background: rgba(255, 255, 255, 0.06);
               }
               .editor-with-labels .editor-h2::before {
-                content: 'H2';
-                color: rgba(255, 255, 255, 0.65);
-                background: rgba(255, 255, 255, 0.08);
+                content: 'h2';
+                color: rgba(255, 255, 255, 0.55);
+                background: rgba(255, 255, 255, 0.06);
               }
               .editor-with-labels .editor-h3::before {
-                content: 'H3';
-                color: rgba(255, 255, 255, 0.65);
-                background: rgba(255, 255, 255, 0.08);
+                content: 'h3';
+                color: rgba(255, 255, 255, 0.5);
+                background: rgba(255, 255, 255, 0.05);
               }
               .editor-with-labels .editor-h4::before {
-                content: 'H4';
-                color: rgba(255, 255, 255, 0.65);
-                background: rgba(255, 255, 255, 0.08);
+                content: 'h4';
+                color: rgba(255, 255, 255, 0.45);
+                background: rgba(255, 255, 255, 0.04);
               }
               .editor-with-labels .editor-p::before {
-                content: 'P';
-                color: rgba(255, 255, 255, 0.4);
-                background: rgba(255, 255, 255, 0.04);
+                content: 'p';
+                color: rgba(255, 255, 255, 0.3);
+                background: rgba(255, 255, 255, 0.02);
               }
               /* Lists - label above the list */
               .editor-with-labels .editor-ul,
@@ -360,25 +362,26 @@ export function CampaignEditor({
               .editor-with-labels .editor-ul::before,
               .editor-with-labels .editor-ol::before {
                 position: absolute;
-                top: -1.25rem;
+                top: -1.1rem;
                 left: 0;
-                font-size: 9px;
-                font-weight: 600;
-                padding: 2px 5px;
+                font-size: 8px;
+                font-weight: 500;
+                padding: 1px 4px;
                 border-radius: 3px;
                 font-family: ui-monospace, monospace;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
+                text-transform: lowercase;
+                letter-spacing: 0.3px;
+                opacity: 0.5;
               }
               .editor-with-labels .editor-ul::before {
-                content: 'BULLET LIST';
-                color: rgba(255, 255, 255, 0.6);
-                background: rgba(255, 255, 255, 0.06);
+                content: 'list';
+                color: rgba(255, 255, 255, 0.45);
+                background: rgba(255, 255, 255, 0.04);
               }
               .editor-with-labels .editor-ol::before {
-                content: 'NUMBERED LIST';
-                color: rgba(255, 255, 255, 0.6);
-                background: rgba(255, 255, 255, 0.06);
+                content: 'list';
+                color: rgba(255, 255, 255, 0.45);
+                background: rgba(255, 255, 255, 0.04);
               }
               /* Quote - label above */
               .editor-with-labels .editor-quote {
@@ -386,91 +389,90 @@ export function CampaignEditor({
                 margin-top: 1.5rem;
               }
               .editor-with-labels .editor-quote::before {
-                content: 'QUOTE';
+                content: 'quote';
                 position: absolute;
-                top: -1.25rem;
+                top: -1.1rem;
                 left: 0;
-                font-size: 9px;
-                font-weight: 600;
-                color: rgba(255, 255, 255, 0.6);
-                background: rgba(255, 255, 255, 0.06);
-                padding: 2px 5px;
+                font-size: 8px;
+                font-weight: 500;
+                color: rgba(255, 255, 255, 0.4);
+                background: rgba(255, 255, 255, 0.04);
+                padding: 1px 4px;
                 border-radius: 3px;
                 font-family: ui-monospace, monospace;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
+                text-transform: lowercase;
+                letter-spacing: 0.3px;
+                opacity: 0.65;
               }
-              /* Table styles - responsive with smaller text */
-                              .editor-with-labels .editor-table {
-                                position: relative;
-                                margin-top: 1.5rem;
-                                width: 100%;
-                                border-collapse: collapse;
-                                border-radius: 8px;
-                                overflow: hidden;
-                                border: 1px solid rgba(255, 255, 255, 0.12);
-                                font-size: 12px;
-                                table-layout: fixed;
-                              }
-                              .editor-with-labels .editor-table::before {
-                                content: 'TABLE';
-                                position: absolute;
-                                top: -1.25rem;
-                                left: 0;
-                                font-size: 9px;
-                                font-weight: 600;
-                                color: rgba(255, 255, 255, 0.6);
-                                background: rgba(255, 255, 255, 0.06);
-                                padding: 2px 5px;
-                                border-radius: 3px;
-                                font-family: ui-monospace, monospace;
-                                text-transform: uppercase;
-                                letter-spacing: 0.5px;
-                              }
-                              .editor-table-row {
-                                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-                              }
-                              .editor-table-row:last-child {
-                                border-bottom: none;
-                              }
-                              .editor-table-cell {
-                                padding: 8px 10px;
-                                text-align: left;
-                                color: rgba(255, 255, 255, 0.9);
-                                vertical-align: top;
-                                border-right: 1px solid rgba(255, 255, 255, 0.06);
-                                word-wrap: break-word;
-                                overflow-wrap: break-word;
-                                hyphens: auto;
-                                line-height: 1.4;
-                              }
-                              .editor-table-cell:last-child {
-                                border-right: none;
-                              }
-                              .editor-table-cell-header {
-                                padding: 8px 10px;
-                                text-align: left;
-                                font-weight: 600;
-                                font-size: 11px;
-                                color: rgba(255, 255, 255, 1);
-                                background: rgba(255, 255, 255, 0.06);
-                                border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-                                border-right: 1px solid rgba(255, 255, 255, 0.06);
-                                word-wrap: break-word;
-                                overflow-wrap: break-word;
-                                text-transform: uppercase;
-                                letter-spacing: 0.3px;
-                              }
-                              .editor-table-cell-header:last-child {
-                                border-right: none;
-                              }
-                              /* Alternative styling for rows */
-                              .editor-table-row:nth-child(even) {
-                                background: rgba(255, 255, 255, 0.02);
-                              }
-                              .editor-table-row:hover {
-                                background: rgba(255, 255, 255, 0.04);
-                              }
+              /* Table styles */
+              .editor-with-labels .editor-table {
+                position: relative;
+                margin-top: 1.5rem;
+                width: 100%;
+                border-collapse: collapse;
+                border-radius: 5px;
+                overflow: hidden;
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                font-size: 11px;
+                table-layout: fixed;
+              }
+              .editor-with-labels .editor-table::before {
+                content: 'table';
+                position: absolute;
+                top: -1.1rem;
+                left: 0;
+                font-size: 8px;
+                font-weight: 500;
+                color: rgba(255, 255, 255, 0.4);
+                background: rgba(255, 255, 255, 0.04);
+                padding: 1px 4px;
+                border-radius: 3px;
+                font-family: ui-monospace, monospace;
+                text-transform: lowercase;
+                letter-spacing: 0.3px;
+                opacity: 0.65;
+              }
+              .editor-table-row {
+                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+              }
+              .editor-table-row:last-child {
+                border-bottom: none;
+              }
+              .editor-table-cell {
+                padding: 4px 6px;
+                text-align: left;
+                color: rgba(255, 255, 255, 0.6);
+                vertical-align: top;
+                border-right: 1px solid rgba(255, 255, 255, 0.03);
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+                hyphens: auto;
+                line-height: 1.45;
+                font-size: 11px;
+              }
+              .editor-table-cell:last-child {
+                border-right: none;
+              }
+              .editor-table-cell-header {
+                padding: 4px 6px;
+                text-align: left;
+                font-weight: 500;
+                font-size: 10px;
+                color: rgba(255, 255, 255, 0.4);
+                background: rgba(255, 255, 255, 0.02);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                border-right: 1px solid rgba(255, 255, 255, 0.03);
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+                text-transform: uppercase;
+                letter-spacing: 0.4px;
+              }
+              .editor-table-cell-header:last-child {
+                border-right: none;
+              }
+              .editor-table-row:nth-child(even) {
+                background: rgba(255, 255, 255, 0.01);
+              }
                               /* Link styles inside editor */
                               .editor-with-labels a,
                               .editor-with-labels .editor-link {
@@ -489,10 +491,11 @@ export function CampaignEditor({
             <RichTextPlugin
               contentEditable={
                 <ContentEditable
-                  className="editor-with-labels min-h-full pl-12 pr-4 py-4 outline-none prose prose-invert max-w-none
-                    prose-headings:text-white prose-p:text-white/90 prose-strong:text-white
-                    prose-code:text-white/90 prose-pre:bg-white/[0.05] prose-blockquote:border-white/30
-                    prose-a:text-blue-400 focus:outline-none"
+                  className="editor-with-labels min-h-full pl-12 pr-6 py-6 outline-none prose prose-invert max-w-none
+                    prose-headings:text-white/90 prose-p:text-white/70 prose-strong:text-white/90
+                    prose-code:text-white/80 prose-pre:bg-white/[0.03] prose-blockquote:border-white/20
+                    prose-a:text-blue-400/90 prose-hr:border-white/[0.06] focus:outline-none
+                    selection:bg-blue-400/20"
                 />
               }
               placeholder={
@@ -504,6 +507,13 @@ export function CampaignEditor({
             />
             <FloatingLinkPlugin />
           </div>
+
+          {/* Toolbar - floating at bottom */}
+          {!readOnly && showToolbar && (
+            <div className="sticky bottom-5 mx-auto w-fit px-3 py-2 rounded-2xl border border-white/[0.08] bg-[#1a1a1a]/95 backdrop-blur-xl shadow-2xl shadow-black/50 z-10">
+              <Toolbar />
+            </div>
+          )}
         </div>
 
         <InitializePlugin value={value} isInitialized={isInitialized} />

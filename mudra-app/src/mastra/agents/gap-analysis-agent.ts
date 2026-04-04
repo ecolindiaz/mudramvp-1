@@ -27,9 +27,11 @@ Analyze the provided scraped content and identify gaps across four categories:
 - Are technical details missing? (add them)
 - Are expert insights absent? (include them)
 
-## Output
-Provide your analysis as structured JSON with arrays for each gap category.
-Also suggest up to 5 specific search queries that would help fill the identified gaps.`;
+## Output Rules
+- Identify only the top 5-8 most impactful gaps per category. Rank by potential impact on AI citation.
+- Do not pad lists — fewer high-quality, actionable gaps are better than many generic ones.
+- Suggest up to 7 specific search queries that would help fill the identified gaps.
+- Provide your analysis as structured JSON with arrays for each gap category.`;
 
 export const gapAnalysisAgent = new Agent({
   id: "gap-analysis-agent",

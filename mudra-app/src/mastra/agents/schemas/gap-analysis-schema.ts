@@ -3,20 +3,24 @@ import { z } from "zod";
 export const gapAnalysisOutputSchema = z.object({
   contentGaps: z
     .array(z.string())
-    .describe("Questions not answered, missing angles, unaddressed objections"),
+    .max(8)
+    .describe("Top 5-8 most impactful: questions not answered, missing angles, unaddressed objections"),
   dataGaps: z
     .array(z.string())
-    .describe("Missing statistics, comparisons, examples"),
+    .max(8)
+    .describe("Top 5-8 most impactful: missing statistics, comparisons, examples"),
   formatGaps: z
     .array(z.string())
-    .describe("Missing tables, steps, FAQ, TL;DR"),
+    .max(8)
+    .describe("Top 5-8 most impactful: missing tables, steps, FAQ, TL;DR"),
   depthGaps: z
     .array(z.string())
-    .describe("Surface-level explanations needing more detail"),
+    .max(8)
+    .describe("Top 5-8 most impactful: surface-level explanations needing more detail"),
   recommendedSearchQueries: z
     .array(z.string())
-    .max(5)
-    .describe("Suggested search queries to fill gaps (max 5)"),
+    .max(7)
+    .describe("Suggested search queries to fill gaps (max 7)"),
 });
 
 export type GapAnalysisOutput = z.infer<typeof gapAnalysisOutputSchema>;

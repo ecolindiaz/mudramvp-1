@@ -6,11 +6,14 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/auth/require-auth';
 import type { PromptTest, Citation } from '@/lib/services/direct-geo-analysis.service';
+import { analyzePromptWithProvider, createDirectGEOConfig } from '@/lib/services/direct-geo-analysis.service';
+import { isDomainBlocked } from '@/lib/utils/domain-utils';
 import { getFirecrawlClient } from '@/src/mastra/tools/firecrawl-client';
 import { gapAnalysisAgent, gapAnalysisOutputSchema } from '@/src/mastra/agents/gap-analysis-agent';
 import { researchAgent, researchOutputSchema } from '@/src/mastra/agents/research-agent';
 import { contentOptimizerAgent, optimizationOutputSchema } from '@/src/mastra/agents/content-optimizer-agent';
 import { computeContentDiff, computeDiffStats } from '@/lib/utils/compute-content-diff';
+import { countWordsInMarkdown } from '@/lib/utils/count-words';
 import { prisma } from '@/lib/prisma';
 
 async function scrapeUrl(url: string) {
@@ -156,8 +159,9 @@ export async function POST(request: NextRequest) {
       }
 
       originalMarkdown = scrapeResult.markdown;
-      originalWordCount = originalMarkdown.split(/\s+/).filter(Boolean).length;
+      originalWordCount = countWordsInMarkdown(originalMarkdown);
       headingStructure = (originalMarkdown.match(/^##\s+.+$/gm) || []).map(h => h.replace(/^##\s+/, ''));
+      const pageTitle = scrapeResult.title || promptText;
 
       console.log(`[AnswerOptimizer ${runId}] Phase 1 scrape-page completed in ${((Date.now() - phaseStart) / 1000).toFixed(1)}s:`, {
         wordCount: originalWordCount, headingCount: headingStructure.length, title: scrapeResult.title,
@@ -168,33 +172,53 @@ export async function POST(request: NextRequest) {
         data: { wordCount: originalWordCount, headingCount: headingStructure.length, title: scrapeResult.title },
       });
 
-      // Phase 2: Pull AI Model Responses from existing GEO analysis results
-      // Instead of running live queries (expensive + exhausts connection pool),
-      // we pull from the most recent GeoAnalysisResult for this brand + prompt.
+      // Phase 2: Query AI Models LIVE with the article title
+      // Send the page title to ChatGPT, Claude, Perplexity, and Gemini to see what
+      // they currently say about this topic and who they cite as authoritative sources.
       if (tools.queryAiModels) {
         const p2Start = Date.now();
         await sendEvent({ phase: 'query-ai', status: 'started', stepIndex, totalSteps });
 
         try {
-          const latestGeo = await prisma.geoAnalysisResult.findFirst({
-            where: { brandProfileId: parseInt(String(brandProfileId)) },
-            orderBy: { timestamp: 'desc' },
-            select: { analyses: true },
+          const geoConfig = createDirectGEOConfig(
+            brandContext.brandName || 'Unknown',
+            brandContext.brandWebsite,
+            {
+              industry: brandContext.brandIndustry,
+              description: brandContext.brandDescription,
+              competitors: brandContext.competitors,
+            }
+          );
+
+          // Only query providers that have API keys configured
+          const allProviders = ['openai', 'perplexity', 'anthropic', 'google'] as const;
+          const availableProviders = allProviders.filter(p => {
+            const keyMap: Record<string, string | undefined> = {
+              openai: geoConfig.apiKeys.openai,
+              perplexity: geoConfig.apiKeys.perplexity,
+              anthropic: geoConfig.apiKeys.anthropic,
+              google: geoConfig.apiKeys.google,
+            };
+            return !!keyMap[p];
           });
 
-          if (latestGeo?.analyses) {
-            const analyses = latestGeo.analyses as any[];
-            for (const providerAnalysis of analyses) {
-              const tests: any[] = providerAnalysis.promptTests || [];
-              for (const test of tests) {
-                // Match by prompt text (case-insensitive partial match)
-                if (test.prompt?.toLowerCase().includes(promptText.toLowerCase().slice(0, 30)) ||
-                    promptText.toLowerCase().includes(test.prompt?.toLowerCase().slice(0, 30))) {
-                  aiResponses.push(test as PromptTest);
-                  if (test.citations) allCitations.push(...test.citations);
-                  if (test.sources) allCitations.push(...test.sources);
-                }
-              }
+          console.log(`[AnswerOptimizer ${runId}] Phase 2 querying ${availableProviders.length} providers with title: "${pageTitle.slice(0, 80)}"`);
+
+          const providerResults = await Promise.allSettled(
+            availableProviders.map(provider =>
+              analyzePromptWithProvider(pageTitle, provider, geoConfig)
+            )
+          );
+
+          let successCount = 0;
+          for (const result of providerResults) {
+            if (result.status === 'fulfilled') {
+              successCount++;
+              aiResponses.push(result.value);
+              if (result.value.citations) allCitations.push(...result.value.citations);
+              if (result.value.sources) allCitations.push(...result.value.sources);
+            } else {
+              console.warn(`[AnswerOptimizer ${runId}] Phase 2 provider failed:`, result.reason?.message || result.reason);
             }
           }
 
@@ -214,43 +238,50 @@ export async function POST(request: NextRequest) {
 
         await sendEvent({
           phase: 'query-ai', status: 'completed', stepIndex: stepIndex++, totalSteps,
-          data: { providersQueried: aiResponses.length, citationsFound: allCitations.length, source: 'existing-geo-results' },
+          data: { providersQueried: aiResponses.length, citationsFound: allCitations.length, source: 'live-query' },
         });
       }
 
-      // Phase 3: Scrape AI Citations (top 5, sequentially to avoid overwhelming Firecrawl)
+      // Phase 3: Scrape AI Citations (parallel, with domain filtering)
       if (tools.scrapeCitations && tools.queryAiModels && allCitations.length > 0) {
         const p3Start = Date.now();
         await sendEvent({ phase: 'scrape-citations', status: 'started', stepIndex, totalSteps });
 
-        const urlsToScrape = allCitations.slice(0, 5).map(c => c.url);
+        // Filter out domains known to block scrapers
+        const scrapeableCitations = allCitations.filter(c => {
+          try { return !isDomainBlocked(new URL(c.url).hostname); } catch { return false; }
+        });
+        const filteredCount = allCitations.length - scrapeableCitations.length;
+
+        const urlsToScrape = scrapeableCitations.slice(0, 8).map(c => c.url);
         let failedCount = 0;
 
-        for (const url of urlsToScrape) {
-          try {
-            const result = await scrapeUrl(url);
-            if (result.success && result.markdown) {
-              citedSourceContent.push({
-                url: result.url,
-                title: result.title || '',
-                markdown: result.markdown.slice(0, 3000),
-              });
-            } else {
-              console.warn(`[AnswerOptimizer ${runId}] Citation scrape failed for ${url}`);
-              failedCount++;
-            }
-          } catch {
+        // Scrape in parallel for speed
+        const scrapeResults = await Promise.allSettled(
+          urlsToScrape.map(url => scrapeUrl(url))
+        );
+
+        for (let i = 0; i < scrapeResults.length; i++) {
+          const result = scrapeResults[i];
+          if (result.status === 'fulfilled' && result.value.success && result.value.markdown) {
+            citedSourceContent.push({
+              url: result.value.url,
+              title: result.value.title || '',
+              markdown: result.value.markdown.slice(0, 3000),
+            });
+          } else {
+            console.warn(`[AnswerOptimizer ${runId}] Citation scrape failed for ${urlsToScrape[i]}`);
             failedCount++;
           }
         }
 
         console.log(`[AnswerOptimizer ${runId}] Phase 3 scrape-citations completed in ${((Date.now() - p3Start) / 1000).toFixed(1)}s:`, {
-          scraped: citedSourceContent.length, failed: failedCount,
+          scraped: citedSourceContent.length, failed: failedCount, filtered: filteredCount,
         });
 
         await sendEvent({
           phase: 'scrape-citations', status: 'completed', stepIndex: stepIndex++, totalSteps,
-          data: { urlsScraped: citedSourceContent.length, urlsFailed: failedCount },
+          data: { urlsScraped: citedSourceContent.length, urlsFailed: failedCount, urlsFiltered: filteredCount },
         });
       }
 
@@ -306,15 +337,21 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
       for (const result of [faqSearch, paaSearch]) {
         if (result.status === 'fulfilled' && result.value.success) {
           for (const r of result.value.results) {
-            if (r.markdown) allFaqContent.push(r.markdown.slice(0, 1500));
+            if (r.markdown) allFaqContent.push(r.markdown);
           }
         }
       }
 
-      const questionRegex = /^(?:(?:What|How|Why|When|Which|Can|Do|Is|Are|Should|Where|Does)\s.+\?)/gim;
+      const questionRegex = /^(?:(?:What|How|Why|When|Which|Can|Do|Is|Are|Should|Where|Does|Will|Who|Has|Have|Would|Could)\s.+\?)/gim;
       const extractedQuestions = new Set<string>();
       for (const content of allFaqContent) {
-        const matches = content.match(questionRegex);
+        // Strip markdown formatting so regex can match questions inside lists, bold, headings
+        const stripped = content
+          .replace(/^[\s]*[-*]\s+/gm, '')           // list item prefixes (- or *)
+          .replace(/^\s*\d+[.)]\s+/gm, '')           // numbered list prefixes
+          .replace(/\*\*(.+?)\*\*/g, '$1')           // bold markers
+          .replace(/^#{1,6}\s+/gm, '');              // heading markers
+        const matches = stripped.match(questionRegex);
         if (matches) matches.forEach(q => extractedQuestions.add(q.trim()));
       }
 
@@ -340,16 +377,30 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
         const competitorSearch = await searchWeb(coreQuery, 5, 10);
 
         const competitorPages: Array<{ url: string; title: string; wordCount: number; headings: number }> = [];
+        let compFailedCount = 0;
         if (competitorSearch.success) {
-          for (const result of competitorSearch.results.slice(0, 5)) {
-            const scrape = await scrapeUrl(result.url);
-            if (scrape.success && scrape.markdown) {
-              competitorPages.push({
-                url: result.url,
-                title: result.title,
-                wordCount: scrape.markdown.split(/\s+/).filter(Boolean).length,
-                headings: (scrape.markdown.match(/^##\s+/gm) || []).length,
-              });
+          // Filter out domains known to block scrapers
+          const scrapeableResults = competitorSearch.results.filter(r => {
+            try { return !isDomainBlocked(new URL(r.url).hostname); } catch { return false; }
+          });
+
+          for (const result of scrapeableResults.slice(0, 5)) {
+            try {
+              const scrape = await scrapeUrl(result.url);
+              if (scrape.success && scrape.markdown) {
+                competitorPages.push({
+                  url: result.url,
+                  title: result.title,
+                  wordCount: scrape.markdown.split(/\s+/).filter(Boolean).length,
+                  headings: (scrape.markdown.match(/^##\s+/gm) || []).length,
+                });
+              } else {
+                console.warn(`[AnswerOptimizer ${runId}] Competitor scrape failed for ${result.url}`);
+                compFailedCount++;
+              }
+            } catch {
+              console.warn(`[AnswerOptimizer ${runId}] Competitor scrape error for ${result.url}`);
+              compFailedCount++;
             }
           }
         }
@@ -362,12 +413,12 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
         };
 
         console.log(`[AnswerOptimizer ${runId}] Phase 5b competitor-analysis completed in ${((Date.now() - p5bStart) / 1000).toFixed(1)}s:`, {
-          pagesAnalyzed: competitorPages.length, avgWordCount: competitorContext.avgWordCount,
+          pagesAnalyzed: competitorPages.length, failed: compFailedCount, avgWordCount: competitorContext.avgWordCount,
         });
 
         await sendEvent({
           phase: 'competitor-analysis', status: 'completed', stepIndex: stepIndex++, totalSteps,
-          data: { pagesAnalyzed: competitorPages.length, avgWordCount: competitorContext.avgWordCount },
+          data: { pagesAnalyzed: competitorPages.length, pagesFailed: compFailedCount, avgWordCount: competitorContext.avgWordCount },
         });
       }
 
@@ -443,11 +494,11 @@ Identify content gaps, data gaps, format gaps, depth gaps, and suggest up to 7 s
           const researchResponse = await researchAgent.generate(
             `Conduct live web research to fill gaps for: "${coreQuery}"
 
-Gap Analysis:
-- Content Gaps: ${(gapAnalysis.contentGaps || []).join(', ')}
-- Data Gaps: ${(gapAnalysis.dataGaps || []).join(', ')}
-- Format Gaps: ${(gapAnalysis.formatGaps || []).join(', ')}
-- Depth Gaps: ${(gapAnalysis.depthGaps || []).join(', ')}
+Gap Analysis (top priorities only):
+- Content Gaps: ${(gapAnalysis.contentGaps || []).slice(0, 5).join(', ')}
+- Data Gaps: ${(gapAnalysis.dataGaps || []).slice(0, 5).join(', ')}
+- Format Gaps: ${(gapAnalysis.formatGaps || []).slice(0, 5).join(', ')}
+- Depth Gaps: ${(gapAnalysis.depthGaps || []).slice(0, 5).join(', ')}
 
 Recommended Search Queries (run max 7):
 ${(gapAnalysis.recommendedSearchQueries || []).slice(0, 7).map((q: string, i: number) => `${i + 1}. ${q}`).join('\n')}
@@ -496,23 +547,64 @@ IMPORTANT: Run a MAXIMUM of 7 searches. Prioritize sources from the last 12 mont
           const sitemapPages = await prisma.sitemapPage.findMany({
             where: {
               brand_profile_id: parseInt(String(brandProfileId)),
-              page_type: { in: ['blog_post', 'article', 'blog', 'post'] },
               page_url: { not: pageUrl },
+              OR: [
+                { page_type: { in: ['blog', 'resources', 'customers', 'use-cases', 'product', 'features', 'solutions', 'documentation'] } },
+                { page_url: { contains: '/blog/' } },
+                { page_url: { contains: '/posts/' } },
+                { page_url: { contains: '/articles/' } },
+              ],
             },
-            select: { page_url: true },
-            take: 20,
+            select: { page_url: true, id: true },
+            take: 30,
           });
+
           if (sitemapPages.length > 0) {
-            internalLinkSuggestions = `\n## Internal Link Opportunities\nWeave in 3-5 contextual internal links:\n${sitemapPages.map(p => `- ${p.page_url}`).join('\n')}`;
+            // Fetch page titles from snapshots for contextual anchor text
+            const pageSnapshots = await prisma.pageSnapshot.findMany({
+              where: {
+                sitemap_page_id: { in: sitemapPages.map(p => p.id) },
+                is_current: true,
+              },
+              select: { sitemap_page_id: true, metadata_json: true },
+            });
+
+            const titleMap = new Map<string, string>();
+            for (const snap of pageSnapshots) {
+              const meta = snap.metadata_json as any;
+              const title = meta?.title?.content || meta?.title || '';
+              if (title && typeof title === 'string') titleMap.set(snap.sitemap_page_id, title);
+            }
+
+            internalLinkSuggestions = `\n## Internal Link Opportunities\nWeave in 3-7 contextual internal links using descriptive anchor text. Place them where a reader would naturally want to learn more.\n${
+              sitemapPages.map(p => {
+                const title = titleMap.get(p.id) || '';
+                return title ? `- [${title}](${p.page_url})` : `- ${p.page_url}`;
+              }).join('\n')
+            }`;
           }
-        } catch { /* skip internal links on error */ }
+        } catch (err) {
+          console.warn(`[AnswerOptimizer ${runId}] Internal links query failed:`, err);
+        }
       }
 
+      // Map depth level to system prompt labels
+      const depthLabels: Record<string, string> = {
+        light: 'LIGHT TOUCH',
+        moderate: 'SMART REWRITE',
+        deep: 'DEEP OVERHAUL',
+      };
+      const depthLabel = depthLabels[depthLevel] || 'SMART REWRITE';
+
       const optimizePrompt = `## Optimization Task
-Depth Level: ${depthLevel.toUpperCase()}
+Depth Level: ${depthLabel}
 Target Word Count: ${targetWordCount} words (minimum ${depthConfig.floor}, maximum ${depthConfig.ceiling})
 Voice & Tone: ${voiceTone}
-${icpDescription ? `Target ICP: ${icpDescription}` : ''}
+${voiceTone === 'conversational' ? '- Use contractions, shorter sentences, first-person plural ("we"), and approachable language' : ''}
+${voiceTone === 'technical' ? '- Use precise terminology, avoid simplification, include technical details and specifications' : ''}
+${voiceTone === 'educational' ? '- Define terms on first use, build concepts progressively, use analogies for complex ideas' : ''}
+${voiceTone === 'persuasive' ? '- Lead with benefits and outcomes, use social proof, include clear calls-to-action' : ''}
+${icpDescription ? `Target ICP: ${icpDescription}\nAdapt reading level, examples, pain points, and terminology to this audience.` : ''}
 
 ## Existing Article (ORIGINAL)
 ${originalMarkdown}
@@ -521,21 +613,21 @@ ${aiResponses.length > 0 ? `## AI Model Responses for "${promptText}"
 ${aiResponses.map(r => `### Response\n${(r.response || '').slice(0, 1500)}`).join('\n\n')}` : ''}
 
 ${citedSourceContent.length > 0 ? `## What AI Models Cite
-${citedSourceContent.map(s => `### [${s.title}](${s.url})\n${s.markdown.slice(0, 1000)}`).join('\n\n')}` : ''}
+${citedSourceContent.map(s => `### [${s.title}](${s.url})\n${s.markdown.slice(0, 2000)}`).join('\n\n')}` : ''}
 
 ## Core Search Query: "${coreQuery}" (${queryIntent} intent)
 
 ## FAQ Research
 ${faqCandidates.map(f => `- ${f.question}`).join('\n')}
 
-## Gap Analysis
-- Content Gaps: ${(gapAnalysis?.contentGaps || []).join(', ') || 'None'}
-- Data Gaps: ${(gapAnalysis?.dataGaps || []).join(', ') || 'None'}
-- Format Gaps: ${(gapAnalysis?.formatGaps || []).join(', ') || 'None'}
-- Depth Gaps: ${(gapAnalysis?.depthGaps || []).join(', ') || 'None'}
+## Gap Analysis (top priorities)
+- Content Gaps: ${(gapAnalysis?.contentGaps || []).slice(0, 5).join(', ') || 'None'}
+- Data Gaps: ${(gapAnalysis?.dataGaps || []).slice(0, 5).join(', ') || 'None'}
+- Format Gaps: ${(gapAnalysis?.formatGaps || []).slice(0, 5).join(', ') || 'None'}
+- Depth Gaps: ${(gapAnalysis?.depthGaps || []).slice(0, 5).join(', ') || 'None'}
 
 ${researchData ? `## Fresh Research
-### Statistics (Level A — use freely)
+### Statistics (Level B — verify before citing)
 ${(researchData.statistics || []).map((s: any) => `- ${s.stat} — [${s.source}](${s.url})`).join('\n') || 'None'}
 
 ### Expert Quotes
@@ -551,7 +643,11 @@ ${internalLinkSuggestions}
 Brand: ${brandContext.brandName || 'Unknown'} | Industry: ${brandContext.brandIndustry || 'Unknown'}
 Author: ${brandContext.userName || 'Team'}, ${brandContext.userRole || 'Editor'}
 
-Target exactly ${targetWordCount} words. Follow ${depthLevel} depth rules strictly.`;
+## CRITICAL: Word Count Constraint
+Your output MUST be between ${depthConfig.floor} and ${depthConfig.ceiling} words (target: ${targetWordCount}).
+Count carefully before finalizing. If your draft exceeds ${depthConfig.ceiling} words, CUT sections or shorten paragraphs until within range.
+The wordCount in your metadata MUST reflect an honest count of the optimizedContent you return.
+Follow ${depthLevel} depth rules strictly.`;
 
       let optimizationResult: any;
       try {
@@ -573,7 +669,11 @@ Target exactly ${targetWordCount} words. Follow ${depthLevel} depth rules strict
         return;
       }
 
-      const optimizedWordCount = optimizationResult.metadata?.wordCount || 0;
+      const optimizedWordCount = countWordsInMarkdown(optimizationResult.optimizedContent);
+      const aiReportedWordCount = optimizationResult.metadata?.wordCount || 0;
+      if (Math.abs(optimizedWordCount - aiReportedWordCount) > 50) {
+        console.warn(`[AnswerOptimizer ${runId}] Word count mismatch: AI reported ${aiReportedWordCount}, actual ${optimizedWordCount} (target ${targetWordCount})`);
+      }
       console.log(`[AnswerOptimizer ${runId}] Phase 8 optimize completed in ${((Date.now() - p8Start) / 1000).toFixed(1)}s:`, {
         wordCount: optimizedWordCount, targetWordCount, delta: optimizedWordCount - originalWordCount,
       });
@@ -595,8 +695,22 @@ Target exactly ${targetWordCount} words. Follow ${depthLevel} depth rules strict
         const faqRegex = /^###?\s*(.+\?)\s*\n+([\s\S]*?)(?=\n###?\s|\n##\s|$)/gm;
         const faqs: Array<{ question: string; answer: string }> = [];
         let faqMatch;
-        while ((faqMatch = faqRegex.exec(optimizationResult.optimizedContent)) !== null) {
+        const optimizedText = optimizationResult.optimizedContent;
+        while ((faqMatch = faqRegex.exec(optimizedText)) !== null) {
           faqs.push({ question: faqMatch[1].trim(), answer: faqMatch[2].trim() });
+        }
+
+        // Fix last FAQ truncation: if the last answer is too short,
+        // re-extract from its heading to end of content
+        if (faqs.length > 0) {
+          const lastFaq = faqs[faqs.length - 1];
+          if (lastFaq.answer.length < 50) {
+            const lastIdx = optimizedText.lastIndexOf(lastFaq.question);
+            if (lastIdx !== -1) {
+              const tail = optimizedText.slice(lastIdx + lastFaq.question.length).replace(/^\s*\n+/, '').trim();
+              if (tail.length > lastFaq.answer.length) lastFaq.answer = tail;
+            }
+          }
         }
 
         if (faqs.length > 0) {
@@ -613,20 +727,23 @@ Target exactly ${targetWordCount} words. Follow ${depthLevel} depth rules strict
         }
 
         if (depthLevel !== 'light') {
-          const articleSchema = {
+          const todayISO = new Date().toISOString().split('T')[0];
+          const blogSchema = {
             "@context": "https://schema.org",
-            "@type": "Article",
+            "@type": "BlogPosting",
             "headline": optimizationResult.metadata?.title || '',
             "description": optimizationResult.metadata?.metaDescription || '',
+            "url": pageUrl,
             "author": {
               "@type": "Person",
               "name": optimizationResult.metadata?.author?.name || brandContext.userName || '',
               "jobTitle": optimizationResult.metadata?.author?.title || brandContext.userRole || '',
             },
-            "dateModified": new Date().toISOString().split('T')[0],
+            "datePublished": todayISO,
+            "dateModified": todayISO,
             "publisher": { "@type": "Organization", "name": brandContext.brandName || '' },
           };
-          schemaMarkup.push({ type: 'Article', jsonLd: JSON.stringify(articleSchema, null, 2) });
+          schemaMarkup.push({ type: 'BlogPosting', jsonLd: JSON.stringify(blogSchema, null, 2) });
         }
       }
 
@@ -652,7 +769,7 @@ Target exactly ${targetWordCount} words. Follow ${depthLevel} depth rules strict
           metadata: {
             title: optimizationResult.metadata?.title || '',
             metaDescription: optimizationResult.metadata?.metaDescription || '',
-            wordCount: optimizationResult.metadata?.wordCount || 0,
+            wordCount: optimizedWordCount,
             originalWordCount,
             sections: optimizationResult.metadata?.sections || [],
             sources: optimizationResult.metadata?.sources || [],
@@ -665,7 +782,7 @@ Target exactly ${targetWordCount} words. Follow ${depthLevel} depth rules strict
       const totalDuration = ((Date.now() - pipelineStart) / 1000).toFixed(1);
       console.log(`[AnswerOptimizer ${runId}] Pipeline completed in ${totalDuration}s`, {
         originalWordCount,
-        optimizedWordCount: optimizationResult.metadata?.wordCount || 0,
+        optimizedWordCount,
         schemas: schemaMarkup.length,
         steps: stepIndex,
       });

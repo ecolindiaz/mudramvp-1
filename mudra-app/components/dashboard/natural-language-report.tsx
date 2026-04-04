@@ -14,7 +14,7 @@ import {
   IconInfoCircle,
   IconCheck
 } from "@tabler/icons-react"
-import { FileText, ArrowUpRight, ListOrdered, BookOpen, Newspaper, GraduationCap, Globe, MessageSquare, PlayCircle, Building2, Star, Share2, BookMarked, ExternalLink, X, ChevronRight, Expand, Radio } from "lucide-react"
+import { FileText, ArrowUpRight, ListOrdered, BookOpen, Newspaper, GraduationCap, Globe, MessageSquare, PlayCircle, Building2, Star, Share2, BookMarked, ExternalLink, X, ChevronRight, Expand, Radio, PenTool } from "lucide-react"
 import { CircleFlag } from "react-circle-flags"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "react-hot-toast"
@@ -86,6 +86,11 @@ const reportActionWidgets: Array<{
     title: "Engineer Content",
     href: "/dashboard/campaigns",
     Icon: ContentLabIcon,
+  },
+  {
+    title: "Optimize Content",
+    href: "/dashboard/answer-optimizer",
+    Icon: PenTool,
   },
   {
     title: "Find Opportunities",
@@ -849,7 +854,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
               )}
             </div>
 		            {summary && (
-		              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+		              <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
 		                {reportActionWidgets.map((widget) => {
 		                  const WidgetIcon = widget.Icon
 		                  return (

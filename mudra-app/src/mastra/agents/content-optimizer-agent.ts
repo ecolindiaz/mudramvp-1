@@ -12,7 +12,14 @@ try {
   QUALITY_PROMPT = getContentQualityPrompt();
   STRUCTURE_PROMPT = getContentStructurePrompt();
 } catch (error) {
-  console.warn("Prompts not loaded at init time, will load at runtime");
+  console.error("CRITICAL: Content optimizer prompt files failed to load. Agent will run with degraded instructions.", error);
+}
+
+if (!QUALITY_PROMPT || QUALITY_PROMPT.includes('[Content Quality guidelines')) {
+  console.error('CRITICAL: content-quality.txt not loaded. Content optimizer running degraded.');
+}
+if (!STRUCTURE_PROMPT || STRUCTURE_PROMPT.includes('[Content Structure guidelines')) {
+  console.error('CRITICAL: content-structure.txt not loaded. Content optimizer running degraded.');
 }
 
 const CONTENT_OPTIMIZER_INSTRUCTIONS = `You are an expert content optimizer specializing in Answer Engine Optimization (AEO). You improve EXISTING content to maximize AI citability.
@@ -87,6 +94,18 @@ You will receive a depth level. Follow these rules:
 - Minimum 3 statistics with name-drop + link format
 - Expert quotes use in-text attribution only (no blockquotes)
 - Include a Sources/References section at the end
+
+## Internal Links
+When internal link opportunities are provided:
+- Use descriptive anchor text that matches the linked page's topic (e.g., [business credit cards](url), not [click here](url))
+- Place links where a reader would naturally want to learn more
+- Integrate links in-sentence, not as standalone "Read more" callouts
+- Do not link the same URL more than once
+- Do not add internal links if none are provided
+
+## Word Count Accuracy
+- Your metadata.wordCount MUST be an accurate count of the words in your optimizedContent.
+- If the target says maximum N words, your output MUST NOT exceed N words. Trim aggressively if needed.
 
 ## Output Format
 Return the optimized markdown, metadata (title, metaDescription 150-160 chars, wordCount, sections, author, sources with confidence levels), and a diff manifest (sections added/modified/removed, counts of stats/quotes/links/FAQs added).`;

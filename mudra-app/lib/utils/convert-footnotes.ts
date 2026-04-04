@@ -143,6 +143,69 @@ function extractLabel(text: string): string {
  * Fuzzy-match definition text against metadata sources.
  * Requires 2+ significant matching words between definition and source title.
  */
+/**
+ * Check if markdown has orphan footnote references (references without definitions).
+ * These show as raw [^name] text in the editor.
+ */
+export function hasOrphanFootnoteRefs(markdown: string): boolean {
+  const hasReference = /\[\^[\w-]+\](?!:)/.test(markdown);
+  const hasDefinition = /^\[\^[\w-]+\]:\s*.+$/m.test(markdown);
+  return hasReference && !hasDefinition;
+}
+
+/**
+ * Clean up orphan footnote references by matching them to metadata sources
+ * or removing them if no match is found.
+ * Handles [^name] references that have no [^name]: definition lines.
+ */
+export function cleanOrphanFootnoteRefs(
+  markdown: string,
+  metadataSources?: { title: string; url: string }[]
+): string {
+  if (!hasOrphanFootnoteRefs(markdown)) return markdown;
+
+  // Protect code blocks
+  const codeBlocks: string[] = [];
+  let text = markdown.replace(/```[\s\S]*?```/g, (match) => {
+    codeBlocks.push(match);
+    return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+  });
+  const inlineCode: string[] = [];
+  text = text.replace(/`[^`]+`/g, (match) => {
+    inlineCode.push(match);
+    return `__INLINE_CODE_${inlineCode.length - 1}__`;
+  });
+
+  // Replace orphan [^ref] references
+  text = text.replace(/\[\^([\w-]+)\]/g, (fullMatch, id: string) => {
+    // Don't touch definitions (won't exist, but safety check)
+    if (fullMatch.endsWith(']:')) return fullMatch;
+
+    // Try to match the footnote name to a metadata source
+    if (metadataSources?.length) {
+      const refName = id.replace(/-/g, ' ');
+      const matched = fuzzyMatchSource(refName, metadataSources);
+      if (matched) {
+        return `[${matched.title}](${matched.url})`;
+      }
+    }
+
+    // No match — remove the orphan reference cleanly
+    return '';
+  });
+
+  // Clean up double spaces left by removed refs
+  text = text.replace(/  +/g, ' ');
+  // Clean up space before punctuation
+  text = text.replace(/ ([.,;:!?])/g, '$1');
+
+  // Restore code blocks
+  text = text.replace(/__CODE_BLOCK_(\d+)__/g, (_, i) => codeBlocks[Number(i)]);
+  text = text.replace(/__INLINE_CODE_(\d+)__/g, (_, i) => inlineCode[Number(i)]);
+
+  return text;
+}
+
 function fuzzyMatchSource(
   definitionText: string,
   sources: { title: string; url: string }[]

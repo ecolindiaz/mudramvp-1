@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { memo, useState, useCallback } from "react"
+import { memo, useState, useCallback, useRef, useEffect, useLayoutEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import type { LucideIcon } from "lucide-react"
 
 import {
@@ -26,12 +27,12 @@ const iconAnimationMap: Record<string, string> = {
 }
 
 // Optimized navigation item component
-const NavigationItem = memo(({ 
-  item, 
-  isActive 
-}: { 
+const NavigationItem = memo(({
+  item,
+  isActive
+}: {
   item: { title: string; url: string; icon?: LucideIcon }
-  isActive: boolean 
+  isActive: boolean
 }) => {
   const [animating, setAnimating] = useState(false)
 
@@ -50,14 +51,11 @@ const NavigationItem = memo(({
         asChild
         className={`h-8 px-3 text-sm font-medium relative transition-all duration-200 group rounded-lg ${
           isActive
-            ? 'text-white bg-white/10'
+            ? 'text-white !bg-white/[0.08]'
             : 'text-white hover:text-white hover:bg-white/10'
         }`}
       >
         <Link href={item.url} onClick={handleClick}>
-          {isActive && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-white/60 rounded-full" />
-          )}
           {item.icon && (
             <item.icon
               strokeWidth={2.5}
@@ -80,6 +78,48 @@ const NavigationItem = memo(({
 
 NavigationItem.displayName = "NavigationItem"
 
+// Floating active indicator that animates between items
+function ActiveIndicator({ menuRef, activeUrl }: { menuRef: React.RefObject<HTMLDivElement | null>; activeUrl: string | null }) {
+  const [rect, setRect] = useState<{ top: number; height: number } | null>(null)
+  const isFirstRender = useRef(true)
+
+  useLayoutEffect(() => {
+    if (!menuRef.current || !activeUrl) {
+      setRect(null)
+      return
+    }
+    const container = menuRef.current
+    const activeLink = container.querySelector<HTMLAnchorElement>(`a[href="${activeUrl}"]`)
+    if (!activeLink) {
+      setRect(null)
+      return
+    }
+    const containerRect = container.getBoundingClientRect()
+    const linkRect = activeLink.getBoundingClientRect()
+    setRect({
+      top: linkRect.top - containerRect.top,
+      height: linkRect.height,
+    })
+    // After first render, allow animations
+    requestAnimationFrame(() => { isFirstRender.current = false })
+  }, [activeUrl, menuRef])
+
+  if (!rect) return null
+
+  return (
+    <motion.div
+      className="absolute left-0 right-0 rounded-lg !bg-white/[0.08] pointer-events-none"
+      initial={isFirstRender.current ? { top: rect.top, height: rect.height } : undefined}
+      animate={{ top: rect.top, height: rect.height }}
+      transition={{
+        type: "spring",
+        stiffness: 400,
+        damping: 32,
+      }}
+    />
+  )
+}
+
 export const NavMain = memo(function NavMain({
   items,
 }: {
@@ -95,9 +135,18 @@ export const NavMain = memo(function NavMain({
 }) {
   const pathname = usePathname()
 
+  // Flatten all items to find the active URL
+  const allItems = items?.flatMap(s => s.items) ?? []
+  const activeUrl = allItems.find(item =>
+    pathname === item.url || (item.url === "/dashboard/campaigns" && pathname?.startsWith("/dashboard/campaigns/"))
+  )?.url ?? null
+
+  const menuRef = useRef<HTMLDivElement>(null)
+
   return (
-    <div className="px-2 space-y-3">
-      {items?.map((section, index) => (
+    <div className="px-2 space-y-3 relative" ref={menuRef}>
+      <ActiveIndicator menuRef={menuRef} activeUrl={activeUrl} />
+      {items?.map((section) => (
         <SidebarGroup key={section.title}>
           <SidebarGroupLabel className="text-sm font-medium text-white px-2 pb-1.5 pt-0">
             {section.title}

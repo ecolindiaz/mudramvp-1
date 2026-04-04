@@ -111,10 +111,12 @@ When internal link opportunities are provided:
 - Do not add internal links if none are provided
 
 ## Word Count — ABSOLUTE HARD LIMIT
-- You will be given a word count range (e.g., 1500-1800). Your optimizedContent MUST be within this range. This is NON-NEGOTIABLE.
+- You will be given a word count range (e.g., 1500-1800). Your optimizedContent MUST land within this range. This is NON-NEGOTIABLE.
+- The FLOOR is just as critical as the ceiling. Content below the floor is a FAILURE.
 - Count EVERY word: headings, bullets, table cells, TL;DR, FAQ answers — all count toward the total.
-- If including all requested elements (FAQ, tables, stats, TL;DR) would exceed the ceiling, you MUST cut content. Use fewer FAQ entries, shorter paragraphs, fewer sections. The word ceiling is more important than any structural requirement.
-- Before outputting, count your words. If over the ceiling, delete sections until you are under. If under the floor, expand existing sections.
+- If your draft EXCEEDS the ceiling: cut FAQ entries, shorten paragraphs, remove lower-priority sections.
+- If your draft is BELOW the floor you MUST keep writing. Each H2 section should be at least 80-120 words. Add longer direct-answer paragraphs under each H2 (3-4 sentences), expand platform/product descriptions with pros/cons/pricing/use-cases, add more FAQ entries (up to 8 with 2-3 sentence answers each), include comparison tables with detailed cells, elaborate on recommendations. A short article is NEVER acceptable — keep expanding until you reach the floor.
+- Before finalizing, carefully count every word in your output. If you are below the floor, go back and expand. If above the ceiling, trim. Do not submit until you are within range.
 - Your metadata.wordCount MUST match the actual word count of your optimizedContent.
 
 ## Output Format

@@ -108,7 +108,9 @@ interface EvalResult {
 
 async function runOptimization(depth: DepthKey): Promise<EvalResult> {
   const config = DEPTH_CONFIGS[depth];
-  const targetWordCount = Math.min(Math.max(config.floor, ORIGINAL_WORD_COUNT), config.ceiling);
+  // Target the midpoint — model tends to undershoot, server-side trimming catches overshoot
+  const rangeMidpoint = Math.round((config.floor + config.ceiling) / 2);
+  const targetWordCount = Math.min(Math.max(rangeMidpoint, ORIGINAL_WORD_COUNT), config.ceiling);
 
   const optimizePrompt = `## TOPIC ANCHOR
 This article is about: "${TEST_PAGE_TITLE}"
@@ -145,7 +147,13 @@ ${TEST_ORIGINAL_MARKDOWN}
 Brand: Ramp | Industry: Fintech
 Author: Richard Moy, Finance Writer
 
-Target exactly ${targetWordCount} words. Follow ${config.label} depth rules strictly.`;
+## CRITICAL: Word Count Constraint
+The original article is ${ORIGINAL_WORD_COUNT} words. Your output MUST be between ${config.floor} and ${config.ceiling} words (target: ${targetWordCount}).
+You need to produce at least ${config.floor - ORIGINAL_WORD_COUNT > 0 ? config.floor - ORIGINAL_WORD_COUNT + ' MORE words than the original' : 'as many words as the original'}.
+- If your draft is BELOW ${config.floor} words: you MUST keep writing. Add longer direct-answer paragraphs, expand descriptions, add FAQ entries with 2-3 sentence answers, include comparison tables. A short article is a FAILURE.
+- If your draft EXCEEDS ${config.ceiling} words: cut sections or shorten paragraphs.
+Count every word before finalizing. The floor is as important as the ceiling.
+Follow ${config.label} depth rules strictly.`;
 
   const response = await contentOptimizerAgent.generate(optimizePrompt, {
     structuredOutput: { schema: optimizationOutputSchema },

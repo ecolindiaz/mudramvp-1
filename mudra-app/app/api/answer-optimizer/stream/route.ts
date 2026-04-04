@@ -86,6 +86,22 @@ export async function POST(request: NextRequest) {
     return new Response(JSON.stringify({ error: 'pageUrl and promptText required' }), { status: 400 });
   }
 
+  // Validate pageUrl: must be HTTPS (or HTTP) with a public hostname
+  try {
+    const parsed = new URL(pageUrl);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return new Response(JSON.stringify({ error: 'pageUrl must use http or https' }), { status: 400 });
+    }
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' ||
+        host.startsWith('10.') || host.startsWith('192.168.') || host.startsWith('172.') ||
+        host === '169.254.169.254' || host.endsWith('.internal') || host.endsWith('.local')) {
+      return new Response(JSON.stringify({ error: 'pageUrl must be a public URL' }), { status: 400 });
+    }
+  } catch {
+    return new Response(JSON.stringify({ error: 'pageUrl must be a valid URL' }), { status: 400 });
+  }
+
   const runId = `ao_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
   const pipelineStart = Date.now();
   const elapsed = () => `${((Date.now() - pipelineStart) / 1000).toFixed(1)}s`;
@@ -385,22 +401,23 @@ Return: { "coreQuery": "the search query a user would type to find this article'
             try { return !isDomainBlocked(new URL(r.url).hostname); } catch { return false; }
           });
 
-          for (const result of scrapeableResults.slice(0, 5)) {
-            try {
-              const scrape = await scrapeUrl(result.url);
-              if (scrape.success && scrape.markdown) {
-                competitorPages.push({
-                  url: result.url,
-                  title: result.title,
-                  wordCount: scrape.markdown.split(/\s+/).filter(Boolean).length,
-                  headings: (scrape.markdown.match(/^##\s+/gm) || []).length,
-                });
-              } else {
-                console.warn(`[AnswerOptimizer ${runId}] Competitor scrape failed for ${result.url}`);
-                compFailedCount++;
-              }
-            } catch {
-              console.warn(`[AnswerOptimizer ${runId}] Competitor scrape error for ${result.url}`);
+          const compScrapeResults = await Promise.allSettled(
+            scrapeableResults.slice(0, 5).map(r => scrapeUrl(r.url))
+          );
+
+          for (let ci = 0; ci < compScrapeResults.length; ci++) {
+            const compResult = compScrapeResults[ci];
+            const compUrl = scrapeableResults[ci].url;
+            const compTitle = scrapeableResults[ci].title;
+            if (compResult.status === 'fulfilled' && compResult.value.success && compResult.value.markdown) {
+              competitorPages.push({
+                url: compUrl,
+                title: compTitle,
+                wordCount: compResult.value.markdown.split(/\s+/).filter(Boolean).length,
+                headings: (compResult.value.markdown.match(/^##\s+/gm) || []).length,
+              });
+            } else {
+              console.warn(`[AnswerOptimizer ${runId}] Competitor scrape failed for ${compUrl}`);
               compFailedCount++;
             }
           }
@@ -538,17 +555,30 @@ IMPORTANT: Run a MAXIMUM of 7 searches. Prioritize sources from the last 12 mont
       await sendEvent({ phase: 'optimize', status: 'started', stepIndex, totalSteps });
 
       const depthConfig = DEPTH_TARGETS[depthLevel as keyof typeof DEPTH_TARGETS] || DEPTH_TARGETS.moderate;
+      // Target the midpoint of the range — the model tends to undershoot slightly,
+      // so aiming higher helps it land within range. Server-side trimming catches overshoot.
+      const rangeMidpoint = Math.round((depthConfig.floor + depthConfig.ceiling) / 2);
       const targetWordCount = Math.min(
-        Math.max(depthConfig.floor, originalWordCount),
+        Math.max(rangeMidpoint, originalWordCount),
         depthConfig.ceiling
       );
 
       let internalLinkSuggestions = '';
       if (tools.internalLinks && brandProfileId) {
         try {
-          const sitemapPages = await prisma.sitemapPage.findMany({
+          // Verify brand profile belongs to the authenticated user
+          const bpId = parseInt(String(brandProfileId));
+          const brandProfile = await prisma.brandProfile.findFirst({
+            where: { id: bpId, user_id: authResult.user.id },
+            select: { id: true },
+          });
+          if (!brandProfile) {
+            console.warn(`[AnswerOptimizer ${runId}] brandProfileId ${bpId} not owned by user ${authResult.user.id}`);
+          }
+
+          const sitemapPages = brandProfile ? await prisma.sitemapPage.findMany({
             where: {
-              brand_profile_id: parseInt(String(brandProfileId)),
+              brand_profile_id: bpId,
               page_url: { not: pageUrl },
               OR: [
                 { page_type: { in: ['blog', 'resources', 'customers', 'use-cases', 'product', 'features', 'solutions', 'documentation'] } },
@@ -559,7 +589,7 @@ IMPORTANT: Run a MAXIMUM of 7 searches. Prioritize sources from the last 12 mont
             },
             select: { page_url: true, id: true },
             take: 30,
-          });
+          }) : [];
 
           if (sitemapPages.length > 0) {
             // Fetch page titles from snapshots for contextual anchor text
@@ -655,10 +685,12 @@ Brand: ${brandContext.brandName || 'Unknown'} | Industry: ${brandContext.brandIn
 Author: ${brandContext.userName || 'Team'}, ${brandContext.userRole || 'Editor'}
 
 ## CRITICAL: Word Count Constraint
-Your output MUST be between ${depthConfig.floor} and ${depthConfig.ceiling} words (target: ${targetWordCount}).
-Count carefully before finalizing. If your draft exceeds ${depthConfig.ceiling} words, CUT sections or shorten paragraphs until within range.
-The wordCount in your metadata MUST reflect an honest count of the optimizedContent you return.
-Follow ${depthLevel} depth rules strictly.`;
+The original article is ${originalWordCount} words. Your output MUST be between ${depthConfig.floor} and ${depthConfig.ceiling} words (target: ${targetWordCount}).
+You need to produce at least ${depthConfig.floor - originalWordCount > 0 ? depthConfig.floor - originalWordCount + ' MORE words than the original' : 'as many words as the original'}.
+- If your draft is BELOW ${depthConfig.floor} words: you MUST keep writing. Add longer direct-answer paragraphs, expand descriptions, add FAQ entries with 2-3 sentence answers, include comparison tables. A short article is a FAILURE.
+- If your draft EXCEEDS ${depthConfig.ceiling} words: cut sections or shorten paragraphs.
+Count every word before finalizing. The floor is as important as the ceiling.
+Follow ${depthLabel} depth rules strictly.`;
 
       let optimizationResult: any;
       try {
@@ -700,7 +732,7 @@ Follow ${depthLevel} depth rules strictly.`;
         for (const part of h2Parts) {
           const heading = part.match(/^## (.+)/m)?.[1]?.toLowerCase() || '';
           const isProtected = heading.includes('faq') || heading.includes('bottom line') ||
-            heading.startsWith('#') === false || keepParts.length < 3;
+            !heading || keepParts.length < 3;
           if (isProtected) {
             keepParts.push(part);
           } else {

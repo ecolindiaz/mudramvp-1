@@ -291,12 +291,13 @@ export async function POST(request: NextRequest) {
 
       try {
         const queryResponse = await contentOptimizerAgent.generate(
-          `Analyze the intersection of this page's topic and the target prompt. Return ONLY a JSON object with no extra text.
+          `Identify what this page is primarily about. The target prompt tells you what query the article should rank for, but the core search query should reflect the article's actual topic, not the prompt's topic. Return ONLY a JSON object with no extra text.
 
-Page title/headings: ${headingStructure.slice(0, 5).join(', ')}
-Target prompt: "${promptText}"
+Page title: "${pageTitle}"
+Page headings: ${headingStructure.slice(0, 5).join(', ')}
+Target prompt (for context only): "${promptText}"
 
-Return: { "coreQuery": "the search query a user would type", "intent": "informational|commercial|transactional", "temporalModifier": "2026 or null" }`,
+Return: { "coreQuery": "the search query a user would type to find this article's topic", "intent": "informational|commercial|transactional", "temporalModifier": "2026 or null" }`,
           { maxSteps: 1 }
         );
 
@@ -431,8 +432,9 @@ Return: { "coreQuery": "the search query a user would type", "intent": "informat
 ## Existing Page Content (first 3000 chars)
 ${originalMarkdown.slice(0, 3000)}
 
-## Target Prompt
-"${promptText}"
+## Article Topic
+"${pageTitle}"
+(Optimization target query: "${promptText}" — identify gaps relative to the article topic, not the prompt topic)
 
 ## Core Search Query
 "${coreQuery}" (${queryIntent} intent)
@@ -596,7 +598,16 @@ IMPORTANT: Run a MAXIMUM of 7 searches. Prioritize sources from the last 12 mont
       };
       const depthLabel = depthLabels[depthLevel] || 'SMART REWRITE';
 
-      const optimizePrompt = `## Optimization Task
+      const optimizePrompt = `## TOPIC ANCHOR
+This article is about: "${pageTitle}"
+Original URL: ${pageUrl}
+Optimization target: make this article get cited when someone asks "${promptText}"
+RULES:
+- Every H2 section must be directly about "${pageTitle}" — not about the prompt's topic.
+- Do NOT add sections that bridge the article's subject to an adjacent topic from the prompt.
+- The prompt tells you WHAT QUERY to optimize for, not what new subjects to introduce.
+
+## Optimization Task
 Depth Level: ${depthLabel}
 Target Word Count: ${targetWordCount} words (minimum ${depthConfig.floor}, maximum ${depthConfig.ceiling})
 Voice & Tone: ${voiceTone}
@@ -669,11 +680,49 @@ Follow ${depthLevel} depth rules strictly.`;
         return;
       }
 
-      const optimizedWordCount = countWordsInMarkdown(optimizationResult.optimizedContent);
+      let optimizedWordCount = countWordsInMarkdown(optimizationResult.optimizedContent);
       const aiReportedWordCount = optimizationResult.metadata?.wordCount || 0;
       if (Math.abs(optimizedWordCount - aiReportedWordCount) > 50) {
         console.warn(`[AnswerOptimizer ${runId}] Word count mismatch: AI reported ${aiReportedWordCount}, actual ${optimizedWordCount} (target ${targetWordCount})`);
       }
+
+      // Server-side word count enforcement: if model exceeded ceiling, trim sections
+      if (optimizedWordCount > depthConfig.ceiling) {
+        console.warn(`[AnswerOptimizer ${runId}] Output exceeds ceiling (${optimizedWordCount} > ${depthConfig.ceiling}). Trimming...`);
+        let content = optimizationResult.optimizedContent as string;
+
+        // Strategy: remove H2 sections from the bottom (before FAQ/Bottom line) until within ceiling
+        // Split by H2 headings, identify trimmable sections (not FAQ, not Bottom line, not first 2)
+        const h2Parts = content.split(/(?=\n## )/);
+        const keepParts: string[] = [];
+        const trimmable: string[] = [];
+
+        for (const part of h2Parts) {
+          const heading = part.match(/^## (.+)/m)?.[1]?.toLowerCase() || '';
+          const isProtected = heading.includes('faq') || heading.includes('bottom line') ||
+            heading.startsWith('#') === false || keepParts.length < 3;
+          if (isProtected) {
+            keepParts.push(part);
+          } else {
+            trimmable.push(part);
+          }
+        }
+
+        // Remove trimmable sections from the end until within ceiling
+        while (trimmable.length > 0 && countWordsInMarkdown(keepParts.join('') + trimmable.join('')) > depthConfig.ceiling) {
+          const removed = trimmable.pop();
+          console.log(`[AnswerOptimizer ${runId}] Trimmed section: ${removed?.match(/^## (.+)/m)?.[1] || 'unknown'}`);
+        }
+
+        content = keepParts.join('') + trimmable.join('');
+        optimizedWordCount = countWordsInMarkdown(content);
+        optimizationResult.optimizedContent = content;
+        if (optimizationResult.metadata) {
+          optimizationResult.metadata.wordCount = optimizedWordCount;
+        }
+        console.log(`[AnswerOptimizer ${runId}] After trimming: ${optimizedWordCount} words`);
+      }
+
       console.log(`[AnswerOptimizer ${runId}] Phase 8 optimize completed in ${((Date.now() - p8Start) / 1000).toFixed(1)}s:`, {
         wordCount: optimizedWordCount, targetWordCount, delta: optimizedWordCount - originalWordCount,
       });

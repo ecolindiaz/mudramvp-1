@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeUrl } from "@/lib/utils/normalize-url";
+import { extractLocaleFromUrl } from "@/lib/utils/locale-from-url";
 import { addAndProcessUrl } from "@/lib/services/sitemap-page-management.service";
 
 export const maxDuration = 300;
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       }
 
       const normalizedUrl = normalizeUrl(url);
-      const domain = parsedUrl.origin;
+      const domain = parsedUrl.origin.replace(/^(https?:\/\/)www\./i, '$1');
 
       // Duplicate check (in-memory + DB-level)
       if (trackedUrls.has(normalizedUrl)) {
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
             brand_profile_id: brandProfileId,
             domain,
             page_url: normalizedUrl,
+            locale: extractLocaleFromUrl(normalizedUrl),
             page_type: null,
             scrape_status: "pending",
           },

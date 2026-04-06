@@ -327,6 +327,7 @@ const data = {
           title: "Answer Optimizer",
           url: "/dashboard/answer-optimizer",
           icon: AnswerOptimizerIcon,
+          badge: "Beta",
         },
         {
           title: "Conversation Radar",

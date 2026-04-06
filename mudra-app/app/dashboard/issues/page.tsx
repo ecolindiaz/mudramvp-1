@@ -1429,8 +1429,9 @@ function IssuesPageInner() {
   const fetchIssues = React.useCallback(async () => {
     if (!profile?.id) return
     try {
+      const country = brandProfileContext?.selectedCountry || 'US'
       console.log('[Issues Page] Fetching issues for brandProfileId:', profile.id)
-      const response = await fetch(`/api/issues?brandProfileId=${profile.id}`)
+      const response = await fetch(`/api/issues?brandProfileId=${profile.id}&country=${country}`)
       console.log('[Issues Page] Response status:', response.status)
 
       if (!response.ok) {
@@ -1458,7 +1459,7 @@ function IssuesPageInner() {
     } finally {
       setIsLoading(false)
     }
-  }, [profile?.id])
+  }, [profile?.id, brandProfileContext?.selectedCountry])
 
   // Fetch stats
   const fetchStats = React.useCallback(async () => {

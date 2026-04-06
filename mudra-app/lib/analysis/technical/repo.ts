@@ -1,5 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { extractLocaleFromUrl } from "@/lib/utils/locale-from-url";
+import { normalizeUrl } from "@/lib/utils/normalize-url";
 import type {
   ScrapeSnapshot,
   ScoreResult,
@@ -168,6 +170,9 @@ export async function saveSitemapPages(
     return { created: 0, updated: 0 };
   }
 
+  // Normalize domain once (strip www.) for consistent storage
+  const normalizedDomain = domain.replace(/^(https?:\/\/)www\./i, '$1');
+
   let created = 0;
   let updated = 0;
 
@@ -176,13 +181,14 @@ export async function saveSitemapPages(
   for (let i = 0; i < pages.length; i += batchSize) {
     const batch = pages.slice(i, i + batchSize);
     const results = await Promise.allSettled(
-      batch.map((page) =>
-        prisma.sitemapPage.upsert({
+      batch.map((page) => {
+        const normalizedPageUrl = normalizeUrl(page.url);
+        return prisma.sitemapPage.upsert({
           where: {
             brand_profile_id_domain_page_url: {
               brand_profile_id: brandProfileId,
-              domain,
-              page_url: page.url,
+              domain: normalizedDomain,
+              page_url: normalizedPageUrl,
             },
           },
           update: {
@@ -192,14 +198,15 @@ export async function saveSitemapPages(
           },
           create: {
             brand_profile_id: brandProfileId,
-            domain,
-            page_url: page.url,
+            domain: normalizedDomain,
+            page_url: normalizedPageUrl,
+            locale: extractLocaleFromUrl(normalizedPageUrl),
             page_type: page.pageType,
             priority: page.priority,
             scrape_status: "pending",
           },
-        })
-      )
+        });
+      })
     );
 
     for (const result of results) {

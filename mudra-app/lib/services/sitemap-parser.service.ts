@@ -10,6 +10,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { normalizeUrl } from '@/lib/utils/normalize-url';
 import type { 
   SitemapEntry, 
   SitemapDiscoveryResult, 
@@ -308,28 +309,32 @@ export async function saveSitemapPages(
   discovery: SitemapDiscoveryResult
 ): Promise<number> {
   console.log(`[SitemapParser] Saving ${discovery.entries.length} pages for brand ${brandProfileId}`);
-  
+
+  // Normalize domain once (strip www.) for consistent storage
+  const normalizedDomain = discovery.domain.replace(/^(https?:\/\/)www\./i, '$1');
+
   let savedCount = 0;
-  
+
   // Use batched upserts for efficiency
   const batchSize = 50;
   for (let i = 0; i < discovery.entries.length; i += batchSize) {
     const batch = discovery.entries.slice(i, i + batchSize);
-    
+
     await Promise.all(batch.map(async (entry) => {
+      const normalizedLoc = normalizeUrl(entry.loc);
       try {
         await prisma.sitemapPage.upsert({
           where: {
             brand_profile_id_domain_page_url: {
               brand_profile_id: brandProfileId,
-              domain: discovery.domain,
-              page_url: entry.loc,
+              domain: normalizedDomain,
+              page_url: normalizedLoc,
             },
           },
           create: {
             brand_profile_id: brandProfileId,
-            domain: discovery.domain,
-            page_url: entry.loc,
+            domain: normalizedDomain,
+            page_url: normalizedLoc,
             page_type: classifyPageType(entry.loc),
             last_modified: entry.lastmod ? new Date(entry.lastmod) : null,
             change_frequency: entry.changefreq,
@@ -346,7 +351,7 @@ export async function saveSitemapPages(
         });
         savedCount++;
       } catch (error) {
-        console.warn(`[SitemapParser] Failed to save page ${entry.loc}:`, error);
+        console.warn(`[SitemapParser] Failed to save page ${normalizedLoc}:`, error);
       }
     }));
   }

@@ -6,6 +6,7 @@ import { DiscoverPagesModal } from "@/components/issues/discover-pages-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
+import { useBrandProfile } from "@/components/brand-profile-context"
 
 interface TrackedPage {
   id: string
@@ -22,6 +23,7 @@ interface SitemapUrlsPanelProps {
 }
 
 export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrlsPanelProps) {
+  const { selectedCountry } = useBrandProfile()
   const [pages, setPages] = React.useState<TrackedPage[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [urlInput, setUrlInput] = React.useState("")
@@ -47,7 +49,8 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
   // Fetch tracked pages
   const fetchPages = React.useCallback(async () => {
     try {
-      const res = await fetch(`/api/sitemap-pages?brandProfileId=${brandProfileId}`)
+      const countryParam = selectedCountry ? `&country=${selectedCountry}` : ''
+      const res = await fetch(`/api/sitemap-pages?brandProfileId=${brandProfileId}${countryParam}`)
       if (!res.ok) return
       const data = await res.json()
       const incoming: TrackedPage[] = data.pages ?? []
@@ -73,7 +76,7 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
     } finally {
       setIsLoading(false)
     }
-  }, [brandProfileId])
+  }, [brandProfileId, selectedCountry])
 
   // Initial fetch
   React.useEffect(() => {

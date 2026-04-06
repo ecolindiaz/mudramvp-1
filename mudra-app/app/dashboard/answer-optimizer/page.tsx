@@ -870,7 +870,7 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, a
 }
 
 function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { brandProfile } = useBrandProfile()
+  const { brandProfile, selectedCountry } = useBrandProfile()
   const brandProfileId = brandProfile?.id
 
   const [selectedPost, setSelectedPost] = useState("")
@@ -901,9 +901,10 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     if (!open || !brandProfileId) return
     setLoadingData(true)
 
+    const countryParam = selectedCountry ? `&country=${selectedCountry}` : ''
     Promise.all([
       fetch(`/api/answer-optimizer/blog-posts?brandProfileId=${brandProfileId}`).then(r => r.json()),
-      fetch(`/api/answer-optimizer/prompts?brandProfileId=${brandProfileId}`).then(r => r.json()),
+      fetch(`/api/answer-optimizer/prompts?brandProfileId=${brandProfileId}${countryParam}`).then(r => r.json()),
       fetch(`/api/answer-optimizer/icps?brandProfileId=${brandProfileId}`).then(r => r.json()),
     ]).then(([postsRes, promptsRes, icpsRes]) => {
       setBlogPosts((postsRes.pages || []).map((p: any) => ({
@@ -919,7 +920,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       setIcps(icpsRes.icps || [])
       setLoadingData(false)
     }).catch(() => setLoadingData(false))
-  }, [open, brandProfileId])
+  }, [open, brandProfileId, selectedCountry])
 
   const activeSteps = useMemo(() => getActiveSteps(enabledTools), [enabledTools])
 

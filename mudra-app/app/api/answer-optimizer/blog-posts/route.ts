@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/require-auth';
 import { prisma } from '@/lib/prisma';
+import { isBlogIndexPage } from '@/lib/utils/is-blog-index-page';
 
 export async function GET(request: NextRequest) {
   const authResult = await requireAuth();
@@ -32,5 +33,7 @@ export async function GET(request: NextRequest) {
     take: 100,
   });
 
-  return NextResponse.json({ pages });
+  const filtered = pages.filter((p) => !isBlogIndexPage(p.page_url));
+
+  return NextResponse.json({ pages: filtered });
 }

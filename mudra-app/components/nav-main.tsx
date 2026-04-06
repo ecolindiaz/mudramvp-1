@@ -31,7 +31,7 @@ const NavigationItem = memo(({
   item,
   isActive
 }: {
-  item: { title: string; url: string; icon?: LucideIcon }
+  item: { title: string; url: string; icon?: LucideIcon; badge?: string }
   isActive: boolean
 }) => {
   const [animating, setAnimating] = useState(false)
@@ -70,6 +70,11 @@ const NavigationItem = memo(({
           }`}>
             {item.title}
           </span>
+          {item.badge && (
+            <span className="ml-auto text-[10px] font-medium leading-none px-1.5 py-0.5 rounded-full border border-red-500/40 text-red-400">
+              {item.badge}
+            </span>
+          )}
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -130,6 +135,7 @@ export const NavMain = memo(function NavMain({
       url: string
       icon?: LucideIcon
       isActive?: boolean
+      badge?: string
     }[]
   }[]
 }) {

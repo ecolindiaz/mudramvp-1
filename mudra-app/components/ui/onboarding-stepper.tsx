@@ -14,7 +14,6 @@ const steps = [
   "About You",
   "Company",
   "Competitors",
-  "Visibility",
   "Analysis"
 ]
 

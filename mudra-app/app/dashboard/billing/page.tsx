@@ -44,7 +44,7 @@ const plans = [
     name: "Free",
     id: "free",
     price: { monthly: 0, yearly: 0 },
-    description: "Perfect for trying out Mudra",
+    description: "Perfect for trying out Morphiq",
     features: [
       "100 AI visibility tests",
       "Basic technical analysis",

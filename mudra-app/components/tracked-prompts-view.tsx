@@ -677,7 +677,7 @@ export function TrackedPromptsView({ prompts = [], analysis }: TrackedPromptsVie
                         <div className="space-y-2">
                           <h4 className="font-medium text-sm text-foreground">Total Prompts</h4>
                           <p className="text-xs text-muted-foreground leading-relaxed">
-                            How many prompts Mudra tracks to optimize your brand's visibility and help you appear more often in AI responses.
+                            How many prompts Morphiq tracks to optimize your brand's visibility and help you appear more often in AI responses.
                           </p>
                         </div>
                       </TooltipContent>

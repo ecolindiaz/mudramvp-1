@@ -47,7 +47,7 @@ function IntegrationsPageInner() {
     const error = params.get('error')
     if (error) {
       const errorMessages: Record<string, string> = {
-        'github_already_linked': 'This GitHub account is already linked to another Mudra account.',
+        'github_already_linked': 'This GitHub account is already linked to another Morphiq account.',
         'github_state_mismatch': 'Security check failed. Please try again.',
         'github_not_configured': 'GitHub OAuth is not configured. Please contact support.',
         'github_link_failed': 'Failed to link GitHub account. Please try again.',
@@ -223,7 +223,7 @@ function IntegrationsPageInner() {
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight text-white">Integrations</h1>
                   <p className="text-sm text-white/60 mt-1">
-                    Connect your stack to Mudra
+                    Connect your stack to Morphiq
                   </p>
                 </div>
               </div>
@@ -279,7 +279,7 @@ function IntegrationsPageInner() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <p className="text-[15px] text-white/80 leading-relaxed">
-                      Select Framer as your platform so Mudra provides Framer-specific instructions with generated code
+                      Select Framer as your platform so Morphiq provides Framer-specific instructions with generated code
                     </p>
                     {websitePlatform === 'framer' ? (
                       <div className="space-y-2">
@@ -323,7 +323,7 @@ function IntegrationsPageInner() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <p className="text-[15px] text-white/80 leading-relaxed">
-                      Select Webflow as your platform so Mudra provides Webflow-specific instructions with generated code
+                      Select Webflow as your platform so Morphiq provides Webflow-specific instructions with generated code
                     </p>
                     {websitePlatform === 'webflow' ? (
                       <div className="space-y-2">
@@ -369,9 +369,9 @@ function IntegrationsPageInner() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <p className="text-[15px] text-white/80 leading-relaxed">
-                      Connect your repositories so Mudra can open Pull Requests for issues that it finds
+                      Connect your repositories so Morphiq can open Pull Requests for issues that it finds
                     </p>
-                    
+
                     {/* Sync Message - show at top if present */}
                     {syncMessage && (
                       <div className={`p-2 rounded-lg text-xs ${
@@ -497,7 +497,7 @@ function IntegrationsPageInner() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <p className="text-[15px] text-white/80 leading-relaxed">
-                      Connect your repositories so Mudra can open Pull Requests for issues that it finds
+                      Connect your repositories so Morphiq can open Pull Requests for issues that it finds
                     </p>
                     <div>
                       <Button disabled className="w-full h-10 rounded-full bg-white/10 text-white/60 text-sm font-medium">
@@ -522,7 +522,7 @@ function IntegrationsPageInner() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <p className="text-[15px] text-white/80 leading-relaxed">
-                      Connect Slack to receive Mudra notifications in your workspace.
+                      Connect Slack to receive Morphiq notifications in your workspace.
                     </p>
                     <div>
                       <Button

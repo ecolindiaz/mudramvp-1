@@ -60,12 +60,12 @@ export async function POST(request: NextRequest) {
 
     // Send welcome email WITHOUT the password — direct to login/reset instead
     const { data, error } = await resend.emails.send({
-      from: 'Mudra <onboarding@resend.dev>',
+      from: 'Morphiq <onboarding@resend.dev>',
       to: [email],
-      subject: 'Your Mudra Beta Account',
+      subject: 'Your Morphiq Beta Account',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">Welcome to Mudra Beta! 🎉</h2>
+          <h2 style="color: #333;">Welcome to Morphiq Beta! 🎉</h2>
           <p style="color: #666; font-size: 16px;">Your account has been created successfully.</p>
           <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <p style="margin: 5px 0; color: #333;"><strong>Username:</strong> ${username}</p>
@@ -73,10 +73,10 @@ export async function POST(request: NextRequest) {
           <p style="color: #666;">Log in at: <a href="${loginUrl}" style="color: #007bff;">${loginUrl}</a></p>
           <p style="color: #666;">If you need to set your password, use the "Forgot Password" link on the login page.</p>
           <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
-          <p style="color: #999; font-size: 14px;">Best regards,<br/>The Mudra Team</p>
+          <p style="color: #999; font-size: 14px;">Best regards,<br/>The Morphiq Team</p>
         </div>
       `,
-      text: `Welcome to Mudra Beta!\n\nYour account has been created.\n\nUsername: ${username}\n\nLog in at: ${loginUrl}\n\nIf you need to set your password, use the "Forgot Password" link.\n\nBest regards,\nThe Mudra Team`
+      text: `Welcome to Morphiq Beta!\n\nYour account has been created.\n\nUsername: ${username}\n\nLog in at: ${loginUrl}\n\nIf you need to set your password, use the "Forgot Password" link.\n\nBest regards,\nThe Morphiq Team`
     })
 
     if (error) {

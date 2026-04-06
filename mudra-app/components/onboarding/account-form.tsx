@@ -136,7 +136,7 @@ export function AccountForm() {
         <CardDescription className="text-white/70">
           {isAccountCreated 
             ? "Save your credentials - you'll need them to log in"
-            : "Choose a username to get started with Mudra Beta"}
+            : "Choose a username to get started with Morphiq Beta"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

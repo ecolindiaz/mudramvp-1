@@ -378,7 +378,7 @@ export async function computeSiteWideScore(
 
   // Get all page scores, optionally filtered by locale via the SitemapPage relation
   const localeWhere = options?.locale
-    ? { sitemap_pages: { OR: [{ locale: null }, { locale: options.locale }] } }
+    ? { sitemap_pages: { is: { OR: [{ locale: null }, { locale: options.locale }] } } }
     : {};
   const pageScores = await prisma.pageScore.findMany({
     where: { brand_profile_id: brandProfileId, ...localeWhere },

@@ -93,8 +93,12 @@ export async function POST(request: NextRequest) {
       return new Response(JSON.stringify({ error: 'pageUrl must use http or https' }), { status: 400 });
     }
     const host = parsed.hostname.toLowerCase();
+    const isRfc1918_172 = host.startsWith('172.') && (() => {
+      const second = parseInt(host.split('.')[1], 10);
+      return second >= 16 && second <= 31;
+    })();
     if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' ||
-        host.startsWith('10.') || host.startsWith('192.168.') || host.startsWith('172.') ||
+        host.startsWith('10.') || host.startsWith('192.168.') || isRfc1918_172 ||
         host === '169.254.169.254' || host.endsWith('.internal') || host.endsWith('.local')) {
       return new Response(JSON.stringify({ error: 'pageUrl must be a public URL' }), { status: 400 });
     }
@@ -576,10 +580,11 @@ IMPORTANT: Run a MAXIMUM of 7 searches. Prioritize sources from the last 12 mont
             console.warn(`[AnswerOptimizer ${runId}] brandProfileId ${bpId} not owned by user ${authResult.user.id}`);
           }
 
+          const normalizedPageUrl = pageUrl.toLowerCase().trim().replace(/^(https?:\/\/)www\./i, '$1').replace(/#.*$/, '').replace(/\/$/, '') || pageUrl;
           const sitemapPages = brandProfile ? await prisma.sitemapPage.findMany({
             where: {
               brand_profile_id: bpId,
-              page_url: { not: pageUrl },
+              page_url: { not: normalizedPageUrl },
               OR: [
                 { page_type: { in: ['blog', 'resources', 'customers', 'use-cases', 'product', 'features', 'solutions', 'documentation'] } },
                 { page_url: { contains: '/blog/' } },

@@ -255,10 +255,10 @@ export function Toolbar() {
   return (
     <div className="flex items-center gap-0.5">
       {/* Undo/Redo */}
-      <button className={iconBtn} onClick={handleUndo} title="Undo">
+      <button type="button" className={iconBtn} onClick={handleUndo} title="Undo">
         <Undo2 className="h-3.5 w-3.5 mx-auto" />
       </button>
-      <button className={iconBtn} onClick={handleRedo} title="Redo">
+      <button type="button" className={iconBtn} onClick={handleRedo} title="Redo">
         <Redo2 className="h-3.5 w-3.5 mx-auto" />
       </button>
 
@@ -290,36 +290,36 @@ export function Toolbar() {
       <div className={divider} />
 
       {/* Text Format */}
-      <button className={iconBtn} onClick={() => formatText("bold")} title="Bold">
+      <button type="button" className={iconBtn} onClick={() => formatText("bold")} title="Bold">
         <Bold className="h-3.5 w-3.5 mx-auto" />
       </button>
-      <button className={iconBtn} onClick={() => formatText("italic")} title="Italic">
+      <button type="button" className={iconBtn} onClick={() => formatText("italic")} title="Italic">
         <Italic className="h-3.5 w-3.5 mx-auto" />
       </button>
-      <button className={iconBtn} onClick={() => formatText("underline")} title="Underline">
+      <button type="button" className={iconBtn} onClick={() => formatText("underline")} title="Underline">
         <Underline className="h-3.5 w-3.5 mx-auto" />
       </button>
-      <button className={iconBtn} onClick={() => formatText("strikethrough")} title="Strikethrough">
+      <button type="button" className={iconBtn} onClick={() => formatText("strikethrough")} title="Strikethrough">
         <Strikethrough className="h-3.5 w-3.5 mx-auto" />
       </button>
-      <button className={iconBtn} onClick={() => formatText("code")} title="Code">
+      <button type="button" className={iconBtn} onClick={() => formatText("code")} title="Code">
         <Code className="h-3.5 w-3.5 mx-auto" />
       </button>
 
       <div className={divider} />
 
       {/* Lists */}
-      <button className={isBulletList ? iconBtnActive : iconBtn} onClick={() => formatList("bullet")} title="Bullet List">
+      <button type="button" className={isBulletList ? iconBtnActive : iconBtn} onClick={() => formatList("bullet")} title="Bullet List">
         <List className="h-3.5 w-3.5 mx-auto" />
       </button>
-      <button className={isNumberList ? iconBtnActive : iconBtn} onClick={() => formatList("number")} title="Numbered List">
+      <button type="button" className={isNumberList ? iconBtnActive : iconBtn} onClick={() => formatList("number")} title="Numbered List">
         <ListOrdered className="h-3.5 w-3.5 mx-auto" />
       </button>
 
       <div className={divider} />
 
       {/* Link */}
-      <button className={iconBtn} onClick={openLinkDialog} title="Insert Link">
+      <button type="button" className={iconBtn} onClick={openLinkDialog} title="Insert Link">
         <LinkIcon className="h-3.5 w-3.5 mx-auto" />
       </button>
 

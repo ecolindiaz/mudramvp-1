@@ -327,6 +327,40 @@ export async function saveSitemapPages(
   // Normalize domain once (strip www.) for consistent storage
   const normalizedDomain = discovery.domain.replace(/^(https?:\/\/)www\./i, '$1');
 
+  // Migrate legacy www-prefixed rows to normalized form to prevent duplicates
+  if (normalizedDomain !== discovery.domain) {
+    const legacyPages = await prisma.sitemapPage.findMany({
+      where: { brand_profile_id: brandProfileId, domain: discovery.domain },
+      select: { id: true, page_url: true },
+    });
+    for (const lp of legacyPages) {
+      const normalizedPageUrl = normalizeUrl(lp.page_url);
+      // Check if a normalized row already exists
+      const existing = await prisma.sitemapPage.findUnique({
+        where: {
+          brand_profile_id_domain_page_url: {
+            brand_profile_id: brandProfileId,
+            domain: normalizedDomain,
+            page_url: normalizedPageUrl,
+          },
+        },
+      });
+      if (existing) {
+        // Normalized row exists, delete the legacy duplicate
+        await prisma.sitemapPage.delete({ where: { id: lp.id } });
+      } else {
+        // Migrate legacy row to normalized domain/url
+        await prisma.sitemapPage.update({
+          where: { id: lp.id },
+          data: { domain: normalizedDomain, page_url: normalizedPageUrl },
+        });
+      }
+    }
+    if (legacyPages.length > 0) {
+      console.log(`[SitemapParser] Migrated ${legacyPages.length} legacy www-prefixed rows`);
+    }
+  }
+
   let savedCount = 0;
 
   // Use batched upserts for efficiency

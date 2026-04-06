@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { memo, useState, useCallback, useRef, useEffect, useLayoutEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { memo, useState, useCallback, useRef, useLayoutEffect } from "react"
+import { motion } from "framer-motion"
 import type { LucideIcon } from "lucide-react"
 
 import {

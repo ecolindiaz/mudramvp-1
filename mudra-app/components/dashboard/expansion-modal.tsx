@@ -13,7 +13,7 @@ export interface ExpansionModalColumn<T> {
   width?: string
   align?: "left" | "center" | "right"
   sortable?: boolean
-  render?: (item: T, index: number) => React.ReactNode
+  render?: (item: T, index: number, allItems?: T[]) => React.ReactNode
 }
 
 interface ExpansionModalProps<T> {
@@ -301,7 +301,7 @@ export function ExpansionModal<T extends Record<string, unknown>>({
                           )}
                         >
                           {col.render
-                            ? col.render(item, idx)
+                            ? col.render(item, idx, displayData)
                             : String(item[col.key as keyof T] ?? "")}
                         </div>
                       ))}

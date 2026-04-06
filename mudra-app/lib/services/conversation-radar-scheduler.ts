@@ -15,7 +15,7 @@ import { prisma } from '@/lib/prisma';
 
 // Configuration
 export const SCHEDULER_CONFIG = {
-  radarIntervalDays: 3,           // Days between automated runs per brand
+  radarIntervalDays: 1,           // Days between automated runs per brand
   // Proactive mode settings
   proactive: {
     promptsPerRun: 5,           // Max prompts to process per run

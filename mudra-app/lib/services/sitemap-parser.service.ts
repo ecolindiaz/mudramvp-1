@@ -87,29 +87,43 @@ function extractAllXmlTagValues(xml: string, tagName: string): string[] {
  */
 function parseSitemapXml(xml: string): SitemapEntry[] {
   const entries: SitemapEntry[] = [];
-  
+
   // Match <url> blocks
   const urlBlockRegex = /<url>([\s\S]*?)<\/url>/gi;
   let match;
-  
+
   while ((match = urlBlockRegex.exec(xml)) !== null) {
     const urlBlock = match[1];
-    
+
     const loc = extractXmlTagValue(urlBlock, 'loc');
     if (!loc) continue;
-    
+
     const lastmod = extractXmlTagValue(urlBlock, 'lastmod');
     const changefreq = extractXmlTagValue(urlBlock, 'changefreq');
     const priorityStr = extractXmlTagValue(urlBlock, 'priority');
-    
+
+    // Extract xhtml:link hreflang alternates
+    const alternates: Array<{ hreflang: string; href: string }> = [];
+    const altRegex = /<xhtml:link[^>]+rel=["']alternate["'][^>]*>/gi;
+    let altMatch;
+    while ((altMatch = altRegex.exec(urlBlock)) !== null) {
+      const tag = altMatch[0];
+      const hreflangMatch = tag.match(/hreflang=["']([^"']+)["']/i);
+      const hrefMatch = tag.match(/href=["']([^"']+)["']/i);
+      if (hreflangMatch && hrefMatch) {
+        alternates.push({ hreflang: hreflangMatch[1], href: hrefMatch[1] });
+      }
+    }
+
     entries.push({
       loc,
       lastmod,
       changefreq,
       priority: priorityStr ? parseFloat(priorityStr) : undefined,
+      ...(alternates.length > 0 && { alternates }),
     });
   }
-  
+
   return entries;
 }
 

@@ -1,4 +1,5 @@
 import { prisma } from './prisma'
+import { ensureOwnerMembership, getDefaultBrandProfileIdForUser, getUserBrandAccessRole } from '@/lib/services/team-members.service'
 
 // Export prisma instance for other modules
 export { prisma }
@@ -38,16 +39,17 @@ function deserializeProfile(dbProfile: any) {
  * it will link and return it.
  */
 export async function getBrandProfileByUserId(userId: string) {
-  // First, try to find a profile already linked to this user
-  let dbProfile = await prisma.brandProfile.findFirst({ 
-    where: {
-      userId: userId,
-      id: {
-        not: 0
-      }
-    },
-    orderBy: { updatedAt: "desc" } 
-  });
+  const defaultProfileId = await getDefaultBrandProfileIdForUser(userId)
+
+  if (defaultProfileId) {
+    const profile = await prisma.brandProfile.findUnique({
+      where: { id: defaultProfileId },
+    })
+    return profile ? deserializeProfile(profile) : null
+  }
+
+  // No owned profile or team membership found, fallback to legacy orphan-linking behavior
+  let dbProfile: any = null
   
   // If no profile found, check if there's an orphaned profile we can link
   // This handles migration from pre-auth profiles
@@ -82,9 +84,15 @@ export async function getBrandProfileByUserId(userId: string) {
  * Get a specific brand profile by ID, ensuring it belongs to the user
  */
 export async function getBrandProfileByIdForUser(userId: string, profileId: number) {
-  const dbProfile = await prisma.brandProfile.findFirst({
-    where: { id: profileId, userId },
-  });
+  const role = await getUserBrandAccessRole(userId, profileId)
+  if (!role) {
+    return null
+  }
+
+  const dbProfile = await prisma.brandProfile.findUnique({
+    where: { id: profileId },
+  })
+
   return dbProfile ? deserializeProfile(dbProfile) : null;
 }
 
@@ -105,21 +113,35 @@ export async function saveBrandProfileForUser(userId: string, profile: any) {
     const existingById = await prisma.brandProfile.findFirst({
       where: {
         id: data.id,
-        userId,
       },
+      select: {
+        id: true,
+        userId: true,
+      }
     });
 
     if (!existingById) {
-      throw new Error(`Brand profile ${data.id} not found for user`);
+      throw new Error(`Brand profile ${data.id} not found`);
+    }
+
+    const role = await getUserBrandAccessRole(userId, existingById.id)
+    if (!role || (role !== 'OWNER' && role !== 'ADMIN')) {
+      throw new Error(`Brand profile ${data.id} is not editable by this user`)
     }
 
     console.log("🟢 [saveBrandProfileForUser] Updating submitted profile ID:", existingById.id, "for user:", userId);
-    const updateData = { ...data, userId };
+    const updateData = {
+      ...data,
+      ...(existingById.userId === userId ? { userId } : {}),
+    };
     delete updateData.id;
     const updated = await prisma.brandProfile.update({
       where: { id: existingById.id },
       data: updateData,
     });
+
+    await ensureOwnerMembership(updated.id)
+
     return deserializeProfile(updated);
   }
   
@@ -159,6 +181,9 @@ export async function saveBrandProfileForUser(userId: string, profile: any) {
         siteId,
       }
     });
+
+    await ensureOwnerMembership(created.id)
+
     return deserializeProfile(created);
   }
 }

@@ -216,3 +216,73 @@ export async function sendWelcomeEmail(email: string, name: string) {
     return { success: false, error };
   }
 }
+
+export async function sendTeamInviteEmail(params: {
+  to: string
+  inviterName?: string | null
+  brandName: string
+  inviteToken: string
+}) {
+  const inviteUrl = `${APP_URL}/accept-invite?token=${encodeURIComponent(params.inviteToken)}`
+  const inviterName = params.inviterName || 'A teammate'
+
+  try {
+    const client = getResendClient()
+    await client.emails.send({
+      from: FROM_EMAIL,
+      to: params.to,
+      subject: `You were invited to ${params.brandName} on Morphiq`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Team invitation</title>
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000; margin: 0; padding: 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #000000; padding: 40px 20px;">
+              <tr>
+                <td align="center">
+                  <table width="600" cellpadding="0" cellspacing="0" style="background-color: #111111; border-radius: 12px; border: 1px solid #222222;">
+                    <tr>
+                      <td style="padding: 40px;">
+                        <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 0 0 20px 0; text-align: center;">
+                          You have been invited
+                        </h1>
+                        <p style="color: #999999; font-size: 16px; line-height: 24px; margin: 0 0 20px 0; text-align: center;">
+                          ${inviterName} invited you to join <strong style="color: #ffffff;">${params.brandName}</strong> on Morphiq.
+                        </p>
+                        <p style="color: #999999; font-size: 14px; line-height: 22px; margin: 0 0 26px 0; text-align: center;">
+                          Sign in (or create an account with this same email) to accept your invite.
+                        </p>
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" style="padding: 10px 0 20px 0;">
+                              <a href="${inviteUrl}" style="background-color: #ffffff; color: #000000; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; display: inline-block;">
+                                Accept Invitation
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="color: #666666; font-size: 14px; line-height: 20px; margin: 10px 0 0 0; text-align: center;">
+                          Or copy this URL into your browser:<br>
+                          <a href="${inviteUrl}" style="color: #999999; word-break: break-all;">${inviteUrl}</a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </body>
+        </html>
+      `,
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to send team invite email:', error)
+    return { success: false, error }
+  }
+}

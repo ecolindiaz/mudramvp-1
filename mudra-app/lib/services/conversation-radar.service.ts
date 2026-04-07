@@ -135,10 +135,17 @@ export async function processCitedOpportunities(
     
     for (const post of scraped.posts) {
       // Find all citations that led to this URL
-      const relatedCitations = citations.filter(c => 
+      const relatedCitations = citations.filter(c =>
         c.url === post.url || normalizeRedditUrl(c.url) === normalizeRedditUrl(post.url)
       );
-      
+
+      // Skip posts that don't match any citation URL (phantom results from
+      // the placeholder query the Apify actor requires)
+      if (relatedCitations.length === 0) {
+        stats.skipped++;
+        continue;
+      }
+
       // Check basic quality (relaxed for cited mode)
       if (!isQualityRedditPost(post, CITED_REDDIT_FILTERS)) {
         stats.skipped++;
@@ -301,6 +308,7 @@ async function searchRedditWithTrackedPrompts(
       // so we get the same precision as English. Slightly higher maxPosts for Spanish
       // since some Spanish subreddits are smaller.
       const result = await searchReddit({
+        queries: [promptQuery.searchQuery],
         urls: promptQuery.searchUrls,
         maxPosts: language !== 'en' ? 30 : 20,
       });
@@ -402,6 +410,7 @@ async function searchRedditWithTrackedPrompts(
     
     try {
       const result = await searchReddit({
+        queries: [query],
         urls: [searchUrl],
         maxPosts: 10,
       });

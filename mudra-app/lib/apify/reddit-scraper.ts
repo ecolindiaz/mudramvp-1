@@ -123,11 +123,25 @@ export async function searchReddit(options: RedditSearchOptions): Promise<Reddit
     const client = getApifyClient();
     
     // Apify actor validation requirements:
+    // - queries must have >= 1 item (even in URL-only mode)
     // - maxPosts must be >= 10
     // - maxComments must be >= 1 (even when scrapeComments is false)
+    let queries = options.queries || [];
+    const urls = options.urls || [];
+
+    // The Apify actor requires at least 1 query. When callers only pass URLs
+    // (e.g. cited radar scraping direct post URLs, or proactive radar using
+    // subreddit search URLs), extract the q= param from search URLs or fall
+    // back to a placeholder so the actor doesn't reject the input.
+    if (queries.length === 0 && urls.length > 0) {
+      const extracted = extractQueryFromUrls(urls);
+      queries = extracted.length > 0 ? extracted : ['reddit'];
+      console.log(`[Reddit Scraper] No queries provided, extracted from URLs: ${JSON.stringify(queries)}`);
+    }
+
     const input = {
-      queries: options.queries || [],
-      urls: options.urls || [],
+      queries,
+      urls,
       sort: options.sort || 'relevance',
       timeframe: options.timeframe || 'week',
       maxPosts: Math.max(options.maxPosts || 50, 10), // Minimum 10
@@ -295,6 +309,25 @@ export function extractSubreddit(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Extract search query text from Reddit search URLs.
+ * URLs like https://www.reddit.com/r/SaaS/search?q=best+crm&... → "best crm"
+ * Returns deduplicated array of extracted queries.
+ */
+function extractQueryFromUrls(urls: string[]): string[] {
+  const queries = new Set<string>();
+  for (const url of urls) {
+    try {
+      const parsed = new URL(url);
+      const q = parsed.searchParams.get('q');
+      if (q) queries.add(q);
+    } catch {
+      // Not a parseable URL, skip
+    }
+  }
+  return Array.from(queries);
 }
 
 /**

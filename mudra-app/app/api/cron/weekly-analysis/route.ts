@@ -1,22 +1,22 @@
 /**
- * Vercel Cron Route - Weekday Analysis
+ * Vercel Cron Route - Primary Daily Analysis
  * 
  * Triggered by Vercel Cron (configured in vercel.json)
  * Protected by CRON_SECRET to prevent unauthorized execution
  * 
- * Schedule: Monday-Friday at 2:00 AM UTC (only runs for brands with cronEnabled=true)
+ * Schedule: Daily at 2:00 AM UTC (only runs for brands with cronEnabled=true)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { executeWeeklyAnalysis } from '@/lib/services/cron.service';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 540; // 9 minutes - allows full 50-prompt analysis
+export const maxDuration = 800; // Vercel Pro max: reduce timeout risk for long multi-brand runs
 
 /**
  * POST /api/cron/weekly-analysis
  * 
- * Executes weekly analysis for all brand profiles
+ * Executes primary daily analysis for all eligible brand profiles
  * Protected by CRON_SECRET header
  */
 export async function POST(request: NextRequest) {
@@ -35,8 +35,11 @@ export async function POST(request: NextRequest) {
 
     console.log('🔐 [CRON API] Authorized request received');
 
-    // Execute weekly analysis
-    const result = await executeWeeklyAnalysis();
+    // Execute primary daily analysis
+    const result = await executeWeeklyAnalysis({
+      onlyMissingToday: false,
+      runContentOptimizer: true,
+    });
 
     // Return execution summary
     return NextResponse.json({
@@ -83,8 +86,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Execute weekly analysis
-    const result = await executeWeeklyAnalysis();
+    // Execute primary daily analysis
+    const result = await executeWeeklyAnalysis({
+      onlyMissingToday: false,
+      runContentOptimizer: true,
+    });
 
     return NextResponse.json({
       success: true,

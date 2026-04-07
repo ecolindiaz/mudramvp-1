@@ -527,6 +527,9 @@ async function runPostAnalysisSteps(
  * Shared by onboarding and dashboard
  */
 async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: OnProgress) {
+  let analysisRunId: number | string | null = null;
+  let analysisRunFinalized = false;
+
   try {
     const { generateAndSaveInitialPrompts, getActivePrompts } = await import('./prompt-storage.service');
     const { canRunAnalysis, updateLastAnalysisTime, createAnalysisRun, updateAnalysisRun } = await import('./analysis-run.service');
@@ -575,6 +578,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
       status: 'running',
       country: country || 'US',
     });
+    analysisRunId = analysisRun.id;
 
     // Resolve competitor names for the extraction prompt.
     // Two issues fixed here:
@@ -626,6 +630,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
         status: 'failed',
         errorMessage: `DirectGEO analysis failed: ${geoError instanceof Error ? geoError.message : 'Unknown error'}`
       });
+      analysisRunFinalized = true;
       throw geoError;
     }
 
@@ -636,6 +641,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
       overallScore: data.overallScore || 0,
       competitorData: data.competitorComparison || []
     });
+    analysisRunFinalized = true;
 
     // Update last analysis timestamp
     await updateLastAnalysisTime(config.brandProfileId);
@@ -683,6 +689,18 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
     };
 
   } catch (error) {
+    if (analysisRunId && !analysisRunFinalized) {
+      try {
+        const { updateAnalysisRun } = await import('./analysis-run.service');
+        await updateAnalysisRun(analysisRunId, {
+          status: 'failed',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        });
+      } catch (finalizeError) {
+        console.warn('[GEO Core] Failed to finalize AnalysisRun after error:', finalizeError);
+      }
+    }
+
     console.error('[GEO Core] Error:', error);
     console.error('[GEO Core] Error stack:', error instanceof Error ? error.stack : 'No stack');
     return {

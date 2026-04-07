@@ -9,7 +9,11 @@
   "crons": [
     {
       "path": "/api/cron/weekly-analysis",
-      "schedule": "0 2 * * 1-5"
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/analysis-catchup",
+      "schedule": "0 14 * * *"
     },
     {
       "path": "/api/cron/weekly",
@@ -46,7 +50,7 @@
       "maxDuration": 300
     },
     "app/api/cron/**/*.ts": {
-      "maxDuration": 540
+      "maxDuration": 800
     },
     "app/api/conversation-radar/cron/**/*.ts": {
       "maxDuration": 540

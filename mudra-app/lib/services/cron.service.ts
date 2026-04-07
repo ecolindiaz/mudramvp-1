@@ -1,8 +1,8 @@
 /**
- * Cron Service - Automated Weekday Analysis Execution
- * 
- * Implements automated weekday prompt runs for all active brand profiles with cronEnabled=true
- * Rate: Runs Monday-Friday at 2 AM UTC
+ * Cron Service - Automated Daily Analysis Execution
+ *
+ * Runs for active brand profiles with cronEnabled=true and is designed to
+ * guarantee at least one completed run per UTC day via retries + catch-up.
  */
 
 import cron from 'node-cron';
@@ -11,10 +11,19 @@ import { runUnifiedAnalysis } from './unified-analysis.service';
 import { getDeltaAnalysis } from './delta-analysis.service';
 import { generateLlmsTxtForBrand, shouldRegenerateLlmsTxt } from './llms-txt-generator.service';
 import { verifyDeployment } from './llms-txt-deployment.service';
+import { recoverStaleRunningAnalysisRuns } from './analysis-run.service';
 
 let isInitialized = false;
 let cronJob: cron.ScheduledTask | null = null;
+let catchupCronJob: cron.ScheduledTask | null = null;
 let llmsTxtCronJob: cron.ScheduledTask | null = null;
+
+const ANALYSIS_RETRY_CONFIG = {
+  maxAttempts: 3,
+  backoffMs: [10_000, 30_000],
+  staleRunMinutes: 20,
+  interProfileDelayMs: 15_000,
+};
 
 interface CronExecutionLog {
   timestamp: Date;
@@ -31,11 +40,31 @@ interface CronExecutionLog {
   }>;
 }
 
+interface ExecuteAnalysisOptions {
+  onlyMissingToday?: boolean;
+  runContentOptimizer?: boolean;
+}
+
+function getUtcDayBounds(date: Date = new Date()): { dayStartUtc: Date; nextDayStartUtc: Date } {
+  const dayStartUtc = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const nextDayStartUtc = new Date(dayStartUtc);
+  nextDayStartUtc.setUTCDate(nextDayStartUtc.getUTCDate() + 1);
+  return { dayStartUtc, nextDayStartUtc };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /**
- * Execute weekday analysis for brand profiles with cron enabled
- * Only processes profiles where cronEnabled=true and have at least one prior analysis
+ * Execute analysis for brand profiles with cron enabled.
+ * In catch-up mode, only processes brands missing a completed run today (UTC).
  */
-export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
+export async function executeWeeklyAnalysis(options: ExecuteAnalysisOptions = {}): Promise<CronExecutionLog> {
+  const onlyMissingToday = options.onlyMissingToday ?? false;
+  const runContentOptimizer = options.runContentOptimizer ?? !onlyMissingToday;
+  const jobType = onlyMissingToday ? 'analysis_catchup' : 'weekly_analysis';
+
   const startTime = Date.now();
   const log: CronExecutionLog = {
     timestamp: new Date(),
@@ -45,18 +74,34 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
     errors: [],
   };
 
-  console.log('🔄 [CRON] Starting weekly analysis job...');
+  console.log(`🔄 [CRON] Starting ${onlyMissingToday ? 'catch-up' : 'daily primary'} analysis job...`);
 
   try {
+    // Recover stale runs globally first so they don't block "one completed run per day" tracking.
+    await recoverStaleRunningAnalysisRuns({ olderThanMinutes: ANALYSIS_RETRY_CONFIG.staleRunMinutes });
+
+    const { dayStartUtc, nextDayStartUtc } = getUtcDayBounds();
+
     // Fetch cron-eligible brand profiles (must have cronEnabled=true and at least one prior analysis)
     const brandProfiles = await prisma.brandProfile.findMany({
       where: {
         cronEnabled: true,
-        // Only process profiles that have been analyzed at least once
-        // This prevents running analysis on incomplete onboarding profiles
         analysisRuns: {
           some: {},
         },
+        ...(onlyMissingToday ? {
+          NOT: {
+            analysisRuns: {
+              some: {
+                status: 'completed',
+                completedAt: {
+                  gte: dayStartUtc,
+                  lt: nextDayStartUtc,
+                },
+              },
+            },
+          },
+        } : {}),
       },
       select: {
         id: true,
@@ -75,19 +120,18 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
     });
 
     log.brandProfilesProcessed = brandProfiles.length;
-    console.log(`📊 [CRON] Found ${brandProfiles.length} brand profiles to process`);
+    console.log(`📊 [CRON] Found ${brandProfiles.length} brand profiles to process (${onlyMissingToday ? 'missing run today' : 'all eligible'})`);
 
-  const deltas: Array<{
-    brandProfileId: number;
-    companyName: string;
-    improvement: boolean;
-    degradation: boolean;
-    changes: string[];
-  }> = [];
+    const deltas: Array<{
+      brandProfileId: number;
+      companyName: string;
+      improvement: boolean;
+      degradation: boolean;
+      changes: string[];
+    }> = [];
 
-  // Process each brand profile sequentially to avoid API rate limits
-  for (const profile of brandProfiles) {
-    try {
+    // Process each brand profile sequentially to avoid API rate limits.
+    for (const [index, profile] of brandProfiles.entries()) {
       console.log(`🔍 [CRON] Processing brand: ${profile.companyName} (ID: ${profile.id})`);
 
       // Skip if missing required data
@@ -97,73 +141,92 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
         continue;
       }
 
-      // Run unified analysis with cooldown bypass (cron jobs override cooldown)
-      // Pass trackingCountries for multi-country analysis
-      const countries = profile.trackingCountries && profile.trackingCountries.length > 0
-        ? profile.trackingCountries
-        : ['US'];
-      const result = await runUnifiedAnalysis({
+      // Recover stale runs for this profile before each attempt.
+      await recoverStaleRunningAnalysisRuns({
         brandProfileId: profile.id,
-        brandName: profile.companyName,
-        website: profile.companyWebsite,
-        description: profile.companyDescription || undefined,
-        industry: profile.companyIndustry || undefined,
-        competitors: profile.competitors ? profile.competitors.split(',').map(c => c.trim()) : undefined,
-        skipCooldown: true,      // Cron jobs bypass 5-min cooldown
-        generateReport: false,   // Don't generate NLR for automated runs
-        countries,               // Multi-country: first sync, rest queued
+        olderThanMinutes: ANALYSIS_RETRY_CONFIG.staleRunMinutes,
       });
 
-      if (result.success) {
-        log.successful++;
-        console.log(`✅ [CRON] Successfully analyzed ${profile.companyName}`);
+      let lastError = 'Unknown error';
+      let succeeded = false;
 
-        // ✅ NEW: Calculate delta vs previous run
+      for (let attempt = 1; attempt <= ANALYSIS_RETRY_CONFIG.maxAttempts; attempt++) {
         try {
-          const deltaResult = await getDeltaAnalysis(profile.id);
-          deltas.push({
+          const countries = profile.trackingCountries && profile.trackingCountries.length > 0
+            ? profile.trackingCountries
+            : ['US'];
+
+          const result = await runUnifiedAnalysis({
             brandProfileId: profile.id,
-            companyName: profile.companyName,
-            improvement: deltaResult.hasImprovement,
-            degradation: deltaResult.hasDegradation,
-            changes: deltaResult.delta?.significantChanges || [],
+            brandName: profile.companyName,
+            website: profile.companyWebsite,
+            description: profile.companyDescription || undefined,
+            industry: profile.companyIndustry || undefined,
+            competitors: profile.competitors ? profile.competitors.split(',').map(c => c.trim()) : undefined,
+            skipCooldown: true,
+            generateReport: false,
+            countries,
           });
 
-          if (deltaResult.delta) {
-            console.log(`📊 [CRON] Delta for ${profile.companyName}:`, {
-              geoChange: deltaResult.delta.geoScoreChange.toFixed(1),
-              techChange: deltaResult.delta.technicalScoreChange.toFixed(1),
-              changes: deltaResult.delta.significantChanges.length,
-            });
+          if (!result.success) {
+            throw new Error(result.error || 'Unknown error');
           }
-        } catch (deltaError) {
-          console.warn(`⚠️ [CRON] Could not calculate delta for ${profile.companyName}:`, deltaError);
+
+          succeeded = true;
+          log.successful++;
+          console.log(`✅ [CRON] Successfully analyzed ${profile.companyName} on attempt ${attempt}/${ANALYSIS_RETRY_CONFIG.maxAttempts}`);
+
+          try {
+            const deltaResult = await getDeltaAnalysis(profile.id);
+            deltas.push({
+              brandProfileId: profile.id,
+              companyName: profile.companyName,
+              improvement: deltaResult.hasImprovement,
+              degradation: deltaResult.hasDegradation,
+              changes: deltaResult.delta?.significantChanges || [],
+            });
+
+            if (deltaResult.delta) {
+              console.log(`📊 [CRON] Delta for ${profile.companyName}:`, {
+                geoChange: deltaResult.delta.geoScoreChange.toFixed(1),
+                techChange: deltaResult.delta.technicalScoreChange.toFixed(1),
+                changes: deltaResult.delta.significantChanges.length,
+              });
+            }
+          } catch (deltaError) {
+            console.warn(`⚠️ [CRON] Could not calculate delta for ${profile.companyName}:`, deltaError);
+          }
+
+          break;
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`❌ [CRON] Attempt ${attempt}/${ANALYSIS_RETRY_CONFIG.maxAttempts} failed for ${profile.companyName}: ${lastError}`);
+
+          if (attempt < ANALYSIS_RETRY_CONFIG.maxAttempts) {
+            const backoffMs = ANALYSIS_RETRY_CONFIG.backoffMs[attempt - 1] ?? ANALYSIS_RETRY_CONFIG.backoffMs[ANALYSIS_RETRY_CONFIG.backoffMs.length - 1];
+            console.log(`⏳ [CRON] Retrying ${profile.companyName} in ${Math.round(backoffMs / 1000)}s...`);
+            await sleep(backoffMs);
+          }
         }
+      }
 
-      } else {
+      if (!succeeded) {
         log.failed++;
-        log.errors.push(`${profile.companyName}: ${result.error || 'Unknown error'}`);
-        console.error(`❌ [CRON] Failed to analyze ${profile.companyName}:`, result.error);
+        log.errors.push(`${profile.companyName}: ${lastError}`);
+        console.error(`❌ [CRON] Failed to analyze ${profile.companyName} after ${ANALYSIS_RETRY_CONFIG.maxAttempts} attempts: ${lastError}`);
       }
 
-      // Add delay between profiles to prevent API throttling (30 seconds)
-      if (brandProfiles.indexOf(profile) < brandProfiles.length - 1) {
-        console.log('⏳ [CRON] Waiting 30s before next profile...');
-        await new Promise(resolve => setTimeout(resolve, 30000));
+      // Add delay between profiles to prevent API throttling.
+      if (index < brandProfiles.length - 1) {
+        console.log(`⏳ [CRON] Waiting ${Math.round(ANALYSIS_RETRY_CONFIG.interProfileDelayMs / 1000)}s before next profile...`);
+        await sleep(ANALYSIS_RETRY_CONFIG.interProfileDelayMs);
       }
-
-    } catch (error) {
-      log.failed++;
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      log.errors.push(`${profile.companyName}: ${errorMsg}`);
-      console.error(`❌ [CRON] Exception processing ${profile.companyName}:`, error);
     }
-  }
 
     log.deltas = deltas;
 
     const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(2);
-    console.log(`✅ [CRON] Weekly analysis completed in ${duration} minutes`);
+    console.log(`✅ [CRON] ${onlyMissingToday ? 'Catch-up analysis' : 'Primary analysis'} completed in ${duration} minutes`);
     console.log(`📊 [CRON] Results: ${log.successful} successful, ${log.failed} failed`);
     
     // Log delta summary
@@ -171,12 +234,13 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
     const declined = deltas.filter(d => d.degradation).length;
     console.log(`📈 [CRON] Deltas: ${improved} improved, ${declined} declined`);
 
-    // ✅ NEW: Execute Content Optimizer agents for deployed/enabled instances
-    try {
-      await executeContentOptimizerAgents();
-    } catch (agentError) {
-      console.error('⚠️ [CRON] Content Optimizer execution failed:', agentError);
-      log.errors.push(`Content Optimizer: ${agentError instanceof Error ? agentError.message : 'Unknown error'}`);
+    if (runContentOptimizer) {
+      try {
+        await executeContentOptimizerAgents();
+      } catch (agentError) {
+        console.error('⚠️ [CRON] Content Optimizer execution failed:', agentError);
+        log.errors.push(`Content Optimizer: ${agentError instanceof Error ? agentError.message : 'Unknown error'}`);
+      }
     }
   } catch (error) {
     console.error('❌ [CRON] Fatal error during weekly analysis:', error);
@@ -187,7 +251,7 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
   try {
     await prisma.cronExecutionLog.create({
       data: {
-        jobType: 'weekly_analysis',
+        jobType,
         executedAt: log.timestamp,
         profilesProcessed: log.brandProfilesProcessed,
         successful: log.successful,
@@ -201,6 +265,16 @@ export async function executeWeeklyAnalysis(): Promise<CronExecutionLog> {
   }
 
   return log;
+}
+
+/**
+ * Catch-up pass to ensure each brand gets at least one completed run per UTC day.
+ */
+export async function executeDailyCatchupAnalysis(): Promise<CronExecutionLog> {
+  return executeWeeklyAnalysis({
+    onlyMissingToday: true,
+    runContentOptimizer: false,
+  });
 }
 
 /**
@@ -423,8 +497,9 @@ export async function executeLlmsTxtRefresh(): Promise<{
 
 /**
  * Initialize cron job (for development/self-hosted environments)
- * Schedule: Monday-Friday at 2:00 AM UTC
- * Cron expression: '0 2 * * 1-5'
+ * Schedule:
+ * - Primary analysis: Daily at 2:00 AM UTC
+ * - Catch-up analysis: Daily at 2:00 PM UTC
  */
 export function initializeCronJobs() {
   if (isInitialized) {
@@ -440,12 +515,23 @@ export function initializeCronJobs() {
     return;
   }
 
-  console.log('🚀 [CRON] Initializing weekday analysis job...');
+  console.log('🚀 [CRON] Initializing daily analysis jobs...');
 
-  // Schedule: Monday-Friday at 2:00 AM UTC
-  cronJob = cron.schedule('0 2 * * 1-5', async () => {
-    console.log('⏰ [CRON] Triggered weekday analysis job');
-    await executeWeeklyAnalysis();
+  // Schedule: Daily at 2:00 AM UTC
+  cronJob = cron.schedule('0 2 * * *', async () => {
+    console.log('⏰ [CRON] Triggered primary daily analysis job');
+    await executeWeeklyAnalysis({
+      onlyMissingToday: false,
+      runContentOptimizer: true,
+    });
+  }, {
+    timezone: 'UTC',
+  });
+
+  // Schedule: Daily at 2:00 PM UTC
+  catchupCronJob = cron.schedule('0 14 * * *', async () => {
+    console.log('⏰ [CRON] Triggered daily catch-up analysis job');
+    await executeDailyCatchupAnalysis();
   }, {
     timezone: 'UTC',
   });
@@ -467,7 +553,8 @@ export function initializeCronJobs() {
   });
 
   isInitialized = true;
-  console.log('✅ [CRON] Weekday analysis job scheduled (Mon-Fri 2:00 AM UTC)');
+  console.log('✅ [CRON] Primary daily analysis scheduled (2:00 AM UTC)');
+  console.log('✅ [CRON] Daily catch-up analysis scheduled (2:00 PM UTC)');
   console.log('✅ [CRON] Monthly llms.txt refresh scheduled (Last day of month 3:00 AM UTC)');
 }
 
@@ -478,6 +565,10 @@ export function stopCronJobs() {
   if (cronJob) {
     cronJob.stop();
     cronJob = null;
+  }
+  if (catchupCronJob) {
+    catchupCronJob.stop();
+    catchupCronJob = null;
   }
   if (llmsTxtCronJob) {
     llmsTxtCronJob.stop();
@@ -493,9 +584,13 @@ export function stopCronJobs() {
 export function getCronStatus() {
   return {
     initialized: isInitialized,
-    weeklyAnalysis: {
+    primaryAnalysis: {
       running: cronJob !== null,
-      nextRun: cronJob ? 'Next Sunday 2:00 AM UTC' : null,
+      nextRun: cronJob ? 'Daily 2:00 AM UTC' : null,
+    },
+    catchupAnalysis: {
+      running: catchupCronJob !== null,
+      nextRun: catchupCronJob ? 'Daily 2:00 PM UTC' : null,
     },
     llmsTxtRefresh: {
       running: llmsTxtCronJob !== null,

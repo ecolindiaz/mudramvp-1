@@ -125,9 +125,8 @@ export async function searchReddit(options: RedditSearchOptions): Promise<Reddit
     // Apify actor validation requirements:
     // - maxPosts must be >= 10
     // - maxComments must be >= 1 (even when scrapeComments is false)
-    const input = {
-      queries: options.queries || [],
-      urls: options.urls || [],
+    // - urls/queries must have >= 1 item if present, so omit when empty
+    const input: Record<string, unknown> = {
       sort: options.sort || 'relevance',
       timeframe: options.timeframe || 'week',
       maxPosts: Math.max(options.maxPosts || 50, 10), // Minimum 10
@@ -137,10 +136,12 @@ export async function searchReddit(options: RedditSearchOptions): Promise<Reddit
       strictSearch: options.strictSearch || false,
       strictTokenFilter: options.strictTokenFilter || false,
     };
+    if (options.queries?.length) input.queries = options.queries;
+    if (options.urls?.length) input.urls = options.urls;
     
     console.log(`[Reddit Scraper] Starting with input:`, {
-      queriesCount: input.queries.length,
-      urlsCount: input.urls.length,
+      queriesCount: (input.queries as string[] | undefined)?.length ?? 0,
+      urlsCount: (input.urls as string[] | undefined)?.length ?? 0,
       sort: input.sort,
       timeframe: input.timeframe,
       maxPosts: input.maxPosts,

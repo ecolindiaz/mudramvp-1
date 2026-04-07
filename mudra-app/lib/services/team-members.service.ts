@@ -49,8 +49,19 @@ async function getActiveTeamSeatCount(brandProfileId: number): Promise<number> {
     throw new Error('Brand profile not found')
   }
 
-  const ownerSeat = brandProfile.userId ? 1 : 0
-  return ownerSeat + membershipCount
+  if (!brandProfile.userId) {
+    return membershipCount
+  }
+
+  // If owner membership backfill has not run yet, count the owner seat once.
+  const ownerMembershipCount = await prisma.brandProfileMember.count({
+    where: {
+      brandProfileId,
+      userId: brandProfile.userId,
+    },
+  })
+
+  return membershipCount + (ownerMembershipCount > 0 ? 0 : 1)
 }
 
 export async function getDefaultBrandProfileIdForUser(userId: string): Promise<number | null> {

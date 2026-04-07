@@ -84,12 +84,6 @@ export async function verifyBrandProfileAccess(
   user: AuthenticatedUser,
   requestedBrandProfileId: number
 ): Promise<{ allowed: boolean; response?: NextResponse; role?: BrandAccessRole }> {
-  // If user's brandProfileId matches the requested one, allow access
-  if (user.brandProfileId === requestedBrandProfileId) {
-    const role = await getUserBrandAccessRole(user.id, requestedBrandProfileId)
-    return { allowed: true, role: role ?? 'MEMBER' };
-  }
-
   // Verify brand profile exists first
   const brandProfile = await prisma.brandProfile.findUnique({
     where: { id: requestedBrandProfileId },

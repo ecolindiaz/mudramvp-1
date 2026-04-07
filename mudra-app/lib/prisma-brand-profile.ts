@@ -132,9 +132,14 @@ export async function saveBrandProfileForUser(userId: string, profile: any) {
     console.log("🟢 [saveBrandProfileForUser] Updating submitted profile ID:", existingById.id, "for user:", userId);
     const updateData = {
       ...data,
-      ...(existingById.userId === userId ? { userId } : {}),
     };
     delete updateData.id;
+    delete updateData.userId;
+
+    if (existingById.userId === userId) {
+      updateData.userId = userId
+    }
+
     const updated = await prisma.brandProfile.update({
       where: { id: existingById.id },
       data: updateData,

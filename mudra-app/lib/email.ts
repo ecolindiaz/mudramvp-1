@@ -17,6 +17,15 @@ function getResendClient() {
 const FROM_EMAIL = process.env.EMAIL_FROM || 'Morphiq <noreply@mudra.ai>';
 const APP_URL = process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export async function sendVerificationEmail(email: string, token: string) {
   const verificationUrl = `${APP_URL}/verify-email?token=${token}`;
 
@@ -224,14 +233,15 @@ export async function sendTeamInviteEmail(params: {
   inviteToken: string
 }) {
   const inviteUrl = `${APP_URL}/accept-invite?token=${encodeURIComponent(params.inviteToken)}`
-  const inviterName = params.inviterName || 'A teammate'
+  const inviterName = escapeHtml(params.inviterName || 'A teammate')
+  const brandName = escapeHtml(params.brandName)
 
   try {
     const client = getResendClient()
     await client.emails.send({
       from: FROM_EMAIL,
       to: params.to,
-      subject: `You were invited to ${params.brandName} on Morphiq`,
+      subject: `You were invited to ${params.brandName.replace(/[\r\n]+/g, ' ')} on Morphiq`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -251,7 +261,7 @@ export async function sendTeamInviteEmail(params: {
                           You have been invited
                         </h1>
                         <p style="color: #999999; font-size: 16px; line-height: 24px; margin: 0 0 20px 0; text-align: center;">
-                          ${inviterName} invited you to join <strong style="color: #ffffff;">${params.brandName}</strong> on Morphiq.
+                          ${inviterName} invited you to join <strong style="color: #ffffff;">${brandName}</strong> on Morphiq.
                         </p>
                         <p style="color: #999999; font-size: 14px; line-height: 22px; margin: 0 0 26px 0; text-align: center;">
                           Sign in (or create an account with this same email) to accept your invite.

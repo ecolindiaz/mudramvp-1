@@ -11,6 +11,11 @@ export interface AnalysisRunData {
   country?: string // ISO country code for geo-scoped runs
 }
 
+interface RecoverStaleRunningRunsOptions {
+  brandProfileId?: number
+  olderThanMinutes?: number
+}
+
 /**
  * Create a new analysis run
  */
@@ -280,4 +285,62 @@ export async function getAnalysisStats(brandProfileId: number) {
     throw error
   }
   // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
+}
+
+/**
+ * Recover analysis runs that were left in "running" state due to timeout/crash.
+ */
+export async function recoverStaleRunningAnalysisRuns(
+  options: RecoverStaleRunningRunsOptions = {}
+) {
+  const olderThanMinutes = options.olderThanMinutes ?? 20
+  const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000)
+
+  try {
+    const result = await prisma.analysisRun.updateMany({
+      where: {
+        status: 'running',
+        ranAt: { lt: cutoff },
+        ...(options.brandProfileId ? { brandProfileId: options.brandProfileId } : {}),
+      },
+      data: {
+        status: 'failed',
+        completedAt: new Date(),
+      },
+    })
+
+    if (result.count > 0) {
+      console.warn(
+        `⚠️ Recovered ${result.count} stale analysis runs older than ${olderThanMinutes}m${options.brandProfileId ? ` for brand ${options.brandProfileId}` : ''}`
+      )
+    }
+
+    return result.count
+  } catch (error) {
+    console.error('Failed to recover stale analysis runs:', error)
+    throw error
+  }
+}
+
+/**
+ * Check whether a brand already has at least one completed run in the current UTC day.
+ */
+export async function hasCompletedRunToday(brandProfileId: number): Promise<boolean> {
+  const now = new Date()
+  const dayStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const nextDayStartUtc = new Date(dayStartUtc)
+  nextDayStartUtc.setUTCDate(nextDayStartUtc.getUTCDate() + 1)
+
+  const count = await prisma.analysisRun.count({
+    where: {
+      brandProfileId,
+      status: 'completed',
+      completedAt: {
+        gte: dayStartUtc,
+        lt: nextDayStartUtc,
+      },
+    },
+  })
+
+  return count > 0
 }

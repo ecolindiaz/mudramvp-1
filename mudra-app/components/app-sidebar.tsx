@@ -3,7 +3,7 @@
 import * as React from "react"
 import { forwardRef, useState, useCallback } from "react"
 import { IconSearch, IconCreditCard, IconLogout, IconNotification, IconUserCircle, IconQuestionMark, IconCalendar, IconFileText, IconExternalLink, IconSettings, IconPlus } from "@tabler/icons-react"
-import { User, Link as LinkIcon, Radio } from "lucide-react"
+import { User, Users, Link as LinkIcon, Radio } from "lucide-react"
 import { CircleFlag } from "react-circle-flags"
 import type { LucideProps } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -883,6 +883,12 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                 sideOffset={8}
               >
                 <DropdownMenuGroup className="px-2 py-2 space-y-0.5">
+                  <DropdownMenuItem
+                    onClick={() => router.push('/dashboard/team-members')}
+                    className="rounded-lg text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">
+                    <Users className="w-4 h-4 text-white/50" />
+                    <span>Team Members</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => router.push('/dashboard/account')}
                     className="rounded-lg text-white/80 hover:text-white hover:bg-white/[0.05] focus:bg-white/[0.05] focus:text-white cursor-pointer px-3 h-10 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0 flex items-center gap-3">

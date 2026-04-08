@@ -63,7 +63,7 @@ function sleep(ms: number): Promise<void> {
 export async function executeWeeklyAnalysis(options: ExecuteAnalysisOptions = {}): Promise<CronExecutionLog> {
   const onlyMissingToday = options.onlyMissingToday ?? false;
   const runContentOptimizer = options.runContentOptimizer ?? !onlyMissingToday;
-  const jobType = onlyMissingToday ? 'analysis_catchup' : 'weekly_analysis';
+  const jobType = onlyMissingToday ? 'analysis_catchup' : 'daily_analysis';
 
   const startTime = Date.now();
   const log: CronExecutionLog = {

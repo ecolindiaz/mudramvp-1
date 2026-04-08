@@ -319,10 +319,19 @@ export async function POST(request: NextRequest) {
         };
       });
 
+    // Final canonical dedupe prevents returning equivalent URLs that differ only by formatting.
+    const seenCanonicalUrls = new Set<string>();
+    const dedupedNewPages = newPages.filter((page) => {
+      const canonical = normalizeUrl(page.url);
+      if (seenCanonicalUrls.has(canonical)) return false;
+      seenCanonicalUrls.add(canonical);
+      return true;
+    });
+
     return NextResponse.json({
-      pages: newPages,
+      pages: dedupedNewPages,
       totalDiscovered: result.totalDiscovered,
-      newCount: newPages.length,
+      newCount: dedupedNewPages.length,
       trackedCount: existingPages.length,
     });
   } catch (error) {

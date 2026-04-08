@@ -18,7 +18,7 @@ import { Eye, Save, CheckCircle2, ListTree, Info, Clock, Copy as CopyIcon, Check
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { BlogSetupDialog } from "@/components/content-lab/blog-setup-dialog"
 import { computeContentLabSchemaSourceHash } from "@/lib/content-lab/schema-hash"
-import { hasFootnoteCitations, convertFootnotesToInlineLinks } from "@/lib/utils/convert-footnotes"
+import { hasFootnoteCitations, hasOrphanFootnoteRefs, convertFootnotesToInlineLinks } from "@/lib/utils/convert-footnotes"
 import { trackEvent } from "@/lib/analytics/posthog-events"
 
 // Helper function to accurately count words in markdown content
@@ -341,7 +341,7 @@ function CampaignCanvasPageInner({
             const metaSources = Array.isArray((campaignMetadata as any).sources)
               ? (campaignMetadata as any).sources as { title: string; url: string }[]
               : undefined
-            setBody(hasFootnoteCitations(rawBody) ? convertFootnotesToInlineLinks(rawBody, metaSources) : rawBody)
+            setBody((hasFootnoteCitations(rawBody) || hasOrphanFootnoteRefs(rawBody)) ? convertFootnotesToInlineLinks(rawBody, metaSources) : rawBody)
             setPublished(campaign.status === "published")
             setSlug(campaign.slug || "")
             setCampaignPrompt(campaign.prompt || "")
@@ -409,7 +409,7 @@ function CampaignCanvasPageInner({
           const data = JSON.parse(stored)
           if (data.generated && data.title && data.body) {
             setTitle(data.title)
-            setBody(hasFootnoteCitations(data.body) ? convertFootnotesToInlineLinks(data.body) : data.body)
+            setBody((hasFootnoteCitations(data.body) || hasOrphanFootnoteRefs(data.body)) ? convertFootnotesToInlineLinks(data.body) : data.body)
             // Set fields from URL parameters if they exist
             if (prompt) setCampaignPrompt(prompt)
             if (icp) setTargetIcp(icp)
@@ -442,7 +442,7 @@ function CampaignCanvasPageInner({
               const data = JSON.parse(stored)
               if (data.generated && data.title && data.body) {
                 setTitle(data.title)
-                setBody(hasFootnoteCitations(data.body) ? convertFootnotesToInlineLinks(data.body) : data.body)
+                setBody((hasFootnoteCitations(data.body) || hasOrphanFootnoteRefs(data.body)) ? convertFootnotesToInlineLinks(data.body) : data.body)
                 setContentLoaded(true)
                 setIsLoading(false)
                 console.log('✅ Loaded generated content from storage')

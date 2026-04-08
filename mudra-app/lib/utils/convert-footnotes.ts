@@ -21,6 +21,31 @@ export function hasFootnoteCitations(markdown: string): boolean {
 }
 
 /**
+ * Detects orphan footnote references where at least one [^ref] has no matching [^ref]: definition.
+ */
+export function hasOrphanFootnoteRefs(markdown: string): boolean {
+  const referenceRegex = /\[\^([\w-]+)\](?!:)/g;
+  const definitionRegex = /^\[\^([\w-]+)\]:\s*.+$/gm;
+
+  const references = new Set<string>();
+  const definitions = new Set<string>();
+
+  let match: RegExpExecArray | null;
+  while ((match = referenceRegex.exec(markdown)) !== null) {
+    references.add(match[1]);
+  }
+  while ((match = definitionRegex.exec(markdown)) !== null) {
+    definitions.add(match[1]);
+  }
+
+  if (references.size === 0) return false;
+  for (const ref of references) {
+    if (!definitions.has(ref)) return true;
+  }
+  return false;
+}
+
+/**
  * Converts footnote citations to inline links.
  *
  * Algorithm:
@@ -33,7 +58,7 @@ export function convertFootnotesToInlineLinks(
   markdown: string,
   metadataSources?: { title: string; url: string }[]
 ): string {
-  if (!hasFootnoteCitations(markdown)) return markdown;
+  if (!hasFootnoteCitations(markdown) && !hasOrphanFootnoteRefs(markdown)) return markdown;
 
   // Phase 1: Protect code blocks
   const codeBlocks: string[] = [];
@@ -64,7 +89,7 @@ export function convertFootnotesToInlineLinks(
   // Phase 3: Replace [^ref] references in body (numeric or named)
   text = text.replace(/\[\^([\w-]+)\](?!:)/g, (fullMatch, id: string) => {
     const def = definitions.get(id);
-    if (!def) return fullMatch; // No matching definition — leave as-is
+    if (!def) return ""; // Remove orphan reference so it does not render raw in editor
     if (def.url) return `[${def.label}](${def.url})`;
     return `(${def.label})`; // No URL — parenthetical attribution
   });
@@ -80,6 +105,8 @@ export function convertFootnotesToInlineLinks(
 
   // Clean up excessive blank lines left behind
   text = text.replace(/\n{3,}/g, "\n\n");
+  text = text.replace(/\s+([,.;:!?])/g, "$1");
+  text = text.replace(/[ \t]+\n/g, "\n");
   text = text.trimEnd() + "\n";
 
   // Restore code blocks

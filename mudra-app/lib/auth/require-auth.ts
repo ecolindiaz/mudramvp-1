@@ -138,9 +138,19 @@ export async function requireAuthWithBrandAccess(
         ),
       };
     }
+
+    const accessResult = await verifyBrandProfileAccess(authResult.user, authResult.user.brandProfileId)
+    if (!accessResult.allowed) {
+      return {
+        success: false,
+        response: accessResult.response!,
+      }
+    }
+
     return {
       ...authResult,
       brandProfileId: authResult.user.brandProfileId,
+      accessRole: accessResult.role,
     };
   }
 

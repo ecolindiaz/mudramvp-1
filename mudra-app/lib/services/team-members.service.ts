@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
+import { Prisma } from '@prisma/client'
 
 export type BrandAccessRole = 'OWNER' | 'ADMIN' | 'MEMBER'
 
@@ -34,13 +35,15 @@ function getInviteExpiryDate(): Date {
   return expiresAt
 }
 
-async function getActiveTeamSeatCount(brandProfileId: number): Promise<number> {
+type SeatCountClient = Pick<typeof prisma, 'brandProfile' | 'brandProfileMember'>
+
+async function getActiveTeamSeatCountWithClient(client: SeatCountClient, brandProfileId: number): Promise<number> {
   const [brandProfile, membershipCount] = await Promise.all([
-    prisma.brandProfile.findUnique({
+    client.brandProfile.findUnique({
       where: { id: brandProfileId },
       select: { userId: true },
     }),
-    prisma.brandProfileMember.count({
+    client.brandProfileMember.count({
       where: { brandProfileId },
     }),
   ])
@@ -54,7 +57,7 @@ async function getActiveTeamSeatCount(brandProfileId: number): Promise<number> {
   }
 
   // If owner membership backfill has not run yet, count the owner seat once.
-  const ownerMembershipCount = await prisma.brandProfileMember.count({
+  const ownerMembershipCount = await client.brandProfileMember.count({
     where: {
       brandProfileId,
       userId: brandProfile.userId,
@@ -62,6 +65,10 @@ async function getActiveTeamSeatCount(brandProfileId: number): Promise<number> {
   })
 
   return membershipCount + (ownerMembershipCount > 0 ? 0 : 1)
+}
+
+async function getActiveTeamSeatCount(brandProfileId: number): Promise<number> {
+  return getActiveTeamSeatCountWithClient(prisma, brandProfileId)
 }
 
 export async function getDefaultBrandProfileIdForUser(userId: string): Promise<number | null> {
@@ -378,76 +385,110 @@ export async function acceptTeamInvite(params: {
     throw new Error('Invite token is required')
   }
 
-  const invite = await prisma.brandProfileInvite.findUnique({
-    where: { token },
-    include: {
-      brandProfile: {
-        select: {
-          id: true,
-          userId: true,
-          teamMemberLimit: true,
+  const normalizedUserEmail = normalizeEmail(params.userEmail)
+  let acceptedBrandProfileId: number | null = null
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          const invite = await tx.brandProfileInvite.findUnique({
+            where: { token },
+            include: {
+              brandProfile: {
+                select: {
+                  id: true,
+                  userId: true,
+                  teamMemberLimit: true,
+                },
+              },
+            },
+          })
+
+          if (!invite) {
+            throw new Error('Invite not found')
+          }
+
+          if (invite.status !== 'PENDING') {
+            throw new Error('Invite is no longer active')
+          }
+
+          if (invite.expiresAt <= new Date()) {
+            await tx.brandProfileInvite.update({
+              where: { id: invite.id },
+              data: { status: 'EXPIRED' },
+            })
+            throw new Error('Invite has expired')
+          }
+
+          if (normalizedUserEmail !== invite.invitedEmail.toLowerCase()) {
+            throw new Error('Invite email does not match your signed-in account')
+          }
+
+          const existingMembership = await tx.brandProfileMember.findUnique({
+            where: {
+              brandProfileId_userId: {
+                brandProfileId: invite.brandProfileId,
+                userId: params.userId,
+              },
+            },
+            select: { id: true },
+          })
+
+          const activeSeatCount = await getActiveTeamSeatCountWithClient(tx as unknown as SeatCountClient, invite.brandProfileId)
+          if (!existingMembership && activeSeatCount >= invite.brandProfile.teamMemberLimit) {
+            throw new Error('No seats available in this workspace')
+          }
+
+          if (invite.brandProfile.userId !== params.userId) {
+            await tx.brandProfileMember.upsert({
+              where: {
+                brandProfileId_userId: {
+                  brandProfileId: invite.brandProfileId,
+                  userId: params.userId,
+                },
+              },
+              update: {
+                role: invite.role,
+                invitedById: invite.invitedById,
+              },
+              create: {
+                brandProfileId: invite.brandProfileId,
+                userId: params.userId,
+                role: invite.role,
+                invitedById: invite.invitedById,
+              },
+            })
+          }
+
+          await tx.brandProfileInvite.update({
+            where: { id: invite.id },
+            data: {
+              status: 'ACCEPTED',
+              acceptedAt: new Date(),
+            },
+          })
+
+          acceptedBrandProfileId = invite.brandProfileId
         },
-      },
-    },
-  })
-
-  if (!invite) {
-    throw new Error('Invite not found')
-  }
-
-  if (invite.status !== 'PENDING') {
-    throw new Error('Invite is no longer active')
-  }
-
-  if (invite.expiresAt <= new Date()) {
-    await prisma.brandProfileInvite.update({
-      where: { id: invite.id },
-      data: { status: 'EXPIRED' },
-    })
-    throw new Error('Invite has expired')
-  }
-
-  if (normalizeEmail(params.userEmail) !== invite.invitedEmail.toLowerCase()) {
-    throw new Error('Invite email does not match your signed-in account')
-  }
-
-  const activeSeatCount = await getActiveTeamSeatCount(invite.brandProfileId)
-  if (activeSeatCount >= invite.brandProfile.teamMemberLimit) {
-    throw new Error('No seats available in this workspace')
-  }
-
-  await prisma.$transaction(async (tx) => {
-    if (invite.brandProfile.userId !== params.userId) {
-      await tx.brandProfileMember.upsert({
-        where: {
-          brandProfileId_userId: {
-            brandProfileId: invite.brandProfileId,
-            userId: params.userId,
-          },
-        },
-        update: {
-          role: invite.role,
-          invitedById: invite.invitedById,
-        },
-        create: {
-          brandProfileId: invite.brandProfileId,
-          userId: params.userId,
-          role: invite.role,
-          invitedById: invite.invitedById,
-        },
-      })
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        }
+      )
+      break
+    } catch (error: any) {
+      if (error?.code === 'P2034' && attempt < 1) {
+        continue
+      }
+      throw error
     }
+  }
 
-    await tx.brandProfileInvite.update({
-      where: { id: invite.id },
-      data: {
-        status: 'ACCEPTED',
-        acceptedAt: new Date(),
-      },
-    })
-  })
+  if (!acceptedBrandProfileId) {
+    throw new Error('Failed to accept invite')
+  }
 
-  return { brandProfileId: invite.brandProfileId }
+  return { brandProfileId: acceptedBrandProfileId }
 }
 
 export async function removeTeamMember(params: {

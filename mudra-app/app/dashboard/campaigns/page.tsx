@@ -229,7 +229,7 @@ function CampaignsPageInner() {
     const fetchCampaigns = async () => {
       setIsLoadingCampaigns(true)
       try {
-        const res = await fetch(`/api/campaigns/save?status=${statusFilter}`)
+        const res = await fetch(`/api/campaigns/save?status=${statusFilter}&mode=geo`)
         const data = await res.json()
         if (data.success && data.campaigns) {
           setCampaigns(data.campaigns.map((c: any) => ({
@@ -640,42 +640,37 @@ function CampaignsPageInner() {
 
                   {/* Campaign Table */}
                   {isLoadingCampaigns ? (
-                    <div className="rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50 overflow-hidden">
+                    <div className="rounded-xl border border-white/[0.04] bg-[#111111] overflow-hidden">
                       <Table>
                         <TableHeader>
-                          <TableRow className="border-white/[0.04] bg-white/[0.03] hover:bg-white/[0.03]">
-                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Content</TableHead>
-                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Type</TableHead>
-                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Mode</TableHead>
-                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Updated</TableHead>
-                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Status</TableHead>
+                          <TableRow className="border-white/[0.04] bg-white/[0.02] hover:bg-white/[0.02]">
+                            <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider pl-4">Content</TableHead>
+                            <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Type</TableHead>
+                            <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Mode</TableHead>
+                            <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Updated</TableHead>
+                            <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Status</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {Array.from({ length: 5 }).map((_, i) => (
-                            <TableRow key={`skeleton-${i}`} className="border-white/[0.04]">
-                              {/* Content */}
-                              <TableCell className="py-3">
-                                <div className="flex items-center gap-2.5">
-                                  <Skeleton className="size-7 rounded bg-white/[0.06]" />
-                                  <Skeleton className="h-4 w-48 bg-white/[0.06]" />
+                            <TableRow key={`skeleton-${i}`} className={i === 0 ? "border-0" : "border-white/[0.04]"}>
+                              <TableCell className="py-3.5 pl-4">
+                                <div className="flex items-center gap-3">
+                                  <Skeleton className="size-2 rounded-full bg-blue-400/20" />
+                                  <Skeleton className="h-4 w-48 bg-white/[0.06] rounded" />
                                 </div>
                               </TableCell>
-                              {/* Type */}
-                              <TableCell className="py-3">
-                                <Skeleton className="h-4 w-16 bg-white/[0.06]" />
+                              <TableCell className="py-3.5">
+                                <Skeleton className="h-3 w-16 bg-white/[0.04] rounded" />
                               </TableCell>
-                              {/* Mode */}
-                              <TableCell className="py-3">
-                                <Skeleton className="h-6 w-14 rounded-full bg-white/[0.06]" />
+                              <TableCell className="py-3.5">
+                                <Skeleton className="h-5 w-14 bg-white/[0.04] rounded-full" />
                               </TableCell>
-                              {/* Updated */}
-                              <TableCell className="py-3">
-                                <Skeleton className="h-4 w-12 bg-white/[0.06]" />
+                              <TableCell className="py-3.5">
+                                <Skeleton className="h-3 w-12 bg-white/[0.03] rounded" />
                               </TableCell>
-                              {/* Status */}
-                              <TableCell className="py-3">
-                                <Skeleton className="h-6 w-16 rounded-full bg-white/[0.06]" />
+                              <TableCell className="py-3.5">
+                                <Skeleton className="h-5 w-16 bg-white/[0.04] rounded-full" />
                               </TableCell>
                             </TableRow>
                           ))}
@@ -683,15 +678,15 @@ function CampaignsPageInner() {
                       </Table>
                     </div>
                   ) : (filteredCampaigns.length > 0 || (generatingContent && generatingContent.status === 'generating' && statusFilter === 'draft')) ? (
-                    <div className="rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50 overflow-hidden">
+                    <div className="rounded-xl border border-white/[0.04] bg-[#111111] overflow-hidden">
                       <Table>
                         <TableHeader>
-                          <TableRow className="border-white/[0.04] bg-white/[0.03] hover:bg-white/[0.03]">
-                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Content</TableHead>
-                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Type</TableHead>
-                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Mode</TableHead>
-                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Updated</TableHead>
-                            <TableHead className="text-white/50 font-medium h-11 text-[13px]">Status</TableHead>
+                          <TableRow className="border-white/[0.04] bg-white/[0.02] hover:bg-white/[0.02]">
+                            <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider pl-4">Content</TableHead>
+                            <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Type</TableHead>
+                            <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Mode</TableHead>
+                            <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Updated</TableHead>
+                            <TableHead className="text-white/35 font-medium h-10 text-[11px] uppercase tracking-wider">Status</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -699,80 +694,85 @@ function CampaignsPageInner() {
                           {generatingContent && generatingContent.status === 'generating' && statusFilter === 'draft' && (
                             <TableRow
                               onClick={() => setGeneratorDialogOpen(true)}
-                              className="border-white/[0.04] hover:bg-white/[0.03] cursor-pointer group bg-white/[0.02]"
+                              className="border-0 hover:bg-white/[0.03] cursor-pointer group"
                             >
-                              <TableCell className="max-w-md py-3">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="flex items-center justify-center size-7 rounded bg-white/[0.04] border border-white/[0.04] flex-shrink-0">
-                                    <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
+                              <TableCell className="max-w-md py-3.5 pl-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="relative shrink-0 flex items-center justify-center size-4">
+                                    <Loader2 className="size-3.5 text-primary animate-spin" />
                                   </div>
                                   <span className="text-[13px] font-medium text-white/70 truncate">
                                     {generatingContent.title}
                                   </span>
                                 </div>
                               </TableCell>
-                              <TableCell className="py-3">
-                                <span className="text-xs text-white/50">Blog Post</span>
+                              <TableCell className="py-3.5">
+                                <span className="text-[12px] text-white/40">Blog Post</span>
                               </TableCell>
-                              <TableCell className="py-3">
-                                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
+                              <TableCell className="py-3.5">
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.05]">
                                   <div className="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
                                   <span className="text-xs text-white/70 font-medium">GEO</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="py-3">
-                                <span className="text-xs text-white/50">Generating...</span>
+                              <TableCell className="py-3.5">
+                                <span className="text-[11px] text-white/30 tabular-nums">Just now</span>
                               </TableCell>
-                              <TableCell className="py-3">
-                                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
+                              <TableCell className="py-3.5">
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.05]">
                                   <Loader2 className="w-3 h-3 text-primary animate-spin" />
-                                  <span className="text-xs text-white/70 font-medium">Generating</span>
+                                  <span className="text-[11px] text-white/50 font-medium">Generating</span>
                                 </div>
                               </TableCell>
                             </TableRow>
                           )}
-                          {filteredCampaigns.map((c) => {
-                            const Icon = getCampaignIcon(c.type)
+                          {filteredCampaigns.map((c, idx) => {
                             return (
                               <TableRow
                                 key={c.id}
                                 onClick={() => handleOpenCampaign(c)}
-                                className="border-white/[0.04] hover:bg-white/[0.03] cursor-pointer group"
+                                className={`hover:bg-white/[0.03] cursor-pointer group transition-colors ${idx === 0 && !(generatingContent && generatingContent.status === 'generating' && statusFilter === 'draft') ? "border-0" : "border-white/[0.04]"}`}
                               >
-                                <TableCell className="max-w-md py-3">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="flex items-center justify-center size-7 rounded bg-white/[0.04] border border-white/[0.04] group-hover:bg-white/[0.06] transition-colors flex-shrink-0">
-                                      <Icon className="h-3.5 w-3.5 text-white/60 group-hover:text-white/80 transition-colors" />
+                                <TableCell className="max-w-md py-3.5 pl-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="relative shrink-0 flex items-center justify-center size-4">
+                                      <span className="absolute inset-0 rounded-full bg-blue-400/10 animate-pulse" />
+                                      <span className="relative size-1.5 rounded-full bg-blue-400/70" />
                                     </div>
-                                    <span className="text-[13px] font-medium text-white truncate group-hover:text-white/90 transition-colors">
+                                    <span className="text-[13px] font-medium text-white/85 truncate group-hover:text-white transition-colors">
                                       {c.title}
                                     </span>
                                   </div>
                                 </TableCell>
-                                <TableCell className="py-3">
-                                  <span className="text-xs text-white/50">{c.type}</span>
+                                <TableCell className="py-3.5">
+                                  <span className="text-[12px] text-white/40">{c.type}</span>
                                 </TableCell>
-                                <TableCell className="py-3">
-                                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
+                                <TableCell className="py-3.5">
+                                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.05]">
                                     <div className={cn(
                                       "w-1.5 h-1.5 rounded-full",
-                                      c.mode.toUpperCase() === "GEO" ? "bg-sky-400" : "bg-amber-400"
+                                      c.mode.toUpperCase() === "GEO" ? "bg-sky-400"
+                                        : c.mode.toUpperCase() === "OPTIMIZER" ? "bg-violet-400"
+                                        : "bg-amber-400"
                                     )}></div>
-                                    <span className="text-xs text-white/70 font-medium">{c.mode.toUpperCase()}</span>
+                                    <span className="text-xs text-white/70 font-medium">{c.mode.toUpperCase() === "OPTIMIZER" ? "AEO" : c.mode.toUpperCase()}</span>
                                   </div>
                                 </TableCell>
-                                <TableCell className="py-3">
-                                  <span className="text-xs text-white/50">
+                                <TableCell className="py-3.5">
+                                  <span className="text-[11px] text-white/30 tabular-nums">
                                     {formatTimeAgo(c.updatedAt)}
                                   </span>
                                 </TableCell>
-                                <TableCell className="py-3">
-                                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.03]">
-                                    <div className={cn(
-                                      "w-1.5 h-1.5 rounded-full",
-                                      c.status === "Published" ? "bg-green-500" : "bg-white/40"
-                                    )}></div>
-                                    <span className="text-xs text-white/70 font-medium">{c.status}</span>
+                                <TableCell className="py-3.5">
+                                  <div className="flex items-center gap-2">
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.05]">
+                                      <div className={cn(
+                                        "w-1.5 h-1.5 rounded-full",
+                                        c.status === "Published" ? "bg-emerald-400" : "bg-white/30"
+                                      )}></div>
+                                      <span className="text-[11px] text-white/50 font-medium">{c.status}</span>
+                                    </div>
+                                    <ChevronRight className="size-3.5 text-white/10 group-hover:text-white/35 transition-colors shrink-0" />
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -783,15 +783,35 @@ function CampaignsPageInner() {
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-20 px-6 rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50">
-                      <div className="flex items-center justify-center size-12 rounded-lg bg-white/[0.04] border border-white/[0.04] mb-4">
-                        <FileText className="h-5 w-5 text-white/40" />
+                      {/* Illustration Card */}
+                      <div aria-hidden="true" className="w-20 space-y-2.5 rounded-lg p-2.5 shadow-lg shadow-black/20 ring-1 ring-white/[0.08] bg-white/[0.04] mb-5">
+                        <div className="flex items-center gap-1.5">
+                          <div className="size-3 rounded-full bg-white/[0.12]" />
+                          <div className="h-1 w-5 rounded-full bg-white/[0.12]" />
+                        </div>
+                        <div className="space-y-2">
+                          <div className="h-1 w-full rounded-full bg-white/[0.10]" />
+                          <div className="h-1 w-3/4 rounded-full bg-white/[0.10]" />
+                          <div className="h-1 w-full rounded-full bg-white/[0.10]" />
+                          <div className="h-1 w-1/2 rounded-full bg-white/[0.10]" />
+                        </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto size-3 text-white/25">
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
                       </div>
-                      <div className="text-sm font-medium text-white/60 mb-1">
+                      <div className="text-sm font-medium text-white/70 mb-1">
                         No {statusFilter} content yet
                       </div>
-                      <div className="text-xs text-white/40">
-                        Generate AI-optimized content to get started
+                      <div className="text-xs text-white/40 mb-5">
+                        Create AI-optimized content to boost your search presence.
                       </div>
+                      <button
+                        onClick={() => setGeneratorDialogOpen(true)}
+                        className="h-8 px-4 rounded-full bg-white text-[#0a0a0a] hover:bg-white/90 text-xs font-medium shadow-sm hover:shadow-md transition-all gap-2 inline-flex items-center"
+                      >
+                        <Plus className="size-3.5" />
+                        Generate Content
+                      </button>
                     </div>
                   )}
                 </div>

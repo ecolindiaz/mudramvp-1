@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { IconPlus, IconTrash, IconLoader2, IconExternalLink, IconRadar } from "@tabler/icons-react"
+import { IconPlus, IconTrash, IconLoader2, IconExternalLink, IconRadar, IconSearch } from "@tabler/icons-react"
 import { DiscoverPagesModal } from "@/components/issues/discover-pages-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
+import { useBrandProfile } from "@/components/brand-profile-context"
 
 interface TrackedPage {
   id: string
@@ -22,12 +23,14 @@ interface SitemapUrlsPanelProps {
 }
 
 export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrlsPanelProps) {
+  const { selectedCountry } = useBrandProfile()
   const [pages, setPages] = React.useState<TrackedPage[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [urlInput, setUrlInput] = React.useState("")
   const [isAdding, setIsAdding] = React.useState(false)
   const [removingId, setRemovingId] = React.useState<string | null>(null)
   const [confirmRemoveId, setConfirmRemoveId] = React.useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = React.useState("")
   const [discoverOpen, setDiscoverOpen] = React.useState(false)
   const pendingIdsRef = React.useRef<Set<string>>(new Set())
 
@@ -46,7 +49,8 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
   // Fetch tracked pages
   const fetchPages = React.useCallback(async () => {
     try {
-      const res = await fetch(`/api/sitemap-pages?brandProfileId=${brandProfileId}`)
+      const countryParam = selectedCountry ? `&country=${selectedCountry}` : ''
+      const res = await fetch(`/api/sitemap-pages?brandProfileId=${brandProfileId}${countryParam}`)
       if (!res.ok) return
       const data = await res.json()
       const incoming: TrackedPage[] = data.pages ?? []
@@ -72,7 +76,7 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
     } finally {
       setIsLoading(false)
     }
-  }, [brandProfileId])
+  }, [brandProfileId, selectedCountry])
 
   // Initial fetch
   React.useEffect(() => {
@@ -194,6 +198,13 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
     )
   }
 
+  // Filter pages by search query
+  const filteredPages = React.useMemo(() => {
+    if (!searchQuery.trim()) return pages
+    const q = searchQuery.toLowerCase()
+    return pages.filter((p) => p.page_url.toLowerCase().includes(q) || (p.page_type?.toLowerCase().includes(q)))
+  }, [pages, searchQuery])
+
   // Extract display path from full URL
   const getDisplayPath = (url: string): string => {
     try {
@@ -262,6 +273,19 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
         </Button>
       </div>
 
+      {/* Search filter */}
+      {pages.length > 0 && (
+        <div className="relative mb-3">
+          <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/25" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search pages..."
+            className="pl-8 border border-white/[0.06] bg-white/[0.03] text-[13px] text-white/80 placeholder:text-white/20 focus-visible:ring-0 h-8 rounded-lg"
+          />
+        </div>
+      )}
+
       {/* Pages table */}
       {pages.length === 0 ? (
         <div className="text-center py-8">
@@ -270,7 +294,11 @@ export function SitemapUrlsPanel({ brandProfileId, companyWebsite }: SitemapUrls
         </div>
       ) : (
         <div className="space-y-1">
-          {pages.map((page) => (
+          {filteredPages.length === 0 && searchQuery.trim() ? (
+            <div className="text-center py-6">
+              <p className="text-[13px] text-white/40">No pages matching &ldquo;{searchQuery}&rdquo;</p>
+            </div>
+          ) : filteredPages.map((page) => (
             <div
               key={page.id}
               className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/[0.02] group"

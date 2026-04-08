@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeUrl } from "@/lib/utils/normalize-url";
+import { extractLocaleFromUrl, buildLocaleWhereClause } from "@/lib/utils/locale-from-url";
 import {
   addAndProcessUrl,
   removeSitemapUrl,
@@ -43,8 +44,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const countryParam = new URL(request.url).searchParams.get("country");
+    const localeFilter = countryParam ? buildLocaleWhereClause(countryParam) : undefined;
+
     const pages = await prisma.sitemapPage.findMany({
-      where: { brand_profile_id: brandProfileId },
+      where: {
+        brand_profile_id: brandProfileId,
+        ...(localeFilter || {}),
+      },
       include: {
         page_scores: {
           orderBy: { scored_at: "desc" },
@@ -59,6 +66,7 @@ export async function GET(request: NextRequest) {
       id: p.id,
       page_url: p.page_url,
       page_type: p.page_type,
+      locale: p.locale,
       scrape_status: p.scrape_status,
       last_scraped_at: p.last_scraped_at,
       score: p.page_scores[0]?.overall_score ?? null,
@@ -144,9 +152,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Normalize URL and derive domain
+    // Normalize URL and derive domain (strip www. for consistency)
     const normalizedUrl = normalizeUrl(url);
-    const domain = parsedUrl.origin;
+    const domain = parsedUrl.origin.replace(/^(https?:\/\/)www\./i, '$1');
 
     // Duplicate check
     const existing = await prisma.sitemapPage.findFirst({
@@ -170,6 +178,7 @@ export async function POST(request: NextRequest) {
           brand_profile_id: brandProfileId,
           domain,
           page_url: normalizedUrl,
+          locale: extractLocaleFromUrl(normalizedUrl),
           page_type: null, // will be detected during extraction
           scrape_status: "pending",
         },

@@ -248,32 +248,24 @@ export function Toolbar() {
     editor.dispatchCommand(REDO_COMMAND, undefined)
   }, [editor])
 
-  return (
-    <div className="flex items-center gap-1 flex-wrap">
-      {/* Undo/Redo */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
-        onClick={handleUndo}
-        title="Undo"
-      >
-        <Undo2 className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
-        onClick={handleRedo}
-        title="Redo"
-      >
-        <Redo2 className="h-4 w-4" />
-      </Button>
+  const iconBtn = "h-7 w-7 p-0 rounded-lg text-white/60 hover:text-white hover:bg-white/[0.08] transition-colors"
+  const iconBtnActive = "h-7 w-7 p-0 rounded-lg bg-white/[0.12] text-white transition-colors"
+  const divider = "h-4 w-px bg-white/[0.08] mx-0.5"
 
-      <div className="h-4 w-px bg-white/20 mx-1" />
+  return (
+    <div className="flex items-center gap-0.5">
+      {/* Undo/Redo */}
+      <button type="button" className={iconBtn} onClick={handleUndo} title="Undo">
+        <Undo2 className="h-3.5 w-3.5 mx-auto" />
+      </button>
+      <button type="button" className={iconBtn} onClick={handleRedo} title="Redo">
+        <Redo2 className="h-3.5 w-3.5 mx-auto" />
+      </button>
+
+      <div className={divider} />
 
       {/* Block Format */}
-      <Select 
+      <Select
         value={currentFormat}
         onValueChange={(value) => {
           if (value === "paragraph") formatParagraph()
@@ -283,101 +275,53 @@ export function Toolbar() {
           else if (value === "quote") formatQuote()
         }}
       >
-        <SelectTrigger className="h-8 w-[140px] bg-white/5 border-white/[0.08] text-white/90 text-xs">
+        <SelectTrigger className="h-7 w-[110px] bg-transparent border-0 text-white/60 text-[11px] font-medium hover:text-white hover:bg-white/[0.06] rounded-lg px-2 gap-1 focus:ring-0 focus:ring-offset-0">
           <SelectValue placeholder="Format" />
         </SelectTrigger>
-        <SelectContent className="bg-[#1a1a1a] border-white/[0.08]">
-          <SelectItem value="paragraph" className="text-white/90">Paragraph</SelectItem>
-          <SelectItem value="h1" className="text-white/90">Heading 1</SelectItem>
-          <SelectItem value="h2" className="text-white/90">Heading 2</SelectItem>
-          <SelectItem value="h3" className="text-white/90">Heading 3</SelectItem>
-          <SelectItem value="quote" className="text-white/90">Quote</SelectItem>
+        <SelectContent className="bg-[#1e1e1e] border-white/[0.10] rounded-lg shadow-xl shadow-black/40">
+          <SelectItem value="paragraph" className="text-white/80 text-xs">Paragraph</SelectItem>
+          <SelectItem value="h1" className="text-white/80 text-xs">Heading 1</SelectItem>
+          <SelectItem value="h2" className="text-white/80 text-xs">Heading 2</SelectItem>
+          <SelectItem value="h3" className="text-white/80 text-xs">Heading 3</SelectItem>
+          <SelectItem value="quote" className="text-white/80 text-xs">Quote</SelectItem>
         </SelectContent>
       </Select>
 
-      <div className="h-4 w-px bg-white/20 mx-1" />
+      <div className={divider} />
 
       {/* Text Format */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
-        onClick={() => formatText("bold")}
-        title="Bold"
-      >
-        <Bold className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
-        onClick={() => formatText("italic")}
-        title="Italic"
-      >
-        <Italic className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
-        onClick={() => formatText("underline")}
-        title="Underline"
-      >
-        <Underline className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
-        onClick={() => formatText("strikethrough")}
-        title="Strikethrough"
-      >
-        <Strikethrough className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
-        onClick={() => formatText("code")}
-        title="Code"
-      >
-        <Code className="h-4 w-4" />
-      </Button>
+      <button type="button" className={iconBtn} onClick={() => formatText("bold")} title="Bold">
+        <Bold className="h-3.5 w-3.5 mx-auto" />
+      </button>
+      <button type="button" className={iconBtn} onClick={() => formatText("italic")} title="Italic">
+        <Italic className="h-3.5 w-3.5 mx-auto" />
+      </button>
+      <button type="button" className={iconBtn} onClick={() => formatText("underline")} title="Underline">
+        <Underline className="h-3.5 w-3.5 mx-auto" />
+      </button>
+      <button type="button" className={iconBtn} onClick={() => formatText("strikethrough")} title="Strikethrough">
+        <Strikethrough className="h-3.5 w-3.5 mx-auto" />
+      </button>
+      <button type="button" className={iconBtn} onClick={() => formatText("code")} title="Code">
+        <Code className="h-3.5 w-3.5 mx-auto" />
+      </button>
 
-      <div className="h-4 w-px bg-white/20 mx-1" />
+      <div className={divider} />
 
       {/* Lists */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className={`h-8 w-8 p-0 border-white/[0.08] ${isBulletList ? 'bg-white/20 text-white' : 'bg-white/5 hover:bg-white/10 text-white/90'}`}
-        onClick={() => formatList("bullet")}
-        title="Bullet List"
-      >
-        <List className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={`h-8 w-8 p-0 border-white/[0.08] ${isNumberList ? 'bg-white/20 text-white' : 'bg-white/5 hover:bg-white/10 text-white/90'}`}
-        onClick={() => formatList("number")}
-        title="Numbered List"
-      >
-        <ListOrdered className="h-4 w-4" />
-      </Button>
+      <button type="button" className={isBulletList ? iconBtnActive : iconBtn} onClick={() => formatList("bullet")} title="Bullet List">
+        <List className="h-3.5 w-3.5 mx-auto" />
+      </button>
+      <button type="button" className={isNumberList ? iconBtnActive : iconBtn} onClick={() => formatList("number")} title="Numbered List">
+        <ListOrdered className="h-3.5 w-3.5 mx-auto" />
+      </button>
 
-      <div className="h-4 w-px bg-white/20 mx-1" />
+      <div className={divider} />
 
       {/* Link */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0 bg-white/5 hover:bg-white/10 border-white/[0.08] text-white/90"
-        onClick={openLinkDialog}
-        title="Insert Link"
-      >
-        <LinkIcon className="h-4 w-4" />
-      </Button>
+      <button type="button" className={iconBtn} onClick={openLinkDialog} title="Insert Link">
+        <LinkIcon className="h-3.5 w-3.5 mx-auto" />
+      </button>
 
       {/* Link Dialog */}
       <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>

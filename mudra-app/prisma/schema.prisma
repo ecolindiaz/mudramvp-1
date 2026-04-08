@@ -770,6 +770,7 @@ model SitemapPage {
   brand_profile_id Int
   domain           String
   page_url         String
+  locale           String?
   page_type        String?
   last_modified    DateTime?
   change_frequency String?
@@ -789,6 +790,7 @@ model SitemapPage {
   @@index([brand_profile_id])
   @@index([page_url])
   @@index([scrape_status])
+  @@index([brand_profile_id, locale])
   @@map("sitemap_pages")
 }
 

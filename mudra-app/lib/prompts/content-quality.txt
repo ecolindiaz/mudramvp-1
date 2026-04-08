@@ -10,7 +10,7 @@ QUALITY PILLARS:
 5) Provide Specific Examples (Mini Case Studies)
 
 TITLE RULES:
-- Title reflects the prompt being answered and/or includes relevant keywords if SEO.
+- Title reflects the original article's topic, refined with relevant keywords for the target prompt. Do NOT replace the article's subject with the prompt's subject.
 - Title must be clear, specific, and aligned with the main user question.
 
 SUMMARY RULES:

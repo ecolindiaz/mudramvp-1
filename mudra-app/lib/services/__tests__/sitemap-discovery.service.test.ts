@@ -54,7 +54,7 @@ describe("Sitemap Discovery Service", () => {
 		});
 
 		it("handles subdomains", () => {
-			expect(_internal.normalizeDomain("www.example.com")).toBe("https://www.example.com");
+			expect(_internal.normalizeDomain("www.example.com")).toBe("https://example.com");
 			expect(_internal.normalizeDomain("blog.example.com")).toBe("https://blog.example.com");
 		});
 	});
@@ -652,7 +652,7 @@ describe("Sitemap Discovery Service", () => {
 		it("normalizes domain correctly", () => {
 			const result = createFallbackDiscovery("http://www.example.com/");
 
-			expect(result.pages[0].url).toBe("https://www.example.com");
+			expect(result.pages[0].url).toBe("https://example.com");
 		});
 	});
 });

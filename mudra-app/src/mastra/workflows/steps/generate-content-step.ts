@@ -7,7 +7,7 @@ import {
 import { gapAnalysisOutputSchema } from "../../agents/gap-analysis-agent";
 import { researchOutputSchema } from "../../agents/schemas/research-schema";
 import { logAIModelCall, estimateAICost } from "../../utils/ai-logging-stub";
-import { hasFootnoteCitations, convertFootnotesToInlineLinks } from "../../../../lib/utils/convert-footnotes";
+import { hasFootnoteCitations, hasOrphanFootnoteRefs, convertFootnotesToInlineLinks } from "../../../../lib/utils/convert-footnotes";
 import { isBrandDomain } from "../../../../lib/utils/domain-utils";
 
 // Timeout helper for long-running operations
@@ -252,7 +252,7 @@ ${externalResearchSources.map((s) => `- ${s.keyInsight} — [${s.title}](${s.url
     );
 
     const result = response.object!;
-    if (result.content && hasFootnoteCitations(result.content)) {
+    if (result.content && (hasFootnoteCitations(result.content) || hasOrphanFootnoteRefs(result.content))) {
       console.log(`[GenerateContent] Detected footnote citations, converting to inline links`);
       result.content = convertFootnotesToInlineLinks(result.content, result.metadata?.sources);
     }

@@ -16,6 +16,7 @@ import { blogSetupAgent } from "./agents/blog-setup-agent";
 import { blogPostPublisherAgent } from "./agents/blog-post-publisher-agent";
 import { geoInsightExtractorAgent } from "./agents/geo-insight-extractor-agent";
 import { geoInsightGuidanceAgent } from "./agents/geo-insight-guidance-agent";
+import { contentOptimizerAgent } from "./agents/content-optimizer-agent";
 
 // Tools
 import { firecrawlScraperTool } from "./tools/firecrawl-scraper";
@@ -83,6 +84,8 @@ export const mastra = new Mastra({
     // Blog Publishing Agents
     blogSetupAgent,
     blogPostPublisherAgent,
+    // Answer Optimizer
+    contentOptimizerAgent,
   },
   // @ts-ignore - tools config works at runtime
   tools: {

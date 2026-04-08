@@ -166,6 +166,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
+    const mode = searchParams.get("mode");
     const limit = parseInt(searchParams.get("limit") || "50", 10);
     const offset = parseInt(searchParams.get("offset") || "0", 10);
 
@@ -176,6 +177,10 @@ export async function GET(req: NextRequest) {
 
     if (status && status !== "all") {
       where.status = status;
+    }
+
+    if (mode) {
+      where.mode = mode;
     }
 
     const [campaigns, total] = await Promise.all([

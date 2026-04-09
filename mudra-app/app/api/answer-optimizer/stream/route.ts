@@ -920,7 +920,7 @@ Follow ${depthLabel} depth rules strictly.`;
       // Update the "generating" campaign to "draft" with the final result
       try {
         const pageSlug = new URL(pageUrl).pathname.split('/').filter(Boolean).pop() || '';
-        let contentLabSchema: Record<string, unknown> | null = null;
+        let contentLabSchema: Record<string, string | number | boolean> | null = null;
         let schemaStatusVal = 'none';
         if (schemaMarkup.length > 0) {
           const combined = schemaMarkup.map((s: { type: string; jsonLd: string }) => s.jsonLd).join('\n\n');
@@ -968,7 +968,7 @@ Follow ${depthLabel} depth rules strictly.`;
               pipelineSteps: completedSteps,
               pipelineTotalElapsed: Date.now() - pipelineStart,
             },
-          } satisfies Record<string, unknown>,
+          },
         };
 
         if (campaignId) {

@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeUrl } from "@/lib/utils/normalize-url";
+import { extractLocaleFromUrl } from "@/lib/utils/locale-from-url";
 import { addAndProcessUrl } from "@/lib/services/sitemap-page-management.service";
 
 export const maxDuration = 300;
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
       existingPages.map((p) => normalizeUrl(p.page_url))
     );
 
-    const added: Array<{ url: string; sitemapPageId: string }> = [];
+    const added: Array<{ url: string; sitemapPageId: string; domain: string }> = [];
     const skipped: Array<{ url: string; reason: string }> = [];
 
     for (const url of urls) {
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       }
 
       const normalizedUrl = normalizeUrl(url);
-      const domain = parsedUrl.origin;
+      const domain = parsedUrl.origin.replace(/^(https?:\/\/)www\./i, '$1');
 
       // Duplicate check (in-memory + DB-level)
       if (trackedUrls.has(normalizedUrl)) {
@@ -103,12 +104,13 @@ export async function POST(request: NextRequest) {
             brand_profile_id: brandProfileId,
             domain,
             page_url: normalizedUrl,
+            locale: extractLocaleFromUrl(normalizedUrl),
             page_type: null,
             scrape_status: "pending",
           },
         });
 
-        added.push({ url: normalizedUrl, sitemapPageId: sitemapPage.id });
+        added.push({ url: normalizedUrl, sitemapPageId: sitemapPage.id, domain });
         trackedUrls.add(normalizedUrl); // Prevent duplicates within the batch
       } catch (err: unknown) {
         // Unique constraint violation — concurrent insert
@@ -126,18 +128,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Fire-and-forget: process added pages sequentially
+    // Process added pages after response is sent (keeps serverless function alive)
     if (added.length > 0) {
-      const domain = added[0].url.startsWith("http")
-        ? new URL(added[0].url).origin
-        : `https://${companyHost}`;
-
-      (async () => {
+      after(async () => {
         for (const item of added) {
           try {
             await addAndProcessUrl(
               brandProfileId,
-              domain,
+              item.domain,
               item.sitemapPageId,
               item.url,
               { skipIssueCreation: true }
@@ -149,9 +147,7 @@ export async function POST(request: NextRequest) {
             );
           }
         }
-      })().catch((err) =>
-        console.error("[SitemapPages Bulk] Sequential processing failed:", err)
-      );
+      });
     }
 
     return NextResponse.json(

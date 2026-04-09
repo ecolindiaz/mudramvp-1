@@ -1,70 +1,107 @@
-# Fix: Competitor Extraction and Average Position Bugs
+# Release: Production Integration of caramel-orangutan + team-members
 
 ## Summary
 
-Fixed a regression in the tracked prompts Deep View where competitor extraction was broken (only 1-2 of 15+ companies extracted) and position identification was inaccurate. Also fixed a silent data loss bug in AI validation fallback.
+This release integrates two active branches into one production-ready branch:
 
-## Root Cause
+- `caramel-orangutan`
+- `feat/team-members-brandprofile`
 
-Commit `4f12886` added aggressive name filtering (`/` character rejection, length >35 limit, spaces >3 limit) via `quickValidateName` without adding corresponding parenthetical cleanup. AI responses like `Y Combinator (Online/Hybrid)` would fail validation due to the `/` in the parenthetical, silently dropping valid competitors.
+The merge was completed on top of updated `main` using an integration branch:
 
-## Changes
+- `release/integrate-caramel-team-prod`
 
-### Bug 1: Parenthetical content not stripped from extracted names
+## What Is Included
 
-**Files**: `mudra-app/lib/services/direct-geo-analysis.service.ts`
+### From caramel-orangutan
 
-When AI responses contain entries like `2. Y Combinator (Online/Hybrid)`, the regex captured the full string including `(Online/Hybrid)`. This failed `quickValidateName` due to `/` char, length, or space limits.
+- Answer Optimizer API and dashboard pages
+- Sitemap and issue-discovery enhancements
+- Campaign/editor UX updates
+- Additional utility modules and scripts
+- Locale migration and related schema updates
 
-**Fix**:
-- Added `company.replace(/\s*\(.*$/, '').trim()` to all 4 regex extraction methods in `extractCompetitorPositionsWithRegex` (numbered lists, heading ranks, inline ranks, markdown tables)
-- Added `cleanLLMAnalysisNames()` helper that strips parentheticals from `competitorsMentioned`, `competitorPositions`, and `competitorSentiments` after each successful LLM JSON parse (all 4 providers: OpenAI, Perplexity, Anthropic, Google)
+### From feat/team-members-brandprofile
 
-### Bug 2: AI validation silently drops all competitors on parse failure
+- Team membership and invite support for shared brand profiles
+- Team APIs (`/api/team/members`, `/api/team/invites`, `/api/team/invites/accept`)
+- Invite acceptance and team management pages
+- Role-aware access updates and auth guard improvements
+- Email invite handling with escaping safeguards
+- Concurrency-safe invite acceptance and seat-limit checks
 
-**File**: `mudra-app/lib/services/competitor-validation.service.ts`
+## Conflict Resolution Decisions
 
-When `batchValidateWithAI` couldn't parse the LLM response JSON, it marked ALL competitors in the batch as `false` (invalid), silently dropping them.
+### 1) Reddit scraper merge
 
-**Fix**: Changed the fallback to use `quickValidateName()` instead of blanket `false`, matching the existing pattern in the catch block. This means a JSON parse failure degrades gracefully to pattern-based validation instead of data loss.
+File: `mudra-app/lib/apify/reddit-scraper.ts`
 
-### Bug 3: Position cross-validation and filtering consistency
+- Kept query extraction fallback from URLs
+- Kept omission of empty `urls`/`queries` payload fields
+- Preserved minimum validation behavior
 
-**File**: `mudra-app/lib/services/direct-geo-analysis.service.ts`
+### 2) Cron job typing merge
 
-- No cross-verification between LLM-extracted and regex-extracted positions
-- Perplexity, Anthropic, and Google providers were missing position/sentiment filtering that OpenAI already had, leaving orphaned data for non-validated competitors
+File: `mudra-app/lib/services/cron.service.ts`
 
-**Fix**:
-- Added `mergeCompetitorPositions()` helper that cross-validates LLM positions against regex positions (uses regex when discrepancy >1), and adds regex-only competitors to the results
-- Replaced 4 duplicated merge blocks (one per provider) with single calls to the helper
-- Added `validatedPositions` / `validatedSentiments` filtering to Perplexity, Anthropic, and Google (matching OpenAI's existing logic), so only validated competitors appear in the final output
+- Preserved `daily_analysis` for primary daily execution
+- Preserved `analysis_catchup` for catch-up runs
 
-## Files Modified
+### 3) Unified analysis finalization merge
 
-| File | Changes |
-|------|---------|
-| `mudra-app/lib/services/direct-geo-analysis.service.ts` | Parenthetical stripping in regex extraction, `cleanLLMAnalysisNames` helper, `mergeCompetitorPositions` helper, position/sentiment filtering for all providers |
-| `mudra-app/lib/services/competitor-validation.service.ts` | AI validation fallback uses `quickValidateName` instead of blanket `false` |
+File: `mudra-app/lib/services/unified-analysis.service.ts`
 
-## Testing
+- Preserved delayed `AnalysisRun` completion update until GEO persistence succeeds
+- Removed premature completion update path
 
-### Verification Steps
+## Post-Merge Validation
 
-1. Run a tracked prompt analysis with a response listing 15+ companies with parentheticals (e.g., startup accelerators)
-2. Verify all companies are extracted, not just 1-2
-3. Check server logs for `Position mismatch` warnings (indicates cross-validation is working)
-4. Check server logs for `falling back to quick validation` warnings (indicates graceful degradation)
+### Targeted tests
 
-### Build Verification
+Command:
 
-- TypeScript strict mode: 0 errors
+`npx vitest run lib/services/__tests__/team-members.service.test.ts lib/services/__tests__/sitemap-discovery.service.test.ts`
 
-## Before/After
+Result:
 
-| Scenario | Before | After |
-|----------|--------|-------|
-| Response lists 15 accelerators with parentheticals | 1-2 extracted | All 15 extracted |
-| AI validation JSON parse fails | All competitors silently dropped | Falls back to pattern-based validation |
-| LLM says position 5, regex says position 2 | LLM position used blindly | Regex position used (more reliable) |
-| Perplexity/Anthropic/Google results | Orphaned positions for non-validated competitors | Filtered to validated competitors only |
+- 2 test files passed
+- 62/62 tests passed
+
+### Build validation
+
+Command:
+
+`npm run vercel-build`
+
+Result:
+
+- Next.js production build completed
+- Route manifest generated successfully
+
+Notes:
+
+- Build logs include local Prisma engine compatibility warnings during page data collection in this environment.
+- Despite those warnings, the build completed and emitted the full route output.
+
+## Additional Fix During Integration
+
+File: `mudra-app/lib/services/__tests__/sitemap-discovery.service.test.ts`
+
+- Updated nav link cap assertion from 30 to 60 to match the merged implementation constant
+- Expanded fixture size to ensure cap behavior is still actually tested
+
+## Deployment and Rollout Notes
+
+1. Apply database migrations in production using migration workflow (`prisma migrate deploy`), not schema push.
+2. Verify team-related tables/enums are present before enabling invites in production.
+3. Run smoke checks after deploy:
+	- invite create/accept/cancel flow
+	- dashboard access for owner/admin/member roles
+	- daily cron execution logging (`daily_analysis` and `analysis_catchup`)
+	- GEO + Technical analysis completion state and persisted scores
+
+## Risk Assessment
+
+- Primary risk area: access control edges in shared-brand flows (owner/admin/member).
+- Secondary risk area: cron/reporting semantics after job type normalization.
+- Mitigation: targeted tests passed, and merge conflicts were resolved with production-safe behavior retained.

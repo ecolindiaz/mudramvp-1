@@ -126,6 +126,7 @@ export async function searchReddit(options: RedditSearchOptions): Promise<Reddit
     // - queries must have >= 1 item (even in URL-only mode)
     // - maxPosts must be >= 10
     // - maxComments must be >= 1 (even when scrapeComments is false)
+    // - urls/queries must have >= 1 item if present, so omit when empty
     let queries = options.queries || [];
     const urls = options.urls || [];
 
@@ -139,9 +140,7 @@ export async function searchReddit(options: RedditSearchOptions): Promise<Reddit
       console.log(`[Reddit Scraper] No queries provided, extracted from URLs: ${JSON.stringify(queries)}`);
     }
 
-    const input = {
-      queries,
-      urls,
+    const input: Record<string, unknown> = {
       sort: options.sort || 'relevance',
       timeframe: options.timeframe || 'week',
       maxPosts: Math.max(options.maxPosts || 50, 10), // Minimum 10
@@ -151,10 +150,12 @@ export async function searchReddit(options: RedditSearchOptions): Promise<Reddit
       strictSearch: options.strictSearch || false,
       strictTokenFilter: options.strictTokenFilter || false,
     };
+    if (queries.length) input.queries = queries;
+    if (urls.length) input.urls = urls;
     
     console.log(`[Reddit Scraper] Starting with input:`, {
-      queriesCount: input.queries.length,
-      urlsCount: input.urls.length,
+      queriesCount: (input.queries as string[] | undefined)?.length ?? 0,
+      urlsCount: (input.urls as string[] | undefined)?.length ?? 0,
       sort: input.sort,
       timeframe: input.timeframe,
       maxPosts: input.maxPosts,

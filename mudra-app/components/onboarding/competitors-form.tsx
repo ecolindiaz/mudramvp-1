@@ -79,7 +79,7 @@ export function CompetitorsForm() {
       })
       
       console.log("✅ Competitors form data saved successfully")
-      router.push("/welcome/visibility")
+      router.push("/welcome/prompts")
     } catch (error) {
       console.error("❌ Failed to save competitors form data", error)
       alert("Failed to save data. Please try again.")

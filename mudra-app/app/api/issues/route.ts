@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
 import { discoverIssues, getIssuesForBrand } from "@/lib/services/issue-discovery.service"
+import { isAllowedCountry, getLanguageForCountry } from "@/lib/geo/country-config"
+import { extractLocaleFromUrl, languageMatchesLocale } from "@/lib/utils/locale-from-url"
 
 const statusEnum = z.enum(['identified', 'in_progress', 'completed', 'merged', 'dismissed'])
 const priorityEnum = z.enum(['low', 'medium', 'high'])
@@ -43,6 +45,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const brandProfileIdParam = searchParams.get('brandProfileId')
     const page = searchParams.get('page')
+    const countryParam = searchParams.get('country')
 
     // Validate filter query params
     const rawFilters: Record<string, string> = {}
@@ -108,6 +111,16 @@ export async function GET(request: NextRequest) {
         } catch {
           return issue.affectedUrl.toLowerCase().includes(page.toLowerCase())
         }
+      })
+    }
+
+    // Filter by locale based on selected country
+    if (countryParam && isAllowedCountry(countryParam)) {
+      const language = getLanguageForCountry(countryParam)
+      filteredIssues = filteredIssues.filter(issue => {
+        if (!issue.affectedUrl) return true // Keep global issues (AI visibility, conversation)
+        const locale = extractLocaleFromUrl(issue.affectedUrl)
+        return languageMatchesLocale(language, locale)
       })
     }
 

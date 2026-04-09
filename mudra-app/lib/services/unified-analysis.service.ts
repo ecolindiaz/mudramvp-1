@@ -634,15 +634,6 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
       throw geoError;
     }
 
-    // Update analysis run
-    await updateAnalysisRun(analysisRun.id, {
-      status: 'completed',
-      results: data,
-      overallScore: data.overallScore || 0,
-      competitorData: data.competitorComparison || []
-    });
-    analysisRunFinalized = true;
-
     // Update last analysis timestamp
     await updateLastAnalysisTime(config.brandProfileId);
 
@@ -681,6 +672,15 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
         }) as unknown as Prisma.InputJsonValue,
       },
     });
+
+    // Finalize the run only after all GEO persistence steps complete successfully.
+    await updateAnalysisRun(analysisRun.id, {
+      status: 'completed',
+      results: data,
+      overallScore: data.overallScore || 0,
+      competitorData: data.competitorComparison || []
+    });
+    analysisRunFinalized = true;
 
     return {
       success: true,

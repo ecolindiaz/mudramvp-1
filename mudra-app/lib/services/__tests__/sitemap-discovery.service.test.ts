@@ -54,7 +54,7 @@ describe("Sitemap Discovery Service", () => {
 		});
 
 		it("handles subdomains", () => {
-			expect(_internal.normalizeDomain("www.example.com")).toBe("https://www.example.com");
+			expect(_internal.normalizeDomain("www.example.com")).toBe("https://example.com");
 			expect(_internal.normalizeDomain("blog.example.com")).toBe("https://blog.example.com");
 		});
 	});
@@ -297,11 +297,11 @@ describe("Sitemap Discovery Service", () => {
 			expect(links[0]).toBe("https://example.com/pricing");
 		});
 
-		it("caps at NAV_LINK_CAP (30)", () => {
-			const anchors = Array.from({ length: 50 }, (_, i) => `<a href="/page-${i}">P${i}</a>`).join('');
+		it("caps at NAV_LINK_CAP (60)", () => {
+			const anchors = Array.from({ length: 90 }, (_, i) => `<a href="/page-${i}">P${i}</a>`).join('');
 			const html = `<html><body><nav>${anchors}</nav></body></html>`;
 			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
-			expect(links.length).toBeLessThanOrEqual(30);
+			expect(links.length).toBeLessThanOrEqual(60);
 		});
 
 		it("returns empty array on invalid HTML", () => {
@@ -652,7 +652,7 @@ describe("Sitemap Discovery Service", () => {
 		it("normalizes domain correctly", () => {
 			const result = createFallbackDiscovery("http://www.example.com/");
 
-			expect(result.pages[0].url).toBe("https://www.example.com");
+			expect(result.pages[0].url).toBe("https://example.com");
 		});
 	});
 });

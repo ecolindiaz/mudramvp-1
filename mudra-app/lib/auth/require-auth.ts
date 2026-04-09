@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { getDefaultBrandProfileIdForUser, getUserBrandAccessRole } from '@/lib/services/team-members.service';
 
 export interface AuthenticatedUser {
   id: string;
@@ -15,6 +16,8 @@ export interface AuthenticatedUser {
   name?: string | null;
   brandProfileId?: number | null;
 }
+
+export type BrandAccessRole = 'OWNER' | 'ADMIN' | 'MEMBER'
 
 export type AuthResult = {
   success: true;
@@ -41,24 +44,12 @@ export async function requireAuth(): Promise<AuthResult> {
     };
   }
 
-  // Get user with a deterministic default brand profile
-  // Use oldest created profile (createdAt asc) to avoid monitor switching side-effects
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     select: {
       id: true,
       email: true,
       name: true,
-      brandProfiles: {
-        where: {
-          id: {
-            not: 0,
-          },
-        },
-        select: { id: true },
-        take: 1,
-        orderBy: { createdAt: 'asc' }
-      }
     }
   });
 
@@ -72,13 +63,15 @@ export async function requireAuth(): Promise<AuthResult> {
     };
   }
 
+  const defaultBrandProfileId = await getDefaultBrandProfileIdForUser(user.id)
+
   return {
     success: true,
     user: {
       id: user.id,
       email: user.email!,
       name: user.name,
-      brandProfileId: user.brandProfiles[0]?.id ?? null,
+      brandProfileId: defaultBrandProfileId,
     },
   };
 }
@@ -90,16 +83,11 @@ export async function requireAuth(): Promise<AuthResult> {
 export async function verifyBrandProfileAccess(
   user: AuthenticatedUser,
   requestedBrandProfileId: number
-): Promise<{ allowed: boolean; response?: NextResponse }> {
-  // If user's brandProfileId matches the requested one, allow access
-  if (user.brandProfileId === requestedBrandProfileId) {
-    return { allowed: true };
-  }
-
-  // Check if the brandProfile belongs to this user (additional safety check)
+): Promise<{ allowed: boolean; response?: NextResponse; role?: BrandAccessRole }> {
+  // Verify brand profile exists first
   const brandProfile = await prisma.brandProfile.findUnique({
     where: { id: requestedBrandProfileId },
-    select: { userId: true }
+    select: { id: true }
   });
 
   if (!brandProfile) {
@@ -112,7 +100,9 @@ export async function verifyBrandProfileAccess(
     };
   }
 
-  if (brandProfile.userId !== user.id) {
+  const role = await getUserBrandAccessRole(user.id, requestedBrandProfileId)
+
+  if (!role) {
     return {
       allowed: false,
       response: NextResponse.json(
@@ -122,7 +112,7 @@ export async function verifyBrandProfileAccess(
     };
   }
 
-  return { allowed: true };
+  return { allowed: true, role };
 }
 
 /**
@@ -130,7 +120,7 @@ export async function verifyBrandProfileAccess(
  */
 export async function requireAuthWithBrandAccess(
   brandProfileId: number | string | null | undefined
-): Promise<AuthResult & { brandProfileId?: number }> {
+): Promise<AuthResult & { brandProfileId?: number; accessRole?: BrandAccessRole }> {
   const authResult = await requireAuth();
   
   if (!authResult.success) {
@@ -148,9 +138,19 @@ export async function requireAuthWithBrandAccess(
         ),
       };
     }
+
+    const accessResult = await verifyBrandProfileAccess(authResult.user, authResult.user.brandProfileId)
+    if (!accessResult.allowed) {
+      return {
+        success: false,
+        response: accessResult.response!,
+      }
+    }
+
     return {
       ...authResult,
       brandProfileId: authResult.user.brandProfileId,
+      accessRole: accessResult.role,
     };
   }
 
@@ -182,6 +182,7 @@ export async function requireAuthWithBrandAccess(
   return {
     ...authResult,
     brandProfileId: parsedId,
+    accessRole: accessResult.role,
   };
 }
 

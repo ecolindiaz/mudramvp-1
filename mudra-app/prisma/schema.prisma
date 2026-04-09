@@ -9,6 +9,19 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum BrandProfileMembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum BrandProfileInviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
 model BrandProfile {
   id                         Int                          @id @default(autoincrement())
   userId                     String?
@@ -65,6 +78,8 @@ model BrandProfile {
   notifications              Notification[]
   analysisJobs               AnalysisJob[]
   userFeedbacks              UserFeedback[]
+  teamMembers                BrandProfileMember[]
+  teamInvites                BrandProfileInvite[]
 
   // Issue discovery pagination
   issueDiscoveryPageIndex    Int      @default(0)  // Current page index for issue discovery
@@ -82,6 +97,9 @@ model BrandProfile {
 
   // Cron job eligibility — only brands with cronEnabled=true are processed by scheduled jobs
   cronEnabled                Boolean  @default(false)
+
+  // Team collaboration
+  teamMemberLimit            Int      @default(5)
 
   @@index([userId])
 }
@@ -232,9 +250,50 @@ model User {
   sessions            Session[]
   notifications       Notification[]
   userFeedbacks       UserFeedback[]
+  teamMemberships     BrandProfileMember[] @relation("BrandProfileMembershipUser")
+  invitedTeamMembers  BrandProfileMember[] @relation("BrandProfileMemberInviter")
+  sentBrandProfileInvites BrandProfileInvite[] @relation("BrandProfileInviteSender")
 
   @@index([githubId])
   @@map("users")
+}
+
+model BrandProfileMember {
+  id             Int                        @id @default(autoincrement())
+  brandProfileId Int
+  userId         String
+  role           BrandProfileMembershipRole @default(MEMBER)
+  invitedById    String?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  brandProfile   BrandProfile               @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  user           User                       @relation("BrandProfileMembershipUser", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy      User?                      @relation("BrandProfileMemberInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@unique([brandProfileId, userId])
+  @@index([brandProfileId])
+  @@index([userId])
+}
+
+model BrandProfileInvite {
+  id             Int                     @id @default(autoincrement())
+  brandProfileId Int
+  invitedEmail   String
+  role           BrandProfileMembershipRole @default(MEMBER)
+  invitedById    String
+  token          String                  @unique
+  status         BrandProfileInviteStatus @default(PENDING)
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  brandProfile   BrandProfile            @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  invitedBy      User                    @relation("BrandProfileInviteSender", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([brandProfileId])
+  @@index([invitedEmail])
+  @@index([status])
+  @@index([brandProfileId, invitedEmail])
 }
 
 model Account {
@@ -770,6 +829,7 @@ model SitemapPage {
   brand_profile_id Int
   domain           String
   page_url         String
+  locale           String?
   page_type        String?
   last_modified    DateTime?
   change_frequency String?
@@ -789,6 +849,7 @@ model SitemapPage {
   @@index([brand_profile_id])
   @@index([page_url])
   @@index([scrape_status])
+  @@index([brand_profile_id, locale])
   @@map("sitemap_pages")
 }
 

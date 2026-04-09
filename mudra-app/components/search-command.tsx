@@ -15,7 +15,7 @@ import {
   Bug,
   Radio,
 } from "lucide-react"
-import { OverviewIcon, TrackedPromptsIcon, IssuesIcon, ContentLabIcon } from "@/components/icons"
+import { OverviewIcon, TrackedPromptsIcon, IssuesIcon, ContentLabIcon, AnswerOptimizerIcon } from "@/components/icons"
 
 import {
   CommandDialog,
@@ -36,6 +36,7 @@ const navigationItems = [
   { title: "Tracked Prompts", url: "/dashboard/tracked-prompts", icon: TrackedPromptsIcon, keywords: ["prompts", "tracking"] },
   { title: "Issues", url: "/dashboard/issues", icon: IssuesIcon, keywords: ["bugs", "problems"] },
   { title: "Content Lab", url: "/dashboard/campaigns", icon: ContentLabIcon, keywords: ["campaigns", "content"] },
+  { title: "Answer Optimizer", url: "/dashboard/answer-optimizer", icon: AnswerOptimizerIcon, keywords: ["answer", "optimizer", "optimize", "aeo"] },
   { title: "Conversation Radar", url: "/dashboard/conversation-radar", icon: Radio, keywords: ["conversations", "radar", "reddit", "social"] },
   { title: "Brand Profile", url: "/dashboard/brand-profile", icon: User, keywords: ["brand", "profile", "settings"] },
   { title: "Integrations", url: "/dashboard/integrations", icon: LinkIcon, keywords: ["connect", "api"] },

@@ -371,13 +371,17 @@ export async function getScrapeJobProgress(jobId: string): Promise<ScrapeJobProg
  */
 export async function computeSiteWideScore(
   brandProfileId: number,
-  domain: string
+  domain: string,
+  options?: { locale?: string }
 ): Promise<SiteWideScore> {
   const normalizedDomain = normalizeToOrigin(domain);
-  
-  // Get all page scores
+
+  // Get all page scores, optionally filtered by locale via the SitemapPage relation
+  const localeWhere = options?.locale
+    ? { sitemap_pages: { is: { OR: [{ locale: null }, { locale: options.locale }] } } }
+    : {};
   const pageScores = await prisma.pageScore.findMany({
-    where: { brand_profile_id: brandProfileId },
+    where: { brand_profile_id: brandProfileId, ...localeWhere },
     include: {
       sitemap_pages: {
         select: { page_type: true, page_url: true },
@@ -412,7 +416,11 @@ export async function computeSiteWideScore(
   
   // Get total pages from sitemap
   const totalPages = await prisma.sitemapPage.count({
-    where: { brand_profile_id: brandProfileId, domain: normalizedDomain },
+    where: {
+      brand_profile_id: brandProfileId,
+      domain: normalizedDomain,
+      ...(options?.locale ? { OR: [{ locale: null }, { locale: options.locale }] } : {}),
+    },
   });
   
   const pagesScored = pageScores.length;

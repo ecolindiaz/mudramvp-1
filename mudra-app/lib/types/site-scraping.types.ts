@@ -46,11 +46,17 @@ export interface CrawlDirective {
 // Sitemap Discovery Types
 // ============================================
 
+export interface HreflangAlternate {
+  hreflang: string;         // e.g. "en", "es", "x-default"
+  href: string;             // Full URL of the alternate
+}
+
 export interface SitemapEntry {
   loc: string;              // Page URL
   lastmod?: string;         // Last modification date
   changefreq?: string;      // Change frequency
   priority?: number;        // Priority (0.0-1.0)
+  alternates?: HreflangAlternate[]; // xhtml:link hreflang alternates
 }
 
 export interface SitemapDiscoveryResult {

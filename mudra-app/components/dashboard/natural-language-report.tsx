@@ -14,7 +14,7 @@ import {
   IconInfoCircle,
   IconCheck
 } from "@tabler/icons-react"
-import { FileText, ArrowUpRight, ListOrdered, BookOpen, Newspaper, GraduationCap, Globe, MessageSquare, PlayCircle, Building2, Star, Share2, BookMarked, ExternalLink, X, ChevronRight, Expand, Radio } from "lucide-react"
+import { FileText, ArrowUpRight, ListOrdered, BookOpen, Newspaper, GraduationCap, Globe, MessageSquare, PlayCircle, Building2, Star, Share2, BookMarked, ExternalLink, X, ChevronRight, Expand, Radio, PenTool } from "lucide-react"
 import { CircleFlag } from "react-circle-flags"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "react-hot-toast"
@@ -86,6 +86,11 @@ const reportActionWidgets: Array<{
     title: "Engineer Content",
     href: "/dashboard/campaigns",
     Icon: ContentLabIcon,
+  },
+  {
+    title: "Optimize Content",
+    href: "/dashboard/answer-optimizer",
+    Icon: PenTool,
   },
   {
     title: "Find Opportunities",
@@ -570,9 +575,14 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
       report += `## Competitor Rankings (Share of Voice)\n\n`
       report += `| Rank | Company | SOV % |\n`
       report += `|------|---------|-------|\n`
-      competitorRankings.forEach((comp, idx) => {
-        const suffix = comp.isYou ? ' (You)' : ''
-        report += `| ${idx + 1} | ${comp.name}${suffix} | ${comp.sov}% |\n`
+      let reportRank = 0
+      competitorRankings.forEach((comp) => {
+        if (comp.isYou) {
+          report += `| You | ${comp.name} | ${comp.sov}% |\n`
+        } else {
+          reportRank++
+          report += `| ${reportRank} | ${comp.name} | ${comp.sov}% |\n`
+        }
       })
       report += `\n`
     }
@@ -849,7 +859,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
               )}
             </div>
 		            {summary && (
-		              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+		              <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
 		                {reportActionWidgets.map((widget) => {
 		                  const WidgetIcon = widget.Icon
 		                  return (
@@ -937,24 +947,27 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                   ) : (
                     <>
                       <div className="px-2 py-1">
-                      {(isCompetitorRankingsExpanded ? competitorRankings : competitorRankings.slice(0, 6)).map((competitor, idx) => {
+                      {(() => {
+                        let rank = 0
+                        return (isCompetitorRankingsExpanded ? competitorRankings : competitorRankings.slice(0, 6)).map((competitor, idx) => {
                         if (competitor.isYou) {
                           return (
                             <div
                               key="you-row"
-                              className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-3 py-3.5 rounded-2xl bg-white/[0.04]"
+                              className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-2 py-3.5 rounded-2xl bg-white/[0.04]"
                             >
-                              <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
+                              <span className="inline-flex items-center justify-center rounded-full px-1.5 py-px text-[11px] font-medium bg-white/[0.06] text-white/50">You</span>
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <CompanyLogo company={competitor.name} size={24} />
                                 <span className="text-sm truncate text-white font-medium">
-                                  {competitor.name} (You)
+                                  {competitor.name}
                                 </span>
                               </div>
                               <div className="text-sm tabular-nums text-white font-medium">{competitor.sov}%</div>
                             </div>
                           )
                         }
+                        rank++
                         return (
                           <a
                             key={idx}
@@ -963,7 +976,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                             rel="noopener noreferrer"
                             className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-3 py-3.5 transition-colors hover:bg-white/[0.06] rounded-2xl group"
                           >
-                            <div className="w-6 text-sm text-white/50 tabular-nums">{idx + 1}</div>
+                            <div className="w-6 text-sm text-white/50 tabular-nums">{rank}</div>
                             <div className="flex items-center gap-2.5 min-w-0">
                               <CompanyLogo company={competitor.name} size={24} />
                               <span className="text-sm truncate text-white/90 group-hover:underline underline-offset-2">
@@ -974,7 +987,8 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                             <div className="text-sm tabular-nums text-white/70 font-medium">{competitor.sov}%</div>
                           </a>
                         )
-                      })}
+                      })
+                      })()}
                       </div>
                       {competitorRankings.length > 6 && (
                         <div className="flex justify-end px-5 py-3 border-t border-white/[0.06]">
@@ -1242,9 +1256,11 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
             key: "rank",
             header: "#",
             width: "50px",
-            render: (_, idx) => (
-              <span className="text-white/50 tabular-nums">{idx + 1}</span>
-            ),
+            render: (item, idx, allItems) => {
+              if (item.isYou) return <span className="inline-flex items-center justify-center rounded-full px-1.5 py-px text-[11px] font-medium bg-white/[0.06] text-white/50">You</span>
+              const youBefore = (allItems ?? []).slice(0, idx).filter((i: any) => i.isYou).length
+              return <span className="text-white/50 tabular-nums">{idx + 1 - youBefore}</span>
+            },
           },
           {
             key: "name",
@@ -1256,7 +1272,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                 return (
                   <div className="flex items-center gap-2.5 min-w-0">
                     <CompanyLogo company={item.name} size={24} />
-                    <span className="truncate text-white font-medium">{item.name} (You)</span>
+                    <span className="truncate text-white font-medium">{item.name}</span>
                   </div>
                 )
               }

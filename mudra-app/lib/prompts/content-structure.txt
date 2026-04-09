@@ -55,9 +55,10 @@ BRAND POSITIONING RULES:
   * Keep claims factual and non-hype; avoid absolute superlatives without data
   * In comparison tables, list the preferred brand first
 - When inputs include a preferred brand but the intent is NOT comparative:
-  * Write from the brand's perspective as a knowledgeable authority
-  * Do not equally recommend competitors as alternatives to the brand
-  * Present the brand's products naturally when relevant to the topic
+  * Maintain the original article's perspective and angle
+  * When the brand's products are already part of the article, present them naturally
+  * Do not reframe the entire article to be about the brand's product category
+  * The brand should enhance the content, not redirect it
 
 FAQ RULES:
 - Include an FAQ toward the end (or scattered logically throughout) using H3 or H4

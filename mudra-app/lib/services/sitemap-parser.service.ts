@@ -10,6 +10,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { normalizeUrl } from '@/lib/utils/normalize-url';
 import type { 
   SitemapEntry, 
   SitemapDiscoveryResult, 
@@ -86,29 +87,43 @@ function extractAllXmlTagValues(xml: string, tagName: string): string[] {
  */
 function parseSitemapXml(xml: string): SitemapEntry[] {
   const entries: SitemapEntry[] = [];
-  
+
   // Match <url> blocks
   const urlBlockRegex = /<url>([\s\S]*?)<\/url>/gi;
   let match;
-  
+
   while ((match = urlBlockRegex.exec(xml)) !== null) {
     const urlBlock = match[1];
-    
+
     const loc = extractXmlTagValue(urlBlock, 'loc');
     if (!loc) continue;
-    
+
     const lastmod = extractXmlTagValue(urlBlock, 'lastmod');
     const changefreq = extractXmlTagValue(urlBlock, 'changefreq');
     const priorityStr = extractXmlTagValue(urlBlock, 'priority');
-    
+
+    // Extract xhtml:link hreflang alternates
+    const alternates: Array<{ hreflang: string; href: string }> = [];
+    const altRegex = /<xhtml:link[^>]+rel=["']alternate["'][^>]*>/gi;
+    let altMatch;
+    while ((altMatch = altRegex.exec(urlBlock)) !== null) {
+      const tag = altMatch[0];
+      const hreflangMatch = tag.match(/hreflang=["']([^"']+)["']/i);
+      const hrefMatch = tag.match(/href=["']([^"']+)["']/i);
+      if (hreflangMatch && hrefMatch) {
+        alternates.push({ hreflang: hreflangMatch[1], href: hrefMatch[1] });
+      }
+    }
+
     entries.push({
       loc,
       lastmod,
       changefreq,
       priority: priorityStr ? parseFloat(priorityStr) : undefined,
+      ...(alternates.length > 0 && { alternates }),
     });
   }
-  
+
   return entries;
 }
 
@@ -308,28 +323,66 @@ export async function saveSitemapPages(
   discovery: SitemapDiscoveryResult
 ): Promise<number> {
   console.log(`[SitemapParser] Saving ${discovery.entries.length} pages for brand ${brandProfileId}`);
-  
+
+  // Normalize domain once (strip www.) for consistent storage
+  const normalizedDomain = discovery.domain.replace(/^(https?:\/\/)www\./i, '$1');
+
+  // Migrate legacy www-prefixed rows to normalized form to prevent duplicates
+  if (normalizedDomain !== discovery.domain) {
+    const legacyPages = await prisma.sitemapPage.findMany({
+      where: { brand_profile_id: brandProfileId, domain: discovery.domain },
+      select: { id: true, page_url: true },
+    });
+    for (const lp of legacyPages) {
+      const normalizedPageUrl = normalizeUrl(lp.page_url);
+      // Check if a normalized row already exists
+      const existing = await prisma.sitemapPage.findUnique({
+        where: {
+          brand_profile_id_domain_page_url: {
+            brand_profile_id: brandProfileId,
+            domain: normalizedDomain,
+            page_url: normalizedPageUrl,
+          },
+        },
+      });
+      if (existing) {
+        // Normalized row exists, delete the legacy duplicate
+        await prisma.sitemapPage.delete({ where: { id: lp.id } });
+      } else {
+        // Migrate legacy row to normalized domain/url
+        await prisma.sitemapPage.update({
+          where: { id: lp.id },
+          data: { domain: normalizedDomain, page_url: normalizedPageUrl },
+        });
+      }
+    }
+    if (legacyPages.length > 0) {
+      console.log(`[SitemapParser] Migrated ${legacyPages.length} legacy www-prefixed rows`);
+    }
+  }
+
   let savedCount = 0;
-  
+
   // Use batched upserts for efficiency
   const batchSize = 50;
   for (let i = 0; i < discovery.entries.length; i += batchSize) {
     const batch = discovery.entries.slice(i, i + batchSize);
-    
+
     await Promise.all(batch.map(async (entry) => {
+      const normalizedLoc = normalizeUrl(entry.loc);
       try {
         await prisma.sitemapPage.upsert({
           where: {
             brand_profile_id_domain_page_url: {
               brand_profile_id: brandProfileId,
-              domain: discovery.domain,
-              page_url: entry.loc,
+              domain: normalizedDomain,
+              page_url: normalizedLoc,
             },
           },
           create: {
             brand_profile_id: brandProfileId,
-            domain: discovery.domain,
-            page_url: entry.loc,
+            domain: normalizedDomain,
+            page_url: normalizedLoc,
             page_type: classifyPageType(entry.loc),
             last_modified: entry.lastmod ? new Date(entry.lastmod) : null,
             change_frequency: entry.changefreq,
@@ -346,7 +399,7 @@ export async function saveSitemapPages(
         });
         savedCount++;
       } catch (error) {
-        console.warn(`[SitemapParser] Failed to save page ${entry.loc}:`, error);
+        console.warn(`[SitemapParser] Failed to save page ${normalizedLoc}:`, error);
       }
     }));
   }

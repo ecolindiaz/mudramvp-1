@@ -68,7 +68,17 @@ export function DiscoverPagesModal({
   const [selectedUrls, setSelectedUrls] = React.useState<Set<string>>(new Set())
   const [isAdding, setIsAdding] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
+  const [filter, setFilter] = React.useState<"all" | "blogs">("all")
   const abortRef = React.useRef<AbortController | null>(null)
+
+  const blogCount = React.useMemo(
+    () => pages.filter((p) => p.pageType === "blog").length,
+    [pages]
+  )
+  const filteredPages = React.useMemo(
+    () => (filter === "blogs" ? pages.filter((p) => p.pageType === "blog") : pages),
+    [pages, filter]
+  )
 
   const domain = React.useMemo(() => {
     try {
@@ -90,6 +100,7 @@ export function DiscoverPagesModal({
       setSelectedUrls(new Set())
       setIsAdding(false)
       setErrorMessage(null)
+      setFilter("all")
       if (abortRef.current) abortRef.current.abort()
       return
     }
@@ -109,7 +120,7 @@ export function DiscoverPagesModal({
       const res = await fetch("/api/sitemap-pages/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandProfileId }),
+        body: JSON.stringify({ brandProfileId, mode: "sitemap" }),
         signal: controller.signal,
       })
 
@@ -153,14 +164,26 @@ export function DiscoverPagesModal({
   }
 
   const toggleAll = () => {
-    if (selectedUrls.size === pages.length) {
-      setSelectedUrls(new Set())
+    const filteredUrlSet = new Set(filteredPages.map((p) => p.url))
+    const allFilteredSelected = filteredPages.every((p) => selectedUrls.has(p.url))
+    if (allFilteredSelected) {
+      // Deselect only the filtered pages, keep others
+      setSelectedUrls((prev) => {
+        const next = new Set(prev)
+        filteredUrlSet.forEach((url) => next.delete(url))
+        return next
+      })
     } else {
-      setSelectedUrls(new Set(pages.map((p) => p.url)))
+      // Select all filtered pages, keep existing selections
+      setSelectedUrls((prev) => {
+        const next = new Set(prev)
+        filteredUrlSet.forEach((url) => next.add(url))
+        return next
+      })
     }
   }
 
-  const groups = React.useMemo(() => groupPages(pages), [pages])
+  const groups = React.useMemo(() => groupPages(filteredPages), [filteredPages])
 
   const toggleGroup = (groupPages: DiscoveredPageItem[]) => {
     setSelectedUrls((prev) => {
@@ -271,7 +294,7 @@ export function DiscoverPagesModal({
             </h2>
             <p className="text-sm text-white/50 mt-0.5">
               {state === "discovering"
-                ? `Scanning ${domain} for pages...`
+                ? `Scanning ${domain} sitemap...`
                 : state === "done" && pages.length > 0
                   ? `Found ${pages.length} new page${pages.length !== 1 ? "s" : ""} on ${domain}`
                   : state === "done"
@@ -340,38 +363,69 @@ export function DiscoverPagesModal({
         {/* ── Results ── */}
         {state === "done" && pages.length > 0 && (
           <>
-            {/* Toolbar */}
-            <div className="flex items-center justify-between px-6 py-3 border-b border-white/[0.06]">
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={toggleAll}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    toggleAll()
-                  }
-                }}
-                className="flex items-center gap-2 text-xs text-white/50 hover:text-white/70 transition-colors cursor-pointer"
-              >
-                <Checkbox
-                  checked={
-                    selectedUrls.size === pages.length
-                      ? true
-                      : selectedUrls.size > 0
-                        ? "indeterminate"
-                        : false
-                  }
-                  onCheckedChange={toggleAll}
-                  className="pointer-events-none"
-                />
-                {selectedUrls.size === pages.length
-                  ? "Deselect all"
-                  : "Select all"}
+            {/* Filter tabs + Toolbar */}
+            <div className="border-b border-white/[0.06]">
+              {/* Filter tabs */}
+              <div className="flex items-center gap-1 px-6 pt-3 pb-2">
+                <button
+                  onClick={() => setFilter("all")}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    filter === "all"
+                      ? "bg-white/[0.08] text-white/90"
+                      : "text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  All{" "}
+                  <span className="text-white/30 ml-1 tabular-nums">{pages.length}</span>
+                </button>
+                {blogCount > 0 && (
+                  <button
+                    onClick={() => setFilter("blogs")}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      filter === "blogs"
+                        ? "bg-white/[0.08] text-white/90"
+                        : "text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    Blogs{" "}
+                    <span className="text-white/30 ml-1 tabular-nums">{blogCount}</span>
+                  </button>
+                )}
               </div>
-              <span className="text-xs text-white/40">
-                {selectedUrls.size} selected
-              </span>
+
+              {/* Select all toolbar */}
+              <div className="flex items-center justify-between px-6 py-2">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={toggleAll}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      toggleAll()
+                    }
+                  }}
+                  className="flex items-center gap-2 text-xs text-white/50 hover:text-white/70 transition-colors cursor-pointer"
+                >
+                  <Checkbox
+                    checked={
+                      filteredPages.length > 0 && filteredPages.every((p) => selectedUrls.has(p.url))
+                        ? true
+                        : filteredPages.some((p) => selectedUrls.has(p.url))
+                          ? "indeterminate"
+                          : false
+                    }
+                    onCheckedChange={toggleAll}
+                    className="pointer-events-none"
+                  />
+                  {filteredPages.length > 0 && filteredPages.every((p) => selectedUrls.has(p.url))
+                    ? "Deselect all"
+                    : "Select all"}
+                </div>
+                <span className="text-xs text-white/40">
+                  {selectedUrls.size} selected
+                </span>
+              </div>
             </div>
 
             {/* Grouped page list */}

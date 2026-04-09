@@ -297,11 +297,11 @@ describe("Sitemap Discovery Service", () => {
 			expect(links[0]).toBe("https://example.com/pricing");
 		});
 
-		it("caps at NAV_LINK_CAP (30)", () => {
-			const anchors = Array.from({ length: 50 }, (_, i) => `<a href="/page-${i}">P${i}</a>`).join('');
+		it("caps at NAV_LINK_CAP (60)", () => {
+			const anchors = Array.from({ length: 90 }, (_, i) => `<a href="/page-${i}">P${i}</a>`).join('');
 			const html = `<html><body><nav>${anchors}</nav></body></html>`;
 			const links = _internal.extractNavLinks(html, baseUrl, domainHost);
-			expect(links.length).toBeLessThanOrEqual(30);
+			expect(links.length).toBeLessThanOrEqual(60);
 		});
 
 		it("returns empty array on invalid HTML", () => {

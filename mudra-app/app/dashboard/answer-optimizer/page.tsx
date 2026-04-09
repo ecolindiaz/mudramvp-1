@@ -1015,19 +1015,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     }
   }
 
-  // Track whether pipeline is actively running (not complete, not cancelled)
-  const isPipelineRunning = view === "process" && requestBody && !optimizationResult
-
   const handleClose = (v: boolean) => {
-    if (!v && isPipelineRunning) {
-      // Prevent closing while pipeline is actively running
-      return
-    }
-    if (!v && optimizationResult && view !== "form") {
-      // Confirm before discarding unsaved optimization results
-      const confirmed = window.confirm("You have unsaved optimization results. Close anyway?")
-      if (!confirmed) return
-    }
     onOpenChange(v)
     if (!v) resetForm()
   }
@@ -1035,7 +1023,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const canOptimize = selectedPost && selectedPrompt
 
   return (
-    <Dialog open={open} onOpenChange={isPipelineRunning ? undefined : handleClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[720px] max-h-[85vh] bg-[#141414] border-white/[0.08] text-white !flex !flex-col overflow-hidden">
         {/* Crossfade wrapper */}
         <div className="relative flex flex-col overflow-hidden min-w-0">
@@ -1048,7 +1036,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             {view === "process" && (
               <OptimizationProcessView
                 onClose={() => handleClose(false)}
-                onCancel={() => { resetForm(); }}
+                onCancel={() => handleClose(false)}
                 onViewDiff={() => setView("diff")}
                 requestBody={requestBody || undefined}
                 activeSteps={activeSteps}

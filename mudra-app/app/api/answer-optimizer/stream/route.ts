@@ -14,6 +14,7 @@ import { researchAgent, researchOutputSchema } from '@/src/mastra/agents/researc
 import { contentOptimizerAgent, optimizationOutputSchema } from '@/src/mastra/agents/content-optimizer-agent';
 import { computeContentDiff, computeDiffStats } from '@/lib/utils/compute-content-diff';
 import { countWordsInMarkdown } from '@/lib/utils/count-words';
+import { trimSections, enforceOrder } from '@/lib/utils/optimize-sections';
 import { prisma } from '@/lib/prisma';
 
 async function scrapeUrl(url: string) {
@@ -724,41 +725,34 @@ Follow ${depthLabel} depth rules strictly.`;
       }
 
       // Server-side word count enforcement: if model exceeded ceiling, trim sections
+      let content = optimizationResult.optimizedContent as string;
+
       if (optimizedWordCount > depthConfig.ceiling) {
         console.warn(`[AnswerOptimizer ${runId}] Output exceeds ceiling (${optimizedWordCount} > ${depthConfig.ceiling}). Trimming...`);
-        let content = optimizationResult.optimizedContent as string;
-
-        // Strategy: remove H2 sections from the bottom (before FAQ/Bottom line) until within ceiling
-        // Split by H2 headings, identify trimmable sections (not FAQ, not Bottom line, not first 2)
-        const h2Parts = content.split(/(?=\n## )/);
-        const keepParts: string[] = [];
-        const trimmable: string[] = [];
-
-        for (const part of h2Parts) {
-          const heading = part.match(/^## (.+)/m)?.[1]?.toLowerCase() || '';
-          const isProtected = heading.includes('faq') || heading.includes('bottom line') ||
-            !heading || keepParts.length < 3;
-          if (isProtected) {
-            keepParts.push(part);
-          } else {
-            trimmable.push(part);
-          }
+        const trimResult = trimSections(content, depthConfig.ceiling);
+        for (const name of trimResult.trimmedSections) {
+          console.log(`[AnswerOptimizer ${runId}] Trimmed section: ${name}`);
         }
-
-        // Remove trimmable sections from the end until within ceiling
-        while (trimmable.length > 0 && countWordsInMarkdown(keepParts.join('') + trimmable.join('')) > depthConfig.ceiling) {
-          const removed = trimmable.pop();
-          console.log(`[AnswerOptimizer ${runId}] Trimmed section: ${removed?.match(/^## (.+)/m)?.[1] || 'unknown'}`);
+        if (trimResult.trimmedSections.length === 0) {
+          console.warn(`[AnswerOptimizer ${runId}] All remaining sections are protected — content still exceeds ceiling`);
         }
-
-        content = keepParts.join('') + trimmable.join('');
+        content = trimResult.content;
         optimizedWordCount = countWordsInMarkdown(content);
-        optimizationResult.optimizedContent = content;
         if (optimizationResult.metadata) {
           optimizationResult.metadata.wordCount = optimizedWordCount;
         }
         console.log(`[AnswerOptimizer ${runId}] After trimming: ${optimizedWordCount} words`);
       }
+
+      // Enforce content structure: Bottom Line immediately before FAQ, FAQ is last section
+      const orderResult = enforceOrder(content);
+      if (orderResult.reordered) {
+        console.log(`[AnswerOptimizer ${runId}] Reordered sections to enforce Bottom Line → FAQ → END`);
+        content = orderResult.content;
+        optimizedWordCount = countWordsInMarkdown(content);
+      }
+
+      optimizationResult.optimizedContent = content;
 
       console.log(`[AnswerOptimizer ${runId}] Phase 8 optimize completed in ${((Date.now() - p8Start) / 1000).toFixed(1)}s:`, {
         wordCount: optimizedWordCount, targetWordCount, delta: optimizedWordCount - originalWordCount,

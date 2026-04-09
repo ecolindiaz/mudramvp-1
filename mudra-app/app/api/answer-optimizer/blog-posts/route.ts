@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
       OR: [
         { page_type: { in: ['blog_post', 'article', 'blog', 'post'] } },
         { page_url: { contains: '/blog/' } },
+        { page_url: { contains: '/blogs/' } },
         { page_url: { contains: '/posts/' } },
         { page_url: { contains: '/articles/' } },
       ],

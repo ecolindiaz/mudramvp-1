@@ -958,7 +958,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                             >
                               <span className="inline-flex items-center justify-center rounded-full px-1.5 py-px text-[11px] font-medium bg-white/[0.06] text-white/50">You</span>
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <CompanyLogo company={competitor.name} size={24} />
+                                <CompanyLogo company={competitor.domain || competitor.name} size={24} />
                                 <span className="text-sm truncate text-white font-medium">
                                   {competitor.name}
                                 </span>
@@ -978,7 +978,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                           >
                             <div className="w-6 text-sm text-white/50 tabular-nums">{rank}</div>
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <CompanyLogo company={competitor.name} size={24} />
+                              <CompanyLogo company={competitor.domain || competitor.name} size={24} />
                               <span className="text-sm truncate text-white/90 group-hover:underline underline-offset-2">
                                 {competitor.name}
                               </span>
@@ -1271,7 +1271,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
               if (item.isYou) {
                 return (
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <CompanyLogo company={item.name} size={24} />
+                    <CompanyLogo company={item.domain || item.name} size={24} />
                     <span className="truncate text-white font-medium">{item.name}</span>
                   </div>
                 )
@@ -1284,7 +1284,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                   className="flex items-center gap-2.5 min-w-0 group"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <CompanyLogo company={item.name} size={24} />
+                  <CompanyLogo company={item.domain || item.name} size={24} />
                   <span className="truncate text-white/90 group-hover:underline underline-offset-2">{item.name}</span>
                   <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
                 </a>

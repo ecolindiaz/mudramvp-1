@@ -166,7 +166,7 @@ export function classifyPageType(url: string): PageType {
   
   // Path segment patterns
   const patterns: Array<{ type: PageType; patterns: RegExp[] }> = [
-    { type: 'blog', patterns: [/\/blog\/?/, /\/posts?\/?/, /\/articles?\/?/, /\/news\/?/] },
+    { type: 'blog', patterns: [/\/blogs?\/?/, /\/posts?\/?/, /\/articles?\/?/, /\/news\/?/] },
     { type: 'pricing', patterns: [/\/pricing\/?/, /\/plans?\/?/, /\/packages?\/?/] },
     { type: 'features', patterns: [/\/features?\/?/, /\/capabilities\/?/] },
     { type: 'product', patterns: [/\/products?\/?/, /\/solutions?\/?product/] },

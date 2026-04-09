@@ -48,6 +48,35 @@ const PHASE_TO_STEP: Record<string, string> = {
   "finalize": "finalize",
 }
 
+// --- localStorage persistence for cross-page-navigation survival (mirrors Content Lab) ---
+const OPTIMIZER_STORAGE_KEY = 'mudra_optimizing_content'
+const OPTIMIZER_POLL_INTERVAL = 3000
+const OPTIMIZER_STORAGE_TTL = 10 * 60 * 1000 // 10 minutes
+
+interface StoredOptimization {
+  campaignId: string
+  startedAt: number
+  postTitle: string
+}
+
+function getStoredOptimization(): StoredOptimization | null {
+  try {
+    const raw = localStorage.getItem(OPTIMIZER_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as StoredOptimization
+    if (Date.now() - parsed.startedAt > OPTIMIZER_STORAGE_TTL) {
+      localStorage.removeItem(OPTIMIZER_STORAGE_KEY)
+      return null
+    }
+    return parsed
+  } catch { return null }
+}
+
+function setStoredOptimization(data: StoredOptimization | null) {
+  if (data) localStorage.setItem(OPTIMIZER_STORAGE_KEY, JSON.stringify(data))
+  else localStorage.removeItem(OPTIMIZER_STORAGE_KEY)
+}
+
 /** Build active pipeline steps based on which tools are enabled */
 function getActiveSteps(enabledTools: Set<string>): PipelineStep[] {
   const steps: PipelineStep[] = [
@@ -631,31 +660,10 @@ function PipelineStepRow({ step, status, isLast, elapsed, stepRef, isOpen, onTog
 }
 
 // --- Optimization Process View ---
-function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, activeSteps, onResult, onPipelineData }: { onClose: () => void; onCancel: () => void; onViewDiff: () => void; requestBody?: Record<string, any>; activeSteps: PipelineStep[]; onResult?: (data: any) => void; onPipelineData?: (steps: { id: string; label: string; status: string; elapsed: number }[], totalElapsed: number) => void }) {
-  const [stepStatuses, setStepStatuses] = useState<Record<string, StepStatus>>({})
-  const [stepElapsed, setStepElapsed] = useState<Record<string, number>>({})
-  const stepElapsedRef = useRef<Record<string, number>>({})
-  const [currentStepIndex, setCurrentStepIndex] = useState(0)
-  const [isComplete, setIsComplete] = useState(false)
-  const [isCancelled, setIsCancelled] = useState(false)
-  const [totalElapsed, setTotalElapsed] = useState(0)
+function OptimizationProcessView({ onClose, onCancel, onViewDiff, activeSteps, stepStatuses, stepElapsed, currentStepIndex, isComplete, isCancelled, totalElapsed }: { onClose: () => void; onCancel: () => void; onViewDiff: () => void; activeSteps: PipelineStep[]; stepStatuses: Record<string, StepStatus>; stepElapsed: Record<string, number>; currentStepIndex: number; isComplete: boolean; isCancelled: boolean; totalElapsed: number }) {
   const [openStep, setOpenStep] = useState<string | null>(null)
-  const startTimeRef = useRef(Date.now())
-  const stepStartRef = useRef(Date.now())
-  const stepIndexRef = useRef(0)
-  const timersRef = useRef<NodeJS.Timeout[]>([])
   const activeStepRef = useRef<HTMLDivElement | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-
-  const abortRef = useRef<AbortController | null>(null)
-  /** Backend pipelineMs when the current step started — used for accurate elapsed */
-  const stepStartMsRef = useRef<number>(0)
-
-  // Stable refs for callbacks to avoid re-triggering the SSE effect
-  const onResultRef = useRef(onResult)
-  onResultRef.current = onResult
-  const onPipelineDataRef = useRef(onPipelineData)
-  onPipelineDataRef.current = onPipelineData
 
   const completedCount = Object.values(stepStatuses).filter(s => s === "completed").length
   const progressPercent = Math.round((completedCount / activeSteps.length) * 100)
@@ -666,111 +674,6 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, a
       activeStepRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" })
     }
   }, [currentStepIndex])
-
-  // Tick total elapsed every second
-  useEffect(() => {
-    if (isComplete || isCancelled) return
-    const interval = setInterval(() => {
-      setTotalElapsed(Date.now() - startTimeRef.current)
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [isComplete, isCancelled])
-
-  const handleCancel = () => {
-    abortRef.current?.abort()
-    setIsCancelled(true)
-    setTotalElapsed(Date.now() - startTimeRef.current)
-  }
-
-  // SSE-driven pipeline
-  useEffect(() => {
-    if (!requestBody) return
-
-    setStepStatuses({ [activeSteps[0].id]: "running" })
-    startTimeRef.current = Date.now()
-    stepStartRef.current = Date.now()
-
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    ;(async () => {
-      try {
-        const response = await fetch("/api/answer-optimizer/stream", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
-        })
-
-        const reader = response.body?.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ""
-
-        while (reader) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split("\n")
-          buffer = lines.pop() || ""
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const event: OptimizerSSEEvent = JSON.parse(line.slice(6))
-                const stepId = PHASE_TO_STEP[event.phase]
-
-                if (event.phase === "complete") {
-                  // Mark all remaining as completed
-                  setIsComplete(true)
-                  // Use backend pipeline duration if available for accuracy
-                  const finalElapsed = event.pipelineMs ?? (Date.now() - startTimeRef.current)
-                  setTotalElapsed(finalElapsed)
-                  onResultRef.current?.(event.data)
-                  // Emit pipeline step data for persistence
-                  onPipelineDataRef.current?.(
-                    activeSteps.map(s => ({ id: s.id, label: s.label, status: "completed", elapsed: stepElapsedRef.current[s.id] || 0 })),
-                    finalElapsed,
-                  )
-                } else if (event.phase === "error") {
-                  setIsCancelled(true)
-                  setTotalElapsed(Date.now() - startTimeRef.current)
-                } else if (stepId) {
-                  if (event.status === "started") {
-                    setStepStatuses(s => ({ ...s, [stepId]: "running" }))
-                    const idx = activeSteps.findIndex(st => st.id === stepId)
-                    if (idx >= 0) {
-                      setCurrentStepIndex(idx)
-                      // Use backend timestamp if available, fall back to local clock
-                      stepStartMsRef.current = event.pipelineMs ?? (Date.now() - startTimeRef.current)
-                      stepStartRef.current = Date.now()
-                    }
-                  } else if (event.status === "completed") {
-                    // Use backend-authoritative timing to avoid SSE buffering skew
-                    const elapsed = event.pipelineMs != null
-                      ? event.pipelineMs - stepStartMsRef.current
-                      : Date.now() - stepStartRef.current
-                    setStepStatuses(s => ({ ...s, [stepId]: "completed" }))
-                    setStepElapsed(e => ({ ...e, [stepId]: elapsed }))
-                    stepElapsedRef.current[stepId] = elapsed
-                  } else if (event.status === "failed") {
-                    setStepStatuses(s => ({ ...s, [stepId]: "error" }))
-                  }
-                }
-              } catch { /* skip unparseable lines */ }
-            }
-          }
-        }
-      } catch (e: any) {
-        if (e.name !== "AbortError") {
-          setIsCancelled(true)
-          setTotalElapsed(Date.now() - startTimeRef.current)
-        }
-      }
-    })()
-
-    return () => controller.abort()
-  }, [requestBody, activeSteps])
 
   const runningStep = !isComplete && !isCancelled ? activeSteps[currentStepIndex] : null
 
@@ -800,7 +703,7 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, a
           {!isComplete && !isCancelled && (
             <button
               type="button"
-              onClick={handleCancel}
+              onClick={onCancel}
               className="text-xs text-white/30 hover:text-white/60 transition-colors cursor-pointer outline-none px-3 py-1.5 rounded-full hover:bg-white/[0.04]"
             >
               Cancel
@@ -848,7 +751,7 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, a
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
-              onClick={isCancelled ? onCancel : onClose}
+              onClick={onClose}
               className="h-9 px-4 rounded-full text-sm text-white/50 hover:text-white hover:bg-white/[0.04]"
             >
               Close
@@ -869,7 +772,7 @@ function OptimizationProcessView({ onClose, onCancel, onViewDiff, requestBody, a
   )
 }
 
-function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+function NewOptimizationDialog({ open, onOpenChange, onSaveSuccess, onOptimizingChange, optimizingInfo }: { open: boolean; onOpenChange: (open: boolean) => void; onSaveSuccess?: () => void; onOptimizingChange?: (info: { postTitle: string; status: 'optimizing' | 'complete' | 'error' } | null) => void; optimizingInfo?: { postTitle: string; status: 'optimizing' | 'complete' | 'error' } | null }) {
   const { brandProfile, selectedCountry } = useBrandProfile()
   const brandProfileId = brandProfile?.id
 
@@ -881,7 +784,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [openSelect, setOpenSelect] = useState<string | null>(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set(["query-ai-models", "scrape-citations", "research-stats"]))
-  const [view, setView] = useState<"form" | "process" | "diff">("form")
+  const [view, setView] = useState<"form" | "process" | "diff" | "background">("form")
 
   // Real data from APIs
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([])
@@ -889,11 +792,26 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [icps, setIcps] = useState<IcpProfile[]>([])
   const [loadingData, setLoadingData] = useState(false)
 
-  // SSE state
+  // SSE state — lives at dialog component level so it survives DialogContent unmount/remount
   const [requestBody, setRequestBody] = useState<Record<string, any> | null>(null)
   const [optimizationResult, setOptimizationResult] = useState<any>(null)
   const [pipelineStepsData, setPipelineStepsData] = useState<{ steps: { id: string; label: string; status: string; elapsed: number }[]; totalElapsed: number } | null>(null)
   const [isApplying, setIsApplying] = useState(false)
+  // SSE progress state (lifted from OptimizationProcessView for escape-and-return)
+  const [stepStatuses, setStepStatuses] = useState<Record<string, StepStatus>>({})
+  const [stepElapsed, setStepElapsed] = useState<Record<string, number>>({})
+  const stepElapsedRef = useRef<Record<string, number>>({})
+  const [currentStepIndex, setCurrentStepIndex] = useState(0)
+  const [sseComplete, setSseComplete] = useState(false)
+  const [sseCancelled, setSseCancelled] = useState(false)
+  const [totalElapsed, setTotalElapsed] = useState(0)
+  const sseAbortRef = useRef<AbortController | null>(null)
+  const sseStartTimeRef = useRef(0)
+  const stepStartMsRef = useRef(0)
+  const stepStartRef = useRef(Date.now())
+  const onOptimizingChangeRef = useRef(onOptimizingChange)
+  onOptimizingChangeRef.current = onOptimizingChange
+  const optimizingTitleRef = useRef("")
   const router = useRouter()
 
   // Fetch form data when dialog opens
@@ -923,101 +841,197 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   }, [open, brandProfileId, selectedCountry])
 
   const activeSteps = useMemo(() => getActiveSteps(enabledTools), [enabledTools])
+  const activeStepsRef = useRef(activeSteps)
+  activeStepsRef.current = activeSteps
+
+  // When dialog opens and a background optimization is running (no active SSE), show background view
+  useEffect(() => {
+    if (!open) return
+    const stored = getStoredOptimization()
+    if (stored && !requestBody) {
+      setView("background")
+    }
+  }, [open, requestBody])
+
+  // Auto-close background view when polling detects completion
+  useEffect(() => {
+    if (view === "background" && optimizingInfo === null) {
+      setView("form")
+    }
+  }, [view, optimizingInfo])
+
+  // Tick total elapsed every second while SSE is running
+  useEffect(() => {
+    if (!requestBody || sseComplete || sseCancelled) return
+    const interval = setInterval(() => {
+      setTotalElapsed(Date.now() - sseStartTimeRef.current)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [requestBody, sseComplete, sseCancelled])
+
+  // SSE-driven pipeline (lifted from OptimizationProcessView)
+  useEffect(() => {
+    if (!requestBody) return
+
+    const steps = activeStepsRef.current
+    setStepStatuses({ [steps[0].id]: "running" })
+    sseStartTimeRef.current = Date.now()
+    stepStartRef.current = Date.now()
+
+    const controller = new AbortController()
+    sseAbortRef.current = controller
+
+    ;(async () => {
+      try {
+        const response = await fetch("/api/answer-optimizer/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error(`SSE stream failed with status ${response.status}`)
+        }
+
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ""
+
+        while (reader) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split("\n")
+          buffer = lines.pop() || ""
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              let event: OptimizerSSEEvent
+              try { event = JSON.parse(line.slice(6)) } catch { continue }
+              const stepId = PHASE_TO_STEP[event.phase]
+
+              // Store campaignId for cross-page-navigation resilience
+              if (event.phase === "campaign-created" && event.data?.campaignId) {
+                setStoredOptimization({
+                  campaignId: event.data.campaignId,
+                  startedAt: Date.now(),
+                  postTitle: optimizingTitleRef.current || '',
+                })
+                continue
+              }
+
+              if (event.phase === "complete") {
+                setSseComplete(true)
+                setStoredOptimization(null) // Clear — server already saved the draft
+                const finalElapsed = event.pipelineMs ?? (Date.now() - sseStartTimeRef.current)
+                setTotalElapsed(finalElapsed)
+                setOptimizationResult(event.data)
+                setPipelineStepsData({
+                  steps: steps.map(s => ({ id: s.id, label: s.label, status: "completed", elapsed: stepElapsedRef.current[s.id] || 0 })),
+                  totalElapsed: finalElapsed,
+                })
+                onOptimizingChangeRef.current?.({ postTitle: optimizingTitleRef.current, status: "complete" })
+              } else if (event.phase === "error") {
+                setSseCancelled(true)
+                setStoredOptimization(null) // Clear — server marked it as failed
+                setTotalElapsed(Date.now() - sseStartTimeRef.current)
+                onOptimizingChangeRef.current?.({ postTitle: optimizingTitleRef.current, status: "error" })
+              } else if (stepId) {
+                if (event.status === "started") {
+                  setStepStatuses(s => ({ ...s, [stepId]: "running" }))
+                  const idx = steps.findIndex(st => st.id === stepId)
+                  if (idx >= 0) {
+                    setCurrentStepIndex(idx)
+                    stepStartMsRef.current = event.pipelineMs ?? (Date.now() - sseStartTimeRef.current)
+                    stepStartRef.current = Date.now()
+                  }
+                } else if (event.status === "completed") {
+                  const elapsed = event.pipelineMs != null
+                    ? event.pipelineMs - stepStartMsRef.current
+                    : Date.now() - stepStartRef.current
+                  setStepStatuses(s => ({ ...s, [stepId]: "completed" }))
+                  setStepElapsed(e => ({ ...e, [stepId]: elapsed }))
+                  stepElapsedRef.current[stepId] = elapsed
+                } else if (event.status === "failed") {
+                  setStepStatuses(s => ({ ...s, [stepId]: "error" }))
+                }
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        if (e.name !== "AbortError") {
+          setSseCancelled(true)
+          setTotalElapsed(Date.now() - sseStartTimeRef.current)
+          onOptimizingChangeRef.current?.({ postTitle: optimizingTitleRef.current, status: "error" })
+        }
+      }
+    })()
+
+    return () => controller.abort()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestBody])
+
+  const cancelOptimization = useCallback(() => {
+    sseAbortRef.current?.abort()
+    setSseCancelled(true)
+    setStoredOptimization(null)
+    setTotalElapsed(Date.now() - sseStartTimeRef.current)
+    onOptimizingChangeRef.current?.(null)
+  }, [])
 
   const resetForm = () => {
+    sseAbortRef.current?.abort()
+    sseAbortRef.current = null
     setSelectedPost(""); setSelectedPrompt(""); setSelectedIcp(""); setSelectedTone("")
     setSelectedDepth("")
     setView("form")
     setRequestBody(null)
     setOptimizationResult(null)
+    setPipelineStepsData(null)
+    setStepStatuses({})
+    setStepElapsed({})
+    stepElapsedRef.current = {}
+    setCurrentStepIndex(0)
+    setSseComplete(false)
+    setSseCancelled(false)
+    setTotalElapsed(0)
+    setStoredOptimization(null)
+    onOptimizingChangeRef.current?.(null)
   }
+
+  // Server auto-saves the draft when the pipeline completes, so just refresh the list
+  useEffect(() => {
+    if (!sseComplete || !optimizationResult) return
+    onSaveSuccess?.()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sseComplete, optimizationResult])
 
   const handleApplyChanges = async () => {
     if (!optimizationResult) return
-    setIsApplying(true)
-
-    try {
-      const post = blogPosts.find(p => p.id === selectedPost)
-      const prompt = prompts.find(p => p.id === selectedPrompt)
-      const icpInfo = icps.find(i => i.id === selectedIcp)
-
-      // Build slug from page URL
-      const pageSlug = post?.url?.split("/").filter(Boolean).pop() || ""
-
-      // Convert optimizer schema to contentLabSchema format if schema tool was enabled
-      let contentLabSchema = null
-      let schemaStatus = "none"
-      if (optimizationResult.schemaMarkup?.length > 0) {
-        const combined = optimizationResult.schemaMarkup
-          .map((s: { type: string; jsonLd: string }) => s.jsonLd)
-          .join("\n\n")
-        contentLabSchema = {
-          schemaType: "BlogPosting",
-          scriptTag: `<script type="application/ld+json">\n${combined}\n</script>`,
-          generatedAt: new Date().toISOString(),
-          confidence: 0.85,
-          sourceHash: "",
-        }
-        schemaStatus = "ready"
-      }
-
-      const response = await fetch("/api/campaigns/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: optimizationResult.metadata?.title || post?.title || "Optimized Content",
-          body: optimizationResult.optimizedContent,
-          type: "blog",
-          mode: "optimizer",
-          status: "draft",
-          slug: pageSlug,
-          prompt: prompt?.text || "",
-          icp: icpInfo?.description || "",
-          metadata: {
-            metaDescription: optimizationResult.metadata?.metaDescription || "",
-            sources: optimizationResult.metadata?.sources || [],
-            contentLabSchema,
-            schemaStatus,
-            originalContent: optimizationResult.originalContent || "",
-            optimizerSource: {
-              originalUrl: post?.url || "",
-              promptText: prompt?.text || "",
-              promptCategory: prompt?.category || "",
-              icpName: icpInfo?.name || "",
-              icpDescription: icpInfo?.description || "",
-              voiceTone: selectedTone || "professional",
-              depthLevel: selectedDepth || "moderate",
-              enabledTools: Array.from(enabledTools),
-              originalWordCount: optimizationResult.metadata?.originalWordCount || 0,
-              optimizedWordCount: optimizationResult.metadata?.wordCount || 0,
-              diffStats: optimizationResult.diffStats || {},
-              pipelineSteps: pipelineStepsData?.steps || [],
-              pipelineTotalElapsed: pipelineStepsData?.totalElapsed || 0,
-            },
-          },
-        }),
-      })
-
-      const data = await response.json()
-      if (data.success && data.campaign?.id) {
-        handleClose(false)
-        router.push(`/dashboard/answer-optimizer/${data.campaign.id}`)
-      } else {
-        console.error("Failed to save optimized content:", data.error || 'Unknown error')
-        // Show error inline since toast may not be available
-        alert('Failed to save optimization. Please try again.')
-      }
-    } catch (error) {
-      console.error("Failed to save optimized content:", error)
-      alert('Failed to save optimization. Please try again.')
-    } finally {
-      setIsApplying(false)
-    }
+    // Server already auto-saved the draft — just navigate to it
+    // Find the most recent optimizer campaign from the list
+    resetForm()
+    onOpenChange(false)
+    onSaveSuccess?.()
   }
 
   const handleClose = (v: boolean) => {
     onOpenChange(v)
-    if (!v) resetForm()
+    if (!v) {
+      // Only preserve state if SSE is actively running or background optimization is in progress
+      const isActivelyRunning = requestBody && !sseComplete && !sseCancelled
+      const isBackground = view === "background"
+      if (!isActivelyRunning && !isBackground) resetForm()
+    }
+  }
+
+  // Explicit discard — resets everything and closes dialog
+  const handleDiscard = () => {
+    resetForm()
+    onOpenChange(false)
   }
 
   const canOptimize = selectedPost && selectedPrompt
@@ -1025,6 +1039,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[720px] max-h-[85vh] bg-[#141414] border-white/[0.08] text-white !flex !flex-col overflow-hidden">
+        <DialogTitle className="sr-only">New Optimization</DialogTitle>
         {/* Crossfade wrapper */}
         <div className="relative flex flex-col overflow-hidden min-w-0">
           {/* Process view */}
@@ -1036,13 +1051,45 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             {view === "process" && (
               <OptimizationProcessView
                 onClose={() => handleClose(false)}
-                onCancel={() => handleClose(false)}
+                onCancel={cancelOptimization}
                 onViewDiff={() => setView("diff")}
-                requestBody={requestBody || undefined}
                 activeSteps={activeSteps}
-                onResult={(data) => setOptimizationResult(data)}
-                onPipelineData={(steps, totalElapsed) => setPipelineStepsData({ steps, totalElapsed })}
+                stepStatuses={stepStatuses}
+                stepElapsed={stepElapsed}
+                currentStepIndex={currentStepIndex}
+                isComplete={sseComplete}
+                isCancelled={sseCancelled}
+                totalElapsed={totalElapsed}
               />
+            )}
+          </div>
+
+          {/* Background optimization view — shown when user returns while pipeline runs on server */}
+          <div className={`transition-all duration-300 ease-out ${
+            view === "background"
+              ? "opacity-100 translate-y-0 flex flex-col items-center justify-center h-[min(40vh,320px)]"
+              : "opacity-0 translate-y-2 pointer-events-none absolute inset-0"
+          }`}>
+            {view === "background" && (
+              <div className="flex flex-col items-center gap-4 text-center px-6">
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-full bg-blue-400/10 animate-pulse" />
+                  <Loader2 className="relative size-8 text-blue-400 animate-spin" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white/80">Optimization running in the background</p>
+                  <p className="text-xs text-white/40 mt-1.5 max-w-[320px]">
+                    Your content is being optimized on the server. It will appear in the table when ready.
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  className="mt-2 text-xs text-white/50 hover:text-white/70 hover:bg-white/[0.05]"
+                  onClick={() => handleClose(false)}
+                >
+                  Close
+                </Button>
+              </div>
             )}
           </div>
 
@@ -1055,7 +1102,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             {view === "diff" && (
               <ContentDiffView
                 onBack={() => setView("process")}
-                onClose={() => handleClose(false)}
+                onClose={handleDiscard}
                 onApply={handleApplyChanges}
                 isApplying={isApplying}
                 sections={optimizationResult?.diffSections}
@@ -1093,7 +1140,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           </SelectValue>
                         </div>
                       </SelectTrigger>
-                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg" viewportClassName="max-h-[280px]">
+                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg max-w-[var(--radix-select-trigger-width)]" viewportClassName="max-h-[280px]">
                         {blogPosts.length === 0 ? (
                           <div className="px-3 py-6 text-center">
                             <p className="text-sm text-white/40">No blog posts available</p>
@@ -1102,9 +1149,9 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                         ) : (
                           blogPosts.map((post) => (
                             <SelectItem key={post.id} value={post.id}>
-                              <div className="flex flex-col">
-                                <span className="text-sm">{post.title}</span>
-                                <span className="text-xs text-white/40">{post.url}</span>
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-sm truncate">{post.title}</span>
+                                <span className="text-xs text-white/40 truncate">{post.url}</span>
                               </div>
                             </SelectItem>
                           ))
@@ -1128,7 +1175,7 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           </SelectValue>
                         </div>
                       </SelectTrigger>
-                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg" viewportClassName="max-h-[280px]">
+                      <SelectContent className="bg-[#1b1b1b] border-0 rounded-lg max-w-[var(--radix-select-trigger-width)]" viewportClassName="max-h-[280px]">
                         {prompts.length === 0 ? (
                           <div className="px-3 py-6 text-center">
                             <p className="text-sm text-white/40">No tracked prompts available</p>
@@ -1137,8 +1184,8 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                         ) : (
                           prompts.map((prompt) => (
                             <SelectItem key={prompt.id} value={prompt.id}>
-                              <div className="flex flex-col">
-                                <span className="text-sm">{prompt.text}</span>
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-sm truncate">{prompt.text}</span>
                                 <span className="text-xs text-white/40">{prompt.category}</span>
                               </div>
                             </SelectItem>
@@ -1311,6 +1358,21 @@ function NewOptimizationDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                       onClick={() => {
                         const post = blogPosts.find(p => p.id === selectedPost)
                         const prompt = prompts.find(p => p.id === selectedPrompt)
+                        // Reset SSE state for new run
+                        setStepStatuses({})
+                        setStepElapsed({})
+                        stepElapsedRef.current = {}
+                        setCurrentStepIndex(0)
+                        setSseComplete(false)
+                        setSseCancelled(false)
+                        setTotalElapsed(0)
+                        setOptimizationResult(null)
+                        setPipelineStepsData(null)
+                        // Store title for SSE callbacks
+                        const title = post?.title || "Optimizing..."
+                        optimizingTitleRef.current = title
+                        // Notify parent
+                        onOptimizingChangeRef.current?.({ postTitle: title, status: "optimizing" })
                         setRequestBody({
                           pageUrl: post?.url || '',
                           promptText: prompt?.text || '',
@@ -1392,17 +1454,56 @@ function AnswerOptimizerPageInner() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [optimizations, setOptimizations] = useState<OptimizationRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [optimizingInfo, setOptimizingInfo] = useState<{ postTitle: string; status: 'optimizing' | 'complete' | 'error' } | null>(null)
   const router = useRouter()
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // On mount: check localStorage for in-progress optimization (mirrors Content Lab pattern)
+  useEffect(() => {
+    const stored = getStoredOptimization()
+    if (!stored) return
+
+    // Show "Optimizing..." row immediately
+    setOptimizingInfo({ postTitle: stored.postTitle, status: 'optimizing' })
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/answer-optimizer/status?campaignId=${stored.campaignId}`)
+        if (!res.ok) return // retry next tick
+        const data = await res.json()
+        if (data.status === 'draft') {
+          // Pipeline completed while user was away — refresh list
+          setStoredOptimization(null)
+          setOptimizingInfo(null)
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+          setRefreshKey(k => k + 1)
+        } else if (data.status === 'failed') {
+          setStoredOptimization(null)
+          setOptimizingInfo({ postTitle: stored.postTitle, status: 'error' })
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+        }
+        // 'generating' → keep polling
+      } catch { /* retry next tick */ }
+    }
+
+    poll() // Check immediately on mount
+    pollIntervalRef.current = setInterval(poll, OPTIMIZER_POLL_INTERVAL)
+
+    return () => { if (pollIntervalRef.current) clearInterval(pollIntervalRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const fetchOptimizations = async () => {
-      setIsLoading(true)
+      // Only show skeleton on first load, not background refreshes
+      if (optimizations.length === 0) setIsLoading(true)
       try {
         const res = await fetch("/api/campaigns/save?status=all")
         const data = await res.json()
         if (data.success && data.campaigns) {
           const optimizerCampaigns = data.campaigns
-            .filter((c: any) => c.mode === "optimizer")
+            .filter((c: any) => c.mode === "optimizer" && c.status !== "generating")
             .map((c: any) => {
               const meta = typeof c.metadata === "object" && c.metadata ? c.metadata : {}
               const src = meta.optimizerSource || {}
@@ -1431,7 +1532,8 @@ function AnswerOptimizerPageInner() {
       }
     }
     fetchOptimizations()
-  }, [dialogOpen])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   return (
     <SidebarProvider
@@ -1500,7 +1602,7 @@ function AnswerOptimizerPageInner() {
                     </TableBody>
                   </Table>
                 </div>
-              ) : optimizations.length === 0 ? (
+              ) : optimizations.length === 0 && !optimizingInfo ? (
                 /* Empty State */
                 <div className="flex flex-col items-center justify-center py-20 px-6 rounded-lg border border-white/[0.04] bg-[#0f0f0f]/50">
                   <div aria-hidden="true" className="w-20 space-y-2.5 rounded-lg p-2.5 shadow-lg shadow-black/20 ring-1 ring-white/[0.08] bg-white/[0.04] mb-5">
@@ -1555,6 +1657,62 @@ function AnswerOptimizerPageInner() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {/* In-progress optimization row */}
+                      {optimizingInfo && (
+                        <TableRow
+                          onClick={() => setDialogOpen(true)}
+                          className="border-0 hover:bg-white/[0.03] cursor-pointer group transition-colors"
+                        >
+                          <TableCell className="py-3.5 pl-4 max-w-md">
+                            <div className="flex items-center gap-3">
+                              <div className="relative shrink-0 flex items-center justify-center size-4">
+                                {optimizingInfo.status === 'optimizing' ? (
+                                  <Loader2 className="size-3.5 text-blue-400 animate-spin" />
+                                ) : optimizingInfo.status === 'complete' ? (
+                                  <Check className="size-3.5 text-emerald-400" />
+                                ) : (
+                                  <X className="size-3.5 text-red-400" />
+                                )}
+                              </div>
+                              <span className="text-[13px] font-medium text-white/70 truncate">
+                                {optimizingInfo.postTitle}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3.5 max-w-[180px]">
+                            <span className="text-[12px] text-white/30">—</span>
+                          </TableCell>
+                          <TableCell className="py-3.5">
+                            <span className="text-[12px] text-white/30">—</span>
+                          </TableCell>
+                          <TableCell className="py-3.5">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.05]">
+                              {optimizingInfo.status === 'optimizing' ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />
+                                  <span className="text-[11px] text-white/50 font-medium">Optimizing</span>
+                                </>
+                              ) : optimizingInfo.status === 'complete' ? (
+                                <>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                  <span className="text-[11px] text-white/50 font-medium">Ready to review</span>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                                  <span className="text-[11px] text-white/50 font-medium">Failed</span>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-white/30 tabular-nums">Just now</span>
+                              <ChevronRight className="size-3.5 text-white/10 group-hover:text-white/35 transition-colors shrink-0" />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
                       {optimizations.map((o, idx) => {
                         const sourcePath = o.sourceUrl ? (() => { try { return new URL(o.sourceUrl).pathname } catch { return o.sourceUrl } })() : null
 
@@ -1562,7 +1720,7 @@ function AnswerOptimizerPageInner() {
                           <TableRow
                             key={o.id}
                             onClick={() => router.push(`/dashboard/answer-optimizer/${o.id}`)}
-                            className={`hover:bg-white/[0.03] cursor-pointer group transition-colors ${idx === 0 ? "border-0" : "border-white/[0.04]"}`}
+                            className={`hover:bg-white/[0.03] cursor-pointer group transition-colors ${idx === 0 && !optimizingInfo ? "border-0" : "border-white/[0.04]"}`}
                           >
                             <TableCell className="py-3.5 pl-4 max-w-md">
                               <div className="flex items-center gap-3">
@@ -1608,7 +1766,7 @@ function AnswerOptimizerPageInner() {
         </div>
       </SidebarInset>
 
-      <NewOptimizationDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <NewOptimizationDialog open={dialogOpen} onOpenChange={setDialogOpen} onSaveSuccess={() => setRefreshKey(k => k + 1)} onOptimizingChange={setOptimizingInfo} optimizingInfo={optimizingInfo} />
     </SidebarProvider>
   )
 }

@@ -3,5 +3,5 @@ export function isBlogIndexPage(pageUrl: string): boolean {
   const path = new URL(pageUrl).pathname.replace(/\/+$/, '');
   const segments = path.split('/').filter(Boolean);
   const last = segments[segments.length - 1]?.toLowerCase();
-  return last === 'blog' || last === 'posts' || last === 'articles' || last === 'news';
+  return last === 'blog' || last === 'blogs' || last === 'posts' || last === 'articles' || last === 'news';
 }

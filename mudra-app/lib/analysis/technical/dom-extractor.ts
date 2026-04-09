@@ -63,7 +63,7 @@ export function detectPageType(url: string): PageType {
 
 		// Use strippedPath for all subsequent pattern checks
 		const p = strippedPath;
-		if (/\/(blog|posts?|articles?)($|\/)/.test(p)) return "blog";
+		if (/\/(blogs?|posts?|articles?)($|\/)/.test(p)) return "blog";
 		// Resources before documentation so /ebook/guide doesn't match /guide
 		if (p.includes("/resource") || p.includes("/whitepaper") || p.includes("/ebook") || p.includes("/webinar")) return "resources";
 		if (/\/docs($|\/)/.test(p) || p.includes("/documentation") || p.includes("/help") || /\/guides?($|\/)/.test(p)) return "documentation";

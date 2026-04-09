@@ -44,6 +44,20 @@ async function searchWeb(query: string, limit = 5, maxAgeMonths = 10) {
 
 export const maxDuration = 540;
 
+/** Maps SSE phase names to step IDs/labels for persistence in campaign metadata */
+const STEP_TRACKING: Record<string, { id: string; label: string }> = {
+  'scrape-page': { id: 'scrape', label: 'Scrape Existing Page' },
+  'query-ai': { id: 'query-ai', label: 'Query AI Models' },
+  'scrape-citations': { id: 'scrape-citations', label: 'Deep-Scrape Citations' },
+  'derive-query': { id: 'derive-query', label: 'Derive Core Query' },
+  'faq-research': { id: 'faq-research', label: 'FAQ Research' },
+  'competitor-analysis': { id: 'competitor-analysis', label: 'Competitor Analysis' },
+  'gap-analysis': { id: 'gap-analysis', label: 'Gap Analysis' },
+  'research': { id: 'research', label: 'Fresh Research' },
+  'optimize': { id: 'content-optimization', label: 'Content Optimization' },
+  'finalize': { id: 'finalize', label: 'Finalize & Diff' },
+};
+
 interface ProgressEvent {
   phase: string;
   status: 'started' | 'progress' | 'completed' | 'failed';
@@ -126,10 +140,20 @@ export async function POST(request: NextRequest) {
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
 
+  // Auto-track completed pipeline steps for DB persistence
+  const completedSteps: { id: string; label: string; status: string; elapsed: number }[] = [];
+  let lastStepMs = 0;
+
   const sendEvent = async (event: ProgressEvent) => {
     try {
       event.pipelineMs = Date.now() - pipelineStart;
       await writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      // Track completed steps automatically
+      const tracking = STEP_TRACKING[event.phase];
+      if (event.status === 'completed' && tracking) {
+        completedSteps.push({ id: tracking.id, label: tracking.label, status: 'completed', elapsed: event.pipelineMs - lastStepMs });
+        lastStepMs = event.pipelineMs;
+      }
     } catch { /* writer closed */ }
   };
 
@@ -144,6 +168,31 @@ export async function POST(request: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-floating-promises
   (async () => {
+    // Create a "generating" campaign early so the client can track it across page navigation
+    let campaignId: string | null = null;
+    try {
+      const campaign = await prisma.campaign.create({
+        data: {
+          title: promptText.slice(0, 100) || 'Optimizing...',
+          body: '',
+          type: 'blog',
+          mode: 'optimizer',
+          status: 'generating',
+          slug: '',
+          prompt: promptText,
+          icp: icpDescription || '',
+          userId: authResult.user.id,
+          brandProfileId: parseInt(String(brandProfileId), 10),
+          metadata: {} satisfies Record<string, unknown>,
+        },
+      });
+      campaignId = campaign.id;
+      await sendEvent({ phase: 'campaign-created', status: 'started', data: { campaignId: campaign.id } });
+      console.log(`[AnswerOptimizer ${runId}] Generating campaign created: ${campaign.id}`);
+    } catch (createErr: any) {
+      console.error(`[AnswerOptimizer ${runId}] Failed to create generating campaign:`, createErr.message);
+    }
+
     let stepIndex = 0;
     const totalSteps = 4
       + 1 // faq-research
@@ -589,6 +638,7 @@ IMPORTANT: Run a MAXIMUM of 7 searches. Prioritize sources from the last 12 mont
               OR: [
                 { page_type: { in: ['blog', 'resources', 'customers', 'use-cases', 'product', 'features', 'solutions', 'documentation'] } },
                 { page_url: { contains: '/blog/' } },
+                { page_url: { contains: '/blogs/' } },
                 { page_url: { contains: '/posts/' } },
                 { page_url: { contains: '/articles/' } },
               ],
@@ -867,9 +917,88 @@ Follow ${depthLabel} depth rules strictly.`;
         steps: stepIndex,
       });
 
+      // Update the "generating" campaign to "draft" with the final result
+      try {
+        const pageSlug = new URL(pageUrl).pathname.split('/').filter(Boolean).pop() || '';
+        let contentLabSchema: Record<string, unknown> | null = null;
+        let schemaStatusVal = 'none';
+        if (schemaMarkup.length > 0) {
+          const combined = schemaMarkup.map((s: { type: string; jsonLd: string }) => s.jsonLd).join('\n\n');
+          contentLabSchema = {
+            schemaType: 'BlogPosting',
+            scriptTag: `<script type="application/ld+json">\n${combined}\n</script>`,
+            generatedAt: new Date().toISOString(),
+            confidence: 0.85,
+            sourceHash: '',
+          };
+          schemaStatusVal = 'ready';
+        }
+
+        const enabledToolsList: string[] = [];
+        if (tools.queryAiModels) enabledToolsList.push('query-ai-models');
+        if (tools.scrapeCitations) enabledToolsList.push('scrape-citations');
+        if (tools.freshResearch) enabledToolsList.push('research-stats');
+        if (tools.competitorAnalysis) enabledToolsList.push('competitor-analysis');
+        if (tools.internalLinks) enabledToolsList.push('internal-links');
+        if (tools.schemaMarkup) enabledToolsList.push('schema-markup');
+
+        const draftData = {
+          title: optimizationResult.metadata?.title || pageSlug.replace(/-/g, ' ') || 'Optimized Content',
+          body: optimizationResult.optimizedContent,
+          status: 'draft',
+          slug: pageSlug,
+          metadata: {
+            metaDescription: optimizationResult.metadata?.metaDescription || '',
+            sources: optimizationResult.metadata?.sources || [],
+            contentLabSchema,
+            schemaStatus: schemaStatusVal,
+            originalContent: originalMarkdown,
+            optimizerSource: {
+              originalUrl: pageUrl,
+              promptText,
+              promptCategory: '',
+              icpName: '',
+              icpDescription: icpDescription || '',
+              voiceTone,
+              depthLevel,
+              enabledTools: enabledToolsList,
+              originalWordCount,
+              optimizedWordCount,
+              diffStats,
+              pipelineSteps: completedSteps,
+              pipelineTotalElapsed: Date.now() - pipelineStart,
+            },
+          } satisfies Record<string, unknown>,
+        };
+
+        if (campaignId) {
+          await prisma.campaign.update({ where: { id: campaignId }, data: draftData });
+        } else {
+          // Fallback: create if the initial generating campaign failed
+          await prisma.campaign.create({
+            data: {
+              ...draftData,
+              type: 'blog',
+              mode: 'optimizer',
+              prompt: promptText,
+              icp: icpDescription || '',
+              userId: authResult.user.id,
+              brandProfileId: parseInt(String(brandProfileId), 10),
+            },
+          });
+        }
+        console.log(`[AnswerOptimizer ${runId}] Draft saved to DB (campaignId: ${campaignId || 'new'})`);
+      } catch (saveErr: any) {
+        console.error(`[AnswerOptimizer ${runId}] Failed to save draft:`, saveErr.message);
+      }
+
     } catch (err: any) {
       console.error(`[AnswerOptimizer ${runId}] Pipeline FAILED at ${elapsed()}:`, err.message || err);
       await sendEvent({ phase: 'error', status: 'failed', message: err.message || 'Pipeline failed' });
+      // Mark the generating campaign as failed
+      if (campaignId) {
+        try { await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'failed' } }); } catch { /* best effort */ }
+      }
     } finally {
       try { await writer.close(); } catch { /* already closed */ }
     }

@@ -116,31 +116,6 @@ const ContentLabIcon = forwardRef<SVGSVGElement, LucideProps>(
 
 ContentLabIcon.displayName = "ContentLabIcon"
 
-// Custom Answer Optimizer Icon Component
-const AnswerOptimizerIcon = forwardRef<SVGSVGElement, LucideProps>(
-  ({ className, ...props }, ref) => (
-    <svg
-      ref={ref}
-      width="15"
-      height="15"
-      viewBox="0 0 15 15"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      {...props}
-    >
-      <path
-        d="M5 3.5C5 3.22386 5.22386 3 5.5 3H12.5C12.7761 3 13 3.22386 13 3.5C13 3.77614 12.7761 4 12.5 4H5.5C5.22386 4 5 3.77614 5 3.5ZM1 3.5C1 3.22386 1.22386 3 1.5 3H2.5C2.77614 3 3 3.22386 3 3.5C3 3.77614 2.77614 4 2.5 4H1.5C1.22386 4 1 3.77614 1 3.5ZM1 7.5C1 7.22386 1.22386 7 1.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H1.5C1.22386 8 1 7.77614 1 7.5ZM11 7.5C11 7.22386 11.2239 7 11.5 7H13.5C13.7761 7 14 7.22386 14 7.5C14 7.77614 13.7761 8 13.5 8H11.5C11.2239 8 11 7.77614 11 7.5ZM1 11.5C1 11.2239 1.22386 11 1.5 11H5.5C5.77614 11 6 11.2239 6 11.5C6 11.7761 5.77614 12 5.5 12H1.5C1.22386 12 1 11.7761 1 11.5ZM8 11.5C8 11.2239 8.22386 11 8.5 11H13.5C13.7761 11 14 11.2239 14 11.5C14 11.7761 13.7761 12 13.5 12H8.5C8.22386 12 8 11.7761 8 11.5ZM3.75 2.5C3.75 2.08579 4.08579 1.75 4.5 1.75C4.91421 1.75 5.25 2.08579 5.25 2.5V4.5C5.25 4.91421 4.91421 5.25 4.5 5.25C4.08579 5.25 3.75 4.91421 3.75 4.5V2.5ZM9 6.5C9 6.08579 9.33579 5.75 9.75 5.75C10.1642 5.75 10.5 6.08579 10.5 6.5V8.5C10.5 8.91421 10.1642 9.25 9.75 9.25C9.33579 9.25 9 8.91421 9 8.5V6.5ZM6.75 9.75C6.33579 9.75 6 10.0858 6 10.5V12.5C6 12.9142 6.33579 13.25 6.75 13.25C7.16421 13.25 7.5 12.9142 7.5 12.5V10.5C7.5 10.0858 7.16421 9.75 6.75 9.75Z"
-        fill="currentColor"
-        fillRule="evenodd"
-        clipRule="evenodd"
-      />
-    </svg>
-  )
-)
-
-AnswerOptimizerIcon.displayName = "AnswerOptimizerIcon"
-
 // Custom Agent Lab Icon Component
 const AgentLabIcon = forwardRef<SVGSVGElement, LucideProps>(
   ({ className, ...props }, ref) => (
@@ -244,6 +219,7 @@ import {
 } from "@/components/ui/avatar"
 import { DomainLogo } from "@/components/ui/company-logo"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { AnswerOptimizerIcon } from "@/components/icons"
 import { trackEvent } from "@/lib/analytics/posthog-events"
 
 // Interface for company data

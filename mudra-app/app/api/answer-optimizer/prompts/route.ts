@@ -6,7 +6,10 @@ import { getLanguageForCountry, isAllowedCountry, type CountryCode } from '@/lib
 export async function GET(request: NextRequest) {
   const brandProfileId = request.nextUrl.searchParams.get('brandProfileId');
   if (!brandProfileId) {
-    return NextResponse.json({ error: 'brandProfileId required' }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: { message: 'brandProfileId required' } },
+      { status: 400 }
+    );
   }
 
   const authResult = await requireAuthWithBrandAccess(brandProfileId);

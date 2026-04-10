@@ -172,6 +172,15 @@ export async function executeWeeklyAnalysis(options: ExecuteAnalysisOptions = {}
             throw new Error(result.error || 'Unknown error');
           }
 
+          // Await background country jobs (e.g. CO when trackingCountries = ['AR','CO']).
+          // Without this, queued jobs are dangling Promises that get killed when the
+          // Vercel function sends its HTTP response, leaving analysis runs stuck "running".
+          if (result.backgroundWork) {
+            console.log(`⏳ [CRON] Waiting for background country jobs to complete for ${profile.companyName}...`);
+            await result.backgroundWork;
+            console.log(`✅ [CRON] Background country jobs completed for ${profile.companyName}`);
+          }
+
           succeeded = true;
           log.successful++;
           console.log(`✅ [CRON] Successfully analyzed ${profile.companyName} on attempt ${attempt}/${ANALYSIS_RETRY_CONFIG.maxAttempts}`);

@@ -2521,6 +2521,9 @@ function calculateBrandMetrics(tests: PromptTest[]): {
   sentiment: 'positive' | 'neutral' | 'negative';
 } {
   const totalTests = tests.length;
+  if (totalTests === 0) {
+    return { visibilityScore: 0, averagePosition: 0, mentionRate: 0, sentiment: 'neutral' };
+  }
   const mentionedTests = tests.filter(t => t.brandMentioned);
   const mentionRate = mentionedTests.length / totalTests;
   
@@ -2565,8 +2568,12 @@ function generateRecommendations(
   analyses: ProviderAnalysis[]
 ): string[] {
   const recommendations: string[] = [];
-  const overallMentionRate = analyses.reduce((sum, a) => sum + a.mentionRate, 0) / analyses.length;
-  const overallScore = analyses.reduce((sum, a) => sum + a.brandVisibilityScore, 0) / analyses.length;
+  const overallMentionRate = analyses.length > 0
+    ? analyses.reduce((sum, a) => sum + (Number.isFinite(a.mentionRate) ? a.mentionRate : 0), 0) / analyses.length
+    : 0;
+  const overallScore = analyses.length > 0
+    ? analyses.reduce((sum, a) => sum + (Number.isFinite(a.brandVisibilityScore) ? a.brandVisibilityScore : 0), 0) / analyses.length
+    : 0;
 
   if (overallMentionRate < 0.3) {
     recommendations.push(`Increase content marketing and thought leadership to improve AI model awareness of ${config.brandName}`);
@@ -2881,10 +2888,11 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
   // Sort by share of voice
   competitorStats.sort((a, b) => b.shareOfVoice - a.shareOfVoice);
 
-  // Calculate overall score
-  const overallScore = Math.round(
-    analyses.reduce((sum, a) => sum + a.brandVisibilityScore, 0) / analyses.length
-  );
+  // Calculate overall score (guard against NaN from providers with 0 tests)
+  const validScores = analyses.map(a => Number.isFinite(a.brandVisibilityScore) ? a.brandVisibilityScore : 0);
+  const overallScore = validScores.length > 0
+    ? Math.round(validScores.reduce((sum, s) => sum + s, 0) / validScores.length)
+    : 0;
 
   // Generate recommendations
   const recommendations = generateRecommendations(config, analyses);

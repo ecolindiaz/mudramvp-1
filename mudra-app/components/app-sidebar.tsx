@@ -706,9 +706,9 @@ export const AppSidebar = React.memo(function AppSidebar({ ...props }: React.Com
                 <button
                   type="button"
                   className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/[0.06] transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-                  aria-label={`Current region: ${REGIONS.find(r => r.code === selectedCountry)?.label || selectedCountry}. Click to change.`}
+                  aria-label={`Current region: ${REGIONS.find(r => r.code === (isMounted ? selectedCountry : 'US'))?.label || selectedCountry}. Click to change.`}
                 >
-                  <CircleFlag countryCode={selectedCountry.toLowerCase()} height="18" width="18" className="flex-shrink-0" style={{ width: 18, height: 18 }} />
+                  <CircleFlag countryCode={(isMounted ? selectedCountry : 'US').toLowerCase()} height="18" width="18" className="flex-shrink-0" style={{ width: 18, height: 18 }} />
                 </button>
               </PopoverTrigger>
               <PopoverContent

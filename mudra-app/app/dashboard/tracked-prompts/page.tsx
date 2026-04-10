@@ -490,6 +490,8 @@ function TrackedPromptsPageInner() {
   // Filter states
   const [selectedModel, setSelectedModel] = useState<string>("all")
   const [selectedIntent, setSelectedIntent] = useState<string>("all")
+  // Stable list of all models (only updated from unfiltered fetches)
+  const [allModels, setAllModels] = useState<string[]>([])
   
   // Create columns with router access
   const columns = useMemo(() => createColumns(router, selectedCountry), [router, selectedCountry])
@@ -520,8 +522,19 @@ function TrackedPromptsPageInner() {
   const fetchAbortRef = useRef<AbortController | null>(null)
   const latestFetchRequestIdRef = useRef(0)
   const hasCompletedFirstFetchRef = useRef(false)
+  const prevCountryRef = useRef(selectedCountry)
 
   const isLoading = isInitialLoading || isRefreshing
+
+  // Reset filters when region changes so the first fetch is unfiltered
+  // and allModels repopulates with the new region's models
+  useEffect(() => {
+    if (prevCountryRef.current !== selectedCountry) {
+      prevCountryRef.current = selectedCountry
+      setSelectedModel('all')
+      setSelectedIntent('all')
+    }
+  }, [selectedCountry])
 
   // Load persisted recommendations when profile becomes available
   useEffect(() => {
@@ -614,6 +627,27 @@ function TrackedPromptsPageInner() {
 
         setData(transformedData)
         setErrorMessage(null)
+
+        // Update available models list only from unfiltered fetches
+        if (selectedModel === 'all') {
+          const normalize = (m: string): string => {
+            const lower = m.toLowerCase()
+            if (lower.includes('openai') || lower.includes('gpt') || lower.includes('chatgpt')) return 'ChatGPT'
+            if (lower.includes('claude') || lower.includes('anthropic')) return 'Claude'
+            if (lower.includes('gemini') || lower.includes('google')) return 'Gemini'
+            if (lower.includes('perplexity')) return 'Perplexity'
+            return m
+          }
+          const models: string[] = []
+          transformedData.forEach(item => {
+            if (item.models && item.models.length > 0) {
+              item.models.forEach(m => models.push(normalize(m)))
+            } else if (item.model) {
+              models.push(normalize(item.model))
+            }
+          })
+          setAllModels(Array.from(new Set(models)).sort())
+        }
       } else if (!result.hasAnalysis) {
         console.warn('⚠️  No analysis run yet for this brand')
         setData([])
@@ -657,30 +691,9 @@ function TrackedPromptsPageInner() {
     })
   }, [data, selectedIntent])
 
-  // Get unique models and intents for filter dropdowns
-  // Normalize model names to handle duplicates like "Openai" vs "openai" vs "ChatGPT"
-  const normalizeModelName = (model: string): string => {
-    const lower = model.toLowerCase()
-    if (lower.includes('openai') || lower.includes('gpt') || lower.includes('chatgpt')) return 'ChatGPT'
-    if (lower.includes('claude') || lower.includes('anthropic')) return 'Claude'
-    if (lower.includes('gemini') || lower.includes('google')) return 'Gemini'
-    if (lower.includes('perplexity')) return 'Perplexity'
-    return model
-  }
-
-  const availableModels = useMemo(() => {
-    // Collect all models from all prompts (using models array)
-    const allModels: string[] = []
-    data.forEach(item => {
-      if (item.models && item.models.length > 0) {
-        item.models.forEach(m => allModels.push(normalizeModelName(m)))
-      } else if (item.model) {
-        allModels.push(normalizeModelName(item.model))
-      }
-    })
-    const models = Array.from(new Set(allModels))
-    return models.sort()
-  }, [data])
+  // Use the stable allModels state (populated from unfiltered fetches)
+  // so the dropdown always shows every model regardless of the active filter
+  const availableModels = allModels
 
   const availableIntents = useMemo(() => {
     const intents = Array.from(new Set(data.map(item => item.intent).filter((i): i is string => Boolean(i))))

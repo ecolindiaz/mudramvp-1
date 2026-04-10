@@ -48,6 +48,16 @@ function hashHtml(html: string): string {
 }
 
 /**
+ * Normalizes whitespace in extracted text to ensure deterministic output.
+ * Cheerio/.text() can produce varying amounts of internal whitespace depending
+ * on how the HTML was rendered/minified by the crawler. Collapsing all runs of
+ * whitespace to a single space makes answer_length stable across crawls.
+ */
+function normalizeText(text: string): string {
+	return text.replace(/\s+/g, " ").trim();
+}
+
+/**
  * Detects page type based on URL patterns
  */
 export function detectPageType(url: string): PageType {
@@ -526,10 +536,10 @@ function extractFAQsFromDetails($: CheerioAPI): FAQItem[] {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const extractDetail = (_: number, el: any) => {
-		const summary = $(el).find("summary").first().text().trim();
+		const summary = normalizeText($(el).find("summary").first().text());
 		const detailsClone = $(el).clone();
 		detailsClone.find("summary").remove();
-		const content = detailsClone.text().trim();
+		const content = normalizeText(detailsClone.text());
 
 		if (summary && content) {
 			faqs.push({
@@ -574,8 +584,8 @@ function extractFAQsFromPatterns($: CheerioAPI): FAQItem[] {
 	let match;
 
 	while ((match = qaPattern.exec(text)) !== null) {
-		const question = match[1].trim();
-		const answer = match[2].trim();
+		const question = normalizeText(match[1]);
+		const answer = normalizeText(match[2]);
 		if (question && answer && question.length > 5 && answer.length > 10) {
 			faqs.push({
 				question,
@@ -633,8 +643,8 @@ function extractFAQsFromAccordion($: CheerioAPI): FAQItem[] {
 			// Get question from button's span or direct text
 			const questionEl = $(button).find("span").first();
 			const question = questionEl.length
-				? questionEl.text().trim()
-				: $(button).clone().children("svg, div:has(svg)").remove().end().text().trim();
+				? normalizeText(questionEl.text())
+				: normalizeText($(button).clone().children("svg, div:has(svg)").remove().end().text());
 
 			if (!question || question.length < 5) return;
 
@@ -646,7 +656,7 @@ function extractFAQsFromAccordion($: CheerioAPI): FAQItem[] {
 			const answerContainer = parent.children("div").last();
 			if (answerContainer.length && !answerContainer.find("button").length) {
 				const answerP = answerContainer.find("p").first();
-				answer = answerP.length ? answerP.text().trim() : answerContainer.text().trim();
+				answer = answerP.length ? normalizeText(answerP.text()) : normalizeText(answerContainer.text());
 			}
 
 			if (question && answer && answer.length > 10) {
@@ -706,25 +716,25 @@ function extractFAQsFromQuestionHeadings($: CheerioAPI): FAQItem[] {
 
 	faqContainers.each((_containerIndex, container) => {
 		$(container).find("h2, h3, h4").each((_headingIndex, heading) => {
-			const question = $(heading).text().trim();
+			const question = normalizeText($(heading).text());
 
 			// Must end with ?
 			if (!question.endsWith("?")) return;
 
 			// Get following content until next heading
-			let answer = "";
+			const parts: string[] = [];
 			let next = $(heading).next();
 
 			while (next.length && !next.is("h1, h2, h3, h4, h5, h6")) {
 				if (next.is("p, div, ul, ol")) {
-					answer += next.text().trim() + " ";
+					parts.push(normalizeText(next.text()));
 				}
 				next = next.next();
 			}
 
-			answer = answer.trim();
+			const answer = parts.join(" ").trim();
 
-			if (question && answer && question.length > 10 && answer.length > 20) {
+			if (question && answer && question.length > 10 && answer.length > 10) {
 				faqs.push({
 					question,
 					answer,
@@ -771,8 +781,8 @@ function extractFAQsFromTextHeadings($: CheerioAPI): FAQItem[] {
 			current.find("button").each((_btnIdx, button) => {
 				const questionEl = $(button).find("span").first();
 				const question = questionEl.length
-					? questionEl.text().trim()
-					: $(button).clone().children("svg, div:has(svg), [class*='icon']").remove().end().text().trim();
+					? normalizeText(questionEl.text())
+					: normalizeText($(button).clone().children("svg, div:has(svg), [class*='icon']").remove().end().text());
 
 				if (!question || question.length < 5) return;
 
@@ -781,7 +791,7 @@ function extractFAQsFromTextHeadings($: CheerioAPI): FAQItem[] {
 				let answer = "";
 				if (answerContainer.length && !answerContainer.find("button").length) {
 					const answerP = answerContainer.find("p").first();
-					answer = answerP.length ? answerP.text().trim() : answerContainer.text().trim();
+					answer = answerP.length ? normalizeText(answerP.text()) : normalizeText(answerContainer.text());
 				}
 
 				// Under an explicit FAQ heading, include items even without extracted answers
@@ -805,18 +815,18 @@ function extractFAQsFromTextHeadings($: CheerioAPI): FAQItem[] {
 
 			// Pattern B: headings (h3/h4) with question text followed by answer paragraphs
 			current.find("h3, h4, h5").each((_hIdx, subHeading) => {
-				const question = $(subHeading).text().trim();
+				const question = normalizeText($(subHeading).text());
 				if (question.length < 5) return;
 
-				let answer = "";
+				const parts: string[] = [];
 				let nextSib = $(subHeading).next();
 				while (nextSib.length && !nextSib.is("h1, h2, h3, h4, h5, h6")) {
 					if (nextSib.is("p, div, ul, ol")) {
-						answer += nextSib.text().trim() + " ";
+						parts.push(normalizeText(nextSib.text()));
 					}
 					nextSib = nextSib.next();
 				}
-				answer = answer.trim();
+				const answer = parts.join(" ").trim();
 
 				// Under an explicit FAQ heading, include items even without extracted answers
 				if (question && answer && answer.length > 10) {
@@ -838,9 +848,9 @@ function extractFAQsFromTextHeadings($: CheerioAPI): FAQItem[] {
 
 			// Pattern C: dt/dd pairs (definition list)
 			current.find("dt").each((_dtIdx, dt) => {
-				const question = $(dt).text().trim();
+				const question = normalizeText($(dt).text());
 				const dd = $(dt).next("dd");
-				const answer = dd.text().trim();
+				const answer = normalizeText(dd.text());
 
 				if (question && answer && question.length > 5 && answer.length > 10) {
 					faqs.push({
@@ -881,7 +891,7 @@ function extractFAQsFromDataAttributes($: CheerioAPI): FAQItem[] {
 	containers.each((_containerIdx, container) => {
 		// Sub-strategy 1: Framer RichTextContainer paragraphs
 		$(container).find('[data-framer-component-type="RichTextContainer"] > p').each((_idx, el) => {
-			const text = $(el).text().trim();
+			const text = normalizeText($(el).text());
 			if (text.length < 10) return;
 
 			// Look for an answer in an "Open" sibling container (SSR-rendered expanded state)
@@ -890,7 +900,7 @@ function extractFAQsFromDataAttributes($: CheerioAPI): FAQItem[] {
 			const openContainer = parent.find('[data-framer-name="Open"]');
 			if (openContainer.length) {
 				const answerP = openContainer.find('p').first();
-				answer = answerP.length ? answerP.text().trim() : openContainer.text().trim();
+				answer = answerP.length ? normalizeText(answerP.text()) : normalizeText(openContainer.text());
 			}
 
 			faqs.push({
@@ -908,7 +918,7 @@ function extractFAQsFromDataAttributes($: CheerioAPI): FAQItem[] {
 		$(container).find('[tabindex="0"], [role="button"]').each((_idx, el) => {
 			// Skip if this is a top-level container itself
 			if (el === container) return;
-			const text = $(el).text().trim();
+			const text = normalizeText($(el).text());
 			if (text.length < 10) return;
 			// Skip elements that are likely icons or SVG wrappers
 			if ($(el).find('svg').length > 0 && text.length < 15) return;
@@ -917,7 +927,7 @@ function extractFAQsFromDataAttributes($: CheerioAPI): FAQItem[] {
 			const sibling = $(el).next('div');
 			if (sibling.length) {
 				const answerP = sibling.find('p').first();
-				answer = answerP.length ? answerP.text().trim() : sibling.text().trim();
+				answer = answerP.length ? normalizeText(answerP.text()) : normalizeText(sibling.text());
 			}
 
 			faqs.push({
@@ -933,7 +943,7 @@ function extractFAQsFromDataAttributes($: CheerioAPI): FAQItem[] {
 
 		// Sub-strategy 3: Fallback — SSR-variant or data-framer-name paragraphs
 		$(container).find('.ssr-variant p, [data-framer-name] p').each((_idx, el) => {
-			const text = $(el).text().trim();
+			const text = normalizeText($(el).text());
 			if (text.length < 10) return;
 
 			faqs.push({
@@ -1000,8 +1010,12 @@ function extractFAQs($: CheerioAPI): FAQExtraction {
 	// Confidence threshold for non-schema FAQs:
 	// JSON-LD FAQs are always trusted (the site explicitly declared them).
 	// For DOM-extracted FAQs, require at least 2 items AND at least one
-	// substantive answer (>= 20 chars) to avoid false positives from
-	// accordion-like UI elements that aren't actually FAQs.
+	// substantive answer (>= 10 chars after whitespace normalization) to avoid
+	// false positives from accordion-like UI elements that aren't actually FAQs.
+	// The threshold is 10 (not 20) so that short-but-real answers like "Yes, we do."
+	// pass reliably. All text is normalised via normalizeText() before measuring,
+	// making answer_length deterministic across crawls regardless of how the
+	// source HTML was whitespace-encoded by the crawler.
 	// Exceptions that bypass the answer-length requirement:
 	// 1. Items from an explicitly FAQ-named data-attribute container
 	//    (e.g. data-framer-name="FAQ") — Framer SSR pages render questions without answers.
@@ -1010,7 +1024,7 @@ function extractFAQs($: CheerioAPI): FAQExtraction {
 	const domFaqs = combined.filter(f => f.source !== "jsonld");
 	const hasJsonLdFaqs = jsonldFaqs.length > 0;
 	const domFaqsPassThreshold =
-		domFaqs.length >= 2 && domFaqs.some(f => f.answer_length >= 20);
+		domFaqs.length >= 2 && domFaqs.some(f => f.answer_length >= 10);
 	const questionsOnlyFromExplicitContainer = dataAttrFaqs.length >= 2;
 	const questionsUnderExplicitFaqHeading = textHeadingFaqs.length >= 2;
 	const hasFaqContent = hasJsonLdFaqs || domFaqsPassThreshold || questionsOnlyFromExplicitContainer || questionsUnderExplicitFaqHeading;

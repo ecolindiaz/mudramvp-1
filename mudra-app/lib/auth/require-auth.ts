@@ -10,6 +10,10 @@ import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
 import { getDefaultBrandProfileIdForUser, getUserBrandAccessRole } from '@/lib/services/team-members.service';
 
+type GlobalWithAuthWarnings = typeof globalThis & {
+  __mudraInternalApiSecretWarningLogged?: boolean;
+};
+
 export interface AuthenticatedUser {
   id: string;
   email: string;
@@ -251,7 +255,11 @@ export function validateInternalApiSecret(authHeader: string | null): boolean {
   const apiSecret = process.env.INTERNAL_API_SECRET;
   
   if (!apiSecret) {
-    console.error('[Auth] INTERNAL_API_SECRET not configured');
+    const g = globalThis as GlobalWithAuthWarnings;
+    if (!g.__mudraInternalApiSecretWarningLogged) {
+      console.error('[Auth] INTERNAL_API_SECRET not configured');
+      g.__mudraInternalApiSecretWarningLogged = true;
+    }
     return false;
   }
 

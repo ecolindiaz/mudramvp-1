@@ -275,11 +275,21 @@ async function checkAuditLogTable(): Promise<boolean> {
     g.__mudraAuditTableCheckedAt = now;
     return true;
   } catch (error) {
-    // Table doesn't exist yet or Prisma client not regenerated
-    console.warn('[Audit] AuditLog table check failed. Run: npx prisma generate && npx prisma migrate dev');
-    g.__mudraAuditTableExists = false;
+    // Pool timeout should be handled by caller retry logic, not treated as table absence.
+    if (isPrismaErrorCode(error, 'P2024')) {
+      throw error;
+    }
+
+    if (isPrismaErrorCode(error, 'P2021')) {
+      console.warn('[Audit] AuditLog table check failed. Run: npx prisma generate && npx prisma migrate dev');
+      g.__mudraAuditTableExists = false;
+      g.__mudraAuditTableCheckedAt = now;
+      return false;
+    }
+
+    console.warn('[Audit] AuditLog table check failed unexpectedly; preserving previous table state.');
     g.__mudraAuditTableCheckedAt = now;
-    return false;
+    return g.__mudraAuditTableExists ?? false;
   }
 }
 

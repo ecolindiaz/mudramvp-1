@@ -148,15 +148,19 @@ export async function PATCH(
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
           if (appUrl) {
             const baseUrl = appUrl.startsWith('http') ? appUrl : `https://${appUrl}`;
-            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-            if (process.env.INTERNAL_API_SECRET) {
-              headers['Authorization'] = `Bearer ${process.env.INTERNAL_API_SECRET}`;
+            if (!process.env.INTERNAL_API_SECRET) {
+              console.error('[MonitorCountries] INTERNAL_API_SECRET not configured; queue processing trigger skipped.');
+            } else {
+              const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${process.env.INTERNAL_API_SECRET}`,
+              };
+              fetch(`${baseUrl}/api/analysis/process-queue`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ brandProfileId }),
+              }).catch(() => {});
             }
-            fetch(`${baseUrl}/api/analysis/process-queue`, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ brandProfileId }),
-            }).catch(() => {});
           }
         } catch (queueError) {
           console.warn('[MonitorCountries] Queue creation failed (non-fatal):', queueError);

@@ -24,7 +24,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Allow either user auth OR internal API secret (for self-chaining calls)
-    const isInternalCall = validateInternalApiSecret(req.headers.get('authorization'));
+    const authorizationHeader = req.headers.get('authorization');
+    const isInternalCall = authorizationHeader
+      ? validateInternalApiSecret(authorizationHeader)
+      : false;
     if (!isInternalCall) {
       const authResult = await requireAuthWithBrandAccess(brandProfileId);
       if (!authResult.success) {
@@ -38,6 +41,10 @@ export async function POST(req: NextRequest) {
 
     // Self-chain: if more jobs remain, trigger another call (fire-and-forget)
     if (hasMore) {
+      if (!process.env.INTERNAL_API_SECRET) {
+        console.error('[ProcessQueue] INTERNAL_API_SECRET not configured; remaining jobs cannot self-chain.');
+      }
+
       const baseUrl = req.nextUrl.origin;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (process.env.INTERNAL_API_SECRET) {

@@ -1,9 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import type { TasksSummary, Delta } from "@/lib/analysis/nlr/types";
-
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-const prisma: PrismaClient = globalForPrisma.prisma ?? new PrismaClient();
-if (!globalForPrisma.prisma) globalForPrisma.prisma = prisma;
 
 function ratioDelta(current: number | null, previous: number | null): Delta<number> {
   if (current == null && previous == null) return { current: null, previous: null, absolute: null, relative: null, direction: "flat", notable: false };

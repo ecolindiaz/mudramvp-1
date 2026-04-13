@@ -110,14 +110,8 @@
   function trackVisit(data) {
     console.log('[Mudra] Sending tracking data to:', API_ENDPOINT);
     console.log('[Mudra] Data:', JSON.stringify(data, null, 2));
-    
-    // Use sendBeacon for reliability (works even when page unloads)
-    if (navigator.sendBeacon) {
-      var blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-      var sent = navigator.sendBeacon(API_ENDPOINT, blob);
-      console.log('[Mudra] Beacon sent:', sent);
-    } else {
-      // Fallback to fetch
+
+    function sendWithFetch() {
       fetch(API_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -134,6 +128,27 @@
       .catch(function(err) {
         console.error('[Mudra] Tracking failed:', err);
       });
+    }
+    
+    // Use sendBeacon for reliability (works even when page unloads)
+    if (navigator.sendBeacon) {
+      try {
+        var blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+        var sent = navigator.sendBeacon(API_ENDPOINT, blob);
+        console.log('[Mudra] Beacon sent:', sent);
+
+        // Some browsers/extensions return false and drop the beacon.
+        if (!sent) {
+          console.warn('[Mudra] sendBeacon returned false, falling back to fetch');
+          sendWithFetch();
+        }
+      } catch (err) {
+        console.warn('[Mudra] sendBeacon threw, falling back to fetch:', err);
+        sendWithFetch();
+      }
+    } else {
+      // Fallback to fetch
+      sendWithFetch();
     }
   }
   

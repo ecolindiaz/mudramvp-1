@@ -235,7 +235,7 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
     } catch (error) {
       console.error('Verification error:', error)
       setVerificationStatus('failed')
-      setVerificationMessage('Failed to verify. Please ensure GitHub is connected.')
+      setVerificationMessage('Failed to verify. Please make sure your site is published and try again.')
     }
   }
 
@@ -1434,6 +1434,12 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
                       <AlertCircle className="size-4 text-red-400" />
                       <span className="text-xs text-red-400">Not detected</span>
                     </div>
+                  )}
+
+                  {verificationMessage && (
+                    <p className={`text-[11px] leading-relaxed ${verificationStatus === 'failed' ? 'text-red-300/90' : 'text-emerald-300/90'}`}>
+                      {verificationMessage}
+                    </p>
                   )}
 
                   {(verificationStatus === 'idle' || verificationStatus === 'verifying' || verificationStatus === 'failed') && (

@@ -9,7 +9,7 @@ import {
   canAddCustomPrompt,
   PROMPT_LIMITS
 } from '@/lib/services/prompt-storage.service'
-import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { requireAuth, requireAuthWithBrandAccess, verifyBrandProfileAccess } from '@/lib/auth/require-auth'
 import { prisma } from '@/lib/prisma'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 import { runSinglePromptAnalysis } from '@/lib/services/single-prompt-analysis.service'
@@ -152,7 +152,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     // Require authentication
-    const authResult = await requireAuthWithBrandAccess(null)
+    const authResult = await requireAuth()
     if (!authResult.success) {
       return authResult.response
     }
@@ -180,11 +180,9 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    if (existingPrompt.brandProfileId !== authResult.brandProfileId) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      )
+    const accessResult = await verifyBrandProfileAccess(authResult.user, existingPrompt.brandProfileId)
+    if (!accessResult.allowed) {
+      return accessResult.response!
     }
 
     const updates: any = {}
@@ -240,7 +238,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     // Require authentication
-    const authResult = await requireAuthWithBrandAccess(null)
+    const authResult = await requireAuth()
     if (!authResult.success) {
       return authResult.response
     }
@@ -268,11 +266,9 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    if (existingPrompt.brandProfileId !== authResult.brandProfileId) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      )
+    const accessResult = await verifyBrandProfileAccess(authResult.user, existingPrompt.brandProfileId)
+    if (!accessResult.allowed) {
+      return accessResult.response!
     }
 
     const prompt = await deletePrompt(parseInt(promptId))

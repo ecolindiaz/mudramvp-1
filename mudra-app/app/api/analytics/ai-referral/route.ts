@@ -3,6 +3,26 @@ import { prisma } from '@/lib/prisma'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 
+function getDeviceType(userAgent: string | null): 'desktop' | 'mobile' | 'tablet' | 'bot' | 'unknown' {
+  if (!userAgent) return 'unknown'
+
+  const ua = userAgent.toLowerCase()
+
+  if (ua.includes('bot') || ua.includes('crawler') || ua.includes('spider') || ua.includes('headless')) {
+    return 'bot'
+  }
+
+  if (ua.includes('ipad') || ua.includes('tablet')) {
+    return 'tablet'
+  }
+
+  if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone')) {
+    return 'mobile'
+  }
+
+  return 'desktop'
+}
+
 /**
  * GET /api/analytics/ai-referral?brandProfileId={id}&days={days}
  * Returns AI referral traffic analytics
@@ -129,6 +149,31 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => (b.visits as number) - (a.visits as number))
       .slice(0, 10)
 
+    const recentVisits = await prisma.aIReferralVisit.findMany({
+      where: {
+        brandProfileId: profileId,
+        timestamp: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      select: {
+        userAgent: true
+      }
+    })
+
+    const devices = recentVisits.reduce((acc, visit) => {
+      const deviceType = getDeviceType(visit.userAgent)
+      acc[deviceType] += 1
+      return acc
+    }, {
+      desktop: 0,
+      mobile: 0,
+      tablet: 0,
+      bot: 0,
+      unknown: 0,
+    })
+
     // Check if tracking is connected (has visits OR verification successful)
     const hasVisits = await prisma.aIReferralVisit.count({
       where: { brandProfileId: profileId }
@@ -151,13 +196,21 @@ export async function GET(request: NextRequest) {
         traffic: currentTraffic,
         previous: previousTraffic,
         growth: Math.round(growth * 10) / 10,
+        byModel: [
+          { name: 'ChatGPT', visits: totals.chatgptVisits, color: '#10a37f' },
+          { name: 'Perplexity', visits: totals.perplexityVisits, color: '#3b82f6' },
+          { name: 'Claude', visits: totals.claudeVisits, color: '#f59e0b' },
+          { name: 'Gemini', visits: totals.geminiVisits, color: '#8b5cf6' },
+        ],
         breakdown: {
           chatgpt: totals.chatgptVisits,
           perplexity: totals.perplexityVisits,
           claude: totals.claudeVisits,
           gemini: totals.geminiVisits,
         },
+        topPaths: topPages,
         topPages,
+        devices,
         lastUpdated: analytics[0]?.updatedAt || new Date(),
         periodDays: days,
         filteredByModel: modelFilter || null

@@ -192,10 +192,20 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
   // Modal view mode: 'traffic' for minimal traffic view, 'script' for script settings
   const [modalView, setModalView] = useState<'traffic' | 'script'>('traffic')
 
+  const emptyDeviceCounts = {
+    desktop: 0,
+    mobile: 0,
+    tablet: 0,
+    bot: 0,
+    unknown: 0,
+  }
+
   // Mock data for AI referral traffic by model
   const [mockReferralData, setMockReferralData] = useState<{
     total: number
     byModel: { name: string; visits: number; icon?: string; color: string }[]
+    topPaths: { path: string; visits: number }[]
+    devices: { desktop: number; mobile: number; tablet: number; bot: number; unknown: number }
   } | null>(null)
 
   const buildModelBreakdown = (data: any) => {
@@ -212,6 +222,28 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
       { name: 'Claude', visits: breakdown.claude || 0, color: '#f59e0b' },
       { name: 'Gemini', visits: breakdown.gemini || 0, color: '#8b5cf6' },
     ]
+  }
+
+  const buildTopPaths = (data: any) => {
+    const paths = data?.topPaths || data?.topPages || []
+    if (!Array.isArray(paths)) return []
+    return paths
+      .map((item: any) => ({ path: item.path || '/', visits: Number(item.visits || 0) }))
+      .sort((a: any, b: any) => b.visits - a.visits)
+      .slice(0, 5)
+  }
+
+  const buildDeviceBreakdown = (data: any) => {
+    const devices = data?.devices
+    if (!devices) return { ...emptyDeviceCounts }
+
+    return {
+      desktop: Number(devices.desktop || 0),
+      mobile: Number(devices.mobile || 0),
+      tablet: Number(devices.tablet || 0),
+      bot: Number(devices.bot || 0),
+      unknown: Number(devices.unknown || 0),
+    }
   }
 
   const handleVerifyScript = async () => {
@@ -1242,15 +1274,30 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
                 try {
                   const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&byModel=true`)
                   const result = await response.json()
-                  const byModel = buildModelBreakdown(result.data)
-                  if (result.success && byModel.length > 0) {
+                  if (result.success && result.data) {
+                    const byModel = buildModelBreakdown(result.data)
                     setMockReferralData({
                       total: result.data.traffic || 0,
-                      byModel
+                      byModel,
+                      topPaths: buildTopPaths(result.data),
+                      devices: buildDeviceBreakdown(result.data),
+                    })
+                  } else {
+                    setMockReferralData({
+                      total: 0,
+                      byModel: [],
+                      topPaths: [],
+                      devices: { ...emptyDeviceCounts },
                     })
                   }
                 } catch (error) {
                   console.error('Error fetching referral data:', error)
+                  setMockReferralData({
+                    total: 0,
+                    byModel: [],
+                    topPaths: [],
+                    devices: { ...emptyDeviceCounts },
+                  })
                 } finally {
                   setLoadingReferralModels(false)
                 }
@@ -1310,6 +1357,58 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
                         <div className="text-lg font-medium text-white">{model.visits.toLocaleString()}</div>
                       </div>
                     ))
+                  )}
+                </div>
+
+                {!loadingReferralModels && mockReferralData && mockReferralData.byModel.length === 0 && (
+                  <p className="text-xs text-white/40">No model breakdown available yet.</p>
+                )}
+
+                <div className="space-y-2">
+                  <h3 className="text-xs text-white/50 uppercase tracking-wide">Top Paths</h3>
+                  {loadingReferralModels || !mockReferralData ? (
+                    <div className="space-y-1.5">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-5 rounded bg-white/[0.06] animate-pulse" />
+                      ))}
+                    </div>
+                  ) : mockReferralData.topPaths.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {mockReferralData.topPaths.map((item) => (
+                        <div key={item.path} className="flex items-center justify-between text-xs bg-white/[0.02] rounded-md px-2.5 py-1.5">
+                          <span className="text-white/60 truncate pr-2">{item.path}</span>
+                          <span className="text-white tabular-nums">{item.visits}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-white/40">No path data yet.</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="text-xs text-white/50 uppercase tracking-wide">Devices</h3>
+                  {loadingReferralModels || !mockReferralData ? (
+                    <div className="grid grid-cols-3 gap-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-14 rounded bg-white/[0.06] animate-pulse" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="p-2 rounded-md bg-white/[0.02] text-center">
+                        <p className="text-[10px] text-white/40">Desktop</p>
+                        <p className="text-sm text-white tabular-nums">{mockReferralData.devices.desktop}</p>
+                      </div>
+                      <div className="p-2 rounded-md bg-white/[0.02] text-center">
+                        <p className="text-[10px] text-white/40">Mobile</p>
+                        <p className="text-sm text-white tabular-nums">{mockReferralData.devices.mobile}</p>
+                      </div>
+                      <div className="p-2 rounded-md bg-white/[0.02] text-center">
+                        <p className="text-[10px] text-white/40">Tablet</p>
+                        <p className="text-sm text-white tabular-nums">{mockReferralData.devices.tablet}</p>
+                      </div>
+                    </div>
                   )}
                 </div>
 

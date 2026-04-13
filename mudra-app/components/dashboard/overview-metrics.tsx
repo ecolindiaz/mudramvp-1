@@ -195,8 +195,24 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
   // Mock data for AI referral traffic by model
   const [mockReferralData, setMockReferralData] = useState<{
     total: number
-    byModel: { name: string; visits: number; icon: string; color: string }[]
+    byModel: { name: string; visits: number; icon?: string; color: string }[]
   } | null>(null)
+
+  const buildModelBreakdown = (data: any) => {
+    if (Array.isArray(data?.byModel) && data.byModel.length > 0) {
+      return data.byModel
+    }
+
+    const breakdown = data?.breakdown
+    if (!breakdown) return []
+
+    return [
+      { name: 'ChatGPT', visits: breakdown.chatgpt || 0, color: '#10a37f' },
+      { name: 'Perplexity', visits: breakdown.perplexity || 0, color: '#3b82f6' },
+      { name: 'Claude', visits: breakdown.claude || 0, color: '#f59e0b' },
+      { name: 'Gemini', visits: breakdown.gemini || 0, color: '#8b5cf6' },
+    ]
+  }
 
   const handleVerifyScript = async () => {
     setVerificationStatus('verifying')
@@ -1226,10 +1242,11 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
                 try {
                   const response = await fetch(`/api/analytics/ai-referral?brandProfileId=${profile.id}&byModel=true`)
                   const result = await response.json()
-                  if (result.success && result.data?.byModel) {
+                  const byModel = buildModelBreakdown(result.data)
+                  if (result.success && byModel.length > 0) {
                     setMockReferralData({
                       total: result.data.traffic || 0,
-                      byModel: result.data.byModel
+                      byModel
                     })
                   }
                 } catch (error) {
@@ -1283,7 +1300,11 @@ export function OverviewMetrics({ showAll = false, timeRange: _timeRange, select
                     mockReferralData.byModel.map((model) => (
                       <div key={model.name} className="p-3 rounded-lg  bg-white/[0.02]">
                         <div className="flex items-center gap-2 mb-1">
-                          <img src={model.icon} alt="" className="w-4 h-4 opacity-60" />
+                          {model.icon ? (
+                            <img src={model.icon} alt="" className="w-4 h-4 opacity-60" />
+                          ) : (
+                            <span className="w-2.5 h-2.5 rounded-full opacity-80" style={{ backgroundColor: model.color }} />
+                          )}
                           <span className="text-xs text-white/40">{model.name}</span>
                         </div>
                         <div className="text-lg font-medium text-white">{model.visits.toLocaleString()}</div>

@@ -32,20 +32,19 @@ export default function AcceptInvitePage() {
   }, [status, token, router])
 
   useEffect(() => {
-    if (!token || status !== 'authenticated' || state === 'accepting' || state === 'accepted') {
+    if (!token || status !== 'authenticated') {
       return
     }
 
-    let mounted = true
+    let isActive = true
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 20000)
 
     const run = async () => {
       setState('accepting')
       setMessage('Accepting your invitation...')
 
       try {
-        const controller = new AbortController()
-        const timeoutId = window.setTimeout(() => controller.abort(), 20000)
-
         const response = await fetch('/api/team/invites/accept', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -53,15 +52,13 @@ export default function AcceptInvitePage() {
           signal: controller.signal,
         })
 
-        window.clearTimeout(timeoutId)
-
         const payload = await response.json()
 
         if (!response.ok || !payload.success) {
           throw new Error(payload?.error?.message || 'Unable to accept invite')
         }
 
-        if (!mounted) {
+        if (!isActive) {
           return
         }
 
@@ -69,7 +66,7 @@ export default function AcceptInvitePage() {
         setState('accepted')
         setMessage('Invitation accepted. You can now access this workspace.')
       } catch (error: any) {
-        if (!mounted) {
+        if (!isActive) {
           return
         }
         setState('error')
@@ -84,9 +81,29 @@ export default function AcceptInvitePage() {
     run()
 
     return () => {
-      mounted = false
+      isActive = false
+      window.clearTimeout(timeoutId)
+      controller.abort()
     }
-  }, [token, status, state])
+  }, [token, status])
+
+  useEffect(() => {
+    if (state !== 'accepted') {
+      return
+    }
+
+    const redirectTimer = window.setTimeout(() => {
+      if (brandProfileId) {
+        router.replace(`/dashboard?profileId=${brandProfileId}`)
+        return
+      }
+      router.replace('/dashboard')
+    }, 1200)
+
+    return () => {
+      window.clearTimeout(redirectTimer)
+    }
+  }, [state, brandProfileId, router])
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center px-4">

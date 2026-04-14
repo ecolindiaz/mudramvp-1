@@ -36,8 +36,8 @@ const PROTECTED_ROUTES = [
  *   enhanced error stack reconstruction).
  * • 'unsafe-inline' is a no-op when a nonce is present in script-src, but
  *   we omit it anyway for clarity.
- * • style-src uses 'unsafe-inline' in development because HMR injects
- *   styles without nonces; in production we use the nonce.
+ * • style-src permits inline styles because React style attributes and
+ *   some runtime libraries inject style rules dynamically.
  */
 function buildCsp(nonce: string): string {
     const isDev = process.env.NODE_ENV === 'development'
@@ -52,8 +52,11 @@ function buildCsp(nonce: string): string {
         ].filter(Boolean).join(' '),
         [
             `style-src 'self'`,
-            isDev ? `'unsafe-inline'` : `'nonce-${nonce}'`,
+            `'nonce-${nonce}'`,
+            `'unsafe-inline'`,
         ].join(' '),
+        `style-src-elem 'self' 'nonce-${nonce}' 'unsafe-inline'`,
+        `style-src-attr 'unsafe-inline'`,
         `img-src 'self' data: https:`,
         `font-src 'self'`,
         `connect-src 'self' https://accounts.google.com https://*.supabase.co https://us.i.posthog.com https://*.posthog.com`,

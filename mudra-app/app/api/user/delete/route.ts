@@ -63,9 +63,39 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Delete user and all related data (cascading deletes handled by Prisma schema)
-    await prisma.user.delete({
+    const user = await prisma.user.findUnique({
       where: { email: session.user.email },
+      select: { id: true },
+    });
+
+    // If the account is already gone, treat this as an idempotent success.
+    if (!user) {
+      return NextResponse.json({
+        success: true,
+        message: 'Account already deleted',
+      });
+    }
+
+    // Some user-linked records use nullable/non-cascading relations in schema,
+    // so we detach them explicitly before deleting the user.
+    await prisma.$transaction(async (tx) => {
+      await tx.brandProfile.updateMany({
+        where: { userId: user.id },
+        data: { userId: null },
+      });
+
+      await tx.campaign.updateMany({
+        where: { userId: user.id },
+        data: { userId: null },
+      });
+
+      await tx.auditLog.deleteMany({
+        where: { userId: user.id },
+      });
+
+      await tx.user.delete({
+        where: { id: user.id },
+      });
     });
 
     return NextResponse.json({

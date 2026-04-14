@@ -31,9 +31,11 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Initialize PostHog on client-side only
     if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+      const apiHost = `${window.location.origin}/ingest`
+
       posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
         // Route through first-party origin to reduce extension-based blocking.
-        api_host: '/ingest',
+        api_host: apiHost,
         ui_host: posthogUiHost,
         
         // Enable debug mode in development
@@ -64,6 +66,12 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         
         // Enable persistence across sessions
         persistence: 'localStorage',
+      })
+
+      // Re-assert host config in case a stale persisted config exists.
+      posthog.set_config({
+        api_host: apiHost,
+        ui_host: posthogUiHost,
       })
     }
   }, [posthogUiHost])

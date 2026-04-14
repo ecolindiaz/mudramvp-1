@@ -17,6 +17,30 @@ const deleteAccountSchema = z.object({
     ),
 });
 
+function clearAuthCookies(response: NextResponse) {
+  const cookieNames = [
+    'next-auth.session-token',
+    '__Secure-next-auth.session-token',
+    '__Host-next-auth.session-token',
+    'next-auth.csrf-token',
+    '__Host-next-auth.csrf-token',
+    'next-auth.callback-url',
+    '__Secure-next-auth.callback-url',
+  ];
+
+  for (const name of cookieNames) {
+    response.cookies.set({
+      name,
+      value: '',
+      path: '/',
+      maxAge: 0,
+      expires: new Date(0),
+    });
+  }
+
+  return response;
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     // Rate limit account deletion to prevent abuse
@@ -70,10 +94,11 @@ export async function DELETE(req: NextRequest) {
 
     // If the account is already gone, treat this as an idempotent success.
     if (!user) {
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         message: 'Account already deleted',
       });
+      return clearAuthCookies(response);
     }
 
     // Some user-linked records use nullable/non-cascading relations in schema,
@@ -98,10 +123,11 @@ export async function DELETE(req: NextRequest) {
       });
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Account deleted successfully',
     });
+    return clearAuthCookies(response);
   } catch (error) {
     console.error('[API] Error deleting account:', error);
     return NextResponse.json(

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { signOut, useSession } from "next-auth/react"
 import { BrandProfileProvider } from "@/components/brand-profile-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -165,7 +165,7 @@ function AccountPageInner() {
       if (response.ok) {
         trackEvent.accountDeleted()
         toast.success("Account deleted successfully")
-        window.location.href = "/login"
+        await signOut({ callbackUrl: "/login?deleted=1" })
       } else {
         toast.error(result.error?.message || "Failed to delete account")
       }

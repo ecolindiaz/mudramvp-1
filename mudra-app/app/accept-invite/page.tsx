@@ -43,11 +43,17 @@ export default function AcceptInvitePage() {
       setMessage('Accepting your invitation...')
 
       try {
+        const controller = new AbortController()
+        const timeoutId = window.setTimeout(() => controller.abort(), 20000)
+
         const response = await fetch('/api/team/invites/accept', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
+          signal: controller.signal,
         })
+
+        window.clearTimeout(timeoutId)
 
         const payload = await response.json()
 
@@ -67,6 +73,10 @@ export default function AcceptInvitePage() {
           return
         }
         setState('error')
+        if (error instanceof Error && error.name === 'AbortError') {
+          setMessage('Accept invite timed out. Please try again in a moment.')
+          return
+        }
         setMessage(error instanceof Error ? error.message : 'Unable to accept invite')
       }
     }

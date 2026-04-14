@@ -7,6 +7,24 @@ const acceptInviteSchema = z.object({
   token: z.string().min(1, 'Token is required'),
 })
 
+const ACCEPT_INVITE_TIMEOUT_MS = 15000
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error('Invite acceptance timed out'))
+    }, timeoutMs)
+  })
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle)
+    }
+  }) as Promise<T>
+}
+
 export async function POST(request: NextRequest) {
   try {
     const payload = await request.json()
@@ -24,11 +42,14 @@ export async function POST(request: NextRequest) {
       return authResult.response
     }
 
-    const result = await acceptTeamInvite({
-      token: parsed.data.token,
-      userId: authResult.user.id,
-      userEmail: authResult.user.email,
-    })
+    const result = await withTimeout(
+      acceptTeamInvite({
+        token: parsed.data.token,
+        userId: authResult.user.id,
+        userEmail: authResult.user.email,
+      }),
+      ACCEPT_INVITE_TIMEOUT_MS
+    )
 
     return NextResponse.json({
       success: true,
@@ -40,6 +61,8 @@ export async function POST(request: NextRequest) {
       ? 404
       : /does not match|seats available/i.test(message)
         ? 409
+        : /timed out/i.test(message)
+          ? 504
         : 500
 
     return NextResponse.json(

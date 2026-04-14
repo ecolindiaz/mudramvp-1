@@ -151,6 +151,8 @@ function AccountPageInner() {
     try {
       const response = await fetch("/api/user/delete", {
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: deleteConfirmation }),
       })
 
       const result = await response.json()

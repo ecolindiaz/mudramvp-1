@@ -26,7 +26,19 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
+    let body: unknown = {};
+    const rawBody = await req.text();
+    if (rawBody.trim().length > 0) {
+      try {
+        body = JSON.parse(rawBody);
+      } catch {
+        return NextResponse.json(
+          { error: { message: 'Invalid JSON body' } },
+          { status: 400 }
+        );
+      }
+    }
+
     const validationResult = deleteAccountSchema.safeParse(body);
 
     if (!validationResult.success) {

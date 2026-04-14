@@ -6,9 +6,15 @@ import { z } from 'zod';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 
 const deleteAccountSchema = z.object({
-  confirmation: z.literal('DELETE', {
-    errorMap: () => ({ message: 'Please type DELETE to confirm' }),
-  }),
+  confirmation: z
+    .string()
+    .trim()
+    .transform((value) => value.toUpperCase())
+    .pipe(
+      z.literal('DELETE', {
+        errorMap: () => ({ message: 'Please type DELETE to confirm' }),
+      })
+    ),
 });
 
 export async function DELETE(req: NextRequest) {
@@ -32,10 +38,19 @@ export async function DELETE(req: NextRequest) {
       try {
         body = JSON.parse(rawBody);
       } catch {
-        return NextResponse.json(
-          { error: { message: 'Invalid JSON body' } },
-          { status: 400 }
-        );
+        // Allow plain-text confirmation payloads from clients/proxies that do not send JSON.
+        if (rawBody.trim().length > 0) {
+          body = { confirmation: rawBody.trim() };
+        }
+      }
+    }
+
+    // Fallbacks in case DELETE request body is stripped by intermediary infrastructure.
+    if (typeof body !== 'object' || body === null || !('confirmation' in body)) {
+      const queryConfirmation = req.nextUrl.searchParams.get('confirmation');
+      const headerConfirmation = req.headers.get('x-delete-confirmation');
+      if (queryConfirmation || headerConfirmation) {
+        body = { confirmation: queryConfirmation || headerConfirmation };
       }
     }
 

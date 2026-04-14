@@ -141,7 +141,9 @@ function AccountPageInner() {
   }
 
   const handleDeleteAccount = async () => {
-    if (deleteConfirmation !== "DELETE") {
+    const normalizedConfirmation = deleteConfirmation.trim().toUpperCase()
+
+    if (normalizedConfirmation !== "DELETE") {
       toast.error("Please type DELETE to confirm")
       return
     }
@@ -149,10 +151,13 @@ function AccountPageInner() {
     setLoading(true)
 
     try {
-      const response = await fetch("/api/user/delete", {
+      const response = await fetch("/api/user/delete?confirmation=DELETE", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmation: deleteConfirmation }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-delete-confirmation": "DELETE",
+        },
+        body: JSON.stringify({ confirmation: normalizedConfirmation }),
       })
 
       const result = await response.json()
@@ -594,7 +599,7 @@ function AccountPageInner() {
                             <Button
                               variant="destructive"
                               onClick={handleDeleteAccount}
-                              disabled={deleteConfirmation !== "DELETE" || loading}
+                              disabled={deleteConfirmation.trim().toUpperCase() !== "DELETE" || loading}
                               className="bg-red-500 hover:bg-red-600"
                             >
                               {loading ? "Deleting..." : "Delete Account"}

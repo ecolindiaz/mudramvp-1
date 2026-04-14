@@ -25,12 +25,16 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   const sessionData = useSession()
   const session = sessionData?.data
   const { profile: brandProfile } = useBrandProfile()
+  const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com'
+  const posthogUiHost = posthogHost.replace('.i.posthog.com', '.posthog.com')
 
   useEffect(() => {
     // Initialize PostHog on client-side only
     if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
       posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-        api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
+        // Route through first-party origin to reduce extension-based blocking.
+        api_host: '/ingest',
+        ui_host: posthogUiHost,
         
         // Enable debug mode in development
         loaded: (ph: any) => {
@@ -62,7 +66,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         persistence: 'localStorage',
       })
     }
-  }, [])
+  }, [posthogUiHost])
 
   // Identify user when logged in and reset on logout
   useEffect(() => {

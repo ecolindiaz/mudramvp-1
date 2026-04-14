@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const POSTHOG_HOST = (process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com").replace(/\/+$/, "");
+
 const nextConfig: NextConfig = {
   // Skip initial page compilation in development
   onDemandEntries: {
@@ -23,6 +25,14 @@ const nextConfig: NextConfig = {
     rules: {
       // Turbopack optimization rules can be added here if needed
     },
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/ingest/:path*",
+        destination: `${POSTHOG_HOST}/:path*`,
+      },
+    ];
   },
   // Webpack configuration for file watching
   webpack: (config, { isServer }) => {

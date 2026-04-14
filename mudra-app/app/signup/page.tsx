@@ -9,7 +9,7 @@ import { Icons } from '@/components/icons'
 import Image from 'next/image'
 import Link from 'next/link'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { trackEvent } from '@/lib/analytics/posthog-events'
 import { useForm } from 'react-hook-form'
@@ -33,6 +33,14 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
   const [isLoading, setIsLoading] = React.useState<boolean>(false)
   const [isGoogleLoading, setIsGoogleLoading] = React.useState<boolean>(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const callbackUrl = React.useMemo(() => {
+    const raw = searchParams.get('callbackUrl')
+    if (!raw || !raw.startsWith('/')) {
+      return '/welcome'
+    }
+    return raw
+  }, [searchParams])
   
   const { register, handleSubmit, formState: { errors } } = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema)
@@ -78,10 +86,11 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
         email: data.email,
         password: data.password,
         redirect: false,
+        callbackUrl,
       })
 
       if (signInResult?.ok) {
-        router.push('/welcome')
+        router.push(callbackUrl)
         router.refresh()
       } else {
         // Auto-login failed — show the error and send to login
@@ -110,7 +119,7 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
         localStorage.removeItem('mudra_active_country')
       }
 
-      await signIn('google', { callbackUrl: '/welcome' })
+      await signIn('google', { callbackUrl })
     } catch (error) {
       trackEvent.signupFailed('google', 'Failed to sign up with Google')
       toast.error('Failed to sign up with Google')
@@ -265,12 +274,12 @@ export default function SignUpPage() {
           <div className="space-y-4">
             <p className="text-center text-sm text-gray-400">
               Already have an account?{' '}
-              <a
-                href="/login"
+              <Link
+                href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`}
                 className="text-white hover:underline"
               >
                 Sign in
-              </a>
+              </Link>
             </p>
             <p className="text-center text-xs text-gray-500">
               By continuing, you agree to our{' '}

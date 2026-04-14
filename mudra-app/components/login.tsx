@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import Image from 'next/image'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useMemo } from 'react'
 import { trackEvent } from '@/lib/analytics/posthog-events'
 
 const loginSchema = z.object({
@@ -26,6 +27,13 @@ export default function LoginPage() {
     const [isGoogleLoading, setIsGoogleLoading] = useState(false)
     const router = useRouter()
     const searchParams = useSearchParams()
+    const callbackUrl = useMemo(() => {
+        const raw = searchParams.get('callbackUrl')
+        if (!raw || !raw.startsWith('/')) {
+            return '/dashboard'
+        }
+        return raw
+    }, [searchParams])
 
     // Map NextAuth error codes to user-friendly messages
     const errorMessages: Record<string, string> = {
@@ -60,6 +68,7 @@ export default function LoginPage() {
                 email: data.email,
                 password: data.password,
                 redirect: false,
+                callbackUrl,
             })
 
             if (result?.error) {
@@ -71,7 +80,7 @@ export default function LoginPage() {
             if (result?.ok) {
                 trackEvent.loginSucceeded('credentials')
                 toast.success('Login successful!')
-                router.push('/dashboard')
+                router.push(callbackUrl)
                 router.refresh()
             }
         } catch (error) {
@@ -96,7 +105,7 @@ export default function LoginPage() {
                 localStorage.removeItem('mudra_active_country')
             }
 
-            await signIn('google', { callbackUrl: '/dashboard' })
+            await signIn('google', { callbackUrl })
         } catch (error) {
             trackEvent.loginFailed('google', 'Failed to sign in with Google')
             toast.error('Failed to sign in with Google')
@@ -243,7 +252,7 @@ export default function LoginPage() {
                 <div className="mt-6 space-y-3 text-center">
                     <p className="text-sm text-gray-400">
                         Don't have an account?{' '}
-                        <Link href="/signup" className="text-white hover:underline">
+                        <Link href={`/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`} className="text-white hover:underline">
                             Create Account
                         </Link>
                     </p>

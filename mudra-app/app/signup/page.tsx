@@ -235,6 +235,15 @@ function SignUpForm({ className, ...props }: UserAuthFormProps) {
 }
 
 export default function SignUpPage() {
+  const searchParams = useSearchParams()
+  const callbackUrl = React.useMemo(() => {
+    const raw = searchParams.get('callbackUrl')
+    if (!raw || !raw.startsWith('/')) {
+      return '/welcome'
+    }
+    return raw
+  }, [searchParams])
+
   return (
     <div className="container relative h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0 bg-black">
       <div className="relative hidden h-full flex-col bg-black text-white lg:flex overflow-hidden">

@@ -98,6 +98,14 @@ export function BrandProfileProvider({ children }: { children: React.ReactNode }
   // Track the active profile ID so refreshBrandProfile always fetches the correct one
   const profileIdRef = useRef<number>((() => {
     if (typeof window !== 'undefined') {
+      const queryProfileId = new URLSearchParams(window.location.search).get('profileId');
+      if (queryProfileId) {
+        const parsedQueryProfileId = parseInt(queryProfileId, 10);
+        if (!Number.isNaN(parsedQueryProfileId) && parsedQueryProfileId > 0) {
+          return parsedQueryProfileId;
+        }
+      }
+
       const storedId = localStorage.getItem(ACTIVE_PROFILE_ID_KEY);
       if (storedId) return parseInt(storedId, 10) || 0;
     }

@@ -20,6 +20,17 @@ function clearInviteCookie() {
   document.cookie = `${INVITE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`
 }
 
+function setActiveInviteProfile(profileId: number | null) {
+  if (typeof window === 'undefined' || !profileId || profileId <= 0) return
+  try {
+    localStorage.setItem('mudra_active_profile_id', String(profileId))
+    // Force fresh fetch for the newly selected workspace profile.
+    localStorage.removeItem('mudra_brand_profile')
+  } catch {
+    // Ignore storage errors and continue with navigation.
+  }
+}
+
 export default function AcceptInvitePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -109,6 +120,7 @@ export default function AcceptInvitePage() {
     }
 
     clearInviteCookie()
+    setActiveInviteProfile(brandProfileId)
 
     const redirectTimer = window.setTimeout(() => {
       if (brandProfileId) {
@@ -144,6 +156,7 @@ export default function AcceptInvitePage() {
           {state === 'accepted' && (
             <Button
               onClick={() => {
+                setActiveInviteProfile(brandProfileId)
                 if (brandProfileId) {
                   router.push(`/dashboard?profileId=${brandProfileId}`)
                   return

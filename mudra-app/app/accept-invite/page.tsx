@@ -8,6 +8,18 @@ import { Button } from '@/components/ui/button'
 
 type InviteState = 'idle' | 'accepting' | 'accepted' | 'error'
 
+const INVITE_COOKIE = 'mudra_invite_token'
+
+function setInviteCookie(token: string) {
+  if (typeof document === 'undefined' || !token) return
+  document.cookie = `${INVITE_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=3600; SameSite=Lax`
+}
+
+function clearInviteCookie() {
+  if (typeof document === 'undefined') return
+  document.cookie = `${INVITE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`
+}
+
 export default function AcceptInvitePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -22,8 +34,12 @@ export default function AcceptInvitePage() {
     if (!token) {
       setState('error')
       setMessage('Missing invite token.')
+      clearInviteCookie()
       return
     }
+
+    // Persist token through OAuth/new-user redirects.
+    setInviteCookie(token)
 
     if (status === 'unauthenticated') {
       const callbackUrl = `/accept-invite?token=${encodeURIComponent(token)}`
@@ -92,6 +108,8 @@ export default function AcceptInvitePage() {
       return
     }
 
+    clearInviteCookie()
+
     const redirectTimer = window.setTimeout(() => {
       if (brandProfileId) {
         router.replace(`/dashboard?profileId=${brandProfileId}`)
@@ -104,6 +122,12 @@ export default function AcceptInvitePage() {
       window.clearTimeout(redirectTimer)
     }
   }, [state, brandProfileId, router])
+
+  useEffect(() => {
+    if (state === 'error') {
+      clearInviteCookie()
+    }
+  }, [state])
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center px-4">

@@ -8,6 +8,7 @@ const PUBLIC_ROUTES = [
     '/',
     '/login',
     '/signup',
+    '/accept-invite',
     '/tracker.js',
     '/api/auth',
     '/api/health',
@@ -102,10 +103,20 @@ export async function middleware(request: NextRequest) {
         secret: process.env.NEXTAUTH_SECRET 
     })
 
+    // If an invited user is sent to onboarding by NextAuth new-user flow,
+    // force them back to invite acceptance so they join the existing workspace.
+    const pendingInviteToken = request.cookies.get('mudra_invite_token')?.value
+    if (token && pathname.startsWith('/welcome') && pendingInviteToken) {
+        const acceptInviteUrl = new URL('/accept-invite', request.url)
+        acceptInviteUrl.searchParams.set('token', pendingInviteToken)
+        return NextResponse.redirect(acceptInviteUrl)
+    }
+
     // Redirect to login if accessing protected route without auth
     if (!isPublicRoute && !token) {
         const loginUrl = new URL('/login', request.url)
-        loginUrl.searchParams.set('callbackUrl', pathname)
+        const callbackUrl = `${pathname}${request.nextUrl.search}`
+        loginUrl.searchParams.set('callbackUrl', callbackUrl)
         return NextResponse.redirect(loginUrl)
     }
 

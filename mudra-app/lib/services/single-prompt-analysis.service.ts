@@ -156,6 +156,10 @@ export async function runSinglePromptAnalysis(
   
   const providerResults = await Promise.all(providerPromises)
 
+  // Load exclusions once per run; used both inside the validation block
+  // and as a final safety net after the try/catch (mirrors direct-geo).
+  const excludedSet = await getExcludedCompetitors(config.brandProfileId)
+
   // Validate competitors using the same pipeline as unified analysis
   try {
     const allResponses = providerResults
@@ -180,7 +184,6 @@ export async function runSinglePromptAnalysis(
         brandProfile.companyIndustry ?? undefined,
         competitors
       )
-      const excludedSet = await getExcludedCompetitors(config.brandProfileId)
       const validatedNameSet = new Set(
         validatedCompetitors
           .map(c => c.name.toLowerCase())
@@ -218,6 +221,36 @@ export async function runSinglePromptAnalysis(
     }
   } catch (error) {
     console.warn('⚠️ Competitor validation failed for single-prompt analysis, using unvalidated results:', error)
+  }
+
+  // Final safety net: even if the AI validation block above was skipped or threw,
+  // never persist names the user has marked as "not a competitor".
+  if (excludedSet.size > 0) {
+    for (const result of providerResults) {
+      if (result.competitors) {
+        result.competitors = result.competitors.filter(
+          c => !excludedSet.has(normalizeCompetitorName(c))
+        )
+      }
+      if (result.competitorPositions) {
+        const cleaned: Record<string, number> = {}
+        for (const [name, pos] of Object.entries(result.competitorPositions)) {
+          if (!excludedSet.has(normalizeCompetitorName(name))) {
+            cleaned[name] = pos
+          }
+        }
+        result.competitorPositions = cleaned
+      }
+      if (result.competitorSentiments) {
+        const cleaned: Record<string, 'positive' | 'neutral' | 'negative'> = {}
+        for (const [name, sent] of Object.entries(result.competitorSentiments)) {
+          if (!excludedSet.has(normalizeCompetitorName(name))) {
+            cleaned[name] = sent
+          }
+        }
+        result.competitorSentiments = cleaned
+      }
+    }
   }
 
   // Calculate overall visibility using mention rate (consistent across all views)

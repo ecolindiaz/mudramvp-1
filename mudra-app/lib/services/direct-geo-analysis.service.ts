@@ -2782,6 +2782,13 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     a.promptTests.flatMap(t => t.competitors)
   );
 
+  // Load the user's "not a competitor" exclusion list once per run.
+  // Used in the happy-path filter below AND in the fallback safety net,
+  // so both paths share the same Set and hit the DB only once.
+  const excludedSet: Set<string> = config.brandProfileId
+    ? await getExcludedCompetitors(config.brandProfileId)
+    : new Set();
+
   // Run multi-stage competitor validation pipeline
   console.log('\n🔬 Running AI competitor validation pipeline...');
   let validatedCompetitors: ValidatedCompetitor[] = [];
@@ -2815,18 +2822,14 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
 
     // Drop any competitors the user has marked as "not a competitor" for this brand
     // so they never get persisted into GeoAnalysisResult.analyses on this run.
-    let excludedSet: Set<string> = new Set();
-    if (config.brandProfileId) {
-      excludedSet = await getExcludedCompetitors(config.brandProfileId);
-      if (excludedSet.size > 0) {
-        const before = validatedCompetitors.length;
-        validatedCompetitors = validatedCompetitors.filter(
-          c => !excludedSet.has(normalizeCompetitorName(c.name))
-        );
-        const dropped = before - validatedCompetitors.length;
-        if (dropped > 0) {
-          console.log(`🚫 Dropped ${dropped} user-excluded competitor${dropped > 1 ? 's' : ''} before storage`);
-        }
+    if (excludedSet.size > 0) {
+      const before = validatedCompetitors.length;
+      validatedCompetitors = validatedCompetitors.filter(
+        c => !excludedSet.has(normalizeCompetitorName(c.name))
+      );
+      const dropped = before - validatedCompetitors.length;
+      if (dropped > 0) {
+        console.log(`🚫 Dropped ${dropped} user-excluded competitor${dropped > 1 ? 's' : ''} before storage`);
       }
     }
 
@@ -2870,35 +2873,32 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
 
   // Final safety net: even if the AI validation block above was skipped or threw,
   // honor the user's "not a competitor" exclusions so they never reach storage.
-  if (config.brandProfileId) {
-    const excludedSet = await getExcludedCompetitors(config.brandProfileId);
-    if (excludedSet.size > 0) {
-      validatedCompetitors = validatedCompetitors.filter(
-        c => !excludedSet.has(normalizeCompetitorName(c.name))
-      );
-      for (const analysis of analyses) {
-        for (const test of analysis.promptTests) {
-          test.competitors = test.competitors.filter(
-            c => !excludedSet.has(normalizeCompetitorName(c))
-          );
-          if (test.competitorPositions) {
-            const cleaned: Record<string, number> = {};
-            for (const [name, pos] of Object.entries(test.competitorPositions)) {
-              if (!excludedSet.has(normalizeCompetitorName(name))) {
-                cleaned[name] = pos as number;
-              }
+  if (excludedSet.size > 0) {
+    validatedCompetitors = validatedCompetitors.filter(
+      c => !excludedSet.has(normalizeCompetitorName(c.name))
+    );
+    for (const analysis of analyses) {
+      for (const test of analysis.promptTests) {
+        test.competitors = test.competitors.filter(
+          c => !excludedSet.has(normalizeCompetitorName(c))
+        );
+        if (test.competitorPositions) {
+          const cleaned: Record<string, number> = {};
+          for (const [name, pos] of Object.entries(test.competitorPositions)) {
+            if (!excludedSet.has(normalizeCompetitorName(name))) {
+              cleaned[name] = pos as number;
             }
-            test.competitorPositions = cleaned;
           }
-          if (test.competitorSentiments) {
-            const cleaned: Record<string, 'positive' | 'neutral' | 'negative'> = {};
-            for (const [name, sentiment] of Object.entries(test.competitorSentiments)) {
-              if (!excludedSet.has(normalizeCompetitorName(name))) {
-                cleaned[name] = sentiment;
-              }
+          test.competitorPositions = cleaned;
+        }
+        if (test.competitorSentiments) {
+          const cleaned: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+          for (const [name, sentiment] of Object.entries(test.competitorSentiments)) {
+            if (!excludedSet.has(normalizeCompetitorName(name))) {
+              cleaned[name] = sentiment;
             }
-            test.competitorSentiments = cleaned;
           }
+          test.competitorSentiments = cleaned;
         }
       }
     }

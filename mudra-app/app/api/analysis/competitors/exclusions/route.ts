@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     body = await request.json()
   } catch {
     return NextResponse.json(
-      { success: false, error: 'Invalid JSON body' },
+      { success: false, error: { message: 'Invalid JSON body', code: 'INVALID_BODY' } },
       { status: 400 }
     )
   }
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   const name = typeof body.name === 'string' ? body.name : ''
   if (!name.trim()) {
     return NextResponse.json(
-      { success: false, error: 'name is required' },
+      { success: false, error: { message: 'name is required', code: 'MISSING_NAME' } },
       { status: 400 }
     )
   }
@@ -51,7 +51,7 @@ export async function DELETE(request: NextRequest) {
 
   if (!name.trim()) {
     return NextResponse.json(
-      { success: false, error: 'name is required' },
+      { success: false, error: { message: 'name is required', code: 'MISSING_NAME' } },
       { status: 400 }
     )
   }

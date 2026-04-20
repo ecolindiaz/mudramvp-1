@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 /**
  * Normalizes a competitor name for exclusion-list comparisons.
@@ -41,6 +42,47 @@ export async function listExcludedCompetitors(brandProfileId: number): Promise<s
   return Array.from(set).sort()
 }
 
+/**
+ * Runs a read-modify-write transaction under Serializable isolation and retries
+ * on PG 40001 serialization failures (Prisma P2034). Protects concurrent
+ * add/remove calls on the same brand profile from losing writes.
+ */
+async function mutateExclusions(
+  brandProfileId: number,
+  apply: (current: string[]) => string[] | null
+): Promise<string[]> {
+  const maxRetries = 3
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const profile = await tx.brandProfile.findUnique({
+            where: { id: brandProfileId },
+            select: { excludedCompetitors: true },
+          })
+          const current = safeParseExclusions(profile?.excludedCompetitors)
+          const next = apply(current)
+          if (next === null) return current.sort()
+
+          const sorted = [...next].sort()
+          await tx.brandProfile.update({
+            where: { id: brandProfileId },
+            data: { excludedCompetitors: JSON.stringify(sorted) },
+          })
+          return sorted
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      )
+    } catch (err: unknown) {
+      const code = (err as { code?: string } | null)?.code
+      const isSerializationFailure = code === 'P2034' || code === '40001'
+      if (!isSerializationFailure || attempt === maxRetries - 1) throw err
+    }
+  }
+  // Unreachable: loop either returns or throws on the final iteration.
+  throw new Error('mutateExclusions exhausted retries')
+}
+
 export async function addExcludedCompetitor(
   brandProfileId: number,
   name: string
@@ -48,15 +90,9 @@ export async function addExcludedCompetitor(
   const normalized = normalizeCompetitorName(name)
   if (!normalized) return listExcludedCompetitors(brandProfileId)
 
-  const current = await listExcludedCompetitors(brandProfileId)
-  if (current.includes(normalized)) return current
-
-  const next = [...current, normalized].sort()
-  await prisma.brandProfile.update({
-    where: { id: brandProfileId },
-    data: { excludedCompetitors: JSON.stringify(next) },
-  })
-  return next
+  return mutateExclusions(brandProfileId, (current) =>
+    current.includes(normalized) ? null : [...current, normalized]
+  )
 }
 
 export async function removeExcludedCompetitor(
@@ -66,13 +102,7 @@ export async function removeExcludedCompetitor(
   const normalized = normalizeCompetitorName(name)
   if (!normalized) return listExcludedCompetitors(brandProfileId)
 
-  const current = await listExcludedCompetitors(brandProfileId)
-  if (!current.includes(normalized)) return current
-
-  const next = current.filter((n) => n !== normalized)
-  await prisma.brandProfile.update({
-    where: { id: brandProfileId },
-    data: { excludedCompetitors: JSON.stringify(next) },
-  })
-  return next
+  return mutateExclusions(brandProfileId, (current) =>
+    current.includes(normalized) ? current.filter((n) => n !== normalized) : null
+  )
 }

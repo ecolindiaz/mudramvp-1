@@ -193,15 +193,19 @@ export async function generateWeeklyReport(params: {
   const { companyId, brandProfileId } = params
   const weekStart = toDate(params.weekStartUtc)
 
-  // Resolve userId for data isolation — if not provided, look up from brandProfile
+  // Resolve userId for data isolation — if not provided, look up from brandProfile.
+  // Also pull primaryCountry so the base summary aggregates match the dashboard's
+  // default country view (dashboard always filters by a country).
   let userId = params.userId
+  let primaryCountry: string | undefined
+  const bp = await prisma.brandProfile.findUnique({
+    where: { id: brandProfileId },
+    select: { userId: true, primaryCountry: true },
+  })
   if (!userId) {
-    const bp = await prisma.brandProfile.findUnique({
-      where: { id: brandProfileId },
-      select: { userId: true },
-    })
     userId = bp?.userId ?? undefined
   }
+  primaryCountry = bp?.primaryCountry ?? undefined
 
   // 1) Get or create draft report (keyed by companyId + weekStartUtc)
   const existing = await prisma.weeklyReport.findUnique({
@@ -218,7 +222,10 @@ export async function generateWeeklyReport(params: {
   await logNlrJob({ companyId, weekStartUtc: weekStart.toISOString(), status: 'running' })
 
   // 2) Collect inputs and prepare prompt
-  const nlrInput = await collectNlrInputs(companyId, weekStart, userId)
+  const nlrInput = await collectNlrInputs(companyId, weekStart, userId, {
+    windowDays: 7,
+    country: primaryCountry,
+  })
   const fallbackSummaryJson = buildSummaryJsonFromInput(nlrInput)
   const { system, user } = buildNlrPrompt(nlrInput)
 

@@ -9,6 +9,10 @@
 import { prisma } from '@/lib/prisma'
 import { validateCompetitors } from './competitor-validation.service'
 import { resolveCompetitorNameFromUrl } from './unified-analysis.service'
+import {
+  getExcludedCompetitors,
+  normalizeCompetitorName,
+} from './competitor-exclusions.service'
 
 export interface SinglePromptAnalysisConfig {
   brandProfileId: number
@@ -176,7 +180,12 @@ export async function runSinglePromptAnalysis(
         brandProfile.companyIndustry ?? undefined,
         competitors
       )
-      const validatedNameSet = new Set(validatedCompetitors.map(c => c.name.toLowerCase()))
+      const excludedSet = await getExcludedCompetitors(config.brandProfileId)
+      const validatedNameSet = new Set(
+        validatedCompetitors
+          .map(c => c.name.toLowerCase())
+          .filter(name => !excludedSet.has(normalizeCompetitorName(name)))
+      )
 
       // Filter each provider result's competitors to only validated ones
       for (const result of providerResults) {

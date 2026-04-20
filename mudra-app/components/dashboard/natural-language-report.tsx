@@ -377,7 +377,7 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
   )
 
   // Fetch ALL competitors for expansion modal (no limit)
-  const { data: allCompetitorsData, isLoading: isLoadingAllCompetitors } = useSWR(
+  const { data: allCompetitorsData, isLoading: isLoadingAllCompetitors, mutate: refreshAllCompetitors } = useSWR(
     showCompetitorRankingsModal && brandProfileId
       ? `/api/analysis/competitors?brandProfileId=${brandProfileId}&days=${days}${modelParam}${countryParam}`
       : null,
@@ -388,6 +388,29 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
       return json.data
     }
   )
+
+  // Mark a competitor as "not a competitor" — hides it from the dashboard and
+  // excludes it from future extractions. See /api/analysis/competitors/exclusions.
+  const handleExcludeCompetitor = React.useCallback(async (name: string) => {
+    if (!brandProfileId || !name) return
+    try {
+      const res = await fetch('/api/analysis/competitors/exclusions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandProfileId: Number(brandProfileId), name }),
+      })
+      if (!res.ok) {
+        toast.error('Could not dismiss competitor')
+        return
+      }
+      toast.success(`"${name}" marked as not a competitor`)
+      refreshCompetitors()
+      refreshAllCompetitors?.()
+    } catch (err) {
+      console.error('Failed to exclude competitor:', err)
+      toast.error('Could not dismiss competitor')
+    }
+  }, [brandProfileId, refreshCompetitors, refreshAllCompetitors])
 
   // Transform competitor data for display (preview - top 5 + "You" row)
   // Data is already sorted by SOV (highest first) by the API
@@ -984,7 +1007,22 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                               </span>
                               <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
                             </div>
-                            <div className="text-sm tabular-nums text-white/70 font-medium">{competitor.sov}%</div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                title="Not a competitor"
+                                aria-label={`Mark ${competitor.name} as not a competitor`}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  handleExcludeCompetitor(competitor.name)
+                                }}
+                                className="flex items-center justify-center size-6 rounded-md text-white/40 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-white/[0.06] transition-all"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                              <div className="text-sm tabular-nums text-white/70 font-medium">{competitor.sov}%</div>
+                            </div>
                           </a>
                         )
                       })
@@ -1277,17 +1315,32 @@ export function NaturalLanguageReport({ className, timeRange, selectedModel, day
                 )
               }
               return (
-                <a
-                  href={`https://${item.domain || getCompanyDomain(item.name)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2.5 min-w-0 group"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <CompanyLogo company={item.domain || item.name} size={24} />
-                  <span className="truncate text-white/90 group-hover:underline underline-offset-2">{item.name}</span>
-                  <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
-                </a>
+                <div className="flex items-center gap-2 min-w-0 group">
+                  <a
+                    href={`https://${item.domain || getCompanyDomain(item.name)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2.5 min-w-0 flex-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <CompanyLogo company={item.domain || item.name} size={24} />
+                    <span className="truncate text-white/90 group-hover:underline underline-offset-2">{item.name}</span>
+                    <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
+                  </a>
+                  <button
+                    type="button"
+                    title="Not a competitor"
+                    aria-label={`Mark ${item.name} as not a competitor`}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleExcludeCompetitor(item.name)
+                    }}
+                    className="flex items-center justify-center size-6 rounded-md text-white/40 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-white/[0.06] transition-all flex-shrink-0"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               )
             },
           },

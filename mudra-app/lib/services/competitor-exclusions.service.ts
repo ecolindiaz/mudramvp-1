@@ -43,6 +43,58 @@ export async function listExcludedCompetitors(brandProfileId: number): Promise<s
 }
 
 /**
+ * Shape of a per-provider/per-prompt result whose competitor data must be
+ * pruned against the user's exclusion list before persistence.
+ */
+export interface CompetitorExclusionTarget {
+  competitors?: string[]
+  competitorPositions?: Record<string, number>
+  competitorSentiments?: Record<string, 'positive' | 'neutral' | 'negative'>
+}
+
+/**
+ * Strips any competitor the user has marked as "not a competitor" from each
+ * target in-place, covering all three fields the extraction pipeline writes:
+ * `competitors`, `competitorPositions`, and `competitorSentiments`.
+ *
+ * Used as the final safety net in both the direct-GEO and single-prompt
+ * pipelines so dismissed names never reach GeoAnalysisResult.analyses.
+ * No-op when the exclusion set is empty.
+ */
+export function applyCompetitorExclusions<T extends CompetitorExclusionTarget>(
+  targets: Iterable<T>,
+  excludedSet: Set<string>
+): void {
+  if (excludedSet.size === 0) return
+
+  for (const target of targets) {
+    if (target.competitors) {
+      target.competitors = target.competitors.filter(
+        (c) => !excludedSet.has(normalizeCompetitorName(c))
+      )
+    }
+    if (target.competitorPositions) {
+      const cleaned: Record<string, number> = {}
+      for (const [name, pos] of Object.entries(target.competitorPositions)) {
+        if (!excludedSet.has(normalizeCompetitorName(name))) {
+          cleaned[name] = pos
+        }
+      }
+      target.competitorPositions = cleaned
+    }
+    if (target.competitorSentiments) {
+      const cleaned: Record<string, 'positive' | 'neutral' | 'negative'> = {}
+      for (const [name, sentiment] of Object.entries(target.competitorSentiments)) {
+        if (!excludedSet.has(normalizeCompetitorName(name))) {
+          cleaned[name] = sentiment
+        }
+      }
+      target.competitorSentiments = cleaned
+    }
+  }
+}
+
+/**
  * Runs a read-modify-write transaction under Serializable isolation and retries
  * on PG 40001 serialization failures (Prisma P2034). Protects concurrent
  * add/remove calls on the same brand profile from losing writes.

@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma'
 import { validateCompetitors } from './competitor-validation.service'
 import { resolveCompetitorNameFromUrl } from './unified-analysis.service'
 import {
+  applyCompetitorExclusions,
   getExcludedCompetitors,
   normalizeCompetitorName,
 } from './competitor-exclusions.service'
@@ -225,33 +226,7 @@ export async function runSinglePromptAnalysis(
 
   // Final safety net: even if the AI validation block above was skipped or threw,
   // never persist names the user has marked as "not a competitor".
-  if (excludedSet.size > 0) {
-    for (const result of providerResults) {
-      if (result.competitors) {
-        result.competitors = result.competitors.filter(
-          c => !excludedSet.has(normalizeCompetitorName(c))
-        )
-      }
-      if (result.competitorPositions) {
-        const cleaned: Record<string, number> = {}
-        for (const [name, pos] of Object.entries(result.competitorPositions)) {
-          if (!excludedSet.has(normalizeCompetitorName(name))) {
-            cleaned[name] = pos
-          }
-        }
-        result.competitorPositions = cleaned
-      }
-      if (result.competitorSentiments) {
-        const cleaned: Record<string, 'positive' | 'neutral' | 'negative'> = {}
-        for (const [name, sent] of Object.entries(result.competitorSentiments)) {
-          if (!excludedSet.has(normalizeCompetitorName(name))) {
-            cleaned[name] = sent
-          }
-        }
-        result.competitorSentiments = cleaned
-      }
-    }
-  }
+  applyCompetitorExclusions(providerResults, excludedSet)
 
   // Calculate overall visibility using mention rate (consistent across all views)
   // Each test: 100 if mentioned, 0 if not → average = mention rate × 100

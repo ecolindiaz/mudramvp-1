@@ -1,6 +1,6 @@
 import { generateInitialPrompts, profileToBrandInfo } from './prompt-generation.service';
 import { validateCompetitors, quickValidateName, type ValidatedCompetitor } from './competitor-validation.service';
-import { getExcludedCompetitors, normalizeCompetitorName } from './competitor-exclusions.service';
+import { applyCompetitorExclusions, getExcludedCompetitors, normalizeCompetitorName } from './competitor-exclusions.service';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -2877,31 +2877,10 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     validatedCompetitors = validatedCompetitors.filter(
       c => !excludedSet.has(normalizeCompetitorName(c.name))
     );
-    for (const analysis of analyses) {
-      for (const test of analysis.promptTests) {
-        test.competitors = test.competitors.filter(
-          c => !excludedSet.has(normalizeCompetitorName(c))
-        );
-        if (test.competitorPositions) {
-          const cleaned: Record<string, number> = {};
-          for (const [name, pos] of Object.entries(test.competitorPositions)) {
-            if (!excludedSet.has(normalizeCompetitorName(name))) {
-              cleaned[name] = pos as number;
-            }
-          }
-          test.competitorPositions = cleaned;
-        }
-        if (test.competitorSentiments) {
-          const cleaned: Record<string, 'positive' | 'neutral' | 'negative'> = {};
-          for (const [name, sentiment] of Object.entries(test.competitorSentiments)) {
-            if (!excludedSet.has(normalizeCompetitorName(name))) {
-              cleaned[name] = sentiment;
-            }
-          }
-          test.competitorSentiments = cleaned;
-        }
-      }
-    }
+    applyCompetitorExclusions(
+      analyses.flatMap(a => a.promptTests),
+      excludedSet
+    );
   }
 
   // Recalculate competitor comparison with validated data

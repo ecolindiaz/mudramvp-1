@@ -209,8 +209,18 @@ export async function mapAiVisibility(
     notes.push(`AI visibility score declined by ${Math.abs(scoreDelta.absolute ?? 0)} points.`);
   }
 
+  // "First week" note: only emit if there is truly no AI visibility history
+  // before this window. Since priorResults is now scoped to the previous
+  // windowDays, an empty priorResults could just mean a one-week gap for a
+  // brand with months of history — check the full pre-window history before
+  // emitting a misleading "first week" message.
   if (thisWeekResults.length > 0 && priorResults.length === 0) {
-    notes.push("First week with AI visibility data — no previous comparison available.");
+    const preWindowCount = await prisma.geoAnalysisResult.count({
+      where: { ...baseWhere, timestamp: { lt: prevStart } },
+    });
+    if (preWindowCount === 0) {
+      notes.push("First week with AI visibility data — no previous comparison available.");
+    }
   }
 
   return {

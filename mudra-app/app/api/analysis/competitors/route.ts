@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { quickValidateName } from '@/lib/services/competitor-validation.service'
+import {
+  getExcludedCompetitors,
+  normalizeCompetitorName,
+} from '@/lib/services/competitor-exclusions.service'
 import { resolveCompetitorDomains } from '@/lib/competitor-domain'
 import { getCompanyDomain } from '@/lib/logo'
 
@@ -308,6 +312,9 @@ export async function GET(request: NextRequest) {
 
     const userBrandName = (brandProfile.companyName || '').toLowerCase()
 
+    // Load the user's "not a competitor" exclusion list (normalized lowercased names)
+    const excludedSet = await getExcludedCompetitors(profileId)
+
     // Get GEO analysis results for this brand profile (filtered by time range)
     const geoAnalyses = await prisma.geoAnalysisResult.findMany({
       where: {
@@ -521,6 +528,31 @@ export async function GET(request: NextRequest) {
         } else {
           mergePair(key, spaceVariant)
         }
+      }
+    }
+
+    // Drop any competitors the user has marked as "not a competitor".
+    // Match against the canonical lowerKey and (defensively) any display-name variant.
+    if (excludedSet.size > 0) {
+      const keysToDrop: string[] = []
+      for (const [lowerKey] of competitorMentionMap) {
+        if (excludedSet.has(lowerKey)) {
+          keysToDrop.push(lowerKey)
+          continue
+        }
+        const displayCounts = competitorDisplayNames.get(lowerKey)
+        if (displayCounts) {
+          for (const displayName of displayCounts.keys()) {
+            if (excludedSet.has(normalizeCompetitorName(displayName))) {
+              keysToDrop.push(lowerKey)
+              break
+            }
+          }
+        }
+      }
+      for (const k of keysToDrop) {
+        competitorMentionMap.delete(k)
+        competitorDisplayNames.delete(k)
       }
     }
 

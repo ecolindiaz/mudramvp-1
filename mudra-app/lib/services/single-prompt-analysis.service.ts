@@ -9,6 +9,11 @@
 import { prisma } from '@/lib/prisma'
 import { validateCompetitors } from './competitor-validation.service'
 import { resolveCompetitorNameFromUrl } from './unified-analysis.service'
+import {
+  applyCompetitorExclusions,
+  getExcludedCompetitors,
+  normalizeCompetitorName,
+} from './competitor-exclusions.service'
 
 export interface SinglePromptAnalysisConfig {
   brandProfileId: number
@@ -152,6 +157,10 @@ export async function runSinglePromptAnalysis(
   
   const providerResults = await Promise.all(providerPromises)
 
+  // Load exclusions once per run; used both inside the validation block
+  // and as a final safety net after the try/catch (mirrors direct-geo).
+  const excludedSet = await getExcludedCompetitors(config.brandProfileId)
+
   // Validate competitors using the same pipeline as unified analysis
   try {
     const allResponses = providerResults
@@ -176,7 +185,11 @@ export async function runSinglePromptAnalysis(
         brandProfile.companyIndustry ?? undefined,
         competitors
       )
-      const validatedNameSet = new Set(validatedCompetitors.map(c => c.name.toLowerCase()))
+      const validatedNameSet = new Set(
+        validatedCompetitors
+          .map(c => c.name.toLowerCase())
+          .filter(name => !excludedSet.has(normalizeCompetitorName(name)))
+      )
 
       // Filter each provider result's competitors to only validated ones
       for (const result of providerResults) {
@@ -210,6 +223,10 @@ export async function runSinglePromptAnalysis(
   } catch (error) {
     console.warn('⚠️ Competitor validation failed for single-prompt analysis, using unvalidated results:', error)
   }
+
+  // Final safety net: even if the AI validation block above was skipped or threw,
+  // never persist names the user has marked as "not a competitor".
+  applyCompetitorExclusions(providerResults, excludedSet)
 
   // Calculate overall visibility using mention rate (consistent across all views)
   // Each test: 100 if mentioned, 0 if not → average = mention rate × 100

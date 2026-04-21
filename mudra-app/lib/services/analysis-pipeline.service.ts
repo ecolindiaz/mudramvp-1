@@ -144,6 +144,7 @@ async function runGeoAnalysis(config: AnalysisPipelineConfig) {
     // Call DirectGEO service directly (avoids HTTP fetch issues on Vercel)
     console.log('[GEO Analysis] Running DirectGEO analysis directly...');
     const directGeoConfig = createDirectGEOConfig(config.brandName, config.website, {
+      brandProfileId: config.brandProfileId,
       industry: config.industry || '',
       description: config.description || '',
       competitors: config.competitors || [],

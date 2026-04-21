@@ -37,6 +37,7 @@ model BrandProfile {
   companyServices            String?
   companyICP                 String?
   competitors                String?
+  excludedCompetitors        String?
   monthlySearchVolume        String?
   aiRecommendations          String?
   stage                      String?

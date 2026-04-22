@@ -9,6 +9,8 @@ export interface SavedPrompt {
   language?: string
   isCustom: boolean
   isActive: boolean
+  editedByUser?: boolean
+  editedAt?: Date | null
   createdAt: Date
   updatedAt: Date
 }
@@ -265,7 +267,7 @@ export async function createCustomPrompt(
  */
 export async function updatePrompt(
   promptId: number,
-  updates: Partial<{ text: string; category: string; isActive: boolean }>
+  updates: Partial<{ text: string; category: string; isActive: boolean; editedByUser: boolean; editedAt: Date }>
 ): Promise<SavedPrompt> {
   try {
     return await prisma.prompt.update({

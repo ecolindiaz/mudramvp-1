@@ -112,6 +112,8 @@ model Prompt {
   language       String       @default("en")   // "en" | "es"
   isCustom       Boolean      @default(false)
   isActive       Boolean      @default(true)
+  editedByUser   Boolean      @default(false)
+  editedAt       DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)

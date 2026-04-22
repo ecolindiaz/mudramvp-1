@@ -13,6 +13,7 @@ import { requireAuth, requireAuthWithBrandAccess, verifyBrandProfileAccess } fro
 import { prisma } from '@/lib/prisma'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 import { runSinglePromptAnalysis } from '@/lib/services/single-prompt-analysis.service'
+import { prunePromptTextsFromAnalyses } from '@/lib/services/prompt-analyses-prune.service'
 
 // Vercel serverless: PATCH with runAnalysis needs time for AI provider calls
 export const maxDuration = 120
@@ -185,12 +186,35 @@ export async function PATCH(request: NextRequest) {
       return accessResult.response!
     }
 
+    const textChanged = text !== undefined && text !== existingPrompt.text
+
     const updates: any = {}
     if (text !== undefined) updates.text = text
     if (category !== undefined) updates.category = category
     if (isActive !== undefined) updates.isActive = isActive
+    if (textChanged) {
+      updates.editedByUser = true
+      updates.editedAt = new Date()
+    }
 
     const prompt = await updatePrompt(parseInt(promptId), updates)
+
+    // If the text changed, drop stale analysis entries tied to the previous
+    // text so the list view doesn't render the old text as a ghost prompt.
+    if (textChanged) {
+      try {
+        const { entriesRemoved } = await prunePromptTextsFromAnalyses(
+          existingPrompt.brandProfileId,
+          [existingPrompt.text]
+        )
+        if (entriesRemoved > 0) {
+          console.log(`🧹 Pruned ${entriesRemoved} stale analysis entries for edited prompt ${promptId}`)
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to prune stale analysis entries after edit:', error)
+        // Don't fail the request — the update itself succeeded
+      }
+    }
 
     // Run analysis if requested (e.g. after editing prompt text)
     let analysisResult = null

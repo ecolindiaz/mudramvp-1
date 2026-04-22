@@ -68,6 +68,8 @@ type TrackedPrompt = {
   position: number | null
   lastRun: string | null
   isPending?: boolean // True when prompt is added but not yet analyzed
+  editedByUser?: boolean // True when the user has edited the prompt text at least once
+  editedAt?: string | null // ISO timestamp of the most recent user edit
 }
 
 type RecommendedPrompt = {
@@ -185,18 +187,35 @@ const createColumns = (router: ReturnType<typeof useRouter>, selectedCountry: st
       </Tooltip>
     ),
     accessorKey: "prompt",
-    cell: ({ row }) => (
-      <div 
-        className="font-medium text-white/90 text-[15px] md:text-base leading-relaxed cursor-pointer hover:text-white transition-colors max-w-[300px] md:max-w-[400px] truncate"
-        title={row.getValue("prompt")}
-        onClick={(e) => {
-          e.stopPropagation()
-          router.push(`/dashboard/tracked-prompts/${row.original.id}`)
-        }}
-      >
-        {row.getValue("prompt")}
-      </div>
-    ),
+    cell: ({ row }) => {
+      const editedAtDisplay = row.original.editedAt
+        ? `Edited ${formatRelativeTime(row.original.editedAt) ?? ''}`.trim()
+        : 'Edited by you'
+      return (
+        <div className="flex items-center gap-2 max-w-[300px] md:max-w-[400px]">
+          <div
+            className="font-medium text-white/90 text-[15px] md:text-base leading-relaxed cursor-pointer hover:text-white transition-colors truncate"
+            title={row.getValue("prompt")}
+            onClick={(e) => {
+              e.stopPropagation()
+              router.push(`/dashboard/tracked-prompts/${row.original.id}`)
+            }}
+          >
+            {row.getValue("prompt")}
+          </div>
+          {row.original.editedByUser && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="shrink-0 inline-flex items-center rounded-full border border-white/15 bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-white/70 uppercase tracking-wide">
+                  Edited
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{editedAtDisplay}</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      )
+    },
     enableSorting: false,
     size: 400,
   },
@@ -802,6 +821,8 @@ function TrackedPromptsPageInner() {
         position: p.position || null,
         lastRun: hasBeenAnalyzed ? lastRunTime : null,
         isPending: !hasBeenAnalyzed && pendingPromptIds.has(promptId),
+        editedByUser: !!p.editedByUser,
+        editedAt: p.editedAt || null,
       }
     })
   }
@@ -1247,7 +1268,14 @@ function TrackedPromptsPageInner() {
         // Update the prompt in local state immediately
         setData((prev) => prev.map(p =>
           p.id === editedPromptId
-            ? { ...p, prompt: text, intent: editIntent, isPending: promptChanged && !result.analysisComplete }
+            ? {
+                ...p,
+                prompt: text,
+                intent: editIntent,
+                isPending: promptChanged && !result.analysisComplete,
+                editedByUser: promptChanged ? true : p.editedByUser,
+                editedAt: promptChanged ? new Date().toISOString() : p.editedAt,
+              }
             : p
         ))
 

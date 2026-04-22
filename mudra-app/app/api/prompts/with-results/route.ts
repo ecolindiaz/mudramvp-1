@@ -9,6 +9,7 @@ import {
   type PromptTestResult
 } from '@/lib/services/visibility-scoring.service'
 import { getLanguageForCountry, isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
+import { normalizePromptText } from '@/lib/services/prompt-analyses-prune.service'
 
 /**
  * GET /api/prompts/with-results?brandProfileId={id}
@@ -232,10 +233,12 @@ export async function GET(request: NextRequest) {
               category: string | null
               isCustom: number
               isActive: number
+              editedByUser: boolean | number | null
+              editedAt: Date | null
               createdAt: Date
               updatedAt: Date
             }>>(
-              Prisma.sql`SELECT id, text, category, "isCustom", "isActive", "createdAt", "updatedAt"
+              Prisma.sql`SELECT id, text, category, "isCustom", "isActive", "editedByUser", "editedAt", "createdAt", "updatedAt"
                FROM prompts
                WHERE "brandProfileId" = ${profileId} AND "isActive" = 1
                ${promptLanguageFilter ? Prisma.sql`AND "language" = ${promptLanguageFilter}` : Prisma.empty}
@@ -247,6 +250,8 @@ export async function GET(request: NextRequest) {
               category: p.category,
               isCustom: Boolean(p.isCustom),
               isActive: Boolean(p.isActive),
+              editedByUser: Boolean(p.editedByUser),
+              editedAt: p.editedAt ? new Date(p.editedAt) : null,
               createdAt: new Date(p.createdAt),
               updatedAt: new Date(p.updatedAt),
               brandProfileId: profileId
@@ -267,6 +272,8 @@ export async function GET(request: NextRequest) {
         text: prompt.text,
         category: prompt.category,
         isCustom: prompt.isCustom,
+        editedByUser: prompt.editedByUser ?? false,
+        editedAt: prompt.editedAt ?? null,
         visibility: 0,
         position: null,
         model: null,
@@ -457,22 +464,10 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
-    // Step 5: Match prompt texts from analysis with Prompt records using normalized text
-    const normalizeText = (text: string): string => {
-      let normalized = text
-        .normalize('NFD')           // Decompose accents (á → a + combining accent)
-        .replace(/[\u0300-\u036f]/g, '') // Strip combining diacritical marks
-        .toLowerCase()
-        .trim()
-        .replace(/[^\w\s]/g, '')    // Strip remaining non-alphanumeric
-        .replace(/\s+/g, ' ')
-
-      // Strip common brand prefixes (Try*, Get*, Use*) to handle brand name changes
-      // e.g., "TryMudra" vs "Mudra", "GetFireGeo" vs "FireGeo"
-      normalized = normalized.replace(/^(try|get|use)\s*/, '')
-
-      return normalized
-    }
+    // Step 5: Match prompt texts from analysis with Prompt records using normalized text.
+    // normalizePromptText is the canonical normalizer — shared with the prune service
+    // so list-matching and prune-targeting can't silently drift apart.
+    const normalizeText = normalizePromptText
 
     // Create a map of normalized text to prompt records
     const promptMap = new Map()
@@ -627,6 +622,8 @@ export async function GET(request: NextRequest) {
         text: prompt.text,
         category: prompt.category,
         isCustom: prompt.isCustom,
+        editedByUser: prompt.editedByUser ?? false,
+        editedAt: prompt.editedAt ?? null,
         // Top-level metrics - use aggregate across all providers (mention rate)
         visibility: promptAggregate?.overallScore ?? 0,
         position: promptAggregate?.averagePosition ?? null,
@@ -808,6 +805,8 @@ export async function GET(request: NextRequest) {
           text: prompt.text,
           category: prompt.category,
           isCustom: prompt.isCustom,
+          editedByUser: prompt.editedByUser ?? false,
+          editedAt: prompt.editedAt ?? null,
           visibility: 0,
           position: null,
           model: null,

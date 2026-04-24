@@ -4,7 +4,7 @@ import { createCustomPrompt } from '@/lib/services/prompt-storage.service'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 import { prisma } from '@/lib/prisma'
-import { getLanguageForCountry, type CountryCode } from '@/lib/geo/country-config'
+import { getLanguageForCountry, isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
 
 /**
  * POST /api/prompts/generate
@@ -45,12 +45,15 @@ export async function POST(request: NextRequest) {
 
     // Resolve the active country (preview generation uses the brand's
     // primaryCountry — if you want a different one, use the country-aware
-    // endpoints instead). Language is derived from the country.
+    // endpoints instead). Validate before casting so a stray non-allowed
+    // value (e.g. 'FR') can't get written back into the prompts table.
     const brandProfile = await prisma.brandProfile.findUnique({
       where: { id: authResult.brandProfileId! },
       select: { primaryCountry: true }
     })
-    const countryCode: CountryCode = (brandProfile?.primaryCountry as CountryCode) || 'US'
+    const countryCode: CountryCode = (brandProfile?.primaryCountry && isAllowedCountry(brandProfile.primaryCountry))
+      ? (brandProfile.primaryCountry as CountryCode)
+      : 'US'
     const language: 'en' | 'es' = getLanguageForCountry(countryCode)
 
     console.log(`🎯 Generating prompts for user request: "${userRequest || 'initial prompts'}" (country: ${countryCode}, language: ${language})`)

@@ -1058,7 +1058,7 @@ function TrackedPromptsPageInner() {
     setIsAiGenerating(true)
 
     try {
-      const lang = selectedCountry && isAllowedCountry(selectedCountry) ? getLanguageForCountry(selectedCountry as CountryCode) : 'en'
+      // Server derives language from country, so only send country.
       const response = await fetch('/api/prompts/batch-generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1066,7 +1066,6 @@ function TrackedPromptsPageInner() {
           brandProfileId: profile.id,
           description: aiDescription,
           count: aiCount,
-          language: lang,
           country: selectedCountry || 'US',
           brandInfo: {
             companyName: profile.companyName || '',

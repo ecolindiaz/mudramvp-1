@@ -195,15 +195,20 @@ export async function GET(request: NextRequest) {
       // Continue processing with allAnalysisResults (skip the early return below)
     }
 
-    // Compute language filter: if analysis data fell back to all countries,
-    // also drop the language filter so prompts match the analysis data.
-    // Otherwise use the selected country's language.
-    if (effectiveCountryFilter === null && countryFilter) {
-      promptLanguageFilter = undefined
+    // Prompts are now per-country, so filter by country directly instead of
+    // deriving a language filter. If the GeoAnalysisResult lookup fell back
+    // to all countries (effectiveCountryFilter === null), we still want the
+    // prompt list scoped to the user's selected country — otherwise Colombia
+    // and Argentina would share rows again. Fall back to language only as a
+    // safety net for legacy brands that haven't been through the country
+    // migration yet.
+    let promptCountryFilter: string | undefined
+    if (countryFilter && isAllowedCountry(countryFilter as CountryCode)) {
+      promptCountryFilter = countryFilter
+      promptLanguageFilter = getLanguageForCountry(countryFilter as CountryCode)
     } else {
-      promptLanguageFilter = countryFilter && isAllowedCountry(countryFilter as CountryCode)
-        ? getLanguageForCountry(countryFilter as CountryCode)
-        : undefined
+      promptCountryFilter = undefined
+      promptLanguageFilter = undefined
     }
 
     // Helper function to get and return prompts without results
@@ -216,7 +221,7 @@ export async function GET(request: NextRequest) {
             where: {
               brandProfileId: profileId,
               isActive: true,
-              ...(promptLanguageFilter ? { language: promptLanguageFilter } : {}),
+              ...(promptCountryFilter ? { country: promptCountryFilter } : (promptLanguageFilter ? { language: promptLanguageFilter } : {})),
             },
             orderBy: [
               { category: 'asc' },
@@ -241,7 +246,7 @@ export async function GET(request: NextRequest) {
               Prisma.sql`SELECT id, text, category, "isCustom", "isActive", "editedByUser", "editedAt", "createdAt", "updatedAt"
                FROM prompts
                WHERE "brandProfileId" = ${profileId} AND "isActive" = 1
-               ${promptLanguageFilter ? Prisma.sql`AND "language" = ${promptLanguageFilter}` : Prisma.empty}
+               ${promptCountryFilter ? Prisma.sql`AND "country" = ${promptCountryFilter}` : (promptLanguageFilter ? Prisma.sql`AND "language" = ${promptLanguageFilter}` : Prisma.empty)}
                ORDER BY category ASC, "createdAt" ASC`
             )
             allPrompts = rawPrompts.map(p => ({
@@ -433,18 +438,21 @@ export async function GET(request: NextRequest) {
     // Also get inactive (soft-deleted) prompts to avoid resurrecting them as synthetic records
     let deletedPrompts: any[] = []
     try {
+      const promptScope = promptCountryFilter
+        ? { country: promptCountryFilter }
+        : (promptLanguageFilter ? { language: promptLanguageFilter } : {})
       allPrompts = await prisma.prompt.findMany({
         where: {
           brandProfileId: profileId,
           isActive: true,
-          ...(promptLanguageFilter ? { language: promptLanguageFilter } : {}),
+          ...promptScope,
         }
       })
       deletedPrompts = await prisma.prompt.findMany({
         where: {
           brandProfileId: profileId,
           isActive: false,
-          ...(promptLanguageFilter ? { language: promptLanguageFilter } : {}),
+          ...promptScope,
         },
         select: { text: true }
       })

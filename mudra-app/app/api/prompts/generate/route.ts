@@ -43,16 +43,17 @@ export async function POST(request: NextRequest) {
       competitors: Array.isArray(brandInfo.competitors) ? brandInfo.competitors : [],
     }
 
-    // Fetch brand profile to determine language from primaryCountry
+    // Resolve the active country (preview generation uses the brand's
+    // primaryCountry — if you want a different one, use the country-aware
+    // endpoints instead). Language is derived from the country.
     const brandProfile = await prisma.brandProfile.findUnique({
       where: { id: authResult.brandProfileId! },
       select: { primaryCountry: true }
     })
-    const language: 'en' | 'es' = brandProfile?.primaryCountry
-      ? getLanguageForCountry(brandProfile.primaryCountry as CountryCode)
-      : 'en'
+    const countryCode: CountryCode = (brandProfile?.primaryCountry as CountryCode) || 'US'
+    const language: 'en' | 'es' = getLanguageForCountry(countryCode)
 
-    console.log(`🎯 Generating prompts for user request: "${userRequest || 'initial prompts'}" (language: ${language})`)
+    console.log(`🎯 Generating prompts for user request: "${userRequest || 'initial prompts'}" (country: ${countryCode}, language: ${language})`)
 
     // Generate prompts using the unified GPT-5.1 pipeline
     const generatedPrompts = await generateInitialPrompts(normalizedBrandInfo, null, language)
@@ -62,13 +63,13 @@ export async function POST(request: NextRequest) {
       const byCategory = (cat: string) => generatedPrompts.filter(p => p.category === cat)
       const savedPrompts = await Promise.all([
         ...byCategory('Organic').slice(0, 5).map(p =>
-          createCustomPrompt(authResult.brandProfileId!, p.text, 'Organic', language)
+          createCustomPrompt(authResult.brandProfileId!, p.text, 'Organic', countryCode, language)
         ),
         ...byCategory('Competitor').slice(0, 3).map(p =>
-          createCustomPrompt(authResult.brandProfileId!, p.text, 'Competitor', language)
+          createCustomPrompt(authResult.brandProfileId!, p.text, 'Competitor', countryCode, language)
         ),
         ...byCategory('How-to Guides').slice(0, 2).map(p =>
-          createCustomPrompt(authResult.brandProfileId!, p.text, 'How-to Guides', language)
+          createCustomPrompt(authResult.brandProfileId!, p.text, 'How-to Guides', countryCode, language)
         )
       ])
 

@@ -14,11 +14,12 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
 
-import { Loader2, Search, Radio, BookOpen, Info, MessageSquare, TrendingUp, Clock } from "lucide-react"
+import { Loader2, Search, Radio, BookOpen, Info, MessageSquare, TrendingUp, Clock, Languages } from "lucide-react"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { trackEvent } from "@/lib/analytics/posthog-events"
+import { COUNTRY_LANGUAGE_MAP, isAllowedCountry, type CountryCode } from "@/lib/geo/country-config"
 
 const RADAR_RUNNING_KEY = 'mudra_radar_running'
 const RADAR_RUN_TIMEOUT = 150_000 // 150s (backend maxDuration is 120s + buffer)
@@ -56,8 +57,8 @@ interface Opportunity {
 }
 
 function ConversationRadarPageInner() {
-  const { profile, selectedCountry } = useBrandProfile()
-  
+  const { profile, selectedCountry, setProfile } = useBrandProfile()
+
   // State
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -68,6 +69,39 @@ function ConversationRadarPageInner() {
   const [isMounted, setIsMounted] = useState(false)
   const [cronInfo, setCronInfo] = useState<{ lastRun: string | null; nextRun: string | null } | null>(null)
   const [cronFailed, setCronFailed] = useState(false)
+
+  // Strict-language toggle: reflects BrandProfile.strictLanguageFilter and
+  // PATCHes the brand profile when flipped. Only meaningful for Spanish
+  // countries — for English countries we hide the control entirely.
+  const selectedLanguage: 'en' | 'es' = isAllowedCountry(selectedCountry)
+    ? COUNTRY_LANGUAGE_MAP[selectedCountry as CountryCode]
+    : 'en'
+  const showStrictLanguageToggle = selectedLanguage === 'es'
+  const strictLanguageEnabled = Boolean((profile as any)?.strictLanguageFilter)
+  const [isSavingStrictLanguage, setIsSavingStrictLanguage] = useState(false)
+
+  const toggleStrictLanguage = async () => {
+    if (!profile.id || isSavingStrictLanguage) return
+    const next = !strictLanguageEnabled
+    setIsSavingStrictLanguage(true)
+    try {
+      const updated = { ...(profile as any), strictLanguageFilter: next }
+      const res = await fetch('/api/brand-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      })
+      if (res.ok) {
+        await setProfile(updated)
+      } else {
+        console.error('Failed to update strictLanguageFilter:', await res.text())
+      }
+    } catch (err) {
+      console.error('Error toggling strictLanguageFilter:', err)
+    } finally {
+      setIsSavingStrictLanguage(false)
+    }
+  }
 
   useEffect(() => {
     setIsMounted(true)
@@ -320,6 +354,33 @@ function ConversationRadarPageInner() {
                       <Clock className="size-3" />
                       <span>Next scan {formatNextRun(cronInfo.nextRun)}</span>
                     </div>
+                  )}
+                  {showStrictLanguageToggle && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={toggleStrictLanguage}
+                          disabled={isSavingStrictLanguage}
+                          className={cn(
+                            "h-9 px-3 rounded-full border-0 text-xs font-medium gap-1.5 flex items-center transition-colors disabled:opacity-50",
+                            strictLanguageEnabled
+                              ? "bg-white/15 text-white hover:bg-white/20"
+                              : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white",
+                          )}
+                        >
+                          {isSavingStrictLanguage ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Languages className="w-3.5 h-3.5" />
+                          )}
+                          <span>Español only {strictLanguageEnabled ? 'on' : 'off'}</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={8} className="max-w-xs">
+                        When on, the radar only searches Spanish-language subreddits (r/Colombia, r/argentina, r/programacion, etc.). Turn off to include English subs too.
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                   {showManualRun && (
                     <Button

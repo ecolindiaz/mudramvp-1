@@ -203,17 +203,26 @@ export async function processCitedOpportunities(
 export async function runProactiveSearch(
   brandProfileId: number,
   language: 'en' | 'es' = 'en',
-  promptTexts?: string[]
+  promptTexts?: string[],
+  country?: string,
 ): Promise<ProactiveSearchStats> {
   const stats: ProactiveSearchStats = { reddit: 0, total: 0, queries: [] };
 
-  console.log(`[Proactive Radar] Starting for brand ${brandProfileId} (language: ${language})`);
+  console.log(`[Proactive Radar] Starting for brand ${brandProfileId} (country: ${country ?? 'any'}, language: ${language})`);
 
-  // 1. Get brand context with tracked prompts (filtered by language)
+  // Prompts are now per-country. Prefer country scope when available so
+  // Colombia's radar doesn't pull Argentina's tracked prompts (or vice versa).
+  // Fall back to language for legacy brands still on the shared-prompt model.
+  const promptFilter = country
+    ? { isActive: true, country }
+    : { isActive: true, language };
+
   const brandProfile = await prisma.brandProfile.findUnique({
     where: { id: brandProfileId },
-    include: { prompts: { where: { isActive: true, language } } },
+    include: { prompts: { where: promptFilter } },
   });
+
+  const strictLanguage = Boolean((brandProfile as any)?.strictLanguageFilter);
   
   if (!brandProfile) {
     throw new Error(`Brand profile ${brandProfileId} not found`);
@@ -249,9 +258,11 @@ export async function runProactiveSearch(
     return stats;
   }
   
-  // 2. Generate search queries from tracked prompts
-  const queries = await generateSearchQueries(brandContext, language);
-  console.log(`[Proactive Radar] Generated ${queries.trackedPromptQueries.length} tracked prompt queries`);
+  // 2. Generate search queries from tracked prompts. `strictLanguage`
+  // drops English subreddits for Spanish scans so results actually come
+  // back in Spanish instead of skewing toward r/SaaS and friends.
+  const queries = await generateSearchQueries(brandContext, language, { strictLanguage });
+  console.log(`[Proactive Radar] Generated ${queries.trackedPromptQueries.length} tracked prompt queries${strictLanguage ? ' (strict language)' : ''}`);
   
   // ⚡ CREDIT OPTIMIZATION: Process up to 3 tracked prompts + 1 competitor query per run
   // The scheduler/cron will rotate through remaining prompts over time

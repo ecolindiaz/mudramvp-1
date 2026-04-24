@@ -1067,6 +1067,7 @@ function TrackedPromptsPageInner() {
           description: aiDescription,
           count: aiCount,
           language: lang,
+          country: selectedCountry || 'US',
           brandInfo: {
             companyName: profile.companyName || '',
             companyDescription: profile.companyDescription || '',

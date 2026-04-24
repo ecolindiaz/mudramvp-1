@@ -13,7 +13,7 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { runDirectGEOAnalysis, createDirectGEOConfig } from './direct-geo-analysis.service';
-import { type CountryCode, getLanguageForCountry, getUniqueLanguages, isAllowedCountry } from '@/lib/geo/country-config';
+import { type CountryCode, getLanguageForCountry, isAllowedCountry } from '@/lib/geo/country-config';
 
 // ---------------------------------------------------------------------------
 // Concurrency utility
@@ -531,7 +531,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
   let analysisRunFinalized = false;
 
   try {
-    const { generateAndSaveInitialPrompts, getActivePrompts } = await import('./prompt-storage.service');
+    const { generateAndSaveInitialPromptsForCountries, getActivePrompts } = await import('./prompt-storage.service');
     const { canRunAnalysis, updateLastAnalysisTime, createAnalysisRun, updateAnalysisRun } = await import('./analysis-run.service');
 
     // Check cooldown (unless skipCooldown is true OR DEVELOPMENT_MODE is true)
@@ -552,19 +552,23 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
     const language = config.language
       || (country && isAllowedCountry(country) ? getLanguageForCountry(country as CountryCode) : 'en');
 
-    // Determine languages needed for prompt generation (onboarding with multiple countries)
-    const promptLanguages = config.countries
-      ? getUniqueLanguages(config.countries.filter(isAllowedCountry) as CountryCode[])
-      : [language as 'en' | 'es'];
+    // Determine the countries we need prompts for. Onboarding passes a full
+    // tracked-country array; single-country analysis runs fall back to the
+    // active country.
+    const promptCountries: CountryCode[] = config.countries
+      ? (config.countries.filter(isAllowedCountry) as CountryCode[])
+      : (country ? [country] : (['US'] as CountryCode[]));
 
-    // Get or generate prompts (filtered by language for this country)
+    // Get or generate prompts scoped to the country this run is analysing.
     onProgress?.({ phase: 'prompts', status: 'started' });
-    let prompts = await getActivePrompts(config.brandProfileId, language);
+    let prompts = await getActivePrompts(config.brandProfileId, undefined, country);
     if (prompts.length === 0) {
-      console.log(`[GEO Core] Generating initial prompts (languages: ${promptLanguages.join(', ')})...`);
-      const allPrompts = await generateAndSaveInitialPrompts(config.brandProfileId, promptLanguages);
-      // Filter to only the prompts in the language we need for THIS run
-      prompts = allPrompts.filter(p => !p.language || p.language === language);
+      console.log(`[GEO Core] Generating initial prompts (countries: ${promptCountries.join(', ')})...`);
+      const allPrompts = await generateAndSaveInitialPromptsForCountries(config.brandProfileId, promptCountries);
+      // Keep only the subset that belongs to the run's active country
+      prompts = country
+        ? allPrompts.filter(p => !p.country || p.country === country)
+        : allPrompts;
     }
 
     onProgress?.({ phase: 'prompts', status: 'completed', data: { count: prompts.length } });

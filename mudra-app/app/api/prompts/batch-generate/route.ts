@@ -4,6 +4,7 @@ import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 import { canAddCustomPrompt, getActivePrompts, PROMPT_LIMITS } from '@/lib/services/prompt-storage.service'
 import { generateBatchPrompts } from '@/lib/services/prompt-generation.service'
 import { prisma } from '@/lib/prisma'
+import { isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
 
 export const maxDuration = 60
 
@@ -19,8 +20,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { brandProfileId, description, count, brandInfo, language } = body
+    const { brandProfileId, description, count, brandInfo, language, country } = body
     const lang = (typeof language === 'string' && language) ? language : 'en'
+    const countryCode: CountryCode = isAllowedCountry(country) ? country : 'US'
 
     // Auth
     const authResult = await requireAuthWithBrandAccess(brandProfileId)
@@ -59,15 +61,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Capacity check (per language/region)
-    const limits = await canAddCustomPrompt(profileId, lang)
+    // Capacity check (scoped per country)
+    const limits = await canAddCustomPrompt(profileId, undefined, countryCode)
     const remainingSlots = PROMPT_LIMITS.MAX_TOTAL_PROMPTS - limits.currentTotal
 
     if (remainingSlots < count) {
       return NextResponse.json(
         {
           success: false,
-          error: `Not enough capacity for this language/region. You can add ${remainingSlots} more prompt${remainingSlots === 1 ? '' : 's'} (current: ${limits.currentTotal}/${PROMPT_LIMITS.MAX_TOTAL_PROMPTS}).`,
+          error: `Not enough capacity for this country. You can add ${remainingSlots} more prompt${remainingSlots === 1 ? '' : 's'} (current: ${limits.currentTotal}/${PROMPT_LIMITS.MAX_TOTAL_PROMPTS}).`,
           limits: {
             currentTotal: limits.currentTotal,
             maxTotal: PROMPT_LIMITS.MAX_TOTAL_PROMPTS,
@@ -78,8 +80,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get existing prompts in the same language to avoid duplicates
-    const existingPrompts = await getActivePrompts(profileId, lang)
+    // Dedupe against this country's existing prompts
+    const existingPrompts = await getActivePrompts(profileId, undefined, countryCode)
     const existingTexts = existingPrompts.map(p => p.text)
 
     // Generate prompts via AI
@@ -99,6 +101,7 @@ export async function POST(request: NextRequest) {
             text: prompt.text,
             category: prompt.category,
             language: lang,
+            country: countryCode,
             isCustom: true,
             isActive: true,
           }

@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
-import { getActivePrompts } from '@/lib/services/prompt-storage.service'
 import { profileToBrandInfo, generateInitialPrompts } from '@/lib/services/prompt-generation.service'
 import { fetchRedditContext } from '@/lib/services/reddit-context.service'
 import { prisma } from '@/lib/prisma'
-import { COUNTRY_LANGUAGE_MAP } from '@/lib/geo/country-config'
+import { COUNTRY_LANGUAGE_MAP, isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
 
 export const maxDuration = 120
 
 /**
  * POST /api/prompts/generate-initial
- * Dedicated onboarding endpoint: generate + save prompts before unified analysis.
- * Idempotent — if prompts already exist, returns them without regenerating.
+ *
+ * Onboarding endpoint: generates the initial prompt set and fans it out
+ * across every country the brand is tracking, so each country owns its
+ * own prompt rows (editing Colombia's prompts won't touch Argentina's).
+ *
+ * Idempotent per country — countries that already have >= 10 prompts are
+ * skipped and their existing prompts are returned.
  */
 export async function POST(request: NextRequest) {
   const rateLimited = await applyRateLimitAsync(request, 'aiGeneration')
@@ -36,7 +40,6 @@ export async function POST(request: NextRequest) {
 
     const profileId = authResult.brandProfileId!
 
-    // Fetch brand profile early so we can determine language before idempotency check
     const profile = await prisma.brandProfile.findUnique({
       where: { id: profileId },
     })
@@ -48,55 +51,72 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const primaryCountry = (profile as any).primaryCountry || 'US';
-    const language = (COUNTRY_LANGUAGE_MAP[primaryCountry as keyof typeof COUNTRY_LANGUAGE_MAP] || 'en') as 'en' | 'es';
-
-    // Idempotent: if prompts already exist for this language, return them
-    const existing = await getActivePrompts(profileId, language)
-    if (existing.length > 0) {
-      console.log(`[InitialPrompts] ${existing.length} prompts already exist for profile ${profileId} (${language}), skipping generation`)
-      return NextResponse.json({
-        success: true,
-        prompts: existing,
-        count: existing.length,
-        cached: true,
-      })
-    }
+    // Build the country set: trackingCountries if populated, otherwise fall back
+    // to primaryCountry so brands that never touched the multi-country flow
+    // still get something usable.
+    const primaryCountry = ((profile as any).primaryCountry || 'US') as string
+    const tracked = (((profile as any).trackingCountries as string[] | undefined) || [primaryCountry])
+      .filter((c): c is CountryCode => isAllowedCountry(c))
+    const countries: CountryCode[] = tracked.length > 0
+      ? Array.from(new Set(tracked))
+      : [isAllowedCountry(primaryCountry) ? primaryCountry : 'US']
 
     const brandInfo = profileToBrandInfo(profile)
-
-    // Fetch Reddit context in parallel with prompt generation prep
-    // This is non-blocking: if it fails or returns null, prompts generate normally
     const redditContext = await fetchRedditContext(brandInfo)
-
     if (redditContext) {
       console.log(`[InitialPrompts] Reddit context enrichment enabled (${redditContext.length} chars)`)
     }
 
-    const generated = await generateInitialPrompts(brandInfo, redditContext, language)
+    const generationCache = new Map<'en' | 'es', Awaited<ReturnType<typeof generateInitialPrompts>>>()
+    const allSaved: any[] = []
 
-    // Save all prompts in a single transaction
-    const saved = await prisma.$transaction(
-      generated.map((p) =>
-        prisma.prompt.create({
-          data: {
-            brandProfileId: profileId,
-            text: p.text,
-            category: p.category,
-            language,
-            isCustom: false,
-            isActive: true,
-          },
+    for (const country of countries) {
+      const language = COUNTRY_LANGUAGE_MAP[country]
+
+      const existingCount = await prisma.prompt.count({
+        where: { brandProfileId: profileId, country, isActive: true },
+      })
+      if (existingCount >= 10) {
+        console.log(`[InitialPrompts] ${country}: ${existingCount} prompts already exist, skipping`)
+        const existing = await prisma.prompt.findMany({
+          where: { brandProfileId: profileId, country, isActive: true },
+          orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
         })
-      )
-    )
+        allSaved.push(...existing)
+        continue
+      }
 
-    console.log(`[InitialPrompts] Saved ${saved.length} prompts for profile ${profileId}`)
+      let generated = generationCache.get(language)
+      if (!generated) {
+        generated = await generateInitialPrompts(brandInfo, redditContext, language)
+        generationCache.set(language, generated)
+      }
+
+      const saved = await prisma.$transaction(
+        generated.map((p) =>
+          prisma.prompt.create({
+            data: {
+              brandProfileId: profileId,
+              text: p.text,
+              category: p.category,
+              language,
+              country,
+              isCustom: false,
+              isActive: true,
+            },
+          })
+        )
+      )
+
+      console.log(`[InitialPrompts] Saved ${saved.length} prompts for profile ${profileId} (${country}/${language})`)
+      allSaved.push(...saved)
+    }
 
     return NextResponse.json({
       success: true,
-      prompts: saved,
-      count: saved.length,
+      prompts: allSaved,
+      count: allSaved.length,
+      countries,
       cached: false,
     })
   } catch (error) {

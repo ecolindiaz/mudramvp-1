@@ -49,11 +49,13 @@ export async function POST(request: NextRequest) {
     let newPrompt
     try {
       newPrompt = await prisma.$transaction(async (tx) => {
-        // Check for duplicate prompt text (BUG-4 enhancement)
+        // Duplicate check is scoped per-country: a prompt text that already
+        // exists for Argentina shouldn't block Colombia from adding it.
         const existingPrompt = await tx.prompt.findFirst({
           where: {
             brandProfileId: brandProfileId,
             text: trimmedText,
+            country: country,
             isActive: true,
           },
         })
@@ -62,29 +64,28 @@ export async function POST(request: NextRequest) {
           throw new Error('DUPLICATE_PROMPT:A prompt with this exact text already exists')
         }
 
-        // Count active prompts within transaction (atomic with insert)
-        // Scoped per-language so multi-language monitors don't block each other
+        // Count active prompts within transaction (atomic with insert),
+        // scoped per-country so each country gets its own allowance.
         const activePromptCount = await tx.prompt.count({
           where: {
             brandProfileId: brandProfileId,
-            language: language || 'en',
+            country: country,
             isActive: true,
           },
         })
 
-        console.log(`📊 Current active prompts for brand ${brandProfileId} (lang=${language}): ${activePromptCount}`)
+        console.log(`📊 Current active prompts for brand ${brandProfileId} (country=${country}): ${activePromptCount}`)
 
-        // Enforce limit atomically (per language/region)
         if (activePromptCount >= MAX_ACTIVE_PROMPTS) {
-          throw new Error(`MAX_PROMPTS_REACHED:Maximum ${MAX_ACTIVE_PROMPTS} active prompts per language/region. Please delete a prompt before adding a new one.`)
+          throw new Error(`MAX_PROMPTS_REACHED:Maximum ${MAX_ACTIVE_PROMPTS} active prompts per country. Please delete a prompt before adding a new one.`)
         }
 
-        // Create the prompt within the same transaction
         const created = await tx.prompt.create({
           data: {
             text: trimmedText,
             category: canonicalCategory,
             language: language || 'en',
+            country: country,
             isCustom: true,
             isActive: true,
             brandProfileId: brandProfileId,
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
       const prismaError = error as { code?: string; message?: string }
       if (prismaError.code === 'P2021' || prismaError.message?.includes('does not exist') || prismaError.code === 'P2003') {
         console.log('⚠️ Prisma client error, using raw SQL fallback...')
-        newPrompt = await createPromptWithRawSQL(brandProfileId, trimmedText, canonicalCategory, language || 'en')
+        newPrompt = await createPromptWithRawSQL(brandProfileId, trimmedText, canonicalCategory, language || 'en', country || 'US')
       } else {
         throw error
       }
@@ -173,7 +174,8 @@ async function createPromptWithRawSQL(
   brandProfileId: number,
   text: string,
   category: string,
-  language: string = 'en'
+  language: string = 'en',
+  country: string = 'US'
 ): Promise<{
   id: number
   text: string
@@ -192,21 +194,21 @@ async function createPromptWithRawSQL(
     throw new Error(`Brand profile with id ${brandProfileId} does not exist. Please create a brand profile first.`)
   }
 
-  // Check duplicate
+  // Check duplicate scoped by country (AR and CO can hold the same text)
   const duplicateCheck = await prisma.$queryRaw<Array<{ id: number }>>(
-    Prisma.sql`SELECT id FROM "Prompt" WHERE "brandProfileId" = ${brandProfileId} AND text = ${text} AND "isActive" = true LIMIT 1`
+    Prisma.sql`SELECT id FROM "prompts" WHERE "brandProfileId" = ${brandProfileId} AND text = ${text} AND country = ${country} AND "isActive" = true LIMIT 1`
   )
   if (duplicateCheck && duplicateCheck.length > 0) {
     throw new Error('DUPLICATE_PROMPT:A prompt with this exact text already exists')
   }
 
-  // Check count (per language/region)
+  // Count scoped per-country
   const countResult = await prisma.$queryRaw<Array<{ count: bigint }>>(
-    Prisma.sql`SELECT COUNT(*) as count FROM "Prompt" WHERE "brandProfileId" = ${brandProfileId} AND "isActive" = true AND language = ${language}`
+    Prisma.sql`SELECT COUNT(*) as count FROM "prompts" WHERE "brandProfileId" = ${brandProfileId} AND "isActive" = true AND country = ${country}`
   )
   const count = Number(countResult[0]?.count || 0)
   if (count >= MAX_ACTIVE_PROMPTS) {
-    throw new Error(`MAX_PROMPTS_REACHED:Maximum ${MAX_ACTIVE_PROMPTS} active prompts per language/region. Please delete a prompt before adding a new one.`)
+    throw new Error(`MAX_PROMPTS_REACHED:Maximum ${MAX_ACTIVE_PROMPTS} active prompts per country. Please delete a prompt before adding a new one.`)
   }
 
   // Insert and get ID using RETURNING clause (PostgreSQL)
@@ -219,9 +221,9 @@ async function createPromptWithRawSQL(
     createdAt: Date
     updatedAt: Date
   }>>(
-    Prisma.sql`INSERT INTO "Prompt" (text, category, language, "isCustom", "isActive", "brandProfileId", "createdAt", "updatedAt")
-     VALUES (${text}, ${category}, ${language || 'en'}, true, true, ${brandProfileId}, NOW(), NOW())
-     RETURNING id, text, category, language, "isCustom", "isActive", "createdAt", "updatedAt"`
+    Prisma.sql`INSERT INTO "prompts" (text, category, language, country, "isCustom", "isActive", "brandProfileId", "createdAt", "updatedAt")
+     VALUES (${text}, ${category}, ${language || 'en'}, ${country || 'US'}, true, true, ${brandProfileId}, NOW(), NOW())
+     RETURNING id, text, category, language, country, "isCustom", "isActive", "createdAt", "updatedAt"`
   )
 
   if (!insertResult || insertResult.length === 0) {

@@ -14,6 +14,7 @@ import { prisma } from '@/lib/prisma'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 import { runSinglePromptAnalysis } from '@/lib/services/single-prompt-analysis.service'
 import { prunePromptTextsFromAnalyses } from '@/lib/services/prompt-analyses-prune.service'
+import { isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
 
 // Vercel serverless: PATCH with runAnalysis needs time for AI provider calls
 export const maxDuration = 120
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
     const brandProfileId = searchParams.get('brandProfileId')
     const category = searchParams.get('category')
     const statsOnly = searchParams.get('stats') === 'true'
+    const country = searchParams.get('country') || undefined
 
     // Require authentication and verify brand profile access
     const authResult = await requireAuthWithBrandAccess(brandProfileId)
@@ -43,17 +45,17 @@ export async function GET(request: NextRequest) {
 
     // Return stats only if requested
     if (statsOnly) {
-      const stats = await getPromptStats(profileId)
+      const stats = await getPromptStats(profileId, country)
       return NextResponse.json({ success: true, stats })
     }
 
     // Get prompts by category or all active prompts
     const prompts = category
-      ? await getPromptsByCategory(profileId, category)
-      : await getActivePrompts(profileId)
+      ? await getPromptsByCategory(profileId, category, country)
+      : await getActivePrompts(profileId, undefined, country)
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       prompts,
       count: prompts.length
     })
@@ -77,8 +79,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { brandProfileId, text, category, language } = body
+    const { brandProfileId, text, category, language, country } = body
     const lang = (typeof language === 'string' && language) ? language : 'en'
+    const countryCode: CountryCode = isAllowedCountry(country) ? country : 'US'
 
     // Require authentication and verify brand profile access
     const authResult = await requireAuthWithBrandAccess(brandProfileId)
@@ -95,16 +98,16 @@ export async function POST(request: NextRequest) {
 
     const profileId = authResult.brandProfileId!
 
-    // Check prompt limits before creating (per language/region)
-    const limits = await canAddCustomPrompt(profileId, lang)
+    // Check prompt limits before creating (scoped per country)
+    const limits = await canAddCustomPrompt(profileId, undefined, countryCode)
 
     if (!limits.canAdd) {
       const errorMessage = limits.currentCustom >= PROMPT_LIMITS.MAX_CUSTOM_PROMPTS
-        ? `Custom prompt limit reached (${PROMPT_LIMITS.MAX_CUSTOM_PROMPTS} max per language/region). Please delete an existing custom prompt to add a new one.`
-        : `Total prompt limit reached (${PROMPT_LIMITS.MAX_TOTAL_PROMPTS} max per language/region). Please delete an existing prompt to add a new one.`
-      
+        ? `Custom prompt limit reached (${PROMPT_LIMITS.MAX_CUSTOM_PROMPTS} max per country). Please delete an existing custom prompt to add a new one.`
+        : `Total prompt limit reached (${PROMPT_LIMITS.MAX_TOTAL_PROMPTS} max per country). Please delete an existing prompt to add a new one.`
+
       return NextResponse.json(
-        { 
+        {
           error: errorMessage,
           limits: {
             currentCustom: limits.currentCustom,
@@ -120,7 +123,9 @@ export async function POST(request: NextRequest) {
     const prompt = await createCustomPrompt(
       profileId,
       text,
-      category
+      category,
+      countryCode,
+      lang as 'en' | 'es',
     )
 
     return NextResponse.json({ 
@@ -171,7 +176,7 @@ export async function PATCH(request: NextRequest) {
     // Verify the prompt belongs to the user's brand profile
     const existingPrompt = await prisma.prompt.findUnique({
       where: { id: parseInt(promptId) },
-      select: { brandProfileId: true, text: true, category: true }
+      select: { brandProfileId: true, text: true, category: true, country: true }
     })
 
     if (!existingPrompt) {
@@ -201,22 +206,26 @@ export async function PATCH(request: NextRequest) {
 
     // If the text changed, drop stale analysis entries tied to the previous
     // text so the list view doesn't render the old text as a ghost prompt.
+    // Scope to the prompt's own country so we don't wipe history for other
+    // countries that may still use that text (e.g. a shared Spanish prompt
+    // that only Colombia edited).
     if (textChanged) {
       try {
         const { entriesRemoved } = await prunePromptTextsFromAnalyses(
           existingPrompt.brandProfileId,
-          [existingPrompt.text]
+          [existingPrompt.text],
+          existingPrompt.country,
         )
         if (entriesRemoved > 0) {
-          console.log(`🧹 Pruned ${entriesRemoved} stale analysis entries for edited prompt ${promptId}`)
+          console.log(`🧹 Pruned ${entriesRemoved} stale analysis entries for edited prompt ${promptId} (country=${existingPrompt.country})`)
         }
       } catch (error) {
         console.warn('⚠️ Failed to prune stale analysis entries after edit:', error)
-        // Don't fail the request — the update itself succeeded
       }
     }
 
-    // Run analysis if requested (e.g. after editing prompt text)
+    // Run analysis if requested (e.g. after editing prompt text). Fall back
+    // to the prompt's stored country when the client didn't send one.
     let analysisResult = null
     if (runAnalysis && text) {
       try {
@@ -226,12 +235,11 @@ export async function PATCH(request: NextRequest) {
           promptId: parseInt(promptId),
           promptText: text,
           category: category || existingPrompt.category || 'Organic',
-          country: country || undefined,
+          country: (country as CountryCode | undefined) || (existingPrompt.country as CountryCode | undefined),
         })
         console.log(`✅ Re-analysis complete for prompt ${promptId}: ${analysisResult.overallVisibility}% visibility`)
       } catch (error) {
         console.error('⚠️ Failed to run re-analysis after edit:', error)
-        // Don't fail the request — the update itself succeeded
       }
     }
 

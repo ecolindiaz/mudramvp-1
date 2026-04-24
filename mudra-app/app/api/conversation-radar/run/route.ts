@@ -58,8 +58,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Run proactive search (Reddit via Apify)
-    const proactiveStats = await runProactiveSearch(brandProfileId, language);
+    // 1. Run proactive search (Reddit via Apify). Pass country so the
+    // service picks up this country's tracked prompts, not the whole
+    // Spanish-speaking brand's pool.
+    const proactiveStats = await runProactiveSearch(brandProfileId, language, undefined, validCountry);
 
     // 2. Process cited opportunities from the latest analysis run (if any)
     let citedStats = { created: 0, skipped: 0, errors: 0 };

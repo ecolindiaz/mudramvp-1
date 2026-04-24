@@ -626,134 +626,200 @@ const DEFAULT_SUBREDDITS = ['technology', 'Entrepreneur', 'startups', 'SaaS', 'b
 const SPANISH_TOPIC_MAPPINGS: TopicMapping[] = [
   {
     keywords: ['inteligencia artificial', 'aprendizaje automático', 'redes neuronales', 'aprendizaje profundo'],
-    subreddits: ['artificial', 'MachineLearning', 'LocalLLaMA', 'programacion'],
+    subreddits: ['IntelligenciaArtificial', 'artificial', 'MachineLearning', 'LocalLLaMA', 'programacion'],
     priority: 90,
   },
   {
     keywords: ['llm', 'chatgpt', 'modelo de lenguaje', 'modelo de lenguaje grande'],
-    subreddits: ['artificial', 'ChatGPT', 'LocalLLaMA', 'programacion'],
+    subreddits: ['IntelligenciaArtificial', 'artificial', 'ChatGPT', 'LocalLLaMA', 'programacion'],
     priority: 85,
   },
   {
     keywords: ['programación', 'desarrollo', 'código', 'software', 'devops', 'desarrollador'],
-    subreddits: ['programacion', 'devsarg', 'chileIT', 'programming'],
+    subreddits: ['programacion', 'devsarg', 'chileIT', 'MexicoIT', 'programming'],
     priority: 80,
   },
   {
     keywords: ['nube', 'cloud', 'multi-cloud', 'aws', 'infraestructura', 'kubernetes'],
-    subreddits: ['devops', 'sysadmin', 'kubernetes', 'programacion'],
+    subreddits: ['programacion', 'devsarg', 'devops', 'sysadmin', 'kubernetes'],
     priority: 85,
   },
   {
     keywords: ['fintech', 'banca digital', 'pagos digitales', 'pagos', 'banco digital'],
-    subreddits: ['merval', 'fintech', 'personalfinance', 'programacion'],
+    subreddits: ['merval', 'MexicoFinanciero', 'FinanzasChile', 'finanzas_personales', 'fintech'],
     priority: 85,
   },
   {
     keywords: ['saas', 'startup', 'emprendimiento', 'emprender'],
-    subreddits: ['startups', 'Entrepreneur', 'SaaS', 'programacion'],
+    subreddits: ['emprendedores', 'Emprendimiento', 'startups', 'Entrepreneur', 'programacion'],
     priority: 75,
   },
   {
     keywords: ['comercio electrónico', 'tienda online', 'ecommerce', 'e-commerce', 'tienda virtual'],
-    subreddits: ['ecommerce', 'shopify', 'Entrepreneur', 'programacion'],
+    subreddits: ['emprendedores', 'Emprendimiento', 'ecommerce', 'shopify', 'programacion'],
     priority: 85,
   },
   {
     keywords: ['seo', 'marketing digital', 'posicionamiento', 'marketing'],
-    subreddits: ['SEO', 'marketing', 'bigseo', 'programacion'],
+    subreddits: ['MarketingDigitalES', 'marketing_es', 'SEO', 'marketing', 'bigseo'],
     priority: 80,
   },
   {
     keywords: ['ciencia de datos', 'análisis de datos', 'datos', 'big data'],
-    subreddits: ['datascience', 'dataengineering', 'programacion', 'MachineLearning'],
+    subreddits: ['programacion', 'devsarg', 'datascience', 'dataengineering', 'MachineLearning'],
     priority: 85,
   },
   {
     keywords: ['ciberseguridad', 'seguridad informática', 'seguridad', 'infosec'],
-    subreddits: ['cybersecurity', 'netsec', 'programacion', 'sysadmin'],
+    subreddits: ['programacion', 'ciberseguridad', 'cybersecurity', 'netsec', 'sysadmin'],
     priority: 85,
   },
   {
     keywords: ['automatización', 'automatizar', 'workflow', 'flujo de trabajo'],
-    subreddits: ['programacion', 'devops', 'SaaS', 'startups'],
+    subreddits: ['programacion', 'devops', 'emprendedores', 'SaaS'],
     priority: 75,
   },
   {
     keywords: ['freelancer', 'cobrar en dólares', 'cobro en usd', 'pagos internacionales', 'cuenta en dólares', 'cuenta global', 'nómada digital', 'remesas'],
-    subreddits: ['merval', 'fintech', 'remotework', 'digitalnomad'],
+    subreddits: ['merval', 'argentina', 'Colombia', 'finanzas_personales', 'MexicoFinanciero', 'fintech'],
     priority: 90,
   },
   {
     keywords: ['tarjeta internacional', 'tarjeta visa', 'transferencia internacional', 'tipo de cambio'],
-    subreddits: ['merval', 'fintech', 'personalfinance', 'digitalnomad'],
+    subreddits: ['merval', 'MexicoFinanciero', 'FinanzasChile', 'finanzas_personales', 'fintech'],
     priority: 85,
   },
   {
     keywords: ['invertir', 'inversión', 'acciones', 'etf', 'bolsa', 'portafolio'],
-    subreddits: ['merval', 'investing', 'stocks', 'personalfinance'],
+    subreddits: ['merval', 'MexicoFinanciero', 'FinanzasChile', 'finanzas_personales', 'investing'],
     priority: 85,
   },
   {
     keywords: ['búsqueda', 'motor de búsqueda', 'búsqueda web', 'búsqueda semántica'],
-    subreddits: ['programacion', 'SaaS', 'LocalLLaMA', 'AI_Agents'],
+    subreddits: ['programacion', 'IntelligenciaArtificial', 'LocalLLaMA', 'AI_Agents'],
     priority: 85,
   },
   {
     keywords: ['gpu', 'inferencia', 'desplegar modelo', 'despliegue', 'servir modelos'],
-    subreddits: ['LocalLLaMA', 'MachineLearning', 'devops', 'programacion'],
+    subreddits: ['IntelligenciaArtificial', 'LocalLLaMA', 'programacion', 'devsarg'],
     priority: 85,
   },
   {
     keywords: ['serverless', 'escalamiento', 'escalar', 'contenedor', 'contenedores'],
-    subreddits: ['devops', 'kubernetes', 'programacion', 'sysadmin'],
+    subreddits: ['programacion', 'devsarg', 'devops', 'kubernetes'],
     priority: 85,
   },
   {
     keywords: ['sueldo', 'cobrar', 'remesa', 'enviar dinero', 'mandar dinero', 'moneda local', 'retiro', 'retirar'],
-    subreddits: ['merval', 'digitalnomad', 'fintech', 'remotework'],
+    subreddits: ['merval', 'argentina', 'Colombia', 'MexicoFinanciero', 'finanzas_personales'],
     priority: 90,
   },
   {
     keywords: ['factura', 'facturas', 'pagar servicios', 'gestionar finanzas', 'finanzas personales', 'multi-moneda'],
-    subreddits: ['merval', 'personalfinance', 'fintech', 'Entrepreneur'],
+    subreddits: ['merval', 'finanzas_personales', 'MexicoFinanciero', 'FinanzasChile', 'emprendedores'],
     priority: 85,
   },
   {
     keywords: ['agente de voz', 'voz ia', 'call center', 'soporte postventa', 'centro de llamadas'],
-    subreddits: ['artificial', 'SaaS', 'programacion', 'Entrepreneur'],
+    subreddits: ['IntelligenciaArtificial', 'emprendedores', 'programacion', 'SaaS'],
     priority: 85,
   },
   {
     keywords: ['logística', 'entrega', 'entregas fallidas', 'última milla', 'verificación de dirección', 'delivery'],
-    subreddits: ['logistics', 'supplychain', 'ecommerce', 'programacion'],
+    subreddits: ['emprendedores', 'Emprendimiento', 'logistics', 'supplychain', 'ecommerce'],
     priority: 85,
   },
   {
     keywords: ['indexar', 'rastrear', 'scraping', 'crawling', 'research automatizado', 'buscar contenidos'],
-    subreddits: ['webscraping', 'programacion', 'SaaS', 'datascience'],
+    subreddits: ['programacion', 'devsarg', 'webscraping', 'datascience'],
     priority: 85,
   },
   {
     keywords: ['evaluación', 'evaluar', 'benchmark', 'modelo fundacional', 'modelo base'],
-    subreddits: ['MachineLearning', 'LocalLLaMA', 'programacion', 'datascience'],
+    subreddits: ['IntelligenciaArtificial', 'MachineLearning', 'LocalLLaMA', 'programacion'],
     priority: 85,
   },
-  // Generic fallbacks
+  // Country / region catch-alls — surface posts from LATAM country subs for
+  // any prompt that mentions the place or the local audience by name.
+  {
+    keywords: ['argentina', 'buenos aires', 'ciudadanía argentina', 'monotributo'],
+    subreddits: ['argentina', 'BuenosAires', 'merval', 'devsarg'],
+    priority: 95,
+  },
+  {
+    keywords: ['colombia', 'bogotá', 'bogota', 'medellín', 'medellin', 'barranquilla'],
+    subreddits: ['Colombia', 'bogota', 'Medellin', 'finanzas_personales'],
+    priority: 95,
+  },
+  {
+    keywords: ['méxico', 'mexico', 'cdmx', 'ciudad de méxico', 'guadalajara', 'monterrey'],
+    subreddits: ['mexico', 'MexicoCity', 'MexicoFinanciero', 'MexicoIT'],
+    priority: 95,
+  },
+  {
+    keywords: ['chile', 'santiago de chile', 'valparaíso'],
+    subreddits: ['chile', 'FinanzasChile', 'chileIT'],
+    priority: 95,
+  },
+  {
+    keywords: ['perú', 'peru', 'lima', 'arequipa'],
+    subreddits: ['PERU', 'Lima', 'finanzas_personales'],
+    priority: 95,
+  },
+  {
+    keywords: ['españa', 'madrid', 'barcelona', 'valencia'],
+    subreddits: ['es', 'spain', 'askspain', 'podemos'],
+    priority: 95,
+  },
+  {
+    keywords: ['latam', 'latinoamérica', 'latinoamerica', 'latinos', 'hispanoamérica'],
+    subreddits: ['AskLatinAmerica', 'latinoamerica', 'espanol', 'programacion'],
+    priority: 90,
+  },
+  // Generic fallbacks — prefer Spanish-language catch-alls over English ones.
   {
     keywords: ['herramienta', 'plataforma', 'solución', 'alternativa'],
-    subreddits: ['programacion', 'technology', 'startups', 'Entrepreneur'],
+    subreddits: ['programacion', 'emprendedores', 'espanol', 'startups'],
     priority: 40,
   },
 ];
 
-const SPANISH_DEFAULT_SUBREDDITS = ['programacion', 'technology', 'espanol', 'Entrepreneur', 'startups'];
+const SPANISH_DEFAULT_SUBREDDITS = ['programacion', 'espanol', 'emprendedores', 'AskLatinAmerica', 'argentina'];
+
+// Subreddits that are predominantly Spanish-speaking. Used when
+// `BrandProfile.strictLanguageFilter` is on — we drop any detected English
+// subs and fall back to Spanish-only defaults.
+const SPANISH_ONLY_SUBREDDITS: ReadonlySet<string> = new Set([
+  // Country / region
+  'argentina', 'BuenosAires', 'Colombia', 'bogota', 'Medellin',
+  'mexico', 'MexicoCity', 'chile', 'PERU', 'Lima', 'es', 'spain', 'askspain',
+  'AskLatinAmerica', 'latinoamerica', 'espanol', 'LatinoPeopleTwitter',
+  'vosotros', 'podemos',
+  // Spanish-language niche
+  'programacion', 'devsarg', 'chileIT', 'MexicoIT',
+  'IntelligenciaArtificial',
+  'merval', 'MexicoFinanciero', 'FinanzasChile', 'finanzas_personales',
+  'emprendedores', 'Emprendimiento',
+  'MarketingDigitalES', 'marketing_es',
+  'ciberseguridad',
+]);
+
+const SPANISH_STRICT_DEFAULT_SUBREDDITS = ['programacion', 'espanol', 'emprendedores', 'AskLatinAmerica'];
 
 /**
  * Generate search queries with smart subreddit targeting
  * This is the key to getting ACCURATE results!
+ *
+ * When `strictLanguage` is true and the language is Spanish, the query
+ * generator filters out English-language subreddits so results stop
+ * getting dominated by r/SaaS and friends.
  */
-export async function generateSearchQueries(brandContext: BrandContext, language: 'en' | 'es' = 'en'): Promise<GeneratedQueries> {
+export async function generateSearchQueries(
+  brandContext: BrandContext,
+  language: 'en' | 'es' = 'en',
+  options: { strictLanguage?: boolean } = {},
+): Promise<GeneratedQueries> {
+  const { strictLanguage = false } = options;
   const trackedPromptQueries: TrackedPromptQuery[] = [];
   const competitorQueries: string[] = [];
 
@@ -784,9 +850,16 @@ export async function generateSearchQueries(brandContext: BrandContext, language
     if (!searchQuery || searchQuery.length < 5) continue;
 
     // Detect topics in the prompt and find relevant subreddits
-    const subreddits = language === 'es'
+    let subreddits = language === 'es'
       ? detectSpanishSubreddits(prompt)
       : detectRelevantSubreddits(prompt);
+
+    // Strict language mode: for Spanish, drop any English-only subreddits
+    // and fall back to Spanish-only defaults if nothing matches.
+    if (strictLanguage && language === 'es') {
+      const spanishOnly = subreddits.filter(s => SPANISH_ONLY_SUBREDDITS.has(s));
+      subreddits = spanishOnly.length > 0 ? spanishOnly : SPANISH_STRICT_DEFAULT_SUBREDDITS.slice(0, 4);
+    }
 
     // Build search URLs for each subreddit
     const searchUrls = subreddits.map(sub =>

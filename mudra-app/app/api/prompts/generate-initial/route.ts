@@ -69,6 +69,11 @@ export async function POST(request: NextRequest) {
 
     const generationCache = new Map<'en' | 'es', Awaited<ReturnType<typeof generateInitialPrompts>>>()
     const allSaved: any[] = []
+    // Track whether any country actually hit the generation path. If every
+    // country already had >= 10 prompts, the caller got cached data, and we
+    // should report cached: true (preserves the endpoint's idempotency
+    // contract that external callers may still rely on).
+    let anyGenerated = false
 
     for (const country of countries) {
       const language = COUNTRY_LANGUAGE_MAP[country]
@@ -110,6 +115,7 @@ export async function POST(request: NextRequest) {
 
       console.log(`[InitialPrompts] Saved ${saved.length} prompts for profile ${profileId} (${country}/${language})`)
       allSaved.push(...saved)
+      anyGenerated = true
     }
 
     return NextResponse.json({
@@ -117,7 +123,7 @@ export async function POST(request: NextRequest) {
       prompts: allSaved,
       count: allSaved.length,
       countries,
-      cached: false,
+      cached: !anyGenerated,
     })
   } catch (error) {
     console.error('[InitialPrompts] Error:', error)

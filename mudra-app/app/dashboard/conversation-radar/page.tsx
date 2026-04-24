@@ -57,7 +57,7 @@ interface Opportunity {
 }
 
 function ConversationRadarPageInner() {
-  const { profile, selectedCountry, setProfile } = useBrandProfile()
+  const { profile, selectedCountry, setProfile, refreshBrandProfile } = useBrandProfile()
 
   // State
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
@@ -88,7 +88,11 @@ function ConversationRadarPageInner() {
       // setProfile persists to /api/brand-profile itself — don't POST twice.
       await setProfile({ ...(profile as any), strictLanguageFilter: next })
     } catch (err) {
+      // setProfile optimistically flipped the toggle before the POST failed.
+      // Resync from the server so the UI reflects the real persisted state
+      // instead of the rejected value.
       console.error('Error toggling strictLanguageFilter:', err)
+      try { await refreshBrandProfile() } catch { /* best-effort */ }
     } finally {
       setIsSavingStrictLanguage(false)
     }

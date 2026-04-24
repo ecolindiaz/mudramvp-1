@@ -19,9 +19,10 @@ const addPromptSchema = z.object({
   category: z.enum(VALID_CATEGORIES).optional().default('Organic'),
   brandProfileId: z.number().int().positive('Invalid brandProfileId'),
   runAnalysis: z.boolean().optional().default(false),
-  language: z.string().max(10).optional().default('en'),
   // country drives the per-country prompt bucket. Reject unknown codes so
   // prompts can't land in a country that doesn't exist in our geo config.
+  // Language is not accepted — it's derived from country so the payload
+  // can't create a country/language mismatch.
   country: z.enum(ALLOWED_COUNTRIES).default('US'),
 })
 

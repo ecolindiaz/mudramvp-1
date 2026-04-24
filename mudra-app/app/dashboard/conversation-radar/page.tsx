@@ -57,7 +57,7 @@ interface Opportunity {
 }
 
 function ConversationRadarPageInner() {
-  const { profile, selectedCountry, setProfile, refreshBrandProfile } = useBrandProfile()
+  const { profile, selectedCountry, refreshBrandProfile } = useBrandProfile()
 
   // State
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
@@ -85,14 +85,23 @@ function ConversationRadarPageInner() {
     const next = !strictLanguageEnabled
     setIsSavingStrictLanguage(true)
     try {
-      // setProfile persists to /api/brand-profile itself — don't POST twice.
-      await setProfile({ ...(profile as any), strictLanguageFilter: next })
+      // Dedicated preferences endpoint — writes only strictLanguageFilter
+      // rather than re-saving the whole profile (clearer audit trail and
+      // no risk of clobbering other fields).
+      const res = await fetch('/api/brand-profile/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandProfileId: profile.id, strictLanguageFilter: next }),
+      })
+      if (!res.ok) {
+        console.error('Failed to update strictLanguageFilter:', await res.text())
+        return
+      }
+      // Pull the updated profile back into context so every consumer sees
+      // the new value without us mutating the store directly.
+      await refreshBrandProfile()
     } catch (err) {
-      // setProfile optimistically flipped the toggle before the POST failed.
-      // Resync from the server so the UI reflects the real persisted state
-      // instead of the rejected value.
       console.error('Error toggling strictLanguageFilter:', err)
-      try { await refreshBrandProfile() } catch { /* best-effort */ }
     } finally {
       setIsSavingStrictLanguage(false)
     }

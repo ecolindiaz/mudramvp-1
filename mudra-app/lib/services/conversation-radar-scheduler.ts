@@ -74,11 +74,14 @@ export async function getNextPromptsForProactive(
     metadata = {};
   }
   // Offset is keyed by country when available so each country rotates
-  // through its own prompt set independently. Fall back to the old
-  // language-keyed layout for legacy brands.
+  // through its own prompt set independently. For brands that ran the
+  // cron before the country migration we fall through to the older
+  // language-keyed entry and, older still, the scalar root offset that
+  // was only populated for 'en' brands.
   const offsetKey = country || language;
   const lastOffset = metadata.proactivePromptOffsets?.[offsetKey]
-    ?? (offsetKey === 'en' ? metadata.proactivePromptOffset : undefined)
+    ?? (country ? metadata.proactivePromptOffsets?.[language] : undefined)
+    ?? (language === 'en' ? metadata.proactivePromptOffset : undefined)
     ?? 0;
   
   // Calculate next offset (rotate through prompts)

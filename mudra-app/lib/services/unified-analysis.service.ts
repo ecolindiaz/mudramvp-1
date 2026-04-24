@@ -560,8 +560,11 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
       : (country ? [country] : (['US'] as CountryCode[]));
 
     // Get or generate prompts scoped to the country this run is analysing.
+    // Pass language too — when country is undefined (onboarding path via
+    // triggerAnalysisPipeline), getActivePrompts falls back to filtering
+    // by language so we don't accidentally pull every country's prompts.
     onProgress?.({ phase: 'prompts', status: 'started' });
-    let prompts = await getActivePrompts(config.brandProfileId, undefined, country);
+    let prompts = await getActivePrompts(config.brandProfileId, language, country);
     if (prompts.length === 0) {
       console.log(`[GEO Core] Generating initial prompts (countries: ${promptCountries.join(', ')})...`);
       const { prompts: allPrompts } = await generateAndSaveInitialPromptsForCountries(config.brandProfileId, promptCountries);

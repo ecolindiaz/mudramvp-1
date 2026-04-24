@@ -1007,6 +1007,8 @@ function TrackedPromptsPageInner() {
     for (const rec of selected) {
       try {
         // Server derives language from country, so only send country.
+        // Fall back to 'US' on empty string — Zod's .default() only
+        // handles undefined, not "".
         await fetch("/api/prompts/add", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1015,7 +1017,7 @@ function TrackedPromptsPageInner() {
             category: rec.intent,
             brandProfileId: String(profile.id),
             runAnalysis: true,
-            country: selectedCountry,
+            country: selectedCountry || 'US',
           }),
         })
       } catch (err) {

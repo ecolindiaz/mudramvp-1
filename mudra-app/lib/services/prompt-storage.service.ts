@@ -177,12 +177,15 @@ export async function getActivePrompts(
       return []
     }
 
+    // Prefer country over language (country is strictly narrower). AND-ing
+    // both would risk an impossible combo like country=CO + language=en
+    // returning zero rows. This mirrors canAddCustomPrompt's scope rule.
+    const scopeFilter = country ? { country } : (language ? { language } : {})
     return await prisma.prompt.findMany({
       where: {
         brandProfileId,
         isActive: true,
-        ...(country ? { country } : {}),
-        ...(language ? { language } : {}),
+        ...scopeFilter,
       },
       orderBy: [
         { category: 'asc' },

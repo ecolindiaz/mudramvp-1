@@ -222,11 +222,11 @@ export async function runProactiveSearch(
     include: { prompts: { where: promptFilter } },
   });
 
-  const strictLanguage = Boolean((brandProfile as any)?.strictLanguageFilter);
-  
   if (!brandProfile) {
     throw new Error(`Brand profile ${brandProfileId} not found`);
   }
+
+  const strictLanguage = Boolean((brandProfile as any).strictLanguageFilter);
   
   const brandContext: BrandContext = {
     companyName: brandProfile.companyName || '',

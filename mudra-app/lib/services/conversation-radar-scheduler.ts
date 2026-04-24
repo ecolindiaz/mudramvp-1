@@ -32,20 +32,28 @@ export const SCHEDULER_CONFIG = {
 };
 
 /**
- * Get the next batch of prompts to process for proactive search
- * Uses rotation to ensure all prompts get processed over time
+ * Get the next batch of prompts to process for proactive search.
+ * Uses rotation to ensure all prompts get processed over time.
+ *
+ * Prefer `country` — it uniquely identifies a per-country prompt set.
+ * `language` is retained as a fallback for legacy callers; once everything
+ * is country-scoped this arg can go.
  */
 export async function getNextPromptsForProactive(
   brandProfileId: number,
   limit: number = SCHEDULER_CONFIG.proactive.promptsPerRun,
-  language: 'en' | 'es' = 'en'
+  language: 'en' | 'es' = 'en',
+  country?: string,
 ): Promise<{ prompts: { id: number; text: string }[]; offset: number }> {
-  // Get brand profile with scheduler state
+  const promptFilter = country
+    ? { isActive: true, country }
+    : { isActive: true, language };
+
   const brand = await prisma.brandProfile.findUnique({
     where: { id: brandProfileId },
     include: {
       prompts: {
-        where: { isActive: true, language },
+        where: promptFilter,
         orderBy: { id: 'asc' },
       },
     },
@@ -65,8 +73,12 @@ export async function getNextPromptsForProactive(
   } catch {
     metadata = {};
   }
-  const lastOffset = metadata.proactivePromptOffsets?.[language]
-    ?? (language === 'en' ? metadata.proactivePromptOffset : undefined)
+  // Offset is keyed by country when available so each country rotates
+  // through its own prompt set independently. Fall back to the old
+  // language-keyed layout for legacy brands.
+  const offsetKey = country || language;
+  const lastOffset = metadata.proactivePromptOffsets?.[offsetKey]
+    ?? (offsetKey === 'en' ? metadata.proactivePromptOffset : undefined)
     ?? 0;
   
   // Calculate next offset (rotate through prompts)
@@ -90,12 +102,16 @@ export async function getNextPromptsForProactive(
 }
 
 /**
- * Update the prompt rotation offset after a proactive run
+ * Update the prompt rotation offset after a proactive run.
+ * When `country` is provided, the offset is keyed by country so each
+ * country advances its rotation independently. Otherwise falls back to
+ * the legacy language key.
  */
 export async function updateProactiveOffset(
   brandProfileId: number,
   newOffset: number,
-  language: 'en' | 'es' = 'en'
+  language: 'en' | 'es' = 'en',
+  country?: string,
 ): Promise<void> {
   const brand = await prisma.brandProfile.findUnique({
     where: { id: brandProfileId },
@@ -112,6 +128,8 @@ export async function updateProactiveOffset(
     metadata = {};
   }
 
+  const offsetKey = country || language;
+
   await prisma.brandProfile.update({
     where: { id: brandProfileId },
     data: {
@@ -119,7 +137,7 @@ export async function updateProactiveOffset(
         ...metadata,
         proactivePromptOffsets: {
           ...(metadata.proactivePromptOffsets || {}),
-          [language]: newOffset,
+          [offsetKey]: newOffset,
         },
         lastProactiveRun: new Date().toISOString(),
       }),

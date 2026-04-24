@@ -245,7 +245,7 @@ export async function GET(request: NextRequest) {
             }>>(
               Prisma.sql`SELECT id, text, category, "isCustom", "isActive", "editedByUser", "editedAt", "createdAt", "updatedAt"
                FROM prompts
-               WHERE "brandProfileId" = ${profileId} AND "isActive" = 1
+               WHERE "brandProfileId" = ${profileId} AND "isActive" = true
                ${promptCountryFilter ? Prisma.sql`AND "country" = ${promptCountryFilter}` : (promptLanguageFilter ? Prisma.sql`AND "language" = ${promptLanguageFilter}` : Prisma.empty)}
                ORDER BY category ASC, "createdAt" ASC`
             )

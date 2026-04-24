@@ -4,7 +4,7 @@ import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 import { canAddCustomPrompt, getActivePrompts, PROMPT_LIMITS } from '@/lib/services/prompt-storage.service'
 import { generateBatchPrompts } from '@/lib/services/prompt-generation.service'
 import { prisma } from '@/lib/prisma'
-import { isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
+import { getLanguageForCountry, isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
 
 export const maxDuration = 60
 
@@ -20,9 +20,19 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { brandProfileId, description, count, brandInfo, language, country } = body
-    const lang = (typeof language === 'string' && language) ? language : 'en'
+    const { brandProfileId, description, count, brandInfo, country } = body
+
+    // Reject garbage country values so prompts can't silently land in the
+    // wrong bucket. Missing country falls back to US (see below).
+    if (country !== undefined && !isAllowedCountry(country)) {
+      return NextResponse.json(
+        { success: false, error: `Invalid country code: ${country}` },
+        { status: 400 }
+      )
+    }
     const countryCode: CountryCode = isAllowedCountry(country) ? country : 'US'
+    // Derive language from country — single source of truth.
+    const lang = getLanguageForCountry(countryCode)
 
     // Auth
     const authResult = await requireAuthWithBrandAccess(brandProfileId)

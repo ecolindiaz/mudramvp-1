@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateAndSaveInitialPrompts } from '@/lib/services/prompt-storage.service'
+import { generateAndSaveInitialPromptsForBrand } from '@/lib/services/prompt-storage.service'
 import { requireAuth, verifyBrandProfileAccess } from '@/lib/auth/require-auth';
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis';
 import { getBrandProfileByUserId } from '@/lib/prisma-brand-profile';
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     console.log(`🎯 Generating prompts for brand profile ${profileId}...`)
     
     // Generate and save prompts
-    const prompts = await generateAndSaveInitialPrompts(profileId)
+    const prompts = await generateAndSaveInitialPromptsForBrand(profileId)
 
     console.log(`✅ Successfully generated ${prompts.length} prompts`)
 

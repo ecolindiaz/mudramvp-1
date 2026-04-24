@@ -50,6 +50,9 @@ UPDATE "prompts" SET "country" = 'US' WHERE "country" IS NULL;
 
 -- 6. Fan out: for each brand that tracks multiple countries sharing a language,
 --    duplicate each existing prompt into every additional country in that language.
+--    SELECT DISTINCT inside the lateral guards against duplicate entries in
+--    trackingCountries, and the NOT EXISTS clause makes this safe to re-run
+--    (no double-insert if the migration gets replayed).
 INSERT INTO "prompts" (
   "brandProfileId", "text", "category", "language", "country",
   "isCustom", "isActive", "editedByUser", "editedAt",
@@ -69,11 +72,20 @@ SELECT
   NOW()
 FROM "prompts" p
 JOIN "BrandProfile" bp ON bp."id" = p."brandProfileId"
-CROSS JOIN LATERAL unnest(bp."trackingCountries") AS extra(c)
+CROSS JOIN LATERAL (
+  SELECT DISTINCT c
+  FROM unnest(bp."trackingCountries") AS u(c)
+) AS extra(c)
 WHERE extra.c <> p."country"
   AND (
     (p."language" = 'en' AND extra.c IN ('US', 'GB'))
     OR (p."language" = 'es' AND extra.c IN ('ES', 'MX', 'CO', 'AR', 'PE'))
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM "prompts" existing
+    WHERE existing."brandProfileId" = p."brandProfileId"
+      AND existing."text" = p."text"
+      AND existing."country" = extra.c
   );
 
 -- 7. Lock the column down

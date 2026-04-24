@@ -108,7 +108,7 @@ export async function triggerAnalysisPipeline(
 async function runGeoAnalysis(config: AnalysisPipelineConfig) {
   try {
     // First, check if it's the first analysis and generate prompts if needed
-    const { generateAndSaveInitialPrompts, getActivePrompts } = await import('./prompt-storage.service');
+    const { generateAndSaveInitialPromptsForBrand, getActivePrompts } = await import('./prompt-storage.service');
     const { canRunAnalysis, updateLastAnalysisTime, createAnalysisRun, updateAnalysisRun } = await import('./analysis-run.service');
     const { runDirectGEOAnalysis, createDirectGEOConfig } = await import('./direct-geo-analysis.service');
     
@@ -126,7 +126,7 @@ async function runGeoAnalysis(config: AnalysisPipelineConfig) {
     
     if (prompts.length === 0) {
       console.log('[GEO Analysis] No prompts found, generating initial set...');
-      prompts = await generateAndSaveInitialPrompts(config.brandProfileId);
+      prompts = await generateAndSaveInitialPromptsForBrand(config.brandProfileId);
       console.log(`[GEO Analysis] Generated ${prompts.length} initial prompts`);
     }
     

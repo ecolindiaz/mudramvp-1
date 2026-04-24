@@ -1,6 +1,6 @@
 import { generateInitialPrompts, profileToBrandInfo } from './prompt-generation.service'
 import { prisma } from '@/lib/prisma'
-import { COUNTRY_LANGUAGE_MAP, isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
+import { COUNTRY_LANGUAGE_MAP, type CountryCode } from '@/lib/geo/country-config'
 
 export interface SavedPrompt {
   id: number
@@ -124,18 +124,38 @@ export async function generateAndSaveInitialPromptsForCountries(
 }
 
 /**
- * Legacy multi-language entry point.
+ * Compatibility shim: generate prompts using the brand profile's own
+ * trackingCountries (or primaryCountry as fallback).
  *
- * Kept for internal callers that still think in "languages" rather than
- * "countries" — it maps each language to a single representative country
- * (US for en, ES for es) and delegates to the country-scoped generator.
- * Prefer generateAndSaveInitialPromptsForCountries for new code.
+ * The previous `generateAndSaveInitialPrompts(profileId, languages)`
+ * signature silently collapsed every Spanish-speaking country to 'ES',
+ * which broke the "add Colombia/Argentina" flow once prompts became
+ * country-scoped. New code should call generateAndSaveInitialPromptsForCountries
+ * with explicit countries; this wrapper exists for callers that don't
+ * know the country set up front (cron-triggered analysis, dev scripts).
  */
-export async function generateAndSaveInitialPrompts(
+export async function generateAndSaveInitialPromptsForBrand(
   brandProfileId: number,
-  languages: Array<'en' | 'es'> = ['en']
 ): Promise<SavedPrompt[]> {
-  const countries = languages.map((lang): CountryCode => (lang === 'es' ? 'ES' : 'US'))
+  const profile = await prisma.brandProfile.findUnique({
+    where: { id: brandProfileId },
+    select: { trackingCountries: true, primaryCountry: true },
+  })
+
+  if (!profile) {
+    throw new Error(`Brand profile ${brandProfileId} not found`)
+  }
+
+  const tracked = (profile.trackingCountries || [])
+    .filter((c): c is CountryCode => c in COUNTRY_LANGUAGE_MAP)
+  const primary = (profile.primaryCountry && profile.primaryCountry in COUNTRY_LANGUAGE_MAP)
+    ? (profile.primaryCountry as CountryCode)
+    : ('US' as CountryCode)
+
+  const countries: CountryCode[] = tracked.length > 0
+    ? Array.from(new Set(tracked))
+    : [primary]
+
   return generateAndSaveInitialPromptsForCountries(brandProfileId, countries)
 }
 

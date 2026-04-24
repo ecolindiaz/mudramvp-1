@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { runSinglePromptAnalysis } from '@/lib/services/single-prompt-analysis.service'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
+import { ALLOWED_COUNTRIES, getLanguageForCountry } from '@/lib/geo/country-config'
 import { z } from 'zod'
 
 // Vercel serverless: single-prompt analysis needs time for 4 concurrent AI provider calls
@@ -19,7 +20,9 @@ const addPromptSchema = z.object({
   brandProfileId: z.number().int().positive('Invalid brandProfileId'),
   runAnalysis: z.boolean().optional().default(false),
   language: z.string().max(10).optional().default('en'),
-  country: z.string().max(5).optional().default('US'),
+  // country drives the per-country prompt bucket. Reject unknown codes so
+  // prompts can't land in a country that doesn't exist in our geo config.
+  country: z.enum(ALLOWED_COUNTRIES).default('US'),
 })
 
 export async function POST(request: NextRequest) {
@@ -35,8 +38,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { promptText, category: canonicalCategory, brandProfileId, runAnalysis, language, country } = parsed.data
+    const { promptText, category: canonicalCategory, brandProfileId, runAnalysis, country } = parsed.data
     const trimmedText = promptText.trim()
+    // Derive language from country so a mismatched payload (e.g.
+    // country=CO + language=en) can't persist inconsistent rows.
+    const language = getLanguageForCountry(country)
 
     // Authenticate and verify the user owns this brandProfileId
     const authResult = await requireAuthWithBrandAccess(brandProfileId)

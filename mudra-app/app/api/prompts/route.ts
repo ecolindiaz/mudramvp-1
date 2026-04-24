@@ -14,7 +14,7 @@ import { prisma } from '@/lib/prisma'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
 import { runSinglePromptAnalysis } from '@/lib/services/single-prompt-analysis.service'
 import { prunePromptTextsFromAnalyses } from '@/lib/services/prompt-analyses-prune.service'
-import { isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
+import { getLanguageForCountry, isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
 
 // Vercel serverless: PATCH with runAnalysis needs time for AI provider calls
 export const maxDuration = 120
@@ -79,9 +79,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { brandProfileId, text, category, language, country } = body
-    const lang = (typeof language === 'string' && language) ? language : 'en'
-    const countryCode: CountryCode = isAllowedCountry(country) ? country : 'US'
+    const { brandProfileId, text, category, country } = body
+
+    // A garbage country value would silently bucket the prompt under 'US'
+    // and hide it from every real country view — reject loudly instead.
+    if (country !== undefined && !isAllowedCountry(country)) {
+      return NextResponse.json(
+        { error: `Invalid country code. Expected one of: US, GB, ES, MX, CO, AR, PE` },
+        { status: 400 }
+      )
+    }
 
     // Require authentication and verify brand profile access
     const authResult = await requireAuthWithBrandAccess(brandProfileId)
@@ -97,6 +104,24 @@ export async function POST(request: NextRequest) {
     }
 
     const profileId = authResult.brandProfileId!
+
+    // When the client omits country, fall back to the brand's primaryCountry
+    // so the prompt lands somewhere meaningful rather than defaulting to US.
+    let countryCode: CountryCode
+    if (country && isAllowedCountry(country)) {
+      countryCode = country
+    } else {
+      const profile = await prisma.brandProfile.findUnique({
+        where: { id: profileId },
+        select: { primaryCountry: true },
+      })
+      countryCode = (profile?.primaryCountry && isAllowedCountry(profile.primaryCountry))
+        ? (profile.primaryCountry as CountryCode)
+        : 'US'
+    }
+    // Derive language from country — ignore any language on the payload so
+    // we can't end up with country=CO + language=en rows.
+    const lang = getLanguageForCountry(countryCode)
 
     // Check prompt limits before creating (scoped per country)
     const limits = await canAddCustomPrompt(profileId, undefined, countryCode)

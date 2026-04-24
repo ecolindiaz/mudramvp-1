@@ -85,17 +85,8 @@ function ConversationRadarPageInner() {
     const next = !strictLanguageEnabled
     setIsSavingStrictLanguage(true)
     try {
-      const updated = { ...(profile as any), strictLanguageFilter: next }
-      const res = await fetch('/api/brand-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated),
-      })
-      if (res.ok) {
-        await setProfile(updated)
-      } else {
-        console.error('Failed to update strictLanguageFilter:', await res.text())
-      }
+      // setProfile persists to /api/brand-profile itself — don't POST twice.
+      await setProfile({ ...(profile as any), strictLanguageFilter: next })
     } catch (err) {
       console.error('Error toggling strictLanguageFilter:', err)
     } finally {

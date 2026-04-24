@@ -17,15 +17,25 @@ export interface SavedPrompt {
   updatedAt: Date
 }
 
+export interface GenerateInitialPromptsResult {
+  prompts: SavedPrompt[]
+  /** True only if every country was already populated (>= 10 prompts). */
+  cached: boolean
+}
+
 /**
  * Generate and save initial prompts for a brand profile during onboarding,
  * fanning out one full set per tracked country. Each country owns its own
  * prompt rows so editing Colombia's prompts can't mutate Argentina's.
+ *
+ * `redditContext` lets callers enrich generation with live Reddit signal
+ * (the onboarding endpoint fetches it; background jobs pass null).
  */
 export async function generateAndSaveInitialPromptsForCountries(
   brandProfileId: number,
-  countries: CountryCode[]
-): Promise<SavedPrompt[]> {
+  countries: CountryCode[],
+  redditContext: string | null = null,
+): Promise<GenerateInitialPromptsResult> {
   try {
     const profile = await prisma.brandProfile.findUnique({
       where: { id: brandProfileId }
@@ -39,9 +49,11 @@ export async function generateAndSaveInitialPromptsForCountries(
 
     const brandInfo = profileToBrandInfo(profile)
     const allPrompts: SavedPrompt[] = []
-
-    // Cache generation per language so we don't re-call the LLM for CO and AR separately
+    // Cache generation per language so CO and AR share a single LLM call
     const generationCache = new Map<string, Awaited<ReturnType<typeof generateInitialPrompts>>>()
+    // Track whether any country hit the generation path so callers can
+    // tell "everything was already populated" apart from "fresh work done".
+    let anyGenerated = false
 
     for (const country of countries) {
       const language = COUNTRY_LANGUAGE_MAP[country]
@@ -65,7 +77,7 @@ export async function generateAndSaveInitialPromptsForCountries(
 
       let generatedPrompts = generationCache.get(language)
       if (!generatedPrompts) {
-        generatedPrompts = await generateInitialPrompts(brandInfo, null, language)
+        generatedPrompts = await generateInitialPrompts(brandInfo, redditContext, language)
         generationCache.set(language, generatedPrompts)
       }
 
@@ -90,6 +102,7 @@ export async function generateAndSaveInitialPromptsForCountries(
             createdAt: new Date(),
             updatedAt: new Date()
           })))
+          anyGenerated = true
           continue
         }
 
@@ -101,6 +114,7 @@ export async function generateAndSaveInitialPromptsForCountries(
 
         console.log(`✅ Successfully saved ${savedPrompts.length} prompts for ${country}`)
         allPrompts.push(...savedPrompts)
+        anyGenerated = true
       } catch (dbError: any) {
         if (dbError.code === 'P2021' || dbError.message?.includes('does not exist') || dbError.message?.includes('undefined') || dbError.message?.includes('Null constraint violation')) {
           console.warn('⚠️ Prompt table error, returning generated prompts without saving:', dbError.message)
@@ -110,13 +124,14 @@ export async function generateAndSaveInitialPromptsForCountries(
             createdAt: new Date(),
             updatedAt: new Date()
           })))
+          anyGenerated = true
           continue
         }
         throw dbError
       }
     }
 
-    return allPrompts
+    return { prompts: allPrompts, cached: !anyGenerated }
   } catch (error) {
     console.error('Failed to generate and save initial prompts:', error)
     throw error
@@ -156,7 +171,8 @@ export async function generateAndSaveInitialPromptsForBrand(
     ? Array.from(new Set(tracked))
     : [primary]
 
-  return generateAndSaveInitialPromptsForCountries(brandProfileId, countries)
+  const { prompts } = await generateAndSaveInitialPromptsForCountries(brandProfileId, countries)
+  return prompts
 }
 
 /**

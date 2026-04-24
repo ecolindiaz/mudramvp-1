@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth'
 import { applyRateLimitAsync } from '@/lib/auth/rate-limiter-redis'
-import { profileToBrandInfo, generateInitialPrompts } from '@/lib/services/prompt-generation.service'
+import { profileToBrandInfo } from '@/lib/services/prompt-generation.service'
+import { generateAndSaveInitialPromptsForCountries } from '@/lib/services/prompt-storage.service'
 import { fetchRedditContext } from '@/lib/services/reddit-context.service'
 import { prisma } from '@/lib/prisma'
-import { COUNTRY_LANGUAGE_MAP, isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
+import { isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
 
 export const maxDuration = 120
 
@@ -16,7 +17,8 @@ export const maxDuration = 120
  * own prompt rows (editing Colombia's prompts won't touch Argentina's).
  *
  * Idempotent per country — countries that already have >= 10 prompts are
- * skipped and their existing prompts are returned.
+ * skipped and their existing prompts are returned. Delegates to the
+ * shared service so cron/onboarding/dev-script paths can't drift.
  */
 export async function POST(request: NextRequest) {
   const rateLimited = await applyRateLimitAsync(request, 'aiGeneration')
@@ -61,69 +63,27 @@ export async function POST(request: NextRequest) {
       ? Array.from(new Set(tracked))
       : [isAllowedCountry(primaryCountry) ? primaryCountry : 'US']
 
+    // Fetch Reddit context for richer LLM generation; this is the only
+    // reason the route doesn't use generateAndSaveInitialPromptsForBrand
+    // directly (that wrapper doesn't need network enrichment).
     const brandInfo = profileToBrandInfo(profile)
     const redditContext = await fetchRedditContext(brandInfo)
     if (redditContext) {
       console.log(`[InitialPrompts] Reddit context enrichment enabled (${redditContext.length} chars)`)
     }
 
-    const generationCache = new Map<'en' | 'es', Awaited<ReturnType<typeof generateInitialPrompts>>>()
-    const allSaved: any[] = []
-    // Track whether any country actually hit the generation path. If every
-    // country already had >= 10 prompts, the caller got cached data, and we
-    // should report cached: true (preserves the endpoint's idempotency
-    // contract that external callers may still rely on).
-    let anyGenerated = false
-
-    for (const country of countries) {
-      const language = COUNTRY_LANGUAGE_MAP[country]
-
-      const existingCount = await prisma.prompt.count({
-        where: { brandProfileId: profileId, country, isActive: true },
-      })
-      if (existingCount >= 10) {
-        console.log(`[InitialPrompts] ${country}: ${existingCount} prompts already exist, skipping`)
-        const existing = await prisma.prompt.findMany({
-          where: { brandProfileId: profileId, country, isActive: true },
-          orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
-        })
-        allSaved.push(...existing)
-        continue
-      }
-
-      let generated = generationCache.get(language)
-      if (!generated) {
-        generated = await generateInitialPrompts(brandInfo, redditContext, language)
-        generationCache.set(language, generated)
-      }
-
-      const saved = await prisma.$transaction(
-        generated.map((p) =>
-          prisma.prompt.create({
-            data: {
-              brandProfileId: profileId,
-              text: p.text,
-              category: p.category,
-              language,
-              country,
-              isCustom: false,
-              isActive: true,
-            },
-          })
-        )
-      )
-
-      console.log(`[InitialPrompts] Saved ${saved.length} prompts for profile ${profileId} (${country}/${language})`)
-      allSaved.push(...saved)
-      anyGenerated = true
-    }
+    const { prompts, cached } = await generateAndSaveInitialPromptsForCountries(
+      profileId,
+      countries,
+      redditContext,
+    )
 
     return NextResponse.json({
       success: true,
-      prompts: allSaved,
-      count: allSaved.length,
+      prompts,
+      count: prompts.length,
       countries,
-      cached: !anyGenerated,
+      cached,
     })
   } catch (error) {
     console.error('[InitialPrompts] Error:', error)

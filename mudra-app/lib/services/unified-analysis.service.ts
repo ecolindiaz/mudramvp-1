@@ -564,7 +564,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
     let prompts = await getActivePrompts(config.brandProfileId, undefined, country);
     if (prompts.length === 0) {
       console.log(`[GEO Core] Generating initial prompts (countries: ${promptCountries.join(', ')})...`);
-      const allPrompts = await generateAndSaveInitialPromptsForCountries(config.brandProfileId, promptCountries);
+      const { prompts: allPrompts } = await generateAndSaveInitialPromptsForCountries(config.brandProfileId, promptCountries);
       // Keep only the subset that belongs to the run's active country
       prompts = country
         ? allPrompts.filter(p => !p.country || p.country === country)

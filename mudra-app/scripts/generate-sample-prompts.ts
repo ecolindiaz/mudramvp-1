@@ -2,14 +2,14 @@
  * Script to generate sample prompts for testing the campaign content generation
  */
 
-import { generateAndSaveInitialPrompts } from '../lib/services/prompt-storage.service'
+import { generateAndSaveInitialPromptsForBrand } from '../lib/services/prompt-storage.service'
 
 async function main() {
   try {
     console.log('🚀 Starting prompt generation for brandProfileId=1...')
-    
+
     const brandProfileId = 1
-    const prompts = await generateAndSaveInitialPrompts(brandProfileId)
+    const prompts = await generateAndSaveInitialPromptsForBrand(brandProfileId)
     
     console.log(`✅ Successfully generated ${prompts.length} prompts`)
     console.log('\nPrompt breakdown:')

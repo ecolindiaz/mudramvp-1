@@ -101,10 +101,15 @@ export function filterAnalysesArray(
  *
  * Used when a prompt is edited (drop stale results tied to the old text) and
  * by the one-off cleanup script that prunes orphaned entries.
+ *
+ * Pass `country` to scope the prune to a single country's analysis runs —
+ * editing Colombia's "¿cómo cobrar en dólares?" should not wipe Argentina's
+ * history for the same text.
  */
 export async function prunePromptTextsFromAnalyses(
   brandProfileId: number,
-  promptTexts: string[]
+  promptTexts: string[],
+  country?: string,
 ): Promise<PruneResult> {
   if (promptTexts.length === 0) {
     return { rowsUpdated: 0, entriesRemoved: 0 }
@@ -116,7 +121,10 @@ export async function prunePromptTextsFromAnalyses(
   }
 
   const results = await prisma.geoAnalysisResult.findMany({
-    where: { brandProfileId },
+    where: {
+      brandProfileId,
+      ...(country ? { country } : {}),
+    },
     select: { id: true, analyses: true },
   })
 

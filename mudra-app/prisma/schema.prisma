@@ -90,6 +90,10 @@ model BrandProfile {
   trackingCountries          String[] @default(["US"])  // ISO codes: ["US", "ES", "MX"]
   primaryCountry             String   @default("US")     // Default dashboard view country
 
+  // Conversation Radar: when true, restrict Spanish-country scans to
+  // Spanish-speaking subreddits only (otherwise results skew English).
+  strictLanguageFilter       Boolean  @default(false)
+
   // Multi-monitor support
   monitorOrder               Int      @default(0)        // Display order in sidebar (0 = primary)
 
@@ -110,7 +114,8 @@ model Prompt {
   brandProfileId Int
   text           String
   category       String?
-  language       String       @default("en")   // "en" | "es"
+  language       String       @default("en")   // "en" | "es" — derived from country
+  country        String       @default("US")   // ISO code: "US", "ES", "MX", "CO", "AR", "PE", "GB"
   isCustom       Boolean      @default(false)
   isActive       Boolean      @default(true)
   editedByUser   Boolean      @default(false)
@@ -122,6 +127,7 @@ model Prompt {
   @@index([brandProfileId])
   @@index([brandProfileId, isActive])
   @@index([brandProfileId, language, isActive])
+  @@index([brandProfileId, country, isActive])
   @@map("prompts")
 }
 
@@ -1045,8 +1051,10 @@ model ConversationOpportunity {
   // Quality metrics
   qualityScore             Float?
 
-  // Language (matches Prompt model pattern)
+  // Language + country (country is the per-monitor scope; language is
+  // derivable from country but kept for downstream filters).
   language                 String       @default("en")
+  country                  String       @default("US")  // ISO code: matches Prompt.country
 
   // Timestamps
   createdAt                DateTime     @default(now())
@@ -1055,10 +1063,13 @@ model ConversationOpportunity {
   // Relations
   brandProfile             BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
 
-  @@unique([brandProfileId, postUrl, language])
+  // Same Reddit URL can exist as separate opportunities for each country
+  // a brand tracks (CO scan and AR scan are independent observations).
+  @@unique([brandProfileId, postUrl, country])
   @@index([brandProfileId])
   @@index([brandProfileId, status])
   @@index([brandProfileId, language, status])
+  @@index([brandProfileId, country, status])
   @@index([brandProfileId, relevanceScore])
   @@index([status])
   @@index([createdAt])

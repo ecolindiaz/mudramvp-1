@@ -1,5 +1,6 @@
 import { generateInitialPrompts, profileToBrandInfo } from './prompt-generation.service'
 import { prisma } from '@/lib/prisma'
+import { COUNTRY_LANGUAGE_MAP, type CountryCode } from '@/lib/geo/country-config'
 
 export interface SavedPrompt {
   id: number
@@ -7,6 +8,7 @@ export interface SavedPrompt {
   text: string
   category: string | null
   language?: string
+  country?: string
   isCustom: boolean
   isActive: boolean
   editedByUser?: boolean
@@ -15,16 +17,26 @@ export interface SavedPrompt {
   updatedAt: Date
 }
 
+export interface GenerateInitialPromptsResult {
+  prompts: SavedPrompt[]
+  /** True only if every country was already populated (>= 10 prompts). */
+  cached: boolean
+}
+
 /**
- * Generate and save initial prompts for a brand profile during onboarding.
- * Supports multi-language generation — generates one set of 50 prompts per language.
+ * Generate and save initial prompts for a brand profile during onboarding,
+ * fanning out one full set per tracked country. Each country owns its own
+ * prompt rows so editing Colombia's prompts can't mutate Argentina's.
+ *
+ * `redditContext` lets callers enrich generation with live Reddit signal
+ * (the onboarding endpoint fetches it; background jobs pass null).
  */
-export async function generateAndSaveInitialPrompts(
+export async function generateAndSaveInitialPromptsForCountries(
   brandProfileId: number,
-  languages: Array<'en' | 'es'> = ['en']
-): Promise<SavedPrompt[]> {
+  countries: CountryCode[],
+  redditContext: string | null = null,
+): Promise<GenerateInitialPromptsResult> {
   try {
-    // Get brand profile data
     const profile = await prisma.brandProfile.findUnique({
       where: { id: brandProfileId }
     })
@@ -33,80 +45,96 @@ export async function generateAndSaveInitialPrompts(
       throw new Error(`Brand profile ${brandProfileId} not found`)
     }
 
-    console.log(`🎯 Generating initial prompts for ${profile.companyName} (languages: ${languages.join(', ')})...`)
+    console.log(`🎯 Generating initial prompts for ${profile.companyName} (countries: ${countries.join(', ')})...`)
 
-    // Convert profile to BrandInfo format
     const brandInfo = profileToBrandInfo(profile)
-
     const allPrompts: SavedPrompt[] = []
+    // Cache generation per language so CO and AR share a single LLM call
+    const generationCache = new Map<string, Awaited<ReturnType<typeof generateInitialPrompts>>>()
+    // Track whether any country hit the generation path so callers can
+    // tell "everything was already populated" apart from "fresh work done".
+    let anyGenerated = false
 
-    for (const language of languages) {
-      // Check if prompts in this language already exist
+    for (const country of countries) {
+      const language = COUNTRY_LANGUAGE_MAP[country]
+      // Texts already saved for this country — used to dedupe the
+      // partial-seed case (1–9 existing prompts) so we don't re-insert
+      // copies of prompts a previous run already saved.
+      let existingTexts = new Set<string>()
+
       try {
-        const existingCount = await prisma.prompt.count({
-          where: { brandProfileId, language, isActive: true }
+        const existing = await prisma.prompt.findMany({
+          where: { brandProfileId, country, isActive: true },
+          orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
         })
-        if (existingCount >= 10) {
-          console.log(`⏭️ Skipping ${language} prompt generation — ${existingCount} prompts already exist`)
-          const existing = await prisma.prompt.findMany({
-            where: { brandProfileId, language, isActive: true },
-            orderBy: [{ category: 'asc' }, { createdAt: 'asc' }]
-          })
+        if (existing.length >= 10) {
+          console.log(`⏭️ Skipping ${country} prompt generation — ${existing.length} prompts already exist`)
           allPrompts.push(...existing)
           continue
+        }
+        if (existing.length > 0) {
+          // Surface the partial set in the return value so callers see
+          // every prompt this country has, not just the new ones.
+          allPrompts.push(...existing)
+          existingTexts = new Set(existing.map(p => p.text))
         }
       } catch {
         // Table may not exist, proceed to generate
       }
 
-      // Generate prompts using the unified GPT-5.1 pipeline (same as onboarding)
-      const generatedPrompts = await generateInitialPrompts(brandInfo, null, language)
+      let generatedPrompts = generationCache.get(language)
+      if (!generatedPrompts) {
+        generatedPrompts = await generateInitialPrompts(brandInfo, redditContext, language)
+        generationCache.set(language, generatedPrompts)
+      }
 
-      // Prepare prompts for database insertion
-      const promptsToSave = generatedPrompts.map(p => ({
+      // Drop generated prompts whose text already lives in this country.
+      // Without this, a partial-set country (1–9 rows) would accumulate
+      // duplicates every time the onboarding endpoint is retried.
+      const fresh = existingTexts.size > 0
+        ? generatedPrompts.filter(p => !existingTexts.has(p.text))
+        : generatedPrompts
+
+      if (fresh.length === 0) {
+        console.log(`⏭️ All ${generatedPrompts.length} generated prompts for ${country} already exist, nothing to save`)
+        continue
+      }
+
+      const promptsToSave = fresh.map(p => ({
         brandProfileId,
         text: p.text,
         category: p.category,
         language,
+        country,
         isCustom: false,
         isActive: true
       }))
 
-      console.log(`📝 Saving ${promptsToSave.length} ${language} prompts to database...`)
+      console.log(`📝 Saving ${promptsToSave.length} prompts for ${country} (${language})...`)
 
       try {
-        // Check if prompt table exists
         if (!prisma.prompt) {
-          console.warn('⚠️ Prompt table does not exist yet. Returning generated prompts without saving.');
+          console.warn('⚠️ Prompt table does not exist yet. Returning generated prompts without saving.')
           allPrompts.push(...promptsToSave.map((p, index) => ({
             id: index + 1,
             ...p,
             createdAt: new Date(),
             updatedAt: new Date()
-          })));
+          })))
+          anyGenerated = true
           continue
         }
 
-        // Save all prompts to database
         const savedPrompts = await prisma.$transaction(
           promptsToSave.map(prompt =>
-            prisma.prompt.create({
-              data: {
-                brandProfileId: prompt.brandProfileId,
-                text: prompt.text,
-                category: prompt.category,
-                language: prompt.language,
-                isCustom: prompt.isCustom,
-                isActive: prompt.isActive,
-              }
-            })
+            prisma.prompt.create({ data: prompt })
           )
         )
 
-        console.log(`✅ Successfully saved ${savedPrompts.length} ${language} prompts`)
+        console.log(`✅ Successfully saved ${savedPrompts.length} prompts for ${country}`)
         allPrompts.push(...savedPrompts)
+        anyGenerated = true
       } catch (dbError: any) {
-        // If table doesn't exist, return generated prompts without saving
         if (dbError.code === 'P2021' || dbError.message?.includes('does not exist') || dbError.message?.includes('undefined') || dbError.message?.includes('Null constraint violation')) {
           console.warn('⚠️ Prompt table error, returning generated prompts without saving:', dbError.message)
           allPrompts.push(...promptsToSave.map((p, index) => ({
@@ -114,37 +142,85 @@ export async function generateAndSaveInitialPrompts(
             ...p,
             createdAt: new Date(),
             updatedAt: new Date()
-          })));
+          })))
+          anyGenerated = true
           continue
         }
-        throw dbError;
+        throw dbError
       }
     }
 
-    return allPrompts
+    return { prompts: allPrompts, cached: !anyGenerated }
   } catch (error) {
     console.error('Failed to generate and save initial prompts:', error)
     throw error
   }
-  // Note: DO NOT call prisma.$disconnect() - the singleton handles connection lifecycle
 }
 
 /**
- * Get all active prompts for a brand profile, optionally filtered by language
+ * Compatibility shim: generate prompts using the brand profile's own
+ * trackingCountries (or primaryCountry as fallback).
+ *
+ * The previous `generateAndSaveInitialPrompts(profileId, languages)`
+ * signature silently collapsed every Spanish-speaking country to 'ES',
+ * which broke the "add Colombia/Argentina" flow once prompts became
+ * country-scoped. New code should call generateAndSaveInitialPromptsForCountries
+ * with explicit countries; this wrapper exists for callers that don't
+ * know the country set up front (cron-triggered analysis, dev scripts).
  */
-export async function getActivePrompts(brandProfileId: number, language?: string): Promise<SavedPrompt[]> {
+export async function generateAndSaveInitialPromptsForBrand(
+  brandProfileId: number,
+): Promise<SavedPrompt[]> {
+  const profile = await prisma.brandProfile.findUnique({
+    where: { id: brandProfileId },
+    select: { trackingCountries: true, primaryCountry: true },
+  })
+
+  if (!profile) {
+    throw new Error(`Brand profile ${brandProfileId} not found`)
+  }
+
+  const tracked = (profile.trackingCountries || [])
+    .filter((c): c is CountryCode => c in COUNTRY_LANGUAGE_MAP)
+  const primary = (profile.primaryCountry && profile.primaryCountry in COUNTRY_LANGUAGE_MAP)
+    ? (profile.primaryCountry as CountryCode)
+    : ('US' as CountryCode)
+
+  const countries: CountryCode[] = tracked.length > 0
+    ? Array.from(new Set(tracked))
+    : [primary]
+
+  const { prompts } = await generateAndSaveInitialPromptsForCountries(brandProfileId, countries)
+  return prompts
+}
+
+/**
+ * Get all active prompts for a brand profile.
+ *
+ * Prefer `country` — it uniquely identifies a per-country prompt set. `language`
+ * is supported as a broader filter (e.g. "all Spanish prompts across LATAM"),
+ * but it should rarely be used now that prompts are country-scoped.
+ */
+export async function getActivePrompts(
+  brandProfileId: number,
+  language?: string,
+  country?: string,
+): Promise<SavedPrompt[]> {
   try {
-    // Check if the prompt table exists (migration may not be applied yet)
     if (!prisma.prompt) {
       console.warn('⚠️ Prompt table does not exist yet (migration not applied). Returning empty array.')
       return []
     }
 
+    // Prefer country over language (country is strictly narrower). AND-ing
+    // both would risk an impossible combo like country=CO + language=en
+    // returning zero rows. This mirrors canAddCustomPrompt's scope rule.
+    const scopeFilter = country ? { country } : (language ? { language } : {})
     return await prisma.prompt.findMany({
       where: {
         brandProfileId,
         isActive: true,
-        ...(language ? { language } : {}),
+        ...scopeFilter,
       },
       orderBy: [
         { category: 'asc' },
@@ -152,27 +228,31 @@ export async function getActivePrompts(brandProfileId: number, language?: string
       ]
     })
   } catch (error: any) {
-    // If table doesn't exist, return empty array instead of crashing
     if (error.code === 'P2021' || error.message?.includes('does not exist') || error.message?.includes('undefined')) {
       console.warn('⚠️ Prompt table not found, returning empty prompts array. Migration may not be applied yet.')
       return []
     }
-    
+
     console.error('Failed to get active prompts:', error)
     throw error
   }
 }
 
 /**
- * Get prompts by category
+ * Get prompts by category, optionally scoped to a country.
  */
-export async function getPromptsByCategory(brandProfileId: number, category: string): Promise<SavedPrompt[]> {
+export async function getPromptsByCategory(
+  brandProfileId: number,
+  category: string,
+  country?: string,
+): Promise<SavedPrompt[]> {
   try {
     return await prisma.prompt.findMany({
       where: {
         brandProfileId,
         category,
-        isActive: true
+        isActive: true,
+        ...(country ? { country } : {}),
       },
       orderBy: { createdAt: 'asc' }
     })
@@ -190,10 +270,17 @@ export const PROMPT_LIMITS = {
 
 /**
  * Check if a brand profile can add more custom prompts.
- * When `language` is provided, limits are scoped per-language so that
- * multi-language monitors don't block each other.
+ *
+ * Limits are scoped per-country so Colombia and Argentina each get their
+ * own 30/100 allowance instead of competing for the same pool. `language`
+ * is retained as a broader fallback for callers that haven't been
+ * updated yet.
  */
-export async function canAddCustomPrompt(brandProfileId: number, language?: string): Promise<{
+export async function canAddCustomPrompt(
+  brandProfileId: number,
+  language?: string,
+  country?: string,
+): Promise<{
   canAdd: boolean
   currentCustom: number
   currentTotal: number
@@ -201,13 +288,13 @@ export async function canAddCustomPrompt(brandProfileId: number, language?: stri
   maxTotal: number
 }> {
   try {
-    const languageFilter = language ? { language } : {}
+    const scopeFilter = country ? { country } : (language ? { language } : {})
     const [customCount, totalCount] = await Promise.all([
       prisma.prompt.count({
-        where: { brandProfileId, isCustom: true, isActive: true, ...languageFilter }
+        where: { brandProfileId, isCustom: true, isActive: true, ...scopeFilter }
       }),
       prisma.prompt.count({
-        where: { brandProfileId, isActive: true, ...languageFilter }
+        where: { brandProfileId, isActive: true, ...scopeFilter }
       })
     ])
 
@@ -225,24 +312,28 @@ export async function canAddCustomPrompt(brandProfileId: number, language?: stri
 }
 
 /**
- * Create a custom prompt with limit validation
+ * Create a custom prompt with limit validation.
+ *
+ * `country` is required — without it the prompt would silently land in the
+ * default "US" bucket and show up cross-region.
  */
 export async function createCustomPrompt(
   brandProfileId: number,
   text: string,
   category: string,
-  language: 'en' | 'es' = 'en'
+  country: CountryCode,
+  language?: 'en' | 'es',
 ): Promise<SavedPrompt> {
   try {
-    // Check limits before creating
-    const limits = await canAddCustomPrompt(brandProfileId)
+    const resolvedLanguage = language ?? COUNTRY_LANGUAGE_MAP[country] ?? 'en'
+    const limits = await canAddCustomPrompt(brandProfileId, undefined, country)
 
     if (!limits.canAdd) {
       if (limits.currentCustom >= PROMPT_LIMITS.MAX_CUSTOM_PROMPTS) {
-        throw new Error(`Custom prompt limit reached (${PROMPT_LIMITS.MAX_CUSTOM_PROMPTS} max). Please delete an existing custom prompt to add a new one.`)
+        throw new Error(`Custom prompt limit reached (${PROMPT_LIMITS.MAX_CUSTOM_PROMPTS} max per country). Please delete an existing custom prompt to add a new one.`)
       }
       if (limits.currentTotal >= PROMPT_LIMITS.MAX_TOTAL_PROMPTS) {
-        throw new Error(`Total prompt limit reached (${PROMPT_LIMITS.MAX_TOTAL_PROMPTS} max). Please delete an existing prompt to add a new one.`)
+        throw new Error(`Total prompt limit reached (${PROMPT_LIMITS.MAX_TOTAL_PROMPTS} max per country). Please delete an existing prompt to add a new one.`)
       }
     }
 
@@ -251,9 +342,10 @@ export async function createCustomPrompt(
         brandProfileId,
         text,
         category,
-        language,
+        country,
+        language: resolvedLanguage,
         isCustom: true,
-        isActive: true
+        isActive: true,
       }
     })
   } catch (error) {
@@ -310,23 +402,24 @@ export async function hardDeletePrompt(promptId: number): Promise<void> {
 }
 
 /**
- * Get prompt statistics for a brand
+ * Get prompt statistics for a brand, optionally scoped to a country.
  */
-export async function getPromptStats(brandProfileId: number) {
+export async function getPromptStats(brandProfileId: number, country?: string) {
   try {
+    const scope = country ? { country } : {}
     const [total, active, custom, byCategory] = await Promise.all([
       prisma.prompt.count({
-        where: { brandProfileId }
+        where: { brandProfileId, ...scope }
       }),
       prisma.prompt.count({
-        where: { brandProfileId, isActive: true }
+        where: { brandProfileId, isActive: true, ...scope }
       }),
       prisma.prompt.count({
-        where: { brandProfileId, isCustom: true }
+        where: { brandProfileId, isCustom: true, ...scope }
       }),
       prisma.prompt.groupBy({
         by: ['category'],
-        where: { brandProfileId, isActive: true },
+        where: { brandProfileId, isActive: true, ...scope },
         _count: true
       })
     ])

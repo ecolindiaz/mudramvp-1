@@ -70,12 +70,18 @@ interface DiscoveredViaItem {
  * - LinkedIn Apify actor doesn't support URL scraping (only keyword search)
  * - Perplexity citations may include LinkedIn URLs, but we can't fetch their content
  */
+// Cited mode follows specific URLs the LLM cited from a country-scoped
+// analysis run, so it does NOT honor BrandProfile.strictLanguageFilter
+// — that toggle only affects subreddit selection in proactive mode,
+// where we choose which subreddits to query. Filtering authoritative
+// citations by subreddit language would silently drop legitimate
+// mentions the user explicitly opted into via their AI visibility scan.
 export async function processCitedOpportunities(
   brandProfileId: number,
   analysisRunId: number,
-  options: { maxCitations?: number; language?: 'en' | 'es' } = {}
+  options: { maxCitations?: number; language?: 'en' | 'es'; country?: string } = {}
 ): Promise<ProcessingStats> {
-  const { maxCitations = 2, language = 'en' } = options; // Default: 2 citations per run
+  const { maxCitations = 2, language = 'en', country } = options;
   const stats: ProcessingStats = { created: 0, skipped: 0, errors: 0 };
   
   console.log(`[Cited Radar] Processing analysis run ${analysisRunId} for brand ${brandProfileId} (max: ${maxCitations})`);
@@ -100,11 +106,13 @@ export async function processCitedOpportunities(
   // 3. Get unique Reddit URLs
   let redditUrls = [...new Set(citations.map(c => c.url))];
   
-  // 4. Filter out URLs that already have opportunities for this language (to avoid re-processing)
+  // 4. Filter out URLs that already have opportunities for this country
+  // (or, if country wasn't passed, fall back to language-scoped dedupe so
+  // legacy callers still avoid re-processing).
   const existingOpportunities = await prisma.conversationOpportunity.findMany({
     where: {
       brandProfileId,
-      language,
+      ...(country ? { country } : { language }),
       postUrl: { in: redditUrls },
     },
     select: { postUrl: true },
@@ -164,6 +172,7 @@ export async function processCitedOpportunities(
             citationTitle: c.citationTitle,
           })),
           language,
+          country,
         });
         stats.created++;
       } catch (error: any) {
@@ -203,21 +212,30 @@ export async function processCitedOpportunities(
 export async function runProactiveSearch(
   brandProfileId: number,
   language: 'en' | 'es' = 'en',
-  promptTexts?: string[]
+  promptTexts?: string[],
+  country?: string,
 ): Promise<ProactiveSearchStats> {
   const stats: ProactiveSearchStats = { reddit: 0, total: 0, queries: [] };
 
-  console.log(`[Proactive Radar] Starting for brand ${brandProfileId} (language: ${language})`);
+  console.log(`[Proactive Radar] Starting for brand ${brandProfileId} (country: ${country ?? 'any'}, language: ${language})`);
 
-  // 1. Get brand context with tracked prompts (filtered by language)
+  // Prompts are now per-country. Prefer country scope when available so
+  // Colombia's radar doesn't pull Argentina's tracked prompts (or vice versa).
+  // Fall back to language for legacy brands still on the shared-prompt model.
+  const promptFilter = country
+    ? { isActive: true, country }
+    : { isActive: true, language };
+
   const brandProfile = await prisma.brandProfile.findUnique({
     where: { id: brandProfileId },
-    include: { prompts: { where: { isActive: true, language } } },
+    include: { prompts: { where: promptFilter } },
   });
-  
+
   if (!brandProfile) {
     throw new Error(`Brand profile ${brandProfileId} not found`);
   }
+
+  const strictLanguage = Boolean((brandProfile as any).strictLanguageFilter);
   
   const brandContext: BrandContext = {
     companyName: brandProfile.companyName || '',
@@ -249,9 +267,11 @@ export async function runProactiveSearch(
     return stats;
   }
   
-  // 2. Generate search queries from tracked prompts
-  const queries = await generateSearchQueries(brandContext, language);
-  console.log(`[Proactive Radar] Generated ${queries.trackedPromptQueries.length} tracked prompt queries`);
+  // 2. Generate search queries from tracked prompts. `strictLanguage`
+  // drops English subreddits for Spanish scans so results actually come
+  // back in Spanish instead of skewing toward r/SaaS and friends.
+  const queries = await generateSearchQueries(brandContext, language, { strictLanguage });
+  console.log(`[Proactive Radar] Generated ${queries.trackedPromptQueries.length} tracked prompt queries${strictLanguage ? ' (strict language)' : ''}`);
   
   // ⚡ CREDIT OPTIMIZATION: Process up to 3 tracked prompts + 1 competitor query per run
   // The scheduler/cron will rotate through remaining prompts over time
@@ -267,7 +287,8 @@ export async function runProactiveSearch(
     limitedPromptQueries,
     limitedCompetitorQueries,
     brandContext,
-    language
+    language,
+    country,
   );
   
   stats.reddit = redditOpportunities;
@@ -291,7 +312,8 @@ async function searchRedditWithTrackedPrompts(
   trackedPromptQueries: TrackedPromptQuery[],
   competitorQueries: string[],
   brandContext: BrandContext,
-  language: 'en' | 'es' = 'en'
+  language: 'en' | 'es' = 'en',
+  country?: string,
 ): Promise<number> {
   let opportunitiesCreated = 0;
   const processedUrls = new Set<string>();
@@ -379,6 +401,7 @@ async function searchRedditWithTrackedPrompts(
               searchQuery: promptQuery.searchQuery,
               initialRelevanceScore: initialScore,
               language,
+              country,
             });
             opportunitiesCreated++;
             console.log(`[Reddit] ✓ Created: "${post.title?.slice(0, 50)}..." (queryMatch: ${(queryRelevance * 100).toFixed(0)}%, score: ${initialScore})`);
@@ -443,6 +466,7 @@ async function searchRedditWithTrackedPrompts(
               searchQuery: query,
               initialRelevanceScore: relevance,
               language,
+              country,
             });
             opportunitiesCreated++;
             console.log(`[Reddit] ✓ Competitor match: "${post.title?.slice(0, 50)}..." (score: ${relevance})`);
@@ -529,37 +553,77 @@ interface CreateOpportunityInput {
   searchQuery?: string;
   initialRelevanceScore?: number;
   language: 'en' | 'es';
+  /** Country code (US, CO, AR, …). When omitted, falls back to a
+   *  reasonable default derived from language so legacy callers keep
+   *  working — but every cron / API entry point sets it explicitly. */
+  country?: string;
 }
 
 /**
- * Create or update a conversation opportunity in the database
+ * Pick a sensible country for a brand when an opportunity-creating
+ * caller didn't pass one. Prefers primaryCountry if its language
+ * matches, then the first matching trackingCountries entry, then
+ * primaryCountry regardless, then a hard-coded language→country
+ * fallback as last resort.
+ */
+async function resolveCountryForBrand(brandProfileId: number, language: 'en' | 'es'): Promise<string> {
+  const enCountries = new Set(['US', 'GB']);
+  const esCountries = new Set(['ES', 'MX', 'CO', 'AR', 'PE']);
+  const matches = (c: string) => language === 'en' ? enCountries.has(c) : esCountries.has(c);
+
+  const profile = await prisma.brandProfile.findUnique({
+    where: { id: brandProfileId },
+    select: { primaryCountry: true, trackingCountries: true },
+  });
+
+  if (profile?.primaryCountry && matches(profile.primaryCountry)) {
+    return profile.primaryCountry;
+  }
+  const tracked = (profile?.trackingCountries ?? []).find(matches);
+  if (tracked) return tracked;
+  if (profile?.primaryCountry) return profile.primaryCountry;
+  return language === 'es' ? 'ES' : 'US';
+}
+
+/**
+ * Create or update a conversation opportunity in the database.
+ * Upserts on (brandProfileId, postUrl, country) so each tracked country
+ * gets its own opportunity row even when two countries discover the
+ * same Reddit URL.
  */
 async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
-  const { brandProfileId, post, platform, mode, discoveredVia, searchQuery, initialRelevanceScore, language } = input;
-  
+  const { brandProfileId, post, platform, mode, discoveredVia, searchQuery, initialRelevanceScore, language, country } = input;
+
   const redditPost = post as RedditPost;
-  
+
   // Build engagement string
   const engagementString = `${redditPost.score} upvotes · ${redditPost.num_comments} comments`;
-  
+
   // Get post URL
   const postUrl = redditPost.url;
-  
+
   // Parse post creation date
   let postCreatedAt: Date | undefined;
   if (redditPost.created_utc) {
     postCreatedAt = new Date(redditPost.created_utc);
   }
-  
+
   // Quality score for sorting
   const qualityScore = calculateQualityScore(post, platform);
-  
+
+  // Resolve country: prefer the explicit value from the caller; otherwise
+  // pick a country whose language matches by reading the brand profile.
+  // Without this, a Spanish-language opportunity from a CO/AR/MX brand
+  // would silently land in the 'ES' bucket and never show up in the
+  // country-scoped radar views.
+  const resolvedCountry = country ?? await resolveCountryForBrand(brandProfileId, language);
+
   return prisma.conversationOpportunity.upsert({
     where: {
-      brandProfileId_postUrl_language: {
+      brandProfileId_postUrl_country: {
         brandProfileId,
         postUrl,
-        language,
+        country: resolvedCountry,
       },
     },
     create: {
@@ -581,6 +645,7 @@ async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
       postCreatedAt,
       status: 'new',
       language,
+      country: resolvedCountry,
       // Store initial relevance if provided (will be updated by LLM analysis)
       relevanceScore: initialRelevanceScore,
       qualityScore,
@@ -817,9 +882,15 @@ export async function analyzeNewOpportunities(
     limit?: number;
     minRelevanceScore?: number;  // Only analyze opportunities with initial score above this
     language?: 'en' | 'es';
+    country?: string;
   } = {}
 ): Promise<{ analyzed: number; errors: number }> {
-  const { limit = 10, minRelevanceScore = 0, language } = options;
+  const { limit = 10, minRelevanceScore = 0, language, country } = options;
+
+  // Prefer country scope (cron loops per-country, so each country's
+  // analysis budget stays isolated). Fall back to language for legacy
+  // callers that don't yet pass a country.
+  const scope = country ? { country } : (language ? { language } : {});
 
   // Get unanalyzed opportunities
   const opportunities = await prisma.conversationOpportunity.findMany({
@@ -829,7 +900,7 @@ export async function analyzeNewOpportunities(
       relevanceScore: minRelevanceScore > 0
         ? { gte: minRelevanceScore }
         : undefined,
-      ...(language ? { language } : {}),
+      ...scope,
     },
     include: {
       brandProfile: {

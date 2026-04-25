@@ -58,24 +58,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Run proactive search (Reddit via Apify)
-    const proactiveStats = await runProactiveSearch(brandProfileId, language);
+    // 1. Run proactive search (Reddit via Apify). Pass country so the
+    // service picks up this country's tracked prompts, not the whole
+    // Spanish-speaking brand's pool.
+    const proactiveStats = await runProactiveSearch(brandProfileId, language, undefined, validCountry);
 
     // 2. Process cited opportunities from the latest analysis run (if any)
     let citedStats = { created: 0, skipped: 0, errors: 0 };
     const latestRun = await getLatestAnalysisRun(brandProfileId, validCountry);
     if (latestRun) {
-      citedStats = await processCitedOpportunities(brandProfileId, latestRun.id, { language });
+      citedStats = await processCitedOpportunities(brandProfileId, latestRun.id, { language, country: validCountry });
     }
 
-    // 3. Analyze new unanalyzed opportunities with LLM
-    const analysisResult = await analyzeNewOpportunities(brandProfileId, { limit: 5, language });
+    // 3. Analyze new unanalyzed opportunities with LLM, scoped to this
+    // country so multi-country brands don't burn budget across regions.
+    const analysisResult = await analyzeNewOpportunities(brandProfileId, { limit: 5, language, country: validCountry });
 
     // 4. Stamp lastRadarRunAt (initializes cycle on first click, resets on subsequent)
     await updateLastRadarRun(brandProfileId);
 
-    // 5. Return updated counts
-    const counts = await getOpportunityCounts(brandProfileId, language);
+    // 5. Return updated counts, scoped to this country so multi-country
+    // brands don't see CO + AR rolled into a single number.
+    const counts = await getOpportunityCounts(brandProfileId, language, validCountry);
 
     return NextResponse.json({
       success: true,
@@ -121,7 +125,7 @@ export async function GET(req: NextRequest) {
     const language = validCountry ? getLanguageForCountry(validCountry) : 'en';
 
     const parsedBrandId = parseInt(brandProfileId, 10);
-    const counts = await getOpportunityCounts(parsedBrandId, language);
+    const counts = await getOpportunityCounts(parsedBrandId, language, validCountry);
 
     // Get last analysis run (scoped to country when provided)
     const lastRun = await prisma.analysisRun.findFirst({
@@ -149,16 +153,19 @@ export async function GET(req: NextRequest) {
   }
 }
 
-async function getOpportunityCounts(brandProfileId: number, language?: 'en' | 'es') {
-  const langFilter = language ? { language } : {};
+async function getOpportunityCounts(brandProfileId: number, language?: 'en' | 'es', country?: string) {
+  // Prefer country scope (matches the per-country isolation across the
+  // rest of the radar pipeline). Fall back to language for callers that
+  // don't yet pass a country.
+  const scope = country ? { country } : (language ? { language } : {});
   const [total, newCount, engaged, dismissed, unanalyzed, cited, proactive] = await Promise.all([
-    prisma.conversationOpportunity.count({ where: { brandProfileId, ...langFilter } }),
-    prisma.conversationOpportunity.count({ where: { brandProfileId, status: 'new', ...langFilter } }),
-    prisma.conversationOpportunity.count({ where: { brandProfileId, status: 'engaged', ...langFilter } }),
-    prisma.conversationOpportunity.count({ where: { brandProfileId, status: 'dismissed', ...langFilter } }),
-    prisma.conversationOpportunity.count({ where: { brandProfileId, conversationSnapshot: null, ...langFilter } }),
-    prisma.conversationOpportunity.count({ where: { brandProfileId, mode: 'cited', ...langFilter } }),
-    prisma.conversationOpportunity.count({ where: { brandProfileId, mode: 'proactive', ...langFilter } }),
+    prisma.conversationOpportunity.count({ where: { brandProfileId, ...scope } }),
+    prisma.conversationOpportunity.count({ where: { brandProfileId, status: 'new', ...scope } }),
+    prisma.conversationOpportunity.count({ where: { brandProfileId, status: 'engaged', ...scope } }),
+    prisma.conversationOpportunity.count({ where: { brandProfileId, status: 'dismissed', ...scope } }),
+    prisma.conversationOpportunity.count({ where: { brandProfileId, conversationSnapshot: null, ...scope } }),
+    prisma.conversationOpportunity.count({ where: { brandProfileId, mode: 'cited', ...scope } }),
+    prisma.conversationOpportunity.count({ where: { brandProfileId, mode: 'proactive', ...scope } }),
   ]);
 
   return {

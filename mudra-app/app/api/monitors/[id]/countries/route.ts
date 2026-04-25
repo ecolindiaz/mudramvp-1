@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { isAllowedCountry, MAX_COUNTRIES_PER_MONITOR, COUNTRY_META, type CountryCode, getLanguageForCountry, getUniqueLanguages } from '@/lib/geo/country-config';
+import { isAllowedCountry, MAX_COUNTRIES_PER_MONITOR, COUNTRY_META, type CountryCode, getLanguageForCountry } from '@/lib/geo/country-config';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 
 export async function GET(
@@ -126,11 +126,13 @@ export async function PATCH(
         }
         updatedCountries.push(country);
 
-        // Ensure prompts exist for the new country's language
+        // Generate prompts for the newly added country. Other countries
+        // in updatedCountries already have their own rows (the country-scoped
+        // helper skips ones that already hit the >= 10 threshold), so we
+        // only need to pass in the country that was just added.
         try {
-          const { generateAndSaveInitialPrompts } = await import('@/lib/services/prompt-storage.service');
-          const newLanguages = getUniqueLanguages(updatedCountries.filter(isAllowedCountry) as CountryCode[]);
-          await generateAndSaveInitialPrompts(brandProfileId, newLanguages);
+          const { generateAndSaveInitialPromptsForCountries } = await import('@/lib/services/prompt-storage.service');
+          await generateAndSaveInitialPromptsForCountries(brandProfileId, [country as CountryCode]);
         } catch (promptError) {
           console.warn('[MonitorCountries] Prompt generation failed (non-fatal):', promptError);
         }

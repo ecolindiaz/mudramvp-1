@@ -54,7 +54,6 @@ import { Separator } from "@/components/ui/separator"
 import { BrandProfileProvider, useBrandProfile } from "@/components/brand-profile-context"
 import { toast } from "sonner"
 import { trackEvent } from "@/lib/analytics/posthog-events"
-import { getLanguageForCountry, isAllowedCountry, type CountryCode } from "@/lib/geo/country-config"
 import { safeParseArray } from "@/lib/utils/safe-parse-array"
 
 type TrackedPrompt = {
@@ -876,7 +875,7 @@ function TrackedPromptsPageInner() {
     setIsAdding(true)
 
     try {
-      const lang = selectedCountry && isAllowedCountry(selectedCountry) ? getLanguageForCountry(selectedCountry as CountryCode) : 'en'
+      // Server derives language from country, so only send country.
       const response = await fetch('/api/prompts/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -885,7 +884,6 @@ function TrackedPromptsPageInner() {
           category: capturedIntent,
           brandProfileId: profile.id,
           runAnalysis: capturedRunAnalysis, // BUG-3: Pass immediate analysis flag
-          language: lang,
           country: selectedCountry || 'US',
         }),
       })
@@ -1005,20 +1003,21 @@ function TrackedPromptsPageInner() {
     if (selected.length === 0 || !profile?.id) return
 
     setIsAddingRecommended(true)
-    const lang = selectedCountry && isAllowedCountry(selectedCountry) ? getLanguageForCountry(selectedCountry as CountryCode) : 'en'
 
     for (const rec of selected) {
       try {
+        // Server derives language from country, so only send country.
+        // Fall back to 'US' on empty string — Zod's .default() only
+        // handles undefined, not "".
         await fetch("/api/prompts/add", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             promptText: rec.prompt,
             category: rec.intent,
-            brandProfileId: String(profile.id),
+            brandProfileId: profile.id,
             runAnalysis: true,
-            language: lang,
-            country: selectedCountry,
+            country: selectedCountry || 'US',
           }),
         })
       } catch (err) {
@@ -1058,7 +1057,7 @@ function TrackedPromptsPageInner() {
     setIsAiGenerating(true)
 
     try {
-      const lang = selectedCountry && isAllowedCountry(selectedCountry) ? getLanguageForCountry(selectedCountry as CountryCode) : 'en'
+      // Server derives language from country, so only send country.
       const response = await fetch('/api/prompts/batch-generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1066,7 +1065,7 @@ function TrackedPromptsPageInner() {
           brandProfileId: profile.id,
           description: aiDescription,
           count: aiCount,
-          language: lang,
+          country: selectedCountry || 'US',
           brandInfo: {
             companyName: profile.companyName || '',
             companyDescription: profile.companyDescription || '',

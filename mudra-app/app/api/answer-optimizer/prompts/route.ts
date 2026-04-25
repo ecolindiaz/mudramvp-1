@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithBrandAccess } from '@/lib/auth/require-auth';
 import { prisma } from '@/lib/prisma';
-import { getLanguageForCountry, isAllowedCountry, type CountryCode } from '@/lib/geo/country-config';
+import { isAllowedCountry, type CountryCode } from '@/lib/geo/country-config';
 
 export async function GET(request: NextRequest) {
   const brandProfileId = request.nextUrl.searchParams.get('brandProfileId');
@@ -16,22 +16,23 @@ export async function GET(request: NextRequest) {
   if (!authResult.success) return authResult.response;
 
   const countryFilter = request.nextUrl.searchParams.get('country');
-  const language = countryFilter && isAllowedCountry(countryFilter as CountryCode)
-    ? getLanguageForCountry(countryFilter as CountryCode)
-    : undefined;
+  const countryScope = countryFilter && isAllowedCountry(countryFilter as CountryCode)
+    ? { country: countryFilter }
+    : {};
 
   const parsedBrandProfileId = authResult.brandProfileId!;
   const prompts = await prisma.prompt.findMany({
     where: {
       brandProfileId: parsedBrandProfileId,
       isActive: true,
-      ...(language ? { language } : {}),
+      ...countryScope,
     },
     select: {
       id: true,
       text: true,
       category: true,
       language: true,
+      country: true,
     },
     orderBy: { createdAt: 'desc' },
   });

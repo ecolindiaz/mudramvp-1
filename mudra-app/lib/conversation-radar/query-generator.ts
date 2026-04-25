@@ -626,12 +626,12 @@ const DEFAULT_SUBREDDITS = ['technology', 'Entrepreneur', 'startups', 'SaaS', 'b
 const SPANISH_TOPIC_MAPPINGS: TopicMapping[] = [
   {
     keywords: ['inteligencia artificial', 'aprendizaje automático', 'redes neuronales', 'aprendizaje profundo'],
-    subreddits: ['IntelligenciaArtificial', 'artificial', 'MachineLearning', 'LocalLLaMA', 'programacion'],
+    subreddits: ['InteligenciaArtificial', 'artificial', 'MachineLearning', 'LocalLLaMA', 'programacion'],
     priority: 90,
   },
   {
     keywords: ['llm', 'chatgpt', 'modelo de lenguaje', 'modelo de lenguaje grande'],
-    subreddits: ['IntelligenciaArtificial', 'artificial', 'ChatGPT', 'LocalLLaMA', 'programacion'],
+    subreddits: ['InteligenciaArtificial', 'artificial', 'ChatGPT', 'LocalLLaMA', 'programacion'],
     priority: 85,
   },
   {
@@ -696,12 +696,12 @@ const SPANISH_TOPIC_MAPPINGS: TopicMapping[] = [
   },
   {
     keywords: ['búsqueda', 'motor de búsqueda', 'búsqueda web', 'búsqueda semántica'],
-    subreddits: ['programacion', 'IntelligenciaArtificial', 'LocalLLaMA', 'AI_Agents'],
+    subreddits: ['programacion', 'InteligenciaArtificial', 'LocalLLaMA', 'AI_Agents'],
     priority: 85,
   },
   {
     keywords: ['gpu', 'inferencia', 'desplegar modelo', 'despliegue', 'servir modelos'],
-    subreddits: ['IntelligenciaArtificial', 'LocalLLaMA', 'programacion', 'devsarg'],
+    subreddits: ['InteligenciaArtificial', 'LocalLLaMA', 'programacion', 'devsarg'],
     priority: 85,
   },
   {
@@ -721,7 +721,7 @@ const SPANISH_TOPIC_MAPPINGS: TopicMapping[] = [
   },
   {
     keywords: ['agente de voz', 'voz ia', 'call center', 'soporte postventa', 'centro de llamadas'],
-    subreddits: ['IntelligenciaArtificial', 'emprendedores', 'programacion', 'SaaS'],
+    subreddits: ['InteligenciaArtificial', 'emprendedores', 'programacion', 'SaaS'],
     priority: 85,
   },
   {
@@ -736,7 +736,7 @@ const SPANISH_TOPIC_MAPPINGS: TopicMapping[] = [
   },
   {
     keywords: ['evaluación', 'evaluar', 'benchmark', 'modelo fundacional', 'modelo base'],
-    subreddits: ['IntelligenciaArtificial', 'MachineLearning', 'LocalLLaMA', 'programacion'],
+    subreddits: ['InteligenciaArtificial', 'MachineLearning', 'LocalLLaMA', 'programacion'],
     priority: 85,
   },
   // Country / region catch-alls — surface posts from LATAM country subs for
@@ -797,7 +797,7 @@ const SPANISH_ONLY_SUBREDDITS: ReadonlySet<string> = new Set([
   'vosotros', 'podemos',
   // Spanish-language niche
   'programacion', 'devsarg', 'chileIT', 'MexicoIT',
-  'IntelligenciaArtificial',
+  'InteligenciaArtificial',
   'merval', 'MexicoFinanciero', 'FinanzasChile', 'finanzas_personales',
   'emprendedores', 'Emprendimiento',
   'MarketingDigitalES', 'marketing_es',

@@ -91,8 +91,8 @@ export async function POST(request: NextRequest) {
           data: {
             text: trimmedText,
             category: canonicalCategory,
-            language: language || 'en',
-            country: country,
+            language,
+            country,
             isCustom: true,
             isActive: true,
             brandProfileId: brandProfileId,
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       const prismaError = error as { code?: string; message?: string }
       if (prismaError.code === 'P2021' || prismaError.message?.includes('does not exist') || prismaError.code === 'P2003') {
         console.log('⚠️ Prisma client error, using raw SQL fallback...')
-        newPrompt = await createPromptWithRawSQL(brandProfileId, trimmedText, canonicalCategory, language || 'en', country || 'US')
+        newPrompt = await createPromptWithRawSQL(brandProfileId, trimmedText, canonicalCategory, language, country)
       } else {
         throw error
       }
@@ -181,8 +181,8 @@ async function createPromptWithRawSQL(
   brandProfileId: number,
   text: string,
   category: string,
-  language: string = 'en',
-  country: string = 'US'
+  language: string,
+  country: string,
 ): Promise<{
   id: number
   text: string
@@ -229,7 +229,7 @@ async function createPromptWithRawSQL(
     updatedAt: Date
   }>>(
     Prisma.sql`INSERT INTO "prompts" (text, category, language, country, "isCustom", "isActive", "brandProfileId", "createdAt", "updatedAt")
-     VALUES (${text}, ${category}, ${language || 'en'}, ${country || 'US'}, true, true, ${brandProfileId}, NOW(), NOW())
+     VALUES (${text}, ${category}, ${language}, ${country}, true, true, ${brandProfileId}, NOW(), NOW())
      RETURNING id, text, category, language, country, "isCustom", "isActive", "createdAt", "updatedAt"`
   )
 

@@ -7,8 +7,8 @@
 -- whose scan picked it up). For pre-existing rows we approximate by
 -- choosing a sensible country from the brand's tracked set.
 
--- 1. Add nullable column for backfill
-ALTER TABLE "conversation_opportunities" ADD COLUMN "country" TEXT;
+-- 1. Add nullable column for backfill (idempotent so partial re-runs are safe)
+ALTER TABLE "conversation_opportunities" ADD COLUMN IF NOT EXISTS "country" TEXT;
 
 -- 2. Prefer primaryCountry when its language matches
 UPDATE "conversation_opportunities" o
@@ -71,13 +71,17 @@ WHERE old_row."brandProfileId" = newer_row."brandProfileId"
 
 -- 8. Swap unique constraint from (brandProfileId, postUrl, language) to
 --    (brandProfileId, postUrl, country). Same URL can now be tracked
---    once per country a brand monitors.
+--    once per country a brand monitors. DROP-then-ADD on the new
+--    constraint too so this is safe to re-run after a partial deploy
+--    (Postgres has no ADD CONSTRAINT IF NOT EXISTS).
 ALTER TABLE "conversation_opportunities"
   DROP CONSTRAINT IF EXISTS "conversation_opportunities_brandProfileId_postUrl_language_key";
+ALTER TABLE "conversation_opportunities"
+  DROP CONSTRAINT IF EXISTS "conversation_opportunities_brandProfileId_postUrl_country_key";
 ALTER TABLE "conversation_opportunities"
   ADD CONSTRAINT "conversation_opportunities_brandProfileId_postUrl_country_key"
   UNIQUE ("brandProfileId", "postUrl", "country");
 
 -- 9. Index for country-scoped lookups
-CREATE INDEX "conversation_opportunities_brandProfileId_country_status_idx"
+CREATE INDEX IF NOT EXISTS "conversation_opportunities_brandProfileId_country_status_idx"
   ON "conversation_opportunities" ("brandProfileId", "country", "status");

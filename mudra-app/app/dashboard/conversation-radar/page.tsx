@@ -378,11 +378,11 @@ function ConversationRadarPageInner() {
                           ) : (
                             <Languages className="w-3.5 h-3.5" />
                           )}
-                          <span>Español only {strictLanguageEnabled ? 'on' : 'off'}</span>
+                          <span>Brand: Español only {strictLanguageEnabled ? 'on' : 'off'}</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent sideOffset={8} className="max-w-xs">
-                        When on, the radar only searches Spanish-language subreddits (r/Colombia, r/argentina, r/programacion, etc.). Turn off to include English subs too.
+                        Brand-wide setting (applies to every Spanish-speaking country this brand tracks). When on, the radar only searches Spanish-language subreddits — r/Colombia, r/argentina, r/programacion, etc. Turn off to include English subs too.
                       </TooltipContent>
                     </Tooltip>
                   )}

@@ -8,7 +8,7 @@ import {
   calculatePerPromptScore,
   type PromptTestResult
 } from '@/lib/services/visibility-scoring.service'
-import { getLanguageForCountry, isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
+import { isAllowedCountry, type CountryCode } from '@/lib/geo/country-config'
 import { normalizePromptText } from '@/lib/services/prompt-analyses-prune.service'
 
 /**
@@ -19,7 +19,7 @@ import { normalizePromptText } from '@/lib/services/prompt-analyses-prune.servic
  */
 export async function GET(request: NextRequest) {
   let profileId: number = NaN
-  let promptLanguageFilter: string | undefined = undefined
+  let promptCountryFilter: string | undefined = undefined
 
   try {
     const session = await getServerSession(authOptions)
@@ -195,20 +195,13 @@ export async function GET(request: NextRequest) {
       // Continue processing with allAnalysisResults (skip the early return below)
     }
 
-    // Prompts are now per-country, so filter by country directly instead of
-    // deriving a language filter. If the GeoAnalysisResult lookup fell back
-    // to all countries (effectiveCountryFilter === null), we still want the
-    // prompt list scoped to the user's selected country — otherwise Colombia
-    // and Argentina would share rows again. Fall back to language only as a
-    // safety net for legacy brands that haven't been through the country
-    // migration yet.
-    let promptCountryFilter: string | undefined
+    // Prompts are per-country, so filter by country directly. Even if
+    // the GeoAnalysisResult lookup fell back to all countries
+    // (effectiveCountryFilter === null), we still want the prompt list
+    // scoped to the user's selected country — otherwise Colombia and
+    // Argentina would share rows again.
     if (countryFilter && isAllowedCountry(countryFilter as CountryCode)) {
       promptCountryFilter = countryFilter
-      promptLanguageFilter = getLanguageForCountry(countryFilter as CountryCode)
-    } else {
-      promptCountryFilter = undefined
-      promptLanguageFilter = undefined
     }
 
     // Helper function to get and return prompts without results
@@ -221,7 +214,7 @@ export async function GET(request: NextRequest) {
             where: {
               brandProfileId: profileId,
               isActive: true,
-              ...(promptCountryFilter ? { country: promptCountryFilter } : (promptLanguageFilter ? { language: promptLanguageFilter } : {})),
+              ...(promptCountryFilter ? { country: promptCountryFilter } : {}),
             },
             orderBy: [
               { category: 'asc' },
@@ -246,7 +239,7 @@ export async function GET(request: NextRequest) {
               Prisma.sql`SELECT id, text, category, "isCustom", "isActive", "editedByUser", "editedAt", "createdAt", "updatedAt"
                FROM prompts
                WHERE "brandProfileId" = ${profileId} AND "isActive" = true
-               ${promptCountryFilter ? Prisma.sql`AND "country" = ${promptCountryFilter}` : (promptLanguageFilter ? Prisma.sql`AND "language" = ${promptLanguageFilter}` : Prisma.empty)}
+               ${promptCountryFilter ? Prisma.sql`AND "country" = ${promptCountryFilter}` : Prisma.empty}
                ORDER BY category ASC, "createdAt" ASC`
             )
             allPrompts = rawPrompts.map(p => ({
@@ -438,9 +431,7 @@ export async function GET(request: NextRequest) {
     // Also get inactive (soft-deleted) prompts to avoid resurrecting them as synthetic records
     let deletedPrompts: any[] = []
     try {
-      const promptScope = promptCountryFilter
-        ? { country: promptCountryFilter }
-        : (promptLanguageFilter ? { language: promptLanguageFilter } : {})
+      const promptScope = promptCountryFilter ? { country: promptCountryFilter } : {}
       allPrompts = await prisma.prompt.findMany({
         where: {
           brandProfileId: profileId,
@@ -800,7 +791,7 @@ export async function GET(request: NextRequest) {
           where: {
             brandProfileId: profileId,
             isActive: true,
-            ...(promptLanguageFilter ? { language: promptLanguageFilter } : {}),
+            ...(promptCountryFilter ? { country: promptCountryFilter } : {}),
           },
           orderBy: [
             { category: 'asc' },

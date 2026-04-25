@@ -57,19 +57,26 @@ export async function generateAndSaveInitialPromptsForCountries(
 
     for (const country of countries) {
       const language = COUNTRY_LANGUAGE_MAP[country]
+      // Texts already saved for this country — used to dedupe the
+      // partial-seed case (1–9 existing prompts) so we don't re-insert
+      // copies of prompts a previous run already saved.
+      let existingTexts = new Set<string>()
 
       try {
-        const existingCount = await prisma.prompt.count({
-          where: { brandProfileId, country, isActive: true }
+        const existing = await prisma.prompt.findMany({
+          where: { brandProfileId, country, isActive: true },
+          orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
         })
-        if (existingCount >= 10) {
-          console.log(`⏭️ Skipping ${country} prompt generation — ${existingCount} prompts already exist`)
-          const existing = await prisma.prompt.findMany({
-            where: { brandProfileId, country, isActive: true },
-            orderBy: [{ category: 'asc' }, { createdAt: 'asc' }]
-          })
+        if (existing.length >= 10) {
+          console.log(`⏭️ Skipping ${country} prompt generation — ${existing.length} prompts already exist`)
           allPrompts.push(...existing)
           continue
+        }
+        if (existing.length > 0) {
+          // Surface the partial set in the return value so callers see
+          // every prompt this country has, not just the new ones.
+          allPrompts.push(...existing)
+          existingTexts = new Set(existing.map(p => p.text))
         }
       } catch {
         // Table may not exist, proceed to generate
@@ -81,7 +88,19 @@ export async function generateAndSaveInitialPromptsForCountries(
         generationCache.set(language, generatedPrompts)
       }
 
-      const promptsToSave = generatedPrompts.map(p => ({
+      // Drop generated prompts whose text already lives in this country.
+      // Without this, a partial-set country (1–9 rows) would accumulate
+      // duplicates every time the onboarding endpoint is retried.
+      const fresh = existingTexts.size > 0
+        ? generatedPrompts.filter(p => !existingTexts.has(p.text))
+        : generatedPrompts
+
+      if (fresh.length === 0) {
+        console.log(`⏭️ All ${generatedPrompts.length} generated prompts for ${country} already exist, nothing to save`)
+        continue
+      }
+
+      const promptsToSave = fresh.map(p => ({
         brandProfileId,
         text: p.text,
         category: p.category,

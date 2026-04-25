@@ -1015,7 +1015,7 @@ function TrackedPromptsPageInner() {
           body: JSON.stringify({
             promptText: rec.prompt,
             category: rec.intent,
-            brandProfileId: String(profile.id),
+            brandProfileId: profile.id,
             runAnalysis: true,
             country: selectedCountry || 'US',
           }),

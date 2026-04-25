@@ -142,36 +142,49 @@ function getMentionedPrompts(results: Array<{ analyses: unknown }>): Set<string>
 }
 
 /**
- * AI Visibility mapper — uses ALL-TIME aggregate (matches dashboard display)
- * for current/previous scores, and week-based comparison for newly-mentioned prompts.
+ * AI Visibility mapper — rolling-window methodology that matches the dashboard KPI cards.
  *
- * Current  = calculateAggregateFromResults(allResults)       → matches dashboard
- * Previous = calculateAggregateFromResults(results < weekStart) → pre-week aggregate
- * Newly-mentioned = getMentionedPrompts(thisWeek) - getMentionedPrompts(priorToWeek)
+ * Current  = aggregate of results in [weekStart, weekStart + windowDays)
+ * Previous = aggregate of results in [weekStart - windowDays, weekStart)
+ * Country  = optional filter so the base summary aligns with the dashboard's
+ *            default country selection (brand primaryCountry). The live country
+ *            overlay in /api/nlr/latest still handles user-initiated country switches.
+ *
+ * Newly-mentioned prompts are computed by comparing the same two windows.
  */
 export async function mapAiVisibility(
   bpIds: number[],
-  weekStartUtc: Date | string
+  weekStartUtc: Date | string,
+  options: { windowDays?: number; country?: string } = {}
 ): Promise<AiVisibilitySummary | null> {
+  const windowDays = options.windowDays ?? 7;
   const weekStart = new Date(weekStartUtc);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + windowDays);
+  const prevStart = new Date(weekStart);
+  prevStart.setUTCDate(prevStart.getUTCDate() - windowDays);
 
   if (bpIds.length === 0) return null;
 
-  // Fetch ALL GeoAnalysisResults (no date filter) — matches dashboard aggregate
-  const allResults = await prisma.geoAnalysisResult.findMany({
-    where: { brandProfileId: { in: bpIds } },
-    orderBy: { timestamp: "desc" },
-  });
+  const baseWhere = {
+    brandProfileId: { in: bpIds },
+    ...(options.country ? { country: options.country } : {}),
+  } as const;
 
-  if (allResults.length === 0) return null;
+  const [thisWeekResults, priorResults] = await Promise.all([
+    prisma.geoAnalysisResult.findMany({
+      where: { ...baseWhere, timestamp: { gte: weekStart, lt: weekEnd } },
+      orderBy: { timestamp: "desc" },
+    }),
+    prisma.geoAnalysisResult.findMany({
+      where: { ...baseWhere, timestamp: { gte: prevStart, lt: weekStart } },
+      orderBy: { timestamp: "desc" },
+    }),
+  ]);
 
-  // Split into pre-week and this-week for previous score and prompt detection
-  const priorResults = allResults.filter((r) => r.timestamp < weekStart);
-  const thisWeekResults = allResults.filter((r) => r.timestamp >= weekStart);
+  if (thisWeekResults.length === 0 && priorResults.length === 0) return null;
 
-  // Current = all-time aggregate (matches dashboard)
-  const currentAggregate = calculateAggregateFromResults(allResults);
-  // Previous = all-time aggregate as of before this week
+  const currentAggregate = calculateAggregateFromResults(thisWeekResults);
   const prevAggregate = priorResults.length > 0
     ? calculateAggregateFromResults(priorResults)
     : { overallScore: null, averagePosition: null };
@@ -179,7 +192,7 @@ export async function mapAiVisibility(
   const scoreDelta = pctDelta(currentAggregate.overallScore, prevAggregate.overallScore);
   const positionDelta = pctDelta(currentAggregate.averagePosition, prevAggregate.averagePosition);
 
-  // Build notes: detect newly mentioned prompts (week-based comparison)
+  // Build notes: detect newly mentioned prompts (same windowing as the scores)
   const notes: string[] = [];
 
   const thisWeekMentioned = getMentionedPrompts(thisWeekResults);
@@ -196,8 +209,18 @@ export async function mapAiVisibility(
     notes.push(`AI visibility score declined by ${Math.abs(scoreDelta.absolute ?? 0)} points.`);
   }
 
+  // "First week" note: only emit if there is truly no AI visibility history
+  // before this window. Since priorResults is now scoped to the previous
+  // windowDays, an empty priorResults could just mean a one-week gap for a
+  // brand with months of history — check the full pre-window history before
+  // emitting a misleading "first week" message.
   if (thisWeekResults.length > 0 && priorResults.length === 0) {
-    notes.push("First week with AI visibility data — no previous comparison available.");
+    const preWindowCount = await prisma.geoAnalysisResult.count({
+      where: { ...baseWhere, timestamp: { lt: prevStart } },
+    });
+    if (preWindowCount === 0) {
+      notes.push("First week with AI visibility data — no previous comparison available.");
+    }
   }
 
   return {

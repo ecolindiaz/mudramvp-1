@@ -630,6 +630,7 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
 
     // Call DirectGEO service directly (avoids HTTP auth issues)
     const geoConfig = createDirectGEOConfig(config.brandName, config.website, {
+      brandProfileId: config.brandProfileId,
       industry: config.industry || '',
       description: config.description || '',
       competitors: competitorNames,

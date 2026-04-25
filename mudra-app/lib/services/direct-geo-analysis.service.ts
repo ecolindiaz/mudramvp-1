@@ -1,5 +1,6 @@
 import { generateInitialPrompts, profileToBrandInfo } from './prompt-generation.service';
 import { validateCompetitors, quickValidateName, type ValidatedCompetitor } from './competitor-validation.service';
+import { applyCompetitorExclusions, getExcludedCompetitors, normalizeCompetitorName } from './competitor-exclusions.service';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -262,6 +263,7 @@ export interface Citation {
 
 export interface DirectGEOConfig {
   brandName: string;
+  brandProfileId?: number;         // When set, applies the user's "not a competitor" exclusion list at extraction time
   industry?: string;
   description?: string;
   competitors?: string[];
@@ -2780,6 +2782,13 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     a.promptTests.flatMap(t => t.competitors)
   );
 
+  // Load the user's "not a competitor" exclusion list once per run.
+  // Used in the happy-path filter below AND in the fallback safety net,
+  // so both paths share the same Set and hit the DB only once.
+  const excludedSet: Set<string> = config.brandProfileId
+    ? await getExcludedCompetitors(config.brandProfileId)
+    : new Set();
+
   // Run multi-stage competitor validation pipeline
   console.log('\n🔬 Running AI competitor validation pipeline...');
   let validatedCompetitors: ValidatedCompetitor[] = [];
@@ -2810,6 +2819,19 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
     }
 
     console.log(`✅ Validated ${validatedCompetitors.length} competitors with AI pipeline`);
+
+    // Drop any competitors the user has marked as "not a competitor" for this brand
+    // so they never get persisted into GeoAnalysisResult.analyses on this run.
+    if (excludedSet.size > 0) {
+      const before = validatedCompetitors.length;
+      validatedCompetitors = validatedCompetitors.filter(
+        c => !excludedSet.has(normalizeCompetitorName(c.name))
+      );
+      const dropped = before - validatedCompetitors.length;
+      if (dropped > 0) {
+        console.log(`🚫 Dropped ${dropped} user-excluded competitor${dropped > 1 ? 's' : ''} before storage`);
+      }
+    }
 
     // Update prompt tests to only include validated competitors
     const validatedNameSet = new Set(validatedCompetitors.map(c => c.name.toLowerCase()));
@@ -2847,6 +2869,18 @@ export async function runDirectGEOAnalysis(config: DirectGEOConfig): Promise<Dir
   } catch (error) {
     console.warn('⚠️ Competitor validation pipeline failed, using regex-filtered results:', error);
     // Fall back to existing competitors (already regex-filtered)
+  }
+
+  // Final safety net: even if the AI validation block above was skipped or threw,
+  // honor the user's "not a competitor" exclusions so they never reach storage.
+  if (excludedSet.size > 0) {
+    validatedCompetitors = validatedCompetitors.filter(
+      c => !excludedSet.has(normalizeCompetitorName(c.name))
+    );
+    applyCompetitorExclusions(
+      analyses.flatMap(a => a.promptTests),
+      excludedSet
+    );
   }
 
   // Recalculate competitor comparison with validated data
@@ -2921,6 +2955,7 @@ export function createDirectGEOConfig(
   brandName: string,
   website?: string,
   options: {
+    brandProfileId?: number;
     industry?: string;
     description?: string;
     competitors?: string[];
@@ -2934,6 +2969,7 @@ export function createDirectGEOConfig(
 
   return {
     brandName,
+    brandProfileId: options.brandProfileId,
     industry: options.industry || 'technology',
     description: options.description || `${brandName} is a company in the ${options.industry || 'technology'} industry`,
     competitors: options.competitors || [],

@@ -122,14 +122,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Handle Prisma errors - fallback to raw SQL for missing table
-      const prismaError = error as { code?: string; message?: string }
-      if (prismaError.code === 'P2021' || prismaError.message?.includes('does not exist') || prismaError.code === 'P2003') {
-        console.log('⚠️ Prisma client error, using raw SQL fallback...')
-        newPrompt = await createPromptWithRawSQL(brandProfileId, trimmedText, canonicalCategory, language, country)
-      } else {
-        throw error
-      }
+      throw error
     }
 
     console.log(`✅ Created custom prompt ${newPrompt.id} for brand profile ${brandProfileId}`)
@@ -173,82 +166,6 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     )
-  }
-}
-
-// === BUG-2 FIX: Use last_insert_rowid() instead of text matching ===
-async function createPromptWithRawSQL(
-  brandProfileId: number,
-  text: string,
-  category: string,
-  language: string,
-  country: string,
-): Promise<{
-  id: number
-  text: string
-  category: string | null
-  isCustom: boolean
-  isActive: boolean
-  createdAt: Date
-  updatedAt: Date
-  brandProfileId: number
-}> {
-  // First, verify brand profile exists
-  const profileCheck = await prisma.$queryRaw<Array<{ id: number }>>(
-    Prisma.sql`SELECT id FROM "BrandProfile" WHERE id = ${brandProfileId} LIMIT 1`
-  )
-  if (!profileCheck || profileCheck.length === 0) {
-    throw new Error(`Brand profile with id ${brandProfileId} does not exist. Please create a brand profile first.`)
-  }
-
-  // Check duplicate scoped by country (AR and CO can hold the same text)
-  const duplicateCheck = await prisma.$queryRaw<Array<{ id: number }>>(
-    Prisma.sql`SELECT id FROM "prompts" WHERE "brandProfileId" = ${brandProfileId} AND text = ${text} AND country = ${country} AND "isActive" = true LIMIT 1`
-  )
-  if (duplicateCheck && duplicateCheck.length > 0) {
-    throw new Error('DUPLICATE_PROMPT:A prompt with this exact text already exists')
-  }
-
-  // Count scoped per-country
-  const countResult = await prisma.$queryRaw<Array<{ count: bigint }>>(
-    Prisma.sql`SELECT COUNT(*) as count FROM "prompts" WHERE "brandProfileId" = ${brandProfileId} AND "isActive" = true AND country = ${country}`
-  )
-  const count = Number(countResult[0]?.count || 0)
-  if (count >= MAX_ACTIVE_PROMPTS) {
-    throw new Error(`MAX_PROMPTS_REACHED:Maximum ${MAX_ACTIVE_PROMPTS} active prompts per country. Please delete a prompt before adding a new one.`)
-  }
-
-  // Insert and get ID using RETURNING clause (PostgreSQL)
-  const insertResult = await prisma.$queryRaw<Array<{
-    id: number
-    text: string
-    category: string | null
-    isCustom: boolean
-    isActive: boolean
-    createdAt: Date
-    updatedAt: Date
-  }>>(
-    Prisma.sql`INSERT INTO "prompts" (text, category, language, country, "isCustom", "isActive", "brandProfileId", "createdAt", "updatedAt")
-     VALUES (${text}, ${category}, ${language}, ${country}, true, true, ${brandProfileId}, NOW(), NOW())
-     RETURNING id, text, category, language, country, "isCustom", "isActive", "createdAt", "updatedAt"`
-  )
-
-  if (!insertResult || insertResult.length === 0) {
-    throw new Error('Failed to create prompt')
-  }
-
-  const created = insertResult[0]
-  console.log(`✅ Created prompt using raw SQL with RETURNING: ${created.id}`)
-
-  return {
-    id: created.id,
-    text: created.text,
-    category: created.category,
-    isCustom: Boolean(created.isCustom),
-    isActive: Boolean(created.isActive),
-    createdAt: new Date(created.createdAt),
-    updatedAt: new Date(created.updatedAt),
-    brandProfileId: brandProfileId
   }
 }
 

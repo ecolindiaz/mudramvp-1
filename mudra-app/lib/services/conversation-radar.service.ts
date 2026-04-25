@@ -70,6 +70,12 @@ interface DiscoveredViaItem {
  * - LinkedIn Apify actor doesn't support URL scraping (only keyword search)
  * - Perplexity citations may include LinkedIn URLs, but we can't fetch their content
  */
+// Cited mode follows specific URLs the LLM cited from a country-scoped
+// analysis run, so it does NOT honor BrandProfile.strictLanguageFilter
+// — that toggle only affects subreddit selection in proactive mode,
+// where we choose which subreddits to query. Filtering authoritative
+// citations by subreddit language would silently drop legitimate
+// mentions the user explicitly opted into via their AI visibility scan.
 export async function processCitedOpportunities(
   brandProfileId: number,
   analysisRunId: number,

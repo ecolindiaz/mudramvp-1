@@ -1050,8 +1050,10 @@ model ConversationOpportunity {
   // Quality metrics
   qualityScore             Float?
 
-  // Language (matches Prompt model pattern)
+  // Language + country (country is the per-monitor scope; language is
+  // derivable from country but kept for downstream filters).
   language                 String       @default("en")
+  country                  String       @default("US")  // ISO code: matches Prompt.country
 
   // Timestamps
   createdAt                DateTime     @default(now())
@@ -1060,10 +1062,13 @@ model ConversationOpportunity {
   // Relations
   brandProfile             BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
 
-  @@unique([brandProfileId, postUrl, language])
+  // Same Reddit URL can exist as separate opportunities for each country
+  // a brand tracks (CO scan and AR scan are independent observations).
+  @@unique([brandProfileId, postUrl, country])
   @@index([brandProfileId])
   @@index([brandProfileId, status])
   @@index([brandProfileId, language, status])
+  @@index([brandProfileId, country, status])
   @@index([brandProfileId, relevanceScore])
   @@index([status])
   @@index([createdAt])

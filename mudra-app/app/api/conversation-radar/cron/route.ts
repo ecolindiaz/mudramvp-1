@@ -216,17 +216,20 @@ async function runCombinedMode(
   const latestAnalysis = await getLatestAnalysisRun(brandProfileId, country);
   if (latestAnalysis) {
     console.log(`[Cron] Running cited search for brand ${brandProfileId} (${scopeLabel}, max: 2)`);
-    const citedResult = await processCitedOpportunities(brandProfileId, latestAnalysis.id, { maxCitations: 2, language });
+    const citedResult = await processCitedOpportunities(brandProfileId, latestAnalysis.id, { maxCitations: 2, language, country });
     citedCreated = citedResult.created;
   } else {
     console.log(`[Cron] No analysis run found for brand ${brandProfileId} (${scopeLabel}), skipping cited`);
   }
 
-  // 3. Analyze new opportunities (analyze all new ones from this run)
+  // 3. Analyze new opportunities for this country only — without the
+  // country filter, two countries that share a language would compete
+  // for the same analysis budget on a single cron tick.
   const analysisResult = await analyzeNewOpportunities(brandProfileId, {
     limit: 5, // Analyze up to 5 (1 proactive + 2 cited + buffer)
     minRelevanceScore: 30,
     language,
+    country,
   });
 
   console.log(`[Cron] Combined results (${scopeLabel}): ${proactiveCreated} proactive, ${citedCreated} cited, ${analysisResult.analyzed} analyzed`);
@@ -256,12 +259,13 @@ async function runCitedMode(
     return { created: 0, analyzed: 0 };
   }
 
-  const citedResult = await processCitedOpportunities(brandProfileId, latestAnalysis.id, { maxCitations: 2, language });
+  const citedResult = await processCitedOpportunities(brandProfileId, latestAnalysis.id, { maxCitations: 2, language, country });
 
   const analysisResult = await analyzeNewOpportunities(brandProfileId, {
     limit: SCHEDULER_CONFIG.cited.llmAnalysisLimit,
     minRelevanceScore: 30,
     language,
+    country,
   });
 
   return {
@@ -305,6 +309,7 @@ async function runProactiveMode(
     limit: SCHEDULER_CONFIG.proactive.llmAnalysisLimit,
     minRelevanceScore: 25,
     language,
+    country,
   });
 
   return {

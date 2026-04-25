@@ -67,11 +67,12 @@ export async function POST(req: NextRequest) {
     let citedStats = { created: 0, skipped: 0, errors: 0 };
     const latestRun = await getLatestAnalysisRun(brandProfileId, validCountry);
     if (latestRun) {
-      citedStats = await processCitedOpportunities(brandProfileId, latestRun.id, { language });
+      citedStats = await processCitedOpportunities(brandProfileId, latestRun.id, { language, country: validCountry });
     }
 
-    // 3. Analyze new unanalyzed opportunities with LLM
-    const analysisResult = await analyzeNewOpportunities(brandProfileId, { limit: 5, language });
+    // 3. Analyze new unanalyzed opportunities with LLM, scoped to this
+    // country so multi-country brands don't burn budget across regions.
+    const analysisResult = await analyzeNewOpportunities(brandProfileId, { limit: 5, language, country: validCountry });
 
     // 4. Stamp lastRadarRunAt (initializes cycle on first click, resets on subsequent)
     await updateLastRadarRun(brandProfileId);

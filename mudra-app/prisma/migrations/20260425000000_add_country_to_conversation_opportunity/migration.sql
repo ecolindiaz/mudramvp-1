@@ -56,7 +56,20 @@ UPDATE "conversation_opportunities" SET "country" = 'US' WHERE "country" IS NULL
 ALTER TABLE "conversation_opportunities" ALTER COLUMN "country" SET NOT NULL;
 ALTER TABLE "conversation_opportunities" ALTER COLUMN "country" SET DEFAULT 'US';
 
--- 7. Swap unique constraint from (brandProfileId, postUrl, language) to
+-- 7. Pre-constraint dedup. The backfill above can collapse rows that
+--    were previously unique by language onto the same country (e.g. a
+--    brand with primaryCountry='US' and no es-tracking has both 'en'
+--    and 'es' rows for one postUrl bucketed under 'US' by step 2 and
+--    step 4 respectively). Adding the unique constraint would fail.
+--    Keep the most recent observation (highest id) and drop the rest.
+DELETE FROM "conversation_opportunities" old_row
+USING "conversation_opportunities" newer_row
+WHERE old_row."brandProfileId" = newer_row."brandProfileId"
+  AND old_row."postUrl" = newer_row."postUrl"
+  AND old_row."country" = newer_row."country"
+  AND old_row."id" < newer_row."id";
+
+-- 8. Swap unique constraint from (brandProfileId, postUrl, language) to
 --    (brandProfileId, postUrl, country). Same URL can now be tracked
 --    once per country a brand monitors.
 ALTER TABLE "conversation_opportunities"
@@ -65,6 +78,6 @@ ALTER TABLE "conversation_opportunities"
   ADD CONSTRAINT "conversation_opportunities_brandProfileId_postUrl_country_key"
   UNIQUE ("brandProfileId", "postUrl", "country");
 
--- 8. Index for country-scoped lookups
+-- 9. Index for country-scoped lookups
 CREATE INDEX "conversation_opportunities_brandProfileId_country_status_idx"
   ON "conversation_opportunities" ("brandProfileId", "country", "status");

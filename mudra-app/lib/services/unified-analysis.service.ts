@@ -574,6 +574,19 @@ async function runGeoAnalysisCore(config: UnifiedAnalysisConfig, onProgress?: On
         : allPrompts;
     }
 
+    // When country is undefined we filtered by language only, which for
+    // a brand tracking CO + AR (both 'es') returns each prompt twice
+    // (once per country, post fan-out). Dedupe by text so we don't
+    // double-bill the AI providers analysing the same prompt twice.
+    if (!country && prompts.length > 1) {
+      const seen = new Set<string>();
+      prompts = prompts.filter(p => {
+        if (seen.has(p.text)) return false;
+        seen.add(p.text);
+        return true;
+      });
+    }
+
     onProgress?.({ phase: 'prompts', status: 'completed', data: { count: prompts.length } });
 
     // Create analysis run

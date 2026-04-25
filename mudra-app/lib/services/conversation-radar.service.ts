@@ -554,6 +554,32 @@ interface CreateOpportunityInput {
 }
 
 /**
+ * Pick a sensible country for a brand when an opportunity-creating
+ * caller didn't pass one. Prefers primaryCountry if its language
+ * matches, then the first matching trackingCountries entry, then
+ * primaryCountry regardless, then a hard-coded language→country
+ * fallback as last resort.
+ */
+async function resolveCountryForBrand(brandProfileId: number, language: 'en' | 'es'): Promise<string> {
+  const enCountries = new Set(['US', 'GB']);
+  const esCountries = new Set(['ES', 'MX', 'CO', 'AR', 'PE']);
+  const matches = (c: string) => language === 'en' ? enCountries.has(c) : esCountries.has(c);
+
+  const profile = await prisma.brandProfile.findUnique({
+    where: { id: brandProfileId },
+    select: { primaryCountry: true, trackingCountries: true },
+  });
+
+  if (profile?.primaryCountry && matches(profile.primaryCountry)) {
+    return profile.primaryCountry;
+  }
+  const tracked = (profile?.trackingCountries ?? []).find(matches);
+  if (tracked) return tracked;
+  if (profile?.primaryCountry) return profile.primaryCountry;
+  return language === 'es' ? 'ES' : 'US';
+}
+
+/**
  * Create or update a conversation opportunity in the database.
  * Upserts on (brandProfileId, postUrl, country) so each tracked country
  * gets its own opportunity row even when two countries discover the
@@ -579,9 +605,12 @@ async function createOrUpdateOpportunity(input: CreateOpportunityInput) {
   // Quality score for sorting
   const qualityScore = calculateQualityScore(post, platform);
 
-  // Default country from language when caller didn't pass one (e.g. an
-  // older code path that hasn't been threaded through yet).
-  const resolvedCountry = country ?? (language === 'es' ? 'ES' : 'US');
+  // Resolve country: prefer the explicit value from the caller; otherwise
+  // pick a country whose language matches by reading the brand profile.
+  // Without this, a Spanish-language opportunity from a CO/AR/MX brand
+  // would silently land in the 'ES' bucket and never show up in the
+  // country-scoped radar views.
+  const resolvedCountry = country ?? await resolveCountryForBrand(brandProfileId, language);
 
   return prisma.conversationOpportunity.upsert({
     where: {

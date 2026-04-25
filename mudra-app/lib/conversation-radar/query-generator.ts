@@ -807,6 +807,13 @@ const SPANISH_ONLY_SUBREDDITS: ReadonlySet<string> = new Set([
 const SPANISH_STRICT_DEFAULT_SUBREDDITS = ['programacion', 'espanol', 'emprendedores', 'AskLatinAmerica'];
 
 /**
+ * How many subreddits to target per generated search query. Reddit's
+ * subreddit-restricted search caps usefully around here — beyond ~4 we
+ * see diminishing relevance and pay extra Apify credits.
+ */
+const MAX_SUBREDDITS_PER_QUERY = 4;
+
+/**
  * Generate search queries with smart subreddit targeting
  * This is the key to getting ACCURATE results!
  *
@@ -858,7 +865,9 @@ export async function generateSearchQueries(
     // and fall back to Spanish-only defaults if nothing matches.
     if (strictLanguage && language === 'es') {
       const spanishOnly = subreddits.filter(s => SPANISH_ONLY_SUBREDDITS.has(s));
-      subreddits = spanishOnly.length > 0 ? spanishOnly : SPANISH_STRICT_DEFAULT_SUBREDDITS.slice(0, 4);
+      subreddits = spanishOnly.length > 0
+        ? spanishOnly.slice(0, MAX_SUBREDDITS_PER_QUERY)
+        : SPANISH_STRICT_DEFAULT_SUBREDDITS.slice(0, MAX_SUBREDDITS_PER_QUERY);
     }
 
     // Build search URLs for each subreddit
@@ -1019,13 +1028,13 @@ function detectRelevantSubreddits(prompt: string): string[] {
   
   // If no matches, use defaults
   if (matches.length === 0) {
-    return DEFAULT_SUBREDDITS.slice(0, 4);
+    return DEFAULT_SUBREDDITS.slice(0, MAX_SUBREDDITS_PER_QUERY);
   }
-  
+
   // Merge subreddits, prioritizing those from higher-priority matches
   // Use a Map to track the best priority for each subreddit
   const subredditPriority = new Map<string, number>();
-  
+
   for (const match of matches) {
     for (let i = 0; i < match.subreddits.length; i++) {
       const sub = match.subreddits[i];
@@ -1037,13 +1046,13 @@ function detectRelevantSubreddits(prompt: string): string[] {
       }
     }
   }
-  
-  // Sort by priority and return top 4
+
+  // Sort by priority and return the top N
   const sortedSubreddits = Array.from(subredditPriority.entries())
     .sort((a, b) => b[1] - a[1])
     .map(([sub]) => sub);
-  
-  return sortedSubreddits.slice(0, 4);
+
+  return sortedSubreddits.slice(0, MAX_SUBREDDITS_PER_QUERY);
 }
 
 /**
@@ -1071,7 +1080,7 @@ function detectSpanishSubreddits(prompt: string): string[] {
   }
 
   if (matches.length === 0) {
-    return SPANISH_DEFAULT_SUBREDDITS.slice(0, 4);
+    return SPANISH_DEFAULT_SUBREDDITS.slice(0, MAX_SUBREDDITS_PER_QUERY);
   }
 
   const subredditPriority = new Map<string, number>();
@@ -1091,7 +1100,7 @@ function detectSpanishSubreddits(prompt: string): string[] {
     .sort((a, b) => b[1] - a[1])
     .map(([sub]) => sub);
 
-  return sortedSubreddits.slice(0, 4);
+  return sortedSubreddits.slice(0, MAX_SUBREDDITS_PER_QUERY);
 }
 
 /**
